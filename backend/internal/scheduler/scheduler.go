@@ -17,6 +17,12 @@ import (
 // code before the write reaches the database.
 const MinInterval = time.Hour
 
+// defaultTickInterval is the polling cadence run falls back to when the
+// configured TickInterval is non-positive. It matches the code default in
+// config's defaults() ("scheduler.tick_interval: 1m") so the backstop and the
+// documented default never disagree.
+const defaultTickInterval = time.Minute
+
 // ValidateInterval returns an error when interval is below MinInterval.
 // Schedule writes should validate through this before hitting the repository,
 // where the DB CHECK constraint is the backstop.
@@ -93,7 +99,17 @@ func (s *Scheduler) Close() {
 func (s *Scheduler) run(ctx context.Context) {
 	defer s.wg.Done()
 
-	ticker := time.NewTicker(s.cfg.TickInterval)
+	// time.NewTicker panics on a non-positive interval. config's
+	// validateSchedulerConfig is the operator-facing check (a bad tick_interval
+	// fails startup with a named error); this fallback is the caller-bug
+	// backstop for a Scheduler constructed in code, mirroring how
+	// oauthserver's cleanupLoop guards its own interval.
+	interval := s.cfg.TickInterval
+	if interval <= 0 {
+		interval = defaultTickInterval
+	}
+
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	s.tick(ctx)

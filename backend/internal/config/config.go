@@ -986,6 +986,25 @@ func validateRetentionDays(yamlPath string, value int) error {
 	return nil
 }
 
+// validateSchedulerConfig enforces that the scheduler's loop knobs are usable.
+// tick_interval is the load-bearing one: time.NewTicker panics on a non-positive
+// duration, so a mounted config with `tick_interval: "0s"` would crash the
+// process at startup instead of reporting a configuration error. job_timeout and
+// due_limit are checked in the same place so the whole section fails closed —
+// a due_limit of 0 would silently claim nothing every tick.
+func validateSchedulerConfig(cfg *Config) error {
+	if cfg.Scheduler.TickInterval <= 0 {
+		return fmt.Errorf("scheduler.tick_interval must be positive, got %v", cfg.Scheduler.TickInterval)
+	}
+	if cfg.Scheduler.JobTimeout <= 0 {
+		return fmt.Errorf("scheduler.job_timeout must be positive, got %v", cfg.Scheduler.JobTimeout)
+	}
+	if cfg.Scheduler.DueLimit < 1 {
+		return fmt.Errorf("scheduler.due_limit must be >= 1, got %d", cfg.Scheduler.DueLimit)
+	}
+	return nil
+}
+
 // validateRateLimits enforces that every per-IP rate limit is positive; a
 // non-positive value would reject every request to the guarded route group.
 func validateRateLimits(cfg *Config) error {
@@ -1025,6 +1044,7 @@ func validateAll(cfg *Config) error {
 		validateEncryptionKey,
 		validateInstanceAdmins,
 		validateOAuthASConfig,
+		validateSchedulerConfig,
 		func(c *Config) error { return validateTrustedProxies(c.Server.TrustedProxies) },
 		func(c *Config) error { return validateOutboundAllowedCIDRs(c.Security.OutboundAllowedCIDRs) },
 	}
