@@ -1475,14 +1475,17 @@ type ScheduleRepository interface {
 	// UpdatedAt from the persisted row on return. Relies on the
 	// (team_id, job_type) unique constraint.
 	Upsert(ctx context.Context, s *models.Schedule) error
-	// ListDue returns schedules whose next_run_at is at or before now, ordered
-	// by next_run_at ascending (most overdue first), capped at limit.
-	ListDue(ctx context.Context, now time.Time, limit int) ([]*models.Schedule, error)
-	// MarkRun records a run of the schedule with the given id: sets
-	// last_run_at = ranAt and atomically advances next_run_at to
-	// ranAt + interval_seconds. Advancing from ranAt (not the old next_run_at)
-	// skips runs missed during downtime instead of catching them up.
-	MarkRun(ctx context.Context, id string, ranAt time.Time) error
+	// ListDue returns schedules whose next_run_at is at or before the database
+	// clock (now()), ordered by next_run_at ascending (most overdue first),
+	// capped at limit. Due-ness is computed by the database so all replicas
+	// agree on what is due regardless of app-server clock skew.
+	ListDue(ctx context.Context, limit int) ([]*models.Schedule, error)
+	// MarkRun records a run of the schedule with the given id against the
+	// database clock: sets last_run_at = now() and atomically advances
+	// next_run_at to now() + interval_seconds. Advancing from the run time (not
+	// the old next_run_at) skips runs missed during downtime instead of
+	// catching them up. It is an error when no schedule has the given id.
+	MarkRun(ctx context.Context, id string) error
 	// Delete removes the schedule for (teamID, jobType). It is not an error
 	// when no such schedule exists.
 	Delete(ctx context.Context, teamID, jobType string) error

@@ -72,13 +72,17 @@ func TestIntegrationSchedule_UpsertInsertThenUpdate(t *testing.T) {
 	assert.False(t, other.NextRunAt.IsZero(), "zero NextRunAt must default to now()")
 }
 
-func TestIntegrationSchedule_ListDueBoundaryOrderingAndLimit(t *testing.T) {
+func TestIntegrationSchedule_ListDueOrderingAndLimit(t *testing.T) {
 	resetIntegrationTables(t)
 	teamID := seedScheduleTeam(t)
 	repo := NewScheduleRepository(integrationDB)
 	ctx := context.Background()
 
-	now := time.Date(2026, 8, 8, 12, 0, 0, 0, time.UTC)
+	// Read the database clock: ListDue compares against now() in the database,
+	// so the test fixtures are anchored to it, not the app clock.
+	var dbNow time.Time
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT now()").Scan(&dbNow))
+
 	insert := func(jobType string, nextRunAt time.Time) *models.Schedule {
 		t.Helper()
 		s := &models.Schedule{
@@ -91,34 +95,42 @@ func TestIntegrationSchedule_ListDueBoundaryOrderingAndLimit(t *testing.T) {
 		return s
 	}
 
-	exactlyNow := insert("due_now", now) // boundary: <= now is due
-	overdue := insert("due_overdue", now.Add(-time.Hour))
-	insert("not_due", now.Add(time.Minute)) // not due
+	overdue := insert("due_overdue", dbNow.Add(-time.Hour))
+	justNow := insert("due_just_now", dbNow.Add(-time.Second)) // due (<= now)
+	insert("not_due", dbNow.Add(time.Hour))                    // future, not due
 
-	due, err := repo.ListDue(ctx, now, 10)
+	due, err := repo.ListDue(ctx, 10)
 	require.NoError(t, err)
 	require.Len(t, due, 2)
 	// Most overdue first.
 	assert.Equal(t, overdue.ID, due[0].ID)
-	assert.Equal(t, exactlyNow.ID, due[1].ID)
+	assert.Equal(t, justNow.ID, due[1].ID)
 
 	// Limit caps the result.
-	capped, err := repo.ListDue(ctx, now, 1)
+	capped, err := repo.ListDue(ctx, 1)
 	require.NoError(t, err)
 	require.Len(t, capped, 1)
 	assert.Equal(t, overdue.ID, capped[0].ID)
+}
 
-	// A moment before the boundary only the overdue row is due; timestamptz is
-	// microsecond-precision, so "exactly now" stays due at now - 1s.
-	beforeBoundary, err := repo.ListDue(ctx, now.Add(-time.Second), 10)
-	require.NoError(t, err)
-	require.Len(t, beforeBoundary, 1)
-	assert.Equal(t, overdue.ID, beforeBoundary[0].ID)
+func TestIntegrationSchedule_ListDueNotDueWhenFuture(t *testing.T) {
+	resetIntegrationTables(t)
+	teamID := seedScheduleTeam(t)
+	repo := NewScheduleRepository(integrationDB)
+	ctx := context.Background()
 
-	// Well before every row, nothing is due.
-	none, err := repo.ListDue(ctx, now.Add(-2*time.Hour), 10)
+	var dbNow time.Time
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT now()").Scan(&dbNow))
+
+	// Every row is in the future, so nothing is due.
+	require.NoError(t, repo.Upsert(ctx, &models.Schedule{
+		TeamID: teamID, JobType: "future", IntervalSeconds: 3600,
+		NextRunAt: dbNow.Add(time.Hour),
+	}))
+
+	due, err := repo.ListDue(ctx, 10)
 	require.NoError(t, err)
-	assert.Empty(t, none)
+	assert.Empty(t, due)
 }
 
 func TestIntegrationSchedule_ListDueUsesIndex(t *testing.T) {
@@ -149,7 +161,7 @@ func TestIntegrationSchedule_ListDueUsesIndex(t *testing.T) {
 		"due-selection must use the next_run_at index, got plan: %s", plan)
 }
 
-func TestIntegrationSchedule_MarkRunAdvancesFromRanAt(t *testing.T) {
+func TestIntegrationSchedule_MarkRunAdvancesFromDBClock(t *testing.T) {
 	resetIntegrationTables(t)
 	teamID := seedScheduleTeam(t)
 	repo := NewScheduleRepository(integrationDB)
@@ -159,25 +171,33 @@ func TestIntegrationSchedule_MarkRunAdvancesFromRanAt(t *testing.T) {
 		TeamID:          teamID,
 		JobType:         "freshness_evaluate",
 		IntervalSeconds: 3600,
-		NextRunAt:       time.Date(2026, 8, 8, 10, 0, 0, 0, time.UTC),
+		NextRunAt:       time.Now().Add(-time.Minute), // already overdue
 	}
 	require.NoError(t, repo.Upsert(ctx, s))
 
-	ranAt := time.Date(2026, 8, 8, 12, 30, 0, 0, time.UTC)
-	require.NoError(t, repo.MarkRun(ctx, s.ID, ranAt))
+	// Read the DB clock just before marking the run; MarkRun uses now() in the
+	// database, so last/next are anchored to it (within a small delta).
+	var before time.Time
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT now()").Scan(&before))
+	require.NoError(t, repo.MarkRun(ctx, s.ID))
+	var after time.Time
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT now()").Scan(&after))
 
 	var lastRunAt time.Time
 	var nextRunAt time.Time
 	require.NoError(t, integrationDB.QueryRowContext(ctx,
 		"SELECT last_run_at, next_run_at FROM schedules WHERE id = $1", s.ID,
 	).Scan(&lastRunAt, &nextRunAt))
-	assert.True(t, lastRunAt.Equal(ranAt), "last_run_at %v != %v", lastRunAt, ranAt)
-	// next_run_at advances from ranAt, not from the old next_run_at.
-	wantNext := ranAt.Add(time.Hour)
+
+	// last_run_at is the DB clock at mark time.
+	assert.False(t, lastRunAt.Before(before), "last_run_at %v before %v", lastRunAt, before)
+	assert.False(t, lastRunAt.After(after), "last_run_at %v after %v", lastRunAt, after)
+	// next_run_at advances one interval from the run time (DB clock).
+	wantNext := lastRunAt.Add(time.Hour)
 	assert.True(t, nextRunAt.Equal(wantNext), "next_run_at %v != %v", nextRunAt, wantNext)
 
 	// Unknown id is an error.
-	err := repo.MarkRun(ctx, uuid.New().String(), ranAt)
+	err := repo.MarkRun(ctx, uuid.New().String())
 	assert.Error(t, err)
 }
 
