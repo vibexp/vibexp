@@ -80,6 +80,29 @@ func run() error {
 				},
 			}
 		}
+		if t == reflect.TypeFor[config.EnvBool]() {
+			// A literal YAML bool, OR a single ${VAR:-default} placeholder.
+			// Decoding a placeholder already works (the loader's
+			// WeaklyTypedInput coerces the interpolated string), so this arm
+			// exists only so the RAW config.docker.yaml — which is
+			// schema-validated before interpolation — passes. Scoped to the
+			// named type on purpose: every plain bool keeps the strict schema.
+			return &jsonschema.Schema{
+				OneOf: []*jsonschema.Schema{
+					{Type: "boolean"},
+					{Type: "string", Pattern: `^\$\{[^}]+\}$`},
+				},
+			}
+		}
+		if t == reflect.TypeFor[config.EnvInt]() {
+			// Integer counterpart of the EnvBool mapper above.
+			return &jsonschema.Schema{
+				OneOf: []*jsonschema.Schema{
+					{Type: "integer"},
+					{Type: "string", Pattern: `^\$\{[^}]+\}$`},
+				},
+			}
+		}
 		return nil
 	}
 

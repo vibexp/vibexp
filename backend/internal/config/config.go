@@ -305,6 +305,25 @@ type AuthConfig struct {
 // assignable to and from a plain []string.
 type EnvStringSlice []string
 
+// EnvBool is a bool that, in the combined-image config.docker.yaml, may be
+// authored as a ${VAR:-true} placeholder. Decoding already works for a plain
+// bool — the loader runs with WeaklyTypedInput, so the interpolated "true" /
+// "false" string coerces — so this type exists purely so gen-config-schema can
+// emit a placeholder-tolerant schema for it (TestConfigDockerYAML_MatchesSchema
+// validates the RAW, pre-interpolation YAML, where a placeholder is a string).
+// Its underlying kind is bool, so it is assignable to and from a plain bool and
+// usable directly in a boolean expression.
+//
+// Declare a field EnvBool only when it is an operator knob exposed in
+// config.docker.yaml; every other bool keeps the strict boolean schema, which is
+// what makes editor validation catch a typo'd value.
+type EnvBool bool
+
+// EnvInt is the integer counterpart of EnvBool: an int an operator may supply as
+// a ${VAR:-100} placeholder in config.docker.yaml. Same rationale, same rule for
+// when to use it — the schema, not the decoder, is what needs the named type.
+type EnvInt int
+
 // stringToEnvStringSliceHookFunc splits a comma-separated string into an
 // EnvStringSlice. mapstructure's built-in StringToSliceHookFunc only fires for
 // the exact type []string (it checks `t == reflect.SliceOf(f)`), so the defined
@@ -548,7 +567,8 @@ type RetentionConfig struct {
 // SchedulerConfig holds the in-process scheduler engine's knobs (epic #725).
 type SchedulerConfig struct {
 	// Enabled turns the run loop on. When false nothing is claimed or run.
-	Enabled bool `koanf:"enabled"`
+	// EnvBool so the combined image can expose it as ${SCHEDULER_ENABLED}.
+	Enabled EnvBool `koanf:"enabled"`
 	// TickInterval is how often the loop looks for due schedules. The 1-hour
 	// job floor keeps work sparse, so this is a polling cadence, not a job
 	// cadence — minutes, not seconds.
@@ -556,7 +576,8 @@ type SchedulerConfig struct {
 	// JobTimeout bounds a single handler invocation.
 	JobTimeout time.Duration `koanf:"job_timeout"`
 	// DueLimit caps how many due schedules one tick claims.
-	DueLimit int `koanf:"due_limit"`
+	// EnvInt so the combined image can expose it as ${SCHEDULER_DUE_LIMIT}.
+	DueLimit EnvInt `koanf:"due_limit"`
 }
 
 // A2AConfig holds Agent-to-Agent client settings.

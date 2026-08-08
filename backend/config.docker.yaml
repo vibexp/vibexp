@@ -197,3 +197,14 @@ storage:
 a2a:
   default_timeout: "${A2A_DEFAULT_TIMEOUT:-5m}"
   stream_timeout: "${A2A_STREAM_TIMEOUT:-2h}"
+
+# In-process scheduler engine (epic #725): runs recurring per-team jobs with no
+# external cron, and is safe across replicas via Postgres advisory locks. Set
+# SCHEDULER_ENABLED=false to turn the loop off entirely (nothing is claimed or
+# run). tick_interval is a polling cadence, not a job cadence — the 1-hour floor
+# on a schedule's own interval keeps the work sparse.
+scheduler:
+  enabled: "${SCHEDULER_ENABLED:-true}"
+  tick_interval: "${SCHEDULER_TICK_INTERVAL:-1m}"
+  job_timeout: "${SCHEDULER_JOB_TIMEOUT:-10m}"
+  due_limit: "${SCHEDULER_DUE_LIMIT:-100}"

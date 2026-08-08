@@ -226,3 +226,91 @@ func TestConfigDockerYAML_MatchesSchema(t *testing.T) {
 	require.NoError(t, schema.Validate(instance),
 		"config.docker.yaml must validate against config.schema.json")
 }
+
+// TestConfigDockerYAML_SchedulerDefaults is the acceptance criterion "with none
+// of the SCHEDULER_* vars set, the baked defaults match defaults()": a bare
+// `docker run` keeps the scheduler on with its documented cadence.
+func TestConfigDockerYAML_SchedulerDefaults(t *testing.T) {
+	setDockerRequiredEnv(t)
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
+	require.Equal(t, EnvBool(true), cfg.Scheduler.Enabled)
+	require.Equal(t, time.Minute, cfg.Scheduler.TickInterval)
+	require.Equal(t, 10*time.Minute, cfg.Scheduler.JobTimeout)
+	require.Equal(t, EnvInt(100), cfg.Scheduler.DueLimit)
+}
+
+// TestConfigDockerYAML_SchedulerEnvOverrides is the headline acceptance
+// criterion: every scheduler knob is settable with `docker run -e` alone, no
+// mounted config file. The bool and int cases are the ones that needed
+// EnvBool/EnvInt — they are authored as ${VAR:-default} strings in the raw YAML
+// and must still arrive as typed Go values.
+func TestConfigDockerYAML_SchedulerEnvOverrides(t *testing.T) {
+	setDockerRequiredEnv(t)
+	t.Setenv("SCHEDULER_ENABLED", "false")
+	t.Setenv("SCHEDULER_TICK_INTERVAL", "5m")
+	t.Setenv("SCHEDULER_JOB_TIMEOUT", "30m")
+	t.Setenv("SCHEDULER_DUE_LIMIT", "50")
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
+	require.Equal(t, EnvBool(false), cfg.Scheduler.Enabled,
+		"SCHEDULER_ENABLED=false must turn the loop off with no mounted config file")
+	require.Equal(t, 5*time.Minute, cfg.Scheduler.TickInterval)
+	require.Equal(t, 30*time.Minute, cfg.Scheduler.JobTimeout)
+	require.Equal(t, EnvInt(50), cfg.Scheduler.DueLimit)
+}
+
+// TestConfigDockerYAML_SchedulerInvalidEnvFailsFast pins the failure mode of the
+// weak decoding EnvBool/EnvInt rely on: a value that is not a recognised bool is
+// a load error, not a silently flipped knob.
+func TestConfigDockerYAML_SchedulerInvalidEnvFailsFast(t *testing.T) {
+	setDockerRequiredEnv(t)
+	t.Setenv("SCHEDULER_ENABLED", "yes-please")
+
+	cfg, err := Load(dockerConfigPath)
+
+	require.Error(t, err, "an undecodable SCHEDULER_ENABLED must fail startup")
+	require.Nil(t, cfg)
+	// Name the field, so this cannot pass because Load failed for some unrelated
+	// reason (a broken secret in setDockerRequiredEnv would do it).
+	require.ErrorContains(t, err, "scheduler.enabled")
+}
+
+// TestConfigSchema_EnvPlaceholderTypesAreOptIn guards the decision that
+// EnvBool/EnvInt loosen the schema for exactly the fields that opt in. A blanket
+// mapper over every bool/int would make the schema accept a typo'd "tru" on any
+// boolean knob, losing the editor validation config.schema.json exists to give.
+func TestConfigSchema_EnvPlaceholderTypesAreOptIn(t *testing.T) {
+	raw, err := os.ReadFile(configSchemaPath)
+	require.NoError(t, err)
+
+	var doc struct {
+		Defs map[string]struct {
+			Properties map[string]struct {
+				Type  string            `json:"type"`
+				OneOf []json.RawMessage `json:"oneOf"`
+			} `json:"properties"`
+		} `json:"$defs"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &doc))
+
+	// Opted in: authored as ${SCHEDULER_*} placeholders in config.docker.yaml.
+	require.Len(t, doc.Defs["SchedulerConfig"].Properties["enabled"].OneOf, 2,
+		"scheduler.enabled is EnvBool, so its schema must also accept a ${VAR} placeholder")
+	require.Len(t, doc.Defs["SchedulerConfig"].Properties["due_limit"].OneOf, 2,
+		"scheduler.due_limit is EnvInt, so its schema must also accept a ${VAR} placeholder")
+
+	// Not opted in: plain bools keep the strict schema.
+	for _, tc := range []struct{ def, field string }{
+		{"StorageConfig", "s3_path_style"},
+		{"AuthConfig", "dev_login_enabled"},
+	} {
+		prop := doc.Defs[tc.def].Properties[tc.field]
+		require.Equal(t, "boolean", prop.Type, "%s.%s must stay a strict boolean", tc.def, tc.field)
+		require.Empty(t, prop.OneOf, "%s.%s must not accept a placeholder — it is a literal knob", tc.def, tc.field)
+	}
+}
