@@ -15,6 +15,7 @@ import (
 	"github.com/vibexp/vibexp/internal/container"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/logging"
+	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/server"
 )
 
@@ -70,7 +71,7 @@ func runServer(cmd *cobra.Command, args []string) {
 
 	// Start the in-process scheduler after the DB is migrated and ready. It is
 	// stopped (draining any in-flight job) by closeContainer on shutdown.
-	startScheduler(ctx, srv.Container(), cfg, logger)
+	startScheduler(ctx, srv.Container().Scheduler(), cfg, logger)
 
 	startServer(ctx, srv, logger)
 }
@@ -203,19 +204,27 @@ func closeContainer(c container.Container, logger *slog.Logger) {
 }
 
 // startScheduler launches the in-process scheduler loop unless it is disabled
-// by config. The loop runs until ctx is cancelled; closeContainer then waits
-// for any in-flight job.
-func startScheduler(ctx context.Context, c container.Container, cfg *config.Config, logger *slog.Logger) {
+// by config, reporting whether it started. The loop runs until ctx is
+// cancelled; closeContainer then waits for any in-flight job.
+//
+// It takes the *scheduler.Scheduler rather than the container so the
+// enabled=false gate is unit-testable: container.Container is a ~60-method
+// interface with no generated mock, while a Scheduler is constructible from a
+// mocked repository. Callers pass Container().Scheduler(), a plain getter.
+func startScheduler(
+	ctx context.Context, sched *scheduler.Scheduler, cfg *config.Config, logger *slog.Logger,
+) bool {
 	if !cfg.Scheduler.Enabled {
 		logger.Info("Scheduler disabled by config (scheduler.enabled=false)")
-		return
+		return false
 	}
-	c.Scheduler().Start(ctx)
+	sched.Start(ctx)
 	logger.Info("Scheduler started",
 		"tick_interval", cfg.Scheduler.TickInterval.String(),
 		"job_timeout", cfg.Scheduler.JobTimeout.String(),
 		"due_limit", cfg.Scheduler.DueLimit,
 	)
+	return true
 }
 
 func startServer(ctx context.Context, srv *server.Server, logger *slog.Logger) {

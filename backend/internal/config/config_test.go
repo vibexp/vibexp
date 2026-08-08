@@ -840,6 +840,64 @@ func TestValidateInstanceAdmins(t *testing.T) {
 	}
 }
 
+func TestValidateSchedulerConfig(t *testing.T) {
+	base := func() *Config {
+		return &Config{Scheduler: SchedulerConfig{
+			Enabled:      true,
+			TickInterval: time.Minute,
+			JobTimeout:   10 * time.Minute,
+			DueLimit:     100,
+		}}
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr string
+	}{
+		{"code defaults are valid", func(*Config) {}, ""},
+		{"disabled scheduler is still validated", func(c *Config) { c.Scheduler.Enabled = false }, ""},
+		// The load-bearing case: time.NewTicker panics on a non-positive
+		// interval, so this must fail at load rather than at startup.
+		{"zero tick interval", func(c *Config) { c.Scheduler.TickInterval = 0 }, "scheduler.tick_interval"},
+		{"negative tick interval", func(c *Config) { c.Scheduler.TickInterval = -time.Second }, "scheduler.tick_interval"},
+		{"zero job timeout", func(c *Config) { c.Scheduler.JobTimeout = 0 }, "scheduler.job_timeout"},
+		{"negative job timeout", func(c *Config) { c.Scheduler.JobTimeout = -time.Minute }, "scheduler.job_timeout"},
+		{"zero due limit claims nothing", func(c *Config) { c.Scheduler.DueLimit = 0 }, "scheduler.due_limit"},
+		{"negative due limit", func(c *Config) { c.Scheduler.DueLimit = -1 }, "scheduler.due_limit"},
+		{"due limit of one is valid", func(c *Config) { c.Scheduler.DueLimit = 1 }, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := base()
+			tt.mutate(cfg)
+			err := validateSchedulerConfig(cfg)
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr, "error must name the offending config key")
+		})
+	}
+}
+
+// TestLoad_InvalidSchedulerTickInterval proves validateSchedulerConfig is wired
+// into validateAll: without the registration the table test above would still
+// pass while a real config.yaml with tick_interval: "0s" sailed through to
+// panic in time.NewTicker.
+func TestLoad_InvalidSchedulerTickInterval(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+`
+scheduler:
+  tick_interval: "0s"
+`)
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "scheduler.tick_interval")
+}
+
 // --- MCP issuer defaulting / OAuth AS agreement --------------------------
 
 // asYAML returns a config.yaml enabling the embedded AS with the given explicit
