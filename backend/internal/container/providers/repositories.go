@@ -58,6 +58,11 @@ func ProvideRelationRepository(db *database.DB) repositories.RelationRepository 
 	return postgres.NewRelationRepository(db)
 }
 
+// ProvideScheduleRepository creates a new ScheduleRepository
+func ProvideScheduleRepository(db *database.DB) repositories.ScheduleRepository {
+	return postgres.NewScheduleRepository(db)
+}
+
 // ProvideTypeRepository creates a new TypeRepository
 func ProvideTypeRepository(db *database.DB) repositories.TypeRepository {
 	return postgres.NewTypeRepository(db)
