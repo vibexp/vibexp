@@ -9,6 +9,7 @@ import (
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 	"github.com/vibexp/vibexp/internal/services/notifications"
@@ -351,6 +352,11 @@ func (b *BaseMockContainer) NotificationService() notifications.NotificationServ
 
 // DigestRunner returns a nil DigestRunner (not used in most tests)
 func (b *BaseMockContainer) DigestRunner() *notifications.DigestRunner {
+	return nil
+}
+
+// Scheduler returns a nil Scheduler (not used in handler tests)
+func (b *BaseMockContainer) Scheduler() *scheduler.Scheduler {
 	return nil
 }
 

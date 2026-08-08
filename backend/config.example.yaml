@@ -296,6 +296,19 @@ retention:
   # Content-version snapshots kept per resource. 0 disables pruning (keep all).
   content_version_limit: 20
 
+# In-process scheduler engine (epic #725): runs recurring per-team jobs with no
+# external cron. Safe across replicas via Postgres advisory locks.
+scheduler:
+  # Set false to disable the loop entirely (nothing is claimed or run).
+  enabled: true
+  # How often the loop looks for due schedules. The 1-hour job floor keeps work
+  # sparse, so this is a polling cadence, not a job cadence — minutes, not seconds.
+  tick_interval: "1m"
+  # Bounds a single job handler invocation.
+  job_timeout: "10m"
+  # Caps how many due schedules one tick claims.
+  due_limit: 100
+
 # Agent-to-Agent client settings.
 a2a:
   # Timeout for a single synchronous (message/send) request.

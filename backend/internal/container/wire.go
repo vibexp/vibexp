@@ -150,6 +150,8 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideNotificationService,
 	wire.Bind(new(notificationsvc.NotificationServiceInterface), new(*notificationsvc.NotificationService)),
 	providers.ProvideDigestRunner,
+	providers.ProvideSchedulerRegistry,
+	providers.ProvideScheduler,
 )
 
 // InitializeContainer creates a new container with Wire-based dependency injection.

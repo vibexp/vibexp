@@ -10,6 +10,7 @@ import (
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 	"github.com/vibexp/vibexp/internal/services/feature_flags"
@@ -105,6 +106,8 @@ type WireContainer struct {
 	relationSeedService       services.RelationSeedServiceInterface
 	notificationService       notifications.NotificationServiceInterface
 	digestRunner              *notifications.DigestRunner
+	scheduler                 *scheduler.Scheduler
+	schedulerRegistry         *scheduler.Registry
 
 	// External dependencies
 	identityRegistry *idp.Registry
@@ -146,6 +149,17 @@ func (c *WireContainer) NotificationService() notifications.NotificationServiceI
 // DigestRunner returns the notification digest runner
 func (c *WireContainer) DigestRunner() *notifications.DigestRunner {
 	return c.digestRunner
+}
+
+// Scheduler returns the in-process scheduler engine.
+func (c *WireContainer) Scheduler() *scheduler.Scheduler {
+	return c.scheduler
+}
+
+// SchedulerRegistry returns the scheduler's job registry; features register
+// their job handlers on it at startup.
+func (c *WireContainer) SchedulerRegistry() *scheduler.Registry {
+	return c.schedulerRegistry
 }
 
 // Repository methods
@@ -477,6 +491,12 @@ func (c *WireContainer) Close() error {
 	// access events) in the same shutdown phase as the event manager.
 	if c.resourceAccessWorkerPool != nil {
 		c.resourceAccessWorkerPool.Stop()
+	}
+
+	// Stop the scheduler loop and wait for an in-flight job handler rather
+	// than interrupting it mid-write.
+	if c.scheduler != nil {
+		c.scheduler.Close()
 	}
 
 	return nil

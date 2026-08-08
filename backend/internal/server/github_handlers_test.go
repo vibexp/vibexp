@@ -21,6 +21,7 @@ import (
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
@@ -251,6 +252,7 @@ func (c *GitHubTestContainer) NotificationService() notifications.NotificationSe
 	return nil
 }
 func (c *GitHubTestContainer) DigestRunner() *notifications.DigestRunner { return nil }
+func (c *GitHubTestContainer) Scheduler() *scheduler.Scheduler           { return nil }
 func (c *GitHubTestContainer) ProjectMigrationService() services.ProjectMigrationServiceInterface {
 	return nil
 }

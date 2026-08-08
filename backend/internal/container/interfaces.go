@@ -5,6 +5,7 @@ import (
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 	"github.com/vibexp/vibexp/internal/services/notifications"
@@ -51,6 +52,10 @@ type Container interface {
 	NotificationService() notifications.NotificationServiceInterface
 	// DigestRunner runs the daily notification digest job
 	DigestRunner() *notifications.DigestRunner
+
+	// Scheduler is the in-process scheduler engine (epic #725). Started and
+	// stopped with the container.
+	Scheduler() *scheduler.Scheduler
 
 	// Service methods
 	AuthService() services.AuthServiceInterface
