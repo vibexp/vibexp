@@ -165,22 +165,24 @@ services:
       start_period: 15s
 
   # --- Optional: MinIO (S3-compatible store) for file attachments -----------
-  # Uncomment this service AND the option (b) env vars on `app` above (plus a
-  # mounted config.yaml setting s3_path_style: true) to enable uploads. The
-  # `mc` command creates the bucket on first start.
+  # Uncomment BOTH services below AND the option (b) env vars on `app` above
+  # (plus a mounted config.yaml setting s3_path_style: true) to enable uploads.
+  # The minio/minio image ships the server only — the bucket is created by a
+  # one-shot createbucket service using the separate minio/mc client image.
   # minio:
   #   image: minio/minio:latest
   #   restart: unless-stopped
-  #   command:
-  #     - sh
-  #     - -c
-  #     - |
-  #       minio server /data &
-  #       until mc alias set local http://localhost:9000 minioadmin minioadmin; do sleep 1; done
-  #       mc mb --ignore-existing local/vibexp-attachments
-  #       wait
+  #   command: server /data
   #   volumes:
   #     - miniodata:/data
+  #   networks: [vibexp]
+  #
+  # createbucket:
+  #   image: minio/mc:latest
+  #   depends_on: [minio]
+  #   entrypoint: >
+  #     /bin/sh -c "until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
+  #                 mc mb --ignore-existing local/vibexp-attachments"
   #   networks: [vibexp]
 
 volumes:
