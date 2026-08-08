@@ -275,6 +275,9 @@ func TestConfigDockerYAML_SchedulerInvalidEnvFailsFast(t *testing.T) {
 
 	require.Error(t, err, "an undecodable SCHEDULER_ENABLED must fail startup")
 	require.Nil(t, cfg)
+	// Name the field, so this cannot pass because Load failed for some unrelated
+	// reason (a broken secret in setDockerRequiredEnv would do it).
+	require.ErrorContains(t, err, "scheduler.enabled")
 }
 
 // TestConfigSchema_EnvPlaceholderTypesAreOptIn guards the decision that

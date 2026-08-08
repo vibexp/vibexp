@@ -183,6 +183,11 @@ otel:
   export_interval: 30s
   trace_sample_ratio: 0.5
   tracing_enabled: true
+scheduler:
+  enabled: false
+  tick_interval: 3m
+  job_timeout: 20m
+  due_limit: 25
 `
 
 // writeConfig writes body to a temp config.yaml and returns its path.
@@ -406,6 +411,15 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, 30*time.Second, cfg.OTel.ExportInterval)
 	assert.InDelta(t, 0.5, cfg.OTel.TraceSampleRatio, 1e-9)
 	assert.True(t, cfg.OTel.TracingEnabled)
+
+	// Scheduler. Enabled/DueLimit are EnvBool/EnvInt (so config.docker.yaml can
+	// author them as ${SCHEDULER_*} placeholders); these literal YAML values
+	// prove the named types still decode a plain bool/int from an operator's own
+	// mounted config.yaml, which is the alternative to the env-driven path.
+	assert.Equal(t, EnvBool(false), cfg.Scheduler.Enabled)
+	assert.Equal(t, 3*time.Minute, cfg.Scheduler.TickInterval)
+	assert.Equal(t, 20*time.Minute, cfg.Scheduler.JobTimeout)
+	assert.Equal(t, EnvInt(25), cfg.Scheduler.DueLimit)
 
 	// GetDeploymentEnvironment derives from the otel_environment field.
 	assert.Equal(t, "staging", cfg.GetDeploymentEnvironment())
