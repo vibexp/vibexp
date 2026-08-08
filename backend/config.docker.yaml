@@ -55,6 +55,12 @@ security:
   encryption_key: "${ENCRYPTION_KEY}"
   api_key_common: "${API_KEY_COMMON:-}"
   backoffice_admin_api_key: "${BACKOFFICE_ADMIN_API_KEY:-}"
+  # Comma-separated networks the SSRF guard may dial even though they are
+  # loopback/private — set this to reach a self-hosted embedding sidecar (TEI,
+  # Ollama) on a private Docker subnet, e.g. OUTBOUND_ALLOWED_CIDRS=172.16.0.0/12.
+  # Empty (default) refuses every reserved range. Link-local (cloud metadata)
+  # and multicast can never be allowlisted; an overlapping entry fails startup.
+  outbound_allowed_cidrs: "${OUTBOUND_ALLOWED_CIDRS:-}"
 
 auth:
   # Single web-login provider (google | github | oidc). For more than one

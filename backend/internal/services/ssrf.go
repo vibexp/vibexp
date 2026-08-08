@@ -26,11 +26,28 @@ var blockedHostnames = map[string]bool{
 	"metadata":                 true,
 }
 
-// ssrfGuard decides whether an outbound destination is allowed. allowPrivate is set
-// only in tests (which target loopback httptest servers); production guards keep it
-// false so loopback/private/link-local ranges are rejected.
+// outboundAllowlistHint is appended to every range-rejection error. Without it
+// the failure is a dead end: the operator of a self-hosted embedding sidecar
+// sees only "connection to disallowed address range blocked" with nothing
+// naming the knob that fixes it (#745). It is safe to expose — the provider
+// /validate responses map errors to fixed categories before returning them, so
+// this text reaches logs and worker errors, not an API oracle.
+const outboundAllowlistHint = " (declare the range in security.outbound_allowed_cidrs if it is yours)"
+
+// ssrfGuard decides whether an outbound destination is allowed.
+//
+// allowPrivate is set only in tests (which target loopback httptest servers);
+// production guards keep it false so loopback/private/link-local ranges are
+// rejected. allowedCIDRs is the operator-declared exception list
+// (security.outbound_allowed_cidrs): the ranges a self-hoster owns and wants
+// reachable, typically the Docker subnet its embedding sidecar sits on. It can
+// unblock loopback/private/unique-local addresses and nothing else — link-local
+// (cloud metadata), multicast and the unspecified address stay blocked here
+// regardless, and the config layer already refuses to load an entry overlapping
+// them.
 type ssrfGuard struct {
 	allowPrivate bool
+	allowedCIDRs []*net.IPNet
 }
 
 // defaultSSRFGuard is the production policy: reject all reserved ranges.
@@ -40,18 +57,32 @@ var defaultSSRFGuard = &ssrfGuard{}
 // (cfg.IsLocalDevelopment() — frontend.base_url points at localhost) it permits
 // loopback/private/link-local destinations so a self-hosted local checkout can
 // register and invoke a localhost A2A agent for testing. Every real deployment
-// (and a nil cfg) gets the fail-closed production policy that rejects all reserved
-// ranges. The name blocklist (cloud metadata hostnames) still applies either way.
+// (and a nil cfg) gets the fail-closed production policy, narrowed only by the
+// operator's own security.outbound_allowed_cidrs. The name blocklist (cloud
+// metadata hostnames) still applies either way.
 func ssrfGuardForConfig(cfg *config.Config) *ssrfGuard {
-	if cfg != nil && cfg.IsLocalDevelopment() {
+	if cfg == nil {
+		return defaultSSRFGuard
+	}
+	if cfg.IsLocalDevelopment() {
 		return &ssrfGuard{allowPrivate: true}
 	}
-	return defaultSSRFGuard
+	allowed := cfg.Security.ParsedOutboundAllowedCIDRs()
+	if len(allowed) == 0 {
+		return defaultSSRFGuard
+	}
+	return &ssrfGuard{allowedCIDRs: allowed}
 }
 
 // isBlockedIP reports whether ip falls into a range that outbound requests must
-// never reach: loopback, private, link-local (incl. cloud metadata 169.254.169.254),
-// unique-local IPv6, unspecified, and multicast.
+// never reach. Three tiers, in order:
+//
+//  1. link-local (incl. cloud metadata 169.254.169.254), multicast and the
+//     unspecified address — blocked unconditionally, so no operator config can
+//     reopen the SSRF hole;
+//  2. loopback, private and IPv6 unique-local — blocked unless the operator
+//     declared a covering prefix in security.outbound_allowed_cidrs;
+//  3. everything else — allowed.
 func (g *ssrfGuard) isBlockedIP(ip net.IP) bool {
 	if ip == nil {
 		return true
@@ -59,14 +90,33 @@ func (g *ssrfGuard) isBlockedIP(ip net.IP) bool {
 	if g.allowPrivate {
 		return false
 	}
-	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
-		ip.IsMulticast() || ip.IsUnspecified() || ip.IsPrivate() {
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() || ip.IsUnspecified() {
 		return true
 	}
-	// IPv6 unique-local (fc00::/7) is covered by IsPrivate on modern Go, but guard
-	// explicitly to be safe across versions.
-	if v6 := ip.To16(); v6 != nil && ip.To4() == nil {
-		if v6[0]&0xfe == 0xfc {
+	if ip.IsLoopback() || ip.IsPrivate() || isIPv6UniqueLocal(ip) {
+		return !g.isOperatorAllowed(ip)
+	}
+	return false
+}
+
+// isIPv6UniqueLocal reports whether ip is in fc00::/7. Modern Go covers this in
+// IsPrivate, but the check is kept explicit to be safe across versions.
+func isIPv6UniqueLocal(ip net.IP) bool {
+	v6 := ip.To16()
+	if v6 == nil || ip.To4() != nil {
+		return false
+	}
+	return v6[0]&0xfe == 0xfc
+}
+
+// isOperatorAllowed reports whether ip sits inside a prefix the operator
+// declared in security.outbound_allowed_cidrs. Only tier-2 addresses ever reach
+// it (see isBlockedIP), so an allowlist entry can never widen the policy beyond
+// the reserved ranges a self-hoster legitimately owns.
+func (g *ssrfGuard) isOperatorAllowed(ip net.IP) bool {
+	for _, network := range g.allowedCIDRs {
+		if network != nil && network.Contains(ip) {
 			return true
 		}
 	}
@@ -95,7 +145,7 @@ func (g *ssrfGuard) validateOutboundHost(ctx context.Context, rawURL string) err
 	// If the host is an IP literal, check it directly.
 	if literal := net.ParseIP(host); literal != nil {
 		if g.isBlockedIP(literal) {
-			return fmt.Errorf("host resolves to a disallowed address range")
+			return fmt.Errorf("host resolves to a disallowed address range%s", outboundAllowlistHint)
 		}
 		return nil
 	}
@@ -110,7 +160,7 @@ func (g *ssrfGuard) validateOutboundHost(ctx context.Context, rawURL string) err
 	}
 	for _, addr := range addrs {
 		if g.isBlockedIP(addr.IP) {
-			return fmt.Errorf("host resolves to a disallowed address range")
+			return fmt.Errorf("host resolves to a disallowed address range%s", outboundAllowlistHint)
 		}
 	}
 	return nil
@@ -129,7 +179,7 @@ func (g *ssrfGuard) control(_ string, address string, _ syscall.RawConn) error {
 		return fmt.Errorf("dial address is not an IP")
 	}
 	if g.isBlockedIP(ip) {
-		return fmt.Errorf("connection to disallowed address range blocked")
+		return fmt.Errorf("connection to disallowed address range blocked%s", outboundAllowlistHint)
 	}
 	return nil
 }

@@ -54,6 +54,9 @@ security:
   encryption_key: "` + validTestEncryptionKey + `"
   api_key_common: "common-key"
   backoffice_admin_api_key: "admin-key"
+  outbound_allowed_cidrs:
+    - 172.16.0.0/12
+    - 127.0.0.1/32
 auth:
   providers: "google,github"
   provider: google
@@ -303,6 +306,7 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, validTestEncryptionKey, cfg.Security.EncryptionKey)
 	assert.Equal(t, "common-key", cfg.Security.APIKeyCommon)
 	assert.Equal(t, "admin-key", cfg.Security.BackofficeAdminAPIKey)
+	assert.Equal(t, EnvStringSlice{"172.16.0.0/12", "127.0.0.1/32"}, cfg.Security.OutboundAllowedCIDRs)
 
 	// Auth + sub-structs. providers is a comma string; allowlist lists are YAML lists.
 	assert.Equal(t, []string{"google", "github"}, cfg.Auth.Providers)
@@ -941,5 +945,87 @@ func TestLoad_TrustedProxies(t *testing.T) {
 		require.Len(t, nets, 1)
 		assert.True(t, nets[0].Contains(net.ParseIP("10.1.2.3")))
 		assert.False(t, nets[0].Contains(net.ParseIP("203.0.113.1")))
+	})
+}
+
+// securityYAML builds a config body whose single security section carries the
+// required encryption key plus extra keys. baseValidYAML already opens a
+// `security:` block, so appending a second one would be a duplicate YAML key.
+func securityYAML(t *testing.T, extra string) (*Config, error) {
+	t.Helper()
+	return loadYAML(t, "security:\n  encryption_key: \""+validTestEncryptionKey+"\"\n"+extra)
+}
+
+// TestLoad_OutboundAllowedCIDRs covers the #745 knob: the operator-declared SSRF
+// exception list that makes a self-hosted embedding sidecar on a private subnet
+// reachable. It mirrors TestLoad_TrustedProxies and adds the case that knob does
+// not have — a declared range that would reopen the cloud-metadata hole must
+// abort startup rather than be silently narrowed.
+func TestLoad_OutboundAllowedCIDRs(t *testing.T) {
+	t.Run("empty by default", func(t *testing.T) {
+		cfg, err := loadYAML(t, baseValidYAML)
+		require.NoError(t, err)
+		assert.Empty(t, cfg.Security.OutboundAllowedCIDRs)
+		assert.Empty(t, cfg.Security.ParsedOutboundAllowedCIDRs(),
+			"no declared CIDRs means every reserved range stays blocked")
+	})
+
+	t.Run("yaml list", func(t *testing.T) {
+		cfg, err := securityYAML(t,
+			"  outbound_allowed_cidrs:\n    - 172.16.0.0/12\n    - 127.0.0.1/32\n")
+		require.NoError(t, err)
+		assert.Equal(t, EnvStringSlice{"172.16.0.0/12", "127.0.0.1/32"}, cfg.Security.OutboundAllowedCIDRs)
+		assert.Len(t, cfg.Security.ParsedOutboundAllowedCIDRs(), 2)
+	})
+
+	t.Run("comma-separated string", func(t *testing.T) {
+		cfg, err := securityYAML(t, "  outbound_allowed_cidrs: \"10.42.0.0/24,192.168.0.0/16\"\n")
+		require.NoError(t, err)
+		assert.Len(t, cfg.Security.ParsedOutboundAllowedCIDRs(), 2,
+			"the combined image supplies this as a comma-separated ${OUTBOUND_ALLOWED_CIDRS}")
+	})
+
+	t.Run("invalid CIDR fails fast", func(t *testing.T) {
+		cfg, err := securityYAML(t, "  outbound_allowed_cidrs: \"10.42.0.1\"\n")
+		require.Error(t, err, "a bare IP is not a CIDR and must not be silently ignored")
+		assert.Nil(t, cfg)
+		assert.Contains(t, err.Error(), "outbound_allowed_cidrs")
+	})
+
+	t.Run("parsed CIDRs match the right destinations", func(t *testing.T) {
+		cfg, err := securityYAML(t, "  outbound_allowed_cidrs: \"10.42.0.0/24\"\n")
+		require.NoError(t, err)
+		nets := cfg.Security.ParsedOutboundAllowedCIDRs()
+		require.Len(t, nets, 1)
+		assert.True(t, nets[0].Contains(net.ParseIP("10.42.0.2")), "the sidecar's address")
+		assert.False(t, nets[0].Contains(net.ParseIP("10.99.0.1")), "an undeclared private address")
+	})
+
+	// The security-critical half: no operator entry may reopen SSRF-to-metadata.
+	for _, tc := range []struct {
+		name  string
+		entry string
+	}{
+		{"exact link-local range", "169.254.0.0/16"},
+		{"the metadata address itself", "169.254.169.254/32"},
+		{"a supernet swallowing link-local", "169.0.0.0/8"},
+		{"allow-everything", "0.0.0.0/0"},
+		{"ipv4 multicast", "224.0.0.0/4"},
+		{"ipv6 link-local", "fe80::/10"},
+		{"ipv6 allow-everything", "::/0"},
+	} {
+		t.Run("rejects "+tc.name, func(t *testing.T) {
+			cfg, err := securityYAML(t, "  outbound_allowed_cidrs: \""+tc.entry+"\"\n")
+			require.Error(t, err, "%s must never be allowlistable", tc.entry)
+			assert.Nil(t, cfg)
+			assert.Contains(t, err.Error(), "outbound_allowed_cidrs")
+			assert.Contains(t, err.Error(), "can never be allowlisted")
+		})
+	}
+
+	t.Run("blank entries are skipped, not rejected", func(t *testing.T) {
+		cfg, err := securityYAML(t, "  outbound_allowed_cidrs: \"10.42.0.0/24, ,192.168.0.0/16\"\n")
+		require.NoError(t, err)
+		assert.Len(t, cfg.Security.ParsedOutboundAllowedCIDRs(), 2)
 	})
 }

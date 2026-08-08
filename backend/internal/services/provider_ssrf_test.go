@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
@@ -191,6 +192,124 @@ func TestValidateProvider_LocalDevelopmentStillPermitsLoopback(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, resp.IsValid, "local development must still accept a loopback provider")
+}
+
+// TestValidateProvider_OperatorAllowlistPermitsDeclaredRange is the #745
+// regression: a PRODUCTION-shaped instance that declares its own network in
+// security.outbound_allowed_cidrs must reach a provider there. It exercises the
+// whole chain — config -> ssrfGuardForConfig -> service -> validateOutboundHost
+// AND the dial-time Control hook (httptest binds loopback, so both tiers run).
+func TestValidateProvider_OperatorAllowlistPermitsDeclaredRange(t *testing.T) {
+	server := httptest.NewServer(embeddingHandlerReturningDimension(t, EmbeddingVectorDimensions))
+	defer server.Close()
+
+	cfg := &config.Config{
+		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+		Security: config.SecurityConfig{
+			OutboundAllowedCIDRs: config.EnvStringSlice{"127.0.0.0/8"},
+		},
+	}
+	enc, err := NewEncryptionService(testEncryptionKey)
+	require.NoError(t, err)
+	svc := NewEmbeddingProviderService(
+		mocks.NewMockEmbeddingProviderRepository(t), enc, cfg, permissiveProviderAuthz{},
+	)
+
+	resp, err := svc.ValidateEmbeddingProvider(
+		context.Background(), testProviderTeamID, testProviderUserID,
+		models.ValidateEmbeddingProviderRequest{
+			ProviderType: ProviderTypeOpenAICompatible,
+			BaseURL:      server.URL,
+			Model:        "mixedbread-ai/mxbai-embed-large-v1",
+		},
+	)
+
+	require.NoError(t, err)
+	assert.True(t, resp.IsValid,
+		"a declared range must be reachable on a production instance, not only in local development")
+}
+
+// TestResolveActiveProvider_OperatorAllowlistReachesRuntimeClient is the
+// positive twin of TestResolveActiveProvider_StoredProviderIsGuarded, and the
+// test that actually pins #745: the reported failure was NOT on /validate but on
+// the runtime path — 44/44 background embeddings and every search query died on
+// the stored provider's dial. Asserting only that /validate accepts a declared
+// range would leave that path free to regress (e.g. by resolving a fresh
+// defaultSSRFGuard instead of eps.guard) with every other test still green.
+func TestResolveActiveProvider_OperatorAllowlistReachesRuntimeClient(t *testing.T) {
+	server := httptest.NewServer(embeddingHandlerReturningDimension(t, EmbeddingVectorDimensions))
+	defer server.Close()
+
+	repo := mocks.NewMockEmbeddingProviderRepository(t)
+	enc, err := NewEncryptionService(testEncryptionKey)
+	require.NoError(t, err)
+
+	baseURL := server.URL
+	repo.On("GetActiveProvider", mock.Anything, testProviderTeamID).Return(
+		&models.EmbeddingProvider{
+			ProviderType: ProviderTypeOpenAICompatible,
+			BaseURL:      &baseURL,
+			Model:        "mixedbread-ai/mxbai-embed-large-v1",
+			ChunkSize:    1000,
+			ChunkOverlap: 200,
+			Concurrency:  1,
+		}, nil,
+	)
+
+	svc := NewEmbeddingProviderService(
+		repo, enc,
+		&config.Config{
+			Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+			Security: config.SecurityConfig{
+				OutboundAllowedCIDRs: config.EnvStringSlice{"127.0.0.0/8"},
+			},
+		},
+		permissiveProviderAuthz{},
+	)
+
+	resolved, err := svc.ResolveActiveProvider(context.Background(), testProviderTeamID)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+
+	vectors, err := resolved.Provider.GenerateEmbeddings(context.Background(), []string{"a document"})
+	require.NoError(t, err,
+		"a declared range must be dialable by the runtime client, not only the validate probe")
+	require.Len(t, vectors, 1)
+	assert.Len(t, vectors[0], EmbeddingVectorDimensions)
+}
+
+// TestValidateProvider_OperatorAllowlistIsNarrow proves the allowlist opens the
+// declared range and nothing else — the rest of blockedDestinations must still
+// fail on an instance that has declared one network.
+func TestValidateProvider_OperatorAllowlistIsNarrow(t *testing.T) {
+	cfg := &config.Config{
+		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+		Security: config.SecurityConfig{
+			OutboundAllowedCIDRs: config.EnvStringSlice{"10.42.0.0/24"},
+		},
+	}
+	enc, err := NewEncryptionService(testEncryptionKey)
+	require.NoError(t, err)
+	svc := NewEmbeddingProviderService(
+		mocks.NewMockEmbeddingProviderRepository(t), enc, cfg, permissiveProviderAuthz{},
+	)
+
+	for _, tt := range blockedDestinations {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := svc.ValidateEmbeddingProvider(
+				context.Background(), testProviderTeamID, testProviderUserID,
+				models.ValidateEmbeddingProviderRequest{
+					ProviderType: ProviderTypeOpenAICompatible,
+					BaseURL:      tt.baseURL,
+					Model:        "some-model",
+				},
+			)
+
+			require.NoError(t, err)
+			assert.False(t, resp.IsValid, "declaring 10.42.0.0/24 must not unblock %s", tt.baseURL)
+			assert.Equal(t, providerErrDestinationNotAllowed, resp.Details.ErrorDetails)
+		})
+	}
 }
 
 // TestProviderBaseURLScheme rejects non-HTTP schemes before any dial, which the

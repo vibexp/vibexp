@@ -138,7 +138,8 @@ type DatabaseConfig struct {
 	SSLMode string `koanf:"sslmode"`
 }
 
-// SecurityConfig holds process-wide secrets and admin keys.
+// SecurityConfig holds process-wide secrets, admin keys, and the outbound
+// (SSRF) network policy.
 type SecurityConfig struct {
 	// EncryptionKey encrypts sensitive data (API keys, OAuth-AS signing keys).
 	// Required; must be exactly 32 bytes for AES-256 (see validateEncryptionKey).
@@ -147,6 +148,107 @@ type SecurityConfig struct {
 	APIKeyCommon string `koanf:"api_key_common"`
 	// BackofficeAdminAPIKey grants super-admin access to back-office endpoints.
 	BackofficeAdminAPIKey string `koanf:"backoffice_admin_api_key"`
+
+	// OutboundAllowedCIDRs lists networks the SSRF guard may dial even though
+	// they are loopback / private / IPv6-unique-local. EMPTY BY DEFAULT (fail
+	// closed): with no entry every reserved range is refused, which is the #464
+	// posture.
+	//
+	// This is what makes a self-hosted embedding/model sidecar usable. A TEI or
+	// Ollama container on a private Docker network resolves to an RFC1918
+	// address, and the guard refuses the dial with "connection to disallowed
+	// address range blocked" — killing semantic search and every background
+	// embedding on the deployment (#745). Local development never hit this:
+	// IsLocalDevelopment() already permits reserved ranges, so only real
+	// deployments need this knob. Declaring the sidecar's subnet (e.g.
+	// 172.16.0.0/12) or the loopback host reopens exactly that range and
+	// nothing else.
+	//
+	// It can NEVER unblock link-local (169.254.0.0/16 — cloud metadata — and
+	// fe80::/10) or multicast: validateOutboundAllowedCIDRs rejects an
+	// overlapping entry at startup, and services.ssrfGuard blocks those ranges
+	// before it ever consults this list.
+	//
+	// Declared EnvStringSlice (not []string) so the combined image can supply it
+	// as a comma-separated ${OUTBOUND_ALLOWED_CIDRS} placeholder, like
+	// server.trusted_proxies.
+	OutboundAllowedCIDRs EnvStringSlice `koanf:"outbound_allowed_cidrs"`
+}
+
+// neverAllowlistableCIDRs are the ranges security.outbound_allowed_cidrs must
+// never cover: cloud-metadata/link-local and multicast. An operator declaring a
+// prefix that overlaps one of these is rejected at startup rather than silently
+// narrowed, so a single careless entry (including the "disable the guard"
+// 0.0.0.0/0, which overlaps 169.254.0.0/16) cannot reopen the SSRF hole #464
+// closed.
+var neverAllowlistableCIDRs = []string{
+	"169.254.0.0/16", // IPv4 link-local, incl. the 169.254.169.254 metadata IP
+	"224.0.0.0/4",    // IPv4 multicast
+	"fe80::/10",      // IPv6 link-local
+	"ff00::/8",       // IPv6 multicast
+}
+
+// ParsedOutboundAllowedCIDRs returns Security.OutboundAllowedCIDRs as parsed
+// CIDRs. Entries are validated at load time, so a parse failure here cannot
+// happen for a config that booted; malformed entries are skipped defensively
+// rather than panicking in the request path (mirrors ParsedTrustedProxies).
+func (c SecurityConfig) ParsedOutboundAllowedCIDRs() []*net.IPNet {
+	if len(c.OutboundAllowedCIDRs) == 0 {
+		return nil
+	}
+	nets := make([]*net.IPNet, 0, len(c.OutboundAllowedCIDRs))
+	for _, entry := range c.OutboundAllowedCIDRs {
+		_, network, err := net.ParseCIDR(strings.TrimSpace(entry))
+		if err != nil {
+			continue
+		}
+		nets = append(nets, network)
+	}
+	return nets
+}
+
+// validateOutboundAllowedCIDRs fails startup on a malformed CIDR or on one that
+// overlaps a never-allowlistable range. Fail-fast matters more here than for
+// trusted_proxies: a typo does not merely get ignored, it is the difference
+// between "my sidecar is reachable" and "an authenticated member can reach the
+// cloud metadata service".
+func validateOutboundAllowedCIDRs(entries EnvStringSlice) error {
+	for _, entry := range entries {
+		trimmed := strings.TrimSpace(entry)
+		if trimmed == "" {
+			continue
+		}
+		_, network, err := net.ParseCIDR(trimmed)
+		if err != nil {
+			return fmt.Errorf(
+				"security.outbound_allowed_cidrs: %q is not a valid CIDR (use e.g. 172.16.0.0/12 or 127.0.0.1/32)",
+				trimmed)
+		}
+		if blocked := overlappingNeverAllowlistable(network); blocked != "" {
+			return fmt.Errorf(
+				"security.outbound_allowed_cidrs: %q overlaps %s, which can never be allowlisted "+
+					"(link-local/cloud-metadata and multicast stay blocked); declare only the network your "+
+					"own service runs on", trimmed, blocked)
+		}
+	}
+	return nil
+}
+
+// overlappingNeverAllowlistable returns the first never-allowlistable range that
+// intersects network, or "" when there is none. Two prefixes intersect exactly
+// when one contains the other's base address, so checking both directions also
+// catches a declared prefix wide enough to swallow a blocked one (0.0.0.0/0).
+func overlappingNeverAllowlistable(network *net.IPNet) string {
+	for _, raw := range neverAllowlistableCIDRs {
+		_, blocked, err := net.ParseCIDR(raw)
+		if err != nil {
+			continue
+		}
+		if network.Contains(blocked.IP) || blocked.Contains(network.IP) {
+			return raw
+		}
+	}
+	return ""
 }
 
 // AuthConfig holds web-login identity-provider settings and the embedded
@@ -837,6 +939,7 @@ func validateAll(cfg *Config) error {
 		validateInstanceAdmins,
 		validateOAuthASConfig,
 		func(c *Config) error { return validateTrustedProxies(c.Server.TrustedProxies) },
+		func(c *Config) error { return validateOutboundAllowedCIDRs(c.Security.OutboundAllowedCIDRs) },
 	}
 	for _, check := range checks {
 		if err := check(cfg); err != nil {

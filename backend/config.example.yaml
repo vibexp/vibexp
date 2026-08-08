@@ -67,7 +67,7 @@ database:
   # the server certificate). Set to "require" for managed Postgres that mandates TLS.
   sslmode: "disable"
 
-# Process-wide secrets and admin keys (all resolved from the environment).
+# Process-wide secrets, admin keys, and the outbound network policy.
 security:
   # REQUIRED. Must be EXACTLY 32 bytes (AES-256); the service fails to start
   # otherwise. Generate one with: openssl rand -hex 16
@@ -77,6 +77,20 @@ security:
   # Super-admin key for the back-office endpoints (/bo/*), separate from JWT and
   # regular API keys (optional).
   backoffice_admin_api_key: "${BACKOFFICE_ADMIN_API_KEY}"
+  # Networks the SSRF guard may dial even though they are loopback / private.
+  # EMPTY = every reserved range is refused, which is the safe default: a team
+  # member could otherwise point an embedding/model/A2A/SMTP endpoint at your
+  # internal network and read the result.
+  # Declare a range here when the service it hosts is YOURS — most commonly a
+  # self-hosted embedding sidecar (TEI, Ollama, llama.cpp), which lives on a
+  # private Docker subnet or on localhost and is unreachable otherwise.
+  # Examples: ["172.16.0.0/12"] (Docker bridge networks), ["127.0.0.1/32"]
+  # (same-host Ollama), ["10.42.0.0/24"] (your own cluster subnet).
+  # Link-local (169.254.0.0/16 — cloud metadata) and multicast can NEVER be
+  # allowlisted; an overlapping entry fails startup.
+  # Local development does not need this: a localhost frontend.base_url already
+  # permits loopback/private destinations.
+  outbound_allowed_cidrs: []
 
 # Web-login identity providers and the embedded OAuth 2.1 Authorization Server.
 auth:

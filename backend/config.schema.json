@@ -559,6 +559,20 @@
         },
         "backoffice_admin_api_key": {
           "type": "string"
+        },
+        "outbound_allowed_cidrs": {
+          "oneOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
         }
       },
       "additionalProperties": false,
