@@ -8,9 +8,9 @@ name: CI
 #
 # Path filtering happens in the `changes` job (dorny/paths-filter) instead of
 # workflow-level `paths:` so one workflow can gate its jobs independently. On
-# pushes to main every job runs unconditionally so the main-branch Sonar
-# analysis always carries BOTH coverage reports (partial main analyses would
-# swing overall coverage — the invariant #300 protected).
+# pushes (main and release branches alike) every job runs unconditionally so the
+# main-branch Sonar analysis always carries BOTH coverage reports (partial main
+# analyses would swing overall coverage — the invariant #300 protected).
 #
 # The Go suite is SHARDED into `unit` and `integration` (issue #638). Only
 # `internal/repositories/postgres` and `internal/services/projectmigration`
@@ -45,10 +45,18 @@ name: CI
 #     comment). The entry is ~500MB, so an unconditional per-run save would
 #     exhaust the 10GB repo cache limit in ~20 runs.
 
+# RELEASE BRANCHES (issue #747). A patch release is cut from a `release/X.Y.x`
+# line branch rather than `main`, so that branch's tip must be tested in its own
+# right. PRs *into* it already run (the `pull_request` trigger is unfiltered),
+# but without `release/**` here the post-merge tip gets no run at all and we
+# would be tagging a commit that never had its own CI. Cache SAVING stays pinned
+# to `refs/heads/main` (see the two `Save …` steps): a cache saved on a release
+# branch is visible only to that branch, so it would cost a full write for
+# nothing while `main`'s shared entry is what actually serves every job.
 on:
   pull_request:
   push:
-    branches: [ main ]
+    branches: [ main, 'release/**' ]
 
 permissions:
   contents: read
@@ -119,9 +127,10 @@ jobs:
   # branches each adding their own 0NN_*.sql merge cleanly in git yet break
   # every startup with a duplicate-version error. Local pre-commit checks
   # (make backend-check-migrations) cannot see the other branch; this job runs
-  # the script in merge mode, which compares every version number against
-  # origin/main. PR-only: on a push to main the tree IS main, so there is
-  # nothing to compare.
+  # the script in merge mode, which compares every version number against the
+  # branch the PR TARGETS (`github.base_ref`) — `main` normally, the release
+  # line for a backport (#747). PR-only: on a push, the tree IS the branch, so
+  # there is nothing to compare.
   #
   # The `migration-renumbering` label is the escape hatch: a deliberate
   # renumbering (a post-release consolidation like #710) replaces main's
@@ -140,13 +149,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      - name: Check migration versions against origin/main
+      - name: Check migration versions against the base branch
+        # BASE_REF is the branch this PR targets — `main` normally, but
+        # `release/X.Y.x` for a backport (#747). Comparing a backport against
+        # `main` is meaningless: main renumbers on every post-release
+        # consolidation (002_/006_/011_consolidated), so every backport PR would
+        # fail spuriously and train us to slap `migration-renumbering` on it.
+        # Passed through env rather than interpolated into the script body.
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           # checkout fetches only the PR merge ref; merge mode needs the real
-          # origin/main tip to compare against.
-          git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main
-          if ! (cd backend && bash ../.github/scripts/check-duplicate-migrations.sh migrations true); then
-            echo "::error::Migration version collision with origin/main. If this renumbering is deliberate (e.g. a post-release consolidation), add the 'migration-renumbering' label to the PR and re-run this job."
+          # base-branch tip to compare against.
+          git fetch --no-tags --depth=1 origin "$BASE_REF:refs/remotes/origin/$BASE_REF"
+          if ! (cd backend && bash ../.github/scripts/check-duplicate-migrations.sh migrations true "$BASE_REF"); then
+            echo "::error::Migration version collision with origin/$BASE_REF. If this renumbering is deliberate (e.g. a post-release consolidation), add the 'migration-renumbering' label to the PR and re-run this job."
             exit 1
           fi
 
@@ -657,8 +674,16 @@ jobs:
     # Run when at least one test job succeeded and none failed (skipped is
     # fine — a one-sided PR has no coverage for the other side, and PR analysis
     # gates on new code only). Never scan on red or cancelled tests.
+    #
+    # Release-branch PUSHES are excluded (#747): the Sonar story is "main is the
+    # baseline, PRs are analysed against it", and a `release/X.Y.x` push is
+    # neither. Scanning it would register the line branch in SonarCloud and
+    # publish a second, older baseline whose coverage lags main by design (the
+    # branch is main-as-of-the-last-tag plus cherry-picks). PRs *into* a release
+    # branch still scan normally — that is ordinary new-code analysis.
     if: >-
       always() &&
+      !(github.event_name == 'push' && startsWith(github.ref, 'refs/heads/release/')) &&
       (needs.unit.result == 'success' || needs.integration.result == 'success' || needs.frontend-test.result == 'success') &&
       needs.unit.result != 'failure' && needs.unit.result != 'cancelled' &&
       needs.integration.result != 'failure' && needs.integration.result != 'cancelled' &&

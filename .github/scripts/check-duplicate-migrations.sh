@@ -10,19 +10,27 @@
 #
 #   bash ../.github/scripts/check-duplicate-migrations.sh migrations false
 #
-# Usage: check-duplicate-migrations.sh <migrations-dir> <check-against-main>
-#   <migrations-dir>      directory holding NNN_name.{up,down}.sql files,
-#                         relative to the caller's working directory
-#   <check-against-main>  "true" additionally compares version numbers against
-#                         origin/main, catching a branch that reuses a number
-#                         main has since taken (merge mode); "false" checks the
-#                         local tree only. Merge mode legitimately fires on a
-#                         deliberate renumbering (a post-release consolidation
-#                         replaces main's filenames on purpose).
+# Usage: check-duplicate-migrations.sh <migrations-dir> <merge-mode> [base-branch]
+#   <migrations-dir>  directory holding NNN_name.{up,down}.sql files,
+#                     relative to the caller's working directory
+#   <merge-mode>      "true" additionally compares version numbers against the
+#                     base branch, catching a branch that reuses a number the
+#                     base has since taken; "false" checks the local tree only.
+#                     Merge mode legitimately fires on a deliberate renumbering
+#                     (a post-release consolidation replaces the base branch's
+#                     filenames on purpose).
+#   [base-branch]     branch to compare against in merge mode, resolved as
+#                     `origin/<base-branch>`. Defaults to "main". CI passes the
+#                     PR's target branch, which is `release/X.Y.x` for a
+#                     backport (#747) — comparing a backport against `main`
+#                     would fail on every post-release consolidation renumbering
+#                     and is not the collision we are looking for.
 set -euo pipefail
 
-dir="${1:?usage: $0 <migrations-dir> <check-against-main:true|false>}"
+dir="${1:?usage: $0 <migrations-dir> <merge-mode:true|false> [base-branch]}"
 check_main="${2:-false}"
+base_branch="${3:-main}"
+base_ref="origin/${base_branch}"
 
 if [ ! -d "$dir" ]; then
     echo "ERROR: migrations directory not found: $dir" >&2
@@ -66,28 +74,28 @@ while IFS= read -r base; do
     done
 done <<< "$bases"
 
-# --- 3. Merge mode: a version must resolve to the same name as origin/main --
+# --- 3. Merge mode: a version must resolve to the same name as the base ------
 if [ "$check_main" = "true" ]; then
     # --full-tree makes the pathspec repo-root-relative regardless of the
     # caller's working directory (a bare cwd-relative pathspec would silently
     # match nothing when invoked from backend/).
     prefix=$(git rev-parse --show-prefix)
-    main_bases=$(git ls-tree -r --name-only --full-tree origin/main -- "${prefix}${dir}" \
+    base_bases=$(git ls-tree -r --name-only --full-tree "$base_ref" -- "${prefix}${dir}" \
         | sed -E "s|^${prefix}${dir}/||" \
         | { grep -E '\.sql$' || true; } \
         | sed -E 's/\.(up|down)\.sql$//' | sort -u)
-    if [ -z "$main_bases" ]; then
-        echo "ERROR: merge mode found no migrations at ${prefix}${dir} on origin/main (is origin/main fetched?)" >&2
+    if [ -z "$base_bases" ]; then
+        echo "ERROR: merge mode found no migrations at ${prefix}${dir} on ${base_ref} (is ${base_ref} fetched?)" >&2
         exit 1
     fi
 
     while IFS= read -r v; do
         [ -n "$v" ] || continue
-        echo "ERROR: migration version $v resolves differently here and on origin/main:" >&2
+        echo "ERROR: migration version $v resolves differently here and on ${base_ref}:" >&2
         echo "    local:       $(printf '%s\n' "$bases" | grep "^${v}_" || echo '(absent)')" >&2
-        echo "    origin/main: $(printf '%s\n' "$main_bases" | grep "^${v}_" || echo '(absent)')" >&2
+        echo "    ${base_ref}: $(printf '%s\n' "$base_bases" | grep "^${v}_" || echo '(absent)')" >&2
         status=1
-    done <<< "$(printf '%s\n%s\n' "$bases" "$main_bases" | sort -u | cut -d_ -f1 | sort | uniq -d)"
+    done <<< "$(printf '%s\n%s\n' "$bases" "$base_bases" | sort -u | cut -d_ -f1 | sort | uniq -d)"
 fi
 
 if [ "$status" -eq 0 ]; then

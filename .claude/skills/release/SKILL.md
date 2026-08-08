@@ -6,8 +6,10 @@ description: >-
   builds & pushes the combined image), then post-release run three tracks in
   parallel — smoke-test the published image locally, sync the vibexp/docs site,
   and verify vibexp/cli compatibility (e2e + gap-analysis issues) — and hand back
-  a test URL, the docs PR, and the CLI verdict. Use when asked to "create a
-  release", "cut vX.Y.Z", "do a release", or "release VibeXP".
+  a test URL, the docs PR, and the CLI verdict. Handles both a normal release
+  cut from main and a hotfix/patch release cut from a release/X.Y.x line branch.
+  Use when asked to "create a release", "cut vX.Y.Z", "do a release", "release
+  VibeXP", or "cut a hotfix/patch release".
 ---
 
 # VibeXP Release
@@ -22,7 +24,10 @@ builds and pushes `:X.Y.Z` (+ `:latest` for non-prereleases).
 - **Release tag scheme:** `vX.Y.Z` (e.g. `v0.3.0`). NOT `backend-v*`/`frontend-v*`
   (that was the pre-combined-image scheme; those old tags still exist for compare links).
 - **Release workflow:** `.github/workflows/release.yml`, trigger `release: published`
-  on a `v*` tag. Pushes `ghcr.io/vibexp/vibexp:<version>` and `:latest`.
+  on a `v*` tag. Pushes `ghcr.io/vibexp/vibexp:<version>`, plus `:latest` when
+  the version is the **highest published non-prerelease semver** — not merely
+  when it is not a prerelease (#747), so a backport never drags `:latest`
+  backwards onto an older image.
 - **E2E workflow:** `.github/workflows/ci-e2e.yml` — on-demand only
   (`workflow_dispatch`, input `branch`). Not wired to PRs. Must be triggered and
   awaited explicitly (this is a required pre-release gate).
@@ -45,7 +50,36 @@ builds and pushes `:X.Y.Z` (+ `:latest` for non-prereleases).
 
 - **version** (e.g. `0.3.0`, with or without leading `v`). If not given, propose
   the next version from the last `v*` tag and confirm with the user.
-- **release ref** — default `main`. The release is cut from this branch's tip.
+- **release ref** (`$REF` below) — default `main`. The release is cut from this
+  branch's tip. A `release/X.Y.x` ref selects **hotfix mode** (see below).
+
+## Two modes
+
+Everything below is written in terms of `$REF`. Resolve it FIRST — several
+phases behave differently, and reading `main` when the release is a hotfix is
+the failure this parameterization exists to prevent (issue #747).
+
+| | **Normal release** | **Hotfix / patch release** |
+|---|---|---|
+| `$REF` | `main` | `release/X.Y.x` |
+| Version bump | minor (`0.9.0` → `0.10.0`) | patch (`0.9.0` → `0.9.1`) |
+| Contents | everything merged since the last tag | cherry-picks only |
+| May touch spec / migrations | yes | **no** — see the Phase 0 gate |
+| Docs source tree | `main` HEAD == the tag | **must check out the tag** |
+
+**Hotfix mode assumes the branch already exists and already carries the
+cherry-picks.** Creating it is a human step done before invoking this skill:
+
+```bash
+git fetch --tags origin
+git checkout -b release/0.9.x v0.9.0     # lazily, first patch on this line only
+git push -u origin release/0.9.x
+# then: PR each `git cherry-pick -x <sha-from-main>` into release/0.9.x
+```
+
+Fixes land on `main` FIRST and are cherry-picked from there — never the reverse.
+If asked to hotfix a fix that is not yet on `main`, stop and say so: a fix that
+exists only on the release line is one the next minor silently regresses.
 
 ## Procedure
 
@@ -54,28 +88,63 @@ approves the notes (Phase 3). Never bypass a failing gate — fix or stop.
 
 ### Phase 0 — Preflight
 
-1. Confirm the release ref (`main`) is **clean** and **synced with origin**:
-   `git rev-parse HEAD` == `git rev-parse origin/main` (fetch first), `git status -s` empty.
+1. Confirm `$REF` is **clean** and **synced with origin**: `git rev-parse HEAD`
+   == `git rev-parse origin/$REF` (fetch first), `git status -s` empty. Make
+   sure the checkout is actually ON `$REF` — a hotfix cut while sitting on
+   `main` builds the wrong tree.
 2. Resolve the version. Normalize to `X.Y.Z` (strip a leading `v`); the tag is `vX.Y.Z`.
    Ensure the tag does not already exist: `git tag -l vX.Y.Z` and `gh release view vX.Y.Z`
    must both be empty/not-found. If it exists, STOP.
 3. Determine the previous release tag for the changelog range
    (`git tag --sort=-creatordate | grep -E '^v?[0-9]' | head`). For the first
-   `v*` release, use the newest `backend-v*` tag as the compare base.
+   `v*` release, use the newest `backend-v*` tag as the compare base. In hotfix
+   mode the compare base is the previous tag **on this line** (`v0.9.0` for
+   `v0.9.1`), not whatever tag is newest overall.
+4. **Hotfix mode only — three gates. Any failure STOPS the release.**
+
+   a. **No spec or migration changes.** Both are structural, not stylistic: a
+      spec change auto-publishes both API clients off `main` merges only, and a
+      migration on a side line permanently forks the schema lineage for
+      self-hosters. If either fires, this is a **minor**, not a patch — say so
+      and stop.
+
+      ```bash
+      git diff --name-only "$PREV_TAG..HEAD" \
+        | grep -E '^backend/(openapi\.yaml|paths/|schemas/|migrations/)' \
+        && echo "STOP: patch releases must not touch the spec or migrations"
+      ```
+
+   b. **Every commit on the line exists on `main`.** A `+` line means a fix
+      lives only here, and the next minor will regress it. Report the offending
+      commits and stop until they are forward-ported.
+
+      ```bash
+      git fetch --no-tags origin main:refs/remotes/origin/main
+      git cherry origin/main HEAD      # expect: no lines starting with '+'
+      ```
+
+   c. **The branch is the previous tag plus cherry-picks — nothing else.**
+      Skim `git log --oneline "$PREV_TAG..HEAD"`; every commit should be a
+      deliberate backport. An unexpected merge commit means someone merged
+      `main` into the release line, which defeats the whole point — stop and
+      surface it.
 
 ### Phase 1 — Pre-release checks (E2E gate)
 
 1. Verify the fast CI is green on the release commit:
-   `gh run list --branch main -L 8 --json workflowName,conclusion,status,headSha`
+   `gh run list --branch "$REF" -L 8 --json workflowName,conclusion,status,headSha`
    — the consolidated **`CI`** workflow must be `completed`/`success` on HEAD
    (it may still be `in_progress` right after the last merge; watch it to
    success before proceeding). Ignore the repo-hygiene workflows (`Stale issue
    lifecycle`, `Project board hygiene`) — they are not build/test gates and
    `Project board hygiene` fails until an org admin grants the Projects scope.
+   On a `release/**` push the `Sonar Scan` job is **skipped by design** (#747 —
+   main is the coverage baseline, a release line is not); a skipped Sonar job
+   does not make the CI run anything other than green, so do not chase it.
 2. **Trigger the E2E suite and wait for it to pass** (required):
 
    ```bash
-   gh workflow run ci-e2e.yml -f branch=main
+   gh workflow run ci-e2e.yml -f branch="$REF"
    ```
 
    Then find the run it created and watch it to completion. The dispatch does not
@@ -96,7 +165,11 @@ approves the notes (Phase 3). Never bypass a failing gate — fix or stop.
 
 1. Collect the changes since the previous tag:
    `git log --oneline <prev-tag>..HEAD` and, for PR context,
-   `gh pr list --state merged --base main -L 50 --json number,title,mergedAt`.
+   `gh pr list --state merged --base "$REF" -L 50 --json number,title,mergedAt`.
+   In hotfix mode the list is short by construction — a handful of cherry-picks.
+   Cite the **original** `main` PR number for each (the `cherry picked from
+   commit <sha>` trailer that `-x` leaves is how you find it), not the backport
+   PR: the original is where the discussion lives.
 2. Write **curated, categorized** notes to
    `<scratchpad>/release-notes-vX.Y.Z.md`. Structure:
    - A 1–2 sentence summary lead.
@@ -118,11 +191,16 @@ approves the notes (Phase 3). Never bypass a failing gate — fix or stop.
    release commit):
 
    ```bash
-   gh release create vX.Y.Z --target main --title "vX.Y.Z" \
+   gh release create vX.Y.Z --target "$REF" --title "vX.Y.Z" \
      --notes-file "<scratchpad>/release-notes-vX.Y.Z.md"
    ```
 
    Add `--prerelease` for pre-releases (they will NOT get `:latest`).
+   `release.yml` moves `:latest` only when this version is the **highest
+   published semver** (#747), so a backport — v0.9.1 published after v0.10.0 is
+   already out — deliberately leaves `:latest` alone. That is correct, not a
+   failure: check the workflow's job summary, which states the decision and why,
+   and carry it into the report so nobody goes hunting for a missing tag.
 2. Watch the triggered `release.yml` run to success:
 
    ```bash
@@ -139,6 +217,10 @@ approves the notes (Phase 3). Never bypass a failing gate — fix or stop.
        && echo "OK   :$t" || echo "MISS :$t"
    done
    ```
+
+   `:X.Y.Z` must exist — that is the release. `:latest` is only expected to
+   point HERE when this version is the highest published semver; on a backport
+   it still resolves, but to the newer image, which is the intended outcome.
 
 ### Phase 4 — Post-release: smoke test + docs sync + CLI compat (in parallel)
 
@@ -245,11 +327,26 @@ Track A.
    Do not re-implement that flow here — invoke it. (Prefer running it as a
    background Agent so Track A proceeds in parallel; the audit + review loop can
    take a while.)
-   - **Source-tree note:** the freshly published `vX.Y.Z` tag == current `main`
-     HEAD, so if the sibling `../vibexp` checkout is clean on `main` at that
-     commit, its working tree already *is* the v-tag source — the audit can read
-     it in place with no `git checkout` (which avoids disturbing a running
-     hot-reload dev server). Only check out the tag if the checkout has drifted.
+   - **Source-tree note — normal releases only.** On a release cut from `main`,
+     the freshly published `vX.Y.Z` tag == current `main` HEAD, so if the sibling
+     `../vibexp` checkout is clean on `main` at that commit, its working tree
+     already *is* the v-tag source — the audit can read it in place with no
+     `git checkout` (which avoids disturbing a running hot-reload dev server).
+     Only check out the tag if the checkout has drifted.
+   - **In hotfix mode this shortcut is FALSE and must not be taken.** The tag
+     points at the release line, while `main` has moved on — possibly by weeks.
+     Reading the working tree in place would audit unreleased `main` code while
+     claiming to describe `vX.Y.Z`, which is precisely the "docs describe
+     features users cannot run" failure the docs repo's tracking rule exists to
+     prevent. Check the tag out explicitly (a worktree keeps any running dev
+     server undisturbed):
+
+     ```bash
+     git -C ../vibexp fetch --tags origin
+     git -C ../vibexp worktree add /tmp/vibexp-vX.Y.Z vX.Y.Z
+     ```
+
+     and point the audit at that path. Remove the worktree when Track B ends.
 3. Per its own hard rule, `update-docs` **stops at an unmerged, review-approved
    PR** — never merge it here. The human merges the docs PR separately.
 
@@ -329,8 +426,16 @@ and the list of filed CLI issue URLs (or "no gaps").
 - STOP (do not publish) if: working tree dirty / not synced, fast CI not green,
   the **E2E run fails**, the tag/release already exists, or the user has not
   approved the notes.
+- **Hotfix mode adds three more STOPs** (Phase 0.4): the diff touches the spec
+  or `backend/migrations/`; `git cherry origin/main HEAD` shows a `+` commit;
+  or the line carries something other than the previous tag plus cherry-picks.
+  Never work around these — each one means the patch is really a minor, or that
+  a fix is about to be lost from `main`.
+- **Never create the release branch or the cherry-picks yourself.** Those are
+  human steps that go through normal PRs and CI; this skill releases what is
+  already there.
 - Never `git commit/push --no-verify`. This skill makes **no commit to
-  `vibexp/vibexp`** — it operates on an already-merged `main`. Its only writes are
+  `vibexp/vibexp`** — it operates on an already-merged `$REF`. Its only writes are
   an **unmerged PR in `vibexp/docs`** (Track B, via `update-docs`) and **follow-up
   issues in `vibexp/cli`** (Track C). It never edits or merges CLI code.
 - **Never merge the docs PR.** Track B ends at a review-approved, unmerged PR;

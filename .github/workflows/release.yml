@@ -8,8 +8,10 @@ name: Release
 #
 # This replaces the previous split backend/frontend release workflows: the
 # frontend is no longer published as a separate image. Pushes
-# ghcr.io/vibexp/vibexp:<version> and, for non-prereleases, :latest (which
-# docker-compose.yml tracks).
+# ghcr.io/vibexp/vibexp:<version> and, when the version is the highest published
+# non-prerelease semver, :latest (which docker-compose.yml tracks) — see the
+# "Decide whether this build moves :latest" step for why "newest" and "not a
+# prerelease" are not the same test once patch releases exist (#747).
 #
 # workflow_dispatch is a manual escape hatch: provide `version` to build/push
 # from the current ref without a release.
@@ -55,6 +57,56 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Building $IMAGE_NAME:$version"
 
+      # `:latest` must point at the NEWEST release, which is not the same thing
+      # as "not a prerelease" (issue #747). Once patch releases are cut from a
+      # `release/X.Y.x` line branch, publishing v0.9.1 AFTER v0.10.0 is already
+      # out is an ordinary backport — and the old `enable=prerelease == false`
+      # spelling would have moved `:latest` BACKWARDS to the older image, which
+      # docker-compose.yml tracks. Every self-hoster on the one-command path
+      # would silently downgrade on their next pull.
+      #
+      # So compare against what is actually published: `:latest` moves only when
+      # this version is the highest non-prerelease semver. Ties (a rebuild of the
+      # current newest release) still move it, which is what you want.
+      - name: Decide whether this build moves :latest
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          set -euo pipefail
+
+          # Empty on workflow_dispatch (no github.event.release), which is the
+          # intended fall-through to the semver comparison below.
+          if [ "$PRERELEASE" = "true" ]; then
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+            echo "- \`:latest\`: **not moved** — $VERSION is a prerelease." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # `|| true` so a repo with no releases yet (or a transient read error
+          # under `set -o pipefail`) yields an empty list rather than aborting;
+          # an empty list makes VERSION trivially the highest, which is correct
+          # for the very first release.
+          published="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
+              --json tagName,isPrerelease,isDraft \
+              --jq '.[] | select(.isPrerelease == false and .isDraft == false) | .tagName' \
+            | sed 's/^v//' \
+            | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; })"
+
+          # sort -V orders X.Y.Z numerically (10 > 9, unlike a lexical sort).
+          highest="$(printf '%s\n%s\n' "$published" "$VERSION" \
+            | { grep -v '^$' || true; } | sort -V | tail -1)"
+
+          if [ "$highest" = "$VERSION" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+            echo "- \`:latest\` -> **$VERSION** (highest published version)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+            echo "- \`:latest\`: **not moved** — $VERSION is a backport; $highest is newer." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Resolve build date
         id: builddate
         run: echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
@@ -82,7 +134,7 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ steps.version.outputs.version }}
-            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}
+            type=raw,value=latest,enable=${{ steps.latest.outputs.latest == 'true' }}
 
       # Build context is the repo root so the Dockerfile can build the frontend
       # SPA and embed it into the Go backend (see backend/Dockerfile).
