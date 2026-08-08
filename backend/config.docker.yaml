@@ -171,10 +171,25 @@ frontend:
   gtm_id: "${VITE_GTM_ID:-}"
   ga4_measurement_id: "${VITE_GA4_MEASUREMENT_ID:-}"
 
-# Resource-attachment storage. Empty disables attachments. Set to your GCS
-# bucket name (and STORAGE_EMULATOR_HOST for an emulator) to enable uploads.
+# Resource-attachment storage. STORAGE_BACKEND selects the object store: gcs,
+# s3 (MinIO-compatible too), or filesystem. Empty keeps the legacy behavior:
+# GCS when the bucket is set (plus STORAGE_EMULATOR_HOST for an emulator),
+# otherwise attachments are disabled.
 storage:
+  backend: "${STORAGE_BACKEND:-}"
   attachments_bucket: "${GCS_RESOURCE_ATTACHMENTS_BUCKET:-}"
+  # S3 backend (STORAGE_BACKEND=s3): endpoint + path-style target MinIO or any
+  # S3-compatible store; leave the endpoint empty for AWS S3. path_style is a
+  # literal default (env interpolation is string-only) — set it to true here for
+  # MinIO, or mount your own config.yaml.
+  s3_endpoint: "${S3_ENDPOINT:-}"
+  s3_region: "${S3_REGION:-}"
+  s3_access_key: "${S3_ACCESS_KEY:-}"
+  s3_secret_key: "${S3_SECRET_KEY:-}"
+  s3_path_style: false
+  # Filesystem backend (STORAGE_BACKEND=filesystem): mount a volume at this
+  # path so attachments survive container recreation.
+  fs_root_dir: "${STORAGE_FS_ROOT_DIR:-}"
 
 # Agent-to-Agent client settings. stream_timeout caps a streaming SSE
 # connection's total lifetime and is decoupled from the sync default_timeout so

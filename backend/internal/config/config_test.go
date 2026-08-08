@@ -138,7 +138,14 @@ search:
   rank_half_life_days: 45
   rank_candidate_cap: 300
 storage:
+  backend: s3
   attachments_bucket: my-bucket
+  s3_endpoint: https://minio.example.com
+  s3_region: us-east-1
+  s3_access_key: my-access-key
+  s3_secret_key: my-secret-key
+  s3_path_style: true
+  fs_root_dir: /var/lib/vibexp/attachments
 gcp:
   project_id: my-project
   pubsub_push_audience: https://app.example.com
@@ -364,7 +371,14 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, 300, cfg.Search.RankCandidateCap)
 
 	// Storage, gcp.
+	assert.Equal(t, "s3", cfg.Storage.Backend)
 	assert.Equal(t, "my-bucket", cfg.Storage.AttachmentsBucket)
+	assert.Equal(t, "https://minio.example.com", cfg.Storage.S3Endpoint)
+	assert.Equal(t, "us-east-1", cfg.Storage.S3Region)
+	assert.Equal(t, "my-access-key", cfg.Storage.S3AccessKey)
+	assert.Equal(t, "my-secret-key", cfg.Storage.S3SecretKey)
+	assert.True(t, cfg.Storage.S3PathStyle)
+	assert.Equal(t, "/var/lib/vibexp/attachments", cfg.Storage.FSRootDir)
 	assert.Equal(t, "my-project", cfg.GCP.ProjectID)
 	assert.Equal(t, "@my-project.iam.gserviceaccount.com", cfg.GCP.PubSubPushServiceAccountSuffix)
 
@@ -637,6 +651,82 @@ func TestValidateSearchRankingConfig(t *testing.T) {
 			err := validateSearchRankingConfig(cfg)
 			if tt.wantErr {
 				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateStorageConfig(t *testing.T) {
+	base := func() *Config {
+		return &Config{Storage: StorageConfig{}}
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr string
+	}{
+		{"empty backend with no bucket (disabled)", func(*Config) {}, ""},
+		{"empty backend with bucket (legacy GCS infer)", func(c *Config) {
+			c.Storage.AttachmentsBucket = "b"
+		}, ""},
+		{"gcs with bucket", func(c *Config) {
+			c.Storage.Backend = "gcs"
+			c.Storage.AttachmentsBucket = "b"
+		}, ""},
+		{"gcs without bucket", func(c *Config) { c.Storage.Backend = "gcs" }, "storage.attachments_bucket"},
+		{"s3 with bucket and region", func(c *Config) {
+			c.Storage.Backend = "s3"
+			c.Storage.AttachmentsBucket = "b"
+			c.Storage.S3Region = "us-east-1"
+		}, ""},
+		{"s3 without bucket", func(c *Config) {
+			c.Storage.Backend = "s3"
+			c.Storage.S3Region = "us-east-1"
+		}, "storage.attachments_bucket"},
+		{"s3 without region", func(c *Config) {
+			c.Storage.Backend = "s3"
+			c.Storage.AttachmentsBucket = "b"
+		}, "storage.s3_region"},
+		{"s3 access key without secret key", func(c *Config) {
+			c.Storage.Backend = "s3"
+			c.Storage.AttachmentsBucket = "b"
+			c.Storage.S3Region = "us-east-1"
+			c.Storage.S3AccessKey = "ak"
+		}, "s3_access_key"},
+		{"s3 secret key without access key", func(c *Config) {
+			c.Storage.Backend = "s3"
+			c.Storage.AttachmentsBucket = "b"
+			c.Storage.S3Region = "us-east-1"
+			c.Storage.S3SecretKey = "sk"
+		}, "s3_secret_key"},
+		{"s3 with both static credentials", func(c *Config) {
+			c.Storage.Backend = "s3"
+			c.Storage.AttachmentsBucket = "b"
+			c.Storage.S3Region = "us-east-1"
+			c.Storage.S3AccessKey = "ak"
+			c.Storage.S3SecretKey = "sk"
+		}, ""},
+		{"filesystem with root dir", func(c *Config) {
+			c.Storage.Backend = "filesystem"
+			c.Storage.FSRootDir = "/data"
+		}, ""},
+		{"filesystem without root dir", func(c *Config) {
+			c.Storage.Backend = "filesystem"
+		}, "storage.fs_root_dir"},
+		{"unknown backend", func(c *Config) { c.Storage.Backend = "azure" }, "storage.backend"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := base()
+			tt.mutate(cfg)
+			err := validateStorageConfig(cfg)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
 				return
 			}
 			assert.NoError(t, err)

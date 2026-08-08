@@ -662,7 +662,28 @@
     },
     "StorageConfig": {
       "properties": {
+        "backend": {
+          "type": "string"
+        },
         "attachments_bucket": {
+          "type": "string"
+        },
+        "s3_endpoint": {
+          "type": "string"
+        },
+        "s3_region": {
+          "type": "string"
+        },
+        "s3_access_key": {
+          "type": "string"
+        },
+        "s3_secret_key": {
+          "type": "string"
+        },
+        "s3_path_style": {
+          "type": "boolean"
+        },
+        "fs_root_dir": {
           "type": "string"
         }
       },
