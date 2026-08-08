@@ -486,10 +486,32 @@ type SearchConfig struct {
 
 // StorageConfig holds resource-attachment storage settings.
 type StorageConfig struct {
-	// AttachmentsBucket is the GCS bucket backing artifact (and future resource)
-	// file attachments. Empty (or an uninitialisable client) disables attachments
-	// (upload/download/delete return 503).
+	// Backend selects the object-store implementation: "gcs", "s3" (covers
+	// MinIO via s3_endpoint + s3_path_style), or "filesystem". Empty preserves
+	// the pre-selector behavior: GCS is used when AttachmentsBucket is set,
+	// otherwise attachments are disabled (upload/download/delete return 503).
+	Backend string `koanf:"backend"`
+	// AttachmentsBucket is the bucket backing artifact (and future resource)
+	// file attachments for the gcs and s3 backends. Empty with an empty Backend
+	// disables attachments.
 	AttachmentsBucket string `koanf:"attachments_bucket"`
+	// S3Endpoint overrides the S3 API endpoint (e.g. a MinIO server URL). Empty
+	// targets AWS S3 in S3Region.
+	S3Endpoint string `koanf:"s3_endpoint"`
+	// S3Region is the S3 region; required by the SDK even for MinIO (which
+	// ignores its value).
+	S3Region string `koanf:"s3_region"`
+	// S3AccessKey / S3SecretKey are static S3 credentials. Reference them via
+	// ${VAR} interpolation; never commit values. Empty falls back to the AWS
+	// SDK default credential chain (env vars, shared config, IAM).
+	S3AccessKey string `koanf:"s3_access_key"`
+	S3SecretKey string `koanf:"s3_secret_key"`
+	// S3PathStyle forces path-style addressing (endpoint/bucket/key), required
+	// by MinIO and most self-hosted S3-compatible stores.
+	S3PathStyle bool `koanf:"s3_path_style"`
+	// FSRootDir is the root directory the filesystem backend stores objects
+	// under. Required when Backend is "filesystem".
+	FSRootDir string `koanf:"fs_root_dir"`
 }
 
 // GCPConfig holds Google Cloud settings used for observability and the internal
@@ -693,6 +715,41 @@ func validateSearchRankingConfig(cfg *Config) error {
 	if s.RankCandidateCap > MaxSearchRankCandidateCap {
 		return fmt.Errorf("search.rank_candidate_cap must be <= %d, got %d",
 			MaxSearchRankCandidateCap, s.RankCandidateCap)
+	}
+	return nil
+}
+
+// supportedStorageBackends is the set of storage.backend selector values
+// VibeXP accepts. The empty string is valid and means "infer": GCS when
+// attachments_bucket is set, disabled otherwise (the pre-selector behavior).
+var supportedStorageBackends = map[string]bool{
+	"":           true,
+	"gcs":        true,
+	"s3":         true,
+	"filesystem": true,
+}
+
+// validateStorageConfig fails closed on an unknown storage.backend selector (a
+// typo would otherwise silently disable attachments) and on a selected backend
+// missing its required knob, so a misconfigured deployment is caught at startup
+// rather than surfacing as 503s at upload time.
+func validateStorageConfig(cfg *Config) error {
+	s := cfg.Storage
+	if !supportedStorageBackends[s.Backend] {
+		return fmt.Errorf(
+			"storage.backend must be one of \"gcs\", \"s3\", or \"filesystem\", got %q",
+			s.Backend,
+		)
+	}
+	switch s.Backend {
+	case "gcs", "s3":
+		if s.AttachmentsBucket == "" {
+			return fmt.Errorf("storage.attachments_bucket is required when storage.backend is %q", s.Backend)
+		}
+	case "filesystem":
+		if s.FSRootDir == "" {
+			return fmt.Errorf("storage.fs_root_dir is required when storage.backend is \"filesystem\"")
+		}
 	}
 	return nil
 }
@@ -949,6 +1006,7 @@ func validateAll(cfg *Config) error {
 		validateBodyAndRetention,
 		validateRateLimits,
 		validateSearchRankingConfig,
+		validateStorageConfig,
 		validateDatabaseSSLMode,
 		validateEncryptionKey,
 		validateInstanceAdmins,

@@ -266,10 +266,24 @@ search:
   rank_half_life_days: 90.0
   rank_candidate_cap: 200
 
-# Resource-attachment storage. Empty disables attachments (upload/download/
-# delete return 503). Set to your GCS bucket name to enable.
+# Resource-attachment storage. backend selects the object store: "gcs", "s3"
+# (MinIO-compatible too), or "filesystem". Empty backend keeps the legacy
+# behavior: GCS when attachments_bucket is set, otherwise attachments are
+# disabled (upload/download/delete return 503).
 storage:
+  backend: ""
   attachments_bucket: ""
+  # S3 backend knobs (backend: s3). endpoint + path_style target MinIO or any
+  # S3-compatible store; leave endpoint empty for AWS S3. Credentials fall back
+  # to the AWS SDK default chain (env/shared config/IAM) when left empty.
+  s3_endpoint: ""
+  s3_region: ""
+  s3_access_key: ""
+  s3_secret_key: ""
+  s3_path_style: false
+  # Filesystem backend knob (backend: filesystem): root directory objects are
+  # stored under. The directory is created on first upload.
+  fs_root_dir: ""
 
 # Google Cloud settings for observability and the internal Pub/Sub-push job auth.
 # All optional; leave empty for local dev.
