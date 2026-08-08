@@ -16,6 +16,7 @@ import (
 	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
+	"github.com/vibexp/vibexp/internal/storage"
 )
 
 const (
@@ -96,6 +97,39 @@ func TestAttachmentService_Upload_Success(t *testing.T) {
 	assert.Equal(t, "notes.txt", att.FileName)
 	assert.True(t, strings.HasPrefix(att.GCSObjectKey, svcTeamID+"/"+svcOwnerType+"/"+svcOwnerID+"/"))
 	assert.Len(t, store.objects, 1)
+}
+
+// TestAttachmentService_FSStoreRoundTrip wires a real filesystem store into the
+// service and round-trips upload → download → delete, pinning that the object
+// key format buildAttachmentObjectKey mints is accepted by FSStore's
+// path-traversal containment guard (issue #754 testing strategy).
+func TestAttachmentService_FSStoreRoundTrip(t *testing.T) {
+	repo := repomocks.NewMockAttachmentRepository(t)
+	repo.On("SumSizeByOwner", mock.Anything, svcOwnerType, svcOwnerID).Return(int64(0), nil)
+	repo.On("Create", mock.Anything, mock.AnythingOfType("*models.Attachment")).Return(nil)
+
+	fsStore, err := storage.NewFSStore(t.TempDir())
+	require.NoError(t, err)
+	svc := NewAttachmentService(repo, fsStore, newTestLogger())
+	ctx := context.Background()
+
+	content := []byte("filesystem round-trip attachment")
+	att, err := svc.Upload(ctx, uploadParams("roundtrip.txt", content))
+	require.NoError(t, err)
+
+	// Download through the service reads back exactly what was uploaded — proof
+	// the minted key survived the FS containment guard and path mapping.
+	rc, err := svc.Download(ctx, att)
+	require.NoError(t, err)
+	defer func() { assert.NoError(t, rc.Close()) }()
+	got, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	assert.Equal(t, content, got)
+
+	// Deleting via the store removes the object; a second download 404s.
+	require.NoError(t, fsStore.Delete(ctx, att.GCSObjectKey))
+	_, err = svc.Download(ctx, att)
+	assert.Error(t, err)
 }
 
 // TestAttachmentService_Upload_RelativePath covers the #338 validation matrix: a

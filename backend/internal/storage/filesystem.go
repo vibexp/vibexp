@@ -81,13 +81,19 @@ func (s *FSStore) Upload(ctx context.Context, key, contentType string, r io.Read
 		return fmt.Errorf("create object %q: %w", key, err)
 	}
 	if _, err := io.Copy(f, r); err != nil {
-		// Close to release the handle; the partial object is best-effort
-		// cleaned up by the caller's compensating delete. Join the close error
-		// so it is surfaced rather than silently dropped.
-		return errors.Join(fmt.Errorf("write object %q: %w", key, err), f.Close())
+		// The caller does NOT compensate on upload error (AttachmentService
+		// returns immediately), and object keys are UUID-unique so nothing
+		// revisits this path — remove the partial object here or it leaks
+		// (disk-full, the most likely cause, is made worse by each leaked
+		// retry). Join close+remove errors so they surface, never swallow.
+		return errors.Join(
+			fmt.Errorf("write object %q: %w", key, err),
+			f.Close(),
+			os.Remove(p),
+		)
 	}
 	if err := f.Close(); err != nil {
-		return fmt.Errorf("finalize object %q: %w", key, err)
+		return errors.Join(fmt.Errorf("finalize object %q: %w", key, err), os.Remove(p))
 	}
 	return nil
 }

@@ -677,11 +677,38 @@ func TestValidateStorageConfig(t *testing.T) {
 			c.Storage.AttachmentsBucket = "b"
 		}, ""},
 		{"gcs without bucket", func(c *Config) { c.Storage.Backend = "gcs" }, "storage.attachments_bucket"},
-		{"s3 with bucket", func(c *Config) {
+		{"s3 with bucket and region", func(c *Config) {
 			c.Storage.Backend = "s3"
 			c.Storage.AttachmentsBucket = "b"
+			c.Storage.S3Region = "us-east-1"
 		}, ""},
-		{"s3 without bucket", func(c *Config) { c.Storage.Backend = "s3" }, "storage.attachments_bucket"},
+		{"s3 without bucket", func(c *Config) {
+			c.Storage.Backend = "s3"
+			c.Storage.S3Region = "us-east-1"
+		}, "storage.attachments_bucket"},
+		{"s3 without region", func(c *Config) {
+			c.Storage.Backend = "s3"
+			c.Storage.AttachmentsBucket = "b"
+		}, "storage.s3_region"},
+		{"s3 access key without secret key", func(c *Config) {
+			c.Storage.Backend = "s3"
+			c.Storage.AttachmentsBucket = "b"
+			c.Storage.S3Region = "us-east-1"
+			c.Storage.S3AccessKey = "ak"
+		}, "s3_access_key"},
+		{"s3 secret key without access key", func(c *Config) {
+			c.Storage.Backend = "s3"
+			c.Storage.AttachmentsBucket = "b"
+			c.Storage.S3Region = "us-east-1"
+			c.Storage.S3SecretKey = "sk"
+		}, "s3_secret_key"},
+		{"s3 with both static credentials", func(c *Config) {
+			c.Storage.Backend = "s3"
+			c.Storage.AttachmentsBucket = "b"
+			c.Storage.S3Region = "us-east-1"
+			c.Storage.S3AccessKey = "ak"
+			c.Storage.S3SecretKey = "sk"
+		}, ""},
 		{"filesystem with root dir", func(c *Config) {
 			c.Storage.Backend = "filesystem"
 			c.Storage.FSRootDir = "/data"

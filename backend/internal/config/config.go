@@ -746,6 +746,20 @@ func validateStorageConfig(cfg *Config) error {
 		if s.AttachmentsBucket == "" {
 			return fmt.Errorf("storage.attachments_bucket is required when storage.backend is %q", s.Backend)
 		}
+		if s.Backend == "s3" {
+			// Region is required by the SDK even for MinIO; without it NewS3Store
+			// errors and the provider degrades to 503s at upload time.
+			if s.S3Region == "" {
+				return fmt.Errorf("storage.s3_region is required when storage.backend is \"s3\"")
+			}
+			// Static credentials are both-or-neither: installing a provider with
+			// only one fails every request at upload time with an opaque
+			// SDK error that never names the config knob.
+			if (s.S3AccessKey == "") != (s.S3SecretKey == "") {
+				return fmt.Errorf("storage.s3_access_key and storage.s3_secret_key must be set together " +
+					"(or both empty to use the AWS default credential chain)")
+			}
+		}
 	case "filesystem":
 		if s.FSRootDir == "" {
 			return fmt.Errorf("storage.fs_root_dir is required when storage.backend is \"filesystem\"")

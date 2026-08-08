@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -116,4 +117,30 @@ func TestFSStore_CancelledContext(t *testing.T) {
 	_, err = store.Download(ctx, "k")
 	assert.Error(t, err)
 	assert.Error(t, store.Delete(ctx, "k"))
+}
+
+// errReader fails after handing out a few bytes, so the upload always dies
+// mid-copy with a partial file already written.
+type errReader struct{ n int }
+
+func (e *errReader) Read(p []byte) (int, error) {
+	if e.n == 0 {
+		e.n = 1
+		p[0] = 'x'
+		return 1, nil
+	}
+	return 0, errors.New("simulated I/O failure (disk full)")
+}
+
+func TestFSStore_FailedUploadLeavesNoPartialFile(t *testing.T) {
+	store, err := NewFSStore(t.TempDir())
+	require.NoError(t, err)
+
+	const key = "team/art/partial.bin"
+	require.Error(t, store.Upload(context.Background(), key, "application/octet-stream", &errReader{}))
+
+	// The partial object must not survive: no file at the key's path.
+	_, statErr := os.Stat(filepath.Join(store.root, filepath.FromSlash(key)))
+	assert.True(t, errors.Is(statErr, os.ErrNotExist),
+		"failed upload must not leave a partial file, stat err = %v", statErr)
 }
