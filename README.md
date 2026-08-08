@@ -240,6 +240,8 @@ See [`CLAUDE.md`](./CLAUDE.md) for the full contributor guide and conventions.
 
 Contributions are welcome. Branch off `main`, open a PR, and let CI pass. 💚 **Every PR must link an open issue** — add `Fixes #N` to the description or link one from the Development sidebar (a `pr-linked-issue` check enforces this). The repo also runs stale-issue and project-board automations — see [`CLAUDE.md`](./CLAUDE.md#repository-automations).
 
+**Always target `main`, including bug fixes.** Patch releases are cut from a `release/X.Y.x` maintenance branch, but fixes land on `main` first and maintainers cherry-pick them onto the line — you never need to open a PR against a release branch. Full process: [Releases and backports](https://docs.vibexp.io/developer-guide/contributing/workflow/#releases-and-backports).
+
 ---
 
 ## License 📄
