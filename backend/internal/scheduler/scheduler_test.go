@@ -236,7 +236,9 @@ func TestStart_LoopSurvivesHandlerPanic(t *testing.T) {
 		Run(func(ctx context.Context, id string) { close(secondRan) }).Once()
 
 	s.Start(context.Background())
-	// Stop the loop before the cleanup closes the mock DB underneath it.
+	// Stop the loop before the cleanup closes the mock DB underneath it. Close
+	// is idempotent, so the explicit call below is safe alongside this one,
+	// which covers the t.Fatal path.
 	defer s.Close()
 
 	select {
@@ -244,6 +246,11 @@ func TestStart_LoopSurvivesHandlerPanic(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("no tick ran after the first tick's handler panicked — the loop did not survive")
 	}
+	// MarkRun (which signalled secondRan) runs BEFORE runDue's deferred
+	// pg_advisory_unlock, so asserting here directly would race the second
+	// unlock. Close waits for the in-flight tick to finish first — the same
+	// ordering TestClose_WaitsForInFlightHandler relies on.
+	s.Close()
 	assert.NoError(t, sqlMock.ExpectationsWereMet())
 }
 
