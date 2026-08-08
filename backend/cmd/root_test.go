@@ -2,14 +2,23 @@ package cmd
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
+	"github.com/vibexp/vibexp/internal/database"
+	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories/mocks"
+	"github.com/vibexp/vibexp/internal/scheduler"
 )
 
 // mockServer is a mock implementation for testing
@@ -157,4 +166,80 @@ func TestGracefulShutdownScenarios(t *testing.T) {
 		assert.True(t, shouldLogFatal,
 			"Unexpected errors should still be logged at FATAL level")
 	})
+}
+
+// newSchedulerForTest builds a real *scheduler.Scheduler over a mocked
+// repository and a sqlmock connection, so startScheduler's gate can be tested
+// without a container (container.Container is a ~60-method interface with no
+// generated mock).
+func newSchedulerForTest(t *testing.T) (*scheduler.Scheduler, *mocks.MockScheduleRepository) {
+	t.Helper()
+	// sqlmock reuses one driver instance per DSN string, so scope the DSN to
+	// this test to keep expectations from leaking between tests.
+	sqlDB, sqlMock, err := sqlmock.NewWithDSN(
+		"postgres://sched:test@localhost:5432/cmd_unit?sslmode=disable&case=" + t.Name())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		sqlMock.ExpectClose()
+		if cerr := sqlDB.Close(); cerr != nil {
+			t.Errorf("close mock db: %v", cerr)
+		}
+	})
+
+	repo := mocks.NewMockScheduleRepository(t)
+	s := scheduler.New(
+		repo,
+		&database.DB{DB: sqlDB},
+		scheduler.NewRegistry(),
+		scheduler.Config{TickInterval: 10 * time.Millisecond, JobTimeout: time.Minute, DueLimit: 10},
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	return s, repo
+}
+
+// TestStartScheduler_DisabledClaimsNothing covers the #728 acceptance criterion
+// "when disabled nothing is claimed or run". The mock is strict: any call to
+// ListDue fails the test, so setting no expectation IS the assertion.
+func TestStartScheduler_DisabledClaimsNothing(t *testing.T) {
+	sched, _ := newSchedulerForTest(t)
+	cfg := &config.Config{Scheduler: config.SchedulerConfig{Enabled: false}}
+
+	started := startScheduler(context.Background(), sched, cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	assert.False(t, started, "startScheduler must report that it did not start the loop")
+	// The loop's first tick is immediate, so had it started, ListDue would have
+	// been called well within this window.
+	time.Sleep(100 * time.Millisecond)
+	sched.Close() // no-op when Start was never called
+}
+
+// TestStartScheduler_EnabledStartsLoop is the positive control: without it,
+// TestStartScheduler_DisabledClaimsNothing would still pass if startScheduler
+// were broken into never starting anything at all.
+func TestStartScheduler_EnabledStartsLoop(t *testing.T) {
+	sched, repo := newSchedulerForTest(t)
+	cfg := &config.Config{Scheduler: config.SchedulerConfig{
+		Enabled:      true,
+		TickInterval: 10 * time.Millisecond,
+		JobTimeout:   time.Minute,
+		DueLimit:     10,
+	}}
+
+	polled := make(chan struct{})
+	var once sync.Once
+	repo.EXPECT().ListDue(mock.Anything, 10).RunAndReturn(
+		func(ctx context.Context, limit int) ([]*models.Schedule, error) {
+			once.Do(func() { close(polled) })
+			return nil, nil
+		})
+
+	started := startScheduler(context.Background(), sched, cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	defer sched.Close()
+
+	assert.True(t, started)
+	select {
+	case <-polled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("scheduler was enabled but the loop never polled for due schedules")
+	}
 }
