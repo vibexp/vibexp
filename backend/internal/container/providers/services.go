@@ -779,6 +779,6 @@ func ProvideScheduler(
 	return scheduler.New(repo, db, registry, scheduler.Config{
 		TickInterval: cfg.Scheduler.TickInterval,
 		JobTimeout:   cfg.Scheduler.JobTimeout,
-		DueLimit:     cfg.Scheduler.DueLimit,
+		DueLimit:     int(cfg.Scheduler.DueLimit),
 	}, logger)
 }

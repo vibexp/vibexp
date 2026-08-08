@@ -531,7 +531,15 @@
     "SchedulerConfig": {
       "properties": {
         "enabled": {
-          "type": "boolean"
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
         },
         "tick_interval": {
           "type": "string",
@@ -542,7 +550,15 @@
           "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
         },
         "due_limit": {
-          "type": "integer"
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
         }
       },
       "additionalProperties": false,
