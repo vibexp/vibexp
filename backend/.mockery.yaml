@@ -123,6 +123,7 @@ packages:
       PromptShareRepository:
       RelationRepository:
       ResourceAccessRepository:
+      ScheduleRepository:
       SearchRepository:
       TeamEmailProviderRepository:
       TeamInvitationRepository:

@@ -1464,3 +1464,29 @@ type TypeRepository interface {
 	// another team's), leaving all rows untouched.
 	DeleteCustom(ctx context.Context, teamID, id, fallbackSlug string) error
 }
+
+// ScheduleRepository persists per-team recurring-job schedules for the
+// in-process scheduler (table `schedules`, epic #725). Tenancy-only: every
+// operation is scoped by team_id, with no role predicates (authz decision
+// D3).
+type ScheduleRepository interface {
+	// Upsert creates the schedule for (TeamID, JobType) or updates the existing
+	// row's interval and next run time, populating the model's ID, CreatedAt and
+	// UpdatedAt from the persisted row on return. Relies on the
+	// (team_id, job_type) unique constraint.
+	Upsert(ctx context.Context, s *models.Schedule) error
+	// ListDue returns schedules whose next_run_at is at or before the database
+	// clock (now()), ordered by next_run_at ascending (most overdue first),
+	// capped at limit. Due-ness is computed by the database so all replicas
+	// agree on what is due regardless of app-server clock skew.
+	ListDue(ctx context.Context, limit int) ([]*models.Schedule, error)
+	// MarkRun records a run of the schedule with the given id against the
+	// database clock: sets last_run_at = now() and atomically advances
+	// next_run_at to now() + interval_seconds. Advancing from the run time (not
+	// the old next_run_at) skips runs missed during downtime instead of
+	// catching them up. It is an error when no schedule has the given id.
+	MarkRun(ctx context.Context, id string) error
+	// Delete removes the schedule for (teamID, jobType). It is not an error
+	// when no such schedule exists.
+	Delete(ctx context.Context, teamID, jobType string) error
+}
