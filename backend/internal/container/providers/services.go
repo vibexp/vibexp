@@ -9,6 +9,7 @@ import (
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/observability/metrics"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 	"github.com/vibexp/vibexp/internal/services/feature_flags"
@@ -755,4 +756,29 @@ func ProvideGitHubAppService(
 		authzSvc,
 		logger,
 	)
+}
+
+// ProvideSchedulerRegistry creates the scheduler's job registry. Features
+// register their handlers on it at startup (wire time); the scheduler looks
+// them up by job_type. It is populated by the container as jobs are added —
+// empty for now (#728 ships the engine; the first job lands with #732).
+func ProvideSchedulerRegistry() *scheduler.Registry {
+	return scheduler.NewRegistry()
+}
+
+// ProvideScheduler creates the in-process scheduler engine. It is started and
+// stopped with the container (see WireContainer.Close); cfg.Scheduler.Enabled
+// gates whether the loop runs at all.
+func ProvideScheduler(
+	cfg *config.Config,
+	repo repositories.ScheduleRepository,
+	db *database.DB,
+	registry *scheduler.Registry,
+	logger *slog.Logger,
+) *scheduler.Scheduler {
+	return scheduler.New(repo, db, registry, scheduler.Config{
+		TickInterval: cfg.Scheduler.TickInterval,
+		JobTimeout:   cfg.Scheduler.JobTimeout,
+		DueLimit:     cfg.Scheduler.DueLimit,
+	}, logger)
 }

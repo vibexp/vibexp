@@ -80,7 +80,7 @@ backend-test-unit-coverage:
 # disagree. Note each package owns its own test database (see the respective
 # main_integration_test.go); do NOT set POSTGRES_TEST_DSN across both, that
 # points them at one database and reintroduces the collision they avoid.
-INTEGRATION_TAGGED_PKGS := internal/repositories/postgres internal/services/projectmigration
+INTEGRATION_TAGGED_PKGS := internal/repositories/postgres internal/scheduler internal/services/projectmigration
 INTEGRATION_TEST_PATTERNS := $(addprefix ./,$(addsuffix /...,$(INTEGRATION_TAGGED_PKGS)))
 
 # Tagged half. Needs a reachable Postgres (docker-compose locally, service

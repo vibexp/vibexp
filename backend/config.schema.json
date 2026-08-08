@@ -157,6 +157,9 @@
         "retention": {
           "$ref": "#/$defs/RetentionConfig"
         },
+        "scheduler": {
+          "$ref": "#/$defs/SchedulerConfig"
+        },
         "a2a": {
           "$ref": "#/$defs/A2AConfig"
         },
@@ -520,6 +523,26 @@
         },
         "password": {
           "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SchedulerConfig": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "tick_interval": {
+          "type": "string",
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
+        },
+        "job_timeout": {
+          "type": "string",
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
+        },
+        "due_limit": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,

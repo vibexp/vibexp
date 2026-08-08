@@ -39,6 +39,7 @@ type Config struct {
 	GCP        GCPConfig        `koanf:"gcp"`
 	RateLimit  RateLimitConfig  `koanf:"rate_limit"`
 	Retention  RetentionConfig  `koanf:"retention"`
+	Scheduler  SchedulerConfig  `koanf:"scheduler"`
 	A2A        A2AConfig        `koanf:"a2a"`
 	Deployment DeploymentConfig `koanf:"deployment"`
 
@@ -522,6 +523,20 @@ type RetentionConfig struct {
 	ContentVersionLimit int `koanf:"content_version_limit"`
 }
 
+// SchedulerConfig holds the in-process scheduler engine's knobs (epic #725).
+type SchedulerConfig struct {
+	// Enabled turns the run loop on. When false nothing is claimed or run.
+	Enabled bool `koanf:"enabled"`
+	// TickInterval is how often the loop looks for due schedules. The 1-hour
+	// job floor keeps work sparse, so this is a polling cadence, not a job
+	// cadence — minutes, not seconds.
+	TickInterval time.Duration `koanf:"tick_interval"`
+	// JobTimeout bounds a single handler invocation.
+	JobTimeout time.Duration `koanf:"job_timeout"`
+	// DueLimit caps how many due schedules one tick claims.
+	DueLimit int `koanf:"due_limit"`
+}
+
 // A2AConfig holds Agent-to-Agent client settings.
 type A2AConfig struct {
 	// DefaultTimeout bounds a single synchronous (message/send) request.
@@ -1000,6 +1015,10 @@ func defaults() map[string]any {
 		"retention.activity_days":             90,
 		"retention.access_event_days":         90,
 		"retention.content_version_limit":     20,
+		"scheduler.enabled":                   true,
+		"scheduler.tick_interval":             "1m",
+		"scheduler.job_timeout":               "10m",
+		"scheduler.due_limit":                 100,
 		"a2a.default_timeout":                 "5m",
 		"a2a.stream_timeout":                  "2h",
 		"event_bus.worker_count":              20,

@@ -68,6 +68,10 @@ func runServer(cmd *cobra.Command, args []string) {
 	defer cancel()
 	defer closeContainer(srv.Container(), logger)
 
+	// Start the in-process scheduler after the DB is migrated and ready. It is
+	// stopped (draining any in-flight job) by closeContainer on shutdown.
+	startScheduler(ctx, srv.Container(), cfg, logger)
+
 	startServer(ctx, srv, logger)
 }
 
@@ -196,6 +200,22 @@ func closeContainer(c container.Container, logger *slog.Logger) {
 	if err := c.Close(); err != nil {
 		logger.Error("Failed to close container", "error", err)
 	}
+}
+
+// startScheduler launches the in-process scheduler loop unless it is disabled
+// by config. The loop runs until ctx is cancelled; closeContainer then waits
+// for any in-flight job.
+func startScheduler(ctx context.Context, c container.Container, cfg *config.Config, logger *slog.Logger) {
+	if !cfg.Scheduler.Enabled {
+		logger.Info("Scheduler disabled by config (scheduler.enabled=false)")
+		return
+	}
+	c.Scheduler().Start(ctx)
+	logger.Info("Scheduler started",
+		"tick_interval", cfg.Scheduler.TickInterval.String(),
+		"job_timeout", cfg.Scheduler.JobTimeout.String(),
+		"due_limit", cfg.Scheduler.DueLimit,
+	)
 }
 
 func startServer(ctx context.Context, srv *server.Server, logger *slog.Logger) {
