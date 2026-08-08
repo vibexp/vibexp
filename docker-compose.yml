@@ -72,6 +72,15 @@ services:
       # 1024-dim vectors (the fixed pgvector width) — the save-time validation
       # rejects anything else. Without a provider, embedding is skipped and
       # entities still save (search falls back to keyword).
+      #
+      # If that provider runs on YOUR network — a TEI/Ollama/llama.cpp sidecar on
+      # a private Docker subnet or on the host — declare its range here. Outbound
+      # requests to loopback and private addresses are refused by default (SSRF
+      # protection), which otherwise fails every embedding call and every semantic
+      # search with "connection to disallowed address range blocked". Comma-
+      # separated CIDRs; link-local (cloud metadata) and multicast can never be
+      # allowlisted and an overlapping entry fails startup.
+      # OUTBOUND_ALLOWED_CIDRS: "172.16.0.0/12"
 
       # YOUR deployment's public URL — the single origin that serves both the SPA
       # and the API. Same-origin serving means there is no separate frontend URL,

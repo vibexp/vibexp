@@ -193,6 +193,75 @@ func TestValidateProvider_LocalDevelopmentStillPermitsLoopback(t *testing.T) {
 	assert.True(t, resp.IsValid, "local development must still accept a loopback provider")
 }
 
+// TestValidateProvider_OperatorAllowlistPermitsDeclaredRange is the #745
+// regression: a PRODUCTION-shaped instance that declares its own network in
+// security.outbound_allowed_cidrs must reach a provider there. It exercises the
+// whole chain — config -> ssrfGuardForConfig -> service -> validateOutboundHost
+// AND the dial-time Control hook (httptest binds loopback, so both tiers run).
+func TestValidateProvider_OperatorAllowlistPermitsDeclaredRange(t *testing.T) {
+	server := httptest.NewServer(embeddingHandlerReturningDimension(t, EmbeddingVectorDimensions))
+	defer server.Close()
+
+	cfg := &config.Config{
+		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+		Security: config.SecurityConfig{
+			OutboundAllowedCIDRs: config.EnvStringSlice{"127.0.0.0/8"},
+		},
+	}
+	enc, err := NewEncryptionService(testEncryptionKey)
+	require.NoError(t, err)
+	svc := NewEmbeddingProviderService(
+		mocks.NewMockEmbeddingProviderRepository(t), enc, cfg, permissiveProviderAuthz{},
+	)
+
+	resp, err := svc.ValidateEmbeddingProvider(
+		context.Background(), testProviderTeamID, testProviderUserID,
+		models.ValidateEmbeddingProviderRequest{
+			ProviderType: ProviderTypeOpenAICompatible,
+			BaseURL:      server.URL,
+			Model:        "mixedbread-ai/mxbai-embed-large-v1",
+		},
+	)
+
+	require.NoError(t, err)
+	assert.True(t, resp.IsValid,
+		"a declared range must be reachable on a production instance, not only in local development")
+}
+
+// TestValidateProvider_OperatorAllowlistIsNarrow proves the allowlist opens the
+// declared range and nothing else — the rest of blockedDestinations must still
+// fail on an instance that has declared one network.
+func TestValidateProvider_OperatorAllowlistIsNarrow(t *testing.T) {
+	cfg := &config.Config{
+		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+		Security: config.SecurityConfig{
+			OutboundAllowedCIDRs: config.EnvStringSlice{"10.42.0.0/24"},
+		},
+	}
+	enc, err := NewEncryptionService(testEncryptionKey)
+	require.NoError(t, err)
+	svc := NewEmbeddingProviderService(
+		mocks.NewMockEmbeddingProviderRepository(t), enc, cfg, permissiveProviderAuthz{},
+	)
+
+	for _, tt := range blockedDestinations {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := svc.ValidateEmbeddingProvider(
+				context.Background(), testProviderTeamID, testProviderUserID,
+				models.ValidateEmbeddingProviderRequest{
+					ProviderType: ProviderTypeOpenAICompatible,
+					BaseURL:      tt.baseURL,
+					Model:        "some-model",
+				},
+			)
+
+			require.NoError(t, err)
+			assert.False(t, resp.IsValid, "declaring 10.42.0.0/24 must not unblock %s", tt.baseURL)
+			assert.Equal(t, providerErrDestinationNotAllowed, resp.Details.ErrorDetails)
+		})
+	}
+}
+
 // TestProviderBaseURLScheme rejects non-HTTP schemes before any dial, which the
 // IP-level guard alone would not catch.
 func TestProviderBaseURLScheme(t *testing.T) {

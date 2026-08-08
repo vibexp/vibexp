@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"encoding/json"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -130,6 +131,46 @@ func TestConfigDockerYAML_AccessAllowlistDefaultsOpen(t *testing.T) {
 
 	require.Empty(t, cfg.Auth.AccessAllowlist.Domains)
 	require.Empty(t, cfg.Auth.AccessAllowlist.Emails)
+}
+
+// TestConfigDockerYAML_OutboundAllowedCIDRsEnv proves the #745 acceptance
+// criterion for the combined image: a self-hoster reaches an embedding sidecar
+// on a private subnet with `docker run -e OUTBOUND_ALLOWED_CIDRS=...` alone —
+// no config file to author — and gets the strict default when it is unset.
+func TestConfigDockerYAML_OutboundAllowedCIDRsEnv(t *testing.T) {
+	t.Run("declared ranges reach the guard", func(t *testing.T) {
+		setDockerRequiredEnv(t)
+		t.Setenv("OUTBOUND_ALLOWED_CIDRS", "172.16.0.0/12,127.0.0.1/32")
+
+		cfg, err := Load(dockerConfigPath)
+		require.NoError(t, err)
+
+		require.Equal(t, []string{"172.16.0.0/12", "127.0.0.1/32"},
+			[]string(cfg.Security.OutboundAllowedCIDRs))
+		nets := cfg.Security.ParsedOutboundAllowedCIDRs()
+		require.Len(t, nets, 2)
+		require.True(t, nets[0].Contains(net.ParseIP("172.18.0.5")),
+			"a container on a Docker bridge network must be reachable")
+	})
+
+	t.Run("unset keeps the strict default", func(t *testing.T) {
+		setDockerRequiredEnv(t)
+
+		cfg, err := Load(dockerConfigPath)
+		require.NoError(t, err)
+
+		require.Empty(t, cfg.Security.OutboundAllowedCIDRs)
+		require.Empty(t, cfg.Security.ParsedOutboundAllowedCIDRs())
+	})
+
+	t.Run("a metadata-reaching range aborts startup", func(t *testing.T) {
+		setDockerRequiredEnv(t)
+		t.Setenv("OUTBOUND_ALLOWED_CIDRS", "169.254.0.0/16")
+
+		cfg, err := Load(dockerConfigPath)
+		require.Error(t, err, "the image must not boot with the SSRF hole reopened")
+		require.Nil(t, cfg)
+	})
 }
 
 // TestConfigDockerYAML_InstanceAdminsEnvSplitsToSlice proves the comma-separated

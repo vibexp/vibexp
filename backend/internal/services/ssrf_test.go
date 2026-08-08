@@ -64,6 +64,100 @@ func TestSSRFGuard_AllowPrivate(t *testing.T) {
 	assert.True(t, guard.isBlockedIP(nil))
 }
 
+// mustCIDRs parses CIDR literals for guard fixtures. Using net.ParseCIDR here
+// (rather than the config accessor) lets these tests inject prefixes the config
+// validator would refuse to load, which is how the "even then, still blocked"
+// cases below are proved.
+func mustCIDRs(t *testing.T, entries ...string) []*net.IPNet {
+	t.Helper()
+	nets := make([]*net.IPNet, 0, len(entries))
+	for _, entry := range entries {
+		_, network, err := net.ParseCIDR(entry)
+		require.NoError(t, err, "fixture CIDR %q must parse", entry)
+		nets = append(nets, network)
+	}
+	return nets
+}
+
+// TestSSRFGuard_AllowedCIDRs pins the #745 policy: an operator-declared prefix
+// unblocks that range and nothing else.
+func TestSSRFGuard_AllowedCIDRs(t *testing.T) {
+	t.Run("declared private range is reachable", func(t *testing.T) {
+		guard := &ssrfGuard{allowedCIDRs: mustCIDRs(t, "10.42.0.0/24")}
+		assert.False(t, guard.isBlockedIP(net.ParseIP("10.42.0.2")),
+			"the embedding sidecar's address must be reachable")
+		assert.True(t, guard.isBlockedIP(net.ParseIP("10.99.0.1")),
+			"an undeclared private address stays blocked")
+		assert.True(t, guard.isBlockedIP(net.ParseIP("127.0.0.1")),
+			"declaring a private range must not also unblock loopback")
+	})
+
+	t.Run("declared loopback is reachable", func(t *testing.T) {
+		guard := &ssrfGuard{allowedCIDRs: mustCIDRs(t, "127.0.0.0/8")}
+		assert.False(t, guard.isBlockedIP(net.ParseIP("127.0.0.1")),
+			"same-host Ollama/TEI is the most common self-hosted shape")
+		assert.True(t, guard.isBlockedIP(net.ParseIP("10.0.0.1")))
+	})
+
+	t.Run("ipv6 unique-local and loopback", func(t *testing.T) {
+		guard := &ssrfGuard{allowedCIDRs: mustCIDRs(t, "fc00::/7", "::1/128")}
+		assert.False(t, guard.isBlockedIP(net.ParseIP("fc00::1")))
+		assert.False(t, guard.isBlockedIP(net.ParseIP("::1")))
+	})
+
+	t.Run("public addresses are unaffected", func(t *testing.T) {
+		guard := &ssrfGuard{allowedCIDRs: mustCIDRs(t, "10.42.0.0/24")}
+		assert.False(t, guard.isBlockedIP(net.ParseIP("8.8.8.8")))
+		assert.True(t, guard.isBlockedIP(nil))
+	})
+
+	// The load-bearing half. The config validator refuses these prefixes at
+	// startup, so the guard should never see them — but the block must not
+	// DEPEND on that, or a future config path could reopen #464.
+	t.Run("link-local and multicast stay blocked even if declared", func(t *testing.T) {
+		guard := &ssrfGuard{allowedCIDRs: mustCIDRs(t, "0.0.0.0/0", "::/0")}
+		for _, ip := range []string{
+			"169.254.169.254", // GCP/AWS metadata
+			"169.254.0.1",
+			"224.0.0.1",
+			"0.0.0.0",
+			"fe80::1",
+			"ff02::1",
+		} {
+			assert.True(t, guard.isBlockedIP(net.ParseIP(ip)),
+				"%s must never be reachable via the allowlist", ip)
+		}
+	})
+
+	t.Run("metadata hostnames stay blocked even if declared", func(t *testing.T) {
+		guard := &ssrfGuard{allowedCIDRs: mustCIDRs(t, "0.0.0.0/0")}
+		err := guard.validateOutboundHost(context.Background(), "http://metadata.google.internal/")
+		assert.Error(t, err, "the name blocklist is independent of the IP policy")
+	})
+
+	// DNS-rebinding defence: the dial-time hook shares isBlockedIP, so the
+	// allowlist has to hold at connect time too — that is where the #745 failure
+	// actually surfaced.
+	t.Run("control hook honours the allowlist", func(t *testing.T) {
+		guard := &ssrfGuard{allowedCIDRs: mustCIDRs(t, "10.42.0.0/24")}
+		assert.NoError(t, guard.control("tcp", "10.42.0.2:80", nil))
+		assert.Error(t, guard.control("tcp", "10.99.0.1:80", nil))
+		assert.Error(t, guard.control("tcp", "169.254.169.254:80", nil))
+	})
+
+	t.Run("range rejections name the remediation knob", func(t *testing.T) {
+		guard := &ssrfGuard{}
+		err := guard.control("tcp", "10.42.0.2:80", nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "security.outbound_allowed_cidrs",
+			"a dead-end error is what made #745 undiagnosable")
+
+		err = guard.validateOutboundHost(context.Background(), "http://10.42.0.2/v1")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "security.outbound_allowed_cidrs")
+	})
+}
+
 func TestSSRFGuardForConfig(t *testing.T) {
 	loopback := net.ParseIP("127.0.0.1")
 
@@ -94,6 +188,27 @@ func TestSSRFGuardForConfig(t *testing.T) {
 		// Cloud-metadata hostnames stay blocked regardless of allowPrivate.
 		err := guard.validateOutboundHost(context.Background(), "http://metadata.google.internal/")
 		assert.Error(t, err)
+	})
+
+	// #745: the operator's declared ranges must reach the guard every consumer
+	// gets — embedding/model providers, A2A, and team email all build theirs
+	// here, so wiring it in one place is what keeps the policy single.
+	t.Run("production config honours declared outbound CIDRs", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.Frontend.BaseURL = "https://app.example.com"
+		cfg.Security.OutboundAllowedCIDRs = config.EnvStringSlice{"10.42.0.0/24"}
+
+		guard := ssrfGuardForConfig(cfg)
+		assert.False(t, guard.isBlockedIP(net.ParseIP("10.42.0.2")))
+		assert.True(t, guard.isBlockedIP(loopback), "only the declared range opens")
+		assert.True(t, guard.isBlockedIP(net.ParseIP("169.254.169.254")))
+	})
+
+	t.Run("production config with no declared CIDRs keeps the strict singleton", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.Frontend.BaseURL = "https://app.example.com"
+		assert.Same(t, defaultSSRFGuard, ssrfGuardForConfig(cfg),
+			"the default posture must be byte-identical to pre-#745")
 	})
 }
 

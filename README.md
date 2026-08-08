@@ -211,6 +211,18 @@ make frontend-run-dev
 
 The recommended query prefix for this model is `Represent this sentence for searching relevant passages: `.
 
+> **Self-hosting this outside local development?** The backend refuses outbound
+> requests to loopback and private address ranges (SSRF protection), so a
+> sidecar on `localhost` or a private Docker subnet is unreachable until you
+> declare its network. Local development is exempt — a `localhost`
+> `frontend.base_url` already permits it — but any real deployment must set
+> `security.outbound_allowed_cidrs` (env `OUTBOUND_ALLOWED_CIDRS` in the
+> combined image), e.g. `172.16.0.0/12` for Docker bridge networks or
+> `127.0.0.1/32` for a same-host TEI/Ollama. Without it, embedding and semantic
+> search fail with `connection to disallowed address range blocked`. Link-local
+> (cloud metadata) and multicast can never be allowlisted; an overlapping entry
+> fails startup.
+
 > **Applying embedding-pipeline improvements to existing data.** Changes to how
 > content is embedded (for example, the per-chunk title + description context
 > header) take effect automatically for resources created or edited afterwards,
