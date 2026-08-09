@@ -86,6 +86,15 @@ func TestGetFreshnessOverTimeMetrics_ReturnsSeries(t *testing.T) {
 	assert.Equal(t, "2026-05-01", first["date"])
 	assert.InDelta(t, 3, first["marked"], 0)
 	assert.InDelta(t, 3, first["stale_total"], 0)
+	// `total` is the day's ACTIVITY (marked + cleared) — the field the shared
+	// chart reads for its per-day total. Without it the tooltip renders
+	// "Total: undefined", which is what every other daily payload avoids by
+	// carrying the same field.
+	assert.InDelta(t, 3, first["total"], 0)
+
+	middle, ok := counts[1].(map[string]any)
+	require.True(t, ok)
+	assert.InDelta(t, 3, middle["total"], 0, "2 marked + 1 cleared")
 }
 
 // An explicit range must reach the service as the matching number of days —
@@ -105,8 +114,10 @@ func TestGetFreshnessOverTimeMetrics_HonoursTheRange(t *testing.T) {
 	}
 }
 
-// A range outside the enum is rejected by the generated binder before the
-// service is reached — the mock has no expectation, so a call would fail here.
+// A range outside the enum must be a 400. oapi-codegen does NOT validate a
+// query param's enum, so the handler's own table is the only thing enforcing
+// it — the mock has no expectation, so a call through to the service fails
+// this test.
 func TestGetFreshnessOverTimeMetrics_RejectsAnUnknownRange(t *testing.T) {
 	svc := servicesmocks.NewMockFreshnessServiceInterface(t)
 	srv := createTestFreshnessServer(svc)
@@ -279,10 +290,18 @@ func TestListFreshnessAudit_EmptyLogIsOnePage(t *testing.T) {
 	assert.InDelta(t, 1, resp["total_pages"], 0)
 }
 
-// Paging values below the spec's minimum are rejected by the binder before the
-// service is reached.
+// Paging outside the spec's bounds must be a 400. oapi-codegen enforces
+// neither `minimum` nor `maximum` on a query param, so — apart from a
+// non-integer, which fails to bind — every one of these is caught by the
+// handler's own check.
 func TestListFreshnessAudit_RejectsInvalidPaging(t *testing.T) {
-	for _, query := range []string{"?page=0", "?limit=0", "?limit=101", "?page=abc"} {
+	for _, query := range []string{
+		"?page=0", "?limit=0", "?limit=101", "?page=abc",
+		// A page whose offset would overflow int: the repository clamps a
+		// negative offset to zero, so without this check the response would
+		// be page 1 wearing the requested page number.
+		"?page=100000000000000000&limit=100",
+	} {
 		t.Run(query, func(t *testing.T) {
 			svc := servicesmocks.NewMockFreshnessServiceInterface(t)
 			srv := createTestFreshnessServer(svc)

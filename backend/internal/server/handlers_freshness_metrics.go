@@ -42,9 +42,10 @@ func (fs *freshnessStrictServer) GetFreshnessOverTimeMetrics(
 	if request.Params.Range != nil {
 		rangeStr = string(*request.Params.Range)
 	}
-	// The spec's enum already makes an unknown value a 400 at the binder, so
-	// reaching a false here means the enum and the service's table disagree —
-	// still a 400, but it is a bug rather than bad input.
+	// This check is the ONLY enforcement of the range enum. oapi-codegen binds
+	// a query param as a plain string and never validates its enum (the same
+	// gap as minimum/maximum below), so deleting this silently turns every
+	// unknown range into the default 30-day window.
 	rangeDays, ok := services.FreshnessMetricsRangeDays(rangeStr)
 	if !ok {
 		return nil, apierrors.NewBadRequestError(fmt.Sprintf("range %q is not a supported window", rangeStr))
@@ -68,6 +69,10 @@ func (fs *freshnessStrictServer) GetFreshnessOverTimeMetrics(
 			Marked:     int32Bounded(day.Marked),
 			Cleared:    int32Bounded(day.Cleared),
 			StaleTotal: int32Bounded(day.StaleTotal),
+			// The chart's per-day total is the ACTIVITY, not the level: it
+			// sums the rendered series (marked + cleared), matching every
+			// other daily-count payload the shared component consumes.
+			Total: int32Bounded(day.Marked + day.Cleared),
 		})
 	}
 
@@ -239,7 +244,7 @@ func freshnessAuditPaging(params freshnessgen.ListFreshnessAuditParams) (page, l
 		limit = *params.Limit
 	}
 
-	if page < 1 {
+	if page < 1 || page > maxFreshnessAuditPage {
 		return 0, 0, apierrors.NewBadRequestError(freshnessMsgInvalidPage)
 	}
 	if limit < 1 || limit > maxFreshnessAuditLimit {
@@ -248,11 +253,18 @@ func freshnessAuditPaging(params freshnessgen.ListFreshnessAuditParams) (page, l
 	return page, limit, nil
 }
 
-// defaultFreshnessAuditLimit and maxFreshnessAuditLimit mirror the `limit`
-// query parameter's default and maximum in the spec.
 const (
+	// defaultFreshnessAuditLimit and maxFreshnessAuditLimit mirror the `limit`
+	// query parameter's default and maximum in the spec.
 	defaultFreshnessAuditLimit = 20
 	maxFreshnessAuditLimit     = 100
+
+	// maxFreshnessAuditPage caps the page number. Without it `(page-1)*limit`
+	// overflows int for a large enough page, and the repository clamps the
+	// resulting NEGATIVE offset to zero — so an absurd page number silently
+	// returns the FIRST page while echoing back the number that was asked for.
+	// Rejecting is the only honest answer; no real log is a million pages long.
+	maxFreshnessAuditPage = 1_000_000
 )
 
 // totalPagesFor reports how many pages the total spans. An empty log is one

@@ -295,8 +295,11 @@ type FreshnessDailyStaleCount struct {
 	// Marked Resources that became stale on this day.
 	Marked int32 `json:"marked"`
 
-	// StaleTotal How many resources were stale at the END of this day — the level, not the flow. It is reconstructed by walking today's live count backwards through the recorded transitions, so it is exact only for the period the audit log covers; days before freshness evaluation first ran on this team read as the earliest known level rather than as zero.
+	// StaleTotal How many resources were stale at the END of this day — the level, not the flow. It is reconstructed by walking today's live count backwards through the recorded transitions, so it is exact only for the period the audit log covers; days before freshness evaluation first ran on this team read as the earliest known level rather than as zero. The most recent day reports the live count as of the request. The reconstruction is clamped at zero, so on a team whose rows were removed by a project or team deletion — which writes no audit entry — the series can flatten at 0 instead of satisfying stale_total[i] = stale_total[i-1] + marked[i] - cleared[i].
 	StaleTotal int32 `json:"stale_total"`
+
+	// Total The day's total ACTIVITY, marked + cleared — the sum of the two series, not the level. It is the field the shared time-series chart reads for its per-day total, which is why it is a flow rather than stale_total.
+	Total int32 `json:"total"`
 }
 
 // FreshnessMetricsRange The reporting window for a time-series metric. The options mirror the other analytics endpoints so one range selector drives every chart.
