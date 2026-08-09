@@ -140,6 +140,10 @@ var (
 	// when no relation row matches the given identifier for the team.
 	ErrRelationNotFound = errors.New("relation not found")
 
+	// ErrFreshnessRuleNotFound is returned by FreshnessRuleRepository.Update
+	// when no freshness rule row matches the given identifier for the team.
+	ErrFreshnessRuleNotFound = errors.New("freshness rule not found")
+
 	// ErrBlueprintNotFound is returned by BlueprintRepository lookups/deletes when no
 	// blueprint row matches the given identifier for the user/team.
 	ErrBlueprintNotFound = errors.New("blueprint not found")
@@ -1489,4 +1493,94 @@ type ScheduleRepository interface {
 	// Delete removes the schedule for (teamID, jobType). It is not an error
 	// when no such schedule exists.
 	Delete(ctx context.Context, teamID, jobType string) error
+}
+
+// ResourceFreshnessRepository persists system-owned staleness state, one row
+// per resource (table `resource_freshness`, epic #726). A row exists only
+// while the resource is stale, so "clear" is a delete and the audit log is
+// what preserves history. Tenancy-only: no role predicates (authz decision
+// D3).
+type ResourceFreshnessRepository interface {
+	// Upsert marks the resource stale, or refreshes the state of an already
+	// stale one, keyed on (ResourceType, ResourceID). Since is preserved from
+	// the existing row on conflict, so it keeps meaning "first marked at" for
+	// a resource that stays stale across evaluations; the model is populated
+	// from the persisted row on return.
+	Upsert(ctx context.Context, f *models.ResourceFreshness) error
+	// GetByResource returns the freshness state of one resource, or
+	// (nil, nil) -- not an error -- when the resource is not stale.
+	GetByResource(ctx context.Context, resourceType, resourceID string) (*models.ResourceFreshness, error)
+	// List returns a team's stale resources, newest-stale first, together with
+	// the total row count matching the filters (ignoring limit/offset) for
+	// pagination.
+	List(ctx context.Context, filters models.ResourceFreshnessFilters) ([]*models.ResourceFreshness, int, error)
+	// DeleteByResource clears the freshness state of one resource, reporting
+	// whether a row was actually removed. Clearing a resource that is not
+	// stale is a no-op, not an error.
+	DeleteByResource(ctx context.Context, resourceType, resourceID string) (bool, error)
+	// RemoveRule strips ruleID from every row's matched_rule_ids and then
+	// deletes the rows left matching no rule at all. This is the cleanup a
+	// rule deletion must perform: matched_rule_ids carries no foreign key (one
+	// would cascade-delete freshness rows), so without it the state would
+	// retain ids of rules that no longer exist. It returns the number of rows
+	// deleted for having no remaining match.
+	RemoveRule(ctx context.Context, ruleID string) (int64, error)
+}
+
+// FreshnessRuleRepository persists per-team freshness rules (table
+// `freshness_rules`, epic #726). Tenancy-only: every operation is scoped by
+// team_id, with no role predicates (authz decision D3) -- authorization
+// happens in the service layer.
+type FreshnessRuleRepository interface {
+	// Create inserts the rule, populating ID, CreatedAt and UpdatedAt from the
+	// persisted row on return.
+	Create(ctx context.Context, rule *models.FreshnessRule) error
+	// GetByID returns one rule scoped to its team, or (nil, nil) -- not an
+	// error -- when no such rule exists in that team.
+	GetByID(ctx context.Context, teamID, ruleID string) (*models.FreshnessRule, error)
+	// ListByTeam returns the team's rules, oldest first. When enabledOnly is
+	// true only enabled rules are returned, which is what rule evaluation
+	// loads.
+	ListByTeam(ctx context.Context, teamID string, enabledOnly bool) ([]*models.FreshnessRule, error)
+	// Update replaces the mutable fields of the rule identified by
+	// (rule.TeamID, rule.ID), refreshing UpdatedAt from the persisted row. It
+	// returns ErrFreshnessRuleNotFound when no row matched.
+	Update(ctx context.Context, rule *models.FreshnessRule) error
+	// Delete removes the rule, reporting whether a row was actually removed.
+	// Callers must also run ResourceFreshnessRepository.RemoveRule so no
+	// freshness state keeps referencing the deleted rule.
+	Delete(ctx context.Context, teamID, ruleID string) (bool, error)
+}
+
+// TeamFreshnessSettingsRepository persists the per-team freshness settings
+// singleton (table `team_freshness_settings`, epic #726). The override is
+// whole-row: a team either has a complete profile stored or no row at all, in
+// which case it inherits the defaults (models.DefaultTeamFreshnessSettings).
+type TeamFreshnessSettingsRepository interface {
+	// Get returns (nil, nil) -- not an error -- when the team has no settings
+	// row, so callers can fall back to the defaults.
+	Get(ctx context.Context, teamID string) (*models.TeamFreshnessSettings, error)
+	// Upsert writes the whole row and increments its version, populating
+	// CreatedAt, UpdatedAt and Version from the persisted row on return. Like
+	// team_search_settings, the write is unconditional: Version is a monotonic
+	// counter for callers to compare, not a compare-and-swap performed here.
+	Upsert(ctx context.Context, settings *models.TeamFreshnessSettings) error
+	// Delete removes the team's settings row, reverting it to the defaults.
+	// Deleting when no row exists is a no-op, not an error.
+	Delete(ctx context.Context, teamID string) error
+}
+
+// FreshnessAuditRepository appends to and reads the freshness mark/clear log
+// (table `resource_freshness_audit`, epic #726). The log is append-only:
+// there is deliberately no update or delete, and rows disappear only with
+// their team.
+type FreshnessAuditRepository interface {
+	// Create appends one entry, populating ID and CreatedAt from the
+	// persisted row on return.
+	Create(ctx context.Context, entry *models.ResourceFreshnessAudit) error
+	// ListByTeam returns a team's audit entries newest first, together with
+	// the total entry count for pagination. Ordering breaks created_at ties on
+	// id so pagination is stable: a single rule run writes one transaction
+	// timestamp to every row it marks.
+	ListByTeam(ctx context.Context, teamID string, limit, offset int) ([]*models.ResourceFreshnessAudit, int, error)
 }

@@ -104,6 +104,8 @@ packages:
       FeedItemReplyRepository:
       FeedItemRepository:
       FeedRepository:
+      FreshnessAuditRepository:
+      FreshnessRuleRepository:
       GitHubAppConfigRepository:
       GitHubInstallationRepository:
       MemoryRepository:
@@ -123,10 +125,12 @@ packages:
       PromptShareRepository:
       RelationRepository:
       ResourceAccessRepository:
+      ResourceFreshnessRepository:
       ScheduleRepository:
       SearchRepository:
       TeamEmailProviderRepository:
       TeamInvitationRepository:
+      TeamFreshnessSettingsRepository:
       TeamMemberRepository:
       TeamRepository:
       TeamSearchSettingsRepository:
