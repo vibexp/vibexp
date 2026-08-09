@@ -14,6 +14,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
+	"github.com/vibexp/vibexp/internal/services/freshness"
 )
 
 // syncSubmitter runs submitted tasks inline so RecordAccess is deterministic in tests.
@@ -734,12 +735,31 @@ func TestService_RecordAccess_NilClearerIsSkipped(t *testing.T) {
 }
 
 // NewService stores a nil *freshness.Clearer as a nil INTERFACE, not as a
-// non-nil interface holding a nil pointer — otherwise the guard above would
-// pass and the call would panic on a real deployment that wired no clearer.
+// non-nil interface holding a nil pointer — otherwise the guard in
+// reverseFreshness would pass and the call would panic on a deployment that
+// wired no clearer.
+//
+// The comparison is `== nil` rather than assert.Nil: assert.Nil reports a
+// non-nil interface holding a nil pointer as nil (it falls through to
+// reflect.Value.IsNil), which is exactly the state this test exists to rule
+// out — so the obvious spelling would pass with the guard deleted.
 func TestNewService_NilClearerStaysNil(t *testing.T) {
 	t.Parallel()
 
 	svc := NewService(nil, nil, nil, nil, newTestLogger(), 90)
 
-	assert.Nil(t, svc.clearer)
+	require.True(t, svc.clearer == nil, "a nil *freshness.Clearer must not become a non-nil interface")
+	assert.NotPanics(t, func() { svc.reverseFreshness(context.Background(), sampleEvent()) })
+}
+
+// The other half of the same constructor branch: a real clearer must actually
+// be stored, or the feature would be silently wired off.
+func TestNewService_RealClearerIsStored(t *testing.T) {
+	t.Parallel()
+
+	clearer := freshness.NewClearer(nil, nil, nil, newTestLogger())
+
+	svc := NewService(nil, nil, clearer, nil, newTestLogger(), 90)
+
+	require.False(t, svc.clearer == nil)
 }

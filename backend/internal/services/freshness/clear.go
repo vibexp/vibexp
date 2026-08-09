@@ -17,6 +17,15 @@ import (
 // audit log.
 var clearReasons = []string{models.FreshnessReasonAccessed, models.FreshnessReasonEdited}
 
+// EvaluableResourceTypes are the resource types freshness applies to. Accesses
+// to projects and agents are recorded too, but they carry no per-medium
+// last-accessed columns and no rule can name them, so they can never be stale.
+//
+// Exported because the access path records every type and needs to know which
+// ones are worth asking about -- mirroring how the last-accessed repository
+// reports an unsupported type rather than querying for one.
+var EvaluableResourceTypes = []string{"prompt", "artifact", "blueprint", "memory"}
+
 // Clearer reverses a resource's stale state the moment the resource is read or
 // edited (issue #733, epic #726).
 //
@@ -47,6 +56,9 @@ func NewClearer(
 // when the resource is actually stale and the team has reversibility enabled.
 // reason must be models.FreshnessReasonAccessed or models.FreshnessReasonEdited.
 //
+// A resource type freshness cannot evaluate returns immediately, without
+// touching the database at all.
+//
 // Clearing a resource that is not stale is a cheap no-op and writes no audit
 // row: the freshness lookup is an indexed hit on the unique
 // (resource_type, resource_id) index and it runs FIRST, so the overwhelmingly
@@ -59,6 +71,12 @@ func NewClearer(
 func (c *Clearer) ClearIfStale(ctx context.Context, teamID, resourceType, resourceID, reason string) error {
 	if !slices.Contains(clearReasons, reason) {
 		return fmt.Errorf("freshness clear: reason %q is not a reversal reason", reason)
+	}
+
+	// A type no rule can name has no freshness row by construction, so the
+	// lookup below would be a guaranteed miss on every project and agent read.
+	if !slices.Contains(EvaluableResourceTypes, resourceType) {
+		return nil
 	}
 
 	existing, err := c.state.GetByResource(ctx, resourceType, resourceID)

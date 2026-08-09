@@ -238,3 +238,28 @@ func TestClearIfStale_PropagatesRepositoryErrors(t *testing.T) {
 		})
 	}
 }
+
+// Projects and agents are recorded as accesses but can never be stale — no
+// rule can name them and they carry no last-accessed columns. Asking the
+// database about them would be a guaranteed miss on every such read.
+func TestClearIfStale_SkipsTypesFreshnessCannotEvaluate(t *testing.T) {
+	for _, resourceType := range []string{"project", "agent", "", "team"} {
+		t.Run("type "+resourceType, func(t *testing.T) {
+			clearer, _ := newClearer(t)
+
+			err := clearer.ClearIfStale(
+				context.Background(), testTeamID, resourceType, testPromptID, models.FreshnessReasonAccessed)
+
+			require.NoError(t, err, "an unevaluable type is a no-op, not a failure")
+			// No repository call at all — the t-bound mocks enforce it.
+		})
+	}
+}
+
+// The evaluable set must match the types the rule validator accepts, or a rule
+// could mark a resource this path then refuses to clear.
+func TestEvaluableResourceTypes_MatchesRuleResourceTypes(t *testing.T) {
+	assert.ElementsMatch(t,
+		[]string{"artifact", "prompt", "blueprint", "memory"},
+		freshness.EvaluableResourceTypes)
+}

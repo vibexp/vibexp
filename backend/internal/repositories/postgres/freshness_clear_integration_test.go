@@ -154,3 +154,26 @@ func TestIntegrationFreshnessClear_EvaluatorRemarksAfterReversal(t *testing.T) {
 	assert.Equal(t, models.FreshnessActionMarked, entries[0].Action)
 	assert.Equal(t, models.FreshnessReasonRuleRun, entries[0].Reason)
 }
+
+// Reversal sits on the detail-read path, so its cost has to be an index seek
+// rather than a scan of every stale row in the instance. Issue #733's HOW named
+// this as the mitigation for "extra query on every read", and only an execution
+// plan can show it: a correct-but-scanning query passes every behavioural test
+// in this file.
+//
+// The predicate is copied from ResourceFreshnessRepository.GetByResource
+// verbatim — asserting a plan for a query the repository does not issue would
+// prove nothing.
+func TestIntegrationFreshnessClear_LookupUsesTheUniqueIndex(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	promptID := markStaleForReversal(t, scope)
+
+	plan := explainFreshness(t,
+		"SELECT "+resourceFreshnessColumns+
+			" FROM resource_freshness WHERE resource_type = $1 AND resource_id = $2",
+		"prompt", promptID)
+
+	assert.Contains(t, plan, "idx_resource_freshness_resource",
+		"the reversal lookup must be served by the unique (resource_type, resource_id) index; plan was:\n"+plan)
+}
