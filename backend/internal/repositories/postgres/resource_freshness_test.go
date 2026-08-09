@@ -301,19 +301,30 @@ func TestResourceFreshnessRepository_DeleteByResource_Error(t *testing.T) {
 }
 
 // RemoveRule is the rule-deletion cleanup: strip the id everywhere, then drop
-// the rows that are left stale for no reason. Both statements must run, and in
-// one transaction.
-func TestResourceFreshnessRepository_RemoveRule_StripsThenDeletesOrphans(t *testing.T) {
+// the rows that are left stale for no reason. Both statements must run, in one
+// transaction, and the delete must be keyed on the ids the update emptied --
+// never on `cardinality(...) = 0`, which would also match rows this call never
+// touched.
+func TestResourceFreshnessRepository_RemoveRule_DeletesOnlyTheRowsItEmptied(t *testing.T) {
 	repo, mock := setupResourceFreshnessTest(t)
 
 	mock.ExpectBegin()
-	mock.ExpectExec(
+	mock.ExpectQuery(
 		// `@>` rather than `= ANY (...)`: only the containment operator is
 		// served by the GIN index, and rule deletion scans the whole table.
 		`UPDATE resource_freshness SET matched_rule_ids = array_remove\(matched_rule_ids, \$1::uuid\), ` +
-			`updated_at = now\(\) WHERE matched_rule_ids @> ARRAY\[\$1::uuid\]`,
-	).WithArgs("rule-a").WillReturnResult(sqlmock.NewResult(0, 4))
-	mock.ExpectExec(`DELETE FROM resource_freshness WHERE cardinality\(matched_rule_ids\) = 0`).
+			`updated_at = now\(\) WHERE matched_rule_ids @> ARRAY\[\$1::uuid\] ` +
+			`RETURNING id, cardinality\(matched_rule_ids\)`,
+	).WithArgs("rule-a").WillReturnRows(
+		sqlmock.NewRows([]string{"id", "cardinality"}).
+			AddRow("orphaned-1", 0).
+			AddRow("still-matched", 2).
+			AddRow("orphaned-2", 0),
+	)
+	// Only the two emptied ids are deleted; the row still matching another
+	// rule is not named at all.
+	mock.ExpectExec(`DELETE FROM resource_freshness WHERE id = ANY\(\$1::uuid\[\]\)`).
+		WithArgs(pq.Array([]string{"orphaned-1", "orphaned-2"})).
 		WillReturnResult(sqlmock.NewResult(0, 2))
 	mock.ExpectCommit()
 
@@ -321,6 +332,39 @@ func TestResourceFreshnessRepository_RemoveRule_StripsThenDeletesOrphans(t *test
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), deleted, "only the rows left matching no rule are deleted")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// Nothing emptied means nothing to delete: the DELETE must not run at all,
+// since an unfiltered one would reach unrelated rows.
+func TestResourceFreshnessRepository_RemoveRule_SkipsDeleteWhenNothingOrphaned(t *testing.T) {
+	repo, mock := setupResourceFreshnessTest(t)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`UPDATE resource_freshness`).WithArgs("rule-a").WillReturnRows(
+		sqlmock.NewRows([]string{"id", "cardinality"}).AddRow("still-matched", 1),
+	)
+	mock.ExpectCommit()
+
+	deleted, err := repo.RemoveRule(context.Background(), "rule-a")
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), deleted)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResourceFreshnessRepository_RemoveRule_ScanError(t *testing.T) {
+	repo, mock := setupResourceFreshnessTest(t)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`UPDATE resource_freshness`).WillReturnRows(
+		sqlmock.NewRows([]string{"id"}).AddRow("only-one-column"),
+	)
+	mock.ExpectRollback()
+
+	_, err := repo.RemoveRule(context.Background(), "rule-a")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to scan stripped resource freshness")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -346,15 +390,16 @@ func TestResourceFreshnessRepository_RemoveRule_RollsBackOnFailure(t *testing.T)
 		{
 			name: "strip fails",
 			arrange: func(mock sqlmock.Sqlmock) {
-				mock.ExpectExec(`UPDATE resource_freshness`).WillReturnError(errors.New("boom"))
+				mock.ExpectQuery(`UPDATE resource_freshness`).WillReturnError(errors.New("boom"))
 			},
 			wantMsg: "failed to strip rule from resource freshness",
 		},
 		{
 			name: "orphan delete fails",
 			arrange: func(mock sqlmock.Sqlmock) {
-				mock.ExpectExec(`UPDATE resource_freshness`).
-					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectQuery(`UPDATE resource_freshness`).WillReturnRows(
+					sqlmock.NewRows([]string{"id", "cardinality"}).AddRow("orphaned-1", 0),
+				)
 				mock.ExpectExec(`DELETE FROM resource_freshness`).WillReturnError(errors.New("boom"))
 			},
 			wantMsg: "failed to delete unmatched resource freshness",
@@ -381,7 +426,9 @@ func TestResourceFreshnessRepository_RemoveRule_CommitError(t *testing.T) {
 	repo, mock := setupResourceFreshnessTest(t)
 
 	mock.ExpectBegin()
-	mock.ExpectExec(`UPDATE resource_freshness`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`UPDATE resource_freshness`).WillReturnRows(
+		sqlmock.NewRows([]string{"id", "cardinality"}).AddRow("orphaned-1", 0),
+	)
 	mock.ExpectExec(`DELETE FROM resource_freshness`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit().WillReturnError(errors.New("boom"))
 

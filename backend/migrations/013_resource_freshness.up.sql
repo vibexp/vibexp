@@ -69,10 +69,16 @@ CREATE UNIQUE INDEX idx_resource_freshness_resource
 -- this team [in this project]". Two indexes rather than one composite because
 -- a single (team_id, resource_type, project_id) index cannot serve a
 -- project-only filter -- that would skip its second column.
+--
+-- The project index leads on project_id rather than team_id deliberately.
+-- Both orders serve the team+project listing equally (both columns are
+-- equality predicates), but only the project-first order also serves the
+-- ON DELETE CASCADE from projects: Postgres needs an index on the REFERENCING
+-- column to avoid a full scan when a project is deleted.
 CREATE INDEX idx_resource_freshness_team_type
     ON resource_freshness (team_id, resource_type, since DESC);
-CREATE INDEX idx_resource_freshness_team_project
-    ON resource_freshness (team_id, project_id, since DESC);
+CREATE INDEX idx_resource_freshness_project_team
+    ON resource_freshness (project_id, team_id, since DESC);
 
 -- Rule deletion has to find every row referencing the rule (#731 cleanup).
 CREATE INDEX idx_resource_freshness_matched_rules
@@ -112,6 +118,11 @@ COMMENT ON COLUMN freshness_rules.threshold_days IS
 -- Rule evaluation loads a team's enabled rules; the API lists all of them.
 CREATE INDEX idx_freshness_rules_team_enabled
     ON freshness_rules (team_id, enabled);
+
+-- Serves the ON DELETE CASCADE from projects. Without an index on the
+-- referencing column, deleting a project scans this table in full.
+CREATE INDEX idx_freshness_rules_project
+    ON freshness_rules (project_id);
 
 -- ---------------------------------------------------------------------------
 -- team_freshness_settings -- one row per team, mirroring team_search_settings.
@@ -223,11 +234,40 @@ ALTER TABLE memories
     ADD COLUMN last_accessed_mcp_at timestamptz,
     ADD COLUMN last_accessed_api_at timestamptz;
 
+-- One comment per column: `\d+ prompts` documenting only the web column would
+-- read as though the other three meant something different.
 COMMENT ON COLUMN prompts.last_accessed_web_at IS
     'Last read through the web app; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+COMMENT ON COLUMN prompts.last_accessed_cli_at IS
+    'Last read through the VibeXP CLI; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+COMMENT ON COLUMN prompts.last_accessed_mcp_at IS
+    'Last read through the MCP server; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+COMMENT ON COLUMN prompts.last_accessed_api_at IS
+    'Last read through any other API consumer; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+
 COMMENT ON COLUMN artifacts.last_accessed_web_at IS
     'Last read through the web app; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+COMMENT ON COLUMN artifacts.last_accessed_cli_at IS
+    'Last read through the VibeXP CLI; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+COMMENT ON COLUMN artifacts.last_accessed_mcp_at IS
+    'Last read through the MCP server; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+COMMENT ON COLUMN artifacts.last_accessed_api_at IS
+    'Last read through any other API consumer; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+
 COMMENT ON COLUMN blueprints.last_accessed_web_at IS
     'Last read through the web app; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+COMMENT ON COLUMN blueprints.last_accessed_cli_at IS
+    'Last read through the VibeXP CLI; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+COMMENT ON COLUMN blueprints.last_accessed_mcp_at IS
+    'Last read through the MCP server; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+COMMENT ON COLUMN blueprints.last_accessed_api_at IS
+    'Last read through any other API consumer; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+
 COMMENT ON COLUMN memories.last_accessed_web_at IS
     'Last read through the web app; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+COMMENT ON COLUMN memories.last_accessed_cli_at IS
+    'Last read through the VibeXP CLI; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+COMMENT ON COLUMN memories.last_accessed_mcp_at IS
+    'Last read through the MCP server; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+COMMENT ON COLUMN memories.last_accessed_api_at IS
+    'Last read through any other API consumer; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';

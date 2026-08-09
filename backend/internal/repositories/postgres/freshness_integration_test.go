@@ -248,6 +248,36 @@ func TestIntegrationResourceFreshness_RemoveRule(t *testing.T) {
 	assert.Equal(t, []string{survivor}, stillThere.MatchedRuleIDs)
 }
 
+// Regression: the cleanup deletes only the rows THIS call emptied. An earlier
+// implementation deleted on `cardinality(matched_rule_ids) = 0`, which also
+// matched pre-existing empty-array rows — including another team's — turning a
+// rule deletion into silent collateral damage.
+func TestIntegrationResourceFreshness_RemoveRuleLeavesUnrelatedEmptyRowsAlone(t *testing.T) {
+	resetFreshnessTables(t)
+	teamID, projectID := seedFreshnessScope(t)
+	otherTeamID, otherProjectID := seedFreshnessScope(t)
+	repo := NewResourceFreshnessRepository(integrationDB)
+	ctx := context.Background()
+
+	// A row belonging to another team that already matches no rule. Upsert
+	// accepts an empty array, so this state is reachable through the API.
+	bystander := newFreshnessState(otherTeamID, otherProjectID, "artifact", []string{})
+	require.NoError(t, repo.Upsert(ctx, bystander))
+
+	doomed := uuid.New().String()
+	target := newFreshnessState(teamID, projectID, "prompt", []string{doomed})
+	require.NoError(t, repo.Upsert(ctx, target))
+
+	deleted, err := repo.RemoveRule(ctx, doomed)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), deleted, "only the row this call emptied is deleted")
+
+	survived, err := repo.GetByResource(ctx, "artifact", bystander.ResourceID)
+	require.NoError(t, err)
+	assert.NotNil(t, survived,
+		"an unrelated team's empty-array row must not be collateral damage of a rule deletion")
+}
+
 func TestIntegrationResourceFreshness_TeamCascade(t *testing.T) {
 	resetFreshnessTables(t)
 	teamID, projectID := seedFreshnessScope(t)
@@ -694,7 +724,21 @@ func TestIntegrationFreshness_ListingQueriesUseIndexes(t *testing.T) {
 			query: "SELECT id FROM resource_freshness WHERE team_id = $1 AND project_id = $2 " +
 				"ORDER BY since DESC, id DESC",
 			args:      []interface{}{teamID, projectID},
-			wantIndex: "idx_resource_freshness_team_project",
+			wantIndex: "idx_resource_freshness_project_team",
+		},
+		{
+			// The project-first column order exists for this: an ON DELETE
+			// CASCADE from projects would otherwise scan the whole table.
+			name:      "cascade from a deleted project",
+			query:     "SELECT id FROM resource_freshness WHERE project_id = $1",
+			args:      []interface{}{projectID},
+			wantIndex: "idx_resource_freshness_project_team",
+		},
+		{
+			name:      "cascade from a deleted project into rules",
+			query:     "SELECT id FROM freshness_rules WHERE project_id = $1",
+			args:      []interface{}{projectID},
+			wantIndex: "idx_freshness_rules_project",
 		},
 		{
 			name:      "state lookup by resource",

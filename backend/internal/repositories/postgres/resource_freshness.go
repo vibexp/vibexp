@@ -202,6 +202,12 @@ func (r *ResourceFreshnessRepository) DeleteByResource(
 // cannot be merged into a single statement -- Postgres does not support
 // updating and then deleting the same row within one statement, since a
 // data-modifying CTE and the outer statement share a snapshot.
+//
+// The delete is keyed on the ids the update just emptied rather than on
+// `cardinality(matched_rule_ids) = 0`. That predicate would match EVERY
+// empty-array row in the table, in any team -- and an empty array is a value
+// Upsert accepts -- so removing one team's rule could clear freshness state
+// this call never touched.
 func (r *ResourceFreshnessRepository) RemoveRule(ctx context.Context, ruleID string) (int64, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -213,36 +219,78 @@ func (r *ResourceFreshnessRepository) RemoveRule(ctx context.Context, ruleID str
 		}
 	}()
 
-	// The predicate is spelled with the containment operator rather than the
-	// more obvious `$1 = ANY (matched_rule_ids)`: ANY over an array is not an
-	// indexable operator, so that form seq-scans the whole table, while `@>`
-	// is served by idx_resource_freshness_matched_rules (GIN, array_ops).
-	// Both placeholders are the same uuid; the explicit casts keep lib/pq from
-	// having to infer two different types for one parameter.
-	if _, err = tx.ExecContext(ctx, `
+	orphaned, err := stripFreshnessRule(ctx, tx, ruleID)
+	if err != nil {
+		return 0, err
+	}
+
+	// With nothing emptied there is nothing to delete, and the statement is
+	// skipped rather than widened: any predicate broad enough to run here
+	// without a list of ids would reach rows this call never touched.
+	var deleted int64
+	if len(orphaned) > 0 {
+		var res sql.Result
+		res, err = tx.ExecContext(ctx,
+			`DELETE FROM resource_freshness WHERE id = ANY($1::uuid[])`, pq.Array(orphaned))
+		if err != nil {
+			return 0, fmt.Errorf("failed to delete unmatched resource freshness: %w", err)
+		}
+		deleted, err = res.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("failed to read resource freshness rule-removal result: %w", err)
+		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		return 0, fmt.Errorf("failed to commit resource freshness rule-removal: %w", err)
+	}
+	return deleted, nil
+}
+
+// stripFreshnessRule removes ruleID from every row that matches it and returns
+// the ids of the rows left matching no rule at all.
+//
+// The predicate uses the containment operator rather than the more obvious
+// `$1 = ANY (matched_rule_ids)`: ANY over an array is not an indexable
+// operator, so that form seq-scans the whole table, while `@>` is served by
+// idx_resource_freshness_matched_rules (GIN, array_ops). Both placeholders are
+// the same uuid; the explicit casts keep lib/pq from having to infer two
+// different types for one parameter.
+//
+// The rows are fully drained before the caller issues its DELETE: a
+// database/sql transaction allows only one active query at a time.
+func stripFreshnessRule(ctx context.Context, tx *sql.Tx, ruleID string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `
 		UPDATE resource_freshness
 		SET matched_rule_ids = array_remove(matched_rule_ids, $1::uuid),
 		    updated_at = now()
 		WHERE matched_rule_ids @> ARRAY[$1::uuid]
-	`, ruleID); err != nil {
-		return 0, fmt.Errorf("failed to strip rule from resource freshness: %w", err)
-	}
-
-	res, err := tx.ExecContext(ctx, `
-		DELETE FROM resource_freshness WHERE cardinality(matched_rule_ids) = 0
-	`)
+		RETURNING id, cardinality(matched_rule_ids)
+	`, ruleID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to delete unmatched resource freshness: %w", err)
+		return nil, fmt.Errorf("failed to strip rule from resource freshness: %w", err)
 	}
-	deleted, err := res.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("failed to read resource freshness rule-removal result: %w", err)
-	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close resource freshness rule-removal rows", "error", closeErr)
+		}
+	}()
 
-	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("failed to commit resource freshness rule-removal: %w", err)
+	orphaned := make([]string, 0)
+	for rows.Next() {
+		var id string
+		var remaining int
+		if err := rows.Scan(&id, &remaining); err != nil {
+			return nil, fmt.Errorf("failed to scan stripped resource freshness: %w", err)
+		}
+		if remaining == 0 {
+			orphaned = append(orphaned, id)
+		}
 	}
-	return deleted, nil
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate stripped resource freshness: %w", err)
+	}
+	return orphaned, nil
 }
 
 // scanResourceFreshnessDest returns the scan targets for
