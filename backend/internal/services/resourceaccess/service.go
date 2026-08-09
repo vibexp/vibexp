@@ -2,6 +2,7 @@ package resourceaccess
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -27,6 +28,7 @@ type taskSubmitter interface {
 // Service implements ResourceAccessService.
 type Service struct {
 	repo          repositories.ResourceAccessRepository
+	lastAccessed  repositories.ResourceLastAccessedRepository
 	submitter     taskSubmitter
 	logger        *slog.Logger
 	retentionDays int
@@ -35,12 +37,14 @@ type Service struct {
 // NewService creates a new resource access service.
 func NewService(
 	repo repositories.ResourceAccessRepository,
+	lastAccessed repositories.ResourceLastAccessedRepository,
 	pool *events.WorkerPool,
 	logger *slog.Logger,
 	retentionDays int,
 ) *Service {
 	return &Service{
 		repo:          repo,
+		lastAccessed:  lastAccessed,
 		submitter:     pool,
 		logger:        logger,
 		retentionDays: retentionDays,
@@ -84,7 +88,58 @@ func (s *Service) persistAccess(event *models.ResourceAccessEvent) {
 			"resource_id", event.ResourceID,
 			"source", event.Source,
 		).Warn("failed to record resource access event")
+		return
 	}
+
+	s.denormalizeLastAccessed(ctx, event)
+}
+
+// denormalizeLastAccessed advances the resource's per-medium last-accessed
+// column to match the event just written.
+//
+// It runs only after the event itself persisted, and reuses the event's
+// CreatedAt — which Create populates from the database's own RETURNING clause —
+// so both writes agree on one instant rather than on two app-side clocks.
+//
+// Like the event write it is fire-and-forget: a failure is logged and
+// swallowed, because the read that triggered it has long since been served and
+// the freshness feature degrading is never worth surfacing to a user. The
+// repository reports a type or source it has no column for as
+// ErrUnsupportedLastAccessedResource; that is the expected path for project and
+// agent accesses, so it is logged at Debug rather than Warn to keep it out of
+// operators' error budget.
+func (s *Service) denormalizeLastAccessed(ctx context.Context, event *models.ResourceAccessEvent) {
+	if s.lastAccessed == nil {
+		return
+	}
+
+	// Create is contracted to stamp CreatedAt from the stored row. Guard the
+	// zero value anyway: GREATEST(col, '0001-01-01') returns col, so a repository
+	// that ever stopped populating it would turn every denormalization into a
+	// successful no-op — no error, no log, and a freshness feature quietly
+	// reading stale data.
+	at := event.CreatedAt
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+
+	err := s.lastAccessed.UpdateLastAccessed(
+		ctx, event.ResourceType, event.ResourceID, event.Source, at,
+	)
+	if err == nil {
+		return
+	}
+
+	log := s.logger.With(
+		"resource_type", event.ResourceType,
+		"resource_id", event.ResourceID,
+		"source", event.Source,
+	)
+	if errors.Is(err, repositories.ErrUnsupportedLastAccessedResource) {
+		log.Debug("skipped last-accessed denormalization for a resource type without columns")
+		return
+	}
+	log.With("error", err).Warn("failed to denormalize last accessed timestamp")
 }
 
 // GetMetrics returns per-source daily access counts for a resource over the last

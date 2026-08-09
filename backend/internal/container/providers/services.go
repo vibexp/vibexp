@@ -271,11 +271,12 @@ func ProvideResourceAccessWorkerPool() *events.WorkerPool {
 // ProvideResourceAccessService creates a new ResourceAccessService
 func ProvideResourceAccessService(
 	repo repositories.ResourceAccessRepository,
+	lastAccessed repositories.ResourceLastAccessedRepository,
 	pool *events.WorkerPool,
 	logger *slog.Logger,
 	cfg *config.Config,
 ) resourceaccess.ResourceAccessService {
-	return resourceaccess.NewService(repo, pool, logger, cfg.Retention.AccessEventDays)
+	return resourceaccess.NewService(repo, lastAccessed, pool, logger, cfg.Retention.AccessEventDays)
 }
 
 // ProvideEncryptionService creates a new EncryptionService

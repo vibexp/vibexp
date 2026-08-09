@@ -144,6 +144,14 @@ var (
 	// when no freshness rule row matches the given identifier for the team.
 	ErrFreshnessRuleNotFound = errors.New("freshness rule not found")
 
+	// ErrUnsupportedLastAccessedResource is returned by
+	// ResourceLastAccessedRepository.UpdateLastAccessed when the resource type
+	// or the access source has no denormalized last-accessed column — accesses
+	// to projects and agents are recorded but are not freshness-eligible. It is
+	// an expected no-op rather than a failure, so callers should recognize it
+	// and not treat it as an error worth alerting on.
+	ErrUnsupportedLastAccessedResource = errors.New("resource type or source has no last-accessed column")
+
 	// ErrBlueprintNotFound is returned by BlueprintRepository lookups/deletes when no
 	// blueprint row matches the given identifier for the user/team.
 	ErrBlueprintNotFound = errors.New("blueprint not found")
@@ -584,7 +592,10 @@ type ActivityRepository interface {
 
 // ResourceAccessRepository defines the interface for resource detail-access event data access operations.
 type ResourceAccessRepository interface {
-	// Create persists a new resource access event.
+	// Create persists a new resource access event, populating the event's ID
+	// and CreatedAt from the stored row. Callers denormalizing off the event
+	// (see ResourceLastAccessedRepository) depend on CreatedAt being the
+	// database's own timestamp, so both writes agree on one instant.
 	Create(ctx context.Context, event *models.ResourceAccessEvent) error
 	// GetMetricsByResource returns daily access counts grouped by source for a specific resource
 	// since the given time, ordered by date then source.
@@ -1525,6 +1536,26 @@ type ResourceFreshnessRepository interface {
 	// retain ids of rules that no longer exist. It returns the number of rows
 	// deleted for having no remaining match.
 	RemoveRule(ctx context.Context, ruleID string) (int64, error)
+}
+
+// ResourceLastAccessedRepository maintains the per-medium last-accessed
+// columns denormalized onto the four resource tables in migration 013 (epic
+// #726). It exists so freshness evaluation is an indexed column compare rather
+// than an aggregate over `resource_access_events`, whose rows are pruned on a
+// retention TTL and so cannot answer a threshold longer than that window.
+//
+// This is a write-only seam on the asynchronous access path; reads of the
+// columns belong to whoever evaluates the rules.
+type ResourceLastAccessedRepository interface {
+	// UpdateLastAccessed advances the resource's column for the given access
+	// source to `at`. The write is monotonic — a late-arriving event can never
+	// move the value backwards — and deliberately leaves `updated_at` alone, so
+	// a read never looks like an edit.
+	//
+	// It returns ErrUnsupportedLastAccessedResource, without touching the
+	// database, when the resource type or source has no column; that is the
+	// expected outcome for project and agent accesses, not a failure.
+	UpdateLastAccessed(ctx context.Context, resourceType, resourceID, source string, at time.Time) error
 }
 
 // FreshnessRuleRepository persists per-team freshness rules (table

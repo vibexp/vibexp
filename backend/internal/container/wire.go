@@ -46,6 +46,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideCommentRepository,
 	providers.ProvideRelationRepository,
 	providers.ProvideScheduleRepository,
+	providers.ProvideResourceLastAccessedRepository,
 	providers.ProvideResourceFreshnessRepository,
 	providers.ProvideFreshnessRuleRepository,
 	providers.ProvideTeamFreshnessSettingsRepository,
