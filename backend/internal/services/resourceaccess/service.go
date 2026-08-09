@@ -113,8 +113,18 @@ func (s *Service) denormalizeLastAccessed(ctx context.Context, event *models.Res
 		return
 	}
 
+	// Create is contracted to stamp CreatedAt from the stored row. Guard the
+	// zero value anyway: GREATEST(col, '0001-01-01') returns col, so a repository
+	// that ever stopped populating it would turn every denormalization into a
+	// successful no-op — no error, no log, and a freshness feature quietly
+	// reading stale data.
+	at := event.CreatedAt
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+
 	err := s.lastAccessed.UpdateLastAccessed(
-		ctx, event.ResourceType, event.ResourceID, event.Source, event.CreatedAt,
+		ctx, event.ResourceType, event.ResourceID, event.Source, at,
 	)
 	if err == nil {
 		return

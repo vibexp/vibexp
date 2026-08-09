@@ -127,7 +127,7 @@ func TestResourceLastAccessedRepository_UpdateLastAccessed_MissingRowIsNotAnErro
 // This is the guard against a medium being added to the access path and
 // silently never denormalizing.
 func TestLastAccessedTargets_CoverEveryTypeAndMedium(t *testing.T) {
-	tables, columns := LastAccessedTargets()
+	tables, columns := lastAccessedTargets()
 
 	assert.Equal(t, map[string]string{
 		"prompt":    "prompts",
@@ -146,6 +146,6 @@ func TestLastAccessedTargets_CoverEveryTypeAndMedium(t *testing.T) {
 	// Returned copies must not alias the package maps, or a caller could
 	// corrupt the dispatch for the whole process.
 	tables["prompt"] = "tampered"
-	freshTables, _ := LastAccessedTargets()
+	freshTables, _ := lastAccessedTargets()
 	assert.Equal(t, "prompts", freshTables["prompt"])
 }

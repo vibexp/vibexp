@@ -90,11 +90,11 @@ func (r *ResourceLastAccessedRepository) UpdateLastAccessed(
 	return nil
 }
 
-// LastAccessedTargets returns the (resourceType -> table) and
+// lastAccessedTargets returns the (resourceType -> table) and
 // (source -> column) allowlists this repository dispatches on, so tests can
 // assert the mapping covers every type and medium the access path produces
 // without duplicating the maps.
-func LastAccessedTargets() (tables, columns map[string]string) {
+func lastAccessedTargets() (tables, columns map[string]string) {
 	tables = make(map[string]string, len(lastAccessedTables))
 	for k, v := range lastAccessedTables {
 		tables[k] = v

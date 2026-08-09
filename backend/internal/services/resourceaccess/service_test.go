@@ -196,6 +196,33 @@ func TestService_RecordAccess_RecoversFromDenormalizationPanic(t *testing.T) {
 	assert.NotPanics(t, func() { svc.RecordAccess(sampleEvent()) })
 }
 
+// GREATEST(col, '0001-01-01') returns col, so a zero timestamp would make the
+// update a silent no-op — success, no log, and stale data. The guard must
+// substitute a real instant rather than pass the zero value through.
+func TestService_RecordAccess_ZeroCreatedAtFallsBackToNow(t *testing.T) {
+	t.Parallel()
+
+	repo := mocks.NewMockResourceAccessRepository(t)
+	lastAccessed := mocks.NewMockResourceLastAccessedRepository(t)
+	svc := newServiceWithFake(repo, lastAccessed, &syncSubmitter{}, 90)
+
+	// Create deliberately leaves CreatedAt zero, unlike the real repository.
+	repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+
+	var got time.Time
+	lastAccessed.EXPECT().
+		UpdateLastAccessed(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Run(func(_ context.Context, _, _, _ string, at time.Time) { got = at }).
+		Return(nil).
+		Once()
+
+	before := time.Now().UTC()
+	svc.RecordAccess(sampleEvent())
+
+	require.False(t, got.IsZero(), "a zero CreatedAt must not reach the repository")
+	assert.False(t, got.Before(before), "the fallback should be the current time")
+}
+
 // The service must stay usable when no last-accessed repository is wired.
 func TestService_RecordAccess_NilLastAccessedRepoIsNoOp(t *testing.T) {
 	t.Parallel()

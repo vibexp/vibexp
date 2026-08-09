@@ -82,7 +82,7 @@ func TestIntegrationLastAccessed_WritesEveryTypeAndMedium(t *testing.T) {
 	resetFreshnessTables(t)
 	ids := seedLastAccessedResources(t)
 	repo := NewResourceLastAccessedRepository(integrationDB)
-	tables, columns := LastAccessedTargets()
+	tables, columns := lastAccessedTargets()
 	ctx := context.Background()
 
 	at := time.Now().UTC().Truncate(time.Microsecond)
@@ -148,7 +148,7 @@ func TestIntegrationLastAccessed_DoesNotTouchUpdatedAt(t *testing.T) {
 	resetFreshnessTables(t)
 	ids := seedLastAccessedResources(t)
 	repo := NewResourceLastAccessedRepository(integrationDB)
-	tables, _ := LastAccessedTargets()
+	tables, _ := lastAccessedTargets()
 	ctx := context.Background()
 
 	before := make(map[string]time.Time, len(tables))

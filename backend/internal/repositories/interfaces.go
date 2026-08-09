@@ -592,7 +592,10 @@ type ActivityRepository interface {
 
 // ResourceAccessRepository defines the interface for resource detail-access event data access operations.
 type ResourceAccessRepository interface {
-	// Create persists a new resource access event.
+	// Create persists a new resource access event, populating the event's ID
+	// and CreatedAt from the stored row. Callers denormalizing off the event
+	// (see ResourceLastAccessedRepository) depend on CreatedAt being the
+	// database's own timestamp, so both writes agree on one instant.
 	Create(ctx context.Context, event *models.ResourceAccessEvent) error
 	// GetMetricsByResource returns daily access counts grouped by source for a specific resource
 	// since the given time, ordered by date then source.
