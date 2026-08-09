@@ -294,11 +294,14 @@ func (s *FreshnessService) validateRule(
 	// The schema has a plain FK to projects(id) with no team predicate, so
 	// without this check a rule could scope itself to another team's project.
 	project, err := s.projects.GetByID(ctx, userID, *input.ProjectID)
+
+	// A missing project is the caller's mistake; anything else is ours. Folding
+	// the two together would report a database outage as "your project_id is
+	// wrong" — a 400 the caller can never satisfy, with the real cause invisible.
+	if err != nil && !errors.Is(err, repositories.ErrProjectNotFoundForRepo) {
+		return fmt.Errorf("FreshnessService.validateRule: %w", err)
+	}
 	if err != nil || project == nil || project.TeamID != teamID {
-		if err != nil {
-			s.logger.With("error", err, "project_id", *input.ProjectID).
-				Debug("freshness rule project lookup failed")
-		}
 		return fmt.Errorf("%w: project_id does not belong to this team", ErrInvalidFreshnessRule)
 	}
 	return nil

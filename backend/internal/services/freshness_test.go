@@ -182,7 +182,7 @@ func TestFreshnessService_CreateRule_RejectsProjectOutsideTeam(t *testing.T) {
 		err     error
 	}{
 		{name: "project in another team", project: &models.Project{TeamID: "other-team"}},
-		{name: "project does not exist", project: nil, err: errors.New("not found")},
+		{name: "project does not exist", project: nil, err: repositories.ErrProjectNotFoundForRepo},
 	}
 
 	for _, tt := range tests {
@@ -204,6 +204,27 @@ func TestFreshnessService_CreateRule_RejectsProjectOutsideTeam(t *testing.T) {
 			assert.Contains(t, err.Error(), "does not belong to this team")
 		})
 	}
+}
+
+// A repository failure is OURS, not the caller's: reporting it as a 400 would
+// tell them to fix a project_id that is in fact correct, and hide the outage.
+func TestFreshnessService_CreateRule_ProjectLookupFailureIsNotAValidationError(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+	deps.allowWrites()
+	deps.projects.EXPECT().
+		GetByID(mock.Anything, freshnessTestUserID, freshnessTestProjectID).
+		Return(nil, errors.New("db down")).Once()
+
+	input := validRuleInput()
+	projectID := freshnessTestProjectID
+	input.ProjectID = &projectID
+
+	_, err := svc.CreateRule(context.Background(), freshnessTestUserID, freshnessTestTeamID, input)
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, services.ErrInvalidFreshnessRule,
+		"a database failure must surface as 500, not as a validation error the caller cannot fix")
+	assert.Contains(t, err.Error(), "db down")
 }
 
 func TestFreshnessService_CreateRule_AcceptsProjectInTeam(t *testing.T) {
