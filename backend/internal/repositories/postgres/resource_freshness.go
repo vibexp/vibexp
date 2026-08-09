@@ -156,6 +156,42 @@ func (r *ResourceFreshnessRepository) List(
 	return items, total, nil
 }
 
+// ListAllByTeam returns every freshness row of one team, unpaginated.
+//
+// Rule evaluation reconciles a team's whole stale set against what its rules
+// currently match, so it needs the complete stored state: a page of it would
+// make "no rule matches this any more, clear it" undecidable for the rows
+// outside the page. The result is bounded by how many resources the team has
+// actually been marked stale on, not by its total resource count.
+func (r *ResourceFreshnessRepository) ListAllByTeam(
+	ctx context.Context, teamID string,
+) ([]*models.ResourceFreshness, error) {
+	query := `SELECT ` + resourceFreshnessColumns + ` FROM resource_freshness WHERE team_id = $1`
+
+	rows, err := r.db.QueryContext(ctx, query, teamID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list team resource freshness: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close team resource freshness rows", "error", closeErr)
+		}
+	}()
+
+	items := make([]*models.ResourceFreshness, 0)
+	for rows.Next() {
+		var f models.ResourceFreshness
+		if err := rows.Scan(scanResourceFreshnessDest(&f)...); err != nil {
+			return nil, fmt.Errorf("failed to scan team resource freshness: %w", err)
+		}
+		items = append(items, &f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate team resource freshness: %w", err)
+	}
+	return items, nil
+}
+
 // countList returns how many rows match the listing predicate, ignoring
 // pagination.
 func (r *ResourceFreshnessRepository) countList(

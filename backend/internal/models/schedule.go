@@ -2,6 +2,16 @@ package models
 
 import "time"
 
+// Scheduler job types. The scheduler treats job_type as an opaque string and
+// looks it up in its registry, so these constants live here -- shared by the
+// feature that registers the handler and by whatever provisions the schedule
+// row -- rather than in the scheduler package, which must not know its jobs.
+const (
+	// JobTypeFreshnessEvaluate evaluates a team's freshness rules and
+	// reconciles its stale state (issue #732, epic #726).
+	JobTypeFreshnessEvaluate = "freshness_evaluate"
+)
+
 // Schedule is one team's recurring-job schedule for the in-process scheduler
 // (epic #725). One row per (TeamID, JobType): it records when the job is next
 // due (NextRunAt) and the interval to advance by after each run. JobType is a

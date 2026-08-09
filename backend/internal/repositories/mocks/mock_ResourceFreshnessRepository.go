@@ -206,6 +206,65 @@ func (_c *MockResourceFreshnessRepository_List_Call) RunAndReturn(run func(conte
 	return _c
 }
 
+// ListAllByTeam provides a mock function with given fields: ctx, teamID
+func (_m *MockResourceFreshnessRepository) ListAllByTeam(ctx context.Context, teamID string) ([]*models.ResourceFreshness, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAllByTeam")
+	}
+
+	var r0 []*models.ResourceFreshness
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*models.ResourceFreshness, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []*models.ResourceFreshness); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*models.ResourceFreshness)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockResourceFreshnessRepository_ListAllByTeam_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAllByTeam'
+type MockResourceFreshnessRepository_ListAllByTeam_Call struct {
+	*mock.Call
+}
+
+// ListAllByTeam is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+func (_e *MockResourceFreshnessRepository_Expecter) ListAllByTeam(ctx interface{}, teamID interface{}) *MockResourceFreshnessRepository_ListAllByTeam_Call {
+	return &MockResourceFreshnessRepository_ListAllByTeam_Call{Call: _e.mock.On("ListAllByTeam", ctx, teamID)}
+}
+
+func (_c *MockResourceFreshnessRepository_ListAllByTeam_Call) Run(run func(ctx context.Context, teamID string)) *MockResourceFreshnessRepository_ListAllByTeam_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockResourceFreshnessRepository_ListAllByTeam_Call) Return(_a0 []*models.ResourceFreshness, _a1 error) *MockResourceFreshnessRepository_ListAllByTeam_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockResourceFreshnessRepository_ListAllByTeam_Call) RunAndReturn(run func(context.Context, string) ([]*models.ResourceFreshness, error)) *MockResourceFreshnessRepository_ListAllByTeam_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RemoveRule provides a mock function with given fields: ctx, ruleID
 func (_m *MockResourceFreshnessRepository) RemoveRule(ctx context.Context, ruleID string) (int64, error) {
 	ret := _m.Called(ctx, ruleID)

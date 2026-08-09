@@ -88,6 +88,11 @@ func ProvideFreshnessAuditRepository(db *database.DB) repositories.FreshnessAudi
 	return postgres.NewFreshnessAuditRepository(db)
 }
 
+// ProvideFreshnessCandidateRepository creates a new FreshnessCandidateRepository
+func ProvideFreshnessCandidateRepository(db *database.DB) repositories.FreshnessCandidateRepository {
+	return postgres.NewFreshnessCandidateRepository(db)
+}
+
 // ProvideTypeRepository creates a new TypeRepository
 func ProvideTypeRepository(db *database.DB) repositories.TypeRepository {
 	return postgres.NewTypeRepository(db)

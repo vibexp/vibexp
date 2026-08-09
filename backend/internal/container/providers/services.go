@@ -7,12 +7,14 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/external"
+	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/observability/metrics"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 	"github.com/vibexp/vibexp/internal/services/feature_flags"
+	"github.com/vibexp/vibexp/internal/services/freshness"
 	notificationsvc "github.com/vibexp/vibexp/internal/services/notifications"
 	notifchannels "github.com/vibexp/vibexp/internal/services/notifications/channels"
 	"github.com/vibexp/vibexp/internal/services/projectmigration"
@@ -469,11 +471,24 @@ func ProvideFreshnessService(
 	rules repositories.FreshnessRuleRepository,
 	freshness repositories.ResourceFreshnessRepository,
 	settings repositories.TeamFreshnessSettingsRepository,
+	schedules repositories.ScheduleRepository,
 	projects repositories.ProjectRepository,
 	authzService services.AuthorizationServiceInterface,
 	logger *slog.Logger,
 ) services.FreshnessServiceInterface {
-	return services.NewFreshnessService(rules, freshness, settings, projects, authzService, logger)
+	return services.NewFreshnessService(rules, freshness, settings, schedules, projects, authzService, logger)
+}
+
+// ProvideFreshnessEvaluator creates the freshness rule engine (#732), the
+// handler behind the scheduler's freshness_evaluate job.
+func ProvideFreshnessEvaluator(
+	rules repositories.FreshnessRuleRepository,
+	candidates repositories.FreshnessCandidateRepository,
+	state repositories.ResourceFreshnessRepository,
+	audit repositories.FreshnessAuditRepository,
+	logger *slog.Logger,
+) *freshness.Evaluator {
+	return freshness.NewEvaluator(rules, candidates, state, audit, logger)
 }
 
 // ProvideTeamSearchSettingsService creates the team search settings service.
@@ -772,12 +787,15 @@ func ProvideGitHubAppService(
 	)
 }
 
-// ProvideSchedulerRegistry creates the scheduler's job registry. Features
-// register their handlers on it at startup (wire time); the scheduler looks
-// them up by job_type. It is populated by the container as jobs are added —
-// empty for now (#728 ships the engine; the first job lands with #732).
-func ProvideSchedulerRegistry() *scheduler.Registry {
-	return scheduler.NewRegistry()
+// ProvideSchedulerRegistry creates the scheduler's job registry and registers
+// every job on it. Registration happens here, at wire time, rather than at
+// startup: Registry.Register is documented as startup-only because it takes no
+// lock, and a registry that is fully populated the moment it is constructed
+// cannot race the run loop no matter when the scheduler is started.
+func ProvideSchedulerRegistry(freshnessEvaluator *freshness.Evaluator) *scheduler.Registry {
+	registry := scheduler.NewRegistry()
+	registry.Register(models.JobTypeFreshnessEvaluate, freshnessEvaluator.Evaluate)
+	return registry
 }
 
 // ProvideScheduler creates the in-process scheduler engine. It is started and
