@@ -30,7 +30,7 @@ const (
 	freshnessMsgByTypeOK     = "Freshness by-type metrics retrieved successfully"
 	freshnessMsgByProjectOK  = "Freshness by-project metrics retrieved successfully"
 	freshnessMsgByRuleOK     = "Freshness by-rule metrics retrieved successfully"
-	freshnessMsgInvalidPage  = "page must be a positive integer"
+	freshnessMsgInvalidPage  = "page must be between 1 and 1000000"
 	freshnessMsgInvalidLimit = "limit must be between 1 and 100"
 )
 
@@ -259,11 +259,11 @@ const (
 	defaultFreshnessAuditLimit = 20
 	maxFreshnessAuditLimit     = 100
 
-	// maxFreshnessAuditPage caps the page number. Without it `(page-1)*limit`
-	// overflows int for a large enough page, and the repository clamps the
-	// resulting NEGATIVE offset to zero — so an absurd page number silently
-	// returns the FIRST page while echoing back the number that was asked for.
-	// Rejecting is the only honest answer; no real log is a million pages long.
+	// maxFreshnessAuditPage mirrors the `page` parameter's maximum in the spec.
+	// The bound exists because `(page-1)*limit` overflows int for a large
+	// enough page, and the repository clamps the resulting NEGATIVE offset to
+	// zero — so without it an absurd page silently returned the FIRST page
+	// while echoing back the number that was asked for.
 	maxFreshnessAuditPage = 1_000_000
 )
 
