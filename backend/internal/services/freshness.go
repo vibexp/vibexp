@@ -93,6 +93,7 @@ type FreshnessService struct {
 	rules     repositories.FreshnessRuleRepository
 	freshness repositories.ResourceFreshnessRepository
 	settings  repositories.TeamFreshnessSettingsRepository
+	schedules repositories.ScheduleRepository
 	projects  repositories.ProjectRepository
 	authz     AuthorizationServiceInterface
 	logger    *slog.Logger
@@ -105,6 +106,7 @@ func NewFreshnessService(
 	rules repositories.FreshnessRuleRepository,
 	freshness repositories.ResourceFreshnessRepository,
 	settings repositories.TeamFreshnessSettingsRepository,
+	schedules repositories.ScheduleRepository,
 	projects repositories.ProjectRepository,
 	authzService AuthorizationServiceInterface,
 	logger *slog.Logger,
@@ -113,6 +115,7 @@ func NewFreshnessService(
 		rules:     rules,
 		freshness: freshness,
 		settings:  settings,
+		schedules: schedules,
 		projects:  projects,
 		authz:     authzService,
 		logger:    logger,
@@ -150,6 +153,7 @@ func (s *FreshnessService) CreateRule(
 	if err := s.rules.Create(ctx, rule); err != nil {
 		return nil, fmt.Errorf("FreshnessService.CreateRule: %w", err)
 	}
+	s.syncSchedule(ctx, teamID)
 	return rule, nil
 }
 
@@ -179,6 +183,7 @@ func (s *FreshnessService) UpdateRule(
 		}
 		return nil, fmt.Errorf("FreshnessService.UpdateRule: %w", err)
 	}
+	s.syncSchedule(ctx, teamID)
 	return rule, nil
 }
 
@@ -216,6 +221,7 @@ func (s *FreshnessService) DeleteRule(ctx context.Context, userID, teamID, ruleI
 		// Lost a race with a concurrent delete; the caller's intent still holds.
 		return repositories.ErrFreshnessRuleNotFound
 	}
+	s.syncSchedule(ctx, teamID)
 	return nil
 }
 
@@ -255,6 +261,7 @@ func (s *FreshnessService) UpdateSettings(
 	if err := s.settings.Upsert(ctx, stored); err != nil {
 		return nil, fmt.Errorf("FreshnessService.UpdateSettings: %w", err)
 	}
+	s.syncSchedule(ctx, teamID)
 	return s.view(models.FreshnessSettingsSourceTeam, values), nil
 }
 
@@ -266,7 +273,87 @@ func (s *FreshnessService) ResetSettings(ctx context.Context, userID, teamID str
 	if err := s.settings.Delete(ctx, teamID); err != nil {
 		return fmt.Errorf("FreshnessService.ResetSettings: %w", err)
 	}
+	s.syncSchedule(ctx, teamID)
 	return nil
+}
+
+// syncSchedule brings the team's `freshness_evaluate` schedule row in line
+// with its rules and settings. It is what connects the two halves of the
+// feature: the scheduler's timing comes entirely from the `schedules` table,
+// while a team configures freshness through its rules and
+// team_freshness_settings.interval_seconds, and nothing else bridges them.
+//
+// The schedule exists while the team has ANY rule, enabled or not -- the
+// condition is deliberately NOT "has an enabled rule". Disabling the last
+// enabled rule does not clear the state it produced; the next evaluation run
+// does, because no rule matches anything any more. Dropping the schedule at
+// that moment would remove the only thing that ever calls the evaluator and
+// strand every stale flag the team had, with no audit entry and no way back
+// until someone re-enables a rule. A team whose rules are all disabled
+// therefore keeps a cheap two-query pass.
+//
+// Removing the LAST rule is different and does delete the schedule: DeleteRule
+// strips the rule from freshness state first, so by then there is nothing left
+// to clear.
+//
+// Failure is logged, not returned. The caller's write has already succeeded
+// and is the user-visible outcome; failing it because the schedule could not
+// be touched would report a successful rule change as an error.
+//
+// The drift is repaired by the next rule or settings write, and NOT by
+// anything else: a team whose very first rule failed to provision a schedule
+// is not evaluated at all until someone writes again. That is the same state
+// migration 015 exists to repair for pre-existing rules, and there is no
+// runtime repair path for it yet -- see #768.
+func (s *FreshnessService) syncSchedule(ctx context.Context, teamID string) {
+	log := s.logger.With("team_id", teamID, "job_type", models.JobTypeFreshnessEvaluate)
+
+	rules, err := s.rules.ListByTeam(ctx, teamID, false)
+	if err != nil {
+		log.Error("Failed to load freshness rules while syncing schedule", "error", err)
+		return
+	}
+
+	if len(rules) == 0 {
+		if delErr := s.schedules.Delete(ctx, teamID, models.JobTypeFreshnessEvaluate); delErr != nil {
+			log.Error("Failed to remove freshness evaluation schedule", "error", delErr)
+		}
+		return
+	}
+
+	interval, err := s.effectiveIntervalSeconds(ctx, teamID)
+	if err != nil {
+		log.Error("Failed to resolve freshness interval while syncing schedule", "error", err)
+		return
+	}
+
+	// NextRunAt is left zero, which the repository stamps with the database
+	// clock -- so the team becomes due on the next tick. That is deliberate on
+	// every write, not just the first: a rule the admin just changed takes
+	// effect within a tick instead of up to a day later, and re-evaluating is
+	// idempotent by construction, so the extra run costs a query and writes
+	// nothing.
+	if err := s.schedules.Upsert(ctx, &models.Schedule{
+		TeamID:          teamID,
+		JobType:         models.JobTypeFreshnessEvaluate,
+		IntervalSeconds: interval,
+	}); err != nil {
+		log.Error("Failed to upsert freshness evaluation schedule", "error", err)
+	}
+}
+
+// effectiveIntervalSeconds returns the team's evaluation interval, falling
+// back to the default when it stores no settings row -- the same "absent row
+// means inherit" rule GetSettings applies.
+func (s *FreshnessService) effectiveIntervalSeconds(ctx context.Context, teamID string) (int, error) {
+	stored, err := s.settings.Get(ctx, teamID)
+	if err != nil {
+		return 0, err
+	}
+	if stored == nil {
+		return models.DefaultFreshnessIntervalSeconds, nil
+	}
+	return stored.IntervalSeconds, nil
 }
 
 // view assembles the read model, attaching the defaults a reset would restore.

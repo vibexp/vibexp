@@ -152,6 +152,15 @@ var (
 	// and not treat it as an error worth alerting on.
 	ErrUnsupportedLastAccessedResource = errors.New("resource type or source has no last-accessed column")
 
+	// ErrUnsupportedFreshnessResource is returned by
+	// FreshnessCandidateRepository.ListStaleCandidates when the query names a
+	// resource type or medium it cannot evaluate. Unlike
+	// ErrUnsupportedLastAccessedResource this is NOT an expected no-op: rule
+	// input is validated in the service layer, so reaching it means a rule was
+	// stored with a value the evaluator cannot honour, and silently skipping it
+	// would under-report staleness with no signal.
+	ErrUnsupportedFreshnessResource = errors.New("resource type or medium is not freshness-evaluable")
+
 	// ErrBlueprintNotFound is returned by BlueprintRepository lookups/deletes when no
 	// blueprint row matches the given identifier for the user/team.
 	ErrBlueprintNotFound = errors.New("blueprint not found")
@@ -1525,6 +1534,11 @@ type ResourceFreshnessRepository interface {
 	// the total row count matching the filters (ignoring limit/offset) for
 	// pagination.
 	List(ctx context.Context, filters models.ResourceFreshnessFilters) ([]*models.ResourceFreshness, int, error)
+	// ListAllByTeam returns every freshness row of a team, unpaginated and in
+	// no particular order. It exists for rule evaluation, which reconciles the
+	// team's whole stale set in one pass and therefore needs the complete
+	// stored state rather than a page of it.
+	ListAllByTeam(ctx context.Context, teamID string) ([]*models.ResourceFreshness, error)
 	// DeleteByResource clears the freshness state of one resource, reporting
 	// whether a row was actually removed. Clearing a resource that is not
 	// stale is a no-op, not an error.
@@ -1599,6 +1613,25 @@ type TeamFreshnessSettingsRepository interface {
 	// Delete removes the team's settings row, reverting it to the defaults.
 	// Deleting when no row exists is a no-op, not an error.
 	Delete(ctx context.Context, teamID string) error
+}
+
+// FreshnessCandidateRepository answers "which resources does this rule
+// currently consider stale" against the four resource tables (issue #732).
+//
+// It is separate from ResourceFreshnessRepository on purpose: that repository
+// owns the system-owned state table, while this one only READS the resource
+// tables to derive candidates. Keeping them apart is what stops the state
+// repository from acquiring knowledge of the resource schemas.
+type FreshnessCandidateRepository interface {
+	// ListStaleCandidates returns the resources matching the query's scope
+	// whose most recent touch -- the later of the resource's own updated_at
+	// and its selected per-medium last-accessed columns -- is older than the
+	// threshold. A resource never accessed through any selected medium falls
+	// back to updated_at, so "never accessed" is eligible rather than exempt.
+	//
+	// Results are ordered by resource id ascending, so passing the last id
+	// back as Query.AfterID reads the next batch.
+	ListStaleCandidates(ctx context.Context, query models.FreshnessCandidateQuery) ([]models.FreshnessCandidate, error)
 }
 
 // FreshnessAuditRepository appends to and reads the freshness mark/clear log

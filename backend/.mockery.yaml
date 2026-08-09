@@ -106,6 +106,7 @@ packages:
       FeedItemRepository:
       FeedRepository:
       FreshnessAuditRepository:
+      FreshnessCandidateRepository:
       FreshnessRuleRepository:
       GitHubAppConfigRepository:
       GitHubInstallationRepository:

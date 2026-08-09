@@ -63,6 +63,37 @@ type ResourceFreshnessFilters struct {
 	Offset       int
 }
 
+// FreshnessCandidateQuery selects the resources one rule currently considers
+// stale. It is deliberately one resource type per query: the four resource
+// types live in four tables, and a union across them would defeat the
+// per-table indexes for no gain -- the evaluator fans out over a rule's types
+// anyway.
+//
+// ProjectID nil means "any project in the team" and an empty Mediums means
+// "any medium", exactly as on FreshnessRule. Limit plus AfterID is keyset
+// pagination over the resource id, so a rule matching an unbounded number of
+// resources is read in bounded batches.
+type FreshnessCandidateQuery struct {
+	TeamID        string
+	ResourceType  string
+	ProjectID     *string
+	Mediums       []string
+	ThresholdDays int
+	Limit         int
+	// AfterID returns only resources with a greater id; empty starts at the
+	// beginning.
+	AfterID string
+}
+
+// FreshnessCandidate is one resource a rule matched. ProjectID comes from the
+// resource row so the evaluator can denormalize it onto resource_freshness
+// without a second lookup.
+type FreshnessCandidate struct {
+	ResourceType string
+	ResourceID   string
+	ProjectID    string
+}
+
 // FreshnessRule is one team's staleness policy: the resources it covers and
 // how long they may go unaccessed before being marked stale.
 //

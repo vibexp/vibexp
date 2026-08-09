@@ -29,6 +29,7 @@ type freshnessDeps struct {
 	rules     *repomocks.MockFreshnessRuleRepository
 	freshness *repomocks.MockResourceFreshnessRepository
 	settings  *repomocks.MockTeamFreshnessSettingsRepository
+	schedules *repomocks.MockScheduleRepository
 	projects  *repomocks.MockProjectRepository
 	authz     *servicemocks.MockAuthorizationServiceInterface
 }
@@ -40,14 +41,35 @@ func newFreshnessService(t *testing.T) (*services.FreshnessService, freshnessDep
 		rules:     repomocks.NewMockFreshnessRuleRepository(t),
 		freshness: repomocks.NewMockResourceFreshnessRepository(t),
 		settings:  repomocks.NewMockTeamFreshnessSettingsRepository(t),
+		schedules: repomocks.NewMockScheduleRepository(t),
 		projects:  repomocks.NewMockProjectRepository(t),
 		authz:     servicemocks.NewMockAuthorizationServiceInterface(t),
 	}
 	svc := services.NewFreshnessService(
-		deps.rules, deps.freshness, deps.settings, deps.projects, deps.authz,
+		deps.rules, deps.freshness, deps.settings, deps.schedules, deps.projects, deps.authz,
 		slog.New(slog.DiscardHandler),
 	)
 	return svc, deps
+}
+
+// expectScheduleSync lets a successful write's schedule reconciliation through.
+// The sync is deliberately best-effort inside the service, so tests that are
+// not about scheduling still have to satisfy the calls it makes: one rule
+// lookup, then either a delete (no rules at all) or a settings read plus an
+// upsert.
+func (d freshnessDeps) expectScheduleSync(rules []*models.FreshnessRule) {
+	d.rules.EXPECT().
+		ListByTeam(mock.Anything, freshnessTestTeamID, false).
+		Return(rules, nil).Once()
+
+	if len(rules) == 0 {
+		d.schedules.EXPECT().
+			Delete(mock.Anything, freshnessTestTeamID, models.JobTypeFreshnessEvaluate).
+			Return(nil).Once()
+		return
+	}
+	d.settings.EXPECT().Get(mock.Anything, freshnessTestTeamID).Return(nil, nil).Once()
+	d.schedules.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil).Once()
 }
 
 // allowWrites lets the write permission through.
@@ -164,6 +186,7 @@ func TestFreshnessService_CreateRule_Persists(t *testing.T) {
 				rule.ProjectID == nil && rule.Enabled
 		})).
 		Return(nil).Once()
+	deps.expectScheduleSync([]*models.FreshnessRule{{ID: freshnessTestRuleID}})
 
 	rule, err := svc.CreateRule(context.Background(), freshnessTestUserID, freshnessTestTeamID, validRuleInput())
 
@@ -234,6 +257,7 @@ func TestFreshnessService_CreateRule_AcceptsProjectInTeam(t *testing.T) {
 		GetByID(mock.Anything, freshnessTestUserID, freshnessTestProjectID).
 		Return(&models.Project{TeamID: freshnessTestTeamID}, nil).Once()
 	deps.rules.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+	deps.expectScheduleSync([]*models.FreshnessRule{{ID: freshnessTestRuleID}})
 
 	input := validRuleInput()
 	projectID := freshnessTestProjectID
@@ -261,6 +285,8 @@ func TestFreshnessService_DeleteRule_StripsStateBeforeDeletingRule(t *testing.T)
 	deps.rules.EXPECT().Delete(mock.Anything, freshnessTestTeamID, freshnessTestRuleID).
 		Run(func(_ context.Context, _, _ string) { order = append(order, "delete") }).
 		Return(true, nil).Once()
+	// That was the team's last rule, so the schedule goes with it.
+	deps.expectScheduleSync(nil)
 
 	require.NoError(t, svc.DeleteRule(context.Background(), freshnessTestUserID, freshnessTestTeamID, freshnessTestRuleID))
 	assert.Equal(t, []string{"strip", "delete"}, order,
@@ -332,6 +358,7 @@ func TestFreshnessService_UpdateSettings_Persists(t *testing.T) {
 			return s.TeamID == freshnessTestTeamID && s.IntervalSeconds == 7200 && s.ReversibilityEnabled
 		})).
 		Return(nil).Once()
+	deps.expectScheduleSync([]*models.FreshnessRule{{ID: freshnessTestRuleID}})
 
 	view, err := svc.UpdateSettings(context.Background(), freshnessTestUserID, freshnessTestTeamID,
 		models.FreshnessSettingsValues{IntervalSeconds: 7200, ReversibilityEnabled: true})
@@ -444,4 +471,181 @@ func TestValidateFreshnessSettings(t *testing.T) {
 	assert.NoError(t, services.ValidateFreshnessRuleInput(services.FreshnessRuleInput{
 		ResourceTypes: []string{"artifact"}, ThresholdDays: services.MaxFreshnessThresholdDays,
 	}), "exactly the threshold cap is accepted")
+}
+
+// The scheduler's timing comes entirely from the `schedules` table, so a rule
+// write has to provision the team's freshness_evaluate row -- otherwise the job
+// is registered but nothing ever makes it due.
+func TestFreshnessService_CreateRule_ProvisionsEvaluationSchedule(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+	deps.allowWrites()
+	deps.rules.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+	deps.rules.EXPECT().ListByTeam(mock.Anything, freshnessTestTeamID, false).
+		Return([]*models.FreshnessRule{{ID: freshnessTestRuleID}}, nil).Once()
+	deps.settings.EXPECT().Get(mock.Anything, freshnessTestTeamID).
+		Return(&models.TeamFreshnessSettings{TeamID: freshnessTestTeamID, IntervalSeconds: 7200}, nil).Once()
+
+	var scheduled *models.Schedule
+	deps.schedules.EXPECT().Upsert(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, s *models.Schedule) { scheduled = s }).
+		Return(nil).Once()
+
+	_, err := svc.CreateRule(context.Background(), freshnessTestUserID, freshnessTestTeamID, validRuleInput())
+
+	require.NoError(t, err)
+	require.NotNil(t, scheduled)
+	assert.Equal(t, freshnessTestTeamID, scheduled.TeamID)
+	assert.Equal(t, models.JobTypeFreshnessEvaluate, scheduled.JobType)
+	assert.Equal(t, 7200, scheduled.IntervalSeconds)
+	// Zero NextRunAt makes the repository stamp the database clock, so a rule
+	// the admin just changed is evaluated on the next tick.
+	assert.True(t, scheduled.NextRunAt.IsZero())
+}
+
+// A team storing no settings row inherits the default interval, exactly as
+// GetSettings reports it -- the schedule must not diverge from what the API says.
+func TestFreshnessService_ScheduleUsesDefaultIntervalWhenUnset(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+	deps.allowWrites()
+	deps.rules.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+	deps.rules.EXPECT().ListByTeam(mock.Anything, freshnessTestTeamID, false).
+		Return([]*models.FreshnessRule{{ID: freshnessTestRuleID}}, nil).Once()
+	deps.settings.EXPECT().Get(mock.Anything, freshnessTestTeamID).Return(nil, nil).Once()
+
+	var scheduled *models.Schedule
+	deps.schedules.EXPECT().Upsert(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, s *models.Schedule) { scheduled = s }).
+		Return(nil).Once()
+
+	_, err := svc.CreateRule(context.Background(), freshnessTestUserID, freshnessTestTeamID, validRuleInput())
+
+	require.NoError(t, err)
+	require.NotNil(t, scheduled)
+	assert.Equal(t, models.DefaultFreshnessIntervalSeconds, scheduled.IntervalSeconds)
+}
+
+// With no rule left at all there is nothing to evaluate and nothing left
+// stale (DeleteRule strips the state first), so the schedule goes too.
+func TestFreshnessService_ScheduleRemovedWhenNoRulesRemain(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+	deps.allowWrites()
+	deps.settings.EXPECT().Delete(mock.Anything, freshnessTestTeamID).Return(nil).Once()
+	deps.rules.EXPECT().ListByTeam(mock.Anything, freshnessTestTeamID, false).
+		Return([]*models.FreshnessRule{}, nil).Once()
+	deps.schedules.EXPECT().
+		Delete(mock.Anything, freshnessTestTeamID, models.JobTypeFreshnessEvaluate).
+		Return(nil).Once()
+
+	require.NoError(t, svc.ResetSettings(context.Background(), freshnessTestUserID, freshnessTestTeamID))
+}
+
+// The sync is bookkeeping around a write that already succeeded. Failing the
+// caller's request because of it would report a saved rule as an error; the
+// drift is repaired by the next write.
+func TestFreshnessService_ScheduleSyncFailureDoesNotFailTheWrite(t *testing.T) {
+	tests := []struct {
+		name    string
+		arrange func(deps freshnessDeps)
+	}{
+		{
+			name: "rule lookup fails",
+			arrange: func(deps freshnessDeps) {
+				deps.rules.EXPECT().ListByTeam(mock.Anything, freshnessTestTeamID, false).
+					Return(nil, errors.New("boom")).Once()
+			},
+		},
+		{
+			name: "settings lookup fails",
+			arrange: func(deps freshnessDeps) {
+				deps.rules.EXPECT().ListByTeam(mock.Anything, freshnessTestTeamID, false).
+					Return([]*models.FreshnessRule{{ID: freshnessTestRuleID}}, nil).Once()
+				deps.settings.EXPECT().Get(mock.Anything, freshnessTestTeamID).
+					Return(nil, errors.New("boom")).Once()
+			},
+		},
+		{
+			name: "schedule upsert fails",
+			arrange: func(deps freshnessDeps) {
+				deps.rules.EXPECT().ListByTeam(mock.Anything, freshnessTestTeamID, false).
+					Return([]*models.FreshnessRule{{ID: freshnessTestRuleID}}, nil).Once()
+				deps.settings.EXPECT().Get(mock.Anything, freshnessTestTeamID).Return(nil, nil).Once()
+				deps.schedules.EXPECT().Upsert(mock.Anything, mock.Anything).
+					Return(errors.New("boom")).Once()
+			},
+		},
+		{
+			name: "schedule delete fails",
+			arrange: func(deps freshnessDeps) {
+				deps.rules.EXPECT().ListByTeam(mock.Anything, freshnessTestTeamID, false).
+					Return([]*models.FreshnessRule{}, nil).Once()
+				deps.schedules.EXPECT().
+					Delete(mock.Anything, freshnessTestTeamID, models.JobTypeFreshnessEvaluate).
+					Return(errors.New("boom")).Once()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, deps := newFreshnessService(t)
+			deps.allowWrites()
+			deps.rules.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+			tt.arrange(deps)
+
+			rule, err := svc.CreateRule(
+				context.Background(), freshnessTestUserID, freshnessTestTeamID, validRuleInput())
+
+			require.NoError(t, err, "the rule was stored; scheduling is best-effort")
+			assert.NotNil(t, rule)
+		})
+	}
+}
+
+// Disabling the team's LAST enabled rule must NOT remove the schedule. The
+// disable does not clear the state that rule produced -- only an evaluation
+// run does -- so dropping the schedule here would strand every stale flag the
+// team had, with no audit entry and no way back. This is the regression test
+// for the one path that made acceptance criterion 8 unreachable.
+func TestFreshnessService_DisablingLastEnabledRuleKeepsTheSchedule(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+	deps.allowWrites()
+	deps.rules.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
+	// The rule still EXISTS, it is merely disabled.
+	deps.rules.EXPECT().ListByTeam(mock.Anything, freshnessTestTeamID, false).
+		Return([]*models.FreshnessRule{{ID: freshnessTestRuleID, Enabled: false}}, nil).Once()
+	deps.settings.EXPECT().Get(mock.Anything, freshnessTestTeamID).Return(nil, nil).Once()
+
+	var scheduled *models.Schedule
+	deps.schedules.EXPECT().Upsert(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, s *models.Schedule) { scheduled = s }).
+		Return(nil).Once()
+
+	input := validRuleInput()
+	input.Enabled = false
+	rule, err := svc.UpdateRule(
+		context.Background(), freshnessTestUserID, freshnessTestTeamID, freshnessTestRuleID, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, rule)
+	require.NotNil(t, scheduled, "the evaluation run that clears the state must still be scheduled")
+	assert.Equal(t, models.JobTypeFreshnessEvaluate, scheduled.JobType)
+	// The t-bound mock fails the test if Delete were called instead.
+}
+
+// Updating a rule keeps the schedule in step, exactly as creating one does.
+func TestFreshnessService_UpdateRule_SyncsSchedule(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+	deps.allowWrites()
+	deps.rules.EXPECT().
+		Update(mock.Anything, mock.MatchedBy(func(rule *models.FreshnessRule) bool {
+			return rule.ID == freshnessTestRuleID && rule.TeamID == freshnessTestTeamID
+		})).
+		Return(nil).Once()
+	deps.expectScheduleSync([]*models.FreshnessRule{{ID: freshnessTestRuleID}})
+
+	rule, err := svc.UpdateRule(
+		context.Background(), freshnessTestUserID, freshnessTestTeamID, freshnessTestRuleID, validRuleInput())
+
+	require.NoError(t, err)
+	assert.Equal(t, freshnessTestRuleID, rule.ID)
 }

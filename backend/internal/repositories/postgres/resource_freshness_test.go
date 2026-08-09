@@ -437,3 +437,80 @@ func TestResourceFreshnessRepository_RemoveRule_CommitError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to commit resource freshness rule-removal")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
+
+// Rule evaluation reconciles a team's WHOLE stale set, so this listing must be
+// unpaginated and scoped by team alone.
+func TestResourceFreshnessRepository_ListAllByTeam_ReturnsEveryRow(t *testing.T) {
+	repo, mock := setupResourceFreshnessTest(t)
+	since := time.Now().UTC().Truncate(time.Second)
+
+	mock.ExpectQuery(`SELECT .+ FROM resource_freshness WHERE team_id = \$1$`).
+		WithArgs("team-1").
+		WillReturnRows(resourceFreshnessRow("{rule-a,rule-b}", since))
+
+	got, err := repo.ListAllByTeam(context.Background(), "team-1")
+
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, []string{"rule-a", "rule-b"}, got[0].MatchedRuleIDs)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// A team with nothing stale returns an empty slice, not nil: the caller ranges
+// over it to decide what to clear.
+func TestResourceFreshnessRepository_ListAllByTeam_EmptyIsNotNil(t *testing.T) {
+	repo, mock := setupResourceFreshnessTest(t)
+
+	mock.ExpectQuery(`FROM resource_freshness`).
+		WillReturnRows(sqlmock.NewRows(resourceFreshnessCols()))
+
+	got, err := repo.ListAllByTeam(context.Background(), "team-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, []*models.ResourceFreshness{}, got)
+}
+
+func TestResourceFreshnessRepository_ListAllByTeam_Errors(t *testing.T) {
+	tests := []struct {
+		name    string
+		arrange func(mock sqlmock.Sqlmock)
+		wantIn  string
+	}{
+		{
+			name: "query fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`FROM resource_freshness`).WillReturnError(errors.New("boom"))
+			},
+			wantIn: "failed to list team resource freshness",
+		},
+		{
+			name: "scan fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`FROM resource_freshness`).
+					WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("fresh-1"))
+			},
+			wantIn: "failed to scan team resource freshness",
+		},
+		{
+			name: "iteration fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`FROM resource_freshness`).
+					WillReturnRows(resourceFreshnessRow("{rule-a}", time.Now().UTC()).
+						RowError(0, errors.New("stream broken")))
+			},
+			wantIn: "failed to iterate team resource freshness",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, mock := setupResourceFreshnessTest(t)
+			tt.arrange(mock)
+
+			_, err := repo.ListAllByTeam(context.Background(), "team-1")
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantIn)
+		})
+	}
+}
