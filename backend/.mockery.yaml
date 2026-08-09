@@ -67,6 +67,7 @@ packages:
       SearchSettingsResolver:
       StreamProcessor:
       TeamEmailProviderServiceInterface:
+      FreshnessServiceInterface:
       TeamSearchSettingsServiceInterface:
       TeamServiceInterface:
       TypeServiceInterface:

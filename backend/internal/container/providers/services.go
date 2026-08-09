@@ -463,6 +463,19 @@ func ProvideMetadataCatalogService(
 	return services.NewMetadataCatalogService(repo, logger)
 }
 
+// ProvideFreshnessService creates the freshness rules + settings service
+// (epic #726). The repositories landed in #729; this is the first consumer.
+func ProvideFreshnessService(
+	rules repositories.FreshnessRuleRepository,
+	freshness repositories.ResourceFreshnessRepository,
+	settings repositories.TeamFreshnessSettingsRepository,
+	projects repositories.ProjectRepository,
+	authzService services.AuthorizationServiceInterface,
+	logger *slog.Logger,
+) services.FreshnessServiceInterface {
+	return services.NewFreshnessService(rules, freshness, settings, projects, authzService, logger)
+}
+
 // ProvideTeamSearchSettingsService creates the team search settings service.
 // It receives the deployment `search:` config, which is both the fallback for a
 // team with no stored profile and the instance_defaults reported on every read.

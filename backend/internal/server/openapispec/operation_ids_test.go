@@ -163,6 +163,12 @@ var settingsAliasExclusions = map[string]string{
 		"epic #487) — the suffix is the noun, not an alias marker. There is no bare " +
 		"/api/v1/{team_id}/search counterpart and never will be.",
 
+	"/api/v1/{team_id}/settings/freshness": "the DOMAIN is team freshness settings " +
+		"(getTeamFreshnessSettings / updateTeamFreshnessSettings / resetTeamFreshnessSettings, " +
+		"epic #726) — the suffix is the noun, not an alias marker, exactly as for " +
+		"/settings/search. There is no bare /api/v1/{team_id}/freshness counterpart: the " +
+		"sibling freshness surface is /freshness/rules, a different resource.",
+
 	"/api/v1/{team_id}/settings/embedding-providers/embeddings": "clearEmbeddingsSettings " +
 		"is registered on the settings mount ONLY, by design: a destructive team-wide " +
 		"truncate surfaced solely in the embedding settings UI (server.go, issue #182). " +

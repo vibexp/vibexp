@@ -1,0 +1,379 @@
+# Resource Freshness path items (issue #731, epic #726) — referenced from
+# ../openapi.yaml.
+#
+# Two surfaces, deliberately shaped like their nearest precedents:
+#   * rules    — a collection, like /relations
+#   * settings — a singleton at /settings/freshness, a sibling of
+#                /settings/search, so both team settings cards live under the
+#                same prefix (GET / PUT upsert / DELETE reverts to defaults).
+#
+# Reads are open to any team member (the tenancy middleware is the gate);
+# every write authorizes `team.settings.update` inside the service, the same
+# permission the other settings surfaces use. No new permission constant is
+# introduced, so the published `permissions` enum is untouched.
+
+api-v1-team_id-freshness-rules:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team identifier
+      schema:
+        type: string
+        format: uuid
+
+  get:
+    summary: List the team's freshness rules
+    description: >
+      Returns every freshness rule the team has defined, oldest first. Any
+      member of the team may read them. The array is empty, never null, when the
+      team has no rules.
+    operationId: listFreshnessRules
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Rules retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FreshnessRuleListResponse'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to list the team's freshness rules
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Freshness
+
+  post:
+    summary: Create a freshness rule
+    description: >
+      Adds a rule to the team. Requires the `team.settings.update` permission.
+      An omitted `mediums` matches any medium; an omitted or null `project_id`
+      applies the rule to every project in the team.
+    operationId: createFreshnessRule
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateFreshnessRuleRequest'
+    responses:
+      '201':
+        description: Rule created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FreshnessRule'
+      '400':
+        description: Invalid team_id or rule definition
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller may not change the team's settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to create the freshness rule
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Freshness
+
+api-v1-team_id-freshness-rules-rule_id:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team identifier
+      schema:
+        type: string
+        format: uuid
+    - name: rule_id
+      in: path
+      required: true
+      description: Freshness rule identifier
+      schema:
+        type: string
+        format: uuid
+
+  put:
+    summary: Replace a freshness rule
+    description: >
+      Replaces the rule in full — every mutable field is required, because an
+      omitted field would otherwise reset that dimension. Requires the
+      `team.settings.update` permission.
+    operationId: updateFreshnessRule
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateFreshnessRuleRequest'
+    responses:
+      '200':
+        description: Rule updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FreshnessRule'
+      '400':
+        description: Invalid identifiers or rule definition
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller may not change the team's settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: No such rule in this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to update the freshness rule
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Freshness
+
+  delete:
+    summary: Delete a freshness rule
+    description: >
+      Removes the rule and strips it from any freshness state that matched it,
+      so no stale resource keeps referencing a rule that no longer exists.
+      Requires the `team.settings.update` permission.
+    operationId: deleteFreshnessRule
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '204':
+        description: Rule deleted (no content)
+      '400':
+        description: Invalid identifiers
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller may not change the team's settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: No such rule in this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to delete the freshness rule
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Freshness
+
+api-v1-team_id-settings-freshness:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team identifier
+      schema:
+        type: string
+        format: uuid
+
+  get:
+    summary: Get the team's freshness settings
+    description: >
+      Returns the freshness evaluation settings in effect for the team, their
+      provenance (`source`), and the defaults a reset would restore. A team that
+      has never overridden them gets `source: instance`. Any member may read them.
+    operationId: getTeamFreshnessSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Settings retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamFreshnessSettings'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to read the team's freshness settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Freshness
+
+  put:
+    summary: Override the team's freshness settings
+    description: >
+      Replaces the team's freshness settings in full. `interval_seconds` below
+      3600 (one hour) is rejected. Requires the `team.settings.update` permission.
+    operationId: updateTeamFreshnessSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateTeamFreshnessSettingsRequest'
+    responses:
+      '200':
+        description: Settings updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamFreshnessSettings'
+      '400':
+        description: Invalid team_id or settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller may not change the team's settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to update the team's freshness settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Freshness
+
+  delete:
+    summary: Reset the team's freshness settings to the defaults
+    description: >
+      Removes the team's stored settings so it inherits the defaults again.
+      Requires the `team.settings.update` permission. Resetting a team that has
+      no stored settings succeeds and changes nothing.
+    operationId: resetTeamFreshnessSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '204':
+        description: Settings reset (no content); the team now inherits the defaults
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller may not change the team's settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to reset the team's freshness settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Freshness

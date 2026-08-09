@@ -133,6 +133,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideTeamEmailProviderService,
 	providers.ProvideEmailSenderResolver,
 	providers.ProvideTeamSearchSettingsService,
+	providers.ProvideFreshnessService,
 	providers.ProvideMetadataCatalogService,
 	providers.ProvideSearchService,
 	providers.ProvideEnvironmentService,

@@ -85,6 +85,8 @@ type Container interface {
 	TeamEmailProviderService() services.TeamEmailProviderServiceInterface
 	EmailSenderResolver() services.EmailSenderResolver
 	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface
+	// FreshnessService manages per-team freshness rules and settings (epic #726).
+	FreshnessService() services.FreshnessServiceInterface
 	MetadataCatalogService() services.MetadataCatalogServiceInterface
 	EnvironmentService() *services.EnvironmentService
 	BackofficeService() services.UsageAndGrowthGetter
