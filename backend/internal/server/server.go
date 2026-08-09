@@ -31,6 +31,7 @@ import (
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	commentsgen "github.com/vibexp/vibexp/internal/server/gen/comments"
 	embeddingprovidersgen "github.com/vibexp/vibexp/internal/server/gen/embeddingproviders"
+	freshnessgen "github.com/vibexp/vibexp/internal/server/gen/freshness"
 	metadatagen "github.com/vibexp/vibexp/internal/server/gen/metadata"
 	relationsgen "github.com/vibexp/vibexp/internal/server/gen/relations"
 	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
@@ -698,6 +699,7 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupCommentsRoutes(r)
 		s.setupRelationsRoutes(r)
 		s.setupTeamSettingsRoutes(r)
+		s.setupFreshnessRoutes(r)
 		s.setupMetadataRoutes(r)
 		s.setupEmbeddingProvidersRoutes(r)
 		s.setupBlueprintRoutes(r)
@@ -969,6 +971,31 @@ func (s *Server) setupTeamSettingsRoutes(r chi.Router) {
 		teamsettingsgen.HandlerWithOptions(strict, teamsettingsgen.ChiServerOptions{
 			BaseRouter:       gr,
 			ErrorHandlerFunc: s.teamSettingsBindErrorHandler,
+		})
+	})
+}
+
+// setupFreshnessRoutes mounts the generated Freshness strict-server handler
+// under a team-validated group (epic #726), mirroring setupTeamSettingsRoutes.
+// The tenancy middleware is what makes the two reads open to any team member;
+// every write authorizes team.settings.update inside the service.
+func (s *Server) setupFreshnessRoutes(r chi.Router) {
+	strict := freshnessgen.NewStrictHandlerWithOptions(
+		&freshnessStrictServer{s: s},
+		nil,
+		freshnessgen.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  s.freshnessBindErrorHandler,
+			ResponseErrorHandlerFunc: s.freshnessResponseErrorHandler,
+		},
+	)
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
+		// The spec declares additionalProperties:false + all-required on both PUT
+		// bodies; oapi-codegen enforces neither, so this does.
+		gr.Use(s.requireCompleteFreshnessBody)
+		freshnessgen.HandlerWithOptions(strict, freshnessgen.ChiServerOptions{
+			BaseRouter:       gr,
+			ErrorHandlerFunc: s.freshnessBindErrorHandler,
 		})
 	})
 }

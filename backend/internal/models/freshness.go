@@ -120,6 +120,44 @@ func DefaultTeamFreshnessSettings(teamID string) *TeamFreshnessSettings {
 	}
 }
 
+// Provenance of the freshness settings a team is operating under.
+const (
+	// FreshnessSettingsSourceInstance means the team has no stored settings
+	// and is inheriting the defaults.
+	FreshnessSettingsSourceInstance = "instance"
+	// FreshnessSettingsSourceTeam means the team stores its own settings.
+	FreshnessSettingsSourceTeam = "team"
+)
+
+// FreshnessSettingsValues is the tunable part of a team's freshness settings —
+// exactly what a client sends on an update and what the API echoes back.
+// Keeping it separate from TeamFreshnessSettings is what lets one response
+// carry both the effective values and the defaults a reset would restore.
+type FreshnessSettingsValues struct {
+	IntervalSeconds      int  `json:"interval_seconds"`
+	ReversibilityEnabled bool `json:"reversibility_enabled"`
+}
+
+// TeamFreshnessSettingsView is the read model for a team's freshness settings:
+// the effective values, where they came from, and the defaults a reset would
+// restore — everything a client needs to render the settings card, and to
+// preview a reset, from a single response. Mirrors TeamSearchSettingsView.
+type TeamFreshnessSettingsView struct {
+	// Source is FreshnessSettingsSourceInstance or FreshnessSettingsSourceTeam.
+	Source   string
+	Values   FreshnessSettingsValues
+	Defaults FreshnessSettingsValues
+}
+
+// DefaultFreshnessSettingsValues returns the values a team inherits when it has
+// stored none.
+func DefaultFreshnessSettingsValues() FreshnessSettingsValues {
+	return FreshnessSettingsValues{
+		IntervalSeconds:      DefaultFreshnessIntervalSeconds,
+		ReversibilityEnabled: DefaultFreshnessReversibilityEnabled,
+	}
+}
+
 // ResourceFreshnessAudit is one append-only entry in the freshness mark/clear
 // log. RuleID is nil when the change is not attributable to a rule (a clear
 // caused by an access or an edit).

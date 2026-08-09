@@ -738,6 +738,26 @@ components:
     MetadataValuesResponse:
       $ref: "./schemas/metadata.yaml#/MetadataValuesResponse"
 
+    # Import Resource Freshness schemas (epic #726)
+    FreshnessRule:
+      $ref: "./schemas/freshness.yaml#/FreshnessRule"
+    FreshnessRuleResourceType:
+      $ref: "./schemas/freshness.yaml#/FreshnessRuleResourceType"
+    FreshnessRuleMedium:
+      $ref: "./schemas/freshness.yaml#/FreshnessRuleMedium"
+    FreshnessRuleListResponse:
+      $ref: "./schemas/freshness.yaml#/FreshnessRuleListResponse"
+    CreateFreshnessRuleRequest:
+      $ref: "./schemas/freshness.yaml#/CreateFreshnessRuleRequest"
+    UpdateFreshnessRuleRequest:
+      $ref: "./schemas/freshness.yaml#/UpdateFreshnessRuleRequest"
+    FreshnessSettingsValues:
+      $ref: "./schemas/freshness.yaml#/FreshnessSettingsValues"
+    TeamFreshnessSettings:
+      $ref: "./schemas/freshness.yaml#/TeamFreshnessSettings"
+    UpdateTeamFreshnessSettingsRequest:
+      $ref: "./schemas/freshness.yaml#/UpdateTeamFreshnessSettingsRequest"
+
     # Import team settings schemas (epic #487)
     TeamSearchSettings:
       $ref: "./schemas/team-settings.yaml#/TeamSearchSettings"
@@ -1135,6 +1155,12 @@ paths:
     $ref: "./paths/metadata.yaml#/api-v1-team_id-metadata-values"
   /api/v1/{team_id}/settings/search:
     $ref: "./paths/team-settings.yaml#/api-v1-team_id-settings-search"
+  /api/v1/{team_id}/freshness/rules:
+    $ref: "./paths/freshness.yaml#/api-v1-team_id-freshness-rules"
+  /api/v1/{team_id}/freshness/rules/{rule_id}:
+    $ref: "./paths/freshness.yaml#/api-v1-team_id-freshness-rules-rule_id"
+  /api/v1/{team_id}/settings/freshness:
+    $ref: "./paths/freshness.yaml#/api-v1-team_id-settings-freshness"
   /api/v1/{team_id}/settings/embedding-providers:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers"
   /api/v1/{team_id}/settings/embedding-providers/coverage:
@@ -1275,6 +1301,8 @@ tags:
     description: Discovery of the metadata keys and values in use, backing the metadata filters on the list endpoints
   - name: TeamSettings
     description: Team-level configuration, starting with per-team search ranking settings
+  - name: Freshness
+    description: Per-team resource freshness rules and evaluation settings (epic #726)
   - name: Admin
     description: Instance-level administration (instance-admin only; non-admins get 404). REST-only, no MCP.
   - name: User

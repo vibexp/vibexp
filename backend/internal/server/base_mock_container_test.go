@@ -256,6 +256,11 @@ func (b *BaseMockContainer) TeamSearchSettingsService() services.TeamSearchSetti
 	return nil
 }
 
+// FreshnessService returns nil; suites that exercise it install their own.
+func (b *BaseMockContainer) FreshnessService() services.FreshnessServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) MetadataCatalogService() services.MetadataCatalogServiceInterface {
 	return nil
 }

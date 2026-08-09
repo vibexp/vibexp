@@ -163,6 +163,10 @@
       "description": "Team-level configuration, starting with per-team search ranking settings"
     },
     {
+      "name": "Freshness",
+      "description": "Per-team resource freshness rules and evaluation settings (epic"
+    },
+    {
       "name": "Admin",
       "description": "Instance-level administration (instance-admin only; non-admins get 404). REST-only, no MCP."
     },
@@ -16319,6 +16323,570 @@
         ]
       }
     },
+    "/api/v1/{team_id}/freshness/rules": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team identifier",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "List the team's freshness rules",
+        "description": "Returns every freshness rule the team has defined, oldest first. Any member of the team may read them. The array is empty, never null, when the team has no rules.\n",
+        "operationId": "listFreshnessRules",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rules retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreshnessRuleListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team_id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to list the team's freshness rules",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Freshness"
+        ]
+      },
+      "post": {
+        "summary": "Create a freshness rule",
+        "description": "Adds a rule to the team. Requires the `team.settings.update` permission. An omitted `mediums` matches any medium; an omitted or null `project_id` applies the rule to every project in the team.\n",
+        "operationId": "createFreshnessRule",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFreshnessRuleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rule created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreshnessRule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team_id or rule definition",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller may not change the team's settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to create the freshness rule",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Freshness"
+        ]
+      }
+    },
+    "/api/v1/{team_id}/freshness/rules/{rule_id}": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team identifier",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "rule_id",
+          "in": "path",
+          "required": true,
+          "description": "Freshness rule identifier",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "put": {
+        "summary": "Replace a freshness rule",
+        "description": "Replaces the rule in full — every mutable field is required, because an omitted field would otherwise reset that dimension. Requires the `team.settings.update` permission.\n",
+        "operationId": "updateFreshnessRule",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFreshnessRuleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rule updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreshnessRule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifiers or rule definition",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller may not change the team's settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such rule in this team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to update the freshness rule",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Freshness"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a freshness rule",
+        "description": "Removes the rule and strips it from any freshness state that matched it, so no stale resource keeps referencing a rule that no longer exists. Requires the `team.settings.update` permission.\n",
+        "operationId": "deleteFreshnessRule",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Rule deleted (no content)"
+          },
+          "400": {
+            "description": "Invalid identifiers",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller may not change the team's settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such rule in this team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to delete the freshness rule",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Freshness"
+        ]
+      }
+    },
+    "/api/v1/{team_id}/settings/freshness": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team identifier",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Get the team's freshness settings",
+        "description": "Returns the freshness evaluation settings in effect for the team, their provenance (`source`), and the defaults a reset would restore. A team that has never overridden them gets `source: instance`. Any member may read them.\n",
+        "operationId": "getTeamFreshnessSettings",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Settings retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamFreshnessSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team_id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to read the team's freshness settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Freshness"
+        ]
+      },
+      "put": {
+        "summary": "Override the team's freshness settings",
+        "description": "Replaces the team's freshness settings in full. `interval_seconds` below 3600 (one hour) is rejected. Requires the `team.settings.update` permission.\n",
+        "operationId": "updateTeamFreshnessSettings",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTeamFreshnessSettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settings updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamFreshnessSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team_id or settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller may not change the team's settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to update the team's freshness settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Freshness"
+        ]
+      },
+      "delete": {
+        "summary": "Reset the team's freshness settings to the defaults",
+        "description": "Removes the team's stored settings so it inherits the defaults again. Requires the `team.settings.update` permission. Resetting a team that has no stored settings succeeds and changes nothing.\n",
+        "operationId": "resetTeamFreshnessSettings",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Settings reset (no content); the team now inherits the defaults"
+          },
+          "400": {
+            "description": "Invalid team_id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller may not change the team's settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to reset the team's freshness settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Freshness"
+        ]
+      }
+    },
     "/api/v1/{team_id}/settings/embedding-providers": {
       "parameters": [
         {
@@ -28826,6 +29394,272 @@
             "type": "boolean",
             "description": "True when more distinct values exist than the requested limit returned.",
             "example": false
+          }
+        }
+      },
+      "FreshnessRule": {
+        "type": "object",
+        "description": "One team's rule for when a resource becomes stale.",
+        "required": [
+          "id",
+          "team_id",
+          "project_id",
+          "resource_types",
+          "mediums",
+          "threshold_days",
+          "enabled",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Rule identifier."
+          },
+          "team_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Team the rule belongs to."
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Scopes the rule to a single project. `null` means the rule applies to EVERY project in the team.\n"
+          },
+          "resource_types": {
+            "type": "array",
+            "description": "Resource types the rule applies to. Never empty.",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/FreshnessRuleResourceType"
+            }
+          },
+          "mediums": {
+            "type": "array",
+            "description": "Access mediums that count as \"accessed\" for this rule. An EMPTY array means ANY medium counts — it does not mean \"no medium\".\n",
+            "items": {
+              "$ref": "#/components/schemas/FreshnessRuleMedium"
+            }
+          },
+          "threshold_days": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 36500,
+            "description": "Days without a qualifying access after which the resource is stale. Capped at 36500 (100 years), mirroring the search-settings half-life cap: past that the rule can never fire, and the bound keeps the value inside the int32 the column and the wire format use.\n"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether evaluation runs apply this rule."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FreshnessRuleResourceType": {
+        "type": "string",
+        "description": "A resource type a freshness rule can cover.",
+        "enum": [
+          "artifact",
+          "prompt",
+          "blueprint",
+          "memory"
+        ]
+      },
+      "FreshnessRuleMedium": {
+        "type": "string",
+        "description": "An access medium that counts as \"accessed\" for a freshness rule. Note this is narrower than the set of mediums recorded on the access path — `api` accesses are stored but are deliberately not selectable as rule criteria.\n",
+        "enum": [
+          "web",
+          "cli",
+          "mcp"
+        ]
+      },
+      "FreshnessRuleListResponse": {
+        "type": "object",
+        "description": "The team's freshness rules, oldest first.",
+        "required": [
+          "rules"
+        ],
+        "properties": {
+          "rules": {
+            "type": "array",
+            "description": "Freshness rules. Serializes as `[]` when the team has none, never `null`.",
+            "items": {
+              "$ref": "#/components/schemas/FreshnessRule"
+            }
+          }
+        }
+      },
+      "CreateFreshnessRuleRequest": {
+        "type": "object",
+        "description": "Create a freshness rule.",
+        "additionalProperties": false,
+        "required": [
+          "resource_types",
+          "threshold_days"
+        ],
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Scope to one project; omit or send `null` for every project in the team."
+          },
+          "resource_types": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/FreshnessRuleResourceType"
+            }
+          },
+          "mediums": {
+            "type": "array",
+            "description": "Omit or send an empty array to match any medium.",
+            "items": {
+              "$ref": "#/components/schemas/FreshnessRuleMedium"
+            }
+          },
+          "threshold_days": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 36500
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Defaults to true when omitted."
+          }
+        }
+      },
+      "UpdateFreshnessRuleRequest": {
+        "type": "object",
+        "description": "Replace a freshness rule in full.",
+        "additionalProperties": false,
+        "required": [
+          "project_id",
+          "resource_types",
+          "mediums",
+          "threshold_days",
+          "enabled"
+        ],
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Scope to one project; `null` means every project in the team."
+          },
+          "resource_types": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/FreshnessRuleResourceType"
+            }
+          },
+          "mediums": {
+            "type": "array",
+            "description": "An empty array matches any medium.",
+            "items": {
+              "$ref": "#/components/schemas/FreshnessRuleMedium"
+            }
+          },
+          "threshold_days": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 36500
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FreshnessSettingsValues": {
+        "type": "object",
+        "description": "The tunable freshness-evaluation values, shared by the current settings and the defaults.",
+        "required": [
+          "interval_seconds",
+          "reversibility_enabled"
+        ],
+        "properties": {
+          "interval_seconds": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 3600,
+            "maximum": 31536000,
+            "description": "How often the team's rules are evaluated. Storage enforces a one-hour floor, matching the scheduler's own floor; the 31536000 (365-day) ceiling keeps the value inside the int32 the column and the wire format use, and an interval longer than a year is indistinguishable from off.\n"
+          },
+          "reversibility_enabled": {
+            "type": "boolean",
+            "description": "Whether accessing or editing a stale resource clears its stale state."
+          }
+        }
+      },
+      "TeamFreshnessSettings": {
+        "type": "object",
+        "description": "The freshness settings in effect for a team, with their provenance. A team that has never overridden them reports `source: instance` and the defaults.\n",
+        "required": [
+          "source",
+          "interval_seconds",
+          "reversibility_enabled",
+          "defaults"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "`team` when the team stores its own settings, `instance` when it inherits the defaults.\n",
+            "enum": [
+              "instance",
+              "team"
+            ]
+          },
+          "interval_seconds": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 3600,
+            "maximum": 31536000
+          },
+          "reversibility_enabled": {
+            "type": "boolean"
+          },
+          "defaults": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessSettingsValues"
+              }
+            ],
+            "description": "The values a DELETE would restore. Present on every read so clients can preview a reset without a second call.\n"
+          }
+        }
+      },
+      "UpdateTeamFreshnessSettingsRequest": {
+        "type": "object",
+        "description": "Override the team's freshness settings.",
+        "additionalProperties": false,
+        "required": [
+          "interval_seconds",
+          "reversibility_enabled"
+        ],
+        "properties": {
+          "interval_seconds": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 3600,
+            "maximum": 31536000,
+            "description": "Rejected below 3600 (one hour) or above 31536000 (365 days)."
+          },
+          "reversibility_enabled": {
+            "type": "boolean"
           }
         }
       },

@@ -172,6 +172,8 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"TypeListResponse":                 "generated strict-server type (internal/server/gen/types); handler builds via make(...,0) — handlers_types.go toGenTypes",
 	"CommentListResponse":              "generated strict-server type (internal/server/gen/comments); handler builds via make(...,0) — handlers_comments.go toGenCommentListResponse",
 	"RelationListResponse":             "generated strict-server type (internal/server/gen/relations); handler builds via make(...,0) — handlers_relations.go toGenRelationListResponse",
+	"FreshnessRuleListResponse":        "generated strict-server type (internal/server/gen/freshness); handler builds via make(...,0) — handlers_freshness.go toGenFreshnessRuleListResponse",
+	"FreshnessRule":                    "generated strict-server type (internal/server/gen/freshness); handler builds resource_types + mediums via make(...,0) — handlers_freshness.go toGenFreshnessRule",
 	"MetadataKeysResponse":             "generated strict-server type (internal/server/gen/metadata); handler coerces nil->[] via make(...,0) — handlers_metadata.go metadataEntries",
 	"MetadataValuesResponse":           "generated strict-server type (internal/server/gen/metadata); handler coerces nil->[] via make(...,0) — handlers_metadata.go metadataEntries",
 	"AdminUserListResponse":            "generated strict-server type (internal/server/gen/admin); handler builds users via make(...,0) — handlers_admin.go toGenAdminUserList",
@@ -203,6 +205,8 @@ var adHocRequiredArrayAllowlist = map[string]string{
 // requestOnlyRequiredArraySchemas are request-body schemas whose required
 // array fields are not response payloads and so are out of scope for #125.
 var requestOnlyRequiredArraySchemas = map[string]struct{}{
-	"CreateAPIKeyRequest":    {}, // integration_codes
-	"SendInvitationsRequest": {}, // emails
+	"CreateAPIKeyRequest":        {}, // integration_codes
+	"SendInvitationsRequest":     {}, // emails
+	"CreateFreshnessRuleRequest": {}, // resource_types
+	"UpdateFreshnessRuleRequest": {}, // resource_types, mediums
 }

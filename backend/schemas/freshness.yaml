@@ -1,0 +1,250 @@
+# Resource Freshness schemas (issue #731, epic #726) — referenced from
+# ../openapi.yaml.
+#
+# Two surfaces: freshness RULES (a per-team collection) and freshness SETTINGS
+# (a per-team singleton). The settings shape deliberately mirrors
+# TeamSearchSettings in team-settings.yaml: a `source` discriminator plus the
+# defaults a reset would restore, so a client can preview a reset without a
+# second call.
+
+FreshnessRuleResourceType:
+  type: string
+  description: A resource type a freshness rule can cover.
+  enum:
+    - artifact
+    - prompt
+    - blueprint
+    - memory
+
+FreshnessRuleMedium:
+  type: string
+  description: >
+    An access medium that counts as "accessed" for a freshness rule. Note this
+    is narrower than the set of mediums recorded on the access path — `api`
+    accesses are stored but are deliberately not selectable as rule criteria.
+  enum:
+    - web
+    - cli
+    - mcp
+
+FreshnessRule:
+  type: object
+  description: One team's rule for when a resource becomes stale.
+  required:
+    - id
+    - team_id
+    - project_id
+    - resource_types
+    - mediums
+    - threshold_days
+    - enabled
+    - created_at
+    - updated_at
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Rule identifier.
+    team_id:
+      type: string
+      format: uuid
+      description: Team the rule belongs to.
+    project_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: >
+        Scopes the rule to a single project. `null` means the rule applies to
+        EVERY project in the team.
+    resource_types:
+      type: array
+      description: Resource types the rule applies to. Never empty.
+      minItems: 1
+      items:
+        $ref: './freshness.yaml#/FreshnessRuleResourceType'
+    mediums:
+      type: array
+      description: >
+        Access mediums that count as "accessed" for this rule. An EMPTY array
+        means ANY medium counts — it does not mean "no medium".
+      items:
+        $ref: './freshness.yaml#/FreshnessRuleMedium'
+    threshold_days:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 36500
+      description: >
+        Days without a qualifying access after which the resource is stale.
+        Capped at 36500 (100 years), mirroring the search-settings half-life
+        cap: past that the rule can never fire, and the bound keeps the value
+        inside the int32 the column and the wire format use.
+    enabled:
+      type: boolean
+      description: Whether evaluation runs apply this rule.
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+
+FreshnessRuleListResponse:
+  type: object
+  description: The team's freshness rules, oldest first.
+  required:
+    - rules
+  properties:
+    rules:
+      type: array
+      description: Freshness rules. Serializes as `[]` when the team has none, never `null`.
+      items:
+        $ref: './freshness.yaml#/FreshnessRule'
+
+# Create and update are separate schemas rather than one shared body:
+# create lets the server apply defaults for the optional dimensions, while
+# update is a COMPLETE replacement and therefore requires every mutable field.
+CreateFreshnessRuleRequest:
+  type: object
+  description: Create a freshness rule.
+  additionalProperties: false
+  required:
+    - resource_types
+    - threshold_days
+  properties:
+    project_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Scope to one project; omit or send `null` for every project in the team.
+    resource_types:
+      type: array
+      minItems: 1
+      items:
+        $ref: './freshness.yaml#/FreshnessRuleResourceType'
+    mediums:
+      type: array
+      description: Omit or send an empty array to match any medium.
+      items:
+        $ref: './freshness.yaml#/FreshnessRuleMedium'
+    threshold_days:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 36500
+    enabled:
+      type: boolean
+      default: true
+      description: Defaults to true when omitted.
+
+# Every mutable field is required because PUT replaces the whole rule: a
+# partial body would silently reset the omitted dimensions to their zero values.
+# oapi-codegen enforces neither `required` on a request body nor
+# `additionalProperties: false`, so a middleware guard does it — see
+# requireCompleteFreshnessRuleBody.
+UpdateFreshnessRuleRequest:
+  type: object
+  description: Replace a freshness rule in full.
+  additionalProperties: false
+  required:
+    - project_id
+    - resource_types
+    - mediums
+    - threshold_days
+    - enabled
+  properties:
+    project_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Scope to one project; `null` means every project in the team.
+    resource_types:
+      type: array
+      minItems: 1
+      items:
+        $ref: './freshness.yaml#/FreshnessRuleResourceType'
+    mediums:
+      type: array
+      description: An empty array matches any medium.
+      items:
+        $ref: './freshness.yaml#/FreshnessRuleMedium'
+    threshold_days:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 36500
+    enabled:
+      type: boolean
+
+FreshnessSettingsValues:
+  type: object
+  description: The tunable freshness-evaluation values, shared by the current settings and the defaults.
+  required:
+    - interval_seconds
+    - reversibility_enabled
+  properties:
+    interval_seconds:
+      type: integer
+      format: int32
+      minimum: 3600
+      maximum: 31536000
+      description: >
+        How often the team's rules are evaluated. Storage enforces a one-hour
+        floor, matching the scheduler's own floor; the 31536000 (365-day)
+        ceiling keeps the value inside the int32 the column and the wire format
+        use, and an interval longer than a year is indistinguishable from off.
+    reversibility_enabled:
+      type: boolean
+      description: Whether accessing or editing a stale resource clears its stale state.
+
+TeamFreshnessSettings:
+  type: object
+  description: >
+    The freshness settings in effect for a team, with their provenance. A team
+    that has never overridden them reports `source: instance` and the defaults.
+  required:
+    - source
+    - interval_seconds
+    - reversibility_enabled
+    - defaults
+  properties:
+    source:
+      type: string
+      description: >
+        `team` when the team stores its own settings, `instance` when it
+        inherits the defaults.
+      enum:
+        - instance
+        - team
+    interval_seconds:
+      type: integer
+      format: int32
+      minimum: 3600
+      maximum: 31536000
+    reversibility_enabled:
+      type: boolean
+    defaults:
+      allOf:
+        - $ref: './freshness.yaml#/FreshnessSettingsValues'
+      description: >
+        The values a DELETE would restore. Present on every read so clients can
+        preview a reset without a second call.
+
+# All fields required + additionalProperties:false for the same reason as
+# UpdateFreshnessRuleRequest: this is a whole-row replacement.
+UpdateTeamFreshnessSettingsRequest:
+  type: object
+  description: Override the team's freshness settings.
+  additionalProperties: false
+  required:
+    - interval_seconds
+    - reversibility_enabled
+  properties:
+    interval_seconds:
+      type: integer
+      format: int32
+      minimum: 3600
+      maximum: 31536000
+      description: Rejected below 3600 (one hour) or above 31536000 (365 days).
+    reversibility_enabled:
+      type: boolean
