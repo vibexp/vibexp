@@ -205,8 +205,13 @@ func TestFreshnessAuditRepository_CountTransitionsByDay(t *testing.T) {
 	repo, mock := setupFreshnessAuditTest(t)
 	since := time.Now().UTC().AddDate(0, 0, -7)
 
-	mock.ExpectQuery(`SELECT TO_CHAR\(DATE\(created_at\), 'YYYY-MM-DD'\) AS date, action, COUNT\(\*\).+`+
-		`FROM resource_freshness_audit.+WHERE team_id = \$1 AND created_at >= \$2.+GROUP BY DATE\(created_at\), action`).
+	// The AT TIME ZONE 'UTC' is the point of the assertion, not incidental: a
+	// bare DATE() would truncate in the session timezone and mis-key the
+	// series (#773).
+	mock.ExpectQuery(
+		`SELECT TO_CHAR\(\(created_at AT TIME ZONE 'UTC'\)::date, 'YYYY-MM-DD'\) AS date, action, COUNT\(\*\).+`+
+			`FROM resource_freshness_audit.+WHERE team_id = \$1 AND created_at >= \$2.+`+
+			`GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date, action`).
 		WithArgs("team-1", since).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "action", "count"}).
 			AddRow("2026-05-01", models.FreshnessActionMarked, 3).
@@ -231,14 +236,14 @@ func TestFreshnessAuditRepository_CountTransitionsByDay_Errors(t *testing.T) {
 		{
 			name: "query fails",
 			arrange: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`GROUP BY DATE`).WillReturnError(errors.New("boom"))
+				mock.ExpectQuery(`GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date`).WillReturnError(errors.New("boom"))
 			},
 			wantIn: "failed to count freshness transitions by day",
 		},
 		{
 			name: "scan fails",
 			arrange: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`GROUP BY DATE`).
+				mock.ExpectQuery(`GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date`).
 					WillReturnRows(sqlmock.NewRows([]string{"date"}).AddRow("2026-05-01"))
 			},
 			wantIn: "failed to scan freshness transition count",
@@ -246,7 +251,7 @@ func TestFreshnessAuditRepository_CountTransitionsByDay_Errors(t *testing.T) {
 		{
 			name: "iteration fails",
 			arrange: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`GROUP BY DATE`).
+				mock.ExpectQuery(`GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date`).
 					WillReturnRows(sqlmock.NewRows([]string{"date", "action", "count"}).
 						AddRow("2026-05-01", "marked", 1).RowError(0, errors.New("stream broken")))
 			},
