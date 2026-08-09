@@ -300,6 +300,15 @@ type FreshnessAuditPage struct {
 	PerPage    int
 }
 
+// FreshnessFilterStale is the only value the `freshness` list filter accepts
+// (issue #735). Freshness state exists only while a resource IS stale — the row
+// is deleted when it clears — so there is no "fresh" value to ask for.
+//
+// It lives here, beside FreshnessStatusStale whose spelling it shares, so the
+// service and repository layers can both reference one constant without the
+// service having to import the concrete postgres package.
+const FreshnessFilterStale = FreshnessStatusStale
+
 // ResourceFreshnessState is the freshness indicator carried on a resource
 // payload (issue #735). It is nil — and the JSON field absent — when the
 // resource is fresh, which is what makes "fresh" unambiguous rather than a

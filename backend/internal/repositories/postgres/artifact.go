@@ -265,7 +265,7 @@ func buildArtifactOrderByClause(filters repositories.ArtifactFilters) string {
 // identical for both methods; only the base WHERE differs.
 func applyArtifactFilters(where squirrel.And, filters repositories.ArtifactFilters) squirrel.And {
 	if filters.Freshness != nil && *filters.Freshness == FreshnessFilterStale {
-		where = applyStaleFilter(where, "artifact", "a.id")
+		where = applyStaleFilter(where, models.RelationResourceTypeArtifact, "a.id")
 	}
 
 	if filters.ProjectID != nil && *filters.ProjectID != "" {

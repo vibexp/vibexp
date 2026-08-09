@@ -2,13 +2,14 @@ package postgres
 
 import (
 	"github.com/Masterminds/squirrel"
+
+	"github.com/vibexp/vibexp/internal/models"
 )
 
-// FreshnessFilterStale is the only value the `freshness` list filter accepts.
-// Freshness state exists only while a resource IS stale (the row is deleted
-// when it clears), so "fresh" would have to be expressed as an absence — a
-// NOT EXISTS that cannot use the same index and that no caller has asked for.
-const FreshnessFilterStale = "stale"
+// FreshnessFilterStale is the accepted value of the `freshness` list filter.
+// Aliased from models so the service and repository layers share one spelling
+// without the service importing this package.
+const FreshnessFilterStale = models.FreshnessFilterStale
 
 // applyStaleFilter narrows a resource list to the stale ones.
 //

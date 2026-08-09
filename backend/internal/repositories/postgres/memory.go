@@ -174,7 +174,7 @@ func buildMemoryListWhereClause(userID string, filters repositories.MemoryFilter
 	}
 
 	if filters.Freshness != nil && *filters.Freshness == FreshnessFilterStale {
-		where = applyStaleFilter(where, "memory", "m.id")
+		where = applyStaleFilter(where, models.RelationResourceTypeMemory, "m.id")
 	}
 
 	if filters.Search != "" {

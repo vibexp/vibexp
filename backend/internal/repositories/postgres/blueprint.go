@@ -437,7 +437,7 @@ func applyBlueprintFilters(
 	where squirrel.And, filters repositories.BlueprintFilters,
 ) squirrel.And {
 	if filters.Freshness != nil && *filters.Freshness == FreshnessFilterStale {
-		where = applyStaleFilter(where, "blueprint", "s.id")
+		where = applyStaleFilter(where, models.RelationResourceTypeBlueprint, "s.id")
 	}
 
 	where = applyBlueprintColumnFilters(where, filters)

@@ -19,6 +19,12 @@ import (
 // Note the field is OPTIONAL in the spec and omitted when a resource is fresh,
 // so every existing client is unaffected: absence already meant "no freshness"
 // before this existed.
+//
+// Attachment is EXPLICIT at each read, never automatic: the models carry the
+// field with `db:"-"`, so nothing populates it by serializing a struct. That is
+// why the MCP getters (mcp_read_tools.go) attach it themselves exactly as they
+// attach Related and Similar — an MCP client would otherwise never see it,
+// while still triggering the access that clears it (#733).
 
 // freshnessQueryParam is the list filter's query-string name.
 const freshnessQueryParam = "freshness"

@@ -97,6 +97,12 @@ type MockMemoryContainer struct {
 	authService       *svcmocks.MockAuthServiceInterface
 	teamService       *svcmocks.MockTeamServiceInterface
 	projectRepository *repomocks.MockProjectRepository
+	freshnessService  services.FreshnessServiceInterface
+}
+
+// FreshnessService returns the freshness mock when a test installs one (#735).
+func (m *MockMemoryContainer) FreshnessService() services.FreshnessServiceInterface {
+	return m.freshnessService
 }
 
 func (m *MockMemoryContainer) MemoryService() services.MemoryServiceInterface {

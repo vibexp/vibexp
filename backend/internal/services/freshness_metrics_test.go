@@ -10,8 +10,13 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"log/slog"
+
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
+	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
+	servicemocks "github.com/vibexp/vibexp/internal/services/mocks"
 )
 
 func TestFreshnessMetricsRangeDays(t *testing.T) {
@@ -454,3 +459,52 @@ func TestFreshnessFilter(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, services.FreshnessFilterStale, *got)
 }
+
+// The service→repository mapping of the stale filter (#735).
+//
+// Without this, deleting `Freshness: freshnessFilter(filters.Freshness)` from a
+// service's repo-filter literal passes every other test: the handler tests stop
+// at the service boundary and the repository tests start below it, so the line
+// that joins them is exactly the one nothing observes.
+func TestMemoryService_ForwardsTheStaleFilterToTheRepository(t *testing.T) {
+	tests := []struct {
+		name      string
+		filter    string
+		wantValue *string
+	}{
+		{name: "stale forwards a predicate", filter: services.FreshnessFilterStale,
+			wantValue: ptrTo(services.FreshnessFilterStale)},
+		{name: "unset forwards nothing", filter: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := repomocks.NewMockMemoryRepository(t)
+			repo.EXPECT().
+				List(mock.Anything, mock.Anything, mock.MatchedBy(func(f repositories.MemoryFilters) bool {
+					if tt.wantValue == nil {
+						return f.Freshness == nil
+					}
+					return f.Freshness != nil && *f.Freshness == *tt.wantValue
+				})).
+				Return([]models.Memory{}, 0, nil).Once()
+
+			authzMock := servicemocks.NewMockAuthorizationServiceInterface(t)
+			authzMock.EXPECT().Can(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+				Return(nil).Maybe()
+
+			svc := services.NewMemoryService(repo, nil, authzMock, nil,
+				discardTestLogger(), nil, nil, nil, nil)
+
+			_, err := svc.ListMemories("user-1", services.MemoryFilters{
+				TeamID: freshnessTestTeamID, Freshness: tt.filter, Page: 1, Limit: 20,
+			})
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+func ptrTo[T any](v T) *T { return &v }
+
+func discardTestLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }

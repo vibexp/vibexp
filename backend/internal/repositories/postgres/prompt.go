@@ -238,7 +238,7 @@ func buildListWhereClause(userID string, filters repositories.PromptFilters) squ
 	}
 
 	if filters.Freshness != nil && *filters.Freshness == FreshnessFilterStale {
-		where = applyStaleFilter(where, "prompt", "p.id")
+		where = applyStaleFilter(where, models.RelationResourceTypePrompt, "p.id")
 	}
 
 	if filters.MCPExpose != nil {
