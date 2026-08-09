@@ -113,10 +113,11 @@ func TestIntegrationFreshnessCandidates_ThresholdSelectsOnlyOldResources(t *test
 	assert.Equal(t, scope.projectID, got[0].ProjectID, "project_id is denormalized onto the freshness row")
 }
 
-// "Not accessed in N days" means MORE than N: a resource last touched exactly
-// at the threshold is not yet stale. Asserted from both sides of the boundary
-// so an off-by-one in either direction fails.
-func TestIntegrationFreshnessCandidates_ThresholdBoundaryIsExclusive(t *testing.T) {
+// "Not accessed in N days" means MORE than N. Asserted a minute either side of
+// the boundary so an off-by-one in either direction fails; equality itself is
+// not asserted because `now()` advances between the fixture and the query,
+// which would make the test race its own clock.
+func TestIntegrationFreshnessCandidates_ThresholdBoundaryDiscriminatesEitherSide(t *testing.T) {
 	resetFreshnessTables(t)
 	scope := seedCandidateScope(t)
 	repo := NewFreshnessCandidateRepository(integrationDB)
@@ -322,4 +323,27 @@ func insertCandidateMemory(t *testing.T, scope candidateScope) string {
 		id, scope.userID, scope.teamID, scope.projectID, "remembered")
 	require.NoError(t, err)
 	return id
+}
+
+// `updated_at` carries a DEFAULT but no NOT NULL on any of the four resource
+// tables, so an explicit NULL is accepted. Without the COALESCE, GREATEST over
+// all-NULL arguments is NULL, `NULL < x` is NULL, and the row drops out of the
+// result -- permanently EXEMPT from staleness, the exact opposite of the
+// never-touched rule.
+func TestIntegrationFreshnessCandidates_NullUpdatedAtIsMaximallyStale(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	repo := NewFreshnessCandidateRepository(integrationDB)
+
+	orphan := insertTestPrompt(t, scope.userID, scope.teamID, scope.projectID, "null", "body", "published")
+	_, err := integrationDB.ExecContext(context.Background(),
+		"UPDATE prompts SET updated_at = NULL WHERE id = $1", orphan)
+	require.NoError(t, err)
+
+	got, err := repo.ListStaleCandidates(context.Background(), models.FreshnessCandidateQuery{
+		TeamID: scope.teamID, ResourceType: "prompt", ThresholdDays: 30,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{orphan}, candidateIDs(got))
 }

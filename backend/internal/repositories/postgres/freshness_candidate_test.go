@@ -67,8 +67,9 @@ func TestFreshnessCandidateRepository_ListStaleCandidates_AnyMediumUsesEveryColu
 	repo, mock := setupFreshnessCandidateTest(t)
 
 	mock.ExpectQuery(
-		`GREATEST\(updated_at, last_accessed_web_at, last_accessed_cli_at, ` +
-			`last_accessed_mcp_at, last_accessed_api_at\) < now\(\) - make_interval\(days => \$4::integer\)`).
+		`GREATEST\(COALESCE\(updated_at, 'epoch'::timestamptz\), last_accessed_web_at, ` +
+			`last_accessed_cli_at, last_accessed_mcp_at, last_accessed_api_at\) ` +
+			`< now\(\) - make_interval\(days => \$4::integer\)`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "project_id"}))
 
 	_, err := repo.ListStaleCandidates(context.Background(), candidateQuery())
@@ -82,7 +83,8 @@ func TestFreshnessCandidateRepository_ListStaleCandidates_AnyMediumUsesEveryColu
 func TestFreshnessCandidateRepository_ListStaleCandidates_NarrowedMediums(t *testing.T) {
 	repo, mock := setupFreshnessCandidateTest(t)
 
-	mock.ExpectQuery(`GREATEST\(updated_at, last_accessed_web_at, last_accessed_mcp_at\) <`).
+	mock.ExpectQuery(
+		`GREATEST\(COALESCE\(updated_at, 'epoch'::timestamptz\), last_accessed_web_at, last_accessed_mcp_at\) <`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "project_id"}))
 
 	query := candidateQuery()
@@ -99,7 +101,8 @@ func TestFreshnessCandidateRepository_ListStaleCandidates_NarrowedMediums(t *tes
 func TestFreshnessCandidateRepository_ListStaleCandidates_ConvertsNaiveMemoryTimestamp(t *testing.T) {
 	repo, mock := setupFreshnessCandidateTest(t)
 
-	mock.ExpectQuery(`FROM memories.+GREATEST\(\(updated_at AT TIME ZONE 'UTC'\), last_accessed_web_at`).
+	mock.ExpectQuery(
+		`FROM memories.+GREATEST\(COALESCE\(updated_at AT TIME ZONE 'UTC', 'epoch'::timestamptz\), last_accessed_web_at`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "project_id"}))
 
 	query := candidateQuery()
@@ -221,30 +224,33 @@ func TestFreshnessCandidateRepository_ListStaleCandidates_RowsError(t *testing.T
 	assert.Contains(t, err.Error(), "failed to iterate stale prompt candidates")
 }
 
-// The dispatch allowlists must cover exactly the resource types and mediums the
-// rest of the system produces. A type missing here is a rule that silently
-// evaluates nothing.
-func TestFreshnessCandidateTargets_CoverEveryTypeAndMedium(t *testing.T) {
-	tables, mediums := freshnessCandidateTargets()
+// The ANY-medium column set and the per-medium map must not drift apart. This
+// is a real invariant rather than a change detector: a medium column missing
+// from the "any" set would make an any-medium rule STRICTER than the same rule
+// narrowed to that medium, which is incoherent.
+func TestFreshnessCandidate_AnyMediumCoversEveryMedium(t *testing.T) {
+	assert.Len(t, freshnessAnyMediumColumns, len(freshnessCandidateMediums))
+	for medium, column := range freshnessCandidateMediums {
+		assert.Contains(t, freshnessAnyMediumColumns, column, "medium %q missing from the any-medium set", medium)
+	}
+}
 
-	assert.Equal(t, map[string]string{
-		"prompt":    "prompts",
-		"artifact":  "artifacts",
-		"blueprint": "blueprints",
-		"memory":    "memories",
-	}, tables)
-	assert.Equal(t, map[string]string{
-		"web": "last_accessed_web_at",
-		"cli": "last_accessed_cli_at",
-		"mcp": "last_accessed_mcp_at",
-		"api": "last_accessed_api_at",
-	}, mediums)
+// Every resource type the freshness rule validator accepts must be evaluable.
+// A type accepted at write time but unmapped here aborts the whole team's run
+// (ErrUnsupportedFreshnessResource propagates out of the evaluator), so the
+// two lists drifting apart is a real outage, not a cosmetic mismatch.
+//
+// The expected list mirrors services.freshnessRuleResourceTypes, which is
+// unexported; the mediums list mirrors resourceaccess's sources. Keeping them
+// literal here is deliberate — this test is the seam between two packages that
+// cannot import each other's internals.
+func TestFreshnessCandidate_CoversEveryRuleResourceType(t *testing.T) {
+	for _, resourceType := range []string{"artifact", "prompt", "blueprint", "memory"} {
+		assert.Contains(t, freshnessCandidateTables, resourceType)
+	}
+	assert.Len(t, freshnessCandidateTables, 4, "an unexpected type here would evaluate rules nobody can write")
 
-	// The ANY-medium set and the per-medium map must not drift apart: a new
-	// medium column that "any" does not include would make a narrowed rule
-	// stricter than the unnarrowed one.
-	assert.Len(t, freshnessAnyMediumColumns, len(mediums))
-	for _, column := range mediums {
-		assert.Contains(t, freshnessAnyMediumColumns, column)
+	for _, medium := range []string{"web", "cli", "mcp", "api"} {
+		assert.Contains(t, freshnessCandidateMediums, medium)
 	}
 }

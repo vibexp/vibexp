@@ -283,9 +283,18 @@ func (s *FreshnessService) ResetSettings(ctx context.Context, userID, teamID str
 // while a team configures freshness through its rules and
 // team_freshness_settings.interval_seconds, and nothing else bridges them.
 //
-// A team with no enabled rule has its schedule removed rather than left
-// running: evaluating nothing every interval is pure load, and the row
-// reappears the moment a rule is enabled again.
+// The schedule exists while the team has ANY rule, enabled or not -- the
+// condition is deliberately NOT "has an enabled rule". Disabling the last
+// enabled rule does not clear the state it produced; the next evaluation run
+// does, because no rule matches anything any more. Dropping the schedule at
+// that moment would remove the only thing that ever calls the evaluator and
+// strand every stale flag the team had, with no audit entry and no way back
+// until someone re-enables a rule. A team whose rules are all disabled
+// therefore keeps a cheap two-query pass.
+//
+// Removing the LAST rule is different and does delete the schedule: DeleteRule
+// strips the rule from freshness state first, so by then there is nothing left
+// to clear.
 //
 // Failure is logged, not returned. The caller's write has already succeeded
 // and is the user-visible outcome; failing it because the schedule could not
@@ -295,13 +304,13 @@ func (s *FreshnessService) ResetSettings(ctx context.Context, userID, teamID str
 func (s *FreshnessService) syncSchedule(ctx context.Context, teamID string) {
 	log := s.logger.With("team_id", teamID, "job_type", models.JobTypeFreshnessEvaluate)
 
-	enabled, err := s.rules.ListByTeam(ctx, teamID, true)
+	rules, err := s.rules.ListByTeam(ctx, teamID, false)
 	if err != nil {
-		log.Error("Failed to load enabled freshness rules while syncing schedule", "error", err)
+		log.Error("Failed to load freshness rules while syncing schedule", "error", err)
 		return
 	}
 
-	if len(enabled) == 0 {
+	if len(rules) == 0 {
 		if delErr := s.schedules.Delete(ctx, teamID, models.JobTypeFreshnessEvaluate); delErr != nil {
 			log.Error("Failed to remove freshness evaluation schedule", "error", delErr)
 		}

@@ -419,3 +419,62 @@ func promptIDForIndex(i int) string {
 		digits[(i/100)%10], digits[(i/10)%10], digits[i%10],
 	})
 }
+
+// Exhausting the batch cap must ABORT, not return a truncated match set.
+// Continuing would treat every unread resource as no longer stale and clear
+// it -- turning "I could not read everything" into an active mass un-flagging
+// with an audit row per resource, re-marked on the next run.
+func TestEvaluate_BatchCapAbortsInsteadOfTruncating(t *testing.T) {
+	evaluator, deps := newEvaluator(t)
+
+	full := make([]models.FreshnessCandidate, 500)
+	for i := range full {
+		full[i] = models.FreshnessCandidate{
+			ResourceType: "prompt",
+			ResourceID:   promptIDForIndex(i),
+			ProjectID:    testProjectID,
+		}
+	}
+
+	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
+		Return([]*models.FreshnessRule{rule(testRuleID, "prompt")}, nil).Once()
+	// Every page comes back full, so the cursor never reaches the end.
+	deps.candidates.EXPECT().ListStaleCandidates(mock.Anything, mock.Anything).
+		Return(full, nil).Times(1000)
+
+	err := evaluator.Evaluate(context.Background(), testTeamID)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, freshness.ErrCandidateBatchCapExceeded)
+	// No ListAllByTeam, no Upsert, no DeleteByResource, no audit Create is
+	// expected: the t-bound mocks fail the test if the run touched state.
+}
+
+// Clearing runs before marking. The scheduler bounds the handler with a
+// timeout and marking is the unbounded half, so a team large enough to run out
+// of time must still have had its clears applied.
+func TestEvaluate_ClearsBeforeMarks(t *testing.T) {
+	evaluator, deps := newEvaluator(t)
+
+	goneStale := models.FreshnessCandidate{
+		ResourceType: "prompt", ResourceID: "prompt-2", ProjectID: testProjectID,
+	}
+
+	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
+		Return([]*models.FreshnessRule{rule(testRuleID, "prompt")}, nil).Once()
+	deps.expectCandidates("prompt", goneStale)
+	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
+		Return([]*models.ResourceFreshness{storedStale(testRuleID)}, nil).Once()
+
+	var order []string
+	deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).
+		Run(func(_ context.Context, _, _ string) { order = append(order, "clear") }).
+		Return(true, nil).Once()
+	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, _ *models.ResourceFreshness) { order = append(order, "mark") }).
+		Return(nil).Once()
+	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Twice()
+
+	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
+	assert.Equal(t, []string{"clear", "mark"}, order)
+}

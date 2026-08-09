@@ -61,18 +61,24 @@ func NewFreshnessCandidateRepository(db *database.DB) repositories.FreshnessCand
 // ListStaleCandidates returns one batch of resources a rule currently
 // considers stale.
 //
-// The staleness test is a single indexed comparison rather than an aggregate
-// over resource_access_events: `GREATEST(updated_at, <selected last-accessed
-// columns>) < now() - threshold`. Three properties of GREATEST make that the
+// The staleness test is a single comparison rather than an aggregate over
+// resource_access_events: `GREATEST(updated_at, <selected last-accessed
+// columns>) < now() - threshold`. Two properties of GREATEST make that the
 // whole rule:
 //
 //   - it IGNORES NULLs, so a resource never accessed through the selected
 //     mediums falls back to updated_at instead of vanishing from the result;
 //   - including updated_at is what makes an edit keep a resource fresh, which
 //     is the behaviour the epic specifies for a resource that is being worked
-//     on but not re-read;
-//   - updated_at is NOT NULL on all four tables, so the expression is never
-//     NULL and the comparison never silently drops a row.
+//     on but not re-read.
+//
+// GREATEST is NULL only when every argument is, and `NULL < x` is NULL, which
+// filters the row out -- so a row with a NULL updated_at and no accesses would
+// be permanently EXEMPT from staleness, the exact opposite of the rule. That
+// is not hypothetical: `updated_at` on all four resource tables carries a
+// DEFAULT but no NOT NULL (001_baseline), so an explicit NULL insert is
+// accepted. COALESCE to the epoch makes such a row read as maximally stale,
+// which is the correct reading of "never touched".
 //
 // The comparison is strict (`<`), so a resource whose last touch is EXACTLY
 // the threshold ago is not yet stale -- "more than N days" as written.
@@ -157,10 +163,13 @@ func (r *FreshnessCandidateRepository) ListStaleCandidates(
 // naive type and reinterpret every aware value in the server's timezone, so
 // the naive column is converted first. UTC is the right zone because that is
 // what the column has always held.
+//
+// The COALESCE is the NULL guard described on ListStaleCandidates: none of the
+// four tables declares updated_at NOT NULL.
 func freshnessTouchExpression(table string, mediums []string) (string, error) {
-	updatedAt := "updated_at"
+	updatedAt := "COALESCE(updated_at, 'epoch'::timestamptz)"
 	if table == "memories" {
-		updatedAt = "(updated_at AT TIME ZONE 'UTC')"
+		updatedAt = "COALESCE(updated_at AT TIME ZONE 'UTC', 'epoch'::timestamptz)"
 	}
 
 	columns := freshnessAnyMediumColumns
@@ -176,19 +185,4 @@ func freshnessTouchExpression(table string, mediums []string) (string, error) {
 	}
 
 	return "GREATEST(" + updatedAt + ", " + strings.Join(columns, ", ") + ")", nil
-}
-
-// freshnessCandidateTargets exposes the resource-type and medium allowlists
-// this repository dispatches on, so tests can assert the mappings stay in step
-// with the values the service layer accepts without duplicating the maps.
-func freshnessCandidateTargets() (tables, mediums map[string]string) {
-	tables = make(map[string]string, len(freshnessCandidateTables))
-	for k, v := range freshnessCandidateTables {
-		tables[k] = v
-	}
-	mediums = make(map[string]string, len(freshnessCandidateMediums))
-	for k, v := range freshnessCandidateMediums {
-		mediums[k] = v
-	}
-	return tables, mediums
 }
