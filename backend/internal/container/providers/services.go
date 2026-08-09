@@ -274,11 +274,12 @@ func ProvideResourceAccessWorkerPool() *events.WorkerPool {
 func ProvideResourceAccessService(
 	repo repositories.ResourceAccessRepository,
 	lastAccessed repositories.ResourceLastAccessedRepository,
+	clearer *freshness.Clearer,
 	pool *events.WorkerPool,
 	logger *slog.Logger,
 	cfg *config.Config,
 ) resourceaccess.ResourceAccessService {
-	return resourceaccess.NewService(repo, lastAccessed, pool, logger, cfg.Retention.AccessEventDays)
+	return resourceaccess.NewService(repo, lastAccessed, clearer, pool, logger, cfg.Retention.AccessEventDays)
 }
 
 // ProvideEncryptionService creates a new EncryptionService
@@ -357,9 +358,11 @@ func ProvideMemoryService(
 	contentVersionSvc services.ContentVersionServiceInterface,
 	commentRepo repositories.CommentRepository,
 	relationRepo repositories.RelationRepository,
+	freshnessClearer services.FreshnessClearer,
 ) services.MemoryServiceInterface {
 	return services.NewMemoryService(
-		repo, teamService, authzService, eventManager, logger, contentVersionSvc, commentRepo, relationRepo,
+		repo, teamService, authzService, eventManager, logger, contentVersionSvc,
+		commentRepo, relationRepo, freshnessClearer,
 	)
 }
 
@@ -477,6 +480,17 @@ func ProvideFreshnessService(
 	logger *slog.Logger,
 ) services.FreshnessServiceInterface {
 	return services.NewFreshnessService(rules, freshness, settings, schedules, projects, authzService, logger)
+}
+
+// ProvideFreshnessClearer creates the freshness reversal helper (#733), shared
+// by the async access path and the four resource update services.
+func ProvideFreshnessClearer(
+	settings repositories.TeamFreshnessSettingsRepository,
+	state repositories.ResourceFreshnessRepository,
+	audit repositories.FreshnessAuditRepository,
+	logger *slog.Logger,
+) *freshness.Clearer {
+	return freshness.NewClearer(settings, state, audit, logger)
 }
 
 // ProvideFreshnessEvaluator creates the freshness rule engine (#732), the

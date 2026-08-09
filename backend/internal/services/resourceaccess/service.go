@@ -10,6 +10,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services/freshness"
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
@@ -25,10 +26,19 @@ type taskSubmitter interface {
 	Submit(task func())
 }
 
+// freshnessClearer reverses a resource's stale state when it is read (#733).
+// Declared here rather than imported so this package keeps depending only on
+// what it uses, and so the async path can be tested with a fake; it is
+// satisfied by *freshness.Clearer in production.
+type freshnessClearer interface {
+	ClearIfStale(ctx context.Context, teamID, resourceType, resourceID, reason string) error
+}
+
 // Service implements ResourceAccessService.
 type Service struct {
 	repo          repositories.ResourceAccessRepository
 	lastAccessed  repositories.ResourceLastAccessedRepository
+	clearer       freshnessClearer
 	submitter     taskSubmitter
 	logger        *slog.Logger
 	retentionDays int
@@ -38,17 +48,25 @@ type Service struct {
 func NewService(
 	repo repositories.ResourceAccessRepository,
 	lastAccessed repositories.ResourceLastAccessedRepository,
+	clearer *freshness.Clearer,
 	pool *events.WorkerPool,
 	logger *slog.Logger,
 	retentionDays int,
 ) *Service {
-	return &Service{
+	svc := &Service{
 		repo:          repo,
 		lastAccessed:  lastAccessed,
 		submitter:     pool,
 		logger:        logger,
 		retentionDays: retentionDays,
 	}
+	// Assigned only when non-nil: storing a nil *freshness.Clearer in an
+	// interface field yields a NON-nil interface holding a nil pointer, so the
+	// `s.clearer == nil` guard below would pass and the call would panic.
+	if clearer != nil {
+		svc.clearer = clearer
+	}
+	return svc
 }
 
 // RecordAccess records a resource detail-access event asynchronously.
@@ -92,6 +110,33 @@ func (s *Service) persistAccess(event *models.ResourceAccessEvent) {
 	}
 
 	s.denormalizeLastAccessed(ctx, event)
+	s.reverseFreshness(ctx, event)
+}
+
+// reverseFreshness clears the resource's stale state now that it has been read
+// (#733), so a resource someone just opened stops showing "stale" within the
+// request rather than within the evaluation interval.
+//
+// It runs last and shares the surrounding fire-and-forget contract: the same
+// 5-second context, the same panic recovery, and a failure logged rather than
+// returned. The clearer itself decides whether anything happens at all -- it
+// short-circuits on a resource that is not stale and honours the team's
+// reversibility toggle -- so this stays a single call with no policy in it.
+func (s *Service) reverseFreshness(ctx context.Context, event *models.ResourceAccessEvent) {
+	if s.clearer == nil {
+		return
+	}
+
+	err := s.clearer.ClearIfStale(
+		ctx, event.TeamID, event.ResourceType, event.ResourceID, models.FreshnessReasonAccessed,
+	)
+	if err != nil {
+		s.logger.With("error", err).With(
+			"team_id", event.TeamID,
+			"resource_type", event.ResourceType,
+			"resource_id", event.ResourceID,
+		).Warn("failed to clear freshness state after access")
+	}
 }
 
 // denormalizeLastAccessed advances the resource's per-medium last-accessed

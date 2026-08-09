@@ -34,6 +34,7 @@ type PromptService struct {
 	contentVersionSvc ContentVersionServiceInterface
 	commentRepo       repositories.CommentRepository
 	relationRepo      repositories.RelationRepository
+	freshnessClearer  FreshnessClearer
 	logger            *slog.Logger
 }
 
@@ -53,6 +54,7 @@ type PromptServiceDeps struct {
 	ContentVersionSvc ContentVersionServiceInterface
 	CommentRepo       repositories.CommentRepository
 	RelationRepo      repositories.RelationRepository
+	FreshnessClearer  FreshnessClearer
 }
 
 func NewPromptService(deps PromptServiceDeps) *PromptService {
@@ -67,6 +69,7 @@ func NewPromptService(deps PromptServiceDeps) *PromptService {
 		contentVersionSvc: deps.ContentVersionSvc,
 		commentRepo:       deps.CommentRepo,
 		relationRepo:      deps.RelationRepo,
+		freshnessClearer:  deps.FreshnessClearer,
 		logger:            deps.Logger,
 	}
 }
@@ -364,6 +367,9 @@ func (s *PromptService) updatePromptInternal(
 			// Don't fail the update, just log the warning
 		}
 	}
+
+	clearFreshnessAfterEdit(ctx, s.freshnessClearer, s.logger,
+		updatedPrompt.TeamID, "prompt", updatedPrompt.ID)
 
 	s.publishPromptUpdatedEvent(ctx, userID, updatedPrompt)
 

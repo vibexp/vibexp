@@ -26,6 +26,33 @@ func (s *syncSubmitter) Submit(task func()) {
 	task()
 }
 
+// fakeClearer records the freshness reversal calls the access path makes.
+//
+// Hand-written rather than generated: `freshnessClearer` is unexported, and the
+// generated mocks package imports this one (for ResourceAccessService), so an
+// internal test importing it back would be an import cycle. Same reason
+// syncSubmitter is hand-written.
+type fakeClearer struct {
+	calls  []clearCall
+	err    error
+	panics bool
+}
+
+type clearCall struct {
+	teamID       string
+	resourceType string
+	resourceID   string
+	reason       string
+}
+
+func (f *fakeClearer) ClearIfStale(_ context.Context, teamID, resourceType, resourceID, reason string) error {
+	f.calls = append(f.calls, clearCall{teamID, resourceType, resourceID, reason})
+	if f.panics {
+		panic("boom")
+	}
+	return f.err
+}
+
 func newTestLogger() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
 }
@@ -51,6 +78,20 @@ func newServiceWithFake(
 		logger:        newTestLogger(),
 		retentionDays: retentionDays,
 	}
+}
+
+// newServiceWithClearer is newServiceWithFake plus the freshness reversal seam
+// (#733). It is separate so the existing tests keep proving that the clear is
+// optional — a nil clearer must leave the access path working unchanged.
+func newServiceWithClearer(
+	repo *mocks.MockResourceAccessRepository,
+	lastAccessed repositories.ResourceLastAccessedRepository,
+	clearer freshnessClearer,
+	submitter taskSubmitter,
+) *Service {
+	svc := newServiceWithFake(repo, lastAccessed, submitter, 90)
+	svc.clearer = clearer
+	return svc
 }
 
 func strPtr(s string) *string { return &s }
@@ -610,4 +651,95 @@ func TestService_GetTopAccessedResources_NegativeRangeDoesNotPanic(t *testing.T)
 		_, err := svc.GetTopAccessedResources(context.Background(), "team-1", -10, "", 5)
 		require.NoError(t, err)
 	})
+}
+
+// A recorded access must attempt to reverse the resource's stale state, with
+// the reason that distinguishes a read from an edit in the audit log. The
+// clearer itself owns the policy (is it stale, is reversibility on), so all
+// this path has to prove is that it is called with the right arguments.
+func TestService_RecordAccess_ClearsFreshness(t *testing.T) {
+	t.Parallel()
+
+	repo := mocks.NewMockResourceAccessRepository(t)
+	lastAccessed := mocks.NewMockResourceLastAccessedRepository(t)
+	clearer := &fakeClearer{}
+	submitter := &syncSubmitter{}
+	event := sampleEvent()
+
+	repo.EXPECT().Create(mock.Anything, event).Return(nil).Once()
+	lastAccessed.EXPECT().
+		UpdateLastAccessed(mock.Anything, "prompt", "res-1", SourceWeb, mock.Anything).
+		Return(nil).Once()
+
+	newServiceWithClearer(repo, lastAccessed, clearer, submitter).RecordAccess(event)
+
+	assert.Equal(t, 1, submitter.submitted)
+	assert.Equal(t, []clearCall{{
+		teamID:       "team-1",
+		resourceType: "prompt",
+		resourceID:   "res-1",
+		reason:       models.FreshnessReasonAccessed,
+	}}, clearer.calls)
+}
+
+// The clear is fire-and-forget like everything else on this goroutine: the read
+// that triggered it was served long ago, so a freshness failure must not panic,
+// must not propagate, and must not stop the event or the denormalization that
+// already succeeded.
+func TestService_RecordAccess_ClearFailureIsContained(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		clearer *fakeClearer
+	}{
+		{name: "error", clearer: &fakeClearer{err: errors.New("boom")}},
+		{name: "panic", clearer: &fakeClearer{panics: true}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo := mocks.NewMockResourceAccessRepository(t)
+			lastAccessed := mocks.NewMockResourceLastAccessedRepository(t)
+			repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+			lastAccessed.EXPECT().
+				UpdateLastAccessed(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+				Return(nil).Once()
+
+			svc := newServiceWithClearer(repo, lastAccessed, tt.clearer, &syncSubmitter{})
+
+			assert.NotPanics(t, func() { svc.RecordAccess(sampleEvent()) })
+			assert.Len(t, tt.clearer.calls, 1, "the clear was attempted before it failed")
+		})
+	}
+}
+
+// A Service built without a clearer must behave exactly as before #733 — the
+// guard is what lets every other test in this file keep passing nil.
+func TestService_RecordAccess_NilClearerIsSkipped(t *testing.T) {
+	t.Parallel()
+
+	repo := mocks.NewMockResourceAccessRepository(t)
+	lastAccessed := mocks.NewMockResourceLastAccessedRepository(t)
+	repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+	lastAccessed.EXPECT().
+		UpdateLastAccessed(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Once()
+
+	svc := newServiceWithFake(repo, lastAccessed, &syncSubmitter{}, 90)
+
+	assert.NotPanics(t, func() { svc.RecordAccess(sampleEvent()) })
+}
+
+// NewService stores a nil *freshness.Clearer as a nil INTERFACE, not as a
+// non-nil interface holding a nil pointer — otherwise the guard above would
+// pass and the call would panic on a real deployment that wired no clearer.
+func TestNewService_NilClearerStaysNil(t *testing.T) {
+	t.Parallel()
+
+	svc := NewService(nil, nil, nil, nil, newTestLogger(), 90)
+
+	assert.Nil(t, svc.clearer)
 }
