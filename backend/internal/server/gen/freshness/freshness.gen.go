@@ -468,7 +468,7 @@ type cookieAuthContextKey string
 
 // ListFreshnessAuditParams defines parameters for ListFreshnessAudit.
 type ListFreshnessAuditParams struct {
-	// Page Page number (1-based)
+	// Page Page number (1-based). The upper bound is not a storage limit — it keeps page * limit inside the range the offset arithmetic can represent, so an absurd page is rejected rather than silently wrapping around to the first one.
 	Page *int `form:"page,omitempty" json:"page,omitempty"`
 
 	// Limit Entries per page
