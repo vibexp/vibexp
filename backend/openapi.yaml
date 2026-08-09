@@ -757,6 +757,37 @@ components:
       $ref: "./schemas/freshness.yaml#/TeamFreshnessSettings"
     UpdateTeamFreshnessSettingsRequest:
       $ref: "./schemas/freshness.yaml#/UpdateTeamFreshnessSettingsRequest"
+    # Freshness analytics + audit reads (issue #734)
+    FreshnessMetricsRange:
+      $ref: "./schemas/freshness.yaml#/FreshnessMetricsRange"
+    FreshnessDailyStaleCount:
+      $ref: "./schemas/freshness.yaml#/FreshnessDailyStaleCount"
+    FreshnessOverTimeMetricsData:
+      $ref: "./schemas/freshness.yaml#/FreshnessOverTimeMetricsData"
+    FreshnessOverTimeMetricsResponse:
+      $ref: "./schemas/freshness.yaml#/FreshnessOverTimeMetricsResponse"
+    FreshnessTypeCount:
+      $ref: "./schemas/freshness.yaml#/FreshnessTypeCount"
+    FreshnessByTypeMetricsData:
+      $ref: "./schemas/freshness.yaml#/FreshnessByTypeMetricsData"
+    FreshnessByTypeMetricsResponse:
+      $ref: "./schemas/freshness.yaml#/FreshnessByTypeMetricsResponse"
+    FreshnessProjectCount:
+      $ref: "./schemas/freshness.yaml#/FreshnessProjectCount"
+    FreshnessByProjectMetricsData:
+      $ref: "./schemas/freshness.yaml#/FreshnessByProjectMetricsData"
+    FreshnessByProjectMetricsResponse:
+      $ref: "./schemas/freshness.yaml#/FreshnessByProjectMetricsResponse"
+    FreshnessRuleImpact:
+      $ref: "./schemas/freshness.yaml#/FreshnessRuleImpact"
+    FreshnessByRuleMetricsData:
+      $ref: "./schemas/freshness.yaml#/FreshnessByRuleMetricsData"
+    FreshnessByRuleMetricsResponse:
+      $ref: "./schemas/freshness.yaml#/FreshnessByRuleMetricsResponse"
+    FreshnessAuditEntry:
+      $ref: "./schemas/freshness.yaml#/FreshnessAuditEntry"
+    FreshnessAuditListResponse:
+      $ref: "./schemas/freshness.yaml#/FreshnessAuditListResponse"
 
     # Import team settings schemas (epic #487)
     TeamSearchSettings:
@@ -1161,6 +1192,16 @@ paths:
     $ref: "./paths/freshness.yaml#/api-v1-team_id-freshness-rules-rule_id"
   /api/v1/{team_id}/settings/freshness:
     $ref: "./paths/freshness.yaml#/api-v1-team_id-settings-freshness"
+  /api/v1/{team_id}/freshness/metrics/over-time:
+    $ref: "./paths/freshness.yaml#/api-v1-team_id-freshness-metrics-over-time"
+  /api/v1/{team_id}/freshness/metrics/by-type:
+    $ref: "./paths/freshness.yaml#/api-v1-team_id-freshness-metrics-by-type"
+  /api/v1/{team_id}/freshness/metrics/by-project:
+    $ref: "./paths/freshness.yaml#/api-v1-team_id-freshness-metrics-by-project"
+  /api/v1/{team_id}/freshness/metrics/by-rule:
+    $ref: "./paths/freshness.yaml#/api-v1-team_id-freshness-metrics-by-rule"
+  /api/v1/{team_id}/freshness/audit:
+    $ref: "./paths/freshness.yaml#/api-v1-team_id-freshness-audit"
   /api/v1/{team_id}/settings/embedding-providers:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers"
   /api/v1/{team_id}/settings/embedding-providers/coverage:
@@ -1302,7 +1343,7 @@ tags:
   - name: TeamSettings
     description: Team-level configuration, starting with per-team search ranking settings
   - name: Freshness
-    description: Per-team resource freshness rules and evaluation settings (epic #726)
+    description: Per-team resource freshness rules, evaluation settings, analytics and audit log (epic #726)
   - name: Admin
     description: Instance-level administration (instance-admin only; non-admins get 404). REST-only, no MCP.
   - name: User

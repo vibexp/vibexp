@@ -180,7 +180,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	teamSearchSettingsServiceInterface := providers.ProvideTeamSearchSettingsService(teamSearchSettingsRepository, authorizationServiceInterface, cfg, logger)
 	freshnessRuleRepository := providers.ProvideFreshnessRuleRepository(db)
 	scheduleRepository := providers.ProvideScheduleRepository(db)
-	freshnessServiceInterface := providers.ProvideFreshnessService(freshnessRuleRepository, resourceFreshnessRepository, teamFreshnessSettingsRepository, scheduleRepository, projectRepository, authorizationServiceInterface, logger)
+	freshnessServiceInterface := providers.ProvideFreshnessService(freshnessRuleRepository, resourceFreshnessRepository, teamFreshnessSettingsRepository, freshnessAuditRepository, scheduleRepository, projectRepository, authorizationServiceInterface, logger)
 	metadataCatalogRepository := providers.ProvideMetadataCatalogRepository(db)
 	metadataCatalogServiceInterface := providers.ProvideMetadataCatalogService(metadataCatalogRepository, logger)
 	environmentService := providers.ProvideEnvironmentService(cfg)

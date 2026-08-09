@@ -126,6 +126,15 @@ func (m *MockProjectRepository) Delete(ctx context.Context, teamID, userID, slug
 	return args.Error(0)
 }
 
+func (m *MockProjectRepository) ListByTeamID(ctx context.Context, teamID string) ([]models.Project, error) {
+	args := m.Called(ctx, teamID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	projects, _ := args.Get(0).([]models.Project)
+	return projects, args.Error(1)
+}
+
 func (m *MockProjectRepository) CountByTeamID(ctx context.Context, teamID string) (int, error) {
 	args := m.Called(ctx, teamID)
 	return args.Int(0), args.Error(1)

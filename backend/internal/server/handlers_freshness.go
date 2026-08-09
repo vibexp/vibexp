@@ -328,9 +328,26 @@ func (s *Server) freshnessBindErrorHandler(w http.ResponseWriter, r *http.Reques
 	msg := err.Error()
 	var invalidParam *freshnessgen.InvalidParamFormatError
 	if errors.As(err, &invalidParam) {
-		msg = fmt.Sprintf("%s must be a valid UUID", invalidParam.ParamName)
+		msg = fmt.Sprintf("%s is not in the expected format", invalidParam.ParamName)
+		// The UUID params are the ones a caller most often gets wrong, and the
+		// generic wording above tells them nothing. Everything else (the
+		// paging integers) is better served by the generic message than by a
+		// claim about UUIDs, which is what this used to say for every param.
+		if freshnessUUIDParams[invalidParam.ParamName] {
+			msg = fmt.Sprintf("%s must be a valid UUID", invalidParam.ParamName)
+		}
 	}
 	apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(msg))
+}
+
+// freshnessUUIDParams are the domain's uuid-formatted parameters. Before #734
+// every bindable parameter here was a UUID, so the bind error handler could
+// assume it; the analytics reads added integer query params, and telling
+// someone that `page` "must be a valid UUID" sends them looking in the wrong
+// place entirely.
+var freshnessUUIDParams = map[string]bool{
+	"team_id": true,
+	"rule_id": true,
 }
 
 // freshnessResponseErrorHandler writes the API error a handler returned.

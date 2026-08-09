@@ -338,3 +338,109 @@ func scanResourceFreshnessDest(f *models.ResourceFreshness) []interface{} {
 		&f.CreatedAt, &f.UpdatedAt,
 	}
 }
+
+// scanBucketCounts drains a two-column (key, count) result set. Grouped counts
+// all have the same shape, so they share one scanner rather than three
+// near-identical loops.
+func scanBucketCounts(rows *sql.Rows, what string) ([]models.FreshnessBucketCount, error) {
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close freshness bucket rows", "grouping", what, "error", closeErr)
+		}
+	}()
+
+	counts := make([]models.FreshnessBucketCount, 0)
+	for rows.Next() {
+		var c models.FreshnessBucketCount
+		if err := rows.Scan(&c.Key, &c.Count); err != nil {
+			return nil, fmt.Errorf("failed to scan stale count by %s: %w", what, err)
+		}
+		counts = append(counts, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate stale counts by %s: %w", what, err)
+	}
+	return counts, nil
+}
+
+// CountStaleByType returns the team's stale counts grouped by resource type.
+//
+// Served by idx_resource_freshness_team_type, whose leading column is team_id
+// and whose second is resource_type — so the group is an index scan rather than
+// a heap scan of the team's rows.
+func (r *ResourceFreshnessRepository) CountStaleByType(
+	ctx context.Context, teamID string,
+) ([]models.FreshnessBucketCount, error) {
+	query := `
+		SELECT resource_type, COUNT(*)
+		FROM resource_freshness
+		WHERE team_id = $1
+		GROUP BY resource_type
+		ORDER BY resource_type
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, teamID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count stale resources by type: %w", err)
+	}
+	return scanBucketCounts(rows, "type")
+}
+
+// CountStaleByProject returns the team's stale counts grouped by project.
+//
+// The result is keyed by project id only; the service joins the names, because
+// enumerating the team's projects is also what lets it report the projects with
+// nothing stale, which no grouping over this table can produce.
+func (r *ResourceFreshnessRepository) CountStaleByProject(
+	ctx context.Context, teamID string,
+) ([]models.FreshnessBucketCount, error) {
+	query := `
+		SELECT project_id::text, COUNT(*)
+		FROM resource_freshness
+		WHERE team_id = $1
+		GROUP BY project_id
+		ORDER BY project_id
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, teamID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count stale resources by project: %w", err)
+	}
+	return scanBucketCounts(rows, "project")
+}
+
+// CountStaleByRule returns the team's stale counts grouped by matching rule.
+//
+// `unnest` is what makes the union semantics visible: a resource matched by two
+// rules contributes one row to each, so the counts answer "how many resources
+// does this rule mark" rather than "how many are stale because of it alone".
+// The sum across rules therefore exceeds the number of stale resources whenever
+// any resource matches more than one — which is why CountStale exists.
+func (r *ResourceFreshnessRepository) CountStaleByRule(
+	ctx context.Context, teamID string,
+) ([]models.FreshnessBucketCount, error) {
+	query := `
+		SELECT rule_id::text, COUNT(*)
+		FROM resource_freshness, unnest(matched_rule_ids) AS rule_id
+		WHERE team_id = $1
+		GROUP BY rule_id
+		ORDER BY rule_id
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, teamID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count stale resources by rule: %w", err)
+	}
+	return scanBucketCounts(rows, "rule")
+}
+
+// CountStale returns how many distinct resources are stale in the team.
+func (r *ResourceFreshnessRepository) CountStale(ctx context.Context, teamID string) (int, error) {
+	var total int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM resource_freshness WHERE team_id = $1`, teamID).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count stale resources: %w", err)
+	}
+	return total, nil
+}

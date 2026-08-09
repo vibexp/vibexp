@@ -198,3 +198,76 @@ func TestFreshnessAuditRepository_ListByTeam_ScanError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to scan freshness audit entry")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
+
+// The date is rendered in SQL as text in the exact series layout, so the
+// zero-fill keys align without the caller parsing anything back.
+func TestFreshnessAuditRepository_CountTransitionsByDay(t *testing.T) {
+	repo, mock := setupFreshnessAuditTest(t)
+	since := time.Now().UTC().AddDate(0, 0, -7)
+
+	// The AT TIME ZONE 'UTC' is the point of the assertion, not incidental: a
+	// bare DATE() would truncate in the session timezone and mis-key the
+	// series (#773).
+	mock.ExpectQuery(
+		`SELECT TO_CHAR\(\(created_at AT TIME ZONE 'UTC'\)::date, 'YYYY-MM-DD'\) AS date, action, COUNT\(\*\).+`+
+			`FROM resource_freshness_audit.+WHERE team_id = \$1 AND created_at >= \$2.+`+
+			`GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date, action`).
+		WithArgs("team-1", since).
+		WillReturnRows(sqlmock.NewRows([]string{"date", "action", "count"}).
+			AddRow("2026-05-01", models.FreshnessActionMarked, 3).
+			AddRow("2026-05-01", models.FreshnessActionCleared, 1))
+
+	got, err := repo.CountTransitionsByDay(context.Background(), "team-1", since)
+
+	require.NoError(t, err)
+	assert.Equal(t, []models.FreshnessTransitionCount{
+		{Date: "2026-05-01", Action: models.FreshnessActionMarked, Count: 3},
+		{Date: "2026-05-01", Action: models.FreshnessActionCleared, Count: 1},
+	}, got)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestFreshnessAuditRepository_CountTransitionsByDay_Errors(t *testing.T) {
+	tests := []struct {
+		name    string
+		arrange func(mock sqlmock.Sqlmock)
+		wantIn  string
+	}{
+		{
+			name: "query fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date`).WillReturnError(errors.New("boom"))
+			},
+			wantIn: "failed to count freshness transitions by day",
+		},
+		{
+			name: "scan fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date`).
+					WillReturnRows(sqlmock.NewRows([]string{"date"}).AddRow("2026-05-01"))
+			},
+			wantIn: "failed to scan freshness transition count",
+		},
+		{
+			name: "iteration fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date`).
+					WillReturnRows(sqlmock.NewRows([]string{"date", "action", "count"}).
+						AddRow("2026-05-01", "marked", 1).RowError(0, errors.New("stream broken")))
+			},
+			wantIn: "failed to iterate freshness transition counts",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, mock := setupFreshnessAuditTest(t)
+			tt.arrange(mock)
+
+			_, err := repo.CountTransitionsByDay(context.Background(), "team-1", time.Now())
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantIn)
+		})
+	}
+}

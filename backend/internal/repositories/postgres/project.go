@@ -653,3 +653,44 @@ func scanIDNameRows(rows interface {
 	}
 	return result, nil
 }
+
+// ListByTeamID returns every project in the team, ordered by name.
+//
+// Tenancy-only: no userID predicate. The callers are team-wide reports whose
+// membership check happened at the middleware, and filtering by user there
+// would understate a team total without any signal that it had.
+func (r *ProjectRepository) ListByTeamID(ctx context.Context, teamID string) ([]models.Project, error) {
+	query := `
+		SELECT id, user_id, team_id, name, slug, description, git_url, homepage,
+		       created_at, updated_at, version
+		FROM projects
+		WHERE team_id = $1
+		ORDER BY name, id
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, teamID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list projects by team: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close project rows", "error", closeErr)
+		}
+	}()
+
+	projects := make([]models.Project, 0)
+	for rows.Next() {
+		var p models.Project
+		if err := rows.Scan(
+			&p.ID, &p.UserID, &p.TeamID, &p.Name, &p.Slug, &p.Description,
+			&p.GitURL, &p.Homepage, &p.CreatedAt, &p.UpdatedAt, &p.Version,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan project: %w", err)
+		}
+		projects = append(projects, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate projects by team: %w", err)
+	}
+	return projects, nil
+}

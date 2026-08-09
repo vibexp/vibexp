@@ -29,6 +29,7 @@ type freshnessDeps struct {
 	rules     *repomocks.MockFreshnessRuleRepository
 	freshness *repomocks.MockResourceFreshnessRepository
 	settings  *repomocks.MockTeamFreshnessSettingsRepository
+	audit     *repomocks.MockFreshnessAuditRepository
 	schedules *repomocks.MockScheduleRepository
 	projects  *repomocks.MockProjectRepository
 	authz     *servicemocks.MockAuthorizationServiceInterface
@@ -41,12 +42,13 @@ func newFreshnessService(t *testing.T) (*services.FreshnessService, freshnessDep
 		rules:     repomocks.NewMockFreshnessRuleRepository(t),
 		freshness: repomocks.NewMockResourceFreshnessRepository(t),
 		settings:  repomocks.NewMockTeamFreshnessSettingsRepository(t),
+		audit:     repomocks.NewMockFreshnessAuditRepository(t),
 		schedules: repomocks.NewMockScheduleRepository(t),
 		projects:  repomocks.NewMockProjectRepository(t),
 		authz:     servicemocks.NewMockAuthorizationServiceInterface(t),
 	}
 	svc := services.NewFreshnessService(
-		deps.rules, deps.freshness, deps.settings, deps.schedules, deps.projects, deps.authz,
+		deps.rules, deps.freshness, deps.settings, deps.audit, deps.schedules, deps.projects, deps.authz,
 		slog.New(slog.DiscardHandler),
 	)
 	return svc, deps

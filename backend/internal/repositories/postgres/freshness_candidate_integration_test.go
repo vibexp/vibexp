@@ -347,3 +347,137 @@ func TestIntegrationFreshnessCandidates_NullUpdatedAtIsMaximallyStale(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, []string{orphan}, candidateIDs(got))
 }
+
+// The analytics aggregations (#734) against real Postgres. sqlmock can pin the
+// query text but not what `unnest` does to a resource two rules both match,
+// nor whether the grouped totals agree with the distinct count — which is the
+// whole reason the by-rule chart carries a separate total.
+func TestIntegrationFreshnessMetrics_GroupedCountsAndDistinctTotal(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	otherProject := insertTestProject(t, scope.userID, scope.teamID)
+	otherTeam := seedCandidateScope(t)
+	ctx := context.Background()
+	state := NewResourceFreshnessRepository(integrationDB)
+
+	ruleA, ruleB := uuid.New().String(), uuid.New().String()
+	// One prompt matched by BOTH rules, one artifact by rule A only, one
+	// memory in another project, and one row in a different team entirely.
+	require.NoError(t, state.Upsert(ctx, &models.ResourceFreshness{
+		TeamID: scope.teamID, ProjectID: scope.projectID, ResourceType: "prompt",
+		ResourceID: uuid.New().String(), Status: models.FreshnessStatusStale,
+		MatchedRuleIDs: []string{ruleA, ruleB}, Reason: models.FreshnessReasonRuleRun,
+	}))
+	require.NoError(t, state.Upsert(ctx, &models.ResourceFreshness{
+		TeamID: scope.teamID, ProjectID: scope.projectID, ResourceType: "artifact",
+		ResourceID: uuid.New().String(), Status: models.FreshnessStatusStale,
+		MatchedRuleIDs: []string{ruleA}, Reason: models.FreshnessReasonRuleRun,
+	}))
+	require.NoError(t, state.Upsert(ctx, &models.ResourceFreshness{
+		TeamID: scope.teamID, ProjectID: otherProject, ResourceType: "memory",
+		ResourceID: uuid.New().String(), Status: models.FreshnessStatusStale,
+		MatchedRuleIDs: []string{ruleB}, Reason: models.FreshnessReasonRuleRun,
+	}))
+	require.NoError(t, state.Upsert(ctx, &models.ResourceFreshness{
+		TeamID: otherTeam.teamID, ProjectID: otherTeam.projectID, ResourceType: "prompt",
+		ResourceID: uuid.New().String(), Status: models.FreshnessStatusStale,
+		MatchedRuleIDs: []string{ruleA}, Reason: models.FreshnessReasonRuleRun,
+	}))
+
+	byType, err := state.CountStaleByType(ctx, scope.teamID)
+	require.NoError(t, err)
+	assert.Equal(t, []models.FreshnessBucketCount{
+		{Key: "artifact", Count: 1}, {Key: "memory", Count: 1}, {Key: "prompt", Count: 1},
+	}, byType, "another team's stale prompt must not appear")
+
+	byProject, err := state.CountStaleByProject(ctx, scope.teamID)
+	require.NoError(t, err)
+	counts := map[string]int{}
+	for _, b := range byProject {
+		counts[b.Key] = b.Count
+	}
+	assert.Equal(t, map[string]int{scope.projectID: 2, otherProject: 1}, counts)
+
+	byRule, err := state.CountStaleByRule(ctx, scope.teamID)
+	require.NoError(t, err)
+	ruleCounts := map[string]int{}
+	for _, b := range byRule {
+		ruleCounts[b.Key] = b.Count
+	}
+	assert.Equal(t, map[string]int{ruleA: 2, ruleB: 2}, ruleCounts,
+		"the resource both rules match contributes to each of them")
+
+	total, err := state.CountStale(ctx, scope.teamID)
+	require.NoError(t, err)
+	assert.Equal(t, 3, total,
+		"the distinct total is 3 while the per-rule counts sum to 4 — which is why it is reported separately")
+}
+
+// The audit aggregation buckets by UTC day and action, and stops at the window.
+func TestIntegrationFreshnessMetrics_TransitionsByDay(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	ctx := context.Background()
+	audit := NewFreshnessAuditRepository(integrationDB)
+
+	for i := 0; i < 3; i++ {
+		require.NoError(t, audit.Create(ctx, &models.ResourceFreshnessAudit{
+			TeamID: scope.teamID, ResourceType: "prompt", ResourceID: uuid.New().String(),
+			Action: models.FreshnessActionMarked, Reason: models.FreshnessReasonRuleRun,
+		}))
+	}
+	require.NoError(t, audit.Create(ctx, &models.ResourceFreshnessAudit{
+		TeamID: scope.teamID, ResourceType: "prompt", ResourceID: uuid.New().String(),
+		Action: models.FreshnessActionCleared, Reason: models.FreshnessReasonAccessed,
+	}))
+
+	// Backdate one row well outside the window; it must not be counted.
+	_, err := integrationDB.ExecContext(ctx,
+		`UPDATE resource_freshness_audit SET created_at = now() - interval '90 days'
+		 WHERE id = (SELECT id FROM resource_freshness_audit WHERE action = 'marked' LIMIT 1)`)
+	require.NoError(t, err)
+
+	got, err := audit.CountTransitionsByDay(ctx, scope.teamID, time.Now().UTC().AddDate(0, 0, -7))
+	require.NoError(t, err)
+
+	byAction := map[string]int{}
+	today := time.Now().UTC().Format("2006-01-02")
+	for _, c := range got {
+		assert.Equal(t, today, c.Date, "the bucket must be rendered in the series layout")
+		byAction[c.Action] = c.Count
+	}
+	assert.Equal(t, map[string]int{
+		models.FreshnessActionMarked:  2,
+		models.FreshnessActionCleared: 1,
+	}, byAction, "the backdated row is outside the window")
+}
+
+// The audit list must be team-scoped: the log is readable by any member, so a
+// leak here exposes another team's resource ids to every member of this one.
+func TestIntegrationFreshnessMetrics_AuditIsTeamScoped(t *testing.T) {
+	resetFreshnessTables(t)
+	mine := seedCandidateScope(t)
+	theirs := seedCandidateScope(t)
+	ctx := context.Background()
+	audit := NewFreshnessAuditRepository(integrationDB)
+
+	require.NoError(t, audit.Create(ctx, &models.ResourceFreshnessAudit{
+		TeamID: mine.teamID, ResourceType: "prompt", ResourceID: uuid.New().String(),
+		Action: models.FreshnessActionMarked, Reason: models.FreshnessReasonRuleRun,
+	}))
+	require.NoError(t, audit.Create(ctx, &models.ResourceFreshnessAudit{
+		TeamID: theirs.teamID, ResourceType: "prompt", ResourceID: uuid.New().String(),
+		Action: models.FreshnessActionMarked, Reason: models.FreshnessReasonRuleRun,
+	}))
+
+	entries, total, err := audit.ListByTeam(ctx, mine.teamID, 20, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+	require.Len(t, entries, 1)
+	assert.Equal(t, mine.teamID, entries[0].TeamID)
+
+	transitions, err := audit.CountTransitionsByDay(ctx, mine.teamID, time.Now().UTC().AddDate(0, 0, -7))
+	require.NoError(t, err)
+	require.Len(t, transitions, 1)
+	assert.Equal(t, 1, transitions[0].Count)
+}

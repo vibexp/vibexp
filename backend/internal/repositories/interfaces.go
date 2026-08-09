@@ -1089,6 +1089,12 @@ type ProjectRepository interface {
 	Update(ctx context.Context, project *models.Project) error
 	Delete(ctx context.Context, teamID, userID, slug string) error
 	CountByTeamID(ctx context.Context, teamID string) (int, error)
+	// ListByTeamID returns every project in the team, ordered by name. It is
+	// tenancy-only by design: unlike List it takes no userID, because its
+	// callers report on the team as a whole (membership having already been
+	// established) and a per-user view would silently drop projects from a
+	// team-wide total.
+	ListByTeamID(ctx context.Context, teamID string) ([]models.Project, error)
 	// GetNamesByIDs returns a map of projectID → name for the given IDs owned by userID.
 	// Unknown or inaccessible IDs are omitted from the result.
 	GetNamesByIDs(ctx context.Context, userID string, ids []string) (map[string]string, error)
@@ -1543,6 +1549,20 @@ type ResourceFreshnessRepository interface {
 	// whether a row was actually removed. Clearing a resource that is not
 	// stale is a no-op, not an error.
 	DeleteByResource(ctx context.Context, resourceType, resourceID string) (bool, error)
+	// CountStaleByType returns how many resources are stale per resource type
+	// in the team, SPARSE: a type with nothing stale is absent. The caller
+	// zero-fills, because it — not the database — knows the full type set.
+	CountStaleByType(ctx context.Context, teamID string) ([]models.FreshnessBucketCount, error)
+	// CountStaleByProject returns the same grouped by project id, sparse.
+	CountStaleByProject(ctx context.Context, teamID string) ([]models.FreshnessBucketCount, error)
+	// CountStaleByRule returns the same grouped by matching rule id, sparse.
+	// A resource matched by several rules contributes to each of them, because
+	// staleness is a union across rules.
+	CountStaleByRule(ctx context.Context, teamID string) ([]models.FreshnessBucketCount, error)
+	// CountStale returns how many DISTINCT resources are stale in the team --
+	// not the sum of any of the groupings above, which double-count a resource
+	// matched by more than one rule.
+	CountStale(ctx context.Context, teamID string) (int, error)
 	// RemoveRule strips ruleID from every row's matched_rule_ids and then
 	// deletes the rows left matching no rule at all. This is the cleanup a
 	// rule deletion must perform: matched_rule_ids carries no foreign key (one
@@ -1647,4 +1667,12 @@ type FreshnessAuditRepository interface {
 	// id so pagination is stable: a single rule run writes one transaction
 	// timestamp to every row it marks.
 	ListByTeam(ctx context.Context, teamID string, limit, offset int) ([]*models.ResourceFreshnessAudit, int, error)
+	// CountTransitionsByDay returns how many resources were marked and cleared
+	// per UTC day at or after `since`, SPARSE: a day with no activity is
+	// absent, and the caller zero-fills the series. The date is rendered as
+	// text in the exact YYYY-MM-DD layout the series keys use, so the two
+	// align without any parsing.
+	CountTransitionsByDay(
+		ctx context.Context, teamID string, since time.Time,
+	) ([]models.FreshnessTransitionCount, error)
 }

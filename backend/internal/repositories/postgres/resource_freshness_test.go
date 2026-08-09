@@ -514,3 +514,136 @@ func TestResourceFreshnessRepository_ListAllByTeam_Errors(t *testing.T) {
 		})
 	}
 }
+
+// The grouped counts back the analytics charts (#734). sqlmock can only pin
+// the query shape; the semantics (what unnest does to a multi-rule resource,
+// whether the totals agree) are asserted against real Postgres.
+func TestResourceFreshnessRepository_GroupedCounts(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		call    func(repo *ResourceFreshnessRepository) ([]models.FreshnessBucketCount, error)
+	}{
+		{
+			name:    "by type",
+			pattern: `SELECT resource_type, COUNT\(\*\).+FROM resource_freshness.+GROUP BY resource_type`,
+			call: func(repo *ResourceFreshnessRepository) ([]models.FreshnessBucketCount, error) {
+				return repo.CountStaleByType(context.Background(), "team-1")
+			},
+		},
+		{
+			name:    "by project",
+			pattern: `SELECT project_id::text, COUNT\(\*\).+FROM resource_freshness.+GROUP BY project_id`,
+			call: func(repo *ResourceFreshnessRepository) ([]models.FreshnessBucketCount, error) {
+				return repo.CountStaleByProject(context.Background(), "team-1")
+			},
+		},
+		{
+			// unnest is what makes the union semantics visible: one resource
+			// matched by two rules contributes a row to each.
+			name:    "by rule",
+			pattern: `FROM resource_freshness, unnest\(matched_rule_ids\) AS rule_id.+GROUP BY rule_id`,
+			call: func(repo *ResourceFreshnessRepository) ([]models.FreshnessBucketCount, error) {
+				return repo.CountStaleByRule(context.Background(), "team-1")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, mock := setupResourceFreshnessTest(t)
+			mock.ExpectQuery(tt.pattern).
+				WithArgs("team-1").
+				WillReturnRows(sqlmock.NewRows([]string{"key", "count"}).
+					AddRow("alpha", 3).
+					AddRow("beta", 1))
+
+			got, err := tt.call(repo)
+
+			require.NoError(t, err)
+			assert.Equal(t, []models.FreshnessBucketCount{{Key: "alpha", Count: 3}, {Key: "beta", Count: 1}}, got)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+// A team with nothing stale gets an empty slice, not nil: the service ranges
+// over it to zero-fill.
+func TestResourceFreshnessRepository_GroupedCounts_EmptyIsNotNil(t *testing.T) {
+	repo, mock := setupResourceFreshnessTest(t)
+	mock.ExpectQuery(`GROUP BY resource_type`).
+		WillReturnRows(sqlmock.NewRows([]string{"key", "count"}))
+
+	got, err := repo.CountStaleByType(context.Background(), "team-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, []models.FreshnessBucketCount{}, got)
+}
+
+func TestResourceFreshnessRepository_GroupedCounts_Errors(t *testing.T) {
+	tests := []struct {
+		name    string
+		arrange func(mock sqlmock.Sqlmock)
+		wantIn  string
+	}{
+		{
+			name: "query fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`GROUP BY resource_type`).WillReturnError(errors.New("boom"))
+			},
+			wantIn: "failed to count stale resources by type",
+		},
+		{
+			name: "scan fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`GROUP BY resource_type`).
+					WillReturnRows(sqlmock.NewRows([]string{"key"}).AddRow("artifact"))
+			},
+			wantIn: "failed to scan stale count by type",
+		},
+		{
+			name: "iteration fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`GROUP BY resource_type`).
+					WillReturnRows(sqlmock.NewRows([]string{"key", "count"}).
+						AddRow("artifact", 1).RowError(0, errors.New("stream broken")))
+			},
+			wantIn: "failed to iterate stale counts by type",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, mock := setupResourceFreshnessTest(t)
+			tt.arrange(mock)
+
+			_, err := repo.CountStaleByType(context.Background(), "team-1")
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantIn)
+		})
+	}
+}
+
+func TestResourceFreshnessRepository_CountStale(t *testing.T) {
+	repo, mock := setupResourceFreshnessTest(t)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM resource_freshness WHERE team_id = \$1`).
+		WithArgs("team-1").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(9))
+
+	total, err := repo.CountStale(context.Background(), "team-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, 9, total)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResourceFreshnessRepository_CountStale_Error(t *testing.T) {
+	repo, mock := setupResourceFreshnessTest(t)
+	mock.ExpectQuery(`SELECT COUNT`).WillReturnError(errors.New("boom"))
+
+	_, err := repo.CountStale(context.Background(), "team-1")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to count stale resources")
+}
