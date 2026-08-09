@@ -298,9 +298,13 @@ func (s *FreshnessService) ResetSettings(ctx context.Context, userID, teamID str
 //
 // Failure is logged, not returned. The caller's write has already succeeded
 // and is the user-visible outcome; failing it because the schedule could not
-// be touched would report a successful rule change as an error. The drift is
-// self-correcting -- the next rule or settings write reconciles it -- and it
-// costs at most one missed evaluation cycle.
+// be touched would report a successful rule change as an error.
+//
+// The drift is repaired by the next rule or settings write, and NOT by
+// anything else: a team whose very first rule failed to provision a schedule
+// is not evaluated at all until someone writes again. That is the same state
+// migration 015 exists to repair for pre-existing rules, and there is no
+// runtime repair path for it yet -- see #768.
 func (s *FreshnessService) syncSchedule(ctx context.Context, teamID string) {
 	log := s.logger.With("team_id", teamID, "job_type", models.JobTypeFreshnessEvaluate)
 

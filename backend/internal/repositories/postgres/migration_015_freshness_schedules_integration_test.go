@@ -22,9 +22,11 @@ import (
 // what has to hold is WHICH teams get a row, which interval they get, and that
 // re-running cannot disturb a row that already exists.
 
-// seedMigrationTeam inserts a user, team and project on a scratch database and
-// returns the team id. It bypasses the repositories deliberately: this test is
-// about SQL that runs before any Go code exists to call.
+// seedMigrationTeam inserts a user and a team on a scratch database and returns
+// the team id. No project: freshness_rules.project_id is nullable ("any project
+// in the team") and the seeding SELECT never touches projects. It bypasses the
+// repositories deliberately: this test is about SQL that runs before any Go
+// code exists to call.
 func seedMigrationTeam(t *testing.T, db *sql.DB) string {
 	t.Helper()
 	userID, teamID := uuid.New().String(), uuid.New().String()
