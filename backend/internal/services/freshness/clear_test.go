@@ -255,11 +255,3 @@ func TestClearIfStale_SkipsTypesFreshnessCannotEvaluate(t *testing.T) {
 		})
 	}
 }
-
-// The evaluable set must match the types the rule validator accepts, or a rule
-// could mark a resource this path then refuses to clear.
-func TestEvaluableResourceTypes_MatchesRuleResourceTypes(t *testing.T) {
-	assert.ElementsMatch(t,
-		[]string{"artifact", "prompt", "blueprint", "memory"},
-		freshness.EvaluableResourceTypes)
-}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
+	"github.com/vibexp/vibexp/internal/services/freshness"
 )
 
 // fakeClearer records the reversal calls the resource services make.
@@ -214,4 +215,18 @@ func TestMemoryService_UpdateClearsFreshness(t *testing.T) {
 		&models.UpdateMemoryRequest{Text: &text})
 	require.NoError(t, err)
 	assertReversed(t, clearer, "memory", "memory-123")
+}
+
+// The types the rule validator accepts and the types reversal can clear must be
+// the same set. This assertion lives here because it is the only place both
+// lists are visible: freshnessRuleResourceTypes is unexported in this package,
+// and freshness.EvaluableResourceTypes is exported from the other.
+//
+// It matters because the two gates fail differently. A rule type the candidate
+// repository cannot evaluate aborts the run with
+// ErrUnsupportedFreshnessResource — loud. A rule type reversal does not know
+// simply never clears — silent, and indistinguishable from reversibility being
+// switched off.
+func TestFreshnessRuleTypes_AreAllReversible(t *testing.T) {
+	assert.ElementsMatch(t, freshnessRuleResourceTypes, freshness.EvaluableResourceTypes)
 }

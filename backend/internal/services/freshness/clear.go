@@ -21,9 +21,11 @@ var clearReasons = []string{models.FreshnessReasonAccessed, models.FreshnessReas
 // to projects and agents are recorded too, but they carry no per-medium
 // last-accessed columns and no rule can name them, so they can never be stale.
 //
-// Exported because the access path records every type and needs to know which
-// ones are worth asking about -- mirroring how the last-accessed repository
-// reports an unsupported type rather than querying for one.
+// Exported so the drift check can live where BOTH lists are visible: the rule
+// validator's accepted types are unexported in package services, so the
+// assertion that the two agree has to run from there. Drift matters because
+// this gate fails SILENTLY -- a fifth rule type would simply never reverse --
+// unlike the candidate repository, which rejects an unknown type loudly.
 var EvaluableResourceTypes = []string{"prompt", "artifact", "blueprint", "memory"}
 
 // Clearer reverses a resource's stale state the moment the resource is read or
