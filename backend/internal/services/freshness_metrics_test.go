@@ -337,3 +337,120 @@ func TestFreshnessService_MetricsReadsDoNotCheckPermissions(t *testing.T) {
 	_, err := svc.GetByTypeMetrics(context.Background(), freshnessTestTeamID)
 	require.NoError(t, err)
 }
+
+// The payload-facing reads (#735). They are what every resource list and detail
+// response goes through, and the handler tests mock this service — so without
+// these the real filtering never executes.
+
+func staleRow(teamID string) *models.ResourceFreshness {
+	return &models.ResourceFreshness{
+		TeamID:         teamID,
+		ProjectID:      freshnessTestProjectID,
+		ResourceType:   "artifact",
+		ResourceID:     "art-1",
+		Status:         models.FreshnessStatusStale,
+		MatchedRuleIDs: []string{freshnessTestRuleID},
+		Since:          time.Now().UTC().Add(-48 * time.Hour),
+		Reason:         models.FreshnessReasonRuleRun,
+	}
+}
+
+func TestFreshnessService_GetResourceFreshness(t *testing.T) {
+	tests := []struct {
+		name    string
+		row     *models.ResourceFreshness
+		wantNil bool
+		wantWhy string
+	}{
+		{name: "stale resource is projected", row: staleRow(freshnessTestTeamID)},
+		{name: "fresh resource yields nil", row: nil, wantNil: true,
+			wantWhy: "absence in the table IS freshness"},
+		{name: "another team's row is not disclosed", row: staleRow("someone-else"), wantNil: true,
+			wantWhy: "the table has no team predicate, so this Go check is the only tenancy gate"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, deps := newFreshnessService(t)
+			deps.freshness.EXPECT().GetByResource(mock.Anything, "artifact", "art-1").
+				Return(tt.row, nil).Once()
+
+			state, err := svc.GetResourceFreshness(
+				context.Background(), freshnessTestTeamID, "artifact", "art-1")
+
+			require.NoError(t, err)
+			if tt.wantNil {
+				assert.Nil(t, state, tt.wantWhy)
+				return
+			}
+			require.NotNil(t, state)
+			assert.Equal(t, models.FreshnessStatusStale, state.Status)
+			assert.Equal(t, models.FreshnessReasonRuleRun, state.Reason)
+			assert.Equal(t, tt.row.Since, state.Since)
+			assert.Equal(t, []string{freshnessTestRuleID}, []string(state.MatchedRuleIDs))
+		})
+	}
+}
+
+func TestFreshnessService_ListResourceFreshness(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+
+	mine := staleRow(freshnessTestTeamID)
+	theirs := staleRow("someone-else")
+	theirs.ResourceID = "art-2"
+	deps.freshness.EXPECT().
+		ListByResources(mock.Anything, "artifact", []string{"art-1", "art-2", "art-3"}).
+		Return(map[string]*models.ResourceFreshness{"art-1": mine, "art-2": theirs}, nil).Once()
+
+	states, err := svc.ListResourceFreshness(
+		context.Background(), freshnessTestTeamID, "artifact", []string{"art-1", "art-2", "art-3"})
+
+	require.NoError(t, err)
+	require.Len(t, states, 1, "another team's row must be dropped, not returned")
+	require.Contains(t, states, "art-1")
+	assert.Equal(t, models.FreshnessStatusStale, states["art-1"].Status)
+	assert.NotContains(t, states, "art-2")
+	assert.NotContains(t, states, "art-3", "a fresh resource is simply absent")
+}
+
+func TestFreshnessService_PayloadReads_PropagateErrors(t *testing.T) {
+	failure := errors.New("boom")
+
+	t.Run("get", func(t *testing.T) {
+		svc, deps := newFreshnessService(t)
+		deps.freshness.EXPECT().GetByResource(mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, failure).Once()
+
+		_, err := svc.GetResourceFreshness(context.Background(), freshnessTestTeamID, "artifact", "art-1")
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, failure)
+	})
+
+	t.Run("list", func(t *testing.T) {
+		svc, deps := newFreshnessService(t)
+		deps.freshness.EXPECT().ListByResources(mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, failure).Once()
+
+		_, err := svc.ListResourceFreshness(
+			context.Background(), freshnessTestTeamID, "artifact", []string{"art-1"})
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, failure)
+	})
+}
+
+// The repository filter is a pointer so "unset" is distinguishable from a
+// value; only the one supported value produces a predicate. Anything else maps
+// to nil (no filtering) rather than to a predicate matching nothing — handlers
+// reject unknown values with a 400 first, and an empty list would look like an
+// answer if one ever slipped through.
+func TestFreshnessFilter(t *testing.T) {
+	require.Nil(t, services.ExportedFreshnessFilter(""))
+	require.Nil(t, services.ExportedFreshnessFilter("fresh"))
+	require.Nil(t, services.ExportedFreshnessFilter("STALE"))
+
+	got := services.ExportedFreshnessFilter(services.FreshnessFilterStale)
+	require.NotNil(t, got)
+	assert.Equal(t, services.FreshnessFilterStale, *got)
+}
