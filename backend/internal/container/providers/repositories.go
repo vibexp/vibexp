@@ -63,6 +63,26 @@ func ProvideScheduleRepository(db *database.DB) repositories.ScheduleRepository 
 	return postgres.NewScheduleRepository(db)
 }
 
+// ProvideResourceFreshnessRepository creates a new ResourceFreshnessRepository
+func ProvideResourceFreshnessRepository(db *database.DB) repositories.ResourceFreshnessRepository {
+	return postgres.NewResourceFreshnessRepository(db)
+}
+
+// ProvideFreshnessRuleRepository creates a new FreshnessRuleRepository
+func ProvideFreshnessRuleRepository(db *database.DB) repositories.FreshnessRuleRepository {
+	return postgres.NewFreshnessRuleRepository(db)
+}
+
+// ProvideTeamFreshnessSettingsRepository creates a new TeamFreshnessSettingsRepository
+func ProvideTeamFreshnessSettingsRepository(db *database.DB) repositories.TeamFreshnessSettingsRepository {
+	return postgres.NewTeamFreshnessSettingsRepository(db)
+}
+
+// ProvideFreshnessAuditRepository creates a new FreshnessAuditRepository
+func ProvideFreshnessAuditRepository(db *database.DB) repositories.FreshnessAuditRepository {
+	return postgres.NewFreshnessAuditRepository(db)
+}
+
 // ProvideTypeRepository creates a new TypeRepository
 func ProvideTypeRepository(db *database.DB) repositories.TypeRepository {
 	return postgres.NewTypeRepository(db)
