@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
 )
 
@@ -29,13 +30,23 @@ func newTestLogger() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
 }
 
+// newServiceWithFake builds a Service directly, bypassing NewService, so tests
+// can inject a synchronous submitter.
+//
+// lastAccessed is explicit rather than defaulted: the metrics and retention
+// tests never reach the denormalization path and pass nil, while every test
+// that exercises RecordAccess passes a real mock. Defaulting it to nil for
+// everyone would let the nil-guard in denormalizeLastAccessed silently absorb a
+// regression in the access path.
 func newServiceWithFake(
 	repo *mocks.MockResourceAccessRepository,
+	lastAccessed repositories.ResourceLastAccessedRepository,
 	submitter taskSubmitter,
 	retentionDays int,
 ) *Service {
 	return &Service{
 		repo:          repo,
+		lastAccessed:  lastAccessed,
 		submitter:     submitter,
 		logger:        newTestLogger(),
 		retentionDays: retentionDays,
@@ -59,18 +70,142 @@ func TestService_RecordAccess_SubmitsAndPersists(t *testing.T) {
 	t.Parallel()
 
 	repo := mocks.NewMockResourceAccessRepository(t)
+	lastAccessed := mocks.NewMockResourceLastAccessedRepository(t)
 	submitter := &syncSubmitter{}
-	svc := newServiceWithFake(repo, submitter, 90)
+	svc := newServiceWithFake(repo, lastAccessed, submitter, 90)
 
 	event := sampleEvent()
+	// Create stamps CreatedAt from the database's RETURNING clause; the
+	// denormalized column must carry that same instant, not a second app clock.
+	created := time.Date(2026, 8, 9, 10, 30, 0, 0, time.UTC)
 	repo.EXPECT().
 		Create(mock.Anything, event).
+		Run(func(_ context.Context, e *models.ResourceAccessEvent) { e.CreatedAt = created }).
+		Return(nil).
+		Once()
+	lastAccessed.EXPECT().
+		UpdateLastAccessed(mock.Anything, "prompt", "res-1", SourceWeb, created).
 		Return(nil).
 		Once()
 
 	svc.RecordAccess(event)
 
 	assert.Equal(t, 1, submitter.submitted, "task should be submitted exactly once")
+	repo.AssertExpectations(t)
+	lastAccessed.AssertExpectations(t)
+}
+
+// The denormalization is a consequence of the event write, not a parallel one:
+// if the event failed to persist there is nothing to denormalize, and issuing
+// the column update anyway would record an access the log has no row for.
+func TestService_RecordAccess_SkipsDenormalizationWhenEventWriteFails(t *testing.T) {
+	t.Parallel()
+
+	repo := mocks.NewMockResourceAccessRepository(t)
+	lastAccessed := mocks.NewMockResourceLastAccessedRepository(t)
+	svc := newServiceWithFake(repo, lastAccessed, &syncSubmitter{}, 90)
+
+	repo.EXPECT().
+		Create(mock.Anything, mock.Anything).
+		Return(errors.New("db down")).
+		Once()
+
+	svc.RecordAccess(sampleEvent())
+
+	lastAccessed.AssertNotCalled(t, "UpdateLastAccessed",
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+// Every source the access path can classify must reach its column; a medium
+// missing from the repository's map would otherwise be a silent no-op.
+func TestService_RecordAccess_DenormalizesEverySource(t *testing.T) {
+	t.Parallel()
+
+	for _, source := range []string{SourceWeb, SourceCLI, SourceMCP, SourceAPI} {
+		t.Run(source, func(t *testing.T) {
+			t.Parallel()
+
+			repo := mocks.NewMockResourceAccessRepository(t)
+			lastAccessed := mocks.NewMockResourceLastAccessedRepository(t)
+			svc := newServiceWithFake(repo, lastAccessed, &syncSubmitter{}, 90)
+
+			event := sampleEvent()
+			event.Source = source
+			repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+			lastAccessed.EXPECT().
+				UpdateLastAccessed(mock.Anything, "prompt", "res-1", source, mock.Anything).
+				Return(nil).
+				Once()
+
+			svc.RecordAccess(event)
+
+			lastAccessed.AssertExpectations(t)
+		})
+	}
+}
+
+// A type with no columns (project/agent are recorded but not freshness-eligible)
+// and a genuine repository failure must both be swallowed — the read that
+// triggered this was served long ago.
+func TestService_RecordAccess_SwallowsDenormalizationOutcomes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "unsupported resource type is an expected no-op", err: repositories.ErrUnsupportedLastAccessedResource},
+		{name: "repository failure is logged and swallowed", err: errors.New("db down")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo := mocks.NewMockResourceAccessRepository(t)
+			lastAccessed := mocks.NewMockResourceLastAccessedRepository(t)
+			svc := newServiceWithFake(repo, lastAccessed, &syncSubmitter{}, 90)
+
+			repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+			lastAccessed.EXPECT().
+				UpdateLastAccessed(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+				Return(tt.err).
+				Once()
+
+			assert.NotPanics(t, func() { svc.RecordAccess(sampleEvent()) })
+			lastAccessed.AssertExpectations(t)
+		})
+	}
+}
+
+// A panic in the denormalization must be contained by the same recover that
+// guards the event write — it runs on the same worker goroutine.
+func TestService_RecordAccess_RecoversFromDenormalizationPanic(t *testing.T) {
+	t.Parallel()
+
+	repo := mocks.NewMockResourceAccessRepository(t)
+	lastAccessed := mocks.NewMockResourceLastAccessedRepository(t)
+	svc := newServiceWithFake(repo, lastAccessed, &syncSubmitter{}, 90)
+
+	repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+	lastAccessed.EXPECT().
+		UpdateLastAccessed(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Panic("boom").
+		Once()
+
+	assert.NotPanics(t, func() { svc.RecordAccess(sampleEvent()) })
+}
+
+// The service must stay usable when no last-accessed repository is wired.
+func TestService_RecordAccess_NilLastAccessedRepoIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	repo := mocks.NewMockResourceAccessRepository(t)
+	svc := newServiceWithFake(repo, nil, &syncSubmitter{}, 90)
+
+	repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+
+	assert.NotPanics(t, func() { svc.RecordAccess(sampleEvent()) })
 	repo.AssertExpectations(t)
 }
 
@@ -79,7 +214,7 @@ func TestService_RecordAccess_NilEventIsNoOp(t *testing.T) {
 
 	repo := mocks.NewMockResourceAccessRepository(t)
 	submitter := &syncSubmitter{}
-	svc := newServiceWithFake(repo, submitter, 90)
+	svc := newServiceWithFake(repo, nil, submitter, 90)
 
 	svc.RecordAccess(nil)
 
@@ -91,7 +226,7 @@ func TestService_RecordAccess_SwallowsRepoError(t *testing.T) {
 
 	repo := mocks.NewMockResourceAccessRepository(t)
 	submitter := &syncSubmitter{}
-	svc := newServiceWithFake(repo, submitter, 90)
+	svc := newServiceWithFake(repo, nil, submitter, 90)
 
 	repo.EXPECT().
 		Create(mock.Anything, mock.Anything).
@@ -110,7 +245,7 @@ func TestService_RecordAccess_RecoversFromPanic(t *testing.T) {
 
 	repo := mocks.NewMockResourceAccessRepository(t)
 	submitter := &syncSubmitter{}
-	svc := newServiceWithFake(repo, submitter, 90)
+	svc := newServiceWithFake(repo, nil, submitter, 90)
 
 	repo.EXPECT().
 		Create(mock.Anything, mock.Anything).
@@ -128,7 +263,7 @@ func TestService_RunRetentionJob_ComputesCutoff(t *testing.T) {
 	repo := mocks.NewMockResourceAccessRepository(t)
 	submitter := &syncSubmitter{}
 	const retentionDays = 30
-	svc := newServiceWithFake(repo, submitter, retentionDays)
+	svc := newServiceWithFake(repo, nil, submitter, retentionDays)
 
 	expectedCutoff := time.Now().UTC().AddDate(0, 0, -retentionDays)
 
@@ -149,7 +284,7 @@ func TestService_RunRetentionJob_WrapsError(t *testing.T) {
 	t.Parallel()
 
 	repo := mocks.NewMockResourceAccessRepository(t)
-	svc := newServiceWithFake(repo, &syncSubmitter{}, 90)
+	svc := newServiceWithFake(repo, nil, &syncSubmitter{}, 90)
 
 	sentinel := errors.New("delete failed")
 	repo.EXPECT().
@@ -167,7 +302,7 @@ func TestService_GetMetrics_ZeroFillsGaps(t *testing.T) {
 	t.Parallel()
 
 	repo := mocks.NewMockResourceAccessRepository(t)
-	svc := newServiceWithFake(repo, &syncSubmitter{}, 90)
+	svc := newServiceWithFake(repo, nil, &syncSubmitter{}, 90)
 
 	const rangeDays = 3
 	since := time.Now().UTC().AddDate(0, 0, -rangeDays)
@@ -211,7 +346,7 @@ func TestService_GetMetrics_EmptyRangeStillFilled(t *testing.T) {
 	t.Parallel()
 
 	repo := mocks.NewMockResourceAccessRepository(t)
-	svc := newServiceWithFake(repo, &syncSubmitter{}, 90)
+	svc := newServiceWithFake(repo, nil, &syncSubmitter{}, 90)
 
 	repo.EXPECT().
 		GetMetricsByResource(mock.Anything, "team-1", "prompt", "res-1", mock.Anything).
@@ -247,7 +382,7 @@ func TestService_GetMetrics_NegativeRangeDoesNotPanic(t *testing.T) {
 			t.Parallel()
 
 			repo := mocks.NewMockResourceAccessRepository(t)
-			svc := newServiceWithFake(repo, &syncSubmitter{}, 90)
+			svc := newServiceWithFake(repo, nil, &syncSubmitter{}, 90)
 
 			repo.EXPECT().
 				GetMetricsByResource(mock.Anything, "team-1", "prompt", "res-1", mock.Anything).
@@ -272,7 +407,7 @@ func TestService_GetMetrics_AlignsWindowToUTCMidnight(t *testing.T) {
 	t.Parallel()
 
 	repo := mocks.NewMockResourceAccessRepository(t)
-	svc := newServiceWithFake(repo, &syncSubmitter{}, 90)
+	svc := newServiceWithFake(repo, nil, &syncSubmitter{}, 90)
 
 	const rangeDays = 3
 	var capturedSince time.Time
@@ -307,7 +442,7 @@ func TestService_GetMetrics_WrapsRepoError(t *testing.T) {
 	t.Parallel()
 
 	repo := mocks.NewMockResourceAccessRepository(t)
-	svc := newServiceWithFake(repo, &syncSubmitter{}, 90)
+	svc := newServiceWithFake(repo, nil, &syncSubmitter{}, 90)
 
 	sentinel := errors.New("query failed")
 	repo.EXPECT().
@@ -414,7 +549,7 @@ func TestService_GetTopAccessedResources(t *testing.T) {
 	t.Parallel()
 
 	repo := mocks.NewMockResourceAccessRepository(t)
-	svc := newServiceWithFake(repo, &syncSubmitter{}, 90)
+	svc := newServiceWithFake(repo, nil, &syncSubmitter{}, 90)
 
 	want := []models.TopAccessedResource{
 		{ResourceType: "prompt", ResourceID: "res-1", Name: "Checklist", AccessCount: 12},
@@ -437,7 +572,7 @@ func TestService_GetTopAccessedResources_NegativeRangeDoesNotPanic(t *testing.T)
 	t.Parallel()
 
 	repo := mocks.NewMockResourceAccessRepository(t)
-	svc := newServiceWithFake(repo, &syncSubmitter{}, 90)
+	svc := newServiceWithFake(repo, nil, &syncSubmitter{}, 90)
 
 	repo.EXPECT().
 		GetTopAccessedResources(mock.Anything, "team-1", mock.Anything, "", 5).

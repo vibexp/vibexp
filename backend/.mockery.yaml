@@ -126,6 +126,7 @@ packages:
       RelationRepository:
       ResourceAccessRepository:
       ResourceFreshnessRepository:
+      ResourceLastAccessedRepository:
       ScheduleRepository:
       SearchRepository:
       TeamEmailProviderRepository:

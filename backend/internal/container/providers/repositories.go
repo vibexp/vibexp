@@ -63,6 +63,11 @@ func ProvideScheduleRepository(db *database.DB) repositories.ScheduleRepository 
 	return postgres.NewScheduleRepository(db)
 }
 
+// ProvideResourceLastAccessedRepository creates a new ResourceLastAccessedRepository
+func ProvideResourceLastAccessedRepository(db *database.DB) repositories.ResourceLastAccessedRepository {
+	return postgres.NewResourceLastAccessedRepository(db)
+}
+
 // ProvideResourceFreshnessRepository creates a new ResourceFreshnessRepository
 func ProvideResourceFreshnessRepository(db *database.DB) repositories.ResourceFreshnessRepository {
 	return postgres.NewResourceFreshnessRepository(db)
