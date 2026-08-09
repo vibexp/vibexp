@@ -153,6 +153,7 @@ var requiredArrayResponseRegistry = map[string]any{
 	"PromptGalleryListResponse":      models.PromptGalleryListResponse{},
 	"PromptListResponse":             models.PromptListResponse{},
 	"PromptVersionListResponse":      models.PromptVersionListResponse{},
+	"ResourceFreshnessState":         models.ResourceFreshnessState{},
 	"SearchResultsResponse":          models.SearchResultsResponse{},
 	"Team":                           models.Team{},
 	"TeamListResponse":               models.TeamListResponse{},

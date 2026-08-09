@@ -167,6 +167,9 @@ func NewBlueprintService(deps BlueprintServiceDeps) *BlueprintService {
 }
 
 type BlueprintFilters struct {
+	// Freshness narrows the list to stale resources ("stale") or is empty for
+	// no freshness filtering (issue #735).
+	Freshness string
 	ProjectID string
 	Status    string
 	Type      string
@@ -368,6 +371,7 @@ func (s *BlueprintService) ListBlueprints(
 	}
 
 	repoFilters := repositories.BlueprintFilters{
+		Freshness:      freshnessFilter(filters.Freshness),
 		ProjectID:      projectID,
 		Status:         status,
 		Type:           blueprintType,

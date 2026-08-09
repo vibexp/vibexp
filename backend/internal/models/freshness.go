@@ -299,3 +299,41 @@ type FreshnessAuditPage struct {
 	Page       int
 	PerPage    int
 }
+
+// FreshnessFilterStale is the only value the `freshness` list filter accepts
+// (issue #735). Freshness state exists only while a resource IS stale — the row
+// is deleted when it clears — so there is no "fresh" value to ask for.
+//
+// It lives here, beside FreshnessStatusStale whose spelling it shares, so the
+// service and repository layers can both reference one constant without the
+// service having to import the concrete postgres package.
+const FreshnessFilterStale = FreshnessStatusStale
+
+// ResourceFreshnessState is the freshness indicator carried on a resource
+// payload (issue #735). It is nil — and the JSON field absent — when the
+// resource is fresh, which is what makes "fresh" unambiguous rather than a
+// zero-valued object a client has to interpret.
+//
+// It is a projection of ResourceFreshness, not the row: a client needs to know
+// that the resource is stale, since when, and which rules say so. Team and
+// project are already implied by the resource carrying it.
+type ResourceFreshnessState struct {
+	Status         string            `json:"status"`
+	Since          time.Time         `json:"since"`
+	MatchedRuleIDs JSONArray[string] `json:"matched_rule_ids"`
+	Reason         string            `json:"reason"`
+}
+
+// NewResourceFreshnessState projects a stored row onto the payload shape,
+// returning nil for a nil row so callers can assign it unconditionally.
+func NewResourceFreshnessState(row *ResourceFreshness) *ResourceFreshnessState {
+	if row == nil {
+		return nil
+	}
+	return &ResourceFreshnessState{
+		Status:         row.Status,
+		Since:          row.Since,
+		MatchedRuleIDs: JSONArray[string](row.MatchedRuleIDs),
+		Reason:         row.Reason,
+	}
+}

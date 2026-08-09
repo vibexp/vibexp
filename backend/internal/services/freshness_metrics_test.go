@@ -3,6 +3,7 @@ package services_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -11,7 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
+	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
+	servicemocks "github.com/vibexp/vibexp/internal/services/mocks"
 )
 
 func TestFreshnessMetricsRangeDays(t *testing.T) {
@@ -337,3 +341,255 @@ func TestFreshnessService_MetricsReadsDoNotCheckPermissions(t *testing.T) {
 	_, err := svc.GetByTypeMetrics(context.Background(), freshnessTestTeamID)
 	require.NoError(t, err)
 }
+
+// The payload-facing reads (#735). They are what every resource list and detail
+// response goes through, and the handler tests mock this service — so without
+// these the real filtering never executes.
+
+func staleRow(teamID string) *models.ResourceFreshness {
+	return &models.ResourceFreshness{
+		TeamID:         teamID,
+		ProjectID:      freshnessTestProjectID,
+		ResourceType:   "artifact",
+		ResourceID:     "art-1",
+		Status:         models.FreshnessStatusStale,
+		MatchedRuleIDs: []string{freshnessTestRuleID},
+		Since:          time.Now().UTC().Add(-48 * time.Hour),
+		Reason:         models.FreshnessReasonRuleRun,
+	}
+}
+
+func TestFreshnessService_GetResourceFreshness(t *testing.T) {
+	tests := []struct {
+		name    string
+		row     *models.ResourceFreshness
+		wantNil bool
+		wantWhy string
+	}{
+		{name: "stale resource is projected", row: staleRow(freshnessTestTeamID)},
+		{name: "fresh resource yields nil", row: nil, wantNil: true,
+			wantWhy: "absence in the table IS freshness"},
+		{name: "another team's row is not disclosed", row: staleRow("someone-else"), wantNil: true,
+			wantWhy: "the table has no team predicate, so this Go check is the only tenancy gate"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, deps := newFreshnessService(t)
+			deps.freshness.EXPECT().GetByResource(mock.Anything, "artifact", "art-1").
+				Return(tt.row, nil).Once()
+
+			state, err := svc.GetResourceFreshness(
+				context.Background(), freshnessTestTeamID, "artifact", "art-1")
+
+			require.NoError(t, err)
+			if tt.wantNil {
+				assert.Nil(t, state, tt.wantWhy)
+				return
+			}
+			require.NotNil(t, state)
+			assert.Equal(t, models.FreshnessStatusStale, state.Status)
+			assert.Equal(t, models.FreshnessReasonRuleRun, state.Reason)
+			assert.Equal(t, tt.row.Since, state.Since)
+			assert.Equal(t, []string{freshnessTestRuleID}, []string(state.MatchedRuleIDs))
+		})
+	}
+}
+
+func TestFreshnessService_ListResourceFreshness(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+
+	mine := staleRow(freshnessTestTeamID)
+	theirs := staleRow("someone-else")
+	theirs.ResourceID = "art-2"
+	deps.freshness.EXPECT().
+		ListByResources(mock.Anything, "artifact", []string{"art-1", "art-2", "art-3"}).
+		Return(map[string]*models.ResourceFreshness{"art-1": mine, "art-2": theirs}, nil).Once()
+
+	states, err := svc.ListResourceFreshness(
+		context.Background(), freshnessTestTeamID, "artifact", []string{"art-1", "art-2", "art-3"})
+
+	require.NoError(t, err)
+	require.Len(t, states, 1, "another team's row must be dropped, not returned")
+	require.Contains(t, states, "art-1")
+	assert.Equal(t, models.FreshnessStatusStale, states["art-1"].Status)
+	assert.NotContains(t, states, "art-2")
+	assert.NotContains(t, states, "art-3", "a fresh resource is simply absent")
+}
+
+func TestFreshnessService_PayloadReads_PropagateErrors(t *testing.T) {
+	failure := errors.New("boom")
+
+	t.Run("get", func(t *testing.T) {
+		svc, deps := newFreshnessService(t)
+		deps.freshness.EXPECT().GetByResource(mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, failure).Once()
+
+		_, err := svc.GetResourceFreshness(context.Background(), freshnessTestTeamID, "artifact", "art-1")
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, failure)
+	})
+
+	t.Run("list", func(t *testing.T) {
+		svc, deps := newFreshnessService(t)
+		deps.freshness.EXPECT().ListByResources(mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, failure).Once()
+
+		_, err := svc.ListResourceFreshness(
+			context.Background(), freshnessTestTeamID, "artifact", []string{"art-1"})
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, failure)
+	})
+}
+
+// The repository filter is a pointer so "unset" is distinguishable from a
+// value; only the one supported value produces a predicate. Anything else maps
+// to nil (no filtering) rather than to a predicate matching nothing — handlers
+// reject unknown values with a 400 first, and an empty list would look like an
+// answer if one ever slipped through.
+func TestFreshnessFilter(t *testing.T) {
+	require.Nil(t, services.ExportedFreshnessFilter(""))
+	require.Nil(t, services.ExportedFreshnessFilter("fresh"))
+	require.Nil(t, services.ExportedFreshnessFilter("STALE"))
+
+	got := services.ExportedFreshnessFilter(services.FreshnessFilterStale)
+	require.NotNil(t, got)
+	assert.Equal(t, services.FreshnessFilterStale, *got)
+}
+
+// The service→repository mapping of the stale filter (#735), for EVERY service.
+//
+// Without these, deleting `Freshness: freshnessFilter(filters.Freshness)` from
+// a service's repo-filter literal passes every other test: the handler tests
+// stop at the service boundary and the repository tests start below it, so the
+// line that joins them is exactly the one nothing observes. That is one line
+// per service — five call sites, since artifacts map twice.
+func TestServices_ForwardTheStaleFilterToTheRepository(t *testing.T) {
+	stale := services.FreshnessFilterStale
+
+	// Each case asserts the repository saw the pointer the service should have
+	// derived, for both the set and the unset filter.
+	tests := []struct {
+		name string
+		call func(t *testing.T, filter string, wantSet bool)
+	}{
+		{
+			name: "memory",
+			call: func(t *testing.T, filter string, wantSet bool) {
+				repo := repomocks.NewMockMemoryRepository(t)
+				repo.EXPECT().List(mock.Anything, mock.Anything,
+					mock.MatchedBy(func(f repositories.MemoryFilters) bool {
+						return freshnessPointerMatches(f.Freshness, wantSet)
+					})).Return([]models.Memory{}, 0, nil).Once()
+
+				svc := services.NewMemoryService(repo, nil, permissiveFreshnessAuthz(t), nil,
+					discardTestLogger(), nil, nil, nil, nil)
+				_, err := svc.ListMemories("user-1", services.MemoryFilters{
+					TeamID: freshnessTestTeamID, Freshness: filter, Page: 1, Limit: 20,
+				})
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "prompt",
+			call: func(t *testing.T, filter string, wantSet bool) {
+				repo := repomocks.NewMockPromptRepository(t)
+				repo.EXPECT().List(mock.Anything, mock.Anything,
+					mock.MatchedBy(func(f repositories.PromptFilters) bool {
+						return freshnessPointerMatches(f.Freshness, wantSet)
+					})).Return([]models.Prompt{}, 0, nil).Once()
+
+				svc := services.NewPromptService(services.PromptServiceDeps{
+					Repo: repo, Authz: permissiveFreshnessAuthz(t), Logger: discardTestLogger(),
+				})
+				_, err := svc.ListPrompts("user-1", services.PromptFilters{
+					TeamID: freshnessTestTeamID, Freshness: filter, Page: 1, Limit: 20,
+				})
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "blueprint",
+			call: func(t *testing.T, filter string, wantSet bool) {
+				repo := repomocks.NewMockBlueprintRepository(t)
+				repo.EXPECT().List(mock.Anything, mock.Anything,
+					mock.MatchedBy(func(f repositories.BlueprintFilters) bool {
+						return freshnessPointerMatches(f.Freshness, wantSet)
+					})).Return([]models.Blueprint{}, 0, nil).Once()
+
+				svc := services.NewBlueprintService(services.BlueprintServiceDeps{
+					Repo: repo, Authz: permissiveFreshnessAuthz(t), Logger: discardTestLogger(),
+				})
+				_, err := svc.ListBlueprints("user-1", services.BlueprintFilters{
+					TeamID: freshnessTestTeamID, Freshness: filter, Page: 1, Limit: 20,
+				})
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "artifact",
+			call: func(t *testing.T, filter string, wantSet bool) {
+				repo := repomocks.NewMockArtifactRepository(t)
+				repo.EXPECT().List(mock.Anything, mock.Anything,
+					mock.MatchedBy(func(f repositories.ArtifactFilters) bool {
+						return freshnessPointerMatches(f.Freshness, wantSet)
+					})).Return([]models.Artifact{}, 0, nil).Once()
+
+				svc := services.NewArtifactService(services.ArtifactServiceDeps{
+					Repo: repo, Authz: permissiveFreshnessAuthz(t), Logger: discardTestLogger(),
+				})
+				_, err := svc.ListArtifacts("user-1", services.ArtifactFilters{
+					TeamID: freshnessTestTeamID, Freshness: filter, Page: 1, Limit: 20,
+				})
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "artifact cross-team",
+			call: func(t *testing.T, filter string, wantSet bool) {
+				repo := repomocks.NewMockArtifactRepository(t)
+				repo.EXPECT().ListCrossTeam(mock.Anything, mock.Anything,
+					mock.MatchedBy(func(f repositories.ArtifactFilters) bool {
+						return freshnessPointerMatches(f.Freshness, wantSet)
+					})).Return([]models.Artifact{}, 0, nil).Once()
+
+				svc := services.NewArtifactService(services.ArtifactServiceDeps{
+					Repo: repo, Authz: permissiveFreshnessAuthz(t), Logger: discardTestLogger(),
+				})
+				_, err := svc.ListArtifactsByProjectCrossTeam("user-1", "project-1",
+					services.ArtifactFilters{Freshness: filter, Page: 1, Limit: 20})
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name+"/stale forwards a predicate", func(t *testing.T) {
+			tt.call(t, stale, true)
+		})
+		t.Run(tt.name+"/unset forwards nothing", func(t *testing.T) {
+			tt.call(t, "", false)
+		})
+	}
+}
+
+// freshnessPointerMatches reports whether the repository filter carries the
+// stale predicate exactly when it should.
+func freshnessPointerMatches(got *string, wantSet bool) bool {
+	if !wantSet {
+		return got == nil
+	}
+	return got != nil && *got == services.FreshnessFilterStale
+}
+
+func permissiveFreshnessAuthz(t *testing.T) services.AuthorizationServiceInterface {
+	t.Helper()
+	authzMock := servicemocks.NewMockAuthorizationServiceInterface(t)
+	authzMock.EXPECT().Can(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	return authzMock
+}
+
+func discardTestLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }

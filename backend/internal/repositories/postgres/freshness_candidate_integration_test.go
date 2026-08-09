@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 // Behavior-level suite for the stale-candidate query (#732) against real
@@ -480,4 +481,129 @@ func TestIntegrationFreshnessMetrics_AuditIsTeamScoped(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, transitions, 1)
 	assert.Equal(t, 1, transitions[0].Count)
+}
+
+// Freshness surfacing (#735) against real Postgres. The filter is a correlated
+// EXISTS added to the SHARED where-clause, so the properties that matter are
+// that it narrows the page AND the count identically, that it is team-scoped,
+// and that it is index-backed rather than scanning.
+
+// markResourceStale writes a freshness row the way the evaluator would.
+func markResourceStale(t *testing.T, teamID, projectID, resourceType, resourceID string) {
+	t.Helper()
+	require.NoError(t, NewResourceFreshnessRepository(integrationDB).Upsert(context.Background(),
+		&models.ResourceFreshness{
+			TeamID: teamID, ProjectID: projectID, ResourceType: resourceType, ResourceID: resourceID,
+			Status: models.FreshnessStatusStale, MatchedRuleIDs: []string{uuid.New().String()},
+			Reason: models.FreshnessReasonRuleRun,
+		}))
+}
+
+// The filter must narrow the page and the TOTAL together. They are produced by
+// two separate queries that share only the WHERE clause, so a predicate added
+// to one and not the other would return a short page while claiming the
+// unfiltered total — the pagination bug an EXISTS in the shared clause avoids.
+func TestIntegrationFreshnessFilter_NarrowsPageAndTotalTogether(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	ctx := context.Background()
+	repo := NewArtifactRepository(integrationDB)
+
+	stale := insertTestArtifact(t, scope.userID, scope.teamID, scope.projectID, "stale", "body", "active")
+	insertTestArtifact(t, scope.userID, scope.teamID, scope.projectID, "fresh-1", "body", "active")
+	insertTestArtifact(t, scope.userID, scope.teamID, scope.projectID, "fresh-2", "body", "active")
+	markResourceStale(t, scope.teamID, scope.projectID, "artifact", stale)
+
+	unfiltered, unfilteredTotal, err := repo.List(ctx, scope.userID, repositories.ArtifactFilters{
+		TeamID: scope.teamID, Page: 1, Limit: 20,
+	})
+	require.NoError(t, err)
+	require.Len(t, unfiltered, 3)
+	require.Equal(t, 3, unfilteredTotal)
+
+	staleOnly := FreshnessFilterStale
+	filtered, filteredTotal, err := repo.List(ctx, scope.userID, repositories.ArtifactFilters{
+		TeamID: scope.teamID, Page: 1, Limit: 20, Freshness: &staleOnly,
+	})
+	require.NoError(t, err)
+	require.Len(t, filtered, 1)
+	assert.Equal(t, stale, filtered[0].ID)
+	assert.Equal(t, 1, filteredTotal, "the count query must see the same predicate as the page query")
+}
+
+// The filter must never surface another team's resources, and another team's
+// freshness row must never mark this team's resource as stale.
+func TestIntegrationFreshnessFilter_IsTeamScoped(t *testing.T) {
+	resetFreshnessTables(t)
+	mine := seedCandidateScope(t)
+	theirs := seedCandidateScope(t)
+	ctx := context.Background()
+	repo := NewArtifactRepository(integrationDB)
+
+	theirStale := insertTestArtifact(t, theirs.userID, theirs.teamID, theirs.projectID, "theirs", "body", "active")
+	markResourceStale(t, theirs.teamID, theirs.projectID, "artifact", theirStale)
+	insertTestArtifact(t, mine.userID, mine.teamID, mine.projectID, "mine", "body", "active")
+
+	staleOnly := FreshnessFilterStale
+	filtered, total, err := repo.List(ctx, mine.userID, repositories.ArtifactFilters{
+		TeamID: mine.teamID, Page: 1, Limit: 20, Freshness: &staleOnly,
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, filtered, "the other team's stale artifact is outside this team's list entirely")
+	assert.Equal(t, 0, total)
+}
+
+// The batch lookup that attaches freshness to a page must return only the ids
+// asked for, and must not leak another team's state (the caller filters by
+// team, and this proves the row carries the team to filter on).
+func TestIntegrationFreshnessFilter_ListByResourcesIsExact(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	other := seedCandidateScope(t)
+	ctx := context.Background()
+	state := NewResourceFreshnessRepository(integrationDB)
+
+	mine := uuid.New().String()
+	theirs := uuid.New().String()
+	unasked := uuid.New().String()
+	markResourceStale(t, scope.teamID, scope.projectID, "artifact", mine)
+	markResourceStale(t, other.teamID, other.projectID, "artifact", theirs)
+	markResourceStale(t, scope.teamID, scope.projectID, "artifact", unasked)
+	// Same id, different type: the lookup must not confuse the two.
+	markResourceStale(t, scope.teamID, scope.projectID, "prompt", mine)
+
+	got, err := state.ListByResources(ctx, "artifact", []string{mine, theirs})
+
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, scope.teamID, got[mine].TeamID)
+	assert.Equal(t, other.teamID, got[theirs].TeamID, "the row carries the team the caller filters on")
+	assert.NotContains(t, got, unasked)
+
+	empty, err := state.ListByResources(ctx, "artifact", nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty, "an empty page issues no query and still returns a usable map")
+}
+
+// The stale filter sits on list endpoints people browse, so it has to be an
+// index seek. Only an execution plan can show that — a correlated EXISTS that
+// seq-scans resource_freshness passes every behavioural test above.
+func TestIntegrationFreshnessFilter_UsesTheUniqueIndex(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	artifactID := insertTestArtifact(t, scope.userID, scope.teamID, scope.projectID, "stale", "body", "active")
+	markResourceStale(t, scope.teamID, scope.projectID, "artifact", artifactID)
+
+	// The predicate is copied from applyStaleFilter verbatim; asserting a plan
+	// for a query the repository does not issue would prove nothing.
+	plan := explainFreshness(t,
+		`SELECT a.id FROM artifacts a
+		  WHERE a.team_id = $1
+		    AND EXISTS (SELECT 1 FROM resource_freshness rf
+		                 WHERE rf.resource_type = $2 AND rf.resource_id = a.id)`,
+		scope.teamID, "artifact")
+
+	assert.Contains(t, plan, "idx_resource_freshness_resource",
+		"the stale filter must seek the unique (resource_type, resource_id) index; plan was:\n"+plan)
 }

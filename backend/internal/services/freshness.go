@@ -106,6 +106,17 @@ type FreshnessServiceInterface interface {
 	GetByRuleMetrics(ctx context.Context, teamID string) (*models.FreshnessRuleMetrics, error)
 	// ListAudit returns one page of the team's audit log, newest first.
 	ListAudit(ctx context.Context, teamID string, page, limit int) (*models.FreshnessAuditPage, error)
+
+	// GetResourceFreshness returns one resource's freshness state, or nil when
+	// it is fresh or belongs to another team (#735).
+	GetResourceFreshness(
+		ctx context.Context, teamID, resourceType, resourceID string,
+	) (*models.ResourceFreshnessState, error)
+	// ListResourceFreshness returns the freshness state of a page of resources
+	// keyed by resource id, in one query. Fresh resources are absent.
+	ListResourceFreshness(
+		ctx context.Context, teamID, resourceType string, resourceIDs []string,
+	) (map[string]*models.ResourceFreshnessState, error)
 }
 
 // FreshnessService implements FreshnessServiceInterface.

@@ -647,3 +647,79 @@ func TestResourceFreshnessRepository_CountStale_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to count stale resources")
 }
+
+// ListByResources backs the per-page freshness attach on every resource list,
+// so its query shape and its empty-page short-circuit both matter.
+func TestResourceFreshnessRepository_ListByResources(t *testing.T) {
+	repo, mock := setupResourceFreshnessTest(t)
+	since := time.Now().UTC().Truncate(time.Second)
+
+	mock.ExpectQuery(`FROM resource_freshness\s+WHERE resource_type = \$1 AND resource_id = ANY\(\$2::uuid\[\]\)`).
+		WithArgs("artifact", pq.Array([]string{"res-1", "res-2"})).
+		WillReturnRows(resourceFreshnessRow("{rule-a}", since))
+
+	got, err := repo.ListByResources(context.Background(), "artifact", []string{"res-1", "res-2"})
+
+	require.NoError(t, err)
+	require.Len(t, got, 1, "ids without a row are simply absent — absence is freshness")
+	require.Contains(t, got, "res-1")
+	assert.Equal(t, []string{"rule-a"}, got["res-1"].MatchedRuleIDs)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// An empty page must not issue a query at all, and must still return a usable
+// map so the caller can look ids up unconditionally.
+func TestResourceFreshnessRepository_ListByResources_EmptyIssuesNoQuery(t *testing.T) {
+	repo, mock := setupResourceFreshnessTest(t)
+
+	got, err := repo.ListByResources(context.Background(), "artifact", nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]*models.ResourceFreshness{}, got)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResourceFreshnessRepository_ListByResources_Errors(t *testing.T) {
+	tests := []struct {
+		name    string
+		arrange func(mock sqlmock.Sqlmock)
+		wantIn  string
+	}{
+		{
+			name: "query fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`FROM resource_freshness`).WillReturnError(errors.New("boom"))
+			},
+			wantIn: "failed to list freshness for artifact resources",
+		},
+		{
+			name: "scan fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`FROM resource_freshness`).
+					WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("fresh-1"))
+			},
+			wantIn: "failed to scan freshness for artifact resource",
+		},
+		{
+			name: "iteration fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`FROM resource_freshness`).
+					WillReturnRows(resourceFreshnessRow("{rule-a}", time.Now().UTC()).
+						RowError(0, errors.New("stream broken")))
+			},
+			wantIn: "failed to iterate freshness for artifact resources",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, mock := setupResourceFreshnessTest(t)
+			tt.arrange(mock)
+
+			_, err := repo.ListByResources(context.Background(), "artifact", []string{"res-1"})
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantIn)
+		})
+	}
+}

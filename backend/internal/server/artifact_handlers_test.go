@@ -552,7 +552,15 @@ type MockArtifactContainer struct {
 	TeamServiceMock         services.TeamServiceInterface
 	TypeServiceMock         services.TypeServiceInterface
 	RelationServiceMock     services.RelationServiceInterface
+	FreshnessServiceMock    services.FreshnessServiceInterface
 	EmbeddingRepositoryMock repositories.EmbeddingRepository
+}
+
+// FreshnessService returns the freshness mock when a test installs one; the
+// embedded base returns nil otherwise, which the surfacing helpers treat as
+// "no freshness" rather than as an error (#735).
+func (m *MockArtifactContainer) FreshnessService() services.FreshnessServiceInterface {
+	return m.FreshnessServiceMock
 }
 
 func (m *MockArtifactContainer) ArtifactService() services.ArtifactServiceInterface {

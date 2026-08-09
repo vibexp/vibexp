@@ -237,6 +237,10 @@ func buildListWhereClause(userID string, filters repositories.PromptFilters) squ
 		where = append(where, squirrel.Eq{"p.status": filters.Status})
 	}
 
+	if filters.Freshness != nil && *filters.Freshness == FreshnessFilterStale {
+		where = applyStaleFilter(where, models.RelationResourceTypePrompt, "p.id")
+	}
+
 	if filters.MCPExpose != nil {
 		where = append(where, squirrel.Eq{"p.mcp_expose": *filters.MCPExpose})
 	}

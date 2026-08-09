@@ -236,6 +236,9 @@ func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 		r.Context(), userID, teamID, models.RelationResourceTypePrompt, prompt.ID,
 	)
 	prompt.Similar = s.similarForResource(r.Context(), teamID, models.RelationResourceTypePrompt, prompt.ID)
+	prompt.Freshness = s.freshnessForResource(
+		r.Context(), teamID, models.RelationResourceTypePrompt, prompt.ID,
+	)
 
 	writeOK(w, prompt, s.logger)
 }
@@ -276,6 +279,11 @@ var allowedPromptSortFields = map[string]bool{
 func parsePromptFilters(w http.ResponseWriter, r *http.Request, userID, teamID string) (services.PromptFilters, bool) {
 	query := r.URL.Query()
 
+	freshness, ok := parseFreshnessFilter(w, r)
+	if !ok {
+		return services.PromptFilters{}, false
+	}
+
 	sortBy := query.Get("sort_by")
 	if sortBy != "" && !allowedPromptSortFields[sortBy] {
 		writeErrorResponse(w, nil, "validation_error", "invalid sort_by value: "+sortBy, http.StatusBadRequest)
@@ -283,6 +291,7 @@ func parsePromptFilters(w http.ResponseWriter, r *http.Request, userID, teamID s
 	}
 
 	filters := services.PromptFilters{
+		Freshness: freshness,
 		Status:    query.Get("status"),
 		Search:    query.Get("search"),
 		UserID:    userID,
@@ -340,6 +349,9 @@ func (s *Server) handleListPrompts(w http.ResponseWriter, r *http.Request) {
 		writeErrorResponse(w, nil, "internal_error", "Failed to list prompts", http.StatusInternalServerError)
 		return
 	}
+
+	attachPageFreshness(s, r.Context(), teamID, models.RelationResourceTypePrompt,
+		response.Prompts, promptID, setPromptFreshness)
 
 	writeOK(w, map[string]interface{}{
 		"status":  "success",

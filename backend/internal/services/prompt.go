@@ -75,6 +75,9 @@ func NewPromptService(deps PromptServiceDeps) *PromptService {
 }
 
 type PromptFilters struct {
+	// Freshness narrows the list to stale resources ("stale") or is empty for
+	// no freshness filtering (issue #735).
+	Freshness string
 	Status    string
 	Search    string
 	UserID    string
@@ -260,6 +263,7 @@ func (s *PromptService) ListPrompts(userID string, filters PromptFilters) (*mode
 
 	// Convert service filters to repository filters
 	repoFilters := repositories.PromptFilters{
+		Freshness: freshnessFilter(filters.Freshness),
 		Status:    filters.Status,
 		Search:    filters.Search,
 		TeamID:    filters.TeamID,
