@@ -11,6 +11,7 @@ import (
 	"github.com/vibexp/vibexp/internal/container/providers"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/freshness"
 	notificationsvc "github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/pkg/events"
 )
@@ -136,6 +137,8 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideTeamSearchSettingsService,
 	providers.ProvideFreshnessService,
 	providers.ProvideFreshnessEvaluator,
+	providers.ProvideFreshnessClearer,
+	wire.Bind(new(services.FreshnessClearer), new(*freshness.Clearer)),
 	providers.ProvideMetadataCatalogService,
 	providers.ProvideSearchService,
 	providers.ProvideEnvironmentService,

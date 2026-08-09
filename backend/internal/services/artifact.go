@@ -21,6 +21,7 @@ type ArtifactService struct {
 	contentVersionSvc ContentVersionServiceInterface
 	commentRepo       repositories.CommentRepository
 	relationRepo      repositories.RelationRepository
+	freshnessClearer  FreshnessClearer
 	logger            *slog.Logger
 }
 
@@ -37,6 +38,7 @@ type ArtifactServiceDeps struct {
 	ContentVersionSvc ContentVersionServiceInterface
 	CommentRepo       repositories.CommentRepository
 	RelationRepo      repositories.RelationRepository
+	FreshnessClearer  FreshnessClearer
 }
 
 func NewArtifactService(deps ArtifactServiceDeps) *ArtifactService {
@@ -48,6 +50,7 @@ func NewArtifactService(deps ArtifactServiceDeps) *ArtifactService {
 		contentVersionSvc: deps.ContentVersionSvc,
 		commentRepo:       deps.CommentRepo,
 		relationRepo:      deps.RelationRepo,
+		freshnessClearer:  deps.FreshnessClearer,
 		logger:            deps.Logger,
 	}
 }
@@ -476,25 +479,36 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 		return nil, err
 	}
 
-	// Publish artifact updated event
-	if s.eventManager != nil {
-		event := events.NewArtifactUpdatedEvent(events.ArtifactUpdatedPayload{
-			ArtifactID:  artifact.ID,
-			UserID:      artifact.UserID,
-			ProjectName: artifact.ProjectID,
-			Slug:        artifact.Slug,
-			Title:       artifact.Title,
-			Description: artifact.Description,
-			Type:        artifact.Type,
-			Body:        artifact.Content,
-			UpdatedAt:   artifact.UpdatedAt,
-		})
-		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.With("error", err).Warn("Failed to publish artifact updated event")
-		}
-	}
+	clearFreshnessAfterEdit(ctx, s.freshnessClearer, s.logger,
+		artifact.TeamID, "artifact", artifact.ID)
+
+	s.publishArtifactUpdatedEvent(ctx, artifact)
 
 	return artifact, nil
+}
+
+// publishArtifactUpdatedEvent emits the artifact-updated event (best-effort; a
+// publish failure is logged, never fatal). Extracted to keep the update path
+// within the function-length budget, mirroring publishBlueprintUpdatedEvent.
+func (s *ArtifactService) publishArtifactUpdatedEvent(ctx context.Context, artifact *models.Artifact) {
+	if s.eventManager == nil {
+		return
+	}
+
+	event := events.NewArtifactUpdatedEvent(events.ArtifactUpdatedPayload{
+		ArtifactID:  artifact.ID,
+		UserID:      artifact.UserID,
+		ProjectName: artifact.ProjectID,
+		Slug:        artifact.Slug,
+		Title:       artifact.Title,
+		Description: artifact.Description,
+		Type:        artifact.Type,
+		Body:        artifact.Content,
+		UpdatedAt:   artifact.UpdatedAt,
+	})
+	if err := s.eventManager.Publish(ctx, event); err != nil {
+		s.logger.With("error", err).Warn("Failed to publish artifact updated event")
+	}
 }
 
 func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, teamID, projectID, slug string) error {

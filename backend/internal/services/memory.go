@@ -21,6 +21,7 @@ type MemoryService struct {
 	contentVersionSvc ContentVersionServiceInterface
 	commentRepo       repositories.CommentRepository
 	relationRepo      repositories.RelationRepository
+	freshnessClearer  FreshnessClearer
 	logger            *slog.Logger
 }
 
@@ -36,6 +37,7 @@ func NewMemoryService(
 	contentVersionSvc ContentVersionServiceInterface,
 	commentRepo repositories.CommentRepository,
 	relationRepo repositories.RelationRepository,
+	freshnessClearer FreshnessClearer,
 ) *MemoryService {
 	return &MemoryService{
 		repo:              repo,
@@ -45,6 +47,7 @@ func NewMemoryService(
 		contentVersionSvc: contentVersionSvc,
 		commentRepo:       commentRepo,
 		relationRepo:      relationRepo,
+		freshnessClearer:  freshnessClearer,
 		logger:            logger,
 	}
 }
@@ -241,6 +244,9 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 	if err := s.repo.Update(ctx, memory); err != nil {
 		return nil, err
 	}
+
+	clearFreshnessAfterEdit(ctx, s.freshnessClearer, s.logger,
+		memory.TeamID, "memory", memory.ID)
 
 	// Publish memory updated event using project_id as project identifier
 	if s.eventManager != nil {

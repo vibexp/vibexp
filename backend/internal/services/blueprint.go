@@ -132,6 +132,7 @@ type BlueprintService struct {
 	contentVersionSvc ContentVersionServiceInterface
 	commentRepo       repositories.CommentRepository
 	relationRepo      repositories.RelationRepository
+	freshnessClearer  FreshnessClearer
 	logger            *slog.Logger
 }
 
@@ -148,6 +149,7 @@ type BlueprintServiceDeps struct {
 	ContentVersionSvc ContentVersionServiceInterface
 	CommentRepo       repositories.CommentRepository
 	RelationRepo      repositories.RelationRepository
+	FreshnessClearer  FreshnessClearer
 }
 
 func NewBlueprintService(deps BlueprintServiceDeps) *BlueprintService {
@@ -159,6 +161,7 @@ func NewBlueprintService(deps BlueprintServiceDeps) *BlueprintService {
 		contentVersionSvc: deps.ContentVersionSvc,
 		commentRepo:       deps.CommentRepo,
 		relationRepo:      deps.RelationRepo,
+		freshnessClearer:  deps.FreshnessClearer,
 		logger:            deps.Logger,
 	}
 }
@@ -576,6 +579,9 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 		).Error("Failed to update blueprint")
 		return nil, err
 	}
+
+	clearFreshnessAfterEdit(ctx, s.freshnessClearer, s.logger,
+		blueprint.TeamID, "blueprint", blueprint.ID)
 
 	s.publishBlueprintUpdatedEvent(ctx, blueprint)
 
