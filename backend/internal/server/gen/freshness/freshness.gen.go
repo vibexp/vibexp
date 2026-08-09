@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -20,6 +21,75 @@ const (
 	ApiKeyAuthScopes apiKeyAuthContextKey = "ApiKeyAuth.Scopes"
 	CookieAuthScopes cookieAuthContextKey = "CookieAuth.Scopes"
 )
+
+// Defines values for FreshnessAuditEntryAction.
+const (
+	Cleared FreshnessAuditEntryAction = "cleared"
+	Marked  FreshnessAuditEntryAction = "marked"
+)
+
+// Valid indicates whether the value is a known member of the FreshnessAuditEntryAction enum.
+func (e FreshnessAuditEntryAction) Valid() bool {
+	switch e {
+	case Cleared:
+		return true
+	case Marked:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FreshnessAuditEntryReason.
+const (
+	Accessed FreshnessAuditEntryReason = "accessed"
+	Edited   FreshnessAuditEntryReason = "edited"
+	RuleRun  FreshnessAuditEntryReason = "rule_run"
+)
+
+// Valid indicates whether the value is a known member of the FreshnessAuditEntryReason enum.
+func (e FreshnessAuditEntryReason) Valid() bool {
+	switch e {
+	case Accessed:
+		return true
+	case Edited:
+		return true
+	case RuleRun:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FreshnessMetricsRange.
+const (
+	N14d  FreshnessMetricsRange = "14d"
+	N180d FreshnessMetricsRange = "180d"
+	N30d  FreshnessMetricsRange = "30d"
+	N60d  FreshnessMetricsRange = "60d"
+	N7d   FreshnessMetricsRange = "7d"
+	N90d  FreshnessMetricsRange = "90d"
+)
+
+// Valid indicates whether the value is a known member of the FreshnessMetricsRange enum.
+func (e FreshnessMetricsRange) Valid() bool {
+	switch e {
+	case N14d:
+		return true
+	case N180d:
+		return true
+	case N30d:
+		return true
+	case N60d:
+		return true
+	case N7d:
+		return true
+	case N90d:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for FreshnessRuleMedium.
 const (
@@ -128,6 +198,140 @@ type ErrorResponse struct {
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
 }
 
+// FreshnessAuditEntry One recorded freshness transition. The log is append-only.
+type FreshnessAuditEntry struct {
+	// Action Whether the resource became stale or stopped being stale.
+	Action    FreshnessAuditEntryAction `json:"action"`
+	CreatedAt time.Time                 `json:"created_at"`
+	Id        openapi_types.UUID        `json:"id"`
+
+	// Reason What caused it — a scheduled evaluation, a read, or an edit.
+	Reason     FreshnessAuditEntryReason `json:"reason"`
+	ResourceId openapi_types.UUID        `json:"resource_id"`
+
+	// ResourceType A resource type a freshness rule can cover.
+	ResourceType FreshnessRuleResourceType `json:"resource_type"`
+
+	// RuleId The rule that caused the change, when exactly one did. Null for a reversal (caused by a read or an edit) and for a mark attributable to several rules at once — the resource's own state carries the full set.
+	RuleId *openapi_types.UUID `json:"rule_id"`
+}
+
+// FreshnessAuditEntryAction Whether the resource became stale or stopped being stale.
+type FreshnessAuditEntryAction string
+
+// FreshnessAuditEntryReason What caused it — a scheduled evaluation, a read, or an edit.
+type FreshnessAuditEntryReason string
+
+// FreshnessAuditListResponse A page of the team's freshness audit log, newest first.
+type FreshnessAuditListResponse struct {
+	// Entries Serializes as `[]` when the page is empty, never `null`.
+	Entries []FreshnessAuditEntry `json:"entries"`
+
+	// Page Current page number (1-based)
+	Page int `json:"page"`
+
+	// PerPage Number of entries per page
+	PerPage int `json:"per_page"`
+
+	// TotalCount Total entries in the team's log, ignoring pagination.
+	TotalCount int `json:"total_count"`
+
+	// TotalPages Total number of pages
+	TotalPages int `json:"total_pages"`
+}
+
+// FreshnessByProjectMetricsData defines model for FreshnessByProjectMetricsData.
+type FreshnessByProjectMetricsData struct {
+	// Counts One entry per project in the team, including projects with nothing stale (0), ordered by count descending then name. Serializes as `[]`, never `null`.
+	Counts     []FreshnessProjectCount `json:"counts"`
+	TotalStale int32                   `json:"total_stale"`
+}
+
+// FreshnessByProjectMetricsResponse defines model for FreshnessByProjectMetricsResponse.
+type FreshnessByProjectMetricsResponse struct {
+	Data    FreshnessByProjectMetricsData `json:"data"`
+	Message string                        `json:"message"`
+	Status  string                        `json:"status"`
+}
+
+// FreshnessByRuleMetricsData defines model for FreshnessByRuleMetricsData.
+type FreshnessByRuleMetricsData struct {
+	// Counts One entry per rule the team has defined, including rules matching nothing, ordered by count descending then rule id. Serializes as `[]`, never `null`.
+	Counts []FreshnessRuleImpact `json:"counts"`
+
+	// TotalStale Distinct stale resources in the team. It is NOT the sum of the per-rule counts: a resource matched by two rules is counted once here and once under each rule, because staleness is a union across rules.
+	TotalStale int32 `json:"total_stale"`
+}
+
+// FreshnessByRuleMetricsResponse defines model for FreshnessByRuleMetricsResponse.
+type FreshnessByRuleMetricsResponse struct {
+	Data    FreshnessByRuleMetricsData `json:"data"`
+	Message string                     `json:"message"`
+	Status  string                     `json:"status"`
+}
+
+// FreshnessByTypeMetricsData defines model for FreshnessByTypeMetricsData.
+type FreshnessByTypeMetricsData struct {
+	// Counts One entry per resource type, always all four, in a stable order — a type with nothing stale reports 0 rather than being omitted, so the chart's bars never move. Serializes as `[]`, never `null`.
+	Counts []FreshnessTypeCount `json:"counts"`
+
+	// TotalStale Total stale resources in the team, across every type.
+	TotalStale int32 `json:"total_stale"`
+}
+
+// FreshnessByTypeMetricsResponse defines model for FreshnessByTypeMetricsResponse.
+type FreshnessByTypeMetricsResponse struct {
+	Data    FreshnessByTypeMetricsData `json:"data"`
+	Message string                     `json:"message"`
+	Status  string                     `json:"status"`
+}
+
+// FreshnessDailyStaleCount One calendar day (UTC) of freshness activity, zero-filled: every day in the window is present even when nothing happened.
+type FreshnessDailyStaleCount struct {
+	// Cleared Resources that stopped being stale on this day, for any reason.
+	Cleared int32              `json:"cleared"`
+	Date    openapi_types.Date `json:"date"`
+
+	// Marked Resources that became stale on this day.
+	Marked int32 `json:"marked"`
+
+	// StaleTotal How many resources were stale at the END of this day — the level, not the flow. It is reconstructed by walking today's live count backwards through the recorded transitions, so it is exact only for the period the audit log covers; days before freshness evaluation first ran on this team read as the earliest known level rather than as zero.
+	StaleTotal int32 `json:"stale_total"`
+}
+
+// FreshnessMetricsRange The reporting window for a time-series metric. The options mirror the other analytics endpoints so one range selector drives every chart.
+type FreshnessMetricsRange string
+
+// FreshnessOverTimeMetricsData defines model for FreshnessOverTimeMetricsData.
+type FreshnessOverTimeMetricsData struct {
+	// Counts One entry per day in the window, oldest first. Serializes as `[]`, never `null`.
+	Counts []FreshnessDailyStaleCount `json:"counts"`
+
+	// Range The reporting window for a time-series metric. The options mirror the other analytics endpoints so one range selector drives every chart.
+	Range FreshnessMetricsRange `json:"range"`
+
+	// TotalCleared Resources cleared across the whole window.
+	TotalCleared int32 `json:"total_cleared"`
+
+	// TotalMarked Resources marked stale across the whole window.
+	TotalMarked int32 `json:"total_marked"`
+}
+
+// FreshnessOverTimeMetricsResponse defines model for FreshnessOverTimeMetricsResponse.
+type FreshnessOverTimeMetricsResponse struct {
+	Data    FreshnessOverTimeMetricsData `json:"data"`
+	Message string                       `json:"message"`
+	Status  string                       `json:"status"`
+}
+
+// FreshnessProjectCount How many resources are stale right now in one project. `name` and `slug` are carried so the client can label and deep-link the bar without a second request.
+type FreshnessProjectCount struct {
+	Count     int32              `json:"count"`
+	Name      string             `json:"name"`
+	ProjectId openapi_types.UUID `json:"project_id"`
+	Slug      string             `json:"slug"`
+}
+
 // FreshnessRule One team's rule for when a resource becomes stale.
 type FreshnessRule struct {
 	CreatedAt time.Time `json:"created_at"`
@@ -155,6 +359,20 @@ type FreshnessRule struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+// FreshnessRuleImpact How many resources one rule currently marks. Rules have no name, so the defining fields travel with the count for the client to label the bar.
+type FreshnessRuleImpact struct {
+	Count int32 `json:"count"`
+
+	// Enabled A disabled rule reports 0 — it is listed so its absence from the chart is not mistaken for deletion.
+	Enabled bool `json:"enabled"`
+
+	// ProjectId The project the rule is scoped to, or null for every project in the team.
+	ProjectId     *openapi_types.UUID         `json:"project_id"`
+	ResourceTypes []FreshnessRuleResourceType `json:"resource_types"`
+	RuleId        openapi_types.UUID          `json:"rule_id"`
+	ThresholdDays int32                       `json:"threshold_days"`
+}
+
 // FreshnessRuleListResponse The team's freshness rules, oldest first.
 type FreshnessRuleListResponse struct {
 	// Rules Freshness rules. Serializes as `[]` when the team has none, never `null`.
@@ -174,6 +392,14 @@ type FreshnessSettingsValues struct {
 
 	// ReversibilityEnabled Whether accessing or editing a stale resource clears its stale state.
 	ReversibilityEnabled bool `json:"reversibility_enabled"`
+}
+
+// FreshnessTypeCount How many of one resource type are stale right now.
+type FreshnessTypeCount struct {
+	Count int32 `json:"count"`
+
+	// ResourceType A resource type a freshness rule can cover.
+	ResourceType FreshnessRuleResourceType `json:"resource_type"`
 }
 
 // TeamFreshnessSettings The freshness settings in effect for a team, with their provenance. A team that has never overridden them reports `source: instance` and the defaults.
@@ -237,6 +463,21 @@ type bearerAuthContextKey string
 // cookieAuthContextKey is the context key for CookieAuth security scheme
 type cookieAuthContextKey string
 
+// ListFreshnessAuditParams defines parameters for ListFreshnessAudit.
+type ListFreshnessAuditParams struct {
+	// Page Page number (1-based)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// Limit Entries per page
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetFreshnessOverTimeMetricsParams defines parameters for GetFreshnessOverTimeMetrics.
+type GetFreshnessOverTimeMetricsParams struct {
+	// Range The reporting window. Defaults to 30d.
+	Range *FreshnessMetricsRange `form:"range,omitempty" json:"range,omitempty"`
+}
+
 // CreateFreshnessRuleJSONRequestBody defines body for CreateFreshnessRule for application/json ContentType.
 type CreateFreshnessRuleJSONRequestBody = CreateFreshnessRuleRequest
 
@@ -248,6 +489,21 @@ type UpdateTeamFreshnessSettingsJSONRequestBody = UpdateTeamFreshnessSettingsReq
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// List the team's freshness audit log
+	// (GET /api/v1/{team_id}/freshness/audit)
+	ListFreshnessAudit(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, params ListFreshnessAuditParams)
+	// Stale resources by project
+	// (GET /api/v1/{team_id}/freshness/metrics/by-project)
+	GetFreshnessByProjectMetrics(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Resources marked by each rule
+	// (GET /api/v1/{team_id}/freshness/metrics/by-rule)
+	GetFreshnessByRuleMetrics(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Stale resources by resource type
+	// (GET /api/v1/{team_id}/freshness/metrics/by-type)
+	GetFreshnessByTypeMetrics(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Freshness activity over time
+	// (GET /api/v1/{team_id}/freshness/metrics/over-time)
+	GetFreshnessOverTimeMetrics(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, params GetFreshnessOverTimeMetricsParams)
 	// List the team's freshness rules
 	// (GET /api/v1/{team_id}/freshness/rules)
 	ListFreshnessRules(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
@@ -274,6 +530,36 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// List the team's freshness audit log
+// (GET /api/v1/{team_id}/freshness/audit)
+func (_ Unimplemented) ListFreshnessAudit(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, params ListFreshnessAuditParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Stale resources by project
+// (GET /api/v1/{team_id}/freshness/metrics/by-project)
+func (_ Unimplemented) GetFreshnessByProjectMetrics(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Resources marked by each rule
+// (GET /api/v1/{team_id}/freshness/metrics/by-rule)
+func (_ Unimplemented) GetFreshnessByRuleMetrics(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Stale resources by resource type
+// (GET /api/v1/{team_id}/freshness/metrics/by-type)
+func (_ Unimplemented) GetFreshnessByTypeMetrics(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Freshness activity over time
+// (GET /api/v1/{team_id}/freshness/metrics/over-time)
+func (_ Unimplemented) GetFreshnessOverTimeMetrics(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, params GetFreshnessOverTimeMetricsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // List the team's freshness rules
 // (GET /api/v1/{team_id}/freshness/rules)
@@ -325,6 +611,221 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListFreshnessAudit operation middleware
+func (siw *ServerInterfaceWrapper) ListFreshnessAudit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListFreshnessAuditParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFreshnessAudit(w, r, teamId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFreshnessByProjectMetrics operation middleware
+func (siw *ServerInterfaceWrapper) GetFreshnessByProjectMetrics(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFreshnessByProjectMetrics(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFreshnessByRuleMetrics operation middleware
+func (siw *ServerInterfaceWrapper) GetFreshnessByRuleMetrics(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFreshnessByRuleMetrics(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFreshnessByTypeMetrics operation middleware
+func (siw *ServerInterfaceWrapper) GetFreshnessByTypeMetrics(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFreshnessByTypeMetrics(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFreshnessOverTimeMetrics operation middleware
+func (siw *ServerInterfaceWrapper) GetFreshnessOverTimeMetrics(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFreshnessOverTimeMetricsParams
+
+	// ------------- Optional query parameter "range" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "range", r.URL.Query(), &params.Range, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "range"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "range", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFreshnessOverTimeMetrics(w, r, teamId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListFreshnessRules operation middleware
 func (siw *ServerInterfaceWrapper) ListFreshnessRules(w http.ResponseWriter, r *http.Request) {
@@ -696,6 +1197,21 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/{team_id}/freshness/audit", wrapper.ListFreshnessAudit)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/{team_id}/freshness/metrics/by-project", wrapper.GetFreshnessByProjectMetrics)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/{team_id}/freshness/metrics/by-rule", wrapper.GetFreshnessByRuleMetrics)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/{team_id}/freshness/metrics/by-type", wrapper.GetFreshnessByTypeMetrics)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/{team_id}/freshness/metrics/over-time", wrapper.GetFreshnessOverTimeMetrics)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/{team_id}/freshness/rules", wrapper.ListFreshnessRules)
 	})
 	r.Group(func(r chi.Router) {
@@ -718,6 +1234,398 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 
 	return r
+}
+
+type ListFreshnessAuditRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Params ListFreshnessAuditParams
+}
+
+type ListFreshnessAuditResponseObject interface {
+	VisitListFreshnessAuditResponse(w http.ResponseWriter) error
+}
+
+type ListFreshnessAudit200JSONResponse FreshnessAuditListResponse
+
+func (response ListFreshnessAudit200JSONResponse) VisitListFreshnessAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFreshnessAudit400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListFreshnessAudit400ApplicationProblemPlusJSONResponse) VisitListFreshnessAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFreshnessAudit401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListFreshnessAudit401ApplicationProblemPlusJSONResponse) VisitListFreshnessAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFreshnessAudit403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListFreshnessAudit403ApplicationProblemPlusJSONResponse) VisitListFreshnessAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFreshnessAudit500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListFreshnessAudit500ApplicationProblemPlusJSONResponse) VisitListFreshnessAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByProjectMetricsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+}
+
+type GetFreshnessByProjectMetricsResponseObject interface {
+	VisitGetFreshnessByProjectMetricsResponse(w http.ResponseWriter) error
+}
+
+type GetFreshnessByProjectMetrics200JSONResponse FreshnessByProjectMetricsResponse
+
+func (response GetFreshnessByProjectMetrics200JSONResponse) VisitGetFreshnessByProjectMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByProjectMetrics400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessByProjectMetrics400ApplicationProblemPlusJSONResponse) VisitGetFreshnessByProjectMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByProjectMetrics401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessByProjectMetrics401ApplicationProblemPlusJSONResponse) VisitGetFreshnessByProjectMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByProjectMetrics403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessByProjectMetrics403ApplicationProblemPlusJSONResponse) VisitGetFreshnessByProjectMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByProjectMetrics500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessByProjectMetrics500ApplicationProblemPlusJSONResponse) VisitGetFreshnessByProjectMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByRuleMetricsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+}
+
+type GetFreshnessByRuleMetricsResponseObject interface {
+	VisitGetFreshnessByRuleMetricsResponse(w http.ResponseWriter) error
+}
+
+type GetFreshnessByRuleMetrics200JSONResponse FreshnessByRuleMetricsResponse
+
+func (response GetFreshnessByRuleMetrics200JSONResponse) VisitGetFreshnessByRuleMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByRuleMetrics400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessByRuleMetrics400ApplicationProblemPlusJSONResponse) VisitGetFreshnessByRuleMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByRuleMetrics401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessByRuleMetrics401ApplicationProblemPlusJSONResponse) VisitGetFreshnessByRuleMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByRuleMetrics403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessByRuleMetrics403ApplicationProblemPlusJSONResponse) VisitGetFreshnessByRuleMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByRuleMetrics500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessByRuleMetrics500ApplicationProblemPlusJSONResponse) VisitGetFreshnessByRuleMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByTypeMetricsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+}
+
+type GetFreshnessByTypeMetricsResponseObject interface {
+	VisitGetFreshnessByTypeMetricsResponse(w http.ResponseWriter) error
+}
+
+type GetFreshnessByTypeMetrics200JSONResponse FreshnessByTypeMetricsResponse
+
+func (response GetFreshnessByTypeMetrics200JSONResponse) VisitGetFreshnessByTypeMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByTypeMetrics400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessByTypeMetrics400ApplicationProblemPlusJSONResponse) VisitGetFreshnessByTypeMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByTypeMetrics401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessByTypeMetrics401ApplicationProblemPlusJSONResponse) VisitGetFreshnessByTypeMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByTypeMetrics403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessByTypeMetrics403ApplicationProblemPlusJSONResponse) VisitGetFreshnessByTypeMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessByTypeMetrics500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessByTypeMetrics500ApplicationProblemPlusJSONResponse) VisitGetFreshnessByTypeMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessOverTimeMetricsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Params GetFreshnessOverTimeMetricsParams
+}
+
+type GetFreshnessOverTimeMetricsResponseObject interface {
+	VisitGetFreshnessOverTimeMetricsResponse(w http.ResponseWriter) error
+}
+
+type GetFreshnessOverTimeMetrics200JSONResponse FreshnessOverTimeMetricsResponse
+
+func (response GetFreshnessOverTimeMetrics200JSONResponse) VisitGetFreshnessOverTimeMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessOverTimeMetrics400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessOverTimeMetrics400ApplicationProblemPlusJSONResponse) VisitGetFreshnessOverTimeMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessOverTimeMetrics401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessOverTimeMetrics401ApplicationProblemPlusJSONResponse) VisitGetFreshnessOverTimeMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessOverTimeMetrics403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessOverTimeMetrics403ApplicationProblemPlusJSONResponse) VisitGetFreshnessOverTimeMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFreshnessOverTimeMetrics500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetFreshnessOverTimeMetrics500ApplicationProblemPlusJSONResponse) VisitGetFreshnessOverTimeMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type ListFreshnessRulesRequestObject struct {
@@ -1289,6 +2197,21 @@ func (response UpdateTeamFreshnessSettings500ApplicationProblemPlusJSONResponse)
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// List the team's freshness audit log
+	// (GET /api/v1/{team_id}/freshness/audit)
+	ListFreshnessAudit(ctx context.Context, request ListFreshnessAuditRequestObject) (ListFreshnessAuditResponseObject, error)
+	// Stale resources by project
+	// (GET /api/v1/{team_id}/freshness/metrics/by-project)
+	GetFreshnessByProjectMetrics(ctx context.Context, request GetFreshnessByProjectMetricsRequestObject) (GetFreshnessByProjectMetricsResponseObject, error)
+	// Resources marked by each rule
+	// (GET /api/v1/{team_id}/freshness/metrics/by-rule)
+	GetFreshnessByRuleMetrics(ctx context.Context, request GetFreshnessByRuleMetricsRequestObject) (GetFreshnessByRuleMetricsResponseObject, error)
+	// Stale resources by resource type
+	// (GET /api/v1/{team_id}/freshness/metrics/by-type)
+	GetFreshnessByTypeMetrics(ctx context.Context, request GetFreshnessByTypeMetricsRequestObject) (GetFreshnessByTypeMetricsResponseObject, error)
+	// Freshness activity over time
+	// (GET /api/v1/{team_id}/freshness/metrics/over-time)
+	GetFreshnessOverTimeMetrics(ctx context.Context, request GetFreshnessOverTimeMetricsRequestObject) (GetFreshnessOverTimeMetricsResponseObject, error)
 	// List the team's freshness rules
 	// (GET /api/v1/{team_id}/freshness/rules)
 	ListFreshnessRules(ctx context.Context, request ListFreshnessRulesRequestObject) (ListFreshnessRulesResponseObject, error)
@@ -1339,6 +2262,138 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ListFreshnessAudit operation middleware
+func (sh *strictHandler) ListFreshnessAudit(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, params ListFreshnessAuditParams) {
+	var request ListFreshnessAuditRequestObject
+
+	request.TeamId = teamId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListFreshnessAudit(ctx, request.(ListFreshnessAuditRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListFreshnessAudit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListFreshnessAuditResponseObject); ok {
+		if err := validResponse.VisitListFreshnessAuditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFreshnessByProjectMetrics operation middleware
+func (sh *strictHandler) GetFreshnessByProjectMetrics(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request GetFreshnessByProjectMetricsRequestObject
+
+	request.TeamId = teamId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFreshnessByProjectMetrics(ctx, request.(GetFreshnessByProjectMetricsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFreshnessByProjectMetrics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFreshnessByProjectMetricsResponseObject); ok {
+		if err := validResponse.VisitGetFreshnessByProjectMetricsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFreshnessByRuleMetrics operation middleware
+func (sh *strictHandler) GetFreshnessByRuleMetrics(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request GetFreshnessByRuleMetricsRequestObject
+
+	request.TeamId = teamId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFreshnessByRuleMetrics(ctx, request.(GetFreshnessByRuleMetricsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFreshnessByRuleMetrics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFreshnessByRuleMetricsResponseObject); ok {
+		if err := validResponse.VisitGetFreshnessByRuleMetricsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFreshnessByTypeMetrics operation middleware
+func (sh *strictHandler) GetFreshnessByTypeMetrics(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request GetFreshnessByTypeMetricsRequestObject
+
+	request.TeamId = teamId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFreshnessByTypeMetrics(ctx, request.(GetFreshnessByTypeMetricsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFreshnessByTypeMetrics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFreshnessByTypeMetricsResponseObject); ok {
+		if err := validResponse.VisitGetFreshnessByTypeMetricsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFreshnessOverTimeMetrics operation middleware
+func (sh *strictHandler) GetFreshnessOverTimeMetrics(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, params GetFreshnessOverTimeMetricsParams) {
+	var request GetFreshnessOverTimeMetricsRequestObject
+
+	request.TeamId = teamId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFreshnessOverTimeMetrics(ctx, request.(GetFreshnessOverTimeMetricsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFreshnessOverTimeMetrics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFreshnessOverTimeMetricsResponseObject); ok {
+		if err := validResponse.VisitGetFreshnessOverTimeMetricsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // ListFreshnessRules operation middleware

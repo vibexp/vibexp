@@ -164,7 +164,7 @@
     },
     {
       "name": "Freshness",
-      "description": "Per-team resource freshness rules and evaluation settings (epic"
+      "description": "Per-team resource freshness rules, evaluation settings, analytics and audit log (epic"
     },
     {
       "name": "Admin",
@@ -16887,6 +16887,452 @@
         ]
       }
     },
+    "/api/v1/{team_id}/freshness/metrics/over-time": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team identifier",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Freshness activity over time",
+        "description": "Daily marked/cleared counts and the reconstructed stale level over the requested window, zero-filled so every day in the range is present.\n",
+        "operationId": "getFreshnessOverTimeMetrics",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "description": "The reporting window. Defaults to 30d.",
+            "schema": {
+              "$ref": "#/components/schemas/FreshnessMetricsRange"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metrics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreshnessOverTimeMetricsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team_id or query parameter",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to build the team's freshness over-time metrics",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Freshness"
+        ]
+      }
+    },
+    "/api/v1/{team_id}/freshness/metrics/by-type": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team identifier",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Stale resources by resource type",
+        "description": "Current stale counts per resource type. All four types are always present; one with nothing stale reports 0.\n",
+        "operationId": "getFreshnessByTypeMetrics",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metrics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreshnessByTypeMetricsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team_id or query parameter",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to build the team's freshness by-type metrics",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Freshness"
+        ]
+      }
+    },
+    "/api/v1/{team_id}/freshness/metrics/by-project": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team identifier",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Stale resources by project",
+        "description": "Current stale counts per project in the team, including projects with nothing stale.\n",
+        "operationId": "getFreshnessByProjectMetrics",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metrics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreshnessByProjectMetricsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team_id or query parameter",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to build the team's freshness by-project metrics",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Freshness"
+        ]
+      }
+    },
+    "/api/v1/{team_id}/freshness/metrics/by-rule": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team identifier",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Resources marked by each rule",
+        "description": "How many resources each of the team's rules currently marks, including rules that match nothing. This is how an over-broad rule is spotted.\n",
+        "operationId": "getFreshnessByRuleMetrics",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metrics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreshnessByRuleMetricsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team_id or query parameter",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to build the team's freshness by-rule metrics",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Freshness"
+        ]
+      }
+    },
+    "/api/v1/{team_id}/freshness/audit": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team identifier",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "List the team's freshness audit log",
+        "description": "Every recorded mark and clear for the team, newest first and paginated. Readable by any member. The list is empty, never null, past the last page.\n",
+        "operationId": "listFreshnessAudit",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number (1-based)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Entries per page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit log retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreshnessAuditListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team_id or query parameter",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to list the team's freshness audit log",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Freshness"
+        ]
+      }
+    },
     "/api/v1/{team_id}/settings/embedding-providers": {
       "parameters": [
         {
@@ -29660,6 +30106,419 @@
           },
           "reversibility_enabled": {
             "type": "boolean"
+          }
+        }
+      },
+      "FreshnessMetricsRange": {
+        "type": "string",
+        "description": "The reporting window for a time-series metric. The options mirror the other analytics endpoints so one range selector drives every chart.\n",
+        "enum": [
+          "7d",
+          "14d",
+          "30d",
+          "60d",
+          "90d",
+          "180d"
+        ],
+        "example": "30d"
+      },
+      "FreshnessDailyStaleCount": {
+        "type": "object",
+        "description": "One calendar day (UTC) of freshness activity, zero-filled: every day in the window is present even when nothing happened.\n",
+        "required": [
+          "date",
+          "marked",
+          "cleared",
+          "stale_total"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-05-01"
+          },
+          "marked": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "description": "Resources that became stale on this day."
+          },
+          "cleared": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "description": "Resources that stopped being stale on this day, for any reason."
+          },
+          "stale_total": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "description": "How many resources were stale at the END of this day — the level, not the flow. It is reconstructed by walking today's live count backwards through the recorded transitions, so it is exact only for the period the audit log covers; days before freshness evaluation first ran on this team read as the earliest known level rather than as zero.\n"
+          }
+        }
+      },
+      "FreshnessOverTimeMetricsData": {
+        "type": "object",
+        "required": [
+          "range",
+          "total_marked",
+          "total_cleared",
+          "counts"
+        ],
+        "properties": {
+          "range": {
+            "$ref": "#/components/schemas/FreshnessMetricsRange"
+          },
+          "total_marked": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "description": "Resources marked stale across the whole window."
+          },
+          "total_cleared": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "description": "Resources cleared across the whole window."
+          },
+          "counts": {
+            "type": "array",
+            "description": "One entry per day in the window, oldest first. Serializes as `[]`, never `null`.",
+            "items": {
+              "$ref": "#/components/schemas/FreshnessDailyStaleCount"
+            }
+          }
+        }
+      },
+      "FreshnessOverTimeMetricsResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "message",
+          "data"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Freshness over-time metrics retrieved successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FreshnessOverTimeMetricsData"
+          }
+        }
+      },
+      "FreshnessTypeCount": {
+        "type": "object",
+        "description": "How many of one resource type are stale right now.",
+        "required": [
+          "resource_type",
+          "count"
+        ],
+        "properties": {
+          "resource_type": {
+            "$ref": "#/components/schemas/FreshnessRuleResourceType"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "FreshnessByTypeMetricsData": {
+        "type": "object",
+        "required": [
+          "total_stale",
+          "counts"
+        ],
+        "properties": {
+          "total_stale": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "description": "Total stale resources in the team, across every type."
+          },
+          "counts": {
+            "type": "array",
+            "description": "One entry per resource type, always all four, in a stable order — a type with nothing stale reports 0 rather than being omitted, so the chart's bars never move. Serializes as `[]`, never `null`.\n",
+            "items": {
+              "$ref": "#/components/schemas/FreshnessTypeCount"
+            }
+          }
+        }
+      },
+      "FreshnessByTypeMetricsResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "message",
+          "data"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Freshness by-type metrics retrieved successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FreshnessByTypeMetricsData"
+          }
+        }
+      },
+      "FreshnessProjectCount": {
+        "type": "object",
+        "description": "How many resources are stale right now in one project. `name` and `slug` are carried so the client can label and deep-link the bar without a second request.\n",
+        "required": [
+          "project_id",
+          "name",
+          "slug",
+          "count"
+        ],
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "FreshnessByProjectMetricsData": {
+        "type": "object",
+        "required": [
+          "total_stale",
+          "counts"
+        ],
+        "properties": {
+          "total_stale": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "counts": {
+            "type": "array",
+            "description": "One entry per project in the team, including projects with nothing stale (0), ordered by count descending then name. Serializes as `[]`, never `null`.\n",
+            "items": {
+              "$ref": "#/components/schemas/FreshnessProjectCount"
+            }
+          }
+        }
+      },
+      "FreshnessByProjectMetricsResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "message",
+          "data"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Freshness by-project metrics retrieved successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FreshnessByProjectMetricsData"
+          }
+        }
+      },
+      "FreshnessRuleImpact": {
+        "type": "object",
+        "description": "How many resources one rule currently marks. Rules have no name, so the defining fields travel with the count for the client to label the bar.\n",
+        "required": [
+          "rule_id",
+          "project_id",
+          "resource_types",
+          "threshold_days",
+          "enabled",
+          "count"
+        ],
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The project the rule is scoped to, or null for every project in the team."
+          },
+          "resource_types": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/FreshnessRuleResourceType"
+            }
+          },
+          "threshold_days": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "A disabled rule reports 0 — it is listed so its absence from the chart is not mistaken for deletion."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "FreshnessByRuleMetricsData": {
+        "type": "object",
+        "required": [
+          "total_stale",
+          "counts"
+        ],
+        "properties": {
+          "total_stale": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "description": "Distinct stale resources in the team. It is NOT the sum of the per-rule counts: a resource matched by two rules is counted once here and once under each rule, because staleness is a union across rules.\n"
+          },
+          "counts": {
+            "type": "array",
+            "description": "One entry per rule the team has defined, including rules matching nothing, ordered by count descending then rule id. Serializes as `[]`, never `null`.\n",
+            "items": {
+              "$ref": "#/components/schemas/FreshnessRuleImpact"
+            }
+          }
+        }
+      },
+      "FreshnessByRuleMetricsResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "message",
+          "data"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Freshness by-rule metrics retrieved successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FreshnessByRuleMetricsData"
+          }
+        }
+      },
+      "FreshnessAuditEntry": {
+        "type": "object",
+        "description": "One recorded freshness transition. The log is append-only.",
+        "required": [
+          "id",
+          "resource_type",
+          "resource_id",
+          "rule_id",
+          "action",
+          "reason",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "resource_type": {
+            "$ref": "#/components/schemas/FreshnessRuleResourceType"
+          },
+          "resource_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rule_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The rule that caused the change, when exactly one did. Null for a reversal (caused by a read or an edit) and for a mark attributable to several rules at once — the resource's own state carries the full set.\n"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "marked",
+              "cleared"
+            ],
+            "description": "Whether the resource became stale or stopped being stale."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "rule_run",
+              "accessed",
+              "edited"
+            ],
+            "description": "What caused it — a scheduled evaluation, a read, or an edit."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FreshnessAuditListResponse": {
+        "type": "object",
+        "description": "A page of the team's freshness audit log, newest first.",
+        "required": [
+          "entries",
+          "total_count",
+          "page",
+          "per_page",
+          "total_pages"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "description": "Serializes as `[]` when the page is empty, never `null`.",
+            "items": {
+              "$ref": "#/components/schemas/FreshnessAuditEntry"
+            }
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Total entries in the team's log, ignoring pagination.",
+            "example": 142
+          },
+          "page": {
+            "type": "integer",
+            "description": "Current page number (1-based)",
+            "example": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of entries per page",
+            "example": 20
+          },
+          "total_pages": {
+            "type": "integer",
+            "description": "Total number of pages",
+            "example": 8
           }
         }
       },

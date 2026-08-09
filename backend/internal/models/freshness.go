@@ -202,3 +202,100 @@ type ResourceFreshnessAudit struct {
 	Reason       string    `json:"reason"        db:"reason"`
 	CreatedAt    time.Time `json:"created_at"    db:"created_at"`
 }
+
+// FreshnessBucketCount is one row of a grouped count over resource_freshness:
+// a bucket key (a resource type, a project id or a rule id) and how many stale
+// resources fall in it.
+//
+// Grouped counts are returned SPARSE — a bucket with nothing stale is simply
+// absent — because the database cannot know the full key set (every resource
+// type, every project, every rule) without a join that would fan out. The
+// service fills the missing buckets with zero, which is where the full key set
+// is actually known. That split follows the existing analytics code, which
+// zero-fills its daily series in Go rather than in SQL.
+type FreshnessBucketCount struct {
+	Key   string
+	Count int
+}
+
+// FreshnessTransitionCount is one row of the audit log grouped by day and
+// action: how many resources were marked or cleared on a given UTC day. Also
+// sparse — days with no activity are absent.
+type FreshnessTransitionCount struct {
+	// Date is the UTC day, formatted YYYY-MM-DD to match the zero-filled
+	// series keys the handler builds.
+	Date   string
+	Action string
+	Count  int
+}
+
+// FreshnessDailyStale is one day of the over-time series: the flows (how many
+// resources changed state) and the level (how many were stale at the end of
+// the day).
+type FreshnessDailyStale struct {
+	Date       string
+	Marked     int
+	Cleared    int
+	StaleTotal int
+}
+
+// FreshnessOverTimeMetrics is the over-time chart's data, zero-filled: Days
+// holds one entry per day in the window, oldest first, with no gaps.
+type FreshnessOverTimeMetrics struct {
+	RangeDays    int
+	TotalMarked  int
+	TotalCleared int
+	Days         []FreshnessDailyStale
+}
+
+// FreshnessTypeMetrics is the by-type breakdown. Counts always covers all four
+// resource types so the chart's bars never move.
+type FreshnessTypeMetrics struct {
+	TotalStale int
+	Counts     []FreshnessBucketCount
+}
+
+// FreshnessProjectMetrics is the by-project breakdown. Counts covers every
+// project in the team, including those with nothing stale.
+type FreshnessProjectMetrics struct {
+	TotalStale int
+	Counts     []FreshnessProjectStale
+}
+
+// FreshnessProjectStale is one project's stale count, carrying the name and
+// slug so a client can label and deep-link the bar without a second request.
+type FreshnessProjectStale struct {
+	ProjectID string
+	Name      string
+	Slug      string
+	Count     int
+}
+
+// FreshnessRuleMetrics is the per-rule impact breakdown.
+//
+// TotalStale counts DISTINCT stale resources and is deliberately not the sum
+// of the per-rule counts: staleness is a union across rules (decision #5), so
+// a resource matched by two rules appears under both.
+type FreshnessRuleMetrics struct {
+	TotalStale int
+	Counts     []FreshnessRuleImpact
+}
+
+// FreshnessRuleImpact is one rule and how many resources it currently marks.
+// Rules have no name, so the defining fields travel with the count.
+type FreshnessRuleImpact struct {
+	RuleID        string
+	ProjectID     *string
+	ResourceTypes []string
+	ThresholdDays int
+	Enabled       bool
+	Count         int
+}
+
+// FreshnessAuditPage is one page of the audit log plus the total row count.
+type FreshnessAuditPage struct {
+	Entries    []*ResourceFreshnessAudit
+	TotalCount int
+	Page       int
+	PerPage    int
+}

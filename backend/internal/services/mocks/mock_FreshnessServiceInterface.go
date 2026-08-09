@@ -134,6 +134,243 @@ func (_c *MockFreshnessServiceInterface_DeleteRule_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// GetByProjectMetrics provides a mock function with given fields: ctx, teamID
+func (_m *MockFreshnessServiceInterface) GetByProjectMetrics(ctx context.Context, teamID string) (*models.FreshnessProjectMetrics, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByProjectMetrics")
+	}
+
+	var r0 *models.FreshnessProjectMetrics
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.FreshnessProjectMetrics, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.FreshnessProjectMetrics); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.FreshnessProjectMetrics)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockFreshnessServiceInterface_GetByProjectMetrics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByProjectMetrics'
+type MockFreshnessServiceInterface_GetByProjectMetrics_Call struct {
+	*mock.Call
+}
+
+// GetByProjectMetrics is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+func (_e *MockFreshnessServiceInterface_Expecter) GetByProjectMetrics(ctx interface{}, teamID interface{}) *MockFreshnessServiceInterface_GetByProjectMetrics_Call {
+	return &MockFreshnessServiceInterface_GetByProjectMetrics_Call{Call: _e.mock.On("GetByProjectMetrics", ctx, teamID)}
+}
+
+func (_c *MockFreshnessServiceInterface_GetByProjectMetrics_Call) Run(run func(ctx context.Context, teamID string)) *MockFreshnessServiceInterface_GetByProjectMetrics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_GetByProjectMetrics_Call) Return(_a0 *models.FreshnessProjectMetrics, _a1 error) *MockFreshnessServiceInterface_GetByProjectMetrics_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_GetByProjectMetrics_Call) RunAndReturn(run func(context.Context, string) (*models.FreshnessProjectMetrics, error)) *MockFreshnessServiceInterface_GetByProjectMetrics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetByRuleMetrics provides a mock function with given fields: ctx, teamID
+func (_m *MockFreshnessServiceInterface) GetByRuleMetrics(ctx context.Context, teamID string) (*models.FreshnessRuleMetrics, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByRuleMetrics")
+	}
+
+	var r0 *models.FreshnessRuleMetrics
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.FreshnessRuleMetrics, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.FreshnessRuleMetrics); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.FreshnessRuleMetrics)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockFreshnessServiceInterface_GetByRuleMetrics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByRuleMetrics'
+type MockFreshnessServiceInterface_GetByRuleMetrics_Call struct {
+	*mock.Call
+}
+
+// GetByRuleMetrics is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+func (_e *MockFreshnessServiceInterface_Expecter) GetByRuleMetrics(ctx interface{}, teamID interface{}) *MockFreshnessServiceInterface_GetByRuleMetrics_Call {
+	return &MockFreshnessServiceInterface_GetByRuleMetrics_Call{Call: _e.mock.On("GetByRuleMetrics", ctx, teamID)}
+}
+
+func (_c *MockFreshnessServiceInterface_GetByRuleMetrics_Call) Run(run func(ctx context.Context, teamID string)) *MockFreshnessServiceInterface_GetByRuleMetrics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_GetByRuleMetrics_Call) Return(_a0 *models.FreshnessRuleMetrics, _a1 error) *MockFreshnessServiceInterface_GetByRuleMetrics_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_GetByRuleMetrics_Call) RunAndReturn(run func(context.Context, string) (*models.FreshnessRuleMetrics, error)) *MockFreshnessServiceInterface_GetByRuleMetrics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetByTypeMetrics provides a mock function with given fields: ctx, teamID
+func (_m *MockFreshnessServiceInterface) GetByTypeMetrics(ctx context.Context, teamID string) (*models.FreshnessTypeMetrics, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByTypeMetrics")
+	}
+
+	var r0 *models.FreshnessTypeMetrics
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.FreshnessTypeMetrics, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.FreshnessTypeMetrics); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.FreshnessTypeMetrics)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockFreshnessServiceInterface_GetByTypeMetrics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByTypeMetrics'
+type MockFreshnessServiceInterface_GetByTypeMetrics_Call struct {
+	*mock.Call
+}
+
+// GetByTypeMetrics is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+func (_e *MockFreshnessServiceInterface_Expecter) GetByTypeMetrics(ctx interface{}, teamID interface{}) *MockFreshnessServiceInterface_GetByTypeMetrics_Call {
+	return &MockFreshnessServiceInterface_GetByTypeMetrics_Call{Call: _e.mock.On("GetByTypeMetrics", ctx, teamID)}
+}
+
+func (_c *MockFreshnessServiceInterface_GetByTypeMetrics_Call) Run(run func(ctx context.Context, teamID string)) *MockFreshnessServiceInterface_GetByTypeMetrics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_GetByTypeMetrics_Call) Return(_a0 *models.FreshnessTypeMetrics, _a1 error) *MockFreshnessServiceInterface_GetByTypeMetrics_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_GetByTypeMetrics_Call) RunAndReturn(run func(context.Context, string) (*models.FreshnessTypeMetrics, error)) *MockFreshnessServiceInterface_GetByTypeMetrics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetOverTimeMetrics provides a mock function with given fields: ctx, teamID, rangeDays
+func (_m *MockFreshnessServiceInterface) GetOverTimeMetrics(ctx context.Context, teamID string, rangeDays int) (*models.FreshnessOverTimeMetrics, error) {
+	ret := _m.Called(ctx, teamID, rangeDays)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetOverTimeMetrics")
+	}
+
+	var r0 *models.FreshnessOverTimeMetrics
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int) (*models.FreshnessOverTimeMetrics, error)); ok {
+		return rf(ctx, teamID, rangeDays)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, int) *models.FreshnessOverTimeMetrics); ok {
+		r0 = rf(ctx, teamID, rangeDays)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.FreshnessOverTimeMetrics)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, int) error); ok {
+		r1 = rf(ctx, teamID, rangeDays)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockFreshnessServiceInterface_GetOverTimeMetrics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetOverTimeMetrics'
+type MockFreshnessServiceInterface_GetOverTimeMetrics_Call struct {
+	*mock.Call
+}
+
+// GetOverTimeMetrics is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - rangeDays int
+func (_e *MockFreshnessServiceInterface_Expecter) GetOverTimeMetrics(ctx interface{}, teamID interface{}, rangeDays interface{}) *MockFreshnessServiceInterface_GetOverTimeMetrics_Call {
+	return &MockFreshnessServiceInterface_GetOverTimeMetrics_Call{Call: _e.mock.On("GetOverTimeMetrics", ctx, teamID, rangeDays)}
+}
+
+func (_c *MockFreshnessServiceInterface_GetOverTimeMetrics_Call) Run(run func(ctx context.Context, teamID string, rangeDays int)) *MockFreshnessServiceInterface_GetOverTimeMetrics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(int))
+	})
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_GetOverTimeMetrics_Call) Return(_a0 *models.FreshnessOverTimeMetrics, _a1 error) *MockFreshnessServiceInterface_GetOverTimeMetrics_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_GetOverTimeMetrics_Call) RunAndReturn(run func(context.Context, string, int) (*models.FreshnessOverTimeMetrics, error)) *MockFreshnessServiceInterface_GetOverTimeMetrics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetSettings provides a mock function with given fields: ctx, teamID
 func (_m *MockFreshnessServiceInterface) GetSettings(ctx context.Context, teamID string) (*models.TeamFreshnessSettingsView, error) {
 	ret := _m.Called(ctx, teamID)
@@ -189,6 +426,67 @@ func (_c *MockFreshnessServiceInterface_GetSettings_Call) Return(_a0 *models.Tea
 }
 
 func (_c *MockFreshnessServiceInterface_GetSettings_Call) RunAndReturn(run func(context.Context, string) (*models.TeamFreshnessSettingsView, error)) *MockFreshnessServiceInterface_GetSettings_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListAudit provides a mock function with given fields: ctx, teamID, page, limit
+func (_m *MockFreshnessServiceInterface) ListAudit(ctx context.Context, teamID string, page int, limit int) (*models.FreshnessAuditPage, error) {
+	ret := _m.Called(ctx, teamID, page, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAudit")
+	}
+
+	var r0 *models.FreshnessAuditPage
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int, int) (*models.FreshnessAuditPage, error)); ok {
+		return rf(ctx, teamID, page, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, int, int) *models.FreshnessAuditPage); ok {
+		r0 = rf(ctx, teamID, page, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.FreshnessAuditPage)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, int, int) error); ok {
+		r1 = rf(ctx, teamID, page, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockFreshnessServiceInterface_ListAudit_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAudit'
+type MockFreshnessServiceInterface_ListAudit_Call struct {
+	*mock.Call
+}
+
+// ListAudit is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - page int
+//   - limit int
+func (_e *MockFreshnessServiceInterface_Expecter) ListAudit(ctx interface{}, teamID interface{}, page interface{}, limit interface{}) *MockFreshnessServiceInterface_ListAudit_Call {
+	return &MockFreshnessServiceInterface_ListAudit_Call{Call: _e.mock.On("ListAudit", ctx, teamID, page, limit)}
+}
+
+func (_c *MockFreshnessServiceInterface_ListAudit_Call) Run(run func(ctx context.Context, teamID string, page int, limit int)) *MockFreshnessServiceInterface_ListAudit_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(int), args[3].(int))
+	})
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_ListAudit_Call) Return(_a0 *models.FreshnessAuditPage, _a1 error) *MockFreshnessServiceInterface_ListAudit_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_ListAudit_Call) RunAndReturn(run func(context.Context, string, int, int) (*models.FreshnessAuditPage, error)) *MockFreshnessServiceInterface_ListAudit_Call {
 	_c.Call.Return(run)
 	return _c
 }

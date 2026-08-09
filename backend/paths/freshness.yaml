@@ -377,3 +377,297 @@ api-v1-team_id-settings-freshness:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
     tags:
       - Freshness
+
+# ---------------------------------------------------------------------------
+# Analytics + audit reads (issue #734).
+#
+# All five are open to any team member — the tenancy middleware is the only
+# gate, exactly as for the rule and settings reads above. Making the audit log
+# team-visible rather than admin-only was an explicit product decision: people
+# only trust automation they can inspect.
+# ---------------------------------------------------------------------------
+
+api-v1-team_id-freshness-metrics-over-time:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team identifier
+      schema:
+        type: string
+        format: uuid
+  get:
+    summary: Freshness activity over time
+    description: >
+      Daily marked/cleared counts and the reconstructed stale level over the
+      requested window, zero-filled so every day in the range is present.
+    operationId: getFreshnessOverTimeMetrics
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: range
+        in: query
+        required: false
+        description: The reporting window. Defaults to 30d.
+        schema:
+          $ref: '../openapi.yaml#/components/schemas/FreshnessMetricsRange'
+    responses:
+      '200':
+        description: Metrics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FreshnessOverTimeMetricsResponse'
+      '400':
+        description: Invalid team_id or query parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to build the team's freshness over-time metrics
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Freshness
+
+api-v1-team_id-freshness-metrics-by-type:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team identifier
+      schema:
+        type: string
+        format: uuid
+  get:
+    summary: Stale resources by resource type
+    description: >
+      Current stale counts per resource type. All four types are always
+      present; one with nothing stale reports 0.
+    operationId: getFreshnessByTypeMetrics
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Metrics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FreshnessByTypeMetricsResponse'
+      '400':
+        description: Invalid team_id or query parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to build the team's freshness by-type metrics
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Freshness
+
+api-v1-team_id-freshness-metrics-by-project:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team identifier
+      schema:
+        type: string
+        format: uuid
+  get:
+    summary: Stale resources by project
+    description: >
+      Current stale counts per project in the team, including projects with
+      nothing stale.
+    operationId: getFreshnessByProjectMetrics
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Metrics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FreshnessByProjectMetricsResponse'
+      '400':
+        description: Invalid team_id or query parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to build the team's freshness by-project metrics
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Freshness
+
+api-v1-team_id-freshness-metrics-by-rule:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team identifier
+      schema:
+        type: string
+        format: uuid
+  get:
+    summary: Resources marked by each rule
+    description: >
+      How many resources each of the team's rules currently marks, including
+      rules that match nothing. This is how an over-broad rule is spotted.
+    operationId: getFreshnessByRuleMetrics
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Metrics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FreshnessByRuleMetricsResponse'
+      '400':
+        description: Invalid team_id or query parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to build the team's freshness by-rule metrics
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Freshness
+
+api-v1-team_id-freshness-audit:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team identifier
+      schema:
+        type: string
+        format: uuid
+  get:
+    summary: List the team's freshness audit log
+    description: >
+      Every recorded mark and clear for the team, newest first and paginated.
+      Readable by any member. The list is empty, never null, past the last page.
+    operationId: listFreshnessAudit
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: page
+        in: query
+        required: false
+        description: Page number (1-based)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        required: false
+        description: Entries per page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Audit log retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FreshnessAuditListResponse'
+      '400':
+        description: Invalid team_id or query parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to list the team's freshness audit log
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Freshness

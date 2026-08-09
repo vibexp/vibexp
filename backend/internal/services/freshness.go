@@ -86,6 +86,26 @@ type FreshnessServiceInterface interface {
 	// ResetSettings removes the team's stored settings so it inherits the
 	// defaults. Resetting a team that has none is a no-op, not an error.
 	ResetSettings(ctx context.Context, userID, teamID string) error
+
+	// The five reads below back the analytics charts and the audit tab (#734).
+	// Like the other reads here they take no userID and perform no permission
+	// check: the tenancy middleware has established membership, and every
+	// member may see what the engine did.
+
+	// GetOverTimeMetrics returns the daily marked/cleared flows and the
+	// reconstructed stale level over the window, zero-filled.
+	GetOverTimeMetrics(ctx context.Context, teamID string, rangeDays int) (*models.FreshnessOverTimeMetrics, error)
+	// GetByTypeMetrics returns current stale counts for all four resource
+	// types, including the types with nothing stale.
+	GetByTypeMetrics(ctx context.Context, teamID string) (*models.FreshnessTypeMetrics, error)
+	// GetByProjectMetrics returns current stale counts for every project in
+	// the team, including projects with nothing stale.
+	GetByProjectMetrics(ctx context.Context, teamID string) (*models.FreshnessProjectMetrics, error)
+	// GetByRuleMetrics returns how many resources each of the team's rules
+	// currently marks, including rules matching nothing.
+	GetByRuleMetrics(ctx context.Context, teamID string) (*models.FreshnessRuleMetrics, error)
+	// ListAudit returns one page of the team's audit log, newest first.
+	ListAudit(ctx context.Context, teamID string, page, limit int) (*models.FreshnessAuditPage, error)
 }
 
 // FreshnessService implements FreshnessServiceInterface.
@@ -93,6 +113,7 @@ type FreshnessService struct {
 	rules     repositories.FreshnessRuleRepository
 	freshness repositories.ResourceFreshnessRepository
 	settings  repositories.TeamFreshnessSettingsRepository
+	audit     repositories.FreshnessAuditRepository
 	schedules repositories.ScheduleRepository
 	projects  repositories.ProjectRepository
 	authz     AuthorizationServiceInterface
@@ -106,6 +127,7 @@ func NewFreshnessService(
 	rules repositories.FreshnessRuleRepository,
 	freshness repositories.ResourceFreshnessRepository,
 	settings repositories.TeamFreshnessSettingsRepository,
+	audit repositories.FreshnessAuditRepository,
 	schedules repositories.ScheduleRepository,
 	projects repositories.ProjectRepository,
 	authzService AuthorizationServiceInterface,
@@ -115,6 +137,7 @@ func NewFreshnessService(
 		rules:     rules,
 		freshness: freshness,
 		settings:  settings,
+		audit:     audit,
 		schedules: schedules,
 		projects:  projects,
 		authz:     authzService,

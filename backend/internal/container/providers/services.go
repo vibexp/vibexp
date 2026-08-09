@@ -474,12 +474,13 @@ func ProvideFreshnessService(
 	rules repositories.FreshnessRuleRepository,
 	freshness repositories.ResourceFreshnessRepository,
 	settings repositories.TeamFreshnessSettingsRepository,
+	audit repositories.FreshnessAuditRepository,
 	schedules repositories.ScheduleRepository,
 	projects repositories.ProjectRepository,
 	authzService services.AuthorizationServiceInterface,
 	logger *slog.Logger,
 ) services.FreshnessServiceInterface {
-	return services.NewFreshnessService(rules, freshness, settings, schedules, projects, authzService, logger)
+	return services.NewFreshnessService(rules, freshness, settings, audit, schedules, projects, authzService, logger)
 }
 
 // ProvideFreshnessClearer creates the freshness reversal helper (#733), shared

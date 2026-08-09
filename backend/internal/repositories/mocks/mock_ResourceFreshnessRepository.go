@@ -22,6 +22,240 @@ func (_m *MockResourceFreshnessRepository) EXPECT() *MockResourceFreshnessReposi
 	return &MockResourceFreshnessRepository_Expecter{mock: &_m.Mock}
 }
 
+// CountStale provides a mock function with given fields: ctx, teamID
+func (_m *MockResourceFreshnessRepository) CountStale(ctx context.Context, teamID string) (int, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountStale")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (int, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) int); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockResourceFreshnessRepository_CountStale_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountStale'
+type MockResourceFreshnessRepository_CountStale_Call struct {
+	*mock.Call
+}
+
+// CountStale is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+func (_e *MockResourceFreshnessRepository_Expecter) CountStale(ctx interface{}, teamID interface{}) *MockResourceFreshnessRepository_CountStale_Call {
+	return &MockResourceFreshnessRepository_CountStale_Call{Call: _e.mock.On("CountStale", ctx, teamID)}
+}
+
+func (_c *MockResourceFreshnessRepository_CountStale_Call) Run(run func(ctx context.Context, teamID string)) *MockResourceFreshnessRepository_CountStale_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockResourceFreshnessRepository_CountStale_Call) Return(_a0 int, _a1 error) *MockResourceFreshnessRepository_CountStale_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockResourceFreshnessRepository_CountStale_Call) RunAndReturn(run func(context.Context, string) (int, error)) *MockResourceFreshnessRepository_CountStale_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CountStaleByProject provides a mock function with given fields: ctx, teamID
+func (_m *MockResourceFreshnessRepository) CountStaleByProject(ctx context.Context, teamID string) ([]models.FreshnessBucketCount, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountStaleByProject")
+	}
+
+	var r0 []models.FreshnessBucketCount
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]models.FreshnessBucketCount, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []models.FreshnessBucketCount); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.FreshnessBucketCount)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockResourceFreshnessRepository_CountStaleByProject_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountStaleByProject'
+type MockResourceFreshnessRepository_CountStaleByProject_Call struct {
+	*mock.Call
+}
+
+// CountStaleByProject is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+func (_e *MockResourceFreshnessRepository_Expecter) CountStaleByProject(ctx interface{}, teamID interface{}) *MockResourceFreshnessRepository_CountStaleByProject_Call {
+	return &MockResourceFreshnessRepository_CountStaleByProject_Call{Call: _e.mock.On("CountStaleByProject", ctx, teamID)}
+}
+
+func (_c *MockResourceFreshnessRepository_CountStaleByProject_Call) Run(run func(ctx context.Context, teamID string)) *MockResourceFreshnessRepository_CountStaleByProject_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockResourceFreshnessRepository_CountStaleByProject_Call) Return(_a0 []models.FreshnessBucketCount, _a1 error) *MockResourceFreshnessRepository_CountStaleByProject_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockResourceFreshnessRepository_CountStaleByProject_Call) RunAndReturn(run func(context.Context, string) ([]models.FreshnessBucketCount, error)) *MockResourceFreshnessRepository_CountStaleByProject_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CountStaleByRule provides a mock function with given fields: ctx, teamID
+func (_m *MockResourceFreshnessRepository) CountStaleByRule(ctx context.Context, teamID string) ([]models.FreshnessBucketCount, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountStaleByRule")
+	}
+
+	var r0 []models.FreshnessBucketCount
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]models.FreshnessBucketCount, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []models.FreshnessBucketCount); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.FreshnessBucketCount)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockResourceFreshnessRepository_CountStaleByRule_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountStaleByRule'
+type MockResourceFreshnessRepository_CountStaleByRule_Call struct {
+	*mock.Call
+}
+
+// CountStaleByRule is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+func (_e *MockResourceFreshnessRepository_Expecter) CountStaleByRule(ctx interface{}, teamID interface{}) *MockResourceFreshnessRepository_CountStaleByRule_Call {
+	return &MockResourceFreshnessRepository_CountStaleByRule_Call{Call: _e.mock.On("CountStaleByRule", ctx, teamID)}
+}
+
+func (_c *MockResourceFreshnessRepository_CountStaleByRule_Call) Run(run func(ctx context.Context, teamID string)) *MockResourceFreshnessRepository_CountStaleByRule_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockResourceFreshnessRepository_CountStaleByRule_Call) Return(_a0 []models.FreshnessBucketCount, _a1 error) *MockResourceFreshnessRepository_CountStaleByRule_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockResourceFreshnessRepository_CountStaleByRule_Call) RunAndReturn(run func(context.Context, string) ([]models.FreshnessBucketCount, error)) *MockResourceFreshnessRepository_CountStaleByRule_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CountStaleByType provides a mock function with given fields: ctx, teamID
+func (_m *MockResourceFreshnessRepository) CountStaleByType(ctx context.Context, teamID string) ([]models.FreshnessBucketCount, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountStaleByType")
+	}
+
+	var r0 []models.FreshnessBucketCount
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]models.FreshnessBucketCount, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []models.FreshnessBucketCount); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.FreshnessBucketCount)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockResourceFreshnessRepository_CountStaleByType_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountStaleByType'
+type MockResourceFreshnessRepository_CountStaleByType_Call struct {
+	*mock.Call
+}
+
+// CountStaleByType is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+func (_e *MockResourceFreshnessRepository_Expecter) CountStaleByType(ctx interface{}, teamID interface{}) *MockResourceFreshnessRepository_CountStaleByType_Call {
+	return &MockResourceFreshnessRepository_CountStaleByType_Call{Call: _e.mock.On("CountStaleByType", ctx, teamID)}
+}
+
+func (_c *MockResourceFreshnessRepository_CountStaleByType_Call) Run(run func(ctx context.Context, teamID string)) *MockResourceFreshnessRepository_CountStaleByType_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockResourceFreshnessRepository_CountStaleByType_Call) Return(_a0 []models.FreshnessBucketCount, _a1 error) *MockResourceFreshnessRepository_CountStaleByType_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockResourceFreshnessRepository_CountStaleByType_Call) RunAndReturn(run func(context.Context, string) ([]models.FreshnessBucketCount, error)) *MockResourceFreshnessRepository_CountStaleByType_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteByResource provides a mock function with given fields: ctx, resourceType, resourceID
 func (_m *MockResourceFreshnessRepository) DeleteByResource(ctx context.Context, resourceType string, resourceID string) (bool, error) {
 	ret := _m.Called(ctx, resourceType, resourceID)

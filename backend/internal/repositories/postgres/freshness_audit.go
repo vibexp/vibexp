@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -127,4 +128,46 @@ func scanFreshnessAuditDest(entry *models.ResourceFreshnessAudit) []interface{} 
 		&entry.ID, &entry.TeamID, &entry.ResourceType, &entry.ResourceID,
 		&entry.RuleID, &entry.Action, &entry.Reason, &entry.CreatedAt,
 	}
+}
+
+// CountTransitionsByDay returns the team's marked/cleared counts per UTC day
+// from `since` onwards, sparse.
+//
+// `TO_CHAR(DATE(created_at), 'YYYY-MM-DD')` renders the bucket as text in
+// exactly the layout the zero-filled series uses, so the two key sets align
+// without the caller parsing anything back — the same idiom as the resource
+// access and team creation metrics.
+func (r *FreshnessAuditRepository) CountTransitionsByDay(
+	ctx context.Context, teamID string, since time.Time,
+) ([]models.FreshnessTransitionCount, error) {
+	query := `
+		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD') AS date, action, COUNT(*)
+		FROM resource_freshness_audit
+		WHERE team_id = $1 AND created_at >= $2
+		GROUP BY DATE(created_at), action
+		ORDER BY DATE(created_at), action
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, teamID, since)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count freshness transitions by day: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close freshness transition rows", "error", closeErr)
+		}
+	}()
+
+	counts := make([]models.FreshnessTransitionCount, 0)
+	for rows.Next() {
+		var c models.FreshnessTransitionCount
+		if err := rows.Scan(&c.Date, &c.Action, &c.Count); err != nil {
+			return nil, fmt.Errorf("failed to scan freshness transition count: %w", err)
+		}
+		counts = append(counts, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate freshness transition counts: %w", err)
+	}
+	return counts, nil
 }
