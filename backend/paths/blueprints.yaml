@@ -106,6 +106,16 @@ api-v1-team_id-blueprints:
       filtering and pagination.
     operationId: listSpecLibraries
     parameters:
+      - name: freshness
+        in: query
+        description: >-
+          Filter to resources currently flagged stale by the team's freshness
+          rules (epic #726). Omit for no freshness filtering. Returns 400 for
+          any other value — a silently ignored filter would return the full
+          list, which looks like a legitimate answer.
+        schema:
+          type: string
+          enum: [stale]
       - name: team_id
         in: path
         required: true
@@ -275,6 +285,16 @@ api-v1-team_id-blueprints-project_id:
       Retrieves spec libraries for a specific project with optional filtering.
     operationId: listSpecLibrariesByProject
     parameters:
+      - name: freshness
+        in: query
+        description: >-
+          Filter to resources currently flagged stale by the team's freshness
+          rules (epic #726). Omit for no freshness filtering. Returns 400 for
+          any other value — a silently ignored filter would return the full
+          list, which looks like a legitimate answer.
+        schema:
+          type: string
+          enum: [stale]
       - name: team_id
         in: path
         required: true

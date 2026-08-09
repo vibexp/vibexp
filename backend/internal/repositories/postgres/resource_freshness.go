@@ -444,3 +444,50 @@ func (r *ResourceFreshnessRepository) CountStale(ctx context.Context, teamID str
 	}
 	return total, nil
 }
+
+// ListByResources returns the freshness rows for a page of resources of one
+// type, keyed by resource id.
+//
+// The predicate is `resource_type = $1 AND resource_id = ANY($2)`, which the
+// unique index on (resource_type, resource_id) serves: the leading column is
+// an equality and the second is a list of equalities. (`= ANY (array)` is only
+// unindexable when the ARRAY is the column -- see the rule-cleanup query, which
+// has to use the containment operator instead.)
+func (r *ResourceFreshnessRepository) ListByResources(
+	ctx context.Context, resourceType string, resourceIDs []string,
+) (map[string]*models.ResourceFreshness, error) {
+	// An empty page must not issue a query, and must still return a usable map
+	// so the caller can look ids up unconditionally.
+	if len(resourceIDs) == 0 {
+		return map[string]*models.ResourceFreshness{}, nil
+	}
+
+	query := `
+		SELECT ` + resourceFreshnessColumns + `
+		FROM resource_freshness
+		WHERE resource_type = $1 AND resource_id = ANY($2::uuid[])
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, resourceType, pq.Array(resourceIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list freshness for %s resources: %w", resourceType, err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close resource freshness page rows", "error", closeErr)
+		}
+	}()
+
+	byResource := make(map[string]*models.ResourceFreshness, len(resourceIDs))
+	for rows.Next() {
+		var f models.ResourceFreshness
+		if err := rows.Scan(scanResourceFreshnessDest(&f)...); err != nil {
+			return nil, fmt.Errorf("failed to scan freshness for %s resource: %w", resourceType, err)
+		}
+		byResource[f.ResourceID] = &f
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate freshness for %s resources: %w", resourceType, err)
+	}
+	return byResource, nil
+}

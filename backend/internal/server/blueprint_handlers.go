@@ -113,6 +113,9 @@ func (s *Server) handleGetBlueprint(w http.ResponseWriter, r *http.Request) {
 		r.Context(), userID, teamID, models.RelationResourceTypeBlueprint, blueprint.ID,
 	)
 	blueprint.Similar = s.similarForResource(r.Context(), teamID, models.RelationResourceTypeBlueprint, blueprint.ID)
+	blueprint.Freshness = s.freshnessForResource(
+		r.Context(), teamID, models.RelationResourceTypeBlueprint, blueprint.ID,
+	)
 
 	writeOK(w, blueprint, s.logger)
 }
@@ -147,6 +150,8 @@ func (s *Server) handleListBlueprints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	attachPageFreshness(s, r.Context(), teamID, models.RelationResourceTypeBlueprint,
+		response.Blueprints, blueprintID, setBlueprintFreshness)
 	writeOK(w, response, s.logger)
 }
 
@@ -199,6 +204,8 @@ func (s *Server) handleListBlueprintsByProject(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	attachPageFreshness(s, r.Context(), teamID, models.RelationResourceTypeBlueprint,
+		response.Blueprints, blueprintID, setBlueprintFreshness)
 	writeOK(w, response, s.logger)
 }
 
@@ -728,7 +735,13 @@ func (s *Server) buildBlueprintFilters(
 ) (services.BlueprintFilters, bool) {
 	query := r.URL.Query()
 
+	freshness, ok := parseFreshnessFilter(w, r)
+	if !ok {
+		return services.BlueprintFilters{}, false
+	}
+
 	filters := services.BlueprintFilters{
+		Freshness: freshness,
 		ProjectID: projectID,
 		TeamID:    teamID,
 		Status:    query.Get("status"),

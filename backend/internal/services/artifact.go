@@ -56,6 +56,9 @@ func NewArtifactService(deps ArtifactServiceDeps) *ArtifactService {
 }
 
 type ArtifactFilters struct {
+	// Freshness narrows the list to stale resources ("stale") or is empty for
+	// no freshness filtering (issue #735).
+	Freshness string
 	ProjectID string
 	Status    string
 	Type      string
@@ -270,6 +273,7 @@ func (s *ArtifactService) ListArtifacts(userID string, filters ArtifactFilters) 
 	}
 
 	repoFilters := repositories.ArtifactFilters{
+		Freshness:      freshnessFilter(filters.Freshness),
 		ProjectID:      projectID,
 		Status:         status,
 		Type:           artifactType,
@@ -333,6 +337,7 @@ func (s *ArtifactService) ListArtifactsByProjectCrossTeam(
 	}
 
 	repoFilters := repositories.ArtifactFilters{
+		Freshness:      freshnessFilter(filters.Freshness),
 		ProjectID:      projectIDPtr,
 		Status:         status,
 		Type:           artifactType,

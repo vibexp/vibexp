@@ -283,3 +283,47 @@ func indexFreshnessBuckets(buckets []models.FreshnessBucketCount) map[string]int
 	}
 	return byKey
 }
+
+// GetResourceFreshness returns one resource's freshness state, or nil when it
+// is fresh. Absence is the normal case, not an error.
+//
+// The stored row is filtered by team: `resource_freshness` is keyed on
+// (resource_type, resource_id) with no team predicate, so the check here is
+// what stops a resource id from one team surfacing state through another
+// team's endpoint.
+func (s *FreshnessService) GetResourceFreshness(
+	ctx context.Context, teamID, resourceType, resourceID string,
+) (*models.ResourceFreshnessState, error) {
+	row, err := s.freshness.GetByResource(ctx, resourceType, resourceID)
+	if err != nil {
+		return nil, fmt.Errorf("FreshnessService.GetResourceFreshness: %w", err)
+	}
+	if row == nil || row.TeamID != teamID {
+		return nil, nil
+	}
+	return models.NewResourceFreshnessState(row), nil
+}
+
+// ListResourceFreshness returns the freshness state of a page of resources,
+// keyed by resource id. Fresh resources are absent from the map.
+//
+// One query for the whole page: attaching freshness must not turn a list
+// endpoint into N+1 lookups, and it must not require widening the four resource
+// list queries (whose count and page halves build their FROM separately).
+func (s *FreshnessService) ListResourceFreshness(
+	ctx context.Context, teamID, resourceType string, resourceIDs []string,
+) (map[string]*models.ResourceFreshnessState, error) {
+	rows, err := s.freshness.ListByResources(ctx, resourceType, resourceIDs)
+	if err != nil {
+		return nil, fmt.Errorf("FreshnessService.ListResourceFreshness: %w", err)
+	}
+
+	states := make(map[string]*models.ResourceFreshnessState, len(rows))
+	for id, row := range rows {
+		if row.TeamID != teamID {
+			continue
+		}
+		states[id] = models.NewResourceFreshnessState(row)
+	}
+	return states, nil
+}

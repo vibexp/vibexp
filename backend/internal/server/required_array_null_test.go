@@ -133,6 +133,7 @@ var requiredArrayResponseRegistry = map[string]any{
 	"APIKey":                         models.APIKey{},
 	"AgentListResponse":              models.AgentListResponse{},
 	"ArtifactListResponse":           models.ArtifactListResponse{},
+	"ResourceFreshnessState":         models.ResourceFreshnessState{},
 	"ArtifactVersionListResponse":    models.ArtifactVersionListResponse{},
 	"AttachmentListResponse":         models.AttachmentListResponse{},
 	"BlueprintImportReport":          models.BlueprintImportReport{},

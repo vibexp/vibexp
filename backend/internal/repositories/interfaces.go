@@ -447,6 +447,11 @@ type PromptRepository interface {
 
 // PromptFilters represents filters for prompt queries
 type PromptFilters struct {
+	// Freshness narrows the list to stale resources when set to
+	// postgres.FreshnessFilterStale (issue #735). Nil means no freshness
+	// filtering, which must return exactly what it returned before the
+	// filter existed.
+	Freshness *string
 	Status    string
 	Search    string
 	TeamID    string
@@ -525,6 +530,11 @@ type ArtifactRepository interface {
 
 // ArtifactFilters represents filters for artifact queries
 type ArtifactFilters struct {
+	// Freshness narrows the list to stale resources when set to
+	// postgres.FreshnessFilterStale (issue #735). Nil means no freshness
+	// filtering, which must return exactly what it returned before the
+	// filter existed.
+	Freshness *string
 	ProjectID *string
 	Status    *string
 	Type      *string
@@ -758,7 +768,12 @@ type MemoryRepository interface {
 
 // MemoryFilters represents filters for memory queries
 type MemoryFilters struct {
-	Search string
+	// Freshness narrows the list to stale resources when set to
+	// postgres.FreshnessFilterStale (issue #735). Nil means no freshness
+	// filtering, which must return exactly what it returned before the
+	// filter existed.
+	Freshness *string
+	Search    string
 	// MetadataFilter is the JSONB containment filter behind the `metadata`
 	// query parameter: keys ANDed, values within a key ORed.
 	MetadataFilter MetadataFilter
@@ -1028,6 +1043,11 @@ type BlueprintRepository interface {
 
 // BlueprintFilters represents filters for blueprint queries
 type BlueprintFilters struct {
+	// Freshness narrows the list to stale resources when set to
+	// postgres.FreshnessFilterStale (issue #735). Nil means no freshness
+	// filtering, which must return exactly what it returned before the
+	// filter existed.
+	Freshness *string
 	ProjectID *string
 	Status    *string
 	Type      *string
@@ -1559,6 +1579,17 @@ type ResourceFreshnessRepository interface {
 	// A resource matched by several rules contributes to each of them, because
 	// staleness is a union across rules.
 	CountStaleByRule(ctx context.Context, teamID string) ([]models.FreshnessBucketCount, error)
+	// ListByResources returns the freshness rows for the given resources of one
+	// type, keyed by resource id. Ids that are not stale are simply absent from
+	// the map -- absence IS freshness, since a row exists only while stale.
+	//
+	// It exists so a list endpoint can attach freshness to a whole page with
+	// ONE indexed query instead of widening four resource list queries with a
+	// join (which would have to be mirrored in each of their separate count
+	// queries to keep pagination totals correct).
+	ListByResources(
+		ctx context.Context, resourceType string, resourceIDs []string,
+	) (map[string]*models.ResourceFreshness, error)
 	// CountStale returns how many DISTINCT resources are stale in the team --
 	// not the sum of any of the groupings above, which double-count a resource
 	// matched by more than one rule.

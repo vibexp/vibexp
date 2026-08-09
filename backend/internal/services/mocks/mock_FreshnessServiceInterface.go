@@ -371,6 +371,67 @@ func (_c *MockFreshnessServiceInterface_GetOverTimeMetrics_Call) RunAndReturn(ru
 	return _c
 }
 
+// GetResourceFreshness provides a mock function with given fields: ctx, teamID, resourceType, resourceID
+func (_m *MockFreshnessServiceInterface) GetResourceFreshness(ctx context.Context, teamID string, resourceType string, resourceID string) (*models.ResourceFreshnessState, error) {
+	ret := _m.Called(ctx, teamID, resourceType, resourceID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetResourceFreshness")
+	}
+
+	var r0 *models.ResourceFreshnessState
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (*models.ResourceFreshnessState, error)); ok {
+		return rf(ctx, teamID, resourceType, resourceID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) *models.ResourceFreshnessState); ok {
+		r0 = rf(ctx, teamID, resourceType, resourceID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.ResourceFreshnessState)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
+		r1 = rf(ctx, teamID, resourceType, resourceID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockFreshnessServiceInterface_GetResourceFreshness_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetResourceFreshness'
+type MockFreshnessServiceInterface_GetResourceFreshness_Call struct {
+	*mock.Call
+}
+
+// GetResourceFreshness is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - resourceType string
+//   - resourceID string
+func (_e *MockFreshnessServiceInterface_Expecter) GetResourceFreshness(ctx interface{}, teamID interface{}, resourceType interface{}, resourceID interface{}) *MockFreshnessServiceInterface_GetResourceFreshness_Call {
+	return &MockFreshnessServiceInterface_GetResourceFreshness_Call{Call: _e.mock.On("GetResourceFreshness", ctx, teamID, resourceType, resourceID)}
+}
+
+func (_c *MockFreshnessServiceInterface_GetResourceFreshness_Call) Run(run func(ctx context.Context, teamID string, resourceType string, resourceID string)) *MockFreshnessServiceInterface_GetResourceFreshness_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_GetResourceFreshness_Call) Return(_a0 *models.ResourceFreshnessState, _a1 error) *MockFreshnessServiceInterface_GetResourceFreshness_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_GetResourceFreshness_Call) RunAndReturn(run func(context.Context, string, string, string) (*models.ResourceFreshnessState, error)) *MockFreshnessServiceInterface_GetResourceFreshness_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetSettings provides a mock function with given fields: ctx, teamID
 func (_m *MockFreshnessServiceInterface) GetSettings(ctx context.Context, teamID string) (*models.TeamFreshnessSettingsView, error) {
 	ret := _m.Called(ctx, teamID)
@@ -487,6 +548,67 @@ func (_c *MockFreshnessServiceInterface_ListAudit_Call) Return(_a0 *models.Fresh
 }
 
 func (_c *MockFreshnessServiceInterface_ListAudit_Call) RunAndReturn(run func(context.Context, string, int, int) (*models.FreshnessAuditPage, error)) *MockFreshnessServiceInterface_ListAudit_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListResourceFreshness provides a mock function with given fields: ctx, teamID, resourceType, resourceIDs
+func (_m *MockFreshnessServiceInterface) ListResourceFreshness(ctx context.Context, teamID string, resourceType string, resourceIDs []string) (map[string]*models.ResourceFreshnessState, error) {
+	ret := _m.Called(ctx, teamID, resourceType, resourceIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListResourceFreshness")
+	}
+
+	var r0 map[string]*models.ResourceFreshnessState
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []string) (map[string]*models.ResourceFreshnessState, error)); ok {
+		return rf(ctx, teamID, resourceType, resourceIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []string) map[string]*models.ResourceFreshnessState); ok {
+		r0 = rf(ctx, teamID, resourceType, resourceIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]*models.ResourceFreshnessState)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, []string) error); ok {
+		r1 = rf(ctx, teamID, resourceType, resourceIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockFreshnessServiceInterface_ListResourceFreshness_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListResourceFreshness'
+type MockFreshnessServiceInterface_ListResourceFreshness_Call struct {
+	*mock.Call
+}
+
+// ListResourceFreshness is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - resourceType string
+//   - resourceIDs []string
+func (_e *MockFreshnessServiceInterface_Expecter) ListResourceFreshness(ctx interface{}, teamID interface{}, resourceType interface{}, resourceIDs interface{}) *MockFreshnessServiceInterface_ListResourceFreshness_Call {
+	return &MockFreshnessServiceInterface_ListResourceFreshness_Call{Call: _e.mock.On("ListResourceFreshness", ctx, teamID, resourceType, resourceIDs)}
+}
+
+func (_c *MockFreshnessServiceInterface_ListResourceFreshness_Call) Run(run func(ctx context.Context, teamID string, resourceType string, resourceIDs []string)) *MockFreshnessServiceInterface_ListResourceFreshness_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]string))
+	})
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_ListResourceFreshness_Call) Return(_a0 map[string]*models.ResourceFreshnessState, _a1 error) *MockFreshnessServiceInterface_ListResourceFreshness_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockFreshnessServiceInterface_ListResourceFreshness_Call) RunAndReturn(run func(context.Context, string, string, []string) (map[string]*models.ResourceFreshnessState, error)) *MockFreshnessServiceInterface_ListResourceFreshness_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -173,6 +173,10 @@ func buildMemoryListWhereClause(userID string, filters repositories.MemoryFilter
 		where = append(where, squirrel.Eq{"m.project_id": *filters.ProjectID})
 	}
 
+	if filters.Freshness != nil && *filters.Freshness == FreshnessFilterStale {
+		where = applyStaleFilter(where, "memory", "m.id")
+	}
+
 	if filters.Search != "" {
 		where = append(where, squirrel.Expr("m.text ILIKE ?", "%"+filters.Search+"%"))
 	}

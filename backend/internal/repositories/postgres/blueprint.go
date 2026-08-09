@@ -436,21 +436,11 @@ func buildBlueprintListOrderByClause(filters repositories.BlueprintFilters) stri
 func applyBlueprintFilters(
 	where squirrel.And, filters repositories.BlueprintFilters,
 ) squirrel.And {
-	if filters.ProjectID != nil && *filters.ProjectID != "" {
-		where = append(where, squirrel.Eq{"s.project_id": *filters.ProjectID})
+	if filters.Freshness != nil && *filters.Freshness == FreshnessFilterStale {
+		where = applyStaleFilter(where, "blueprint", "s.id")
 	}
 
-	if filters.Status != nil && *filters.Status != "" {
-		where = append(where, squirrel.Eq{"s.status": *filters.Status})
-	}
-
-	if filters.Type != nil && *filters.Type != "" {
-		where = append(where, squirrel.Eq{"s.type": *filters.Type})
-	}
-
-	if filters.Subtype != nil && *filters.Subtype != "" {
-		where = append(where, squirrel.Eq{"s.subtype": *filters.Subtype})
-	}
+	where = applyBlueprintColumnFilters(where, filters)
 
 	if filters.Search != "" {
 		term := "%" + filters.Search + "%"
@@ -463,6 +453,31 @@ func applyBlueprintFilters(
 		where = append(where, containment)
 	}
 
+	return where
+}
+
+// applyBlueprintColumnFilters appends the plain equality predicates. They are
+// split out of applyBlueprintFilters so that function stays inside the
+// cyclomatic budget as filters accrue — each one is a separate branch, and the
+// list only ever grows.
+func applyBlueprintColumnFilters(
+	where squirrel.And, filters repositories.BlueprintFilters,
+) squirrel.And {
+	equalities := []struct {
+		column string
+		value  *string
+	}{
+		{"s.project_id", filters.ProjectID},
+		{"s.status", filters.Status},
+		{"s.type", filters.Type},
+		{"s.subtype", filters.Subtype},
+	}
+
+	for _, eq := range equalities {
+		if eq.value != nil && *eq.value != "" {
+			where = append(where, squirrel.Eq{eq.column: *eq.value})
+		}
+	}
 	return where
 }
 

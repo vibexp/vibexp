@@ -788,6 +788,8 @@ components:
       $ref: "./schemas/freshness.yaml#/FreshnessAuditEntry"
     FreshnessAuditListResponse:
       $ref: "./schemas/freshness.yaml#/FreshnessAuditListResponse"
+    ResourceFreshnessState:
+      $ref: "./schemas/freshness.yaml#/ResourceFreshnessState"
 
     # Import team settings schemas (epic #487)
     TeamSearchSettings:

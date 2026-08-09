@@ -631,3 +631,56 @@ FreshnessAuditListResponse:
       type: integer
       description: Total number of pages
       example: 8
+
+# ---------------------------------------------------------------------------
+# Freshness on a resource payload (issue #735).
+#
+# Carried by the artifact, prompt, blueprint and memory schemas. It is
+# deliberately OPTIONAL (absent from every `required` list) and omitted
+# entirely when the resource is fresh: a row exists in resource_freshness only
+# while a resource IS stale, so absence already means fresh and no client has
+# to interpret a zero-valued object. Optional + omitted is also what makes
+# adding it a non-breaking change for every existing client.
+# ---------------------------------------------------------------------------
+
+ResourceFreshnessState:
+  type: object
+  description: >
+    The resource's staleness state. Present only when the resource is stale;
+    absent means fresh.
+  required:
+    - status
+    - since
+    - matched_rule_ids
+    - reason
+  properties:
+    status:
+      type: string
+      enum:
+        - stale
+      description: >
+        Today the only state a resource can be in while it has freshness state
+        at all. It is modelled as an enum rather than a boolean so a future
+        state can be added without changing the field's type.
+    since:
+      type: string
+      format: date-time
+      description: >
+        When the resource was FIRST marked stale. It is preserved across
+        re-evaluations that keep it stale, so it is the age a client can show.
+    matched_rule_ids:
+      type: array
+      description: >
+        Every rule that currently marks this resource — staleness is a union
+        across rules, so this answers "why is this stale". Serializes as `[]`,
+        never `null`.
+      items:
+        type: string
+        format: uuid
+    reason:
+      type: string
+      enum:
+        - rule_run
+        - accessed
+        - edited
+      description: What produced the current state.

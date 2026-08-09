@@ -53,7 +53,10 @@ func NewMemoryService(
 }
 
 type MemoryFilters struct {
-	Search string
+	// Freshness narrows the list to stale resources ("stale") or is empty for
+	// no freshness filtering (issue #735).
+	Freshness string
+	Search    string
 	// MetadataFilter is the parsed `metadata` query parameter (epic #519).
 	MetadataFilter repositories.MetadataFilter
 	Status         *string
@@ -129,6 +132,7 @@ func (s *MemoryService) ListMemories(userID string, filters MemoryFilters) (*mod
 	}
 
 	repoFilters := repositories.MemoryFilters{
+		Freshness:      freshnessFilter(filters.Freshness),
 		Search:         filters.Search,
 		MetadataFilter: filters.MetadataFilter,
 		Status:         filters.Status,

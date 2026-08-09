@@ -77,6 +77,8 @@ Prompt:
         distinct from `related`. Populated on the detail GET; empty otherwise.
       items:
         $ref: './relations.yaml#/SimilarResource'
+    freshness:
+      $ref: '../openapi.yaml#/components/schemas/ResourceFreshnessState'
   required:
     - id
     - name

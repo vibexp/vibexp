@@ -145,6 +145,11 @@ func isAllowedMemoryStatus(status string) bool {
 func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (services.MemoryFilters, bool) {
 	query := r.URL.Query()
 
+	freshness, ok := parseFreshnessFilter(w, r)
+	if !ok {
+		return services.MemoryFilters{}, false
+	}
+
 	sortBy := query.Get("sort_by")
 	if sortBy != "" && !allowedMemorySortFields[sortBy] {
 		writeErrorResponse(w, nil, "validation_error", "invalid sort_by value: "+sortBy, http.StatusBadRequest)
@@ -183,6 +188,7 @@ func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (
 	}
 
 	filters := services.MemoryFilters{
+		Freshness:      freshness,
 		TeamID:         teamID,
 		ProjectID:      projectID,
 		Search:         search,
@@ -235,6 +241,9 @@ func (s *Server) handleGetMemory(w http.ResponseWriter, r *http.Request) {
 		r.Context(), userID, teamID, models.RelationResourceTypeMemory, memory.ID,
 	)
 	memory.Similar = s.similarForResource(r.Context(), teamID, models.RelationResourceTypeMemory, memory.ID)
+	memory.Freshness = s.freshnessForResource(
+		r.Context(), teamID, models.RelationResourceTypeMemory, memory.ID,
+	)
 
 	writeOK(w, memory, s.logger)
 }
@@ -267,6 +276,8 @@ func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	attachPageFreshness(s, r.Context(), teamID, models.RelationResourceTypeMemory,
+		response.Memories, memoryID, setMemoryFreshness)
 	writeOK(w, response, s.logger)
 }
 

@@ -34,6 +34,11 @@ type Memory struct {
 	// detail read (issue #427). Distinct from Related (stored typed edges); never
 	// persisted. JSONArray so it always serializes as [] (never null); db:"-".
 	Similar JSONArray[SimilarResource] `json:"similar" db:"-"`
+	// Freshness is the resource's staleness state, or nil when it is fresh
+	// (issue #735). Like Related/Similar it is not a stored column: it is
+	// attached by the handler from resource_freshness, and it is OPTIONAL in
+	// the spec so adding it cannot break an existing client.
+	Freshness *ResourceFreshnessState `json:"freshness,omitempty" db:"-"`
 }
 
 type CreateMemoryRequest struct {

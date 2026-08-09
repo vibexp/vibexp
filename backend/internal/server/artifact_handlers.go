@@ -114,6 +114,9 @@ func (s *Server) handleGetArtifact(w http.ResponseWriter, r *http.Request) {
 		r.Context(), userID, teamID, models.RelationResourceTypeArtifact, artifact.ID,
 	)
 	artifact.Similar = s.similarForResource(r.Context(), teamID, models.RelationResourceTypeArtifact, artifact.ID)
+	artifact.Freshness = s.freshnessForResource(
+		r.Context(), teamID, models.RelationResourceTypeArtifact, artifact.ID,
+	)
 
 	writeOK(w, artifact, s.logger)
 }
@@ -149,6 +152,8 @@ func (s *Server) handleListArtifacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	attachPageFreshness(s, r.Context(), teamID, models.RelationResourceTypeArtifact,
+		response.Artifacts, artifactID, setArtifactFreshness)
 	writeOK(w, response, s.logger)
 }
 
@@ -201,6 +206,8 @@ func (s *Server) handleListArtifactsByProject(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	attachPageFreshness(s, r.Context(), teamID, models.RelationResourceTypeArtifact,
+		response.Artifacts, artifactID, setArtifactFreshness)
 	writeOK(w, response, s.logger)
 }
 
@@ -846,6 +853,12 @@ func (s *Server) buildArtifactFilters(
 	if projectID == "" {
 		filters.ProjectID = r.URL.Query().Get("project_id")
 	}
+
+	freshness, ok := parseFreshnessFilter(w, r)
+	if !ok {
+		return services.ArtifactFilters{}, false
+	}
+	filters.Freshness = freshness
 
 	metadataFilter, ok := parseMetadataQueryParam(w, r)
 	if !ok {

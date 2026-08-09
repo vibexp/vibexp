@@ -499,6 +499,66 @@ func (_c *MockResourceFreshnessRepository_ListAllByTeam_Call) RunAndReturn(run f
 	return _c
 }
 
+// ListByResources provides a mock function with given fields: ctx, resourceType, resourceIDs
+func (_m *MockResourceFreshnessRepository) ListByResources(ctx context.Context, resourceType string, resourceIDs []string) (map[string]*models.ResourceFreshness, error) {
+	ret := _m.Called(ctx, resourceType, resourceIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListByResources")
+	}
+
+	var r0 map[string]*models.ResourceFreshness
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, []string) (map[string]*models.ResourceFreshness, error)); ok {
+		return rf(ctx, resourceType, resourceIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, []string) map[string]*models.ResourceFreshness); ok {
+		r0 = rf(ctx, resourceType, resourceIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]*models.ResourceFreshness)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, []string) error); ok {
+		r1 = rf(ctx, resourceType, resourceIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockResourceFreshnessRepository_ListByResources_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListByResources'
+type MockResourceFreshnessRepository_ListByResources_Call struct {
+	*mock.Call
+}
+
+// ListByResources is a helper method to define mock.On call
+//   - ctx context.Context
+//   - resourceType string
+//   - resourceIDs []string
+func (_e *MockResourceFreshnessRepository_Expecter) ListByResources(ctx interface{}, resourceType interface{}, resourceIDs interface{}) *MockResourceFreshnessRepository_ListByResources_Call {
+	return &MockResourceFreshnessRepository_ListByResources_Call{Call: _e.mock.On("ListByResources", ctx, resourceType, resourceIDs)}
+}
+
+func (_c *MockResourceFreshnessRepository_ListByResources_Call) Run(run func(ctx context.Context, resourceType string, resourceIDs []string)) *MockResourceFreshnessRepository_ListByResources_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].([]string))
+	})
+	return _c
+}
+
+func (_c *MockResourceFreshnessRepository_ListByResources_Call) Return(_a0 map[string]*models.ResourceFreshness, _a1 error) *MockResourceFreshnessRepository_ListByResources_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockResourceFreshnessRepository_ListByResources_Call) RunAndReturn(run func(context.Context, string, []string) (map[string]*models.ResourceFreshness, error)) *MockResourceFreshnessRepository_ListByResources_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RemoveRule provides a mock function with given fields: ctx, ruleID
 func (_m *MockResourceFreshnessRepository) RemoveRule(ctx context.Context, ruleID string) (int64, error) {
 	ret := _m.Called(ctx, ruleID)

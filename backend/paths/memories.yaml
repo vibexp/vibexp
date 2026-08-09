@@ -48,6 +48,16 @@ api-v1-team_id-memories:
     description: Retrieves all memories for the authenticated user within the specified team with optional filtering
     operationId: listMemories
     parameters:
+      - name: freshness
+        in: query
+        description: >-
+          Filter to resources currently flagged stale by the team's freshness
+          rules (epic #726). Omit for no freshness filtering. Returns 400 for
+          any other value — a silently ignored filter would return the full
+          list, which looks like a legitimate answer.
+        schema:
+          type: string
+          enum: [stale]
       - name: team_id
         in: path
         required: true
