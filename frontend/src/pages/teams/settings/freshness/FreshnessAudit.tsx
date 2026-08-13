@@ -134,13 +134,19 @@ export function FreshnessAudit({ teamId }: Readonly<{ teamId: string }>) {
     )
   }
 
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertTitle>Couldn&apos;t load the audit log</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
+  const errorAlert = error && (
+    <Alert variant="destructive">
+      <AlertTitle>Couldn&apos;t load the audit log</AlertTitle>
+      <AlertDescription>{error}</AlertDescription>
+    </Alert>
+  )
+
+  // Only replace the whole tab when there is nothing to keep. Once a page has
+  // loaded, a later failure (usually paging past the end) is shown ABOVE the
+  // retained table — returning just the alert would take the pagination
+  // controls with it and leave no way back to a page that works.
+  if (error && !result) {
+    return errorAlert
   }
 
   const entries = result?.entries ?? []
@@ -160,6 +166,7 @@ export function FreshnessAudit({ teamId }: Readonly<{ teamId: string }>) {
 
   return (
     <div className="space-y-4">
+      {errorAlert}
       <Card>
         <CardContent className="p-0">
           <Table>

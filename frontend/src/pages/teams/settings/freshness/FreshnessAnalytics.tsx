@@ -29,14 +29,19 @@ import { RESOURCE_TYPE_OPTIONS } from './freshnessOptions'
 const DEFAULT_RANGE: FreshnessMetricsRange = '30d'
 
 /**
- * `marked` and `cleared` are the two flows; `stale_total` is a LEVEL and is
- * deliberately NOT charted beside them — stacking a level on flows would draw a
- * quantity that means nothing. The payload's `total` is the flow sum, which is
- * what the shared chart's tooltip reports.
+ * `stale_total` is the LEVEL — how many resources were stale at the end of each
+ * day — and it is the series the question "is our knowledge base decaying or
+ * improving?" is actually asking about. `marked` and `cleared` are the flows
+ * that moved it.
+ *
+ * Drawn as lines rather than bars precisely because a level and its flows must
+ * not be stacked: stacking them would add a stock to a rate and draw a quantity
+ * that means nothing. As separate lines they read correctly together.
  */
 const OVER_TIME_SERIES: readonly ChartSeries[] = [
-  { key: 'marked', label: 'Marked stale', fill: 'var(--chart-1)' },
-  { key: 'cleared', label: 'Cleared', fill: 'var(--chart-2)' },
+  { key: 'stale_total', label: 'Stale at end of day', fill: 'var(--chart-1)' },
+  { key: 'marked', label: 'Marked stale', fill: 'var(--chart-2)' },
+  { key: 'cleared', label: 'Cleared', fill: 'var(--chart-3)' },
 ]
 
 /**
@@ -75,12 +80,11 @@ const initial = <T,>(): PanelState<T> => ({
  */
 function usePanel<T>(load: (signal: AbortSignal) => Promise<T>): PanelState<T> {
   const [state, setState] = useState<PanelState<T>>(initial<T>)
-  const run = load
 
   useEffect(() => {
     const controller = new AbortController()
     setState(prev => ({ ...prev, loading: true }))
-    run(controller.signal)
+    load(controller.signal)
       .then(data => {
         if (!controller.signal.aborted) {
           setState({ data, loading: false, error: false })
@@ -94,7 +98,7 @@ function usePanel<T>(load: (signal: AbortSignal) => Promise<T>): PanelState<T> {
     return () => {
       controller.abort()
     }
-  }, [run])
+  }, [load])
 
   return state
 }
@@ -198,13 +202,18 @@ export function FreshnessAnalytics({ teamId }: Readonly<{ teamId: string }>) {
         </Select>
       </div>
 
+      {/* `total` stays the transition count, not the latest level: it drives the
+          shared chart's empty check, and "nothing happened in this window" is
+          the right empty condition. Keying it on the level would tell a team
+          that had just cleaned everything up that it has no data. */}
       <TimeSeriesBarChart
-        title="Staleness over time"
+        title="Stale resources over time"
         totalLabel="Transitions"
         total={overTimeTotal}
         series={OVER_TIME_SERIES}
         data={overTime.data?.counts ?? []}
         range={range}
+        chartType="line"
         hideRangeControl
         loading={overTime.loading}
         error={overTime.error}

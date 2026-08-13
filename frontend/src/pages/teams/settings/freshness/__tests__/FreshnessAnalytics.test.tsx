@@ -96,7 +96,7 @@ describe('FreshnessAnalytics', () => {
     renderTab()
     await waitForCharts()
 
-    expect(screen.getByText('Staleness over time')).toBeInTheDocument()
+    expect(screen.getByText('Stale resources over time')).toBeInTheDocument()
     expect(screen.getByText('Stale by resource type')).toBeInTheDocument()
     expect(screen.getByText('Stale by project')).toBeInTheDocument()
     expect(screen.getByText('Impact per rule')).toBeInTheDocument()
@@ -105,6 +105,18 @@ describe('FreshnessAnalytics', () => {
       'team-1',
       expect.anything()
     )
+  })
+
+  it('charts the stale LEVEL, not just the transitions that moved it', async () => {
+    // The issue asks for "stale count over time"; marked/cleared are the flows.
+    // Without stale_total the chart cannot answer whether staleness is growing.
+    renderTab()
+    await waitForCharts()
+
+    expect(screen.getByText('Stale resources over time')).toBeInTheDocument()
+    expect(screen.getByText('Stale at end of day')).toBeInTheDocument()
+    expect(screen.getByText('Marked stale')).toBeInTheDocument()
+    expect(screen.getByText('Cleared')).toBeInTheDocument()
   })
 
   it('requests the default 30d window for the time series', async () => {
@@ -198,7 +210,7 @@ describe('FreshnessAnalytics', () => {
       ).toBeInTheDocument()
     })
     // The page is still usable.
-    expect(screen.getByText('Staleness over time')).toBeInTheDocument()
+    expect(screen.getByText('Stale resources over time')).toBeInTheDocument()
     expect(screen.getByText('Stale by resource type')).toBeInTheDocument()
     consoleError.mockRestore()
   })

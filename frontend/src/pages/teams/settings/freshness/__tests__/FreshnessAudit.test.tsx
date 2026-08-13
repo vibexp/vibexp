@@ -172,4 +172,25 @@ describe('FreshnessAudit', () => {
       expect(screen.getByText('Audit unavailable')).toBeInTheDocument()
     })
   })
+
+  it('keeps the table and pagination when a later page fails', async () => {
+    // Returning only the alert would take the pagination controls with it,
+    // stranding the user on a failed page with no way back.
+    const user = userEvent.setup()
+    mocked.getAudit.mockResolvedValueOnce(page([entry()], 3, 45))
+    renderTab()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
+    })
+
+    mocked.getAudit.mockRejectedValueOnce(new Error('Page 2 exploded'))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Page 2 exploded')).toBeInTheDocument()
+    })
+    expect(screen.getAllByTestId('audit-row')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeInTheDocument()
+  })
 })
