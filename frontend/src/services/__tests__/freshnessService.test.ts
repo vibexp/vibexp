@@ -261,4 +261,103 @@ describe('freshnessService', () => {
       ).rejects.toBeInstanceOf(ApiError)
     })
   })
+
+  describe('metrics', () => {
+    const signal = new AbortController().signal
+
+    it('unwraps the envelope on the over-time metrics and passes the range', async () => {
+      const data = {
+        range: '7d' as const,
+        total_marked: 1,
+        total_cleared: 0,
+        counts: [],
+      }
+      mockGeneratedClient.GET.mockReturnValue(
+        success({ status: 'success', message: 'ok', data })
+      )
+
+      await expect(
+        freshnessService.getOverTimeMetrics(teamId, '7d', signal)
+      ).resolves.toEqual(data)
+
+      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+        '/api/v1/{team_id}/freshness/metrics/over-time',
+        {
+          params: { path: { team_id: teamId }, query: { range: '7d' } },
+          signal,
+        }
+      )
+    })
+
+    it.each([
+      ['getByTypeMetrics', 'by-type'],
+      ['getByProjectMetrics', 'by-project'],
+      ['getByRuleMetrics', 'by-rule'],
+    ] as const)(
+      '%s reads the point-in-time breakdown with no range param',
+      async (method, segment) => {
+        const data = { total_stale: 3, counts: [] }
+        mockGeneratedClient.GET.mockReturnValue(
+          success({ status: 'success', message: 'ok', data })
+        )
+
+        await expect(freshnessService[method](teamId, signal)).resolves.toEqual(
+          data
+        )
+
+        expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+          `/api/v1/{team_id}/freshness/metrics/${segment}`,
+          { params: { path: { team_id: teamId } }, signal }
+        )
+      }
+    )
+
+    it('rejects with an ApiError when metrics are unavailable', async () => {
+      mockGeneratedClient.GET.mockReturnValue(
+        problem(500, 'boom', 'internal_error')
+      )
+
+      await expect(
+        freshnessService.getByTypeMetrics(teamId)
+      ).rejects.toBeInstanceOf(ApiError)
+    })
+  })
+
+  describe('getAudit', () => {
+    it('sends the page size as `limit`, not `per_page`', async () => {
+      // The request names it `limit` while the RESPONSE reports `per_page`;
+      // sending `per_page` would be silently ignored and always return the
+      // default page size.
+      const body = {
+        entries: [],
+        total_count: 0,
+        page: 2,
+        per_page: 20,
+        total_pages: 0,
+      }
+      mockGeneratedClient.GET.mockReturnValue(success(body))
+
+      await expect(freshnessService.getAudit(teamId, 2, 20)).resolves.toEqual(
+        body
+      )
+
+      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+        '/api/v1/{team_id}/freshness/audit',
+        {
+          params: { path: { team_id: teamId }, query: { page: 2, limit: 20 } },
+          signal: undefined,
+        }
+      )
+    })
+
+    it('rejects with an ApiError when the page is out of range', async () => {
+      mockGeneratedClient.GET.mockReturnValue(
+        problem(400, 'page is too large', 'validation_error')
+      )
+
+      await expect(
+        freshnessService.getAudit(teamId, 999999, 20)
+      ).rejects.toBeInstanceOf(ApiError)
+    })
+  })
 })
