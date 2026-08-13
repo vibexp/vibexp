@@ -11,8 +11,12 @@ export type CreateEmbeddingProviderRequest =
   components['schemas']['CreateEmbeddingProviderRequest']
 export type UpdateEmbeddingProviderRequest =
   components['schemas']['UpdateEmbeddingProviderRequest']
-export type EmbeddingProviderListResponse =
-  components['schemas']['EmbeddingProviderListResponse']
+// Renamed in the spec from `EmbeddingProviderListResponse`; the alias tracks
+// the schema name so it stays greppable against the spec. Nothing consumes it
+// today — the list call infers its own type — but every other wire type in this
+// file is aliased here, so dropping it would be the odd one out.
+export type EmbeddingProviderArrayResponse =
+  components['schemas']['EmbeddingProviderArrayResponse']
 export type ValidateEmbeddingProviderRequest =
   components['schemas']['ValidateEmbeddingProviderRequest']
 export type ValidateEmbeddingProviderResponse =
