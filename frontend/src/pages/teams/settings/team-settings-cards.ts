@@ -1,4 +1,4 @@
-import { Bot, Cpu, Mail, Shapes, SlidersHorizontal } from 'lucide-react'
+import { Bot, Cpu, Mail, Shapes, SlidersHorizontal, Timer } from 'lucide-react'
 
 import { GitHubIcon } from '@/components/icons/GitHubIcon'
 import type { SettingItem } from '@/components/settings/SettingsGrid'
@@ -25,6 +25,12 @@ export function teamSettingsCardsFor(teamId: string): SettingItem[] {
       description: 'Choose how search results are ranked for your team.',
       icon: SlidersHorizontal,
       href: `${base}/search`,
+    },
+    {
+      title: 'Resource Freshness',
+      description: 'Flag resources your team has stopped using.',
+      icon: Timer,
+      href: `${base}/freshness`,
     },
     {
       title: 'Model Providers',

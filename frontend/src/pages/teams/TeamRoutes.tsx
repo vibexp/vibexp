@@ -8,6 +8,7 @@ import { Projects } from '@/pages/teams/projects/Projects'
 import { Customization } from '@/pages/teams/settings/customization/Customization'
 import { EmailProvider } from '@/pages/teams/settings/email-provider/EmailProvider'
 import { EmbeddingProviders } from '@/pages/teams/settings/embedding-providers/EmbeddingProviders'
+import { FreshnessSettings } from '@/pages/teams/settings/freshness/FreshnessSettings'
 import { GitHubIntegration } from '@/pages/teams/settings/integrations/github/GitHubIntegration'
 import { ModelProviders } from '@/pages/teams/settings/model-providers/ModelProviders'
 import { SearchSettings } from '@/pages/teams/settings/search/SearchSettings'
@@ -59,6 +60,10 @@ export function TeamRoutes({
           `setCurrentTeam` sync, and the ambient team is still whichever one was
           last persisted. */}
       <Route path="settings/search" element={<SearchSettings team={team} />} />
+      <Route
+        path="settings/freshness"
+        element={<FreshnessSettings team={team} />}
+      />
       <Route
         path="settings/email-provider"
         element={<EmailProvider team={team} />}
