@@ -206,6 +206,14 @@ export function FreshnessRuleDialog({
               <AlertDescription>{serverError}</AlertDescription>
             </Alert>
           )}
+
+          {/* Above the footer, so the reason the submit button is disabled
+              reads before the button itself. */}
+          {validationError && (
+            <p className="text-destructive text-sm" role="alert">
+              {validationError}
+            </p>
+          )}
         </div>
 
         <DialogFooter>
@@ -226,12 +234,6 @@ export function FreshnessRuleDialog({
             {submitting ? 'Saving…' : editing ? 'Save rule' : 'Create rule'}
           </Button>
         </DialogFooter>
-
-        {validationError && (
-          <p className="text-destructive text-sm" role="alert">
-            {validationError}
-          </p>
-        )}
       </DialogContent>
     </Dialog>
   )

@@ -1,4 +1,4 @@
-import { Pencil, Plus, Timer, Trash2 } from 'lucide-react'
+import { Pencil, Plus, RotateCcw, Timer, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -53,10 +53,12 @@ interface EvaluationCardProps {
   reversibility: boolean
   canEdit: boolean
   saving: boolean
+  resetting: boolean
   hasChanges: boolean
   onIntervalChange: (seconds: number) => void
   onReversibilityChange: (enabled: boolean) => void
   onSave: () => void
+  onReset: () => void
 }
 
 function EvaluationCard({
@@ -65,19 +67,28 @@ function EvaluationCard({
   reversibility,
   canEdit,
   saving,
+  resetting,
   hasChanges,
   onIntervalChange,
   onReversibilityChange,
   onSave,
+  onReset,
 }: Readonly<EvaluationCardProps>) {
+  const busy = saving || resetting
+  const hasOverride = settings.source === 'team'
   // A team whose stored interval came from the API directly may match no
   // preset. Showing it as an extra option preserves it instead of silently
   // rounding the team's configuration to the nearest preset on first save.
-  const presets = INTERVAL_PRESETS.some(p => p.seconds === intervalSeconds)
+  //
+  // Keyed on the STORED value, not the current selection: keying on the latter
+  // would drop the option the moment the user picked a preset, leaving no
+  // control that could restore the team's original cadence.
+  const stored = settings.interval_seconds
+  const presets = INTERVAL_PRESETS.some(p => p.seconds === stored)
     ? INTERVAL_PRESETS
     : [
         ...INTERVAL_PRESETS,
-        { seconds: intervalSeconds, label: describeInterval(intervalSeconds) },
+        { seconds: stored, label: describeInterval(stored) },
       ]
 
   return (
@@ -103,7 +114,7 @@ function EvaluationCard({
 
         <fieldset
           className="space-y-3"
-          disabled={!canEdit || saving}
+          disabled={!canEdit || busy}
           aria-label="Evaluation interval"
         >
           <legend className="text-sm font-medium">Run rules</legend>
@@ -139,16 +150,40 @@ function EvaluationCard({
           <Switch
             id="reversibility"
             checked={reversibility}
-            disabled={!canEdit || saving}
+            disabled={!canEdit || busy}
             onCheckedChange={onReversibilityChange}
           />
         </div>
 
         {canEdit && (
-          <div className="flex justify-end">
-            <Button size="sm" disabled={saving || !hasChanges} onClick={onSave}>
-              {saving ? 'Saving…' : 'Save evaluation settings'}
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-muted-foreground text-sm">
+              {hasOverride
+                ? `Reset would restore ${describeInterval(
+                    settings.defaults.interval_seconds
+                  ).toLowerCase()} evaluation and ${
+                    settings.defaults.reversibility_enabled
+                      ? 'stale flags cleared on use'
+                      : 'stale flags kept until the next run'
+                  }.`
+                : ''}
+            </p>
+            <div className="flex gap-2">
+              {hasOverride && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={onReset}
+                >
+                  <RotateCcw className="mr-2 size-4" />
+                  {resetting ? 'Resetting…' : 'Reset to defaults'}
+                </Button>
+              )}
+              <Button size="sm" disabled={busy || !hasChanges} onClick={onSave}>
+                {saving ? 'Saving…' : 'Save evaluation settings'}
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>
@@ -275,6 +310,7 @@ export function FreshnessSettings({ team }: Readonly<{ team: Team }>) {
   )
   const [reversibility, setReversibility] = useState(true)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [resettingSettings, setResettingSettings] = useState(false)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<FreshnessRule | null>(null)
@@ -366,6 +402,27 @@ export function FreshnessSettings({ team }: Readonly<{ team: Team }>) {
       setError(errorMessage(err, 'Failed to save freshness settings'))
     } finally {
       setSavingSettings(false)
+    }
+  }
+
+  /**
+   * Drops the team's override so it inherits the instance defaults again.
+   *
+   * The refetch is what supplies the restored values, so success is only
+   * claimed once it lands — otherwise a failed re-read would show a success
+   * toast beside a stale form still displaying the overridden cadence.
+   */
+  const handleResetSettings = async () => {
+    try {
+      setResettingSettings(true)
+      setError(null)
+      await freshnessService.resetSettings(teamId)
+      applySettings(await freshnessService.getSettings(teamId))
+      toast.success('Reset to the instance defaults')
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to reset freshness settings'))
+    } finally {
+      setResettingSettings(false)
     }
   }
 
@@ -470,11 +527,15 @@ export function FreshnessSettings({ team }: Readonly<{ team: Team }>) {
         reversibility={reversibility}
         canEdit={canEdit}
         saving={savingSettings}
+        resetting={resettingSettings}
         hasChanges={hasSettingsChanges}
         onIntervalChange={setIntervalSeconds}
         onReversibilityChange={setReversibility}
         onSave={() => {
           void handleSaveSettings()
+        }}
+        onReset={() => {
+          void handleResetSettings()
         }}
       />
 

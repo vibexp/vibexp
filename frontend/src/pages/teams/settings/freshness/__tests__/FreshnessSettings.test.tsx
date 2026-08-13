@@ -312,6 +312,88 @@ describe('FreshnessSettings', () => {
       expect(screen.getByLabelText('Every 3 days')).toBeChecked()
     })
 
+    it('keeps the non-preset option selectable after a preset is chosen', async () => {
+      // Keying the extra option off the live selection instead of the stored
+      // value would drop it here, leaving nothing that can restore the team's
+      // original cadence without a page reload.
+      const user = userEvent.setup()
+      mockedFreshness.getSettings.mockResolvedValue(
+        settings({ source: 'team', interval_seconds: 259200 })
+      )
+      renderPage()
+      await waitForLoaded()
+
+      await user.click(screen.getByLabelText('Weekly'))
+
+      expect(screen.getByLabelText('Every 3 days')).toBeInTheDocument()
+      await user.click(screen.getByLabelText('Every 3 days'))
+      expect(screen.getByLabelText('Every 3 days')).toBeChecked()
+    })
+
+    it('resets an overridden team back to the instance defaults', async () => {
+      const user = userEvent.setup()
+      mockedFreshness.getSettings
+        .mockResolvedValueOnce(
+          settings({ source: 'team', interval_seconds: 3600 })
+        )
+        .mockResolvedValueOnce(settings())
+      mockedFreshness.resetSettings.mockResolvedValue(undefined)
+      renderPage()
+      await waitForLoaded()
+
+      await user.click(
+        screen.getByRole('button', { name: /reset to defaults/i })
+      )
+
+      await waitFor(() => {
+        expect(mockedFreshness.resetSettings).toHaveBeenCalledWith('team-1')
+      })
+      // The refetch is what restores the displayed values.
+      await waitFor(() => {
+        expect(screen.getByLabelText('Daily')).toBeChecked()
+      })
+    })
+
+    it('offers no reset while the team is still inheriting', async () => {
+      renderPage()
+      await waitForLoaded()
+
+      expect(
+        screen.queryByRole('button', { name: /reset to defaults/i })
+      ).not.toBeInTheDocument()
+    })
+
+    it('hides the reset control from a member', async () => {
+      mockUseTeam.mockReturnValue(memberTeam)
+      mockedFreshness.getSettings.mockResolvedValue(
+        settings({ source: 'team' })
+      )
+      renderPage(asTeam(memberTeam))
+      await waitForLoaded()
+
+      expect(
+        screen.queryByRole('button', { name: /reset to defaults/i })
+      ).not.toBeInTheDocument()
+    })
+
+    it('reports a failed reset without claiming success', async () => {
+      const user = userEvent.setup()
+      mockedFreshness.getSettings.mockResolvedValue(
+        settings({ source: 'team' })
+      )
+      mockedFreshness.resetSettings.mockRejectedValue(new Error('Reset failed'))
+      renderPage()
+      await waitForLoaded()
+
+      await user.click(
+        screen.getByRole('button', { name: /reset to defaults/i })
+      )
+
+      await waitFor(() => {
+        expect(screen.getByText('Reset failed')).toBeInTheDocument()
+      })
+    })
+
     it('surfaces a failed save without clearing the form', async () => {
       const user = userEvent.setup()
       mockedFreshness.updateSettings.mockRejectedValue(

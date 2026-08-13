@@ -48,10 +48,15 @@ export const INTERVAL_PRESETS: { seconds: number; label: string }[] = [
   { seconds: 604800, label: 'Weekly' },
 ]
 
-/** The server's own bounds, mirrored so a bad value is caught before the call. */
-export const MIN_INTERVAL_SECONDS = 3600
-export const MAX_INTERVAL_SECONDS = 31536000
+/**
+ * Seeds the interval state before the first load resolves; the real value
+ * always comes from the server. The interval's own bounds (3600 / 31536000) are
+ * not mirrored here — every offered option is a preset or a value the server
+ * already accepted, so there is nothing for a client-side bound to catch.
+ */
 export const DEFAULT_INTERVAL_SECONDS = 86400
+
+/** The server's threshold cap, mirrored so a bad value is caught before the call. */
 export const MAX_THRESHOLD_DAYS = 36500
 
 /** The rule editor's form state — strings, because the inputs produce strings. */

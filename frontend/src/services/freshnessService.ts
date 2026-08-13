@@ -14,8 +14,6 @@ export type UpdateFreshnessRuleRequest =
   components['schemas']['UpdateFreshnessRuleRequest']
 export type TeamFreshnessSettings =
   components['schemas']['TeamFreshnessSettings']
-export type FreshnessSettingsValues =
-  components['schemas']['FreshnessSettingsValues']
 export type UpdateTeamFreshnessSettingsRequest =
   components['schemas']['UpdateTeamFreshnessSettingsRequest']
 
