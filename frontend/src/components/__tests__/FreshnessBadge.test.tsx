@@ -20,13 +20,10 @@ describe('FreshnessBadge', () => {
     expect(screen.getByTestId('freshness-badge')).toHaveTextContent('Stale')
   })
 
-  it.each([
-    ['undefined', undefined],
-    ['null', null],
-  ])('renders nothing when freshness is %s', (_label, value) => {
+  it('renders nothing when freshness is absent', () => {
     // A fresh resource omits the field entirely (#735), so the badge must cost
     // no markup at all — that is what keeps fresh rows free of layout shift.
-    const { container } = render(<FreshnessBadge freshness={value} />)
+    const { container } = render(<FreshnessBadge freshness={undefined} />)
     expect(container).toBeEmptyDOMElement()
   })
 

@@ -978,3 +978,82 @@ describe('Blueprints page', () => {
     })
   })
 })
+
+describe('Blueprints page — stale filter wiring (#738)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions([])
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
+      buildListResponse([])
+    )
+    ;(metadataService.listKeys as Mock).mockResolvedValue({
+      keys: [],
+      truncated: false,
+    })
+    ;(metadataService.listValues as Mock).mockResolvedValue({
+      values: [],
+      truncated: false,
+    })
+  })
+
+  it('sends no freshness param by default', async () => {
+    renderBlueprints()
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalled()
+    })
+    expect(lastQuery().freshness).toBeUndefined()
+  })
+
+  it('forwards ?freshness=stale from the URL to the API', async () => {
+    // Guards the per-page wiring: this page hand-wires the filter, so the
+    // shared control cannot prove the pass-through exists here.
+    renderBlueprints('/blueprints?freshness=stale')
+    await waitFor(() => {
+      expect(lastQuery().freshness).toBe('stale')
+    })
+  })
+
+  it('drops a junk URL value instead of forwarding a 400', async () => {
+    renderBlueprints('/blueprints?freshness=bogus')
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalled()
+    })
+    expect(lastQuery().freshness).toBeUndefined()
+  })
+
+  it('renders the stale badge on a flagged row', async () => {
+    // End-to-end through the real columns and table, so dropping the badge
+    // from blueprintsColumns fails here.
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
+      buildListResponse([
+        buildBlueprint({
+          freshness: {
+            status: 'stale',
+            since: '2026-08-01T00:00:00Z',
+            matched_rule_ids: ['r1'],
+            reason: 'rule_run',
+          },
+        }),
+      ])
+    )
+    renderBlueprints()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('freshness-badge')).toBeInTheDocument()
+    })
+  })
+
+  it('renders no badge for a fresh row', async () => {
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
+      buildListResponse([buildBlueprint()])
+    )
+    renderBlueprints()
+
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalled()
+    })
+    expect(screen.queryByTestId('freshness-badge')).not.toBeInTheDocument()
+  })
+})

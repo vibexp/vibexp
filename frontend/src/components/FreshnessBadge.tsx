@@ -31,7 +31,9 @@ export function FreshnessBadge({
   freshness,
   className,
 }: Readonly<{
-  freshness?: ResourceFreshnessState | null
+  // Optional, never null: the API omits the key entirely for a fresh resource
+  // rather than sending an empty value.
+  freshness?: ResourceFreshnessState
   className?: string
 }>) {
   if (!freshness) return null

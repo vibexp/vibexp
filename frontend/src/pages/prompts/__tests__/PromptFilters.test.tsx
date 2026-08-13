@@ -60,3 +60,29 @@ describe('PromptFilters', () => {
     expect(props.onSharedChange).toHaveBeenCalledWith('not_shared')
   })
 })
+
+describe('PromptFilters — freshness (#738)', () => {
+  it('renders the stale filter', () => {
+    renderFilters()
+    expect(screen.getByTestId('prompt-freshness-filter')).toBeInTheDocument()
+  })
+
+  it('maps the freshness select to onFreshnessChange', async () => {
+    // Prompts holds its filters in local state, so this control is the only
+    // wiring between the user and `promptService.getPrompts`.
+    const props = renderFilters()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId('prompt-freshness-filter'))
+    await user.click(screen.getByRole('option', { name: 'Stale only' }))
+
+    expect(props.onFreshnessChange).toHaveBeenCalledWith('stale')
+  })
+
+  it('reflects an applied stale filter', () => {
+    renderFilters({ freshness: 'stale' })
+    expect(screen.getByTestId('prompt-freshness-filter')).toHaveTextContent(
+      'Stale only'
+    )
+  })
+})
