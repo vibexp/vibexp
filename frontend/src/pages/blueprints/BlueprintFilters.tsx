@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react'
 
+import { FreshnessFilterSelect } from '@/components/FreshnessFilterSelect'
 import { MetadataFilterField } from '@/components/metadata/MetadataFilterField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +21,9 @@ export interface BlueprintFiltersProps {
   type: Blueprint['type'] | undefined
   onTypeChange: (value: Blueprint['type'] | undefined) => void
   /** Committed metadata filter; one chip per key. */
+  /** `stale` shows only resources the freshness rules currently flag (#738). */
+  freshness: 'stale' | undefined
+  onFreshnessChange: (value: 'stale' | undefined) => void
   metadata: MetadataFilterValue
   onMetadataChange: (value: MetadataFilterValue) => void
   /** Narrows the metadata catalog to the globally selected project. */
@@ -35,6 +39,8 @@ export function BlueprintFilters({
   onSearchInputChange,
   type,
   onTypeChange,
+  freshness,
+  onFreshnessChange,
   metadata,
   onMetadataChange,
   projectId,
@@ -75,6 +81,13 @@ export function BlueprintFilters({
           <SelectItem value="codex">Codex</SelectItem>
         </SelectContent>
       </Select>
+
+      <FreshnessFilterSelect
+        value={freshness}
+        onChange={onFreshnessChange}
+        ariaLabel="Filter blueprints by freshness"
+        testId="blueprint-freshness-filter"
+      />
 
       <MetadataFilterField
         resourceType="blueprints"

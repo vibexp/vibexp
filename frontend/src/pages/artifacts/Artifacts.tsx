@@ -44,6 +44,7 @@ const FILTER_DEFAULTS = {
   search: '',
   type: 'all',
   status: 'all',
+  freshness: 'all',
   metadata: '',
   sort_by: 'updated_at',
   sort_order: 'desc',
@@ -93,7 +94,7 @@ export function Artifacts() {
     handleClear,
   } = useResourceListFilters({
     defaults: FILTER_DEFAULTS,
-    filterKeys: ['type', 'status'],
+    filterKeys: ['type', 'status', 'freshness'],
     projectId,
     isProjectLoading,
   })
@@ -112,6 +113,10 @@ export function Artifacts() {
     filters.type === 'all' || filters.type === '' ? undefined : filters.type
   const status =
     filters.status === 'all' ? undefined : coerceStatus(filters.status)
+  // The API accepts only `stale` and 400s on anything else, so a junk URL value
+  // must be dropped rather than forwarded.
+  const freshness =
+    filters.freshness === 'stale' ? ('stale' as const) : undefined
 
   const load = useCallback(async () => {
     const response = await artifactService.getArtifacts(currentTeam?.id ?? '', {
@@ -121,6 +126,7 @@ export function Artifacts() {
       type,
       status,
       metadata: metadataParam,
+      freshness,
       project_id: projectId,
       sort_by: 'updated_at',
       sort_order: sortOrder,
@@ -137,6 +143,7 @@ export function Artifacts() {
     type,
     status,
     metadataParam,
+    freshness,
     projectId,
     sortOrder,
   ])
@@ -239,6 +246,10 @@ export function Artifacts() {
             status={status}
             onStatusChange={value => {
               setFilters({ status: value ?? FILTER_DEFAULTS.status })
+            }}
+            freshness={freshness}
+            onFreshnessChange={value => {
+              setFilters({ freshness: value ?? FILTER_DEFAULTS.freshness })
             }}
             metadata={metadata}
             onMetadataChange={setMetadata}

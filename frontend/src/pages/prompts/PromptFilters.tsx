@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react'
 
+import { FreshnessFilterSelect } from '@/components/FreshnessFilterSelect'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -19,6 +20,9 @@ interface Props {
   onStatusChange: (value: StatusFilter) => void
   sharedFilter: SharedFilter
   onSharedChange: (value: SharedFilter) => void
+  /** `stale` shows only resources the freshness rules currently flag (#738). */
+  freshness: 'stale' | undefined
+  onFreshnessChange: (value: 'stale' | undefined) => void
 }
 
 export function PromptFilters({
@@ -28,6 +32,8 @@ export function PromptFilters({
   onStatusChange,
   sharedFilter,
   onSharedChange,
+  freshness,
+  onFreshnessChange,
 }: Readonly<Props>) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -74,6 +80,13 @@ export function PromptFilters({
           <SelectItem value="not_shared">Not shared</SelectItem>
         </SelectContent>
       </Select>
+
+      <FreshnessFilterSelect
+        value={freshness}
+        onChange={onFreshnessChange}
+        ariaLabel="Filter prompts by freshness"
+        testId="prompt-freshness-filter"
+      />
     </div>
   )
 }

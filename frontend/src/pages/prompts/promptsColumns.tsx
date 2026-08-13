@@ -2,6 +2,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Eye, Pencil, Share2, Trash2 } from 'lucide-react'
 import type { NavigateFunction } from 'react-router'
 
+import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatRelativeTime } from '@/lib/time'
@@ -51,15 +52,19 @@ export function buildPromptsColumns({
       header: 'Name',
       cell: ({ row }) => (
         <div className="min-w-0 max-w-md space-y-0.5">
-          <button
-            type="button"
-            className="hover:text-primary block w-full truncate text-left text-sm font-medium underline-offset-2 hover:underline"
-            onClick={() => {
-              void navigate(`/prompts/${row.original.slug}`)
-            }}
-          >
-            {row.original.name}
-          </button>
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              className="hover:text-primary block min-w-0 flex-1 truncate text-left text-sm font-medium underline-offset-2 hover:underline"
+              onClick={() => {
+                void navigate(`/prompts/${row.original.slug}`)
+              }}
+            >
+              {row.original.name}
+            </button>
+            {/* Renders nothing when the resource is fresh. */}
+            <FreshnessBadge freshness={row.original.freshness} />
+          </div>
           {row.original.description && (
             <p className="text-muted-foreground truncate text-xs">
               {row.original.description}

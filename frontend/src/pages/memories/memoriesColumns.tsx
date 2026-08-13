@@ -2,6 +2,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Eye, FolderOpen, Pencil, Tag as TagIcon, Trash2 } from 'lucide-react'
 import type { NavigateFunction } from 'react-router'
 
+import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -62,6 +63,8 @@ export function buildMemoriesColumns({
           <p className="text-sm leading-relaxed">
             {truncate(row.original.text)}
           </p>
+          {/* Renders nothing when the resource is fresh. */}
+          <FreshnessBadge freshness={row.original.freshness} />
         </div>
       ),
     },

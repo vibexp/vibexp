@@ -849,3 +849,94 @@ describe('Memories page', () => {
     })
   })
 })
+
+describe('Memories page — stale filter wiring (#738)', () => {
+  const lastQuery = () => {
+    const { calls } = (memoryService.getMemories as Mock).mock
+    return calls[calls.length - 1][1] as Record<string, unknown>
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions([])
+    mockProjectState.currentProject = null
+    mockProjectState.isLoading = false
+    ;(memoryService.getMemories as Mock).mockResolvedValue(
+      buildListResponse([])
+    )
+    ;(projectService.getProjects as Mock).mockResolvedValue({
+      projects: [],
+      total_count: 0,
+      page: 1,
+      per_page: 10,
+      total_pages: 0,
+    })
+    ;(metadataService.listKeys as Mock).mockResolvedValue({
+      keys: [],
+      truncated: false,
+    })
+    ;(metadataService.listValues as Mock).mockResolvedValue({
+      values: [],
+      truncated: false,
+    })
+  })
+
+  it('sends no freshness param by default', async () => {
+    renderMemories()
+    await waitFor(() => {
+      expect(memoryService.getMemories).toHaveBeenCalled()
+    })
+    expect(lastQuery().freshness).toBeUndefined()
+  })
+
+  it('forwards ?freshness=stale from the URL to the API', async () => {
+    // Guards the per-page wiring: this page hand-wires the filter, so the
+    // shared control cannot prove the pass-through exists here.
+    renderMemories('/memories?freshness=stale')
+    await waitFor(() => {
+      expect(lastQuery().freshness).toBe('stale')
+    })
+  })
+
+  it('drops a junk URL value instead of forwarding a 400', async () => {
+    renderMemories('/memories?freshness=bogus')
+    await waitFor(() => {
+      expect(memoryService.getMemories).toHaveBeenCalled()
+    })
+    expect(lastQuery().freshness).toBeUndefined()
+  })
+
+  it('renders the stale badge on a flagged row', async () => {
+    // End-to-end through the real columns and table, so dropping the badge
+    // from memoriesColumns fails here.
+    ;(memoryService.getMemories as Mock).mockResolvedValue(
+      buildListResponse([
+        buildMemory({
+          freshness: {
+            status: 'stale',
+            since: '2026-08-01T00:00:00Z',
+            matched_rule_ids: ['r1'],
+            reason: 'rule_run',
+          },
+        }),
+      ])
+    )
+    renderMemories()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('freshness-badge')).toBeInTheDocument()
+    })
+  })
+
+  it('renders no badge for a fresh row', async () => {
+    ;(memoryService.getMemories as Mock).mockResolvedValue(
+      buildListResponse([buildMemory()])
+    )
+    renderMemories()
+
+    await waitFor(() => {
+      expect(memoryService.getMemories).toHaveBeenCalled()
+    })
+    expect(screen.queryByTestId('freshness-badge')).not.toBeInTheDocument()
+  })
+})

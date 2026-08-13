@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react'
 
+import { FreshnessFilterSelect } from '@/components/FreshnessFilterSelect'
 import { MetadataFilterField } from '@/components/metadata/MetadataFilterField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,6 +26,9 @@ export interface MemoryFiltersProps {
    * so the old dedicated tag Select is gone — filtering on `tags` is just a
    * metadata filter, and a server-side one at that (#518).
    */
+  /** `stale` shows only resources the freshness rules currently flag (#738). */
+  freshness: 'stale' | undefined
+  onFreshnessChange: (value: 'stale' | undefined) => void
   metadata: MetadataFilterValue
   onMetadataChange: (value: MetadataFilterValue) => void
   /** Narrows the metadata catalog to the globally selected project. */
@@ -40,6 +44,8 @@ export function MemoryFilters({
   onSearchInputChange,
   status,
   onStatusChange,
+  freshness,
+  onFreshnessChange,
   metadata,
   onMetadataChange,
   projectId,
@@ -86,6 +92,13 @@ export function MemoryFilters({
           </SelectContent>
         </Select>
       )}
+
+      <FreshnessFilterSelect
+        value={freshness}
+        onChange={onFreshnessChange}
+        ariaLabel="Filter memories by freshness"
+        testId="memory-freshness-filter"
+      />
 
       <MetadataFilterField
         resourceType="memories"

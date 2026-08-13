@@ -52,6 +52,7 @@ const FILTER_DEFAULTS = {
   page: '1',
   search: '',
   type: 'all',
+  freshness: 'all',
   metadata: '',
   sort_by: 'updated_at',
   sort_order: 'desc',
@@ -103,7 +104,7 @@ export function Blueprints() {
     handleClear,
   } = useResourceListFilters({
     defaults: FILTER_DEFAULTS,
-    filterKeys: ['type'],
+    filterKeys: ['type', 'freshness'],
     projectId,
     isProjectLoading,
   })
@@ -119,6 +120,10 @@ export function Blueprints() {
     ? filters.sort_by
     : 'updated_at'
   const type = filters.type === 'all' ? undefined : coerceType(filters.type)
+  // The API accepts only `stale` and 400s on anything else, so a junk URL value
+  // must be dropped rather than forwarded.
+  const freshness =
+    filters.freshness === 'stale' ? ('stale' as const) : undefined
 
   const load = useCallback(async () => {
     const response = await blueprintService.getBlueprints(
@@ -129,6 +134,7 @@ export function Blueprints() {
         search: filters.search || undefined,
         type,
         metadata: metadataParam,
+        freshness,
         project_id: projectId,
         sort_by: sortBy,
         sort_order: sortOrder,
@@ -145,6 +151,7 @@ export function Blueprints() {
     filters.search,
     type,
     metadataParam,
+    freshness,
     projectId,
     sortBy,
     sortOrder,
@@ -241,6 +248,10 @@ export function Blueprints() {
             type={type}
             onTypeChange={value => {
               setFilters({ type: value ?? FILTER_DEFAULTS.type })
+            }}
+            freshness={freshness}
+            onFreshnessChange={value => {
+              setFilters({ freshness: value ?? FILTER_DEFAULTS.freshness })
             }}
             metadata={metadata}
             onMetadataChange={setMetadata}

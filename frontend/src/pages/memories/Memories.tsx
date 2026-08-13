@@ -40,6 +40,7 @@ const FILTER_DEFAULTS = {
   page: '1',
   search: '',
   status: 'all',
+  freshness: 'all',
   metadata: '',
   sort_order: 'desc',
 }
@@ -87,7 +88,7 @@ export function Memories() {
     handleClear,
   } = useResourceListFilters({
     defaults: FILTER_DEFAULTS,
-    filterKeys: ['status'],
+    filterKeys: ['status', 'freshness'],
     projectId,
     isProjectLoading,
   })
@@ -100,6 +101,10 @@ export function Memories() {
 
   const status =
     filters.status === 'all' ? undefined : coerceStatus(filters.status)
+  // The API accepts only `stale` and 400s on anything else, so a junk URL value
+  // must be dropped rather than forwarded.
+  const freshness =
+    filters.freshness === 'stale' ? ('stale' as const) : undefined
 
   const load = useCallback(async () => {
     const response = await memoryService.getMemories(currentTeam?.id ?? '', {
@@ -108,6 +113,7 @@ export function Memories() {
       search: filters.search || undefined,
       status,
       metadata: metadataParam,
+      freshness,
       project_id: projectId,
       sort_by: 'updated_at',
       sort_order: sortOrder,
@@ -123,6 +129,7 @@ export function Memories() {
     filters.search,
     status,
     metadataParam,
+    freshness,
     projectId,
     sortOrder,
   ])
@@ -231,6 +238,10 @@ export function Memories() {
             status={status}
             onStatusChange={value => {
               setFilters({ status: value ?? FILTER_DEFAULTS.status })
+            }}
+            freshness={freshness}
+            onFreshnessChange={value => {
+              setFilters({ freshness: value ?? FILTER_DEFAULTS.freshness })
             }}
             metadata={metadata}
             onMetadataChange={setMetadata}

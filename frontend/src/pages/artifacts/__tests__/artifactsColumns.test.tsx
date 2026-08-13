@@ -54,3 +54,60 @@ describe('artifactsColumns — Updated column', () => {
     vi.useRealTimers()
   })
 })
+
+function renderTitleCell(artifact: Partial<Artifact>) {
+  const columns = buildArtifactsColumns({
+    navigate: vi.fn(),
+    onDelete: vi.fn(),
+    canDelete: () => true,
+  })
+  const titleCol = columns.find(
+    col => 'accessorKey' in col && col.accessorKey === 'title'
+  )
+  if (!titleCol?.cell || typeof titleCol.cell !== 'function') {
+    throw new Error('Title column cell renderer not found')
+  }
+  const cell = titleCol.cell as (ctx: { row: Row<Artifact> }) => ReactNode
+  const row = {
+    original: {
+      title: 'Runbook',
+      slug: 'runbook',
+      project_id: 'p1',
+      ...artifact,
+    },
+  } as Row<Artifact>
+  return render(<>{cell({ row })}</>)
+}
+
+describe('artifactsColumns — stale badge (#738)', () => {
+  it('shows the badge for a stale artifact', () => {
+    renderTitleCell({
+      freshness: {
+        status: 'stale',
+        since: '2026-08-01T00:00:00Z',
+        matched_rule_ids: ['r1'],
+        reason: 'rule_run',
+      },
+    })
+    expect(screen.getByTestId('freshness-badge')).toBeInTheDocument()
+  })
+
+  it('shows no badge for a fresh artifact', () => {
+    // A fresh resource omits the field entirely, so the row must be unchanged
+    // from before this feature — no badge, no reserved space.
+    renderTitleCell({})
+    expect(screen.queryByTestId('freshness-badge')).not.toBeInTheDocument()
+  })
+
+  it('still renders the title link for a stale artifact', () => {
+    renderTitleCell({
+      freshness: {
+        status: 'stale',
+        since: '2026-08-01T00:00:00Z',
+        matched_rule_ids: ['r1'],
+        reason: 'rule_run',
+      },
+    })
+    expect(screen.getByRole('button', { name: 'Runbook' })).toBeInTheDocument()
+  })
+})

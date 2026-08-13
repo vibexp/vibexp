@@ -399,3 +399,56 @@ describe('Prompts page', () => {
     })
   })
 })
+
+describe('Prompts page — stale badge (#738)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions([])
+    ;(promptService.getPrompts as Mock).mockResolvedValue(buildListResponse([]))
+  })
+
+  it('renders the stale badge on a flagged row', async () => {
+    // End-to-end through the real columns and table, so dropping the badge
+    // from promptsColumns fails here.
+    ;(promptService.getPrompts as Mock).mockResolvedValue(
+      buildListResponse([
+        buildPrompt({
+          freshness: {
+            status: 'stale',
+            since: '2026-08-01T00:00:00Z',
+            matched_rule_ids: ['r1'],
+            reason: 'rule_run',
+          },
+        }),
+      ])
+    )
+    renderPrompts()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('freshness-badge')).toBeInTheDocument()
+    })
+  })
+
+  it('renders no badge for a fresh row', async () => {
+    ;(promptService.getPrompts as Mock).mockResolvedValue(
+      buildListResponse([buildPrompt()])
+    )
+    renderPrompts()
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    expect(screen.queryByTestId('freshness-badge')).not.toBeInTheDocument()
+  })
+
+  it('sends no freshness param by default', async () => {
+    renderPrompts()
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    const { calls } = (promptService.getPrompts as Mock).mock
+    const query = calls[calls.length - 1][1] as Record<string, unknown>
+    expect(query.freshness).toBeUndefined()
+  })
+})

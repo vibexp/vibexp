@@ -239,6 +239,10 @@ export function Prompts() {
                 page: 1,
               }))
             }}
+            freshness={filters.freshness}
+            onFreshnessChange={v => {
+              setFilters(prev => ({ ...prev, freshness: v, page: 1 }))
+            }}
           />
         </ListPage.Filters>
 
