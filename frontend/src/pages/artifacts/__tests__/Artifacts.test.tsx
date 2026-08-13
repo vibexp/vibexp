@@ -419,3 +419,78 @@ describe('Artifacts page — URL-synced filters (#523)', () => {
     expect(screen.queryByTestId('metadata-chip-env')).not.toBeInTheDocument()
   })
 })
+
+describe('Artifacts page — stale filter (#738)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
+    ;(artifactService.getArtifacts as Mock).mockResolvedValue(emptyResponse)
+    ;(metadataService.listKeys as Mock).mockResolvedValue({
+      keys: [],
+      truncated: false,
+    })
+    ;(metadataService.listValues as Mock).mockResolvedValue({
+      values: [],
+      truncated: false,
+    })
+  })
+
+  it('sends no freshness param by default', async () => {
+    renderArtifacts()
+
+    await waitFor(() => {
+      expect(artifactService.getArtifacts).toHaveBeenCalled()
+    })
+    expect(lastQuery().freshness).toBeUndefined()
+  })
+
+  it('forwards ?freshness=stale from the URL to the API', async () => {
+    renderArtifacts('/artifacts?freshness=stale')
+
+    await waitFor(() => {
+      expect(lastQuery().freshness).toBe('stale')
+    })
+  })
+
+  it('counts as an active filter, so Clear filters is offered', async () => {
+    renderArtifacts('/artifacts?freshness=stale')
+    await waitFor(() => {
+      expect(lastQuery().freshness).toBe('stale')
+    })
+
+    expect(
+      screen.getAllByRole('button', { name: 'Clear filters' }).length
+    ).toBeGreaterThan(0)
+  })
+
+  it('Clear filters drops the filter from both the request and the URL', async () => {
+    // The URL round-trip is what makes a "show me the stale ones" view
+    // shareable; clearing must restore the unfiltered list exactly.
+    renderArtifacts('/artifacts?freshness=stale')
+    await waitFor(() => {
+      expect(lastQuery().freshness).toBe('stale')
+    })
+    expect(currentSearch).toContain('freshness=stale')
+
+    const user = userEvent.setup()
+    const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
+    await user.click(clear)
+
+    await waitFor(() => {
+      expect(lastQuery().freshness).toBeUndefined()
+    })
+    expect(currentSearch).not.toContain('freshness')
+  })
+
+  it('drops a junk URL value instead of forwarding a 400', async () => {
+    // The API rejects anything but `stale`, and a silently ignored filter would
+    // return the full list looking like a legitimate answer.
+    renderArtifacts('/artifacts?freshness=bogus')
+
+    await waitFor(() => {
+      expect(artifactService.getArtifacts).toHaveBeenCalled()
+    })
+    expect(lastQuery().freshness).toBeUndefined()
+  })
+})

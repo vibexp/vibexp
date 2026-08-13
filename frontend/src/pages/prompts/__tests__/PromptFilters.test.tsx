@@ -20,6 +20,8 @@ function renderFilters(
     onStatusChange: vi.fn(),
     sharedFilter: 'all' as const,
     onSharedChange: vi.fn(),
+    freshness: undefined,
+    onFreshnessChange: vi.fn(),
     ...overrides,
   }
   render(<PromptFilters {...props} />)

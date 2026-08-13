@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react'
 
+import { FreshnessFilterSelect } from '@/components/FreshnessFilterSelect'
 import { MetadataFilterField } from '@/components/metadata/MetadataFilterField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +24,9 @@ export interface ArtifactFiltersProps {
   onTypeChange: (value: Artifact['type'] | undefined) => void
   status: Artifact['status'] | undefined
   onStatusChange: (value: Artifact['status'] | undefined) => void
+  /** `stale` shows only resources the freshness rules currently flag (#738). */
+  freshness: 'stale' | undefined
+  onFreshnessChange: (value: 'stale' | undefined) => void
   /** Committed metadata filter; one chip per key. */
   metadata: MetadataFilterValue
   onMetadataChange: (value: MetadataFilterValue) => void
@@ -41,6 +45,8 @@ export function ArtifactFilters({
   onTypeChange,
   status,
   onStatusChange,
+  freshness,
+  onFreshnessChange,
   metadata,
   onMetadataChange,
   projectId,
@@ -104,6 +110,13 @@ export function ArtifactFilters({
           ))}
         </SelectContent>
       </Select>
+
+      <FreshnessFilterSelect
+        value={freshness}
+        onChange={onFreshnessChange}
+        ariaLabel="Filter artifacts by freshness"
+        testId="artifact-freshness-filter"
+      />
 
       <MetadataFilterField
         resourceType="artifacts"
