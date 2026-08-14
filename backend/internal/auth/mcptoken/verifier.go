@@ -7,9 +7,12 @@
 // pre-extraction messages ("invalid token: <reason>", and a bare
 // "invalid token" for an unknown subject — never an enumeration oracle).
 //
-// The JWKS URL is derived from the configured issuer as
+// By default the JWKS URL is derived from the configured issuer as
 // <issuer>/oauth2/jwks.json (see authkit.New), matching the jwks_uri published
-// by VibeXP's embedded Authorization Server.
+// by VibeXP's embedded Authorization Server. Callers may instead supply an
+// in-process key set via authkit.WithKeySet; the server does so, so token
+// verification does not depend on the public issuer URL being reachable from
+// within the process.
 package mcptoken
 
 import (
@@ -45,12 +48,14 @@ type Verifier struct {
 }
 
 // New constructs a Verifier. issuer and resourceURI must be non-empty;
-// resourceURI is the RFC 8707 audience this server accepts.
-func New(ctx context.Context, issuer, resourceURI string, resolver UserResolver) (*Verifier, error) {
+// resourceURI is the RFC 8707 audience this server accepts. Optional authkit
+// options are forwarded to the underlying verifier — notably authkit.WithKeySet
+// to verify against the embedded AS's in-process keys.
+func New(ctx context.Context, issuer, resourceURI string, resolver UserResolver, opts ...authkit.Option) (*Verifier, error) {
 	if resourceURI == "" {
 		return nil, fmt.Errorf("mcptoken: resource URI is required")
 	}
-	inner, err := authkit.New(ctx, issuer, authkit.RequireAudience(resourceURI), resolver)
+	inner, err := authkit.New(ctx, issuer, authkit.RequireAudience(resourceURI), resolver, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("mcptoken: %w", err)
 	}

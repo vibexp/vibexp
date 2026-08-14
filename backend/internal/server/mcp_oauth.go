@@ -14,6 +14,7 @@ import (
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 
+	"github.com/vibexp/vibexp/internal/auth/authkit"
 	"github.com/vibexp/vibexp/internal/auth/mcptoken"
 	"github.com/vibexp/vibexp/internal/auth/oauthserver"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
@@ -215,11 +216,22 @@ func (s *Server) newMCPTokenVerifier() (*mcptoken.Verifier, error) {
 		return nil, nil
 	}
 	resolver := mcpUserResolverAdapter{users: s.container.UserRepository()}
+	// The MCP resource server and the embedded Authorization Server run in the
+	// same process, so verify AS-issued tokens against the AS's in-process signing
+	// keys rather than fetching JWKS over HTTP from the public issuer URL — that
+	// URL need not be reachable from within the server (e.g. when the container
+	// publishes a host port different from the one it listens on). The MCP issuer
+	// is always this embedded AS.
+	var opts []authkit.Option
+	if s.oauthAS != nil {
+		opts = append(opts, authkit.WithKeySet(authkit.NewLocalKeySet(s.oauthAS.VerificationPublicKeys)))
+	}
 	return mcptoken.New(
 		context.Background(),
 		s.config.MCP.OAuthIssuer,
 		s.config.MCP.ResourceURI,
 		resolver,
+		opts...,
 	)
 }
 

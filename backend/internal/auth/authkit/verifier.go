@@ -8,6 +8,7 @@ package authkit
 
 import (
 	"context"
+	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -147,16 +148,35 @@ type TokenInfo struct {
 // Verifier validates AuthKit-issued access tokens for a single issuer and
 // audience policy.
 type Verifier struct {
-	keys     *oidc.RemoteKeySet
+	keys     oidc.KeySet
 	issuer   string
 	audience AudiencePolicy
 	resolver UserResolver
 }
 
-// New constructs a Verifier. It creates a caching JWKS key set pointed at the
-// issuer's JWKS endpoint (<issuer>/oauth2/jwks.json). issuer must be non-empty;
+// Option customizes a Verifier constructed by New.
+type Option func(*options)
+
+type options struct {
+	keySet oidc.KeySet
+}
+
+// WithKeySet overrides the default JWKS-over-HTTP key set with a caller-supplied
+// one. VibeXP's embedded Authorization Server uses this to verify its own tokens
+// with in-process public keys (see NewLocalKeySet) instead of an HTTP round-trip
+// to <issuer>/oauth2/jwks.json — that public issuer URL need not be reachable
+// from within the server (e.g. when the container publishes a host port that
+// differs from the one it listens on). The issuer string is still used for the
+// `iss` claim check.
+func WithKeySet(ks oidc.KeySet) Option {
+	return func(o *options) { o.keySet = ks }
+}
+
+// New constructs a Verifier. By default it creates a caching JWKS key set pointed
+// at the issuer's JWKS endpoint (<issuer>/oauth2/jwks.json); pass WithKeySet to
+// verify against an in-process key set instead. issuer must be non-empty;
 // audience and resolver must be non-nil.
-func New(ctx context.Context, issuer string, audience AudiencePolicy, resolver UserResolver) (*Verifier, error) {
+func New(ctx context.Context, issuer string, audience AudiencePolicy, resolver UserResolver, opts ...Option) (*Verifier, error) {
 	if issuer == "" {
 		return nil, fmt.Errorf("authkit: issuer is required")
 	}
@@ -167,12 +187,43 @@ func New(ctx context.Context, issuer string, audience AudiencePolicy, resolver U
 		return nil, fmt.Errorf("authkit: user resolver is required")
 	}
 
+	var cfg options
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	keys := cfg.keySet
+	if keys == nil {
+		keys = oidc.NewRemoteKeySet(ctx, jwksURL(issuer))
+	}
+
 	return &Verifier{
-		keys:     oidc.NewRemoteKeySet(ctx, jwksURL(issuer)),
+		keys:     keys,
 		issuer:   issuer,
 		audience: audience,
 		resolver: resolver,
 	}, nil
+}
+
+// NewLocalKeySet builds an oidc.KeySet that verifies RS256 JWTs against public
+// keys obtained in-process, with no HTTP request. getKeys must return the
+// verification public keys currently trusted for the issuer — for the embedded
+// Authorization Server that is its active key plus any retired-but-not-pruned
+// keys, so a token signed just before a key rotation still verifies. getKeys is
+// consulted on every verification, so rotations take effect immediately.
+func NewLocalKeySet(getKeys func(context.Context) ([]crypto.PublicKey, error)) oidc.KeySet {
+	return &localKeySet{getKeys: getKeys}
+}
+
+type localKeySet struct {
+	getKeys func(context.Context) ([]crypto.PublicKey, error)
+}
+
+func (l *localKeySet) VerifySignature(ctx context.Context, token string) ([]byte, error) {
+	keys, err := l.getKeys(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return (&oidc.StaticKeySet{PublicKeys: keys}).VerifySignature(ctx, token)
 }
 
 // jwksURL returns the JWKS endpoint for an issuer. VibeXP's embedded OAuth 2.1

@@ -2,6 +2,7 @@ package authkit
 
 import (
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -131,6 +132,53 @@ func TestVerify_ValidToken(t *testing.T) {
 	assert.Equal(t, testSubject, info.Subject)
 	assert.Equal(t, []string{"openid", "mcp"}, info.Scopes)
 	assert.False(t, info.Expiration.IsZero())
+}
+
+// TestVerify_WithInProcessKeySet exercises WithKeySet(NewLocalKeySet(...)): the
+// embedded Authorization Server verifies its own tokens against in-process public
+// keys, with no HTTP JWKS fetch — so verification does not depend on the issuer
+// URL being reachable from within the process (the localhost port-mismatch case).
+func TestVerify_WithInProcessKeySet(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	// An issuer URL deliberately not backed by any HTTP server: if verification
+	// tried to fetch <issuer>/oauth2/jwks.json it would fail, proving the local
+	// key set is used.
+	const issuer = "http://localhost:8081"
+	getKeys := func(context.Context) ([]crypto.PublicKey, error) {
+		return []crypto.PublicKey{key.Public()}, nil
+	}
+	v, err := New(
+		context.Background(),
+		issuer,
+		RequireAudience(testResource),
+		stubResolver{id: testInternalID},
+		WithKeySet(NewLocalKeySet(getKeys)),
+	)
+	require.NoError(t, err)
+
+	sign := func(k *rsa.PrivateKey) string {
+		tok := jwt.NewWithClaims(jwt.SigningMethodRS256, validClaims(issuer))
+		tok.Header["kid"] = testKeyID
+		s, serr := tok.SignedString(k)
+		require.NoError(t, serr)
+		return s
+	}
+
+	// A token signed by the trusted key verifies in-process.
+	info, err := v.Verify(context.Background(), sign(key))
+	require.NoError(t, err)
+	require.NotNil(t, info)
+	assert.Equal(t, testInternalID, info.UserID)
+	assert.Equal(t, []string{"openid", "mcp"}, info.Scopes)
+
+	// A token signed by a different key is rejected (signature failure).
+	other, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	_, err = v.Verify(context.Background(), sign(other))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrInvalidToken))
 }
 
 func TestVerify_AudienceAsArray(t *testing.T) {
