@@ -295,3 +295,30 @@ func TestStrictListArtifacts_ServiceErrorIsNotA404(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code, w.Body.String())
 }
+
+// The detail read must still record a resource-access event through the new
+// mount. Verified to be an unpinned gap first: making SetAccessedResourceID a
+// no-op left the whole package green, because recordResourceAccess reports
+// nothing unless a handler sets the id.
+func TestStrictGetArtifact_RecordsAnAccessEvent(t *testing.T) {
+	svc := servicesmocks.NewMockArtifactServiceInterface(t)
+	svc.On("GetArtifactByProjectIDAndSlugInTeam",
+		strictArtUserID, strictArtTeamID, strictArtProject, strictArtSlug).
+		Return(sampleStrictArtifact(), nil)
+
+	access := &spyResourceAccessService{}
+	srv := New("8080", nil, "test-api-key", &config.Config{}, slog.New(slog.DiscardHandler))
+	srv.container = &MockArtifactContainer{
+		ArtifactServiceMock:       svc,
+		ResourceAccessServiceMock: access,
+	}
+	srv = mountArtifactReadRoutes(srv)
+
+	_, w := strictArtifactRequest(t, srv,
+		"/api/v1/"+strictArtTeamID+"/artifacts/"+strictArtProject+"/"+strictArtSlug)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Len(t, access.events, 1, "the detail read must record exactly one access event")
+	assert.Equal(t, "art-1", access.events[0].ResourceID)
+	assert.Equal(t, resourceTypeArtifact, access.events[0].ResourceType)
+}

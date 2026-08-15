@@ -23,6 +23,7 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
+	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
 //nolint:funlen // Test function requires comprehensive setup for multiple scenarios
@@ -570,6 +571,14 @@ type MockArtifactContainer struct {
 	RelationServiceMock     services.RelationServiceInterface
 	FreshnessServiceMock    services.FreshnessServiceInterface
 	EmbeddingRepositoryMock repositories.EmbeddingRepository
+	// ResourceAccessServiceMock lets a test observe the access event the detail
+	// read records (#776); the embedded base returns nil, which the middleware
+	// treats as "do not record".
+	ResourceAccessServiceMock resourceaccess.ResourceAccessService
+}
+
+func (m *MockArtifactContainer) ResourceAccessService() resourceaccess.ResourceAccessService {
+	return m.ResourceAccessServiceMock
 }
 
 // FreshnessService returns the freshness mock when a test installs one; the

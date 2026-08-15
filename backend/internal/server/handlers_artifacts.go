@@ -143,11 +143,19 @@ func (as *artifactsStrictServer) GetArtifact(
 		"slug", request.Slug,
 	).Info("Get artifact request received")
 
-	// request.Slug is already decoded: the oapi-codegen runtime PathUnescapes
-	// path parameters itself (BindStyledParameterOptions.ValueIsUnescaped
-	// defaults to false), which is the same single decode the chi handler did
-	// explicitly. Decoding again here would corrupt any slug containing an
-	// encoded percent sign.
+	// request.Slug is already decoded, and must NOT be decoded again: the
+	// oapi-codegen runtime PathUnescapes path parameters itself
+	// (BindStyledParameterOptions.ValueIsUnescaped defaults to false), which
+	// supplies exactly the unescape the chi handler used to do explicitly.
+	//
+	// How many decodes that totals depends on url.URL.RawPath, which is why the
+	// pipeline is easier to measure than to reason about: for a canonically
+	// encoded path RawPath is empty, chi routes on the Go-decoded Path and hands
+	// back an already-decoded segment, so the runtime's unescape is the SECOND
+	// decode; for a path where RawPath is set (e.g. an encoded slash) chi hands
+	// back the raw segment and the runtime's is the ONLY one. Both regimes match
+	// the pre-conversion behaviour, which is the criterion -- adding a decode
+	// here would break the first regime.
 	artifact, err := as.s.container.ArtifactService().GetArtifactByProjectIDAndSlugInTeam(
 		userID, teamID, projectID, request.Slug,
 	)
