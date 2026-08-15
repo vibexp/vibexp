@@ -44,10 +44,13 @@ type clearCall struct {
 	resourceType string
 	resourceID   string
 	reason       string
+	medium       string
 }
 
-func (f *fakeClearer) ClearIfStale(_ context.Context, teamID, resourceType, resourceID, reason string) error {
-	f.calls = append(f.calls, clearCall{teamID, resourceType, resourceID, reason})
+func (f *fakeClearer) ClearIfStale(
+	_ context.Context, teamID, resourceType, resourceID, reason, medium string,
+) error {
+	f.calls = append(f.calls, clearCall{teamID, resourceType, resourceID, reason, medium})
 	if f.panics {
 		panic("boom")
 	}
@@ -675,12 +678,17 @@ func TestService_RecordAccess_ClearsFreshness(t *testing.T) {
 	newServiceWithClearer(repo, lastAccessed, clearer, submitter).RecordAccess(event)
 
 	assert.Equal(t, 1, submitter.submitted)
+	// The medium is the event's own source, not a constant: it is what scopes
+	// the clear to the rules that actually watch that medium (#770), so passing
+	// the wrong one — or none — would resurrect the per-interval flap.
 	assert.Equal(t, []clearCall{{
 		teamID:       "team-1",
 		resourceType: "prompt",
 		resourceID:   "res-1",
 		reason:       models.FreshnessReasonAccessed,
+		medium:       event.Source,
 	}}, clearer.calls)
+	require.Equal(t, SourceWeb, event.Source, "this assertion only means anything while the event carries a source")
 }
 
 // The clear is fire-and-forget like everything else on this goroutine: the read
@@ -757,7 +765,7 @@ func TestNewService_NilClearerStaysNil(t *testing.T) {
 func TestNewService_RealClearerIsStored(t *testing.T) {
 	t.Parallel()
 
-	clearer := freshness.NewClearer(nil, nil, nil, newTestLogger())
+	clearer := freshness.NewClearer(nil, nil, nil, nil, newTestLogger())
 
 	svc := NewService(nil, nil, clearer, nil, newTestLogger(), 90)
 

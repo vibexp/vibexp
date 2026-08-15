@@ -41,6 +41,7 @@ type Clearer struct {
 	settings repositories.TeamFreshnessSettingsRepository
 	state    repositories.ResourceFreshnessRepository
 	audit    repositories.FreshnessAuditRepository
+	rules    repositories.FreshnessRuleRepository
 	logger   *slog.Logger
 }
 
@@ -49,14 +50,21 @@ func NewClearer(
 	settings repositories.TeamFreshnessSettingsRepository,
 	state repositories.ResourceFreshnessRepository,
 	audit repositories.FreshnessAuditRepository,
+	rules repositories.FreshnessRuleRepository,
 	logger *slog.Logger,
 ) *Clearer {
-	return &Clearer{settings: settings, state: state, audit: audit, logger: logger}
+	return &Clearer{settings: settings, state: state, audit: audit, rules: rules, logger: logger}
 }
 
 // ClearIfStale removes a resource's freshness state and records the reversal,
 // when the resource is actually stale and the team has reversibility enabled.
 // reason must be models.FreshnessReasonAccessed or models.FreshnessReasonEdited.
+//
+// medium is the access medium (models.ResourceAccessEvent.Source: web, cli,
+// mcp or api) and is consulted only on the ACCESS path, where an access through
+// a medium none of the matching rules names must not clear -- see
+// mediumMatchesRules. The EDIT path reverses unconditionally and passes
+// models.FreshnessMediumNone.
 //
 // A resource type freshness cannot evaluate returns immediately, without
 // touching the database at all.
@@ -70,7 +78,7 @@ func NewClearer(
 // The team setting is read per call and never cached across calls. A cache
 // would make toggling reversibility appear not to work, which is a far worse
 // failure than one small indexed read on the rare stale-resource path.
-func (c *Clearer) ClearIfStale(ctx context.Context, teamID, resourceType, resourceID, reason string) error {
+func (c *Clearer) ClearIfStale(ctx context.Context, teamID, resourceType, resourceID, reason, medium string) error {
 	if !slices.Contains(clearReasons, reason) {
 		return fmt.Errorf("freshness clear: reason %q is not a reversal reason", reason)
 	}
@@ -100,6 +108,26 @@ func (c *Clearer) ClearIfStale(ctx context.Context, teamID, resourceType, resour
 		return nil
 	}
 
+	// Reversal must not undo a mark the rule is about to re-apply. Every rule's
+	// staleness expression is GREATEST(updated_at, <that rule's medium
+	// columns>), so an access through a medium none of the matching rules names
+	// moves a column none of them read -- clearing here would flap the badge and
+	// append a cleared/marked audit pair once per interval (#770).
+	//
+	// The EDIT path skips the check deliberately: updated_at is in EVERY rule's
+	// expression regardless of its mediums, so an edit always moves a timestamp
+	// the rule reads and an edit-triggered clear can never flap. Scoping it
+	// would be wrong, not merely unnecessary.
+	//
+	// This runs after the row is found, so a fresh resource never pays for it.
+	blocked, err := c.mediumBlocksReversal(ctx, teamID, reason, existing.MatchedRuleIDs, medium)
+	if err != nil {
+		return fmt.Errorf("freshness clear: failed to resolve rules for team %s: %w", teamID, err)
+	}
+	if blocked {
+		return nil
+	}
+
 	enabled, err := c.reversibilityEnabled(ctx, teamID)
 	if err != nil {
 		return fmt.Errorf("freshness clear: failed to read settings for team %s: %w", teamID, err)
@@ -110,6 +138,12 @@ func (c *Clearer) ClearIfStale(ctx context.Context, teamID, resourceType, resour
 		return nil
 	}
 
+	return c.deleteAndRecord(ctx, teamID, resourceType, resourceID, reason)
+}
+
+// deleteAndRecord removes the freshness row and, only if it really removed one,
+// appends the reversal to the audit log.
+func (c *Clearer) deleteAndRecord(ctx context.Context, teamID, resourceType, resourceID, reason string) error {
 	deleted, err := c.state.DeleteByResource(ctx, resourceType, resourceID)
 	if err != nil {
 		return fmt.Errorf("freshness clear: failed to clear %s %s: %w", resourceType, resourceID, err)
@@ -138,6 +172,72 @@ func (c *Clearer) ClearIfStale(ctx context.Context, teamID, resourceType, resour
 			reason, resourceType, resourceID, err)
 	}
 	return nil
+}
+
+// mediumBlocksReversal reports whether this reversal must be refused because the
+// access came through a medium none of the rules that marked the resource
+// watches (#770).
+//
+// Only an ACCESS can be blocked. An edit moves `updated_at`, which is in every
+// rule's staleness expression whatever mediums it names, so an edit-triggered
+// clear can never be undone by the next evaluation run -- and the rules are not
+// even read for one.
+func (c *Clearer) mediumBlocksReversal(
+	ctx context.Context, teamID, reason string, ruleIDs []string, medium string,
+) (bool, error) {
+	if reason != models.FreshnessReasonAccessed {
+		return false, nil
+	}
+	matches, err := c.mediumMatchesRules(ctx, teamID, ruleIDs, medium)
+	if err != nil {
+		return false, err
+	}
+	return !matches, nil
+}
+
+// mediumMatchesRules reports whether an access through medium is one the rules
+// that marked this resource actually watch -- i.e. whether clearing now would
+// stick rather than be undone by the next evaluation run.
+//
+// A rule with no mediums means "any medium", so it always matches; that is the
+// default rule and the reason this change is a no-op for most teams. One
+// matching rule out of several is enough: the evaluator marks on the union of
+// its rules, so the reversal answers on the union too.
+//
+// One ListByTeam beats N GetByID calls regardless of how many rules matched,
+// and teams have few rules. A rule id that no longer resolves -- deleted or
+// disabled between the mark and this access -- is skipped rather than treated
+// as an error: it cannot re-mark the resource, and the next evaluation run
+// clears the row anyway.
+func (c *Clearer) mediumMatchesRules(
+	ctx context.Context, teamID string, ruleIDs []string, medium string,
+) (bool, error) {
+	// Nothing claims the resource, so nothing can re-mark it and the clear
+	// cannot flap.
+	if len(ruleIDs) == 0 {
+		return true, nil
+	}
+
+	rules, err := c.rules.ListByTeam(ctx, teamID, true)
+	if err != nil {
+		return false, err
+	}
+
+	byID := make(map[string]*models.FreshnessRule, len(rules))
+	for _, rule := range rules {
+		byID[rule.ID] = rule
+	}
+
+	for _, ruleID := range ruleIDs {
+		rule, ok := byID[ruleID]
+		if !ok {
+			continue
+		}
+		if len(rule.Mediums) == 0 || slices.Contains(rule.Mediums, medium) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // reversibilityEnabled resolves the team's toggle, falling back to the default

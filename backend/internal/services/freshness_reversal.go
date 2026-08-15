@@ -15,7 +15,11 @@ type FreshnessClearer interface {
 	// ClearIfStale removes the resource's freshness state and records the
 	// reversal, when the resource is stale and the team has reversibility
 	// enabled. Clearing a resource that is not stale is a no-op.
-	ClearIfStale(ctx context.Context, teamID, resourceType, resourceID, reason string) error
+	//
+	// medium scopes an ACCESS-triggered clear to the mediums of the rules that
+	// marked the resource (#770); the edit path below reverses unconditionally
+	// and passes models.FreshnessMediumNone.
+	ClearIfStale(ctx context.Context, teamID, resourceType, resourceID, reason, medium string) error
 }
 
 // clearFreshnessAfterEdit reverses stale state after a successful update.
@@ -42,7 +46,12 @@ func clearFreshnessAfterEdit(
 		return
 	}
 
-	err := clearer.ClearIfStale(ctx, teamID, resourceType, resourceID, models.FreshnessReasonEdited)
+	// No medium: an edit moves `updated_at`, which is in every rule's staleness
+	// expression whatever its mediums, so this clear can never be undone by the
+	// next evaluation run and must not be scoped (#770).
+	err := clearer.ClearIfStale(
+		ctx, teamID, resourceType, resourceID, models.FreshnessReasonEdited, models.FreshnessMediumNone,
+	)
 	if err == nil {
 		return
 	}

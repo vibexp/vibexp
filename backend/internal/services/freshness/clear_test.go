@@ -15,10 +15,15 @@ import (
 	"github.com/vibexp/vibexp/internal/services/freshness"
 )
 
+// testAccessMedium is the medium the pre-#770 cases implicitly assumed: any
+// one at all, against the default "any medium" rule.
+const testAccessMedium = "web"
+
 type clearerDeps struct {
 	settings *repomocks.MockTeamFreshnessSettingsRepository
 	state    *repomocks.MockResourceFreshnessRepository
 	audit    *repomocks.MockFreshnessAuditRepository
+	rules    *repomocks.MockFreshnessRuleRepository
 }
 
 func newClearer(t *testing.T) (*freshness.Clearer, clearerDeps) {
@@ -28,8 +33,10 @@ func newClearer(t *testing.T) (*freshness.Clearer, clearerDeps) {
 		settings: repomocks.NewMockTeamFreshnessSettingsRepository(t),
 		state:    repomocks.NewMockResourceFreshnessRepository(t),
 		audit:    repomocks.NewMockFreshnessAuditRepository(t),
+		rules:    repomocks.NewMockFreshnessRuleRepository(t),
 	}
-	clearer := freshness.NewClearer(deps.settings, deps.state, deps.audit, slog.New(slog.DiscardHandler))
+	clearer := freshness.NewClearer(
+		deps.settings, deps.state, deps.audit, deps.rules, slog.New(slog.DiscardHandler))
 	return clearer, deps
 }
 
@@ -46,6 +53,19 @@ func (d clearerDeps) expectStale() {
 		}, nil).Once()
 }
 
+// expectRules answers the rule lookup the access path makes to decide whether
+// the access medium is one the matching rules watch (#770).
+func (d clearerDeps) expectRules(rules ...*models.FreshnessRule) {
+	d.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).Return(rules, nil).Once()
+}
+
+// expectAnyMediumRule answers it with the default rule — no mediums, i.e. "any
+// medium" — which is what every case predating #770 assumed and what the
+// overwhelming majority of teams run.
+func (d clearerDeps) expectAnyMediumRule() {
+	d.expectRules(&models.FreshnessRule{ID: testRuleID, TeamID: testTeamID})
+}
+
 // expectReversibility answers the settings lookup with the given toggle.
 func (d clearerDeps) expectReversibility(enabled bool) {
 	d.settings.EXPECT().Get(mock.Anything, testTeamID).
@@ -58,7 +78,12 @@ func (d clearerDeps) expectReversibility(enabled bool) {
 
 func clear(t *testing.T, c *freshness.Clearer, reason string) error {
 	t.Helper()
-	return c.ClearIfStale(context.Background(), testTeamID, "prompt", testPromptID, reason)
+	return clearVia(t, c, reason, testAccessMedium)
+}
+
+func clearVia(t *testing.T, c *freshness.Clearer, reason, medium string) error {
+	t.Helper()
+	return c.ClearIfStale(context.Background(), testTeamID, "prompt", testPromptID, reason, medium)
 }
 
 // The full matrix the acceptance criteria name: {on, off} x {accessed, edited}
@@ -90,12 +115,15 @@ func TestClearIfStale_Matrix(t *testing.T) {
 
 			if !tt.stale {
 				// The cheap short-circuit: a fresh resource costs one indexed
-				// miss and must not read settings at all. The t-bound settings
-				// mock has no expectation, so a read fails the test.
+				// miss and must not read settings OR rules at all. The t-bound
+				// mocks have no expectation, so either read fails the test.
 				deps.state.EXPECT().GetByResource(mock.Anything, "prompt", testPromptID).
 					Return(nil, nil).Once()
 			} else {
 				deps.expectStale()
+				if tt.reason == models.FreshnessReasonAccessed {
+					deps.expectAnyMediumRule()
+				}
 				deps.expectReversibility(tt.enabled)
 			}
 
@@ -126,6 +154,171 @@ func TestClearIfStale_Matrix(t *testing.T) {
 	}
 }
 
+// The #770 fix: an ACCESS clears only when its medium is one the rules that
+// marked the resource actually watch. Anything else would be undone by the very
+// next evaluation run — a badge flapping once per interval, and a
+// cleared/marked audit pair per interval per resource.
+//
+// The reason axis is in the table on purpose: an EDIT must clear regardless of
+// the rule's mediums, because `updated_at` is in every rule's staleness
+// expression whatever mediums it names, so an edit-triggered clear can never
+// flap.
+func TestClearIfStale_ScopesAccessReversalToTheMatchedRulesMediums(t *testing.T) {
+	tests := []struct {
+		name        string
+		rules       []*models.FreshnessRule
+		reason      string
+		medium      string
+		wantCleared bool
+	}{
+		{
+			name:   "mcp-scoped rule does not clear on a web access",
+			rules:  []*models.FreshnessRule{{ID: testRuleID, TeamID: testTeamID, Mediums: []string{"mcp"}}},
+			reason: models.FreshnessReasonAccessed, medium: "web",
+		},
+		{
+			name:        "mcp-scoped rule clears on an mcp access",
+			rules:       []*models.FreshnessRule{{ID: testRuleID, TeamID: testTeamID, Mediums: []string{"mcp"}}},
+			reason:      models.FreshnessReasonAccessed,
+			medium:      "mcp",
+			wantCleared: true,
+		},
+		{
+			name:        "any-medium rule clears on any access",
+			rules:       []*models.FreshnessRule{{ID: testRuleID, TeamID: testTeamID}},
+			reason:      models.FreshnessReasonAccessed,
+			medium:      "cli",
+			wantCleared: true,
+		},
+		{
+			// `api` is deliberately not valid rule input, but it IS in the
+			// any-medium column set, so it matches an unscoped rule only.
+			name:   "api access does not clear a medium-scoped rule",
+			rules:  []*models.FreshnessRule{{ID: testRuleID, TeamID: testTeamID, Mediums: []string{"mcp", "web"}}},
+			reason: models.FreshnessReasonAccessed, medium: "api",
+		},
+		{
+			name:        "api access clears an any-medium rule",
+			rules:       []*models.FreshnessRule{{ID: testRuleID, TeamID: testTeamID}},
+			reason:      models.FreshnessReasonAccessed,
+			medium:      "api",
+			wantCleared: true,
+		},
+		{
+			// The evaluator marks on the UNION of its rules, so the reversal
+			// answers on the union too: one matching rule is enough.
+			name: "union of several matched rules clears",
+			rules: []*models.FreshnessRule{
+				{ID: testRuleID, TeamID: testTeamID, Mediums: []string{"mcp"}},
+				{ID: "rule-2", TeamID: testTeamID, Mediums: []string{"web"}},
+			},
+			reason:      models.FreshnessReasonAccessed,
+			medium:      "web",
+			wantCleared: true,
+		},
+		{
+			name: "no matched rule names the medium, even across several",
+			rules: []*models.FreshnessRule{
+				{ID: testRuleID, TeamID: testTeamID, Mediums: []string{"mcp"}},
+				{ID: "rule-2", TeamID: testTeamID, Mediums: []string{"cli"}},
+			},
+			reason: models.FreshnessReasonAccessed, medium: "web",
+		},
+		{
+			// A rule deleted or disabled between the mark and this access no
+			// longer resolves. It cannot re-mark the resource, so it is skipped
+			// rather than treated as an error — but on its own it leaves nothing
+			// to match, and the next evaluation run clears the row.
+			name:   "a matched rule that no longer resolves is skipped",
+			rules:  []*models.FreshnessRule{{ID: "some-other-rule", TeamID: testTeamID}},
+			reason: models.FreshnessReasonAccessed, medium: "web",
+		},
+		{
+			name: "a resolvable sibling still clears when one id is dangling",
+			rules: []*models.FreshnessRule{
+				{ID: "rule-2", TeamID: testTeamID, Mediums: []string{"web"}},
+			},
+			reason:      models.FreshnessReasonAccessed,
+			medium:      "web",
+			wantCleared: true,
+		},
+		{
+			name:        "an edit clears regardless of the rule's mediums",
+			rules:       []*models.FreshnessRule{{ID: testRuleID, TeamID: testTeamID, Mediums: []string{"mcp"}}},
+			reason:      models.FreshnessReasonEdited,
+			medium:      models.FreshnessMediumNone,
+			wantCleared: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearer, deps := newClearer(t)
+
+			deps.state.EXPECT().GetByResource(mock.Anything, "prompt", testPromptID).
+				Return(&models.ResourceFreshness{
+					TeamID:         testTeamID,
+					ResourceType:   "prompt",
+					ResourceID:     testPromptID,
+					Status:         models.FreshnessStatusStale,
+					MatchedRuleIDs: []string{testRuleID, "rule-2"},
+				}, nil).Once()
+
+			if tt.reason == models.FreshnessReasonAccessed {
+				deps.expectRules(tt.rules...)
+			}
+			// An edit never reads rules at all: the t-bound rule mock has no
+			// expectation in that case, so a lookup fails the test.
+			if tt.wantCleared {
+				deps.expectReversibility(true)
+				deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).
+					Return(true, nil).Once()
+				deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+			}
+			// When it must NOT clear, the settings read never happens either —
+			// the check sits before it — and the t-bound mocks enforce that
+			// along with the absent delete and audit rows.
+
+			require.NoError(t, clearVia(t, clearer, tt.reason, tt.medium))
+		})
+	}
+}
+
+// A row nothing claims cannot be re-marked, so an access clears it rather than
+// waiting a whole interval for the evaluator to reach the same conclusion.
+func TestClearIfStale_ClearsWhenNoRuleClaimsTheResource(t *testing.T) {
+	clearer, deps := newClearer(t)
+
+	deps.state.EXPECT().GetByResource(mock.Anything, "prompt", testPromptID).
+		Return(&models.ResourceFreshness{
+			TeamID:       testTeamID,
+			ResourceType: "prompt",
+			ResourceID:   testPromptID,
+			Status:       models.FreshnessStatusStale,
+		}, nil).Once()
+	deps.expectReversibility(true)
+	deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).Return(true, nil).Once()
+	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+
+	require.NoError(t, clear(t, clearer, models.FreshnessReasonAccessed))
+	// No rule lookup either: with no ids to resolve there is nothing to ask
+	// about, and the t-bound rule mock fails the test if one happened.
+}
+
+// The cheap-path guarantee, stated on its own rather than left implicit in the
+// matrix: this sits on every read, so a fresh resource must cost exactly one
+// indexed miss and touch neither settings nor rules.
+func TestClearIfStale_FreshResourceReadsNeitherRulesNorSettings(t *testing.T) {
+	clearer, deps := newClearer(t)
+
+	deps.state.EXPECT().GetByResource(mock.Anything, "prompt", testPromptID).Return(nil, nil).Once()
+
+	require.NoError(t, clear(t, clearer, models.FreshnessReasonAccessed))
+
+	deps.rules.AssertNotCalled(t, "ListByTeam", mock.Anything, mock.Anything, mock.Anything)
+	deps.settings.AssertNotCalled(t, "Get", mock.Anything, mock.Anything)
+}
+
 // A team with no stored settings row inherits the defaults, and the default is
 // reversibility ON — so a team that never opened the settings card still gets
 // the behaviour the epic describes.
@@ -133,6 +326,7 @@ func TestClearIfStale_AbsentSettingsInheritTheDefault(t *testing.T) {
 	clearer, deps := newClearer(t)
 
 	deps.expectStale()
+	deps.expectAnyMediumRule()
 	deps.settings.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil).Once()
 	deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).Return(true, nil).Once()
 	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
@@ -149,6 +343,7 @@ func TestClearIfStale_LostRaceWritesNoAudit(t *testing.T) {
 	clearer, deps := newClearer(t)
 
 	deps.expectStale()
+	deps.expectAnyMediumRule()
 	deps.expectReversibility(true)
 	deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).Return(false, nil).Once()
 
@@ -199,9 +394,17 @@ func TestClearIfStale_PropagatesRepositoryErrors(t *testing.T) {
 			},
 		},
 		{
+			name: "rule lookup",
+			setup: func(deps clearerDeps) {
+				deps.expectStale()
+				deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).Return(nil, failure).Once()
+			},
+		},
+		{
 			name: "settings lookup",
 			setup: func(deps clearerDeps) {
 				deps.expectStale()
+				deps.expectAnyMediumRule()
 				deps.settings.EXPECT().Get(mock.Anything, testTeamID).Return(nil, failure).Once()
 			},
 		},
@@ -209,6 +412,7 @@ func TestClearIfStale_PropagatesRepositoryErrors(t *testing.T) {
 			name: "delete",
 			setup: func(deps clearerDeps) {
 				deps.expectStale()
+				deps.expectAnyMediumRule()
 				deps.expectReversibility(true)
 				deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).
 					Return(false, failure).Once()
@@ -218,6 +422,7 @@ func TestClearIfStale_PropagatesRepositoryErrors(t *testing.T) {
 			name: "audit",
 			setup: func(deps clearerDeps) {
 				deps.expectStale()
+				deps.expectAnyMediumRule()
 				deps.expectReversibility(true)
 				deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).
 					Return(true, nil).Once()
@@ -248,7 +453,8 @@ func TestClearIfStale_SkipsTypesFreshnessCannotEvaluate(t *testing.T) {
 			clearer, _ := newClearer(t)
 
 			err := clearer.ClearIfStale(
-				context.Background(), testTeamID, resourceType, testPromptID, models.FreshnessReasonAccessed)
+				context.Background(), testTeamID, resourceType, testPromptID,
+				models.FreshnessReasonAccessed, testAccessMedium)
 
 			require.NoError(t, err, "an unevaluable type is a no-op, not a failure")
 			// No repository call at all — the t-bound mocks enforce it.

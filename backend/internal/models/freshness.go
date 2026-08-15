@@ -29,6 +29,13 @@ const (
 	FreshnessReasonEdited = "edited"
 )
 
+// FreshnessMediumNone is the medium a reversal passes when there is none to
+// pass: the edit path clears unconditionally (an edit moves `updated_at`, which
+// every rule watches whatever its mediums) and therefore never reads it. It is
+// a named constant so an edit call site cannot be mistaken for one that forgot
+// to plumb a real medium through (#770).
+const FreshnessMediumNone = ""
+
 // ResourceFreshness is the system-owned staleness state of a single resource
 // (epic #726). The row exists only while the resource is stale -- clearing
 // staleness deletes it, and ResourceFreshnessAudit is what preserves the

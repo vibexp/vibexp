@@ -51,7 +51,7 @@ The root `docker-compose.yml` runs the published images (self-host), not for dev
 
 - Backend: `make backend-run-dev` (Postgres + air hot-reload), plus `backend-test`, `backend-lint`, `backend-check`, `backend-generate-openapi-server`, `backend-wire-gen`, `backend-mock-generate`.
 - Frontend: `make frontend-run-dev` (Vite, http://localhost:5173), plus `frontend-install`, `frontend-lint`, `frontend-type-check`, `frontend-test`, `frontend-build`.
-- Go toolchain is pinned: the Makefile sets `GOTOOLCHAIN=go1.25.12`. Keep `GO_VERSION` in sync with `go-version` in `ci.yml`.
+- Go toolchain is pinned: the Makefile sets `GOTOOLCHAIN=go1.25.13`. Keep `GO_VERSION` in sync with `go-version` in `ci.yml`.
 
 ## Generated code — never hand-edit
 

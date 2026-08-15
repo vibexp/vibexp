@@ -32,8 +32,16 @@ func newIntegrationClearer() *freshness.Clearer {
 		NewTeamFreshnessSettingsRepository(integrationDB),
 		NewResourceFreshnessRepository(integrationDB),
 		NewFreshnessAuditRepository(integrationDB),
+		NewFreshnessRuleRepository(integrationDB),
 		slog.New(slog.DiscardHandler),
 	)
+}
+
+// clearAccess reverses the way a read does, through the given medium.
+func clearAccess(t *testing.T, teamID, resourceID, medium string) error {
+	t.Helper()
+	return newIntegrationClearer().ClearIfStale(
+		context.Background(), teamID, "prompt", resourceID, models.FreshnessReasonAccessed, medium)
 }
 
 // setReversibility stores the team's toggle. An absent row means "inherit the
@@ -52,9 +60,18 @@ func setReversibility(t *testing.T, teamID string, enabled bool) {
 // exactly the one production would have written.
 func markStaleForReversal(t *testing.T, scope candidateScope) string {
 	t.Helper()
+	return markStaleForReversalScoped(t, scope, nil)
+}
+
+// markStaleForReversalScoped is the same fixture with the rule's mediums under
+// the caller's control, which is what the #770 cases need: with an all-medium
+// rule the access genuinely does move the timestamp the rule reads, so the flap
+// is structurally unreachable.
+func markStaleForReversalScoped(t *testing.T, scope candidateScope, mediums []string) string {
+	t.Helper()
 	promptID := insertTestPrompt(t, scope.userID, scope.teamID, scope.projectID, "old", "body", "published")
 	touchResource(t, "prompts", promptID, "", daysAgo(120), nil)
-	insertEvaluationRule(t, scope.teamID, 30, "prompt")
+	insertScopedEvaluationRule(t, scope.teamID, 30, mediums, "prompt")
 
 	require.NoError(t, newIntegrationEvaluator().Evaluate(context.Background(), scope.teamID))
 
@@ -76,7 +93,7 @@ func TestIntegrationFreshnessClear_ReversesOnAccessAndEdit(t *testing.T) {
 			setReversibility(t, scope.teamID, true)
 
 			require.NoError(t, newIntegrationClearer().
-				ClearIfStale(ctx, scope.teamID, "prompt", promptID, reason))
+				ClearIfStale(ctx, scope.teamID, "prompt", promptID, reason, "web"))
 
 			cleared, err := NewResourceFreshnessRepository(integrationDB).GetByResource(ctx, "prompt", promptID)
 			require.NoError(t, err)
@@ -102,8 +119,7 @@ func TestIntegrationFreshnessClear_RespectsTheDisabledToggle(t *testing.T) {
 	promptID := markStaleForReversal(t, scope)
 	setReversibility(t, scope.teamID, false)
 
-	require.NoError(t, newIntegrationClearer().
-		ClearIfStale(ctx, scope.teamID, "prompt", promptID, models.FreshnessReasonAccessed))
+	require.NoError(t, clearAccess(t, scope.teamID, promptID, "web"))
 
 	stillStale, err := NewResourceFreshnessRepository(integrationDB).GetByResource(ctx, "prompt", promptID)
 	require.NoError(t, err)
@@ -116,12 +132,10 @@ func TestIntegrationFreshnessClear_RespectsTheDisabledToggle(t *testing.T) {
 func TestIntegrationFreshnessClear_FreshResourceIsANoOp(t *testing.T) {
 	resetFreshnessTables(t)
 	scope := seedCandidateScope(t)
-	ctx := context.Background()
 	promptID := insertTestPrompt(t, scope.userID, scope.teamID, scope.projectID, "fresh", "body", "published")
 	setReversibility(t, scope.teamID, true)
 
-	require.NoError(t, newIntegrationClearer().
-		ClearIfStale(ctx, scope.teamID, "prompt", promptID, models.FreshnessReasonAccessed))
+	require.NoError(t, clearAccess(t, scope.teamID, promptID, "web"))
 
 	assert.Empty(t, auditEntries(t, scope.teamID))
 }
@@ -136,8 +150,7 @@ func TestIntegrationFreshnessClear_EvaluatorRemarksAfterReversal(t *testing.T) {
 	promptID := markStaleForReversal(t, scope)
 	setReversibility(t, scope.teamID, true)
 
-	require.NoError(t, newIntegrationClearer().
-		ClearIfStale(ctx, scope.teamID, "prompt", promptID, models.FreshnessReasonAccessed))
+	require.NoError(t, clearAccess(t, scope.teamID, promptID, "web"))
 
 	// The reversal cleared the flag but did NOT touch the timestamps the rule
 	// reads, so the resource is still untouched for 120 days and the next run
@@ -153,6 +166,58 @@ func TestIntegrationFreshnessClear_EvaluatorRemarksAfterReversal(t *testing.T) {
 	require.Len(t, entries, 3)
 	assert.Equal(t, models.FreshnessActionMarked, entries[0].Action)
 	assert.Equal(t, models.FreshnessReasonRuleRun, entries[0].Reason)
+}
+
+// The #770 regression case, and the one the existing suites structurally cannot
+// reach: with an mcp-scoped rule, a WEB read moves only last_accessed_web_at —
+// a column the rule does not read — so reversing on it would clear a badge the
+// very next evaluation run re-applies, once per interval, forever.
+//
+// Asserted across two runs with the mismatched access in between, because a
+// single run cannot tell "correctly refused" from "cleared and not yet
+// re-marked". On main this test fails with three audit entries (marked,
+// cleared, marked) and a resource that flapped.
+func TestIntegrationFreshnessClear_MediumScopedRuleDoesNotFlap(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	ctx := context.Background()
+	promptID := markStaleForReversalScoped(t, scope, []string{"mcp"})
+	setReversibility(t, scope.teamID, true)
+
+	require.NoError(t, clearAccess(t, scope.teamID, promptID, "web"))
+
+	stillStale, err := NewResourceFreshnessRepository(integrationDB).GetByResource(ctx, "prompt", promptID)
+	require.NoError(t, err)
+	require.NotNil(t, stillStale, "a web read must not reverse a mark an mcp-scoped rule made")
+
+	require.NoError(t, newIntegrationEvaluator().Evaluate(ctx, scope.teamID))
+
+	entries := auditEntries(t, scope.teamID)
+	require.Len(t, entries, 1, "one mark across two runs — no cleared/marked pair per interval")
+	assert.Equal(t, models.FreshnessActionMarked, entries[0].Action)
+	assert.Equal(t, models.FreshnessReasonRuleRun, entries[0].Reason)
+}
+
+// The other half of the same rule: an access through the medium it DOES name is
+// a genuine touch of the column it reads, so it clears exactly as before —
+// scoping the reversal must not amount to switching it off.
+func TestIntegrationFreshnessClear_MediumScopedRuleClearsOnItsOwnMedium(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	ctx := context.Background()
+	promptID := markStaleForReversalScoped(t, scope, []string{"mcp"})
+	setReversibility(t, scope.teamID, true)
+
+	require.NoError(t, clearAccess(t, scope.teamID, promptID, "mcp"))
+
+	cleared, err := NewResourceFreshnessRepository(integrationDB).GetByResource(ctx, "prompt", promptID)
+	require.NoError(t, err)
+	assert.Nil(t, cleared)
+
+	entries := auditEntries(t, scope.teamID)
+	require.Len(t, entries, 2, "the mark and the reversal")
+	assert.Equal(t, models.FreshnessActionCleared, entries[0].Action)
+	assert.Equal(t, models.FreshnessReasonAccessed, entries[0].Reason)
 }
 
 // Reversal sits on the detail-read path, so its cost has to be an index seek
