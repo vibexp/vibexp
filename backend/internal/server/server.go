@@ -32,6 +32,7 @@ import (
 	commentsgen "github.com/vibexp/vibexp/internal/server/gen/comments"
 	embeddingprovidersgen "github.com/vibexp/vibexp/internal/server/gen/embeddingproviders"
 	freshnessgen "github.com/vibexp/vibexp/internal/server/gen/freshness"
+	memoriesgen "github.com/vibexp/vibexp/internal/server/gen/memories"
 	metadatagen "github.com/vibexp/vibexp/internal/server/gen/metadata"
 	relationsgen "github.com/vibexp/vibexp/internal/server/gen/relations"
 	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
@@ -1154,19 +1155,65 @@ func (s *Server) setupAgentsRoutes(r chi.Router) {
 
 // agentTeamValidationMiddleware validates team_id from URL path and team access for agent operations
 // This middleware reuses the same validation logic as prompts
+// setupMemoriesRoutes mounts the memories domain: the two READ operations on the
+// generated strict server (issue #779, epic #122) and everything else on its chi
+// handler.
+//
+// The generated handler registers ABSOLUTE paths, so — as in
+// setupEmbeddingProvidersRoutes — the converted operations cannot live inside an
+// `r.Route("/api/v1/{team_id}/memories")` prefix group; the write and versions
+// routes therefore keep their own group and both mounts carry the same tenancy
+// middleware.
 func (s *Server) setupMemoriesRoutes(r chi.Router) {
-	r.Route("/api/v1/{team_id}/memories", func(r chi.Router) {
-		r.Use(s.memoryTeamValidationMiddleware()) // Validate team_id from URL and team access
-		r.Post("/", s.handleCreateMemory)
-		r.Get("/", s.handleListMemories)
-		r.With(s.recordResourceAccess(resourceTypeMemory)).Get("/{id}", s.handleGetMemory)
-		r.Put("/{id}", s.handleUpdateMemory)
-		r.Delete("/{id}", s.handleDeleteMemory)
-		// Memory content versions
-		r.Get("/{id}/versions", s.handleListMemoryVersions)
-		r.Get("/{id}/versions/{version_number}", s.handleGetMemoryVersion)
-		r.Post("/{id}/versions/{version_number}/restore", s.handleRestoreMemoryVersion)
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.memoryTeamValidationMiddleware()) // Validate team_id from URL and team access
+		s.mountMemoriesHandlers(gr)
 	})
+}
+
+// mountMemoriesHandlers registers the domain's routes on an already-scoped
+// router: the two generated read operations plus the write and versions routes
+// that stay on chi handlers (later slices of #122).
+//
+// Every route is registered at FULL LENGTH rather than inside an
+// `r.Route("/api/v1/{team_id}/memories")` prefix group, because the generated
+// handler registers absolute paths and a prefix Mount at the same pattern would
+// shadow them — the route-drift gate catches exactly that, reporting the
+// documented GET as unserved. Same shape as mountEmbeddingProvidersHandlers.
+//
+// Split out of setupMemoriesRoutes so tests can exercise the real route tree
+// without the tenancy middleware.
+func (s *Server) mountMemoriesHandlers(r chi.Router) {
+	// recordResourceAccess wraps both generated operations, where the chi routes
+	// wrapped only the detail one. That is not a behaviour change: the
+	// middleware records nothing unless the handler calls SetAccessedResourceID,
+	// which only GetMemory does — a list response carries no single resource to
+	// attribute an access to.
+	r.Group(func(rr chi.Router) {
+		rr.Use(s.recordResourceAccess(resourceTypeMemory))
+		rr.Use(dropEmptyQueryValues)
+		strict := memoriesgen.NewStrictHandlerWithOptions(
+			&memoriesStrictServer{s: s},
+			nil,
+			memoriesgen.StrictHTTPServerOptions{
+				RequestErrorHandlerFunc:  s.memoriesBindErrorHandler,
+				ResponseErrorHandlerFunc: s.memoriesResponseErrorHandler,
+			},
+		)
+		memoriesgen.HandlerWithOptions(strict, memoriesgen.ChiServerOptions{
+			BaseRouter:       rr,
+			ErrorHandlerFunc: s.memoriesBindErrorHandler,
+		})
+	})
+
+	const base = "/api/v1/{team_id}/memories"
+	r.Post(base, s.handleCreateMemory)
+	r.Put(base+"/{id}", s.handleUpdateMemory)
+	r.Delete(base+"/{id}", s.handleDeleteMemory)
+	// Memory content versions
+	r.Get(base+"/{id}/versions", s.handleListMemoryVersions)
+	r.Get(base+"/{id}/versions/{version_number}", s.handleGetMemoryVersion)
+	r.Post(base+"/{id}/versions/{version_number}/restore", s.handleRestoreMemoryVersion)
 }
 
 // memoryTeamValidationMiddleware validates team_id from URL path and team access for memory operations

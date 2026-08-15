@@ -125,17 +125,26 @@ func TestMemoryHandlers_InvalidPaths(t *testing.T) {
 
 	testPath := "/api/v1/" + testTeamID + "/memories"
 
+	// These paths match no route, so chi answers from its NotFound/
+	// MethodNotAllowed handlers without running the protected group's auth
+	// middleware. They used to report 401 only because the domain was mounted as
+	// an `r.Route("/api/v1/{team_id}/memories")` prefix subrouter, which matched
+	// the whole subtree and therefore ran auth even for paths under it that no
+	// route served. #779 registers every memories route at full length (the
+	// generated handler uses absolute paths), so the prefix match is gone and the
+	// statuses are now the accurate ones. The routes that DO exist still answer
+	// 401 unauthenticated — see TestMemoryHandlers_HTTPMethods.
 	tests := []struct {
 		name     string
 		method   string
 		path     string
 		expected int
 	}{
-		{"Invalid path", "GET", testPath + "/invalid/path", http.StatusUnauthorized},
-		{"Method not allowed", "PATCH", testPath, http.StatusUnauthorized},
-		{"Invalid memory ID format", "GET", testPath + "/", http.StatusUnauthorized},
-		{"Extra path segments", "GET", testPath + "/test-id/extra", http.StatusUnauthorized},
-		{"Invalid search path", "GET", testPath + "/search/extra", http.StatusUnauthorized},
+		{"Invalid path", "GET", testPath + "/invalid/path", http.StatusNotFound},
+		{"Method not allowed", "PATCH", testPath, http.StatusMethodNotAllowed},
+		{"Invalid memory ID format", "GET", testPath + "/", http.StatusNotFound},
+		{"Extra path segments", "GET", testPath + "/test-id/extra", http.StatusNotFound},
+		{"Invalid search path", "GET", testPath + "/search/extra", http.StatusNotFound},
 	}
 
 	for _, tt := range tests {
@@ -293,9 +302,13 @@ func TestMemoryHandlers_HTTPMethods(t *testing.T) {
 		{"PUT to update endpoint", "PUT", testPath + "/test-id", http.StatusUnauthorized},
 		{"DELETE to delete endpoint", "DELETE", testPath + "/test-id", http.StatusUnauthorized},
 		{"GET to a removed path", "GET", testPath + "/search", http.StatusUnauthorized},
-		{"HEAD not allowed on create", "HEAD", testPath, http.StatusUnauthorized},
-		{"OPTIONS not configured", "OPTIONS", testPath, http.StatusUnauthorized}, // CORS preflight
-		{"PATCH not allowed", "PATCH", testPath + "/test-id", http.StatusUnauthorized},
+		// A method chi does not serve on an existing path is answered by its
+		// MethodNotAllowed handler, ahead of the group's auth middleware — see
+		// the note in TestMemoryHandlers_InvalidPaths. The five real routes above
+		// still prove auth is required to reach a handler.
+		{"HEAD not allowed on create", "HEAD", testPath, http.StatusMethodNotAllowed},
+		{"OPTIONS not configured", "OPTIONS", testPath, http.StatusMethodNotAllowed}, // CORS preflight
+		{"PATCH not allowed", "PATCH", testPath + "/test-id", http.StatusMethodNotAllowed},
 	}
 
 	for _, tt := range tests {

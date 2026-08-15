@@ -155,14 +155,13 @@ func createMemoryTestServer(container *MockMemoryContainer) *Server {
 		router:    r,
 	}
 
-	// Register routes manually (simplified version for testing with team_id)
-	r.Route("/api/v1/{team_id}/memories", func(r chi.Router) {
-		r.Post("/", srv.handleCreateMemory)
-		r.Get("/", srv.handleListMemories)
-		r.Get("/{id}", srv.handleGetMemory)
-		r.Put("/{id}", srv.handleUpdateMemory)
-		r.Delete("/{id}", srv.handleDeleteMemory)
-	})
+	// The real route tree, minus the tenancy middleware: the two READ operations
+	// come from the generated strict server and the writes from their chi
+	// handlers, exactly as mountMemoriesHandlers wires production (#779). Tests
+	// therefore exercise the parameter binder and the mount, not just the
+	// handler body — which is what makes the UUID-typed path params below load
+	// bearing rather than cosmetic.
+	srv.mountMemoriesHandlers(r)
 
 	return srv
 }
@@ -197,15 +196,24 @@ func addRouteParams(req *http.Request, params map[string]string) *http.Request {
 
 const testHandlerProjectID = "550e8400-e29b-41d4-a716-446655440003"
 
+// The generated strict server types team_id and id as UUIDs, so every fixture
+// id that reaches a path parameter has to be one — the pre-strict chi handlers
+// accepted any string, which is why these used to read "team-123" (#779).
+const (
+	memoriesTestTeamID    = "550e8400-e29b-41d4-a716-446655440010"
+	memoriesTestMemoryID  = "550e8400-e29b-41d4-a716-446655440011"
+	memoriesTestMissingID = "550e8400-e29b-41d4-a716-446655440012"
+)
+
 // TestHandleCreateMemory_Success tests successful memory creation with mocked service
 func TestHandleCreateMemory_Success(t *testing.T) {
 	mockContainer := newMockMemoryContainer(t)
 
 	now := time.Now()
 	expectedMemory := &models.Memory{
-		ID:        "memory-123",
+		ID:        memoriesTestMemoryID,
 		UserID:    "test-user-123",
-		TeamID:    "team-123",
+		TeamID:    memoriesTestTeamID,
 		ProjectID: testHandlerProjectID,
 		Text:      "Test memory text",
 		Status:    models.MemoryStatusActive,
@@ -220,14 +228,14 @@ func TestHandleCreateMemory_Success(t *testing.T) {
 		Return(&models.Project{
 			ID:     testHandlerProjectID,
 			UserID: "test-user-123",
-			TeamID: "team-123",
+			TeamID: memoriesTestTeamID,
 		}, nil)
 
 	// Mock service expectations (team validation is done by middleware, not tested here)
 	mockContainer.memoryService.On(
 		"CreateMemory",
 		"test-user-123",
-		"team-123",
+		memoriesTestTeamID,
 		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool {
 			return req != nil && req.ProjectID == testHandlerProjectID &&
 				req.Text == "Test memory text" &&
@@ -241,8 +249,8 @@ func TestHandleCreateMemory_Success(t *testing.T) {
 		"text":       "Test memory text",
 		"metadata":   map[string]interface{}{"category": "work"},
 	}
-	req := makeMemoryAuthenticatedRequest("POST", "/api/v1/team-123/memories", reqBody, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
+	req := makeMemoryAuthenticatedRequest("POST", "/api/v1/"+memoriesTestTeamID+"/memories", reqBody, "test-user-123")
+	req = addRouteParams(req, map[string]string{"team_id": memoriesTestTeamID})
 	w := httptest.NewRecorder()
 
 	srv.handleCreateMemory(w, req)
@@ -278,10 +286,10 @@ func TestHandleCreateMemory_ValidationError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("POST", "/api/v1/team-123/memories", bytes.NewBufferString(tt.payload))
+			req := httptest.NewRequest("POST", "/api/v1/"+memoriesTestTeamID+"/memories", bytes.NewBufferString(tt.payload))
 			req.Header.Set("Content-Type", "application/json")
 			req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, "test-user-123"))
-			req = addRouteParams(req, map[string]string{"team_id": "team-123"})
+			req = addRouteParams(req, map[string]string{"team_id": memoriesTestTeamID})
 
 			w := httptest.NewRecorder()
 			srv.handleCreateMemory(w, req)
@@ -297,7 +305,7 @@ func TestHandleGetMemory_Success(t *testing.T) {
 
 	now := time.Now()
 	expectedMemory := &models.Memory{
-		ID:        "memory-123",
+		ID:        memoriesTestMemoryID,
 		UserID:    "test-user-123",
 		Text:      "Test memory text",
 		Metadata:  map[string]interface{}{"category": "work"},
@@ -305,17 +313,13 @@ func TestHandleGetMemory_Success(t *testing.T) {
 		UpdatedAt: now,
 	}
 
-	mockContainer.memoryService.On("GetMemory", "test-user-123", mock.Anything, "memory-123").Return(expectedMemory, nil)
+	mockContainer.memoryService.On("GetMemory", "test-user-123", mock.Anything, memoriesTestMemoryID).Return(expectedMemory, nil)
 
 	srv := createMemoryTestServer(mockContainer)
-	req := makeMemoryAuthenticatedRequest("GET", "/api/v1/team-123/memories/memory-123", nil, "test-user-123")
-	req = addRouteParams(req, map[string]string{
-		"team_id": "team-123",
-		"id":      "memory-123",
-	})
+	req := makeMemoryAuthenticatedRequest("GET", "/api/v1/"+memoriesTestTeamID+"/memories/"+memoriesTestMemoryID, nil, "test-user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleGetMemory(w, req)
+	srv.router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -332,18 +336,14 @@ func TestHandleGetMemory_Success(t *testing.T) {
 func TestHandleGetMemory_NotFound(t *testing.T) {
 	mockContainer := newMockMemoryContainer(t)
 
-	mockContainer.memoryService.On("GetMemory", "test-user-123", mock.Anything, "nonexistent-123").
+	mockContainer.memoryService.On("GetMemory", "test-user-123", mock.Anything, memoriesTestMissingID).
 		Return(nil, repositories.ErrMemoryNotFound)
 
 	srv := createMemoryTestServer(mockContainer)
-	req := makeMemoryAuthenticatedRequest("GET", "/api/v1/team-123/memories/nonexistent-123", nil, "test-user-123")
-	req = addRouteParams(req, map[string]string{
-		"team_id": "team-123",
-		"id":      "nonexistent-123",
-	})
+	req := makeMemoryAuthenticatedRequest("GET", "/api/v1/"+memoriesTestTeamID+"/memories/"+memoriesTestMissingID, nil, "test-user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleGetMemory(w, req)
+	srv.router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
@@ -358,7 +358,7 @@ func TestHandleListMemories_Success(t *testing.T) {
 			{
 				ID:        "memory-1",
 				UserID:    "test-user-123",
-				TeamID:    "team-123",
+				TeamID:    memoriesTestTeamID,
 				ProjectID: testHandlerProjectID,
 				Text:      "Memory 1",
 				Status:    models.MemoryStatusActive,
@@ -370,7 +370,7 @@ func TestHandleListMemories_Success(t *testing.T) {
 			{
 				ID:        "memory-2",
 				UserID:    "test-user-123",
-				TeamID:    "team-123",
+				TeamID:    memoriesTestTeamID,
 				ProjectID: testHandlerProjectID,
 				Text:      "Memory 2",
 				Status:    models.MemoryStatusActive,
@@ -395,11 +395,10 @@ func TestHandleListMemories_Success(t *testing.T) {
 	).Return(expectedResponse, nil)
 
 	srv := createMemoryTestServer(mockContainer)
-	req := makeMemoryAuthenticatedRequest("GET", "/api/v1/team-123/memories", nil, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
+	req := makeMemoryAuthenticatedRequest("GET", "/api/v1/"+memoriesTestTeamID+"/memories", nil, "test-user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleListMemories(w, req)
+	srv.router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	specconformance.AssertConformsToSpec(t, req, w)
@@ -434,12 +433,11 @@ func TestHandleListMemories_WithFilters(t *testing.T) {
 	).Return(expectedResponse, nil)
 
 	srv := createMemoryTestServer(mockContainer)
-	url := "/api/v1/team-123/memories?page=2&limit=10"
+	url := "/api/v1/" + memoriesTestTeamID + "/memories?page=2&limit=10"
 	req := makeMemoryAuthenticatedRequest("GET", url, nil, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
 	w := httptest.NewRecorder()
 
-	srv.handleListMemories(w, req)
+	srv.router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -458,9 +456,9 @@ func TestHandleUpdateMemory_Success(t *testing.T) {
 
 	now := time.Now()
 	updatedMemory := &models.Memory{
-		ID:        "memory-123",
+		ID:        memoriesTestMemoryID,
 		UserID:    "test-user-123",
-		TeamID:    "team-123",
+		TeamID:    memoriesTestTeamID,
 		ProjectID: testHandlerProjectID,
 		Text:      "Updated memory text",
 		Status:    models.MemoryStatusActive,
@@ -474,7 +472,7 @@ func TestHandleUpdateMemory_Success(t *testing.T) {
 		"UpdateMemory",
 		"test-user-123",
 		mock.Anything,
-		"memory-123",
+		memoriesTestMemoryID,
 		mock.MatchedBy(func(req *models.UpdateMemoryRequest) bool {
 			return req != nil && req.Text != nil && *req.Text == "Updated memory text"
 		}),
@@ -484,10 +482,10 @@ func TestHandleUpdateMemory_Success(t *testing.T) {
 	reqBody := map[string]interface{}{
 		"text": "Updated memory text",
 	}
-	req := makeMemoryAuthenticatedRequest("PUT", "/api/v1/team-123/memories/memory-123", reqBody, "test-user-123")
+	req := makeMemoryAuthenticatedRequest("PUT", "/api/v1/"+memoriesTestTeamID+"/memories/"+memoriesTestMemoryID, reqBody, "test-user-123")
 	req = addRouteParams(req, map[string]string{
-		"team_id": "team-123",
-		"id":      "memory-123",
+		"team_id": memoriesTestTeamID,
+		"id":      memoriesTestMemoryID,
 	})
 	w := httptest.NewRecorder()
 
@@ -508,17 +506,17 @@ func TestHandleUpdateMemory_Success(t *testing.T) {
 func TestHandleUpdateMemory_NotFound(t *testing.T) {
 	mockContainer := newMockMemoryContainer(t)
 
-	mockContainer.memoryService.On("UpdateMemory", "test-user-123", mock.Anything, "nonexistent-123", mock.Anything).
+	mockContainer.memoryService.On("UpdateMemory", "test-user-123", mock.Anything, memoriesTestMissingID, mock.Anything).
 		Return(nil, repositories.ErrMemoryNotFound)
 
 	srv := createMemoryTestServer(mockContainer)
 	reqBody := map[string]interface{}{
 		"text": "Updated text",
 	}
-	req := makeMemoryAuthenticatedRequest("PUT", "/api/v1/team-123/memories/nonexistent-123", reqBody, "test-user-123")
+	req := makeMemoryAuthenticatedRequest("PUT", "/api/v1/"+memoriesTestTeamID+"/memories/"+memoriesTestMissingID, reqBody, "test-user-123")
 	req = addRouteParams(req, map[string]string{
-		"team_id": "team-123",
-		"id":      "nonexistent-123",
+		"team_id": memoriesTestTeamID,
+		"id":      memoriesTestMissingID,
 	})
 	w := httptest.NewRecorder()
 
@@ -531,15 +529,15 @@ func TestHandleUpdateMemory_NotFound(t *testing.T) {
 func TestHandleDeleteMemory_Success(t *testing.T) {
 	mockContainer := newMockMemoryContainer(t)
 
-	mockContainer.memoryService.On("DeleteMemory", "test-user-123", mock.Anything, "memory-123").Return(nil)
-	mockContainer.embeddingService.On("DeleteEmbeddingsByEntity", "memory", "memory-123").
+	mockContainer.memoryService.On("DeleteMemory", "test-user-123", mock.Anything, memoriesTestMemoryID).Return(nil)
+	mockContainer.embeddingService.On("DeleteEmbeddingsByEntity", "memory", memoriesTestMemoryID).
 		Return(nil)
 
 	srv := createMemoryTestServer(mockContainer)
-	req := makeMemoryAuthenticatedRequest("DELETE", "/api/v1/team-123/memories/memory-123", nil, "test-user-123")
+	req := makeMemoryAuthenticatedRequest("DELETE", "/api/v1/"+memoriesTestTeamID+"/memories/"+memoriesTestMemoryID, nil, "test-user-123")
 	req = addRouteParams(req, map[string]string{
-		"team_id": "team-123",
-		"id":      "memory-123",
+		"team_id": memoriesTestTeamID,
+		"id":      memoriesTestMemoryID,
 	})
 	w := httptest.NewRecorder()
 
@@ -555,14 +553,14 @@ func TestHandleDeleteMemory_Success(t *testing.T) {
 func TestHandleDeleteMemory_NotFound(t *testing.T) {
 	mockContainer := newMockMemoryContainer(t)
 
-	mockContainer.memoryService.On("DeleteMemory", "test-user-123", mock.Anything, "nonexistent-123").
+	mockContainer.memoryService.On("DeleteMemory", "test-user-123", mock.Anything, memoriesTestMissingID).
 		Return(repositories.ErrMemoryNotFound)
 
 	srv := createMemoryTestServer(mockContainer)
-	req := makeMemoryAuthenticatedRequest("DELETE", "/api/v1/team-123/memories/nonexistent-123", nil, "test-user-123")
+	req := makeMemoryAuthenticatedRequest("DELETE", "/api/v1/"+memoriesTestTeamID+"/memories/"+memoriesTestMissingID, nil, "test-user-123")
 	req = addRouteParams(req, map[string]string{
-		"team_id": "team-123",
-		"id":      "nonexistent-123",
+		"team_id": memoriesTestTeamID,
+		"id":      memoriesTestMissingID,
 	})
 	w := httptest.NewRecorder()
 
@@ -594,12 +592,11 @@ func TestHandleListMemories_SortBy(t *testing.T) {
 			}, nil)
 
 			srv := createMemoryTestServer(mockContainer)
-			url := "/api/v1/team-123/memories?sort_by=" + sortField + "&sort_order=asc"
+			url := "/api/v1/" + memoriesTestTeamID + "/memories?sort_by=" + sortField + "&sort_order=asc"
 			req := makeMemoryAuthenticatedRequest("GET", url, nil, "test-user-123")
-			req = addRouteParams(req, map[string]string{"team_id": "team-123"})
 			w := httptest.NewRecorder()
 
-			srv.handleListMemories(w, req)
+			srv.router.ServeHTTP(w, req)
 
 			assert.Equal(t, http.StatusOK, w.Code, "sort_by=%s should return 200", sortField)
 			mockContainer.memoryService.AssertExpectations(t)
@@ -612,12 +609,11 @@ func TestHandleListMemories_InvalidSortBy(t *testing.T) {
 	mockContainer := newMockMemoryContainer(t)
 
 	srv := createMemoryTestServer(mockContainer)
-	url := "/api/v1/team-123/memories?sort_by=invalid_column"
+	url := "/api/v1/" + memoriesTestTeamID + "/memories?sort_by=invalid_column"
 	req := makeMemoryAuthenticatedRequest("GET", url, nil, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
 	w := httptest.NewRecorder()
 
-	srv.handleListMemories(w, req)
+	srv.router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
@@ -646,11 +642,10 @@ func TestHandleListMemories_DefaultSort(t *testing.T) {
 	}, nil)
 
 	srv := createMemoryTestServer(mockContainer)
-	req := makeMemoryAuthenticatedRequest("GET", "/api/v1/team-123/memories", nil, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
+	req := makeMemoryAuthenticatedRequest("GET", "/api/v1/"+memoriesTestTeamID+"/memories", nil, "test-user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleListMemories(w, req)
+	srv.router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	mockContainer.memoryService.AssertExpectations(t)
@@ -675,12 +670,11 @@ func TestHandleListMemories_SortOrderDesc(t *testing.T) {
 	}, nil)
 
 	srv := createMemoryTestServer(mockContainer)
-	url := "/api/v1/team-123/memories?sort_by=text&sort_order=desc"
+	url := "/api/v1/" + memoriesTestTeamID + "/memories?sort_by=text&sort_order=desc"
 	req := makeMemoryAuthenticatedRequest("GET", url, nil, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
 	w := httptest.NewRecorder()
 
-	srv.handleListMemories(w, req)
+	srv.router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	mockContainer.memoryService.AssertExpectations(t)
@@ -704,8 +698,8 @@ func TestHandleCreateMemory_CrossTeamProjectOwnership(t *testing.T) {
 		"project_id": testHandlerProjectID,
 		"text":       "Test memory text",
 	}
-	req := makeMemoryAuthenticatedRequest("POST", "/api/v1/team-123/memories", reqBody, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
+	req := makeMemoryAuthenticatedRequest("POST", "/api/v1/"+memoriesTestTeamID+"/memories", reqBody, "test-user-123")
+	req = addRouteParams(req, map[string]string{"team_id": memoriesTestTeamID})
 	w := httptest.NewRecorder()
 
 	srv.handleCreateMemory(w, req)
@@ -731,8 +725,8 @@ func TestHandleCreateMemory_NonExistentProject(t *testing.T) {
 		"project_id": testHandlerProjectID,
 		"text":       "Test memory text",
 	}
-	req := makeMemoryAuthenticatedRequest("POST", "/api/v1/team-123/memories", reqBody, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
+	req := makeMemoryAuthenticatedRequest("POST", "/api/v1/"+memoriesTestTeamID+"/memories", reqBody, "test-user-123")
+	req = addRouteParams(req, map[string]string{"team_id": memoriesTestTeamID})
 	w := httptest.NewRecorder()
 
 	srv.handleCreateMemory(w, req)
@@ -751,12 +745,12 @@ func TestHandleUpdateMemory_OnlyProjectID(t *testing.T) {
 		Return(&models.Project{
 			ID:     otherProjectID,
 			UserID: "test-user-123",
-			TeamID: "team-123",
+			TeamID: memoriesTestTeamID,
 		}, nil)
 
 	now := time.Now()
 	updatedMemory := &models.Memory{
-		ID:        "memory-123",
+		ID:        memoriesTestMemoryID,
 		UserID:    "test-user-123",
 		ProjectID: otherProjectID,
 		Text:      "Existing text",
@@ -769,7 +763,7 @@ func TestHandleUpdateMemory_OnlyProjectID(t *testing.T) {
 		"UpdateMemory",
 		"test-user-123",
 		mock.Anything,
-		"memory-123",
+		memoriesTestMemoryID,
 		mock.MatchedBy(func(req *models.UpdateMemoryRequest) bool {
 			return req != nil && req.ProjectID != nil && *req.ProjectID == otherProjectID
 		}),
@@ -779,10 +773,10 @@ func TestHandleUpdateMemory_OnlyProjectID(t *testing.T) {
 	reqBody := map[string]interface{}{
 		"project_id": otherProjectID,
 	}
-	req := makeMemoryAuthenticatedRequest("PUT", "/api/v1/team-123/memories/memory-123", reqBody, "test-user-123")
+	req := makeMemoryAuthenticatedRequest("PUT", "/api/v1/"+memoriesTestTeamID+"/memories/"+memoriesTestMemoryID, reqBody, "test-user-123")
 	req = addRouteParams(req, map[string]string{
-		"team_id": "team-123",
-		"id":      "memory-123",
+		"team_id": memoriesTestTeamID,
+		"id":      memoriesTestMemoryID,
 	})
 	w := httptest.NewRecorder()
 
@@ -835,7 +829,7 @@ func TestHandleUpdateMemory_ValidationError(t *testing.T) {
 				"PUT", "/api/v1/team-123/memories/memory-1", bytes.NewBufferString(tt.payload))
 			req.Header.Set("Content-Type", "application/json")
 			req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, "test-user-123"))
-			req = addRouteParams(req, map[string]string{"team_id": "team-123", "id": "memory-1"})
+			req = addRouteParams(req, map[string]string{"team_id": memoriesTestTeamID, "id": "memory-1"})
 
 			w := httptest.NewRecorder()
 			srv.handleUpdateMemory(w, req)

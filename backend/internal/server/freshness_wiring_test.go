@@ -27,12 +27,14 @@ import (
 // So these assert the seams: the page a handler actually serializes carries
 // freshness, and the filter a handler parses actually reaches the service.
 
-const wiringStaleMemoryID = "memory-1"
+// A real UUID, because the generated binder types the path param as one (#779);
+// the pre-strict handlers took any string.
+const wiringStaleMemoryID = "550e8400-e29b-41d4-a716-446655440021"
 
 func wiringFreshnessState() *models.ResourceFreshnessState {
 	return &models.ResourceFreshnessState{
 		Status:         models.FreshnessStatusStale,
-		MatchedRuleIDs: models.JSONArray[string]{"rule-1"},
+		MatchedRuleIDs: models.JSONArray[string]{"550e8400-e29b-41d4-a716-446655440022"},
 		Reason:         models.FreshnessReasonRuleRun,
 	}
 }
@@ -45,9 +47,9 @@ func TestHandleListMemories_PageCarriesFreshness(t *testing.T) {
 	container.memoryService.On("ListMemories", "test-user-123", mock.Anything).
 		Return(&models.MemoryListResponse{
 			Memories: []models.Memory{
-				{ID: wiringStaleMemoryID, TeamID: "team-123", ProjectID: testHandlerProjectID,
+				{ID: wiringStaleMemoryID, TeamID: memoriesTestTeamID, ProjectID: testHandlerProjectID,
 					Text: "stale", Status: models.MemoryStatusActive, Metadata: map[string]interface{}{}},
-				{ID: "memory-2", TeamID: "team-123", ProjectID: testHandlerProjectID,
+				{ID: "memory-2", TeamID: memoriesTestTeamID, ProjectID: testHandlerProjectID,
 					Text: "fresh", Status: models.MemoryStatusActive, Metadata: map[string]interface{}{}},
 			},
 			TotalCount: 2, Page: 1, PerPage: 10, TotalPages: 1,
@@ -55,18 +57,17 @@ func TestHandleListMemories_PageCarriesFreshness(t *testing.T) {
 
 	freshSvc := svcmocks.NewMockFreshnessServiceInterface(t)
 	freshSvc.EXPECT().
-		ListResourceFreshness(mock.Anything, "team-123", models.RelationResourceTypeMemory,
+		ListResourceFreshness(mock.Anything, memoriesTestTeamID, models.RelationResourceTypeMemory,
 			[]string{wiringStaleMemoryID, "memory-2"}).
 		Return(map[string]*models.ResourceFreshnessState{wiringStaleMemoryID: wiringFreshnessState()}, nil).
 		Once()
 	container.freshnessService = freshSvc
 
 	srv := createMemoryTestServer(container)
-	req := makeMemoryAuthenticatedRequest("GET", "/api/v1/team-123/memories", nil, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
+	req := makeMemoryAuthenticatedRequest("GET", "/api/v1/"+memoriesTestTeamID+"/memories", nil, "test-user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleListMemories(w, req)
+	srv.router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	specconformance.AssertConformsToSpec(t, req, w)
@@ -95,11 +96,10 @@ func TestHandleListMemories_StaleFilterReachesTheService(t *testing.T) {
 
 	srv := createMemoryTestServer(container)
 	req := makeMemoryAuthenticatedRequest(
-		"GET", "/api/v1/team-123/memories?freshness=stale", nil, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
+		"GET", "/api/v1/"+memoriesTestTeamID+"/memories?freshness=stale", nil, "test-user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleListMemories(w, req)
+	srv.router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	container.memoryService.AssertExpectations(t)
@@ -112,11 +112,10 @@ func TestHandleListMemories_RejectsUnknownFreshnessValue(t *testing.T) {
 
 	srv := createMemoryTestServer(container)
 	req := makeMemoryAuthenticatedRequest(
-		"GET", "/api/v1/team-123/memories?freshness=stail", nil, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
+		"GET", "/api/v1/"+memoriesTestTeamID+"/memories?freshness=stail", nil, "test-user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleListMemories(w, req)
+	srv.router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -126,25 +125,24 @@ func TestHandleListMemories_RejectsUnknownFreshnessValue(t *testing.T) {
 func TestHandleGetMemory_CarriesFreshnessAndConformsToSpec(t *testing.T) {
 	container := newMockMemoryContainer(t)
 
-	container.memoryService.On("GetMemory", "test-user-123", "team-123", wiringStaleMemoryID).
+	container.memoryService.On("GetMemory", "test-user-123", memoriesTestTeamID, wiringStaleMemoryID).
 		Return(&models.Memory{
-			ID: wiringStaleMemoryID, TeamID: "team-123", ProjectID: testHandlerProjectID,
+			ID: wiringStaleMemoryID, TeamID: memoriesTestTeamID, ProjectID: testHandlerProjectID,
 			Text: "stale", Status: models.MemoryStatusActive, Metadata: map[string]interface{}{},
 		}, nil)
 
 	freshSvc := svcmocks.NewMockFreshnessServiceInterface(t)
 	freshSvc.EXPECT().
-		GetResourceFreshness(mock.Anything, "team-123", models.RelationResourceTypeMemory, wiringStaleMemoryID).
+		GetResourceFreshness(mock.Anything, memoriesTestTeamID, models.RelationResourceTypeMemory, wiringStaleMemoryID).
 		Return(wiringFreshnessState(), nil).Once()
 	container.freshnessService = freshSvc
 
 	srv := createMemoryTestServer(container)
 	req := makeMemoryAuthenticatedRequest(
-		"GET", "/api/v1/team-123/memories/"+wiringStaleMemoryID, nil, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123", "id": wiringStaleMemoryID})
+		"GET", "/api/v1/"+memoriesTestTeamID+"/memories/"+wiringStaleMemoryID, nil, "test-user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleGetMemory(w, req)
+	srv.router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	specconformance.AssertConformsToSpec(t, req, w)

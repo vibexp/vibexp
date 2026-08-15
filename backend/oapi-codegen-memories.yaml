@@ -1,0 +1,27 @@
+# oapi-codegen configuration for the Memories READ path (issue #779, epic
+# #122), a spec-first strict-server domain. Following the same convention as
+# oapi-codegen-teamsettings.yaml, it generates into its OWN package under
+# internal/server/gen/memories so its StrictServerInterface mounts
+# independently of the other spec-first domains.
+#
+# DEPARTURE FROM THE include-tags CONVENTION, for the same reason as
+# oapi-codegen-embedding-providers.yaml: include-tags is oapi-codegen's
+# generation unit, so `include-tags: [Memories]` would pull all eight
+# Memories-tagged operations into one StrictServerInterface and force the
+# create/update/delete and versions handlers to be converted in the same
+# change. #122 is deliberately closed domain-by-domain AND slice-by-slice, so
+# the two read operations are selected explicitly by id and everything else
+# stays on its chi handler.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: memoriesgen
+output: internal/server/gen/memories/memories.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-operation-ids:
+    - listMemories
+    - getMemory
