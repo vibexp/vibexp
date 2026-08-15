@@ -20,6 +20,7 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
+	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
@@ -31,6 +32,14 @@ type MockPromptContainer struct {
 	embeddingService *svcmocks.MockEmbeddingServiceInterface
 	authService      *svcmocks.MockAuthServiceInterface
 	teamService      *svcmocks.MockTeamServiceInterface
+	// resourceAccessService lets a test observe the access event the detail read
+	// records (#777); the embedded base returns nil, which the middleware treats
+	// as "do not record".
+	resourceAccessService resourceaccess.ResourceAccessService
+}
+
+func (m *MockPromptContainer) ResourceAccessService() resourceaccess.ResourceAccessService {
+	return m.resourceAccessService
 }
 
 // Only override methods that return non-nil mocks
@@ -86,17 +95,16 @@ func createTestServer(container *MockPromptContainer) *Server {
 		router:    r,
 	}
 
-	// Register routes manually (simplified version for testing)
-	r.Route("/api/v1/{team_id}/prompts", func(r chi.Router) {
-		r.Use(srv.teamValidationMiddleware()) // Validate team_id from URL and team access
-		r.Get("/", srv.handleListPrompts)
-		r.Post("/", srv.handleCreatePrompt)
-		r.Get("/labels", srv.handleGetPromptLabels)
-		r.Get("/{slug}", srv.handleGetPrompt)
-		r.Put("/{slug}", srv.handleUpdatePrompt)
-		r.Delete("/{slug}", srv.handleDeletePrompt)
-		r.Get("/{slug}/placeholders", srv.handleGetPromptPlaceholders)
-		r.Post("/{slug}/render", srv.handleRenderPrompt)
+	// The real route tree: the two READ operations come from the generated
+	// strict server and everything else from its chi handler, exactly as
+	// mountPromptsHandlers wires production (#777). Tests therefore exercise the
+	// parameter binder and the mount, not just the handler body — which is what
+	// makes the UUID-typed team_id/project_id in the fixtures below load bearing
+	// rather than cosmetic. The tenancy middleware is kept because these tests
+	// assert on it.
+	r.Group(func(gr chi.Router) {
+		gr.Use(srv.teamValidationMiddleware()) // Validate team_id from URL and team access
+		srv.mountPromptsHandlers(gr)
 	})
 
 	return srv
@@ -306,8 +314,13 @@ func TestHandleGetPrompt_Success(t *testing.T) {
 		Body:        "This is a test prompt body",
 		Status:      "published",
 		UserID:      "user-123",
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		// team_id and project_id are format: uuid in the schema, so a body built
+		// from this fixture could never have validated with the old placeholders
+		// (#777). id and user_id are plain strings and stay as they are.
+		TeamID:    "550e8400-e29b-41d4-a716-446655440000",
+		ProjectID: "550e8400-e29b-41d4-a716-446655440001",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	mockContainer.promptService.On("GetPromptBySlug", "user-123", mock.Anything, "test-slug").
@@ -322,7 +335,11 @@ func TestHandleGetPrompt_Success(t *testing.T) {
 	// We need to use ServeHTTP to get proper routing
 	srv.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	// The assertion this conversion exists to buy: the detail body is now checked
+	// against openapi.yaml instead of trusted, and its payload-coverage ledger
+	// entry is gone (#122).
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	var response models.Prompt
 	err := json.Unmarshal(w.Body.Bytes(), &response)

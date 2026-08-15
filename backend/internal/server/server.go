@@ -36,6 +36,7 @@ import (
 	freshnessgen "github.com/vibexp/vibexp/internal/server/gen/freshness"
 	memoriesgen "github.com/vibexp/vibexp/internal/server/gen/memories"
 	metadatagen "github.com/vibexp/vibexp/internal/server/gen/metadata"
+	promptsgen "github.com/vibexp/vibexp/internal/server/gen/prompts"
 	relationsgen "github.com/vibexp/vibexp/internal/server/gen/relations"
 	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
 	teamsettingsgen "github.com/vibexp/vibexp/internal/server/gen/teamsettings"
@@ -823,24 +824,9 @@ func (s *Server) setupModelProvidersRoutes(r chi.Router) {
 // This function is kept for reference but routes are set up directly in setupProtectedRoutes
 
 func (s *Server) setupPromptsRoutes(r chi.Router) {
-	r.Route("/api/v1/{team_id}/prompts", func(r chi.Router) {
-		r.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
-		r.Post("/", s.handleCreatePrompt)
-		r.Get("/", s.handleListPrompts)
-		r.Get("/labels", s.handleGetPromptLabels)
-		r.With(s.recordResourceAccess(resourceTypePrompt)).Get(routePatternSlug, s.handleGetPrompt)
-		r.Put(routePatternSlug, s.handleUpdatePrompt)
-		r.Delete(routePatternSlug, s.handleDeletePrompt)
-		// Prompt content versions (generic content-versioning core, resource_type=prompt).
-		r.Get("/{slug}/versions", s.handleListPromptVersions)
-		r.Get("/{slug}/versions/{version_number}", s.handleGetPromptVersion)
-		r.Post("/{slug}/versions/{version_number}/restore", s.handleRestorePromptVersion)
-		r.Get("/{slug}/placeholders", s.handleGetPromptPlaceholders)
-		r.Get("/{slug}/dependencies", s.handleGetPromptDependencies)
-		r.Post("/{slug}/render", s.handleRenderPrompt)
-		r.Post(routePatternSlugShare, s.handleCreatePromptShare)
-		r.Get(routePatternSlugShare, s.handleGetPromptShare)
-		r.Delete(routePatternSlugShare, s.handleDeletePromptShare)
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
+		s.mountPromptsHandlers(gr)
 	})
 
 	// Public endpoint for shared prompts (optional auth)
@@ -848,6 +834,70 @@ func (s *Server) setupPromptsRoutes(r chi.Router) {
 		r.Use(s.optionalAuthMiddleware) // Allow both authenticated and unauthenticated access
 		r.Get("/{token}", s.handleGetSharedPrompt)
 	})
+}
+
+// mountPromptsHandlers registers the domain's routes on an already-scoped
+// router: the two generated read operations (#777, epic #122) plus the ten that
+// stay on chi handlers.
+//
+// Every route is registered at FULL LENGTH rather than inside an
+// `r.Route("/api/v1/{team_id}/prompts")` prefix group, because the generated
+// handler registers absolute paths and a prefix Mount at the same pattern would
+// shadow them — the route-drift gate catches exactly that, reporting the
+// documented GETs as unserved. Same shape as mountBlueprintsHandlers (#778).
+//
+// `/labels` still beats `/{slug}`, and the five `/{slug}/...` sub-routes are a
+// segment deeper so they never compete with the detail route: chi is a radix
+// trie and a static segment always wins over a param at the same position,
+// whatever the registration order and whichever router registered it.
+//
+// Split out of setupPromptsRoutes so tests can exercise the real route tree
+// without the tenancy middleware.
+func (s *Server) mountPromptsHandlers(r chi.Router) {
+	// recordResourceAccess wraps both generated operations, where the chi routes
+	// wrapped only the detail one. That is not a behaviour change: the middleware
+	// records nothing unless the handler calls SetAccessedResourceID, which only
+	// GetPrompt does — a list response carries no single resource to attribute an
+	// access to.
+	r.Group(func(rr chi.Router) {
+		rr.Use(s.recordResourceAccess(resourceTypePrompt))
+		// An empty query value meant "no filter" to the chi parser these handlers
+		// replaced; the generated binder would treat it as a present parameter
+		// and 400. See dropEmptyQueryValues (#779).
+		rr.Use(dropEmptyQueryValues)
+		// mcp_expose and shared are the only boolean filters in the four
+		// converted domains, and both the old parser and the spec's own
+		// description IGNORE an unparseable value rather than rejecting it.
+		rr.Use(dropUnparseableBoolQueryValues)
+		strict := promptsgen.NewStrictHandlerWithOptions(
+			&promptsStrictServer{s: s},
+			nil,
+			promptsgen.StrictHTTPServerOptions{
+				RequestErrorHandlerFunc:  s.promptsBindErrorHandler,
+				ResponseErrorHandlerFunc: s.promptsResponseErrorHandler,
+			},
+		)
+		promptsgen.HandlerWithOptions(strict, promptsgen.ChiServerOptions{
+			BaseRouter:       rr,
+			ErrorHandlerFunc: s.promptsBindErrorHandler,
+		})
+	})
+
+	const base = "/api/v1/{team_id}/prompts"
+	r.Post(base, s.handleCreatePrompt)
+	r.Get(base+"/labels", s.handleGetPromptLabels)
+	r.Put(base+routePatternSlug, s.handleUpdatePrompt)
+	r.Delete(base+routePatternSlug, s.handleDeletePrompt)
+	// Prompt content versions (generic content-versioning core, resource_type=prompt).
+	r.Get(base+"/{slug}/versions", s.handleListPromptVersions)
+	r.Get(base+"/{slug}/versions/{version_number}", s.handleGetPromptVersion)
+	r.Post(base+"/{slug}/versions/{version_number}/restore", s.handleRestorePromptVersion)
+	r.Get(base+"/{slug}/placeholders", s.handleGetPromptPlaceholders)
+	r.Get(base+"/{slug}/dependencies", s.handleGetPromptDependencies)
+	r.Post(base+"/{slug}/render", s.handleRenderPrompt)
+	r.Post(base+routePatternSlugShare, s.handleCreatePromptShare)
+	r.Get(base+routePatternSlugShare, s.handleGetPromptShare)
+	r.Delete(base+routePatternSlugShare, s.handleDeletePromptShare)
 }
 
 func (s *Server) setupPromptGalleryRoutes(r chi.Router) {

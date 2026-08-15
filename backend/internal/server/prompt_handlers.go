@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -198,61 +197,6 @@ func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
 	writeCreated(w, prompt, s.logger)
 }
 
-func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(contextKeyUserID).(string)
-	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
-	promptSlug := chi.URLParam(r, "slug")
-
-	s.logger.With(
-		"service", serverLogServiceName,
-		"handler", "handleGetPrompt",
-		"user_id", userID,
-		"team_id", teamID,
-		"prompt_slug", promptSlug,
-	).Info("Get prompt request received")
-
-	prompt, err := s.container.PromptService().GetPromptBySlug(userID, teamID, promptSlug)
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleGetPrompt",
-			"user_id", userID,
-			"prompt_slug", promptSlug,
-			"error", fmt.Sprintf("%+v", err),
-		).Error(promptMsgGetFailed)
-
-		if stderrors.Is(err, repositories.ErrPromptNotFound) {
-			writeErrorResponse(w, nil, "not_found", promptMsgNotFound, http.StatusNotFound)
-			return
-		}
-
-		writeErrorResponse(w, nil, "internal_error", promptMsgGetFailed, http.StatusInternalServerError)
-		return
-	}
-
-	contextkeys.SetAccessedResourceID(r.Context(), prompt.ID)
-
-	prompt.Related = s.relatedForResource(
-		r.Context(), userID, teamID, models.RelationResourceTypePrompt, prompt.ID,
-	)
-	prompt.Similar = s.similarForResource(r.Context(), teamID, models.RelationResourceTypePrompt, prompt.ID)
-	prompt.Freshness = s.freshnessForResource(
-		r.Context(), teamID, models.RelationResourceTypePrompt, prompt.ID,
-	)
-
-	writeOK(w, prompt, s.logger)
-}
-
-// parseBoolParam parses a boolean query parameter
-func parseBoolParam(query string) *bool {
-	if query != "" {
-		if parsed, err := strconv.ParseBool(query); err == nil {
-			return &parsed
-		}
-	}
-	return nil
-}
-
 // parseIntParam parses an integer query parameter with validation
 //
 //nolint:unused // Kept for potential future use with other query parameters
@@ -273,91 +217,6 @@ func parseIntParam(query string, min, max int) int {
 // allowedPromptSortFields contains the allowlisted sort fields for prompts
 var allowedPromptSortFields = map[string]bool{
 	"name": true, "status": true, "updated_at": true, "created_at": true,
-}
-
-// parsePromptFilters parses query parameters into PromptFilters
-func parsePromptFilters(w http.ResponseWriter, r *http.Request, userID, teamID string) (services.PromptFilters, bool) {
-	query := r.URL.Query()
-
-	freshness, ok := parseFreshnessFilter(w, r)
-	if !ok {
-		return services.PromptFilters{}, false
-	}
-
-	sortBy := query.Get("sort_by")
-	if sortBy != "" && !allowedPromptSortFields[sortBy] {
-		writeErrorResponse(w, nil, "validation_error", "invalid sort_by value: "+sortBy, http.StatusBadRequest)
-		return services.PromptFilters{}, false
-	}
-
-	filters := services.PromptFilters{
-		Freshness: freshness,
-		Status:    query.Get("status"),
-		Search:    query.Get("search"),
-		UserID:    userID,
-		TeamID:    teamID,
-		SortBy:    sortBy,
-		SortOrder: strings.ToLower(query.Get("sort_order")),
-		Page:      1,
-		Limit:     20,
-	}
-
-	if labelsStr := query.Get("labels"); labelsStr != "" {
-		filters.Labels = strings.Split(labelsStr, ",")
-	}
-
-	filters.MCPExpose = parseBoolParam(query.Get("mcp_expose"))
-	filters.IsShared = parseBoolParam(query.Get("shared"))
-
-	if projectID := query.Get("project_id"); projectID != "" {
-		filters.ProjectID = &projectID
-	}
-
-	// Parse and validate pagination parameters with bounds checking
-	pagination := validatePaginationParams(query.Get("page"), query.Get("limit"))
-	filters.Page = pagination.Page
-	filters.Limit = pagination.Limit
-
-	return filters, true
-}
-
-func (s *Server) handleListPrompts(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(contextKeyUserID).(string)
-	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
-
-	s.logger.With(
-		"service", serverLogServiceName,
-		"handler", "handleListPrompts",
-		"user_id", userID,
-		"team_id", teamID,
-	).Info("List prompts request received")
-
-	filters, ok := parsePromptFilters(w, r, userID, teamID)
-	if !ok {
-		return
-	}
-
-	response, err := s.container.PromptService().ListPrompts(userID, filters)
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleListPrompts",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to list prompts")
-
-		writeErrorResponse(w, nil, "internal_error", "Failed to list prompts", http.StatusInternalServerError)
-		return
-	}
-
-	attachPageFreshness(s, r.Context(), teamID, models.RelationResourceTypePrompt,
-		response.Prompts, promptID, setPromptFreshness)
-
-	writeOK(w, map[string]interface{}{
-		"status":  "success",
-		"message": "Prompts retrieved successfully",
-		"data":    response,
-	}, s.logger)
 }
 
 func (s *Server) handleGetPromptLabels(w http.ResponseWriter, r *http.Request) {
