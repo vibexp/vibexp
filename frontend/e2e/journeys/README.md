@@ -11,8 +11,36 @@ e2e/journeys/
 ├── prompt-gallery.journey.spec.ts           # Gallery → custom prompt
 ├── upgrade-subscription.journey.spec.ts     # Full Stripe lifecycle (gated)
 ├── team-collaboration.journey.spec.ts       # Team collaboration workflow
+├── resource-freshness.journey.spec.ts       # Freshness loop (gated on the docker stack)
 └── README.md                                # This file
 ```
+
+## Resource freshness (`resource-freshness.journey.spec.ts`)
+
+The ship gate for epic #726: a rule created in the UI → the scheduler's
+evaluation run marking an aged artifact stale → the badge, the "stale only"
+filter, the analytics and audit tabs → opening the artifact clearing the flag.
+
+It needs two things the other journeys do not, both about **controlling time
+rather than waiting for it**:
+
+- **`SCHEDULER_TICK_INTERVAL: 5s`** in `docker-compose.e2e.yml`. Writing a
+  freshness rule leaves the team's `schedules` row due immediately, so the tick
+  is the entire delay before the evaluation runs; at the 1-minute default the
+  spec would idle for a minute per run. It only changes how often due schedules
+  are polled — each schedule keeps its own interval.
+- **Direct SQL** (`e2e/helpers/e2eDatabase.ts`) to age the seeded artifact.
+  `threshold_days` has a one-day floor and staleness compares
+  `GREATEST(updated_at, <last_accessed_*>)` against it, so a resource the spec
+  just created can never be a candidate — there is no API that makes a row old.
+  The helper reaches the compose stack's Postgres container by its compose
+  labels.
+
+Because of the second point the journey **requires the docker e2e stack**
+(`make e2e`, or `ci-e2e.yml`); pointed at a bare `npm run dev` it skips with a
+reason. Ordering inside it is load-bearing: the artifact is aged _before_ the
+rule exists, because the run that the rule's creation triggers is the only
+evaluation the journey gets.
 
 > **2026-06 consolidation (issue #762).** After the shadcn v2 redesign, the
 > journeys that merely re-tested a single feature (`api-key-workflow`,
