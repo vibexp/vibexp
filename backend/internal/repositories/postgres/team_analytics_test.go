@@ -16,6 +16,24 @@ import (
 
 const testAnalyticsTeamID = "team-analytics-1"
 
+// The bucket expressions are the point of these assertions, not incidental
+// query text (#773). Each pins BOTH halves of the aware/naive rule at once,
+// because the two failure modes are opposite and a regex covering only one
+// would pass for the wrong fix:
+//   - a TIMESTAMPTZ branch must convert with `AT TIME ZONE 'UTC'`, or a bare
+//     DATE() casts through the session timezone and produces keys the handler's
+//     zero-fill never generated, which are then dropped silently;
+//   - the memories branch is a plain TIMESTAMP and must NOT convert, since on a
+//     naive value the same operator offsets in the other direction.
+//
+// (?s) so `.` spans the newlines between UNION branches.
+const (
+	teamResourceCreationBucketRE = `(?s)FROM prompts .*GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date` +
+		`.*FROM memories .*GROUP BY DATE\(created_at\)`
+	teamFeedCreationBucketRE = `(?s)FROM feeds .*GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date` +
+		`.*FROM feed_items .*GROUP BY \(posted_at AT TIME ZONE 'UTC'\)::date`
+)
+
 // TestTeamRepository_GetTeamStats verifies all six team-wide counts are scoped by
 // team_id and scanned into the response in order.
 func TestTeamRepository_GetTeamStats(t *testing.T) {
@@ -63,7 +81,7 @@ func TestTeamRepository_GetTeamResourceCreationMetrics_Success(t *testing.T) {
 	repo := postgres.NewTeamRepository(&database.DB{DB: db})
 	since := time.Now().UTC().AddDate(0, 0, -7)
 
-	mock.ExpectQuery(`UNION ALL`).
+	mock.ExpectQuery(teamResourceCreationBucketRE).
 		WithArgs(testAnalyticsTeamID, since).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "resource_type", "count"}).
 			AddRow("2026-05-28", "projects", 1).
@@ -95,7 +113,7 @@ func TestTeamRepository_GetTeamResourceCreationMetrics_Empty(t *testing.T) {
 	repo := postgres.NewTeamRepository(&database.DB{DB: db})
 	since := time.Now().UTC().AddDate(0, 0, -30)
 
-	mock.ExpectQuery(`UNION ALL`).
+	mock.ExpectQuery(teamResourceCreationBucketRE).
 		WithArgs(testAnalyticsTeamID, since).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "resource_type", "count"}))
 
@@ -154,7 +172,7 @@ func TestTeamRepository_GetTeamFeedCreationMetrics_Success(t *testing.T) {
 	repo := postgres.NewTeamRepository(&database.DB{DB: db})
 	since := time.Now().UTC().AddDate(0, 0, -7)
 
-	mock.ExpectQuery(`UNION ALL`).
+	mock.ExpectQuery(teamFeedCreationBucketRE).
 		WithArgs(testAnalyticsTeamID, since).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "entity_type", "count"}).
 			AddRow("2026-05-28", "feed_items", 4).
@@ -186,7 +204,7 @@ func TestTeamRepository_GetTeamFeedCreationMetrics_Empty(t *testing.T) {
 	repo := postgres.NewTeamRepository(&database.DB{DB: db})
 	since := time.Now().UTC().AddDate(0, 0, -30)
 
-	mock.ExpectQuery(`UNION ALL`).
+	mock.ExpectQuery(teamFeedCreationBucketRE).
 		WithArgs(testAnalyticsTeamID, since).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "entity_type", "count"}))
 

@@ -387,24 +387,41 @@ func (r *TeamRepository) GetTeamStats(ctx context.Context, teamID string) (*mode
 func (r *TeamRepository) GetTeamResourceCreationMetrics(
 	ctx context.Context, teamID string, since time.Time,
 ) ([]models.TeamResourceCreationCount, error) {
-	// TO_CHAR(DATE(created_at)) keys match the zero-fill series keys the handler
-	// builds. memories.created_at is a plain TIMESTAMP and the others are
-	// TIMESTAMPTZ; DATE() buckets both in the server's (UTC) timezone.
+	// The TO_CHAR keys must match the zero-fill series keys the handler builds,
+	// which are UTC calendar days -- a key the handler did not generate is
+	// dropped by the map lookup, silently, with no error and no log (#773).
+	//
+	// So the bucket has to be an explicitly UTC day, and the expression differs
+	// by column family. prompts/artifacts/blueprints/projects are TIMESTAMPTZ:
+	// `AT TIME ZONE 'UTC'` CONVERTS them, replacing the session timezone that a
+	// bare DATE() would otherwise cast through. memories.created_at is a plain
+	// TIMESTAMP, where the same operator does the OPPOSITE -- it assumes the
+	// value is UTC and produces an aware one -- so that branch keeps a bare
+	// DATE(), which is already session-independent. Same rule as
+	// admin_dashboard.go, which documents the overload in full.
+	//
+	// Range predicates stay on the raw column so they remain index-eligible;
+	// only the bucket expression is normalized.
 	const query = `
-		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD') AS date, 'prompts' AS resource_type, COUNT(*) AS count
-		FROM prompts WHERE team_id = $1 AND created_at >= $2 GROUP BY DATE(created_at)
+		SELECT TO_CHAR((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS date,
+		       'prompts' AS resource_type, COUNT(*) AS count
+		FROM prompts WHERE team_id = $1 AND created_at >= $2
+		GROUP BY (created_at AT TIME ZONE 'UTC')::date
 		UNION ALL
-		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD'), 'artifacts', COUNT(*)
-		FROM artifacts WHERE team_id = $1 AND created_at >= $2 GROUP BY DATE(created_at)
+		SELECT TO_CHAR((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD'), 'artifacts', COUNT(*)
+		FROM artifacts WHERE team_id = $1 AND created_at >= $2
+		GROUP BY (created_at AT TIME ZONE 'UTC')::date
 		UNION ALL
-		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD'), 'blueprints', COUNT(*)
-		FROM blueprints WHERE team_id = $1 AND created_at >= $2 GROUP BY DATE(created_at)
+		SELECT TO_CHAR((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD'), 'blueprints', COUNT(*)
+		FROM blueprints WHERE team_id = $1 AND created_at >= $2
+		GROUP BY (created_at AT TIME ZONE 'UTC')::date
 		UNION ALL
 		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD'), 'memories', COUNT(*)
 		FROM memories WHERE team_id = $1 AND created_at >= $2 GROUP BY DATE(created_at)
 		UNION ALL
-		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD'), 'projects', COUNT(*)
-		FROM projects WHERE team_id = $1 AND created_at >= $2 GROUP BY DATE(created_at)
+		SELECT TO_CHAR((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD'), 'projects', COUNT(*)
+		FROM projects WHERE team_id = $1 AND created_at >= $2
+		GROUP BY (created_at AT TIME ZONE 'UTC')::date
 		ORDER BY date, resource_type`
 
 	rows, err := r.db.QueryContext(ctx, query, teamID, since)
@@ -440,15 +457,20 @@ func (r *TeamRepository) GetTeamResourceCreationMetrics(
 func (r *TeamRepository) GetTeamFeedCreationMetrics(
 	ctx context.Context, teamID string, since time.Time,
 ) ([]models.TeamFeedCreationCount, error) {
-	// feeds.created_at and feed_items.posted_at are both TIMESTAMPTZ; DATE() buckets
-	// them in the server's (UTC) timezone and TO_CHAR renders the exact YYYY-MM-DD
-	// keys the handler's zero-fill series builds.
+	// feeds.created_at and feed_items.posted_at are both TIMESTAMPTZ, so both are
+	// converted to a UTC day before bucketing -- a bare DATE() would cast through
+	// the session timezone and produce keys the handler's zero-fill series never
+	// generated, which the map lookup then drops silently (#773). TO_CHAR renders
+	// the exact YYYY-MM-DD form those keys take.
 	const query = `
-		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD') AS date, 'feeds' AS entity_type, COUNT(*) AS count
-		FROM feeds WHERE team_id = $1 AND created_at >= $2 GROUP BY DATE(created_at)
+		SELECT TO_CHAR((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS date,
+		       'feeds' AS entity_type, COUNT(*) AS count
+		FROM feeds WHERE team_id = $1 AND created_at >= $2
+		GROUP BY (created_at AT TIME ZONE 'UTC')::date
 		UNION ALL
-		SELECT TO_CHAR(DATE(posted_at), 'YYYY-MM-DD'), 'feed_items', COUNT(*)
-		FROM feed_items WHERE team_id = $1 AND posted_at >= $2 GROUP BY DATE(posted_at)
+		SELECT TO_CHAR((posted_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD'), 'feed_items', COUNT(*)
+		FROM feed_items WHERE team_id = $1 AND posted_at >= $2
+		GROUP BY (posted_at AT TIME ZONE 'UTC')::date
 		ORDER BY date, entity_type`
 
 	rows, err := r.db.QueryContext(ctx, query, teamID, since)

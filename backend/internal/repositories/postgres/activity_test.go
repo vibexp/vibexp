@@ -541,7 +541,7 @@ func runActivityStatsScenario(t *testing.T, sc activityStatsScenario) {
 // characteristic fragments.
 const (
 	statsTotalRE      = `SELECT COUNT\(\*\) FROM activities WHERE user_id = \$1`
-	statsTodayRE      = `DATE\(created_at\) = CURRENT_DATE`
+	statsTodayRE      = `DATE\(created_at\) = \(now\(\) AT TIME ZONE 'UTC'\)::date`
 	statsWeekRE       = `DATE_TRUNC\('week', CURRENT_DATE\)`
 	statsTopActRE     = `GROUP BY activity_type`
 	statsTopEntityRE  = `GROUP BY entity_type`

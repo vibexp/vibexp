@@ -143,7 +143,7 @@ func TestResourceAccessRepository_GetMetricsByResource_GroupedBySource(t *testin
 		AddRow("2026-05-28", "cli", 2).
 		AddRow("2026-05-29", "web", 9)
 
-	dbMock.ExpectQuery(`SELECT TO_CHAR\(DATE\(created_at\), 'YYYY-MM-DD'\) AS date, source, COUNT\(\*\) AS count`).
+	dbMock.ExpectQuery(`SELECT TO_CHAR\(\(created_at AT TIME ZONE 'UTC'\)::date, 'YYYY-MM-DD'\) AS date, source, COUNT\(\*\) AS count`).
 		WithArgs("team-123", "prompt", "resource-789", since).
 		WillReturnRows(rows)
 
@@ -170,7 +170,7 @@ func TestResourceAccessRepository_GetMetricsByResource_Empty(t *testing.T) {
 
 	since := time.Now().UTC().AddDate(0, 0, -7)
 
-	dbMock.ExpectQuery(`SELECT TO_CHAR\(DATE\(created_at\), 'YYYY-MM-DD'\) AS date, source, COUNT\(\*\) AS count`).
+	dbMock.ExpectQuery(`SELECT TO_CHAR\(\(created_at AT TIME ZONE 'UTC'\)::date, 'YYYY-MM-DD'\) AS date, source, COUNT\(\*\) AS count`).
 		WithArgs("team-123", "prompt", "resource-789", since).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "source", "count"}))
 
@@ -197,7 +197,7 @@ func TestResourceAccessRepository_GetMetricsByResource_ScanError(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"date", "source", "count"}).
 		AddRow("2026-05-28", "web", "not-a-number")
 
-	dbMock.ExpectQuery(`SELECT TO_CHAR\(DATE\(created_at\), 'YYYY-MM-DD'\) AS date, source, COUNT\(\*\) AS count`).
+	dbMock.ExpectQuery(`SELECT TO_CHAR\(\(created_at AT TIME ZONE 'UTC'\)::date, 'YYYY-MM-DD'\) AS date, source, COUNT\(\*\) AS count`).
 		WithArgs("team-123", "prompt", "resource-789", since).
 		WillReturnRows(rows)
 
@@ -224,7 +224,7 @@ func TestResourceAccessRepository_GetMetricsByResource_RowsErr(t *testing.T) {
 		AddRow("2026-05-28", "web", 5).
 		RowError(0, sql.ErrConnDone)
 
-	dbMock.ExpectQuery(`SELECT TO_CHAR\(DATE\(created_at\), 'YYYY-MM-DD'\) AS date, source, COUNT\(\*\) AS count`).
+	dbMock.ExpectQuery(`SELECT TO_CHAR\(\(created_at AT TIME ZONE 'UTC'\)::date, 'YYYY-MM-DD'\) AS date, source, COUNT\(\*\) AS count`).
 		WithArgs("team-123", "prompt", "resource-789", since).
 		WillReturnRows(rows)
 
@@ -248,7 +248,7 @@ func TestResourceAccessRepository_GetMetricsByResource_QueryError(t *testing.T) 
 
 	since := time.Now().UTC().AddDate(0, 0, -7)
 
-	dbMock.ExpectQuery(`SELECT TO_CHAR\(DATE\(created_at\), 'YYYY-MM-DD'\) AS date, source, COUNT\(\*\) AS count`).
+	dbMock.ExpectQuery(`SELECT TO_CHAR\(\(created_at AT TIME ZONE 'UTC'\)::date, 'YYYY-MM-DD'\) AS date, source, COUNT\(\*\) AS count`).
 		WithArgs("team-123", "prompt", "resource-789", since).
 		WillReturnError(sql.ErrConnDone)
 

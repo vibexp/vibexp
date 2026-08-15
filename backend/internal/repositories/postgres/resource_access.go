@@ -62,9 +62,13 @@ func (r *resourceAccessRepository) GetMetricsByResource(
 		return nil, fmt.Errorf("database connection is nil")
 	}
 
-	// DATE(created_at) buckets each TIMESTAMPTZ in the connection's session timezone
-	// (UTC in production), so day boundaries are UTC-based. Downstream pivot/zero-fill
-	// (issue #1452) must build its date series on the same UTC basis.
+	// resource_access_events.created_at is TIMESTAMPTZ, and the bucket is an
+	// explicitly UTC day: `AT TIME ZONE 'UTC'` converts it before truncating.
+	// A bare DATE() would instead cast through the CONNECTION's session
+	// timezone, which nothing sets (buildDSN emits no TimeZone option), so on a
+	// non-UTC server a row near midnight lands on a key the zero-fill series
+	// never generated and vanishes from the chart (#773). Downstream
+	// pivot/zero-fill (issue #1452) builds its series on the same UTC basis.
 	//
 	// The bucket is rendered as text with TO_CHAR(..., 'YYYY-MM-DD') rather than returned
 	// as a raw SQL date. A bare `date` is decoded by lib/pq into a time.Time and then
@@ -73,11 +77,11 @@ func (r *resourceAccessRepository) GetMetricsByResource(
 	// count is silently dropped and every resource reports zero accesses. Emitting text in
 	// the exact series layout keeps the pivot keys aligned.
 	query := `
-		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD') AS date, source, COUNT(*) AS count
+		SELECT TO_CHAR((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS date, source, COUNT(*) AS count
 		FROM resource_access_events
 		WHERE team_id = $1 AND resource_type = $2 AND resource_id = $3 AND created_at >= $4
-		GROUP BY DATE(created_at), source
-		ORDER BY DATE(created_at), source`
+		GROUP BY (created_at AT TIME ZONE 'UTC')::date, source
+		ORDER BY (created_at AT TIME ZONE 'UTC')::date, source`
 
 	rows, err := r.db.QueryContext(ctx, query, teamID, resourceType, resourceID, since)
 	if err != nil {
@@ -125,15 +129,15 @@ func (r *resourceAccessRepository) GetTeamMetrics(
 		return nil, fmt.Errorf("database connection is nil")
 	}
 
-	// See GetMetricsByResource: DATE(created_at) buckets in UTC and the bucket is
-	// rendered as text in the exact "YYYY-MM-DD" series layout so the downstream
-	// zero-fill keys align.
+	// See GetMetricsByResource: the bucket is an explicitly UTC day, not the
+	// session timezone's, and is rendered as text in the exact "YYYY-MM-DD"
+	// series layout so the downstream zero-fill keys align.
 	query := `
-		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD') AS date, source, COUNT(*) AS count
+		SELECT TO_CHAR((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS date, source, COUNT(*) AS count
 		FROM resource_access_events
 		WHERE team_id = $1 AND created_at >= $2
-		GROUP BY DATE(created_at), source
-		ORDER BY DATE(created_at), source`
+		GROUP BY (created_at AT TIME ZONE 'UTC')::date, source
+		ORDER BY (created_at AT TIME ZONE 'UTC')::date, source`
 
 	rows, err := r.db.QueryContext(ctx, query, teamID, since)
 	if err != nil {

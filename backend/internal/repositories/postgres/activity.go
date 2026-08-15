@@ -274,10 +274,18 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 		return nil, fmt.Errorf("failed to get activity stats: %w", err)
 	}
 
-	// Get activities today
+	// Get activities today.
+	//
+	// activities.created_at is a plain TIMESTAMP, so DATE(created_at) is already
+	// session-independent and must NOT get `AT TIME ZONE 'UTC'` -- on a naive
+	// value that operator assumes UTC and yields an aware one, i.e. the opposite
+	// conversion. The session dependence was on the OTHER side: CURRENT_DATE is
+	// today's date in the session timezone, which nothing sets, so "today"
+	// silently meant a different day per deployment. `(now() AT TIME ZONE
+	// 'UTC')::date` names the UTC day explicitly (#773).
 	err = r.db.QueryRowContext(
 		ctx,
-		"SELECT COUNT(*) FROM activities WHERE user_id = $1 AND DATE(created_at) = CURRENT_DATE",
+		"SELECT COUNT(*) FROM activities WHERE user_id = $1 AND DATE(created_at) = (now() AT TIME ZONE 'UTC')::date",
 		userID,
 	).Scan(&stats.ActivitiesToday)
 	if err != nil {
@@ -436,6 +444,12 @@ func (r *activityRepository) queryRecentActivitiesForStats(ctx context.Context, 
 func (r *activityRepository) queryActivitiesByDateWeek(
 	ctx context.Context, userID string,
 ) []models.ActivityCountByDate {
+	// The bucket keeps a bare DATE(created_at) DELIBERATELY: activities.created_at
+	// is a plain TIMESTAMP, so it is already session-independent, and applying
+	// `AT TIME ZONE 'UTC'` to a naive value does the opposite conversion --
+	// assuming UTC and producing an aware timestamp. This is the naive branch of
+	// the rule admin_dashboard.go documents; do not "fix" it to match its
+	// TIMESTAMPTZ neighbours (#773).
 	activitiesByDateQuery := `
 		SELECT DATE(created_at) as date, COUNT(*) as count
 		FROM activities
