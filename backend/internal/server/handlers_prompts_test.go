@@ -18,6 +18,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
+	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
@@ -369,7 +370,9 @@ func TestStrictListPrompts_OutOfRangePaginationIsClampedNotRejected(t *testing.T
 // returns the full list, and an unchecked sort_by reaches the repository.
 func TestStrictListPrompts_KeepsTheHandRolledEnumChecks(t *testing.T) {
 	cases := map[string]struct{ query, detail, code string }{
-		"freshness": {"?freshness=stail", "freshness must be stale", "BAD_REQUEST"},
+		// Both codes are VALIDATION_FAILED because both rejections went through
+		// writeErrorResponse's "validation_error" arm before the conversion.
+		"freshness": {"?freshness=stail", "freshness must be stale", "VALIDATION_FAILED"},
 		"sort_by":   {"?sort_by=passwords", "invalid sort_by value: passwords", "VALIDATION_FAILED"},
 	}
 
@@ -518,6 +521,47 @@ func TestStrictGetPrompt_RecordsAnAccessEvent(t *testing.T) {
 	require.Len(t, access.events, 1, "the detail read must record exactly one access event")
 	assert.Equal(t, "prompt-1", access.events[0].ResourceID)
 	assert.Equal(t, resourceTypePrompt, access.events[0].ResourceType)
+}
+
+// Acceptance criterion 7, at the HANDLER level rather than the converter's.
+// GetPrompt attaches the neighborhood after the service call, and with no
+// relation/freshness service installed those helpers return nil — so deleting
+// the three attachment lines is invisible unless a test installs the services
+// and reads the fields back off the wire.
+func TestStrictGetPrompt_AttachesTheNeighborhoodItLoads(t *testing.T) {
+	container := newMockPromptContainer(t)
+	container.teamService.On("IsUserMemberOfTeam", mock.Anything, strictPrUserID, strictPrTeamID).
+		Return(true, nil).Maybe()
+	container.promptService.On("GetPromptBySlug", strictPrUserID, strictPrTeamID, strictPrSlug).
+		Return(samplePrompt(), nil)
+
+	populated := fullyPopulatedPrompt()
+	relations := svcmocks.NewMockRelationServiceInterface(t)
+	relations.On("ListByResource", mock.Anything, strictPrUserID, strictPrTeamID,
+		models.RelationResourceTypePrompt, "prompt-1", mock.Anything, mock.Anything).
+		Return(&models.RelationListResponse{Related: populated.Related}, nil)
+	container.relationService = relations
+
+	freshness := svcmocks.NewMockFreshnessServiceInterface(t)
+	freshness.On("GetResourceFreshness", mock.Anything, strictPrTeamID,
+		models.RelationResourceTypePrompt, "prompt-1").
+		Return(populated.Freshness, nil)
+	container.freshnessService = freshness
+
+	srv := createTestServer(container)
+	req, w := strictPromptRequest(t, srv, "/api/v1/"+strictPrTeamID+"/prompts/"+strictPrSlug)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Len(t, body["related"], 1, "the handler must attach what relatedForResource loaded")
+	assert.Equal(t, "Neighbor Prompt", body["related"].([]any)[0].(map[string]any)["title"])
+	require.NotNil(t, body["freshness"], "the handler must attach what freshnessForResource loaded")
+	assert.Equal(t, "stale", body["freshness"].(map[string]any)["status"])
+	relations.AssertExpectations(t)
+	freshness.AssertExpectations(t)
 }
 
 // A missing user id is a wiring bug, not a client error: the auth middleware

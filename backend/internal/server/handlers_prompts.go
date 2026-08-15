@@ -178,9 +178,13 @@ func promptsUserID(ctx context.Context) (string, error) {
 func promptFiltersFromParams(
 	userID, teamID string, params promptsgen.ListPromptsParams,
 ) (services.PromptFilters, error) {
+	// Both rejections go through promptsValidationError: parseFreshnessFilter and
+	// the sort_by check BOTH reported "validation_error" here, so the error code
+	// is VALIDATION_FAILED and not the bad-request default. (The other three
+	// domains answer BAD_REQUEST for freshness because their own handlers did.)
 	freshness := optionalEnumValue(params.Freshness)
 	if freshness != "" && freshness != services.FreshnessFilterStale {
-		return services.PromptFilters{}, apierrors.NewBadRequestError(
+		return services.PromptFilters{}, promptsValidationError(
 			"freshness must be " + services.FreshnessFilterStale)
 	}
 
@@ -209,8 +213,12 @@ func promptFiltersFromParams(
 		filters.ProjectID = &projectID
 	}
 
-	// validatePaginationParams clamps rather than rejects (page 1..10000, limit
-	// 1..100, defaults 1 and 10), which the binder cannot do -- it only converts.
+	// validatePaginationParams clamps rather than rejects: an out-of-range page or
+	// limit falls back to the documented default (page 1..10000, limit 1..100,
+	// defaults 1 and 10) instead of 400ing. That is still true of every value the
+	// binder hands over -- but note the binder rejects a NON-NUMERIC page/limit
+	// before this runs, where the old chi parser clamped that too. Same on the
+	// other three converted domains; tracked in #800.
 	pagination := validatePaginationParams(
 		intPtrToQueryString(params.Page), intPtrToQueryString(params.Limit),
 	)

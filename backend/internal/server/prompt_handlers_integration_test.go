@@ -36,10 +36,24 @@ type MockPromptContainer struct {
 	// records (#777); the embedded base returns nil, which the middleware treats
 	// as "do not record".
 	resourceAccessService resourceaccess.ResourceAccessService
+	// relationService and freshnessService let a test populate the detail read's
+	// neighborhood (#777). The embedded base returns nil for both, which the
+	// surfacing helpers treat as "no neighborhood" rather than as an error — so
+	// without a mock installed the handler's own wiring is unobservable.
+	relationService  services.RelationServiceInterface
+	freshnessService services.FreshnessServiceInterface
 }
 
 func (m *MockPromptContainer) ResourceAccessService() resourceaccess.ResourceAccessService {
 	return m.resourceAccessService
+}
+
+func (m *MockPromptContainer) RelationService() services.RelationServiceInterface {
+	return m.relationService
+}
+
+func (m *MockPromptContainer) FreshnessService() services.FreshnessServiceInterface {
+	return m.freshnessService
 }
 
 // Only override methods that return non-nil mocks
