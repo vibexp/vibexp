@@ -1,0 +1,32 @@
+# oapi-codegen configuration for the Prompts READ path (issue #777, epic #122),
+# a spec-first strict-server domain. Following the same convention as
+# oapi-codegen-teamsettings.yaml, it generates into its OWN package under
+# internal/server/gen/prompts so its StrictServerInterface mounts independently
+# of the other spec-first domains.
+#
+# DEPARTURE FROM THE include-tags CONVENTION, as in oapi-codegen-memories.yaml
+# (#779), oapi-codegen-artifacts.yaml (#776) and oapi-codegen-blueprints.yaml
+# (#778): include-tags is oapi-codegen's generation unit, so
+# `include-tags: [Prompts]` would pull all twelve Prompts-tagged operations into
+# one StrictServerInterface and force create/update/delete, labels, versions,
+# placeholders, dependencies and render to convert in the same change. #122 is
+# closed domain-by-domain AND slice-by-slice, so the two read operations are
+# selected explicitly by id. Later slices append their ids here.
+#
+# The list operation answers with PromptListEnvelope, a legacy
+# {status, message, data} wrapper that no other domain has -- oapi-codegen flattens
+# its allOf into one struct whose `data` is the specific PromptListResponse, so
+# the envelope is preserved by construction rather than by hand.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: promptsgen
+output: internal/server/gen/prompts/prompts.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-operation-ids:
+    - listPrompts
+    - getPrompt

@@ -186,18 +186,25 @@ func TestPromptHandlers_MethodNotAllowed(t *testing.T) {
 		method   string
 		path     string
 		expected int
+		// None of these methods is registered on the path, so chi answers from its
+		// MethodNotAllowed handler without running the protected group's auth
+		// middleware. They reported 401 only because the domain used to sit behind
+		// an `r.Route("/api/v1/{team_id}/prompts")` prefix subrouter, which matched
+		// the whole subtree; #777 registers every route at full length because the
+		// generated handler uses absolute paths. The methods that ARE registered
+		// still answer 401 unauthenticated — see TestPromptHandlers_Unauthorized.
 	}{
 		{
 			"PATCH method on prompts", "PATCH", "/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts",
-			http.StatusUnauthorized, // Auth middleware catches first
+			http.StatusMethodNotAllowed,
 		},
 		{
 			"OPTIONS method on specific prompt", "OPTIONS", "/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts/test-slug",
-			http.StatusUnauthorized, // Auth middleware catches first
+			http.StatusMethodNotAllowed,
 		},
 		{
 			"HEAD method on prompts list", "HEAD", "/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts",
-			http.StatusUnauthorized, // Auth middleware catches first
+			http.StatusMethodNotAllowed,
 		},
 	}
 
@@ -332,12 +339,15 @@ func TestPromptHandlers_InvalidPaths(t *testing.T) {
 		expected int
 	}{
 		{
+			// Matches no route at all, so chi's NotFound handler answers before the
+			// protected group's auth middleware runs. It reported 401 only while the
+			// domain sat behind a prefix subrouter matching the whole subtree (#777).
 			"Invalid prompt subpath", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts/test-slug/invalid",
-			http.StatusUnauthorized, // Auth middleware catches first
+			http.StatusNotFound,
 		},
 		{
 			"Invalid nested path", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts/test-slug/placeholders/invalid",
-			http.StatusUnauthorized, // Auth middleware catches first
+			http.StatusNotFound,
 		},
 		{
 			"Non-existent endpoint", "GET", "/api/v1/prompts-invalid",
