@@ -6,7 +6,7 @@
 # register and chat with; it is never part of the shipped combined image.
 #
 # Build context is the repo root (so it can see backend/).
-FROM golang:1.25.12-alpine AS build
+FROM golang:1.25.13-alpine AS build
 WORKDIR /app
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download

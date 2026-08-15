@@ -38,13 +38,29 @@ func newIntegrationEvaluator() *freshness.Evaluator {
 	)
 }
 
-// insertEvaluationRule stores an enabled rule over the given resource types.
+// insertEvaluationRule stores an enabled rule over the given resource types,
+// watching every medium — the default shape, and the one under which reversal
+// can never flap because any access moves a column the rule reads.
 func insertEvaluationRule(t *testing.T, teamID string, thresholdDays int, resourceTypes ...string) string {
 	t.Helper()
+	return insertScopedEvaluationRule(t, teamID, thresholdDays, nil, resourceTypes...)
+}
+
+// insertScopedEvaluationRule is the same, with the rule's mediums under the
+// caller's control. Passing a non-empty set is what reaches the #770 behaviour:
+// the evaluator then reads only those mediums' columns, so an access through
+// any other medium must not reverse the mark.
+func insertScopedEvaluationRule(
+	t *testing.T, teamID string, thresholdDays int, mediums []string, resourceTypes ...string,
+) string {
+	t.Helper()
+	if mediums == nil {
+		mediums = []string{}
+	}
 	rule := &models.FreshnessRule{
 		TeamID:        teamID,
 		ResourceTypes: resourceTypes,
-		Mediums:       []string{},
+		Mediums:       mediums,
 		ThresholdDays: thresholdDays,
 		Enabled:       true,
 	}

@@ -31,7 +31,7 @@ type taskSubmitter interface {
 // what it uses, and so the async path can be tested with a fake; it is
 // satisfied by *freshness.Clearer in production.
 type freshnessClearer interface {
-	ClearIfStale(ctx context.Context, teamID, resourceType, resourceID, reason string) error
+	ClearIfStale(ctx context.Context, teamID, resourceType, resourceID, reason, medium string) error
 }
 
 // Service implements ResourceAccessService.
@@ -127,8 +127,11 @@ func (s *Service) reverseFreshness(ctx context.Context, event *models.ResourceAc
 		return
 	}
 
+	// event.Source is the access medium (web/cli/mcp/api) -- the same vocabulary
+	// rules name -- and scopes the clear to the rules that actually watch it
+	// (#770).
 	err := s.clearer.ClearIfStale(
-		ctx, event.TeamID, event.ResourceType, event.ResourceID, models.FreshnessReasonAccessed,
+		ctx, event.TeamID, event.ResourceType, event.ResourceID, models.FreshnessReasonAccessed, event.Source,
 	)
 	if err != nil {
 		s.logger.With("error", err).With(

@@ -183,26 +183,26 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version: '1.25.12'
+          go-version: '1.25.13'
           cache: false
 
       - name: Cache Go modules
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/go/pkg/mod
-          key: go-mod-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}
+          key: go-mod-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}
           restore-keys: |
-            go-mod-${{ runner.os }}-1.25.12-
+            go-mod-${{ runner.os }}-1.25.13-
 
       - name: Restore Go build cache
         id: go-build-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/go-build
-          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          key: go-build-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
-            go-build-${{ runner.os }}-1.25.12-
+            go-build-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.13-
 
       - name: Download dependencies
         run: make backend-download-deps
@@ -274,7 +274,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/go-build
-          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          key: go-build-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
 
   integration:
     name: Integration Test
@@ -307,16 +307,16 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version: '1.25.12'
+          go-version: '1.25.13'
           cache: false
 
       - name: Cache Go modules
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/go/pkg/mod
-          key: go-mod-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}
+          key: go-mod-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}
           restore-keys: |
-            go-mod-${{ runner.os }}-1.25.12-
+            go-mod-${{ runner.os }}-1.25.13-
 
       # Restore-only: `unit` owns saving this cache (see the header). Its entry
       # holds the `-race -cover` artifacts this job's test compile needs.
@@ -324,10 +324,10 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/go-build
-          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          key: go-build-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
-            go-build-${{ runner.os }}-1.25.12-
+            go-build-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.13-
 
       - name: Download dependencies
         run: make backend-download-deps
@@ -366,16 +366,16 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version: '1.25.12'
+          go-version: '1.25.13'
           cache: false
 
       - name: Cache Go modules
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/go/pkg/mod
-          key: go-mod-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}
+          key: go-mod-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}
           restore-keys: |
-            go-mod-${{ runner.os }}-1.25.12-
+            go-mod-${{ runner.os }}-1.25.13-
 
       # govulncheck and gosec both load and type-check the whole module, so they
       # need the compiled dependency artifacts as much as the test job does —
@@ -384,10 +384,10 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/go-build
-          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          key: go-build-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
-            go-build-${{ runner.os }}-1.25.12-
+            go-build-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.13-
 
       # Keyed on the two PINNED versions, so the 32s `go install` is paid once
       # per pin bump rather than once per run. Bumping either version below
@@ -397,7 +397,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/go/bin
-          key: go-sectools-${{ runner.os }}-1.25.12-govulncheck-v1.6.0-gosec-v2.28.0
+          key: go-sectools-${{ runner.os }}-1.25.13-govulncheck-v1.6.0-gosec-v2.28.0
 
       # make backend-vulncheck / backend-security invoke these binaries directly,
       # so CI has to install them (same pattern as golangci-lint in the lint job).
@@ -440,16 +440,16 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version: '1.25.12'
+          go-version: '1.25.13'
           cache: false
 
       - name: Cache Go modules
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/go/pkg/mod
-          key: go-mod-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}
+          key: go-mod-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}
           restore-keys: |
-            go-mod-${{ runner.os }}-1.25.12-
+            go-mod-${{ runner.os }}-1.25.13-
 
       # golangci-lint type-checks the whole module, so it needs GOCACHE just as
       # much as the build does — restore-only, `unit` owns saving.
@@ -457,10 +457,10 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/go-build
-          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          key: go-build-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
-            go-build-${{ runner.os }}-1.25.12-
+            go-build-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.13-
 
       # golangci-lint also keeps its own analysis cache here, separate from
       # GOCACHE. It is what makes a warm run cheap; the job cached nothing
@@ -541,16 +541,16 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version: '1.25.12'
+          go-version: '1.25.13'
           cache: false
 
       - name: Cache Go modules
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/go/pkg/mod
-          key: go-mod-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}
+          key: go-mod-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}
           restore-keys: |
-            go-mod-${{ runner.os }}-1.25.12-
+            go-mod-${{ runner.os }}-1.25.13-
 
       # The strict-server drift check builds oapi-codegen via `go tool`.
       # Restore-only: `unit` owns saving.
@@ -558,10 +558,10 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/go-build
-          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          key: go-build-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
-            go-build-${{ runner.os }}-1.25.12-
+            go-build-${{ runner.os }}-1.25.13-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.13-
 
       # make backend-validate-openapi shells out to `npx @apidevtools/swagger-cli`
       # which resolves and runs the validator on demand — no project install needed.

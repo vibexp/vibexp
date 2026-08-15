@@ -489,9 +489,10 @@ func ProvideFreshnessClearer(
 	settings repositories.TeamFreshnessSettingsRepository,
 	state repositories.ResourceFreshnessRepository,
 	audit repositories.FreshnessAuditRepository,
+	rules repositories.FreshnessRuleRepository,
 	logger *slog.Logger,
 ) *freshness.Clearer {
-	return freshness.NewClearer(settings, state, audit, logger)
+	return freshness.NewClearer(settings, state, audit, rules, logger)
 }
 
 // ProvideFreshnessEvaluator creates the freshness rule engine (#732), the

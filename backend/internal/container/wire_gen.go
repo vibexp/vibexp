@@ -75,7 +75,8 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	teamFreshnessSettingsRepository := providers.ProvideTeamFreshnessSettingsRepository(db)
 	resourceFreshnessRepository := providers.ProvideResourceFreshnessRepository(db)
 	freshnessAuditRepository := providers.ProvideFreshnessAuditRepository(db)
-	clearer := providers.ProvideFreshnessClearer(teamFreshnessSettingsRepository, resourceFreshnessRepository, freshnessAuditRepository, logger)
+	freshnessRuleRepository := providers.ProvideFreshnessRuleRepository(db)
+	clearer := providers.ProvideFreshnessClearer(teamFreshnessSettingsRepository, resourceFreshnessRepository, freshnessAuditRepository, freshnessRuleRepository, logger)
 	promptServiceDeps := services.PromptServiceDeps{
 		Repo:              promptRepository,
 		RefRepo:           promptReferenceRepository,
@@ -178,7 +179,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	searcher := providers.ProvideSearchService(searchRepository, queryEmbedder, logger, searchSettingsResolver)
 	teamEmailProviderServiceInterface := providers.ProvideTeamEmailProviderService(teamEmailProviderRepository, userRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, logger)
 	teamSearchSettingsServiceInterface := providers.ProvideTeamSearchSettingsService(teamSearchSettingsRepository, authorizationServiceInterface, cfg, logger)
-	freshnessRuleRepository := providers.ProvideFreshnessRuleRepository(db)
 	scheduleRepository := providers.ProvideScheduleRepository(db)
 	freshnessServiceInterface := providers.ProvideFreshnessService(freshnessRuleRepository, resourceFreshnessRepository, teamFreshnessSettingsRepository, freshnessAuditRepository, scheduleRepository, projectRepository, authorizationServiceInterface, logger)
 	metadataCatalogRepository := providers.ProvideMetadataCatalogRepository(db)

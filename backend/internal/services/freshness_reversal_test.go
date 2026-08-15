@@ -30,20 +30,28 @@ type reversalCall struct {
 	resourceType string
 	resourceID   string
 	reason       string
+	medium       string
 }
 
-func (f *fakeClearer) ClearIfStale(_ context.Context, teamID, resourceType, resourceID, reason string) error {
-	f.calls = append(f.calls, reversalCall{teamID, resourceType, resourceID, reason})
+func (f *fakeClearer) ClearIfStale(
+	_ context.Context, teamID, resourceType, resourceID, reason, medium string,
+) error {
+	f.calls = append(f.calls, reversalCall{teamID, resourceType, resourceID, reason, medium})
 	return f.err
 }
 
 // oneReversal is the call every edit path must make for its own resource.
+//
+// The medium is empty by design (#770): an edit moves `updated_at`, which every
+// rule watches whatever mediums it names, so an edit-triggered clear can never
+// be undone by the next evaluation run and must not be scoped to a medium.
 func oneReversal(resourceType, resourceID string) []reversalCall {
 	return []reversalCall{{
 		teamID:       reversalTeamID,
 		resourceType: resourceType,
 		resourceID:   resourceID,
 		reason:       models.FreshnessReasonEdited,
+		medium:       models.FreshnessMediumNone,
 	}}
 }
 
