@@ -37,13 +37,20 @@ func TestArtifactHandlers_Unauthorized(t *testing.T) {
 		path     string
 		expected int
 	}{
+		// No trailing slash: the domain no longer sits behind an
+		// `r.Route("/api/v1/{team_id}/artifacts")` prefix subrouter, whose
+		// Get("/") used to answer the trailing-slash form too. Every route is
+		// registered at full length now, because the generated handler uses
+		// absolute paths (#776). Neither the SPA nor the CLI ever sent the
+		// trailing slash — both build "/artifacts" exactly — and whether to
+		// accept it API-wide is tracked in #800.
 		{
 			"Create Artifact - Unauthorized", "POST",
-			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/", http.StatusUnauthorized,
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", http.StatusUnauthorized,
 		},
 		{
 			"List Artifacts - Unauthorized", "GET",
-			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/", http.StatusUnauthorized,
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", http.StatusUnauthorized,
 		},
 		{
 			"Get Artifact Stats - Unauthorized", "GET",
@@ -106,34 +113,34 @@ func TestArtifactHandlers_QueryParameters(t *testing.T) {
 		path     string
 		expected int
 	}{
-		{"List artifacts with project filter", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?project_name=test-project", http.StatusUnauthorized},
-		{"List artifacts with status filter", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?status=active", http.StatusUnauthorized},
-		{"List artifacts with type filter", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?type=general", http.StatusUnauthorized},
-		{"List artifacts with search", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?search=test", http.StatusUnauthorized},
+		{"List artifacts with project filter", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?project_name=test-project", http.StatusUnauthorized},
+		{"List artifacts with status filter", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?status=active", http.StatusUnauthorized},
+		{"List artifacts with type filter", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?type=general", http.StatusUnauthorized},
+		{"List artifacts with search", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?search=test", http.StatusUnauthorized},
 		{
 			"List artifacts with sort by created_at",
 			"GET",
-			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?sort_by=created_at&sort_order=asc",
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?sort_by=created_at&sort_order=asc",
 			http.StatusUnauthorized,
 		},
 		{
 			"List artifacts with sort by updated_at",
 			"GET",
-			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?sort_by=updated_at&sort_order=desc",
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?sort_by=updated_at&sort_order=desc",
 			http.StatusUnauthorized,
 		},
 		{
 			"List artifacts with metadata filter",
 			"GET",
-			`/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?metadata=%7B%22key%22%3A%5B%22value%22%5D%7D`,
+			`/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?metadata=%7B%22key%22%3A%5B%22value%22%5D%7D`,
 			http.StatusUnauthorized,
 		},
-		{"List artifacts with pagination", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?page=2&limit=10", http.StatusUnauthorized},
-		{"List artifacts with max limit", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?limit=100", http.StatusUnauthorized},
+		{"List artifacts with pagination", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?page=2&limit=10", http.StatusUnauthorized},
+		{"List artifacts with max limit", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?limit=100", http.StatusUnauthorized},
 		{
 			"List artifacts with multiple filters",
 			"GET",
-			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?project_name=test&status=active&type=general&search=test" +
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?project_name=test&status=active&type=general&search=test" +
 				"&sort_by=created_at&sort_order=desc&page=1&limit=20",
 			http.StatusUnauthorized,
 		},
@@ -170,29 +177,38 @@ func TestArtifactHandlers_InvalidPaths(t *testing.T) {
 		method   string
 		path     string
 		expected int
+		// These paths and methods match no route, so chi answers from its NotFound/
+		// MethodNotAllowed handlers without running the protected group's auth
+		// middleware. They reported 401 only because the domain used to sit behind an
+		// `r.Route("/api/v1/{team_id}/artifacts")` prefix subrouter, which matched the
+		// whole subtree; #776 registers every route at full length because the
+		// generated handler uses absolute paths. The routes that DO exist still answer
+		// 401 unauthenticated — see TestArtifactHandlers_Unauthorized.
 	}{
 		{
 			"Invalid path", "GET",
 			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/invalid/path/too/long",
-			http.StatusUnauthorized,
+			http.StatusNotFound,
 		},
 		{
 			"Method not allowed", "PATCH",
-			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/", http.StatusUnauthorized,
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", http.StatusMethodNotAllowed,
 		},
 		{
 			"Invalid artifact path", "GET",
 			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/project/",
-			http.StatusUnauthorized,
+			http.StatusNotFound,
 		},
 		{
 			"Invalid stats path", "POST",
-			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/stats", http.StatusUnauthorized,
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/stats", http.StatusMethodNotAllowed,
 		},
 		{
+			// "projects" binds as {project_id}; PUT is only registered on
+			// /{project_id}/{slug}, so chi answers MethodNotAllowed.
 			"Invalid projects path", "PUT",
 			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/projects",
-			http.StatusUnauthorized,
+			http.StatusMethodNotAllowed,
 		},
 	}
 
@@ -227,15 +243,15 @@ func TestArtifactHandlers_ContentTypeValidation(t *testing.T) {
 		body        string
 	}{
 		{
-			"Create with application/json", "POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/", "application/json",
+			"Create with application/json", "POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", "application/json",
 			`{"slug":"test","title":"Test","content":"Test"}`,
 		},
 		{
-			"Create with text/plain", "POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/", "text/plain",
+			"Create with text/plain", "POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", "text/plain",
 			`{"slug":"test","title":"Test","content":"Test"}`,
 		},
 		{
-			"Create without content-type", "POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/", "",
+			"Create without content-type", "POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", "",
 			`{"slug":"test","title":"Test","content":"Test"}`,
 		},
 		{
@@ -274,11 +290,11 @@ func TestArtifactHandlers_RouteMatching(t *testing.T) {
 		// Basic CRUD operations
 		{
 			"POST to root", "POST",
-			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/", http.StatusUnauthorized,
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", http.StatusUnauthorized,
 		},
 		{
 			"GET list all", "GET",
-			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/", http.StatusUnauthorized,
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", http.StatusUnauthorized,
 		},
 		{
 			"GET stats", "GET",
@@ -383,21 +399,21 @@ func TestArtifactHandlers_MetadataFiltering(t *testing.T) {
 		path     string
 		expected int
 	}{
-		{"Single metadata filter", `/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?metadata=%7B%22env%22%3A%5B%22production%22%5D%7D`, http.StatusUnauthorized},
+		{"Single metadata filter", `/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?metadata=%7B%22env%22%3A%5B%22production%22%5D%7D`, http.StatusUnauthorized},
 		{
 			"Multiple metadata filters",
-			`/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?metadata=%7B%22env%22%3A%5B%22production%22%5D%2C%22team%22%3A%5B%22backend%22%5D%7D`,
+			`/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?metadata=%7B%22env%22%3A%5B%22production%22%5D%2C%22team%22%3A%5B%22backend%22%5D%7D`,
 			http.StatusUnauthorized,
 		},
-		{"Metadata with special chars", `/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?metadata=%7B%22version%22%3A%5B%221.0.0%22%5D%7D`, http.StatusUnauthorized},
+		{"Metadata with special chars", `/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?metadata=%7B%22version%22%3A%5B%221.0.0%22%5D%7D`, http.StatusUnauthorized},
 		{
 			"Metadata with spaces (encoded)",
-			`/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?metadata=%7B%22description%22%3A%5B%22test%20value%22%5D%7D`,
+			`/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?metadata=%7B%22description%22%3A%5B%22test%20value%22%5D%7D`,
 			http.StatusUnauthorized,
 		},
 		{
 			"Complex metadata filtering",
-			`/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?metadata=%7B%22env%22%3A%5B%22prod%22%5D%7D&project_name=test&status=active`,
+			`/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?metadata=%7B%22env%22%3A%5B%22prod%22%5D%7D&project_name=test&status=active`,
 			http.StatusUnauthorized,
 		},
 	}
@@ -435,15 +451,15 @@ func TestArtifactHandlers_LargeBodies(t *testing.T) {
 	}{
 		{
 			"Normal sized body", "POST",
-			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/", 1024, http.StatusUnauthorized,
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", 1024, http.StatusUnauthorized,
 		},
 		{
 			"Large content", "POST",
-			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/", 10240, http.StatusUnauthorized,
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", 10240, http.StatusUnauthorized,
 		},
 		{
 			"Very large content", "POST",
-			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/", 102400, http.StatusUnauthorized,
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", 102400, http.StatusUnauthorized,
 		},
 	}
 
@@ -653,7 +669,7 @@ func TestHandleListArtifacts_Success_WithMockedService(t *testing.T) {
 	expectedArtifacts := []models.Artifact{
 		{
 			ID:        "art-1",
-			ProjectID: "test-project",
+			ProjectID: "550e8400-e29b-41d4-a716-446655440001",
 			Slug:      "test-slug-1",
 			Title:     "Test Artifact 1",
 			Content:   "Content 1",
@@ -665,7 +681,7 @@ func TestHandleListArtifacts_Success_WithMockedService(t *testing.T) {
 		},
 		{
 			ID:        "art-2",
-			ProjectID: "test-project",
+			ProjectID: "550e8400-e29b-41d4-a716-446655440001",
 			Slug:      "test-slug-2",
 			Title:     "Test Artifact 2",
 			Content:   "Content 2",
@@ -686,7 +702,7 @@ func TestHandleListArtifacts_Success_WithMockedService(t *testing.T) {
 	}
 
 	mockArtifactService.On("ListArtifacts", "user-123", mock.MatchedBy(func(filters services.ArtifactFilters) bool {
-		return filters.ProjectID == "test-project" && filters.Status == "active" &&
+		return filters.ProjectID == "550e8400-e29b-41d4-a716-446655440001" && filters.Status == "active" &&
 			filters.TeamID == teamID && filters.Page == 1 && filters.Limit == 10
 	})).Return(expectedResponse, nil)
 
@@ -696,15 +712,14 @@ func TestHandleListArtifacts_Success_WithMockedService(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
-	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?project_id=test-project&status=active"
+	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?project_id=550e8400-e29b-41d4-a716-446655440001&status=active"
 	req := createAuthenticatedRequest("GET", url, "", "user-123")
 	rr := httptest.NewRecorder()
 
-	req = addURLParams(req, map[string]string{"team_id": "550e8400-e29b-41d4-a716-446655440000"})
-	srv.handleListArtifacts(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
@@ -730,7 +745,7 @@ func TestHandleListArtifacts_WithPagination(t *testing.T) {
 	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
 
 	expectedResponse := &models.ArtifactListResponse{
-		Artifacts:  []models.Artifact{{ID: "art-1", Slug: "test-1"}},
+		Artifacts:  []models.Artifact{{ID: "art-1", Slug: "test-1", ProjectID: "550e8400-e29b-41d4-a716-446655440001"}},
 		TotalCount: 50,
 		Page:       2,
 		PerPage:    10,
@@ -747,14 +762,13 @@ func TestHandleListArtifacts_WithPagination(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
-	req := createAuthenticatedRequest("GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?team_id="+teamID+"&page=2&limit=10", "", "user-123")
-	req = addURLParams(req, map[string]string{"team_id": "550e8400-e29b-41d4-a716-446655440000"})
+	req := createAuthenticatedRequest("GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?team_id="+teamID+"&page=2&limit=10", "", "user-123")
 	rr := httptest.NewRecorder()
 
-	srv.handleListArtifacts(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
@@ -782,7 +796,7 @@ func TestHandleListArtifacts_LegacyMetadataParamsAreInert(t *testing.T) {
 	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
 
 	expectedResponse := &models.ArtifactListResponse{
-		Artifacts:  []models.Artifact{{ID: "art-1"}},
+		Artifacts:  []models.Artifact{{ID: "art-1", ProjectID: "550e8400-e29b-41d4-a716-446655440001"}},
 		TotalCount: 1,
 		Page:       1,
 		PerPage:    20,
@@ -799,19 +813,18 @@ func TestHandleListArtifacts_LegacyMetadataParamsAreInert(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
 	req := createAuthenticatedRequest(
 		"GET",
-		"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?team_id="+teamID+"&metadata_env=production&metadata_team=backend",
+		"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?team_id="+teamID+"&metadata_env=production&metadata_team=backend",
 		"",
 		"user-123",
 	)
-	req = addURLParams(req, map[string]string{"team_id": "550e8400-e29b-41d4-a716-446655440000"})
 	rr := httptest.NewRecorder()
 
-	srv.handleListArtifacts(rr, req)
+	srv.router.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
 	mockArtifactService.AssertExpectations(t)
 }
@@ -830,14 +843,13 @@ func TestHandleListArtifacts_ServiceError(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
-	req := createAuthenticatedRequest("GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?team_id="+teamID, "", "user-123")
-	req = addURLParams(req, map[string]string{"team_id": "550e8400-e29b-41d4-a716-446655440000"})
+	req := createAuthenticatedRequest("GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?team_id="+teamID, "", "user-123")
 	rr := httptest.NewRecorder()
 
-	srv.handleListArtifacts(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	mockArtifactService.AssertExpectations(t)
@@ -977,7 +989,7 @@ func TestHandleCreateArtifact_Validation(t *testing.T) {
 			srv := artifactValidationServer(t)
 
 			req := createAuthenticatedRequest(
-				"POST", "/api/v1/"+teamID+"/artifacts/", tt.body, "user-123")
+				"POST", "/api/v1/"+teamID+"/artifacts", tt.body, "user-123")
 			req = addURLParams(req, map[string]string{"team_id": teamID})
 			rr := httptest.NewRecorder()
 

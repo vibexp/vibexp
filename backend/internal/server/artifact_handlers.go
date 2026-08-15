@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
@@ -21,12 +20,10 @@ import (
 )
 
 const (
-	// serverLogServiceName tags artifact handler log entries.
+// serverLogServiceName tags artifact handler log entries.
 
-	artifactMsgListFailed = "Failed to list artifacts"
-
-	// errNotFoundFragment is matched against service errors to detect
-	// not-found conditions.
+// errNotFoundFragment is matched against service errors to detect
+// not-found conditions.
 )
 
 func (s *Server) handleCreateArtifact(w http.ResponseWriter, r *http.Request) {
@@ -72,143 +69,6 @@ func (s *Server) handleCreateArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeCreated(w, artifact, s.logger)
-}
-
-func (s *Server) handleGetArtifact(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(contextKeyUserID).(string)
-	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
-	projectID := chi.URLParam(r, "project_id")
-	slug := chi.URLParam(r, "slug")
-
-	decodedProjectID, decodedSlug, ok := s.decodeArtifactURLParams(w, userID, "handleGetArtifact", projectID, slug)
-	if !ok {
-		return
-	}
-
-	// Validate project_id is a valid UUID
-	if !isValidUUID(decodedProjectID) {
-		writeErrorResponse(w, nil, "bad_request", msgInvalidProjectIDFormat, http.StatusBadRequest)
-		return
-	}
-
-	s.logger.With(
-		"service", serverLogServiceName,
-		"handler", "handleGetArtifact",
-		"user_id", userID,
-		"team_id", teamID,
-		"project_id", decodedProjectID,
-		"slug", decodedSlug,
-	).Info("Get artifact request received")
-
-	artifact, err := s.container.ArtifactService().GetArtifactByProjectIDAndSlugInTeam(
-		userID, teamID, decodedProjectID, decodedSlug,
-	)
-	if err != nil {
-		s.handleGetArtifactError(w, userID, decodedProjectID, decodedSlug, err)
-		return
-	}
-
-	contextkeys.SetAccessedResourceID(r.Context(), artifact.ID)
-
-	artifact.Related = s.relatedForResource(
-		r.Context(), userID, teamID, models.RelationResourceTypeArtifact, artifact.ID,
-	)
-	artifact.Similar = s.similarForResource(r.Context(), teamID, models.RelationResourceTypeArtifact, artifact.ID)
-	artifact.Freshness = s.freshnessForResource(
-		r.Context(), teamID, models.RelationResourceTypeArtifact, artifact.ID,
-	)
-
-	writeOK(w, artifact, s.logger)
-}
-
-func (s *Server) handleListArtifacts(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(contextKeyUserID).(string)
-	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
-
-	s.logger.With(
-		"service", serverLogServiceName,
-		"handler", "handleListArtifacts",
-		"user_id", userID,
-		"team_id", teamID,
-	).
-		Info("List artifacts request received")
-
-	filters, ok := s.buildArtifactFilters(w, r, "", teamID)
-	if !ok {
-		return
-	}
-
-	response, listErr := s.container.ArtifactService().ListArtifacts(userID, filters)
-	if listErr != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleListArtifacts",
-			"user_id", userID,
-			"team_id", teamID,
-			"error", fmt.Sprintf("%+v", listErr),
-		).Error(artifactMsgListFailed)
-
-		writeErrorResponse(w, nil, "internal_error", artifactMsgListFailed, http.StatusInternalServerError)
-		return
-	}
-
-	attachPageFreshness(s, r.Context(), teamID, models.RelationResourceTypeArtifact,
-		response.Artifacts, artifactID, setArtifactFreshness)
-	writeOK(w, response, s.logger)
-}
-
-func (s *Server) handleListArtifactsByProject(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(contextKeyUserID).(string)
-	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
-	projectID := chi.URLParam(r, "project_id")
-
-	decodedProjectID, err := url.PathUnescape(projectID)
-	if err != nil {
-		s.logHandlerError(w, handlerErrorParams{
-			handler: "handleListArtifactsByProject", userID: userID, projectID: projectID, err: err,
-			logMsg: "Failed to decode project ID", errCode: "bad_request",
-			errMsg: "Invalid project ID encoding", statusCode: http.StatusBadRequest,
-		})
-		return
-	}
-
-	// Validate project_id is a valid UUID
-	if !isValidUUID(decodedProjectID) {
-		writeErrorResponse(w, nil, "bad_request", msgInvalidProjectIDFormat, http.StatusBadRequest)
-		return
-	}
-
-	s.logger.With(
-		"service", serverLogServiceName,
-		"handler", "handleListArtifactsByProject",
-		"user_id", userID,
-		"team_id", teamID,
-		"project_id", decodedProjectID,
-	).Info("List artifacts by project request received")
-
-	filters, ok := s.buildArtifactFilters(w, r, decodedProjectID, teamID)
-	if !ok {
-		return
-	}
-
-	response, listErr := s.container.ArtifactService().ListArtifacts(userID, filters)
-	if listErr != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleListArtifactsByProject",
-			"user_id", userID,
-			"team_id", teamID,
-			"project_id", decodedProjectID,
-			"error", fmt.Sprintf("%+v", listErr),
-		).Error("Failed to list artifacts by project")
-
-		writeErrorResponse(w, nil, "internal_error", artifactMsgListFailed, http.StatusInternalServerError)
-		return
-	}
-
-	attachPageFreshness(s, r.Context(), teamID, models.RelationResourceTypeArtifact,
-		response.Artifacts, artifactID, setArtifactFreshness)
-	writeOK(w, response, s.logger)
 }
 
 func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
@@ -830,48 +690,6 @@ func (s *Server) handleUpdateArtifactError(w http.ResponseWriter, userID, projec
 	}
 
 	writeErrorResponse(w, nil, "internal_error", "Failed to update artifact", http.StatusInternalServerError)
-}
-
-// buildArtifactFilters builds artifact filters from request query parameters.
-// It reports false — having already written a 400 — when a parameter is
-// malformed, mirroring buildBlueprintFilters.
-func (s *Server) buildArtifactFilters(
-	w http.ResponseWriter, r *http.Request, projectID, teamID string,
-) (services.ArtifactFilters, bool) {
-	filters := services.ArtifactFilters{
-		ProjectID: projectID,
-		TeamID:    teamID,
-		Status:    r.URL.Query().Get("status"),
-		Type:      r.URL.Query().Get("type"),
-		Search:    r.URL.Query().Get("search"),
-		SortBy:    r.URL.Query().Get("sort_by"),
-		SortOrder: r.URL.Query().Get("sort_order"),
-		Page:      1,
-		Limit:     20,
-	}
-
-	if projectID == "" {
-		filters.ProjectID = r.URL.Query().Get("project_id")
-	}
-
-	freshness, ok := parseFreshnessFilter(w, r)
-	if !ok {
-		return services.ArtifactFilters{}, false
-	}
-	filters.Freshness = freshness
-
-	metadataFilter, ok := parseMetadataQueryParam(w, r)
-	if !ok {
-		return services.ArtifactFilters{}, false
-	}
-	filters.MetadataFilter = metadataFilter
-
-	// Parse and validate pagination parameters with bounds checking
-	pagination := validatePaginationParams(r.URL.Query().Get("page"), r.URL.Query().Get("limit"))
-	filters.Page = pagination.Page
-	filters.Limit = pagination.Limit
-
-	return filters, true
 }
 
 // parseMetadataQueryParam parses the shared `metadata` list filter (epic #519)

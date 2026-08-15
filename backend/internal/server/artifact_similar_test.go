@@ -32,7 +32,7 @@ func newArtifactSimilarServer(
 		ArtifactServiceMock:     artSvc,
 		EmbeddingRepositoryMock: embRepo,
 	}
-	return srv
+	return mountArtifactReadRoutes(srv)
 }
 
 func TestHandleGetArtifact_SimilarPopulated_ConformsToSpec(t *testing.T) {
@@ -50,7 +50,7 @@ func TestHandleGetArtifact_SimilarPopulated_ConformsToSpec(t *testing.T) {
 	srv := newArtifactSimilarServer(artSvc, embRepo)
 	req := getArtifactRelatedRequest()
 	rr := httptest.NewRecorder()
-	srv.handleGetArtifact(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	specconformance.AssertConformsToSpec(t, req, rr)
@@ -77,7 +77,7 @@ func TestHandleGetArtifact_SimilarNoEmbedding_IsArrayNotNull(t *testing.T) {
 	srv := newArtifactSimilarServer(artSvc, embRepo)
 	req := getArtifactRelatedRequest()
 	rr := httptest.NewRecorder()
-	srv.handleGetArtifact(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	specconformance.AssertConformsToSpec(t, req, rr)
@@ -98,7 +98,7 @@ func TestHandleGetArtifact_SimilarServiceError_StillReturnsArtifact(t *testing.T
 	srv := newArtifactSimilarServer(artSvc, embRepo)
 	req := getArtifactRelatedRequest()
 	rr := httptest.NewRecorder()
-	srv.handleGetArtifact(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), `"similar":[]`)

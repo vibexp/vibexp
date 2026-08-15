@@ -23,6 +23,21 @@ import (
 )
 
 // Helper to add chi URL params to request context
+// mountArtifactReadRoutes replaces srv's router with one carrying only the
+// artifacts routes — the three generated read operations plus the chi
+// leftovers, exactly as mountArtifactsHandlers wires production (#776), and
+// without the auth/tenancy middleware New() installs.
+//
+// Tests go through this router rather than calling handlers directly so they
+// exercise the parameter binder and the mount too, which is what makes the
+// UUID-typed path parameters load-bearing rather than cosmetic.
+func mountArtifactReadRoutes(srv *Server) *Server {
+	r := chi.NewRouter()
+	srv.router = r
+	srv.mountArtifactsHandlers(r)
+	return srv
+}
+
 func addURLParams(req *http.Request, params map[string]string) *http.Request {
 	rctx := chi.NewRouteContext()
 	for key, value := range params {
@@ -64,19 +79,14 @@ func TestHandleGetArtifact_Success_WithMockedService(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
-	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/test-project/test-slug"
+	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/550e8400-e29b-41d4-a716-446655440000/test-slug"
 	req := createAuthenticatedRequest("GET", url, "", "user-123")
-	req = addURLParams(req, map[string]string{
-		"team_id":    "550e8400-e29b-41d4-a716-446655440000",
-		"project_id": "550e8400-e29b-41d4-a716-446655440000",
-		"slug":       "test-slug",
-	})
 	rr := httptest.NewRecorder()
 
-	srv.handleGetArtifact(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
@@ -112,19 +122,14 @@ func TestHandleGetArtifact_NotFound(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
-	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/test-project/non-existent"
+	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/550e8400-e29b-41d4-a716-446655440000/non-existent"
 	req := createAuthenticatedRequest("GET", url, "", "user-123")
-	req = addURLParams(req, map[string]string{
-		"team_id":    "550e8400-e29b-41d4-a716-446655440000",
-		"project_id": "550e8400-e29b-41d4-a716-446655440000",
-		"slug":       "non-existent",
-	})
 	rr := httptest.NewRecorder()
 
-	srv.handleGetArtifact(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code)
 	mockArtifactService.AssertExpectations(t)
@@ -158,18 +163,14 @@ func TestHandleGetArtifactsByProject_Success(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
-	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/test-project"
+	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/550e8400-e29b-41d4-a716-446655440000"
 	req := createAuthenticatedRequest("GET", url, "", "user-123")
-	req = addURLParams(req, map[string]string{
-		"team_id":    "550e8400-e29b-41d4-a716-446655440000",
-		"project_id": "550e8400-e29b-41d4-a716-446655440000",
-	})
 	rr := httptest.NewRecorder()
 
-	srv.handleListArtifactsByProject(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	specconformance.AssertConformsToSpec(t, req, rr)
@@ -226,7 +227,7 @@ func TestHandleCreateArtifact_Success(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
 	reqBody := `{
@@ -272,7 +273,7 @@ func TestHandleCreateArtifact_InvalidType(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
 	reqBody := `{
@@ -304,7 +305,7 @@ func TestHandleCreateArtifact_ValidationError(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
 	testCases := []struct {
@@ -386,12 +387,12 @@ func TestHandleUpdateArtifact_Success(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
 	reqBody := `{"project_id": "550e8400-e29b-41d4-a716-446655440000", ` +
 		`"slug": "test-slug", "title": "Updated Title", "content": "Updated Content"}`
-	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/test-project/test-slug"
+	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/550e8400-e29b-41d4-a716-446655440000/test-slug"
 	req := createAuthenticatedRequest("PUT", url, reqBody, "user-123")
 	req = addURLParams(req, map[string]string{
 		"team_id":    "550e8400-e29b-41d4-a716-446655440000",
@@ -432,11 +433,11 @@ func TestHandleUpdateArtifact_NotFound(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
 	reqBody := `{"project_id": "550e8400-e29b-41d4-a716-446655440000", "slug": "test-slug", "title": "Updated Title"}`
-	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/test-project/non-existent"
+	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/550e8400-e29b-41d4-a716-446655440000/non-existent"
 	req := createAuthenticatedRequest("PUT", url, reqBody, "user-123")
 	req = addURLParams(req, map[string]string{
 		"team_id":    "550e8400-e29b-41d4-a716-446655440000",
@@ -491,10 +492,10 @@ func TestHandleDeleteArtifact_Success(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
-	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/test-project/test-slug"
+	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/550e8400-e29b-41d4-a716-446655440000/test-slug"
 	req := createAuthenticatedRequest("DELETE", url, "", "user-123")
 	req = addURLParams(req, map[string]string{
 		"team_id":    "550e8400-e29b-41d4-a716-446655440000",
@@ -527,10 +528,10 @@ func TestHandleDeleteArtifact_NotFound(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
-	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/test-project/non-existent"
+	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/550e8400-e29b-41d4-a716-446655440000/non-existent"
 	req := createAuthenticatedRequest("DELETE", url, "", "user-123")
 	req = addURLParams(req, map[string]string{
 		"team_id":    "550e8400-e29b-41d4-a716-446655440000",
@@ -577,7 +578,7 @@ func TestHandleGetArtifactStats_Success(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
 	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/stats"
@@ -618,7 +619,7 @@ func TestHandleGetArtifactStats_ServiceError(t *testing.T) {
 
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv := mountArtifactReadRoutes(New("8080", nil, "test-api-key", cfg, logger))
 	srv.container = mockContainer
 
 	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/stats"

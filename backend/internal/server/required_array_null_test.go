@@ -132,7 +132,6 @@ func assertAllowlistEntriesStillRequired(t *testing.T, fields map[string][]strin
 var requiredArrayResponseRegistry = map[string]any{
 	"APIKey":                         models.APIKey{},
 	"AgentListResponse":              models.AgentListResponse{},
-	"ArtifactListResponse":           models.ArtifactListResponse{},
 	"ArtifactVersionListResponse":    models.ArtifactVersionListResponse{},
 	"AttachmentListResponse":         models.AttachmentListResponse{},
 	"BlueprintImportReport":          models.BlueprintImportReport{},
@@ -180,6 +179,7 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"FreshnessRuleImpact":              "generated strict-server type (internal/server/gen/freshness); handler builds resource_types via make(...,0) — handlers_freshness_metrics.go toGenFreshnessRuleImpact",
 	"FreshnessAuditListResponse":       "generated strict-server type (internal/server/gen/freshness); handler builds entries via make(...,0) — handlers_freshness_metrics.go ListFreshnessAudit",
 	"MemoryListResponse":               "generated strict-server type (internal/server/gen/memories); handler builds memories via make(...,0) — handlers_memories.go toGenMemoryListResponse",
+	"ArtifactListResponse":             "generated strict-server type (internal/server/gen/artifacts); handler builds artifacts via make(...,0) — handlers_artifacts.go toGenArtifactListResponse",
 	"FreshnessRule":                    "generated strict-server type (internal/server/gen/freshness); handler builds resource_types + mediums via make(...,0) — handlers_freshness.go toGenFreshnessRule",
 	"MetadataKeysResponse":             "generated strict-server type (internal/server/gen/metadata); handler coerces nil->[] via make(...,0) — handlers_metadata.go metadataEntries",
 	"MetadataValuesResponse":           "generated strict-server type (internal/server/gen/metadata); handler coerces nil->[] via make(...,0) — handlers_metadata.go metadataEntries",

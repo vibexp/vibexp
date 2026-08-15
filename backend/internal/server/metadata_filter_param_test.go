@@ -30,7 +30,7 @@ func metadataParamServer(t *testing.T, svc services.ArtifactServiceInterface) *S
 	t.Helper()
 	srv := New("8080", nil, "test-api-key", &config.Config{}, slog.New(slog.DiscardHandler))
 	srv.container = &MockArtifactContainer{ArtifactServiceMock: svc}
-	return srv
+	return mountArtifactReadRoutes(srv)
 }
 
 func TestListArtifacts_MetadataParamReachesTheService(t *testing.T) {
@@ -45,11 +45,10 @@ func TestListArtifacts_MetadataParamReachesTheService(t *testing.T) {
 	srv := metadataParamServer(t, svc)
 
 	req := createAuthenticatedRequest("GET",
-		`/api/v1/artifacts?metadata=%7B%22env%22%3A%5B%22prod%22%2C%22staging%22%5D%2C%22team%22%3A%5B%22core%22%5D%7D`,
+		`/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?metadata=%7B%22env%22%3A%5B%22prod%22%2C%22staging%22%5D%2C%22team%22%3A%5B%22core%22%5D%7D`,
 		"", "user-123")
-	req = addURLParams(req, map[string]string{"team_id": metadataParamTeamID})
 	rr := httptest.NewRecorder()
-	srv.handleListArtifacts(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
@@ -62,10 +61,9 @@ func TestListArtifacts_AbsentMetadataParamIsANoOpFilter(t *testing.T) {
 
 	srv := metadataParamServer(t, svc)
 
-	req := createAuthenticatedRequest("GET", "/api/v1/artifacts", "", "user-123")
-	req = addURLParams(req, map[string]string{"team_id": metadataParamTeamID})
+	req := createAuthenticatedRequest("GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", "", "user-123")
 	rr := httptest.NewRecorder()
-	srv.handleListArtifacts(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
@@ -88,10 +86,10 @@ func TestListArtifacts_MalformedMetadataParamIs400(t *testing.T) {
 			svc := servicesmocks.NewMockArtifactServiceInterface(t)
 			srv := metadataParamServer(t, svc)
 
-			req := createAuthenticatedRequest("GET", "/api/v1/artifacts?metadata="+tt.raw, "", "user-123")
+			req := createAuthenticatedRequest("GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?metadata="+tt.raw, "", "user-123")
 			req = addURLParams(req, map[string]string{"team_id": metadataParamTeamID})
 			rr := httptest.NewRecorder()
-			srv.handleListArtifacts(rr, req)
+			srv.router.ServeHTTP(rr, req)
 
 			require.Equal(t, http.StatusBadRequest, rr.Code)
 			assert.Equal(t, "application/problem+json", rr.Header().Get("Content-Type"))
@@ -110,10 +108,9 @@ func TestListArtifactsByProject_MalformedMetadataParamIs400(t *testing.T) {
 	srv := metadataParamServer(t, svc)
 
 	projectID := "660e8400-e29b-41d4-a716-446655440001"
-	req := createAuthenticatedRequest("GET", "/api/v1/artifacts/"+projectID+"?metadata=%7B", "", "user-123")
-	req = addURLParams(req, map[string]string{"team_id": metadataParamTeamID, "project_id": projectID})
+	req := createAuthenticatedRequest("GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/"+projectID+"?metadata=%7B", "", "user-123")
 	rr := httptest.NewRecorder()
-	srv.handleListArtifactsByProject(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }

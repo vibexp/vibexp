@@ -29,6 +29,7 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories/postgres"
 	"github.com/vibexp/vibexp/internal/server/gen"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
+	artifactsgen "github.com/vibexp/vibexp/internal/server/gen/artifacts"
 	commentsgen "github.com/vibexp/vibexp/internal/server/gen/comments"
 	embeddingprovidersgen "github.com/vibexp/vibexp/internal/server/gen/embeddingproviders"
 	freshnessgen "github.com/vibexp/vibexp/internal/server/gen/freshness"
@@ -866,28 +867,71 @@ func (s *Server) setupPromptGalleryRoutes(r chi.Router) {
 }
 
 func (s *Server) setupArtifactsRoutes(r chi.Router) {
-	r.Route("/api/v1/{team_id}/artifacts", func(r chi.Router) {
-		r.Use(s.artifactTeamValidationMiddleware()) // Validate team_id from URL and team access
-		r.Post("/", s.handleCreateArtifact)
-		r.Get("/", s.handleListArtifacts)
-		r.Get(routePatternStats, s.handleGetArtifactStats)
-		r.Get("/{project_id}", s.handleListArtifactsByProject)
-		r.With(s.recordResourceAccess(resourceTypeArtifact)).Get(routePatternProjectSlug, s.handleGetArtifact)
-		r.Put(routePatternProjectSlug, s.handleUpdateArtifact)
-		r.Delete(routePatternProjectSlug, s.handleDeleteArtifact)
-		// Artifact file attachments — DEPRECATED aliases of the universal
-		// /api/v1/{team_id}/attachments endpoint (see setupAttachmentsRoutes).
-		// Kept for one release so the frontend can cut over safely; remove once no
-		// client uses the artifact-nested paths.
-		r.Post("/{project_id}/{slug}/attachments", s.handleUploadArtifactAttachment)
-		r.Get("/{project_id}/{slug}/attachments", s.handleListArtifactAttachments)
-		r.Get("/{project_id}/{slug}/attachments/{id}", s.handleDownloadArtifactAttachment)
-		r.Delete("/{project_id}/{slug}/attachments/{id}", s.handleDeleteArtifactAttachment)
-		// Artifact content versions (generic content-versioning core, resource_type=artifact).
-		r.Get("/{project_id}/{slug}/versions", s.handleListArtifactVersions)
-		r.Get("/{project_id}/{slug}/versions/{version_number}", s.handleGetArtifactVersion)
-		r.Post("/{project_id}/{slug}/versions/{version_number}/restore", s.handleRestoreArtifactVersion)
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.artifactTeamValidationMiddleware()) // Validate team_id from URL and team access
+		s.mountArtifactsHandlers(gr)
 	})
+}
+
+// mountArtifactsHandlers registers the domain's routes on an already-scoped
+// router: the three generated read operations (#776, epic #122) plus the eleven
+// that stay on chi handlers.
+//
+// Every route is registered at FULL LENGTH rather than inside an
+// `r.Route("/api/v1/{team_id}/artifacts")` prefix group, because the generated
+// handler registers absolute paths and a prefix Mount at the same pattern would
+// shadow them — the route-drift gate catches exactly that, reporting the
+// documented GETs as unserved. Same shape as mountMemoriesHandlers (#779).
+//
+// `/stats` still beats `/{project_id}`: chi is a radix trie and a static
+// segment always wins over a param at the same position, whatever the
+// registration order and whichever router registered it.
+//
+// Split out of setupArtifactsRoutes so tests can exercise the real route tree
+// without the tenancy middleware.
+func (s *Server) mountArtifactsHandlers(r chi.Router) {
+	// recordResourceAccess wraps all three generated operations, where the chi
+	// routes wrapped only the detail one. That is not a behaviour change: the
+	// middleware records nothing unless the handler calls SetAccessedResourceID,
+	// which only GetArtifact does — a list response carries no single resource
+	// to attribute an access to.
+	r.Group(func(rr chi.Router) {
+		rr.Use(s.recordResourceAccess(resourceTypeArtifact))
+		// An empty query value meant "no filter" to the chi parser these
+		// handlers replaced; the generated binder would treat it as a present
+		// parameter and 400. See dropEmptyQueryValues (#779).
+		rr.Use(dropEmptyQueryValues)
+		strict := artifactsgen.NewStrictHandlerWithOptions(
+			&artifactsStrictServer{s: s},
+			nil,
+			artifactsgen.StrictHTTPServerOptions{
+				RequestErrorHandlerFunc:  s.artifactsBindErrorHandler,
+				ResponseErrorHandlerFunc: s.artifactsResponseErrorHandler,
+			},
+		)
+		artifactsgen.HandlerWithOptions(strict, artifactsgen.ChiServerOptions{
+			BaseRouter:       rr,
+			ErrorHandlerFunc: s.artifactsBindErrorHandler,
+		})
+	})
+
+	const base = "/api/v1/{team_id}/artifacts"
+	r.Post(base, s.handleCreateArtifact)
+	r.Get(base+routePatternStats, s.handleGetArtifactStats)
+	r.Put(base+routePatternProjectSlug, s.handleUpdateArtifact)
+	r.Delete(base+routePatternProjectSlug, s.handleDeleteArtifact)
+	// Artifact file attachments — DEPRECATED aliases of the universal
+	// /api/v1/{team_id}/attachments endpoint (see setupAttachmentsRoutes).
+	// Kept for one release so the frontend can cut over safely; remove once no
+	// client uses the artifact-nested paths.
+	r.Post(base+"/{project_id}/{slug}/attachments", s.handleUploadArtifactAttachment)
+	r.Get(base+"/{project_id}/{slug}/attachments", s.handleListArtifactAttachments)
+	r.Get(base+"/{project_id}/{slug}/attachments/{id}", s.handleDownloadArtifactAttachment)
+	r.Delete(base+"/{project_id}/{slug}/attachments/{id}", s.handleDeleteArtifactAttachment)
+	// Artifact content versions (generic content-versioning core, resource_type=artifact).
+	r.Get(base+"/{project_id}/{slug}/versions", s.handleListArtifactVersions)
+	r.Get(base+"/{project_id}/{slug}/versions/{version_number}", s.handleGetArtifactVersion)
+	r.Post(base+"/{project_id}/{slug}/versions/{version_number}/restore", s.handleRestoreArtifactVersion)
 }
 
 // setupAttachmentsRoutes registers the universal attachments endpoint. owner_type

@@ -193,9 +193,12 @@ func TestQueryParamRejectedOnNonMCPPaths(t *testing.T) {
 			path:   "/api/v1/550e8400-e29b-41d4-a716-446655440000/projects/?api_key=" + mcpKey,
 		},
 		{
-			name:   "POST /api/v1/{team_id}/artifacts/ with api_key query param",
+			// No trailing slash since #776 dissolved the artifacts prefix
+			// subrouter: with one, the request 404s BEFORE the auth middleware
+			// runs and this assertion proves nothing at all.
+			name:   "POST /api/v1/{team_id}/artifacts with api_key query param",
 			method: http.MethodPost,
-			path:   "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?api_key=" + mcpKey,
+			path:   "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts?api_key=" + mcpKey,
 		},
 	}
 
