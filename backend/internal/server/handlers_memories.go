@@ -457,13 +457,20 @@ var memoriesUUIDParams = map[string]bool{"team_id": true, "id": true, "project_i
 func dropEmptyQueryValues(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query, stripped := withoutEmptyValues(r.URL.Query())
-		if stripped {
-			updated := *r.URL
-			updated.RawQuery = query.Encode()
-			r = r.Clone(r.Context())
-			r.URL = &updated
+		if !stripped {
+			next.ServeHTTP(w, r)
+			return
 		}
-		next.ServeHTTP(w, r)
+		// Clone deep-copies the URL, so rewriting the copy's query leaves the
+		// caller's request untouched -- and only RawQuery is reassigned, never
+		// the *url.URL itself. Rebuilding the URL is what SonarCloud's S5144
+		// flags as constructing an address from user-controlled data; nothing
+		// here is ever dereferenced as an outbound address (it is the INBOUND
+		// request's own query), but not rebuilding it is the better shape
+		// regardless.
+		scoped := r.Clone(r.Context())
+		scoped.URL.RawQuery = query.Encode()
+		next.ServeHTTP(w, scoped)
 	})
 }
 
