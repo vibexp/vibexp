@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/google/uuid"
@@ -110,7 +109,7 @@ func (as *artifactsStrictServer) listArtifacts(
 
 	response, err := as.s.container.ArtifactService().ListArtifacts(userID, filters)
 	if err != nil {
-		return artifactsgen.ArtifactListResponse{}, as.artifactsError(op, err)
+		return artifactsgen.ArtifactListResponse{}, as.artifactsError(op, false, err)
 	}
 
 	attachPageFreshness(as.s, ctx, teamID, models.RelationResourceTypeArtifact,
@@ -118,7 +117,7 @@ func (as *artifactsStrictServer) listArtifacts(
 
 	body, err := toGenArtifactListResponse(response)
 	if err != nil {
-		return artifactsgen.ArtifactListResponse{}, as.artifactsError(op, err)
+		return artifactsgen.ArtifactListResponse{}, as.artifactsError(op, false, err)
 	}
 	return body, nil
 }
@@ -144,16 +143,16 @@ func (as *artifactsStrictServer) GetArtifact(
 		"slug", request.Slug,
 	).Info("Get artifact request received")
 
-	slug, err := artifactSlug(request.Slug)
-	if err != nil {
-		return nil, err
-	}
-
+	// request.Slug is already decoded: the oapi-codegen runtime PathUnescapes
+	// path parameters itself (BindStyledParameterOptions.ValueIsUnescaped
+	// defaults to false), which is the same single decode the chi handler did
+	// explicitly. Decoding again here would corrupt any slug containing an
+	// encoded percent sign.
 	artifact, err := as.s.container.ArtifactService().GetArtifactByProjectIDAndSlugInTeam(
-		userID, teamID, projectID, slug,
+		userID, teamID, projectID, request.Slug,
 	)
 	if err != nil {
-		return nil, as.artifactsError("GetArtifact", err)
+		return nil, as.artifactsError("GetArtifact", true, err)
 	}
 
 	// Records the access event, via the recordResourceAccess middleware wrapping
@@ -171,7 +170,7 @@ func (as *artifactsStrictServer) GetArtifact(
 
 	body, err := toGenArtifact(artifact)
 	if err != nil {
-		return nil, as.artifactsError("GetArtifact", err)
+		return nil, as.artifactsError("GetArtifact", true, err)
 	}
 	return artifactsgen.GetArtifact200JSONResponse(body), nil
 }
@@ -458,14 +457,21 @@ func artifactUUID(field, value string) (openapi_types.UUID, error) {
 
 // artifactsError maps service errors onto API errors. Anything unrecognized is
 // logged and reported as an opaque 500.
-func (as *artifactsStrictServer) artifactsError(op string, err error) error {
+//
+// notFoundIsPossible is false for the list operations: only the detail
+// operation documents a 404, and the string-fragment match below is broad
+// enough that a list failure merely MENTIONING "not found" would otherwise be
+// reported as one -- a status its spec does not declare.
+func (as *artifactsStrictServer) artifactsError(op string, notFoundIsPossible bool, err error) error {
 	// The not-found arm matches BOTH ways, because the service layer reports it
 	// both ways: handleGetArtifactError detected it by string fragment
 	// (artifact_handlers.go), and dropping that in favour of errors.Is alone
 	// would silently turn documented 404s into 500s.
+	notFound := errors.Is(err, repositories.ErrArtifactNotFound) ||
+		strings.Contains(err.Error(), errNotFoundFragment)
+
 	switch {
-	case errors.Is(err, repositories.ErrArtifactNotFound),
-		strings.Contains(err.Error(), errNotFoundFragment):
+	case notFoundIsPossible && notFound:
 		return apierrors.NewResourceNotFoundError("artifact", "Artifact not found")
 	case errors.Is(err, services.ErrPermissionDenied):
 		return apierrors.NewForbiddenError("You do not have permission to access this artifact")
@@ -505,20 +511,4 @@ func (s *Server) artifactsResponseErrorHandler(w http.ResponseWriter, r *http.Re
 	}
 	s.logger.With("error", err).Error("Unhandled artifacts handler error")
 	apierrors.WriteJSONError(w, r, apierrors.NewInternalError(artifactsMsgInternalError))
-}
-
-// artifactSlug decodes the slug path parameter.
-//
-// chi routes on RawPath whenever the request path contains percent-encoding, so
-// chi.URLParam -- and therefore the generated binder, which reads it -- hands
-// back the STILL-ENCODED segment (#251/#257). The chi handler this replaced
-// called url.PathUnescape explicitly; dropping that would make an exact-match
-// lookup miss on every slug containing an encoded character. PathUnescape, not
-// QueryUnescape: the two differ on `+`, which QueryUnescape turns into a space.
-func artifactSlug(slug string) (string, error) {
-	decoded, err := url.PathUnescape(slug)
-	if err != nil {
-		return "", apierrors.NewBadRequestError("Invalid slug encoding")
-	}
-	return decoded, nil
 }

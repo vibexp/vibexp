@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -254,20 +255,43 @@ func TestStrictArtifactsBinder_RejectsNonUUIDPathParams(t *testing.T) {
 	}
 }
 
-// chi hands back the still-encoded path segment whenever the request path
-// contains percent-encoding (#251/#257), and the generated binder does not
-// decode it either — so the handler must, or an exact-match lookup misses on
-// every slug carrying an encoded character.
-func TestStrictGetArtifact_DecodesAPercentEncodedSlug(t *testing.T) {
+// The slug reaches the service exactly as it did before the conversion.
+//
+// MEASURED, because the layering here is counter-intuitive: for this request
+// chi.URLParam already returns `50%25-off` (chi decoded once), and the deleted
+// chi handler then called url.PathUnescape itself, so the service saw
+// `50%-off`. The oapi-codegen runtime PathUnescapes path parameters on its own
+// (BindStyledParameterOptions.ValueIsUnescaped defaults to false), which
+// supplies exactly that second decode — so the handler must NOT add a third.
+//
+// The double decode is pre-existing behaviour, not something this conversion
+// introduces, and preserving it is the criterion here. The input discriminates:
+// `50%2525-off` is `50%25-off` after one decode and `50%-off` after two, so
+// either adding or dropping a decode fails this test instead of passing
+// silently — which an `a%20b`-style fixture would do.
+func TestStrictGetArtifact_SlugDecodingIsUnchanged(t *testing.T) {
 	svc := servicesmocks.NewMockArtifactServiceInterface(t)
 	svc.On("GetArtifactByProjectIDAndSlugInTeam",
-		strictArtUserID, strictArtTeamID, strictArtProject, "a b/c").
+		strictArtUserID, strictArtTeamID, strictArtProject, "50%-off").
 		Return(sampleStrictArtifact(), nil)
 
 	srv := strictArtifactServer(t, svc)
 	_, w := strictArtifactRequest(t, srv,
-		"/api/v1/"+strictArtTeamID+"/artifacts/"+strictArtProject+"/a%20b%2Fc")
+		"/api/v1/"+strictArtTeamID+"/artifacts/"+strictArtProject+"/50%2525-off")
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	svc.AssertExpectations(t)
+}
+
+// A list failure must never be reported as a 404: only the detail operation
+// documents that status, and the not-found arm matches a broad string fragment.
+func TestStrictListArtifacts_ServiceErrorIsNotA404(t *testing.T) {
+	svc := servicesmocks.NewMockArtifactServiceInterface(t)
+	svc.On("ListArtifacts", strictArtUserID, mock.Anything).
+		Return(nil, errors.New("project not found while listing"))
+
+	srv := strictArtifactServer(t, svc)
+	_, w := strictArtifactRequest(t, srv, "/api/v1/"+strictArtTeamID+"/artifacts")
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code, w.Body.String())
 }

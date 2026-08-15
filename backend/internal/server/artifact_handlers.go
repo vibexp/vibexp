@@ -19,13 +19,6 @@ import (
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
 
-const (
-// serverLogServiceName tags artifact handler log entries.
-
-// errNotFoundFragment is matched against service errors to detect
-// not-found conditions.
-)
-
 func (s *Server) handleCreateArtifact(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
