@@ -364,22 +364,22 @@ func TestIntegrationFreshnessMetrics_GroupedCountsAndDistinctTotal(t *testing.T)
 	ruleA, ruleB := uuid.New().String(), uuid.New().String()
 	// One prompt matched by BOTH rules, one artifact by rule A only, one
 	// memory in another project, and one row in a different team entirely.
-	require.NoError(t, state.Upsert(ctx, &models.ResourceFreshness{
+	require.NoError(t, upsertFreshness(ctx, state, &models.ResourceFreshness{
 		TeamID: scope.teamID, ProjectID: scope.projectID, ResourceType: "prompt",
 		ResourceID: uuid.New().String(), Status: models.FreshnessStatusStale,
 		MatchedRuleIDs: []string{ruleA, ruleB}, Reason: models.FreshnessReasonRuleRun,
 	}))
-	require.NoError(t, state.Upsert(ctx, &models.ResourceFreshness{
+	require.NoError(t, upsertFreshness(ctx, state, &models.ResourceFreshness{
 		TeamID: scope.teamID, ProjectID: scope.projectID, ResourceType: "artifact",
 		ResourceID: uuid.New().String(), Status: models.FreshnessStatusStale,
 		MatchedRuleIDs: []string{ruleA}, Reason: models.FreshnessReasonRuleRun,
 	}))
-	require.NoError(t, state.Upsert(ctx, &models.ResourceFreshness{
+	require.NoError(t, upsertFreshness(ctx, state, &models.ResourceFreshness{
 		TeamID: scope.teamID, ProjectID: otherProject, ResourceType: "memory",
 		ResourceID: uuid.New().String(), Status: models.FreshnessStatusStale,
 		MatchedRuleIDs: []string{ruleB}, Reason: models.FreshnessReasonRuleRun,
 	}))
-	require.NoError(t, state.Upsert(ctx, &models.ResourceFreshness{
+	require.NoError(t, upsertFreshness(ctx, state, &models.ResourceFreshness{
 		TeamID: otherTeam.teamID, ProjectID: otherTeam.projectID, ResourceType: "prompt",
 		ResourceID: uuid.New().String(), Status: models.FreshnessStatusStale,
 		MatchedRuleIDs: []string{ruleA}, Reason: models.FreshnessReasonRuleRun,
@@ -491,7 +491,7 @@ func TestIntegrationFreshnessMetrics_AuditIsTeamScoped(t *testing.T) {
 // markResourceStale writes a freshness row the way the evaluator would.
 func markResourceStale(t *testing.T, teamID, projectID, resourceType, resourceID string) {
 	t.Helper()
-	require.NoError(t, NewResourceFreshnessRepository(integrationDB).Upsert(context.Background(),
+	require.NoError(t, upsertFreshness(context.Background(), NewResourceFreshnessRepository(integrationDB),
 		&models.ResourceFreshness{
 			TeamID: teamID, ProjectID: projectID, ResourceType: resourceType, ResourceID: resourceID,
 			Status: models.FreshnessStatusStale, MatchedRuleIDs: []string{uuid.New().String()},

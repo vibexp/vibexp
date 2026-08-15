@@ -271,17 +271,25 @@ func (e *Evaluator) applyMarks(
 			continue
 		}
 
-		if err = e.markStale(ctx, teamID, key, want); err != nil {
+		var inserted bool
+		if inserted, err = e.markStale(ctx, teamID, key, want); err != nil {
 			return marked, refreshed, err
 		}
-		if wasStale {
-			// Already stale under a different set of rules: the state is
-			// refreshed but the resource did not change status, so no audit
-			// row is written. The audit log records transitions, not the
-			// bookkeeping between them.
+		if wasStale && !inserted {
+			// Already stale under a different set of rules, and the row was
+			// still there for the upsert to update: the state is refreshed but
+			// the resource did not change status, so no audit row is written.
+			// The audit log records transitions, not the bookkeeping between
+			// them.
 			refreshed++
 			continue
 		}
+		// wasStale && inserted is the race (#771): the snapshot saw a stale
+		// row, a clear deleted it before the upsert, and the upsert therefore
+		// INSERTED. That is a real stale-again transition, and without an audit
+		// row the newest entry for this resource would be the clear -- an audit
+		// log that contradicts the live state. Trust what the database did, not
+		// what the snapshot believed.
 		if err = e.recordAudit(ctx, teamID, key, models.FreshnessActionMarked, want.ruleIDs); err != nil {
 			return marked, refreshed, err
 		}
@@ -313,9 +321,13 @@ func (e *Evaluator) applyClears(
 // Since is left zero so the repository keeps the existing "first marked at"
 // for a resource that was already stale and stamps the database clock for one
 // that was not.
+//
+// It passes through the repository's report of whether the row was INSERTED,
+// which is what lets the caller tell a genuine stale-again transition from
+// bookkeeping on a row that survived (#771).
 func (e *Evaluator) markStale(
 	ctx context.Context, teamID string, key resourceKey, want *desiredState,
-) error {
+) (bool, error) {
 	row := &models.ResourceFreshness{
 		TeamID:         teamID,
 		ProjectID:      want.projectID,
@@ -325,11 +337,12 @@ func (e *Evaluator) markStale(
 		MatchedRuleIDs: want.ruleIDs,
 		Reason:         models.FreshnessReasonRuleRun,
 	}
-	if err := e.state.Upsert(ctx, row); err != nil {
-		return fmt.Errorf(
+	inserted, err := e.state.Upsert(ctx, row)
+	if err != nil {
+		return false, fmt.Errorf(
 			"freshness evaluate: failed to mark %s %s stale: %w", key.resourceType, key.resourceID, err)
 	}
-	return nil
+	return inserted, nil
 }
 
 // clearStale removes the freshness row of a resource no rule matches any more
