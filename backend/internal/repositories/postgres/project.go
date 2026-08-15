@@ -514,6 +514,41 @@ func (r *ProjectRepository) GetProjectStats(
 	return &stats, nil
 }
 
+// The TO_CHAR keys must match the handler's zero-fill series, which are UTC
+// calendar days; a key it did not generate is dropped by the map lookup with
+// no error (#773). prompts/artifacts/blueprints are TIMESTAMPTZ, so
+// `AT TIME ZONE 'UTC'` CONVERTS them rather than letting a bare DATE() cast
+// through the session timezone. memories.created_at is a plain TIMESTAMP,
+// where the same operator does the opposite (assumes UTC, yields aware), so
+// that branch keeps DATE(), which is already session-independent. See
+// admin_dashboard.go for the full explanation of the overload.
+//
+// Range predicates stay on the raw column so they remain index-eligible.
+// The memories branch needs its OWN placeholder: $2 is also bound to
+// TIMESTAMPTZ columns above, so Postgres infers it as timestamptz, and
+// comparing the naive memories.created_at against a timestamptz converts the
+// COLUMN through the session timezone -- dropping every memory within the
+// session's offset of `since`. Casting the shared $2 does not help (that cast
+// happens in the session zone too); a separate $3::timestamp bound to the same
+// instant in UTC is what keeps the comparison naive-to-naive.
+const projectResourceCreationQuery = `
+	SELECT TO_CHAR((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS date,
+	       'prompts' AS resource_type, COUNT(*) AS count
+	FROM prompts WHERE project_id = $1 AND created_at >= $2
+	GROUP BY (created_at AT TIME ZONE 'UTC')::date
+	UNION ALL
+	SELECT TO_CHAR((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD'), 'artifacts', COUNT(*)
+	FROM artifacts WHERE project_id = $1 AND created_at >= $2
+	GROUP BY (created_at AT TIME ZONE 'UTC')::date
+	UNION ALL
+	SELECT TO_CHAR((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD'), 'blueprints', COUNT(*)
+	FROM blueprints WHERE project_id = $1 AND created_at >= $2
+	GROUP BY (created_at AT TIME ZONE 'UTC')::date
+	UNION ALL
+	SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD'), 'memories', COUNT(*)
+	FROM memories WHERE project_id = $1 AND created_at >= $3::timestamp GROUP BY DATE(created_at)
+	ORDER BY date, resource_type`
+
 // GetProjectResourceCreationMetrics returns sparse per-day creation counts per
 // resource type (prompts, artifacts, blueprints, memories) for the project
 // identified by teamID + slug, counting rows created at or after `since`. Days
@@ -545,24 +580,7 @@ func (r *ProjectRepository) GetProjectResourceCreationMetrics(
 		)
 	}
 
-	// TO_CHAR(DATE(created_at)) keys match the zero-fill series keys the handler
-	// builds. memories.created_at is a plain TIMESTAMP and the others are
-	// TIMESTAMPTZ; DATE() buckets both in the server's (UTC) timezone.
-	const query = `
-		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD') AS date, 'prompts' AS resource_type, COUNT(*) AS count
-		FROM prompts WHERE project_id = $1 AND created_at >= $2 GROUP BY DATE(created_at)
-		UNION ALL
-		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD'), 'artifacts', COUNT(*)
-		FROM artifacts WHERE project_id = $1 AND created_at >= $2 GROUP BY DATE(created_at)
-		UNION ALL
-		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD'), 'blueprints', COUNT(*)
-		FROM blueprints WHERE project_id = $1 AND created_at >= $2 GROUP BY DATE(created_at)
-		UNION ALL
-		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD'), 'memories', COUNT(*)
-		FROM memories WHERE project_id = $1 AND created_at >= $2 GROUP BY DATE(created_at)
-		ORDER BY date, resource_type`
-
-	rows, err := r.db.QueryContext(ctx, query, projectID, since)
+	rows, err := r.db.QueryContext(ctx, projectResourceCreationQuery, projectID, since, since.UTC())
 	if err != nil {
 		return nil, fmt.Errorf("failed to query project resource creation metrics: %w", err)
 	}

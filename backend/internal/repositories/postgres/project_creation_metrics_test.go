@@ -18,6 +18,22 @@ import (
 
 const testCreationProjectID = "11111111-1111-1111-1111-111111111111"
 
+// The bucket expression is the point of this assertion (#773), and each branch
+// is anchored from its own FROM through its own GROUP BY: an unanchored
+// `FROM prompts .*GROUP BY <utc>` would be satisfied by a LATER branch's
+// converted GROUP BY, so a regression of the prompts branch alone would still
+// match. The TIMESTAMPTZ branches must convert; the memories branch must not
+// (it is a plain TIMESTAMP, where the operator offsets the other way) and needs
+// its own $3::timestamp, since the shared $2 is timestamptz and would convert
+// the column. sqlmock collapses whitespace before matching, so no (?s).
+const projectResourceCreationBucketRE = `FROM prompts WHERE project_id = \$1 AND created_at >= \$2 ` +
+	`GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date` +
+	`.*FROM artifacts WHERE project_id = \$1 AND created_at >= \$2 ` +
+	`GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date` +
+	`.*FROM blueprints WHERE project_id = \$1 AND created_at >= \$2 ` +
+	`GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date` +
+	`.*FROM memories WHERE project_id = \$1 AND created_at >= \$3::timestamp GROUP BY DATE\(created_at\)`
+
 // TestProjectRepository_GetProjectResourceCreationMetrics_Success verifies the
 // method resolves+authorizes the project, then returns the sparse per-day
 // per-type counts from the aggregate query verbatim (zero-fill is the handler's
@@ -41,8 +57,8 @@ func TestProjectRepository_GetProjectResourceCreationMetrics_Success(t *testing.
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(testCreationProjectID))
 
 	// 2. Aggregate creation counts (projectID, since), grouped by date+type.
-	mock.ExpectQuery(`UNION ALL`).
-		WithArgs(testCreationProjectID, since).
+	mock.ExpectQuery(projectResourceCreationBucketRE).
+		WithArgs(testCreationProjectID, since, since.UTC()).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "resource_type", "count"}).
 			AddRow("2026-05-28", "artifacts", 1).
 			AddRow("2026-05-28", "prompts", 3).
@@ -78,8 +94,8 @@ func TestProjectRepository_GetProjectResourceCreationMetrics_Empty(t *testing.T)
 	mock.ExpectQuery(`SELECT p\.id`).
 		WithArgs("my-project", "team-123", "user-1").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(testCreationProjectID))
-	mock.ExpectQuery(`UNION ALL`).
-		WithArgs(testCreationProjectID, since).
+	mock.ExpectQuery(projectResourceCreationBucketRE).
+		WithArgs(testCreationProjectID, since, since.UTC()).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "resource_type", "count"}))
 
 	got, err := repo.GetProjectResourceCreationMetrics(ctx, "team-123", "user-1", "my-project", since)
