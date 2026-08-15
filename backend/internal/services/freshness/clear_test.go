@@ -225,8 +225,8 @@ func TestClearIfStale_ScopesAccessReversalToTheMatchedRulesMediums(t *testing.T)
 			reason: models.FreshnessReasonAccessed, medium: "web",
 		},
 		{
-			// Every rule that marked this resource has since been deleted,
-			// disabled or narrowed, so none of them resolves. Nothing survives
+			// Every rule that marked this resource has since been deleted or
+			// disabled, so none of them resolves. Nothing survives
 			// to re-mark it, which makes this the same case as "no rule claims
 			// it": clear now rather than leave the badge up for a whole interval
 			// waiting for the evaluator to reach the same conclusion. Disabling

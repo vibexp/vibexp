@@ -215,9 +215,9 @@ func (c *Clearer) mediumBlocksReversal(
 // teams have few rules. It asks for ENABLED rules only, because a disabled rule
 // cannot mark anything either.
 //
-// A matched rule id that no longer resolves -- deleted, disabled, or narrowed so
-// it no longer covers this resource -- is skipped rather than treated as an
-// error. If NONE of them resolve, the answer is "clear it": nothing survives to
+// A matched rule id that no longer resolves -- deleted or disabled between the
+// mark and this access -- is skipped rather than treated as an error. If NONE of
+// them resolve, the answer is "clear it": nothing survives to
 // re-mark the resource, so the reversal cannot flap, and refusing it would leave
 // the badge up for a whole interval for no reason. That is the same reasoning as
 // the empty-ruleIDs case below, and a resource whose rules were all disabled is
@@ -253,8 +253,12 @@ func (c *Clearer) mediumMatchesRules(
 			return true, nil
 		}
 	}
-	// Only refuse when a rule that is still live watches this resource and does
-	// not watch this medium -- the one case where the next run would re-mark it.
+	// Only refuse when a rule that is still live ignores this medium. Note the
+	// resolution is by team + enabled, NOT by resource type or project: a rule
+	// narrowed to other types still counts as live here and still blocks, even
+	// though it could not re-mark this resource. Re-deciding that would mean a
+	// second copy of the evaluator's matching logic, and the cost of being
+	// conservative is one interval on a rare edit -- not worth the duplication.
 	return resolved == 0, nil
 }
 
