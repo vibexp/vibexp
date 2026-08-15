@@ -132,6 +132,15 @@ services:
       # development (FRONTEND_BASE_URL localhost above → IsLocalDevelopment()), so
       # no rate-limit override is needed here.
 
+      # The scheduler's polling cadence, cut from its 1-minute default so a
+      # scheduled job can be OBSERVED inside a test (#739). Writing a freshness
+      # rule leaves the team's schedule due immediately, so the tick is the whole
+      # latency between "rule created" and "evaluation ran" — at the default the
+      # freshness journey would spend a minute waiting per run. This changes only
+      # how often due schedules are LOOKED FOR; each schedule keeps its own
+      # interval (a day for freshness), so nothing runs more often than it should.
+      SCHEDULER_TICK_INTERVAL: '5s'
+
       # Attachments via the fake-gcs emulator (no real GCS / no credentials).
       STORAGE_EMULATOR_HOST: 'http://gcs:4443'
       GCS_RESOURCE_ATTACHMENTS_BUCKET: 'vibexp-attachments'
