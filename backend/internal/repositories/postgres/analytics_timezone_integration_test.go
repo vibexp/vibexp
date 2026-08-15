@@ -269,6 +269,11 @@ func TestIntegrationAnalyticsTimezone_TeamFeedCreationBucketsAreUTC(t *testing.T
 	seedFeedBoundaryRows(t, userID, teamID, beforeUTC, afterUTC)
 
 	ctx := context.Background()
+	// A margin is safe here ONLY because this query has no naive branch and no
+	// placeholder shared between column families -- its failure mode is the
+	// bucket, which the straddling rows expose regardless of the window. Add a
+	// naive branch to this query and the window must move to the earliest row,
+	// as it did for the resource-creation tests above.
 	since := beforeUTC.Add(-24 * time.Hour)
 
 	utc, err := NewTeamRepository(integrationDB).GetTeamFeedCreationMetrics(ctx, teamID, since)
@@ -304,6 +309,11 @@ func TestIntegrationAnalyticsTimezone_ResourceAccessBucketsAreUTC(t *testing.T) 
 	}
 
 	ctx := context.Background()
+	// A margin is safe here ONLY because this query has no naive branch and no
+	// placeholder shared between column families -- its failure mode is the
+	// bucket, which the straddling rows expose regardless of the window. Add a
+	// naive branch to this query and the window must move to the earliest row,
+	// as it did for the resource-creation tests above.
 	since := beforeUTC.Add(-24 * time.Hour)
 
 	utcTeam, err := NewResourceAccessRepository(integrationDB).GetTeamMetrics(ctx, teamID, since)
