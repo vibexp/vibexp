@@ -151,7 +151,13 @@ func countsByDate[T any](rows []T, date func(T) string, count func(T) int) map[s
 func TestIntegrationAnalyticsTimezone_TeamResourceCreationBucketsAreUTC(t *testing.T) {
 	resetIntegrationTables(t)
 	teamID, _, beforeUTC, _ := seedBoundaryRows(t)
-	since := beforeUTC.Add(-24 * time.Hour)
+	// The window starts EXACTLY at the earliest seeded row, not a day before:
+	// the naive-branch defect is a window-EDGE failure, and a 24h-wide margin
+	// swallows the largest session offset there is, so the row stays inside the
+	// range under both timezones and the test sees nothing. A fixture that
+	// cannot distinguish the branch under test is exactly what let the shared
+	// placeholder ship in the first place.
+	since := beforeUTC
 	ctx := context.Background()
 
 	utc, err := NewTeamRepository(integrationDB).
@@ -181,10 +187,14 @@ func TestIntegrationAnalyticsTimezone_TeamResourceCreationBucketsAreUTC(t *testi
 
 	// The naive branch, asserted separately because its failure mode is the
 	// window edge rather than the bucket: with the memories predicate sharing a
-	// placeholder that other branches make timestamptz, the earlier row is
-	// filtered out entirely under a non-UTC session and this map loses a key.
-	memories := make([]models.TeamResourceCreationCount, 0, len(utc))
-	for _, row := range utc {
+	// placeholder the other branches make timestamptz, the earlier row is
+	// filtered out entirely under a non-UTC session.
+	//
+	// Built from `shifted`, NOT `utc` -- the defect only manifests in the
+	// non-UTC session, so a map derived from the UTC result could never observe
+	// it and the assertion would be decoration.
+	memories := make([]models.TeamResourceCreationCount, 0, len(shifted))
+	for _, row := range shifted {
 		if row.ResourceType == "memories" {
 			memories = append(memories, row)
 		}
@@ -222,7 +232,13 @@ func TestIntegrationAnalyticsTimezone_ProjectResourceCreationBucketsAreUTC(t *te
 		"SELECT slug FROM projects WHERE id = $1", projectID).Scan(&slug))
 
 	ctx := context.Background()
-	since := beforeUTC.Add(-24 * time.Hour)
+	// The window starts EXACTLY at the earliest seeded row, not a day before:
+	// the naive-branch defect is a window-EDGE failure, and a 24h-wide margin
+	// swallows the largest session offset there is, so the row stays inside the
+	// range under both timezones and the test sees nothing. A fixture that
+	// cannot distinguish the branch under test is exactly what let the shared
+	// placeholder ship in the first place.
+	since := beforeUTC
 
 	utc, err := NewProjectRepository(integrationDB).
 		GetProjectResourceCreationMetrics(ctx, teamID, userID, slug, since)
