@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
@@ -282,4 +284,87 @@ func TestListMemories_RejectsInvalidEnumQueryValues(t *testing.T) {
 			assert.Contains(t, w.Body.String(), tt.want)
 		})
 	}
+}
+
+// Every filter must actually reach the service. mock.Anything on the filters
+// argument makes this untestable, which is how a dropped filter ships: the
+// endpoint answers 200 with the FULL list, which reads as a legitimate answer.
+// Proven by mutation — hard-coding any of these to its zero value fails here
+// and nowhere else in the package.
+func TestListMemories_EveryFilterReachesTheService(t *testing.T) {
+	container := newMockMemoryContainer(t)
+	container.memoryService.On("ListMemories", memoriesTestUserID,
+		mock.MatchedBy(func(f services.MemoryFilters) bool {
+			return f.TeamID == memoriesTestTeamID &&
+				f.Search == "vector" &&
+				f.ProjectID != nil && *f.ProjectID == memoriesTestProjectID &&
+				f.Status != nil && *f.Status == models.MemoryStatusDraft &&
+				f.Freshness == services.FreshnessFilterStale &&
+				f.SortBy == "created_at" &&
+				f.SortOrder == "asc" &&
+				f.Page == 2 && f.Limit == 5 &&
+				len(f.MetadataFilter) == 1
+		}),
+	).Return(&models.MemoryListResponse{Page: 2, PerPage: 5}, nil)
+
+	srv := createMemoryTestServer(container)
+	req := makeMemoryAuthenticatedRequest("GET",
+		"/api/v1/"+memoriesTestTeamID+"/memories"+
+			"?search=vector&project_id="+memoriesTestProjectID+
+			"&status=draft&freshness=stale&sort_by=created_at&sort_order=ASC"+
+			"&page=2&limit=5&metadata="+url.QueryEscape(`{"env":["prod"]}`),
+		nil, memoriesTestUserID)
+	w := httptest.NewRecorder()
+	srv.router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	container.memoryService.AssertExpectations(t)
+}
+
+// An empty query value meant "no filter" to the chi parser this replaced, and
+// still does. Without dropEmptyQueryValues the generated binder treats `?status=`
+// as a present-but-empty parameter and the request 400s — breaking the ordinary
+// "clear the filter" idiom on the list endpoint.
+func TestListMemories_EmptyQueryValuesAreIgnoredNotRejected(t *testing.T) {
+	container := newMockMemoryContainer(t)
+	container.memoryService.On("ListMemories", memoriesTestUserID,
+		mock.MatchedBy(func(f services.MemoryFilters) bool {
+			// Every filter unset, and the pagination defaults applied rather
+			// than an empty page= being parsed as zero.
+			return f.Status == nil && f.ProjectID == nil && f.Freshness == "" &&
+				f.SortBy == "" && f.Search == "" && f.Page == 1
+		}),
+	).Return(&models.MemoryListResponse{Page: 1, PerPage: 20}, nil)
+
+	srv := createMemoryTestServer(container)
+	req := makeMemoryAuthenticatedRequest("GET",
+		"/api/v1/"+memoriesTestTeamID+"/memories"+
+			"?status=&freshness=&sort_by=&project_id=&page=&search=",
+		nil, memoriesTestUserID)
+	w := httptest.NewRecorder()
+	srv.router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	container.memoryService.AssertExpectations(t)
+}
+
+// The three optional keys the hand-marshaled body always carried must still be
+// present when empty. All three are OPTIONAL in the schema, so omitting them
+// stays spec-valid and AssertConformsToSpec cannot see the difference — this is
+// the only thing standing between the conversion and a silent wire change.
+func TestGetMemory_EmptyOptionalKeysStayPresent(t *testing.T) {
+	container := newMockMemoryContainer(t)
+	memory := sampleStrictMemory()
+	memory.Metadata = nil // the shape a memory with no metadata has
+	container.memoryService.On("GetMemory", memoriesTestUserID, memoriesTestTeamID, memoriesTestMemoryID).
+		Return(memory, nil)
+
+	srv := createMemoryTestServer(container)
+	_, w := getMemoryRequest(t, srv, memoriesTestMemoryID)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	body := w.Body.String()
+	assert.Contains(t, body, `"metadata":null`, "a nil metadata map serialized as null before the conversion")
+	assert.Contains(t, body, `"related":[]`, "an empty neighborhood serialized as [] before the conversion")
+	assert.Contains(t, body, `"similar":[]`)
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/google/uuid"
@@ -279,10 +280,14 @@ func toGenMemory(src *models.Memory) (memoriesgen.Memory, error) {
 		Version:   src.Version,
 	}
 
-	if len(src.Metadata) > 0 {
-		metadata := map[string]interface{}(src.Metadata)
-		out.Metadata = &metadata
-	}
+	// Always set, never conditionally: models.Memory declared `metadata` without
+	// omitempty, so the hand-marshaled body always carried the key — null for a
+	// nil map, {} for an empty one. Taking the address of the (possibly nil) map
+	// reproduces both. Omitting the key instead would be a wire change of exactly
+	// the kind #122 exists to prevent, and the schema cannot catch it because
+	// metadata is optional.
+	metadata := map[string]interface{}(src.Metadata)
+	out.Metadata = &metadata
 
 	if err := attachGenMemoryNeighborhood(&out, src); err != nil {
 		return memoriesgen.Memory{}, err
@@ -295,29 +300,28 @@ func toGenMemory(src *models.Memory) (memoriesgen.Memory, error) {
 // three are one concern anyway -- everything the handler attaches after the
 // service call.
 func attachGenMemoryNeighborhood(out *memoriesgen.Memory, src *models.Memory) error {
-	if len(src.Related) > 0 {
-		related := make([]memoriesgen.RelatedResource, 0, len(src.Related))
-		for _, item := range src.Related {
-			converted, err := toGenMemoryRelatedResource(item)
-			if err != nil {
-				return err
-			}
-			related = append(related, converted)
+	// related and similar are likewise always present: they were models.JSONArray
+	// fields without omitempty, so an empty neighborhood serialized as [] rather
+	// than vanishing. make(..., 0, ...) keeps that true for the empty case.
+	related := make([]memoriesgen.RelatedResource, 0, len(src.Related))
+	for _, item := range src.Related {
+		converted, err := toGenMemoryRelatedResource(item)
+		if err != nil {
+			return err
 		}
-		out.Related = &related
+		related = append(related, converted)
 	}
+	out.Related = &related
 
-	if len(src.Similar) > 0 {
-		similar := make([]memoriesgen.SimilarResource, 0, len(src.Similar))
-		for _, item := range src.Similar {
-			converted, err := toGenMemorySimilarResource(item)
-			if err != nil {
-				return err
-			}
-			similar = append(similar, converted)
+	similar := make([]memoriesgen.SimilarResource, 0, len(src.Similar))
+	for _, item := range src.Similar {
+		converted, err := toGenMemorySimilarResource(item)
+		if err != nil {
+			return err
 		}
-		out.Similar = &similar
+		similar = append(similar, converted)
 	}
+	out.Similar = &similar
 
 	if src.Freshness != nil {
 		freshness, err := toGenMemoryFreshnessState(src.Freshness)
@@ -439,6 +443,55 @@ func (s *Server) memoriesBindErrorHandler(w http.ResponseWriter, r *http.Request
 // memoriesUUIDParams are the parameters the spec types as UUIDs, so the bind
 // error can say what is actually wrong instead of "not in the expected format".
 var memoriesUUIDParams = map[string]bool{"team_id": true, "id": true, "project_id": true}
+
+// dropEmptyQueryValues removes query parameters sent with an empty value before
+// the generated binder sees them.
+//
+// The chi parser this replaced guarded every filter on `!= ""`, so `?status=`,
+// `?project_id=`, `?page=` and friends meant "no filter". oapi-codegen's binder
+// does not: an empty value is still a PRESENT parameter, so it binds "" and the
+// request 400s — turning the common "clear the filter" idiom into an error on
+// the list endpoint. Stripping them here restores the old meaning for every
+// parameter at once, including the ones (project_id, page, limit) whose failure
+// happens inside the binder and cannot be fixed in the handler.
+func dropEmptyQueryValues(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query, stripped := withoutEmptyValues(r.URL.Query())
+		if stripped {
+			updated := *r.URL
+			updated.RawQuery = query.Encode()
+			r = r.Clone(r.Context())
+			r.URL = &updated
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// withoutEmptyValues returns the query with every empty value removed, and
+// whether it removed any. A key left with no values at all is dropped entirely,
+// which is what makes the parameter read as absent rather than as present-but-
+// empty.
+func withoutEmptyValues(query url.Values) (url.Values, bool) {
+	stripped := false
+	for key, values := range query {
+		kept := make([]string, 0, len(values))
+		for _, value := range values {
+			if value != "" {
+				kept = append(kept, value)
+			}
+		}
+		if len(kept) == len(values) {
+			continue
+		}
+		stripped = true
+		if len(kept) == 0 {
+			query.Del(key)
+			continue
+		}
+		query[key] = kept
+	}
+	return query, stripped
+}
 
 // memoriesResponseErrorHandler writes the API error a handler returned. Without
 // the errors.As arm every handler error would collapse into a 500 -- including

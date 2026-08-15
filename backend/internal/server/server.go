@@ -1191,6 +1191,7 @@ func (s *Server) mountMemoriesHandlers(r chi.Router) {
 	// attribute an access to.
 	r.Group(func(rr chi.Router) {
 		rr.Use(s.recordResourceAccess(resourceTypeMemory))
+		rr.Use(dropEmptyQueryValues)
 		strict := memoriesgen.NewStrictHandlerWithOptions(
 			&memoriesStrictServer{s: s},
 			nil,
