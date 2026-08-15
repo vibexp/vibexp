@@ -101,8 +101,13 @@ export function e2eStackAvailable(): boolean {
  * header and the row-count footer but NOT the command tag, so an
  * `UPDATE … RETURNING` otherwise emits a trailing `UPDATE 1` line that a caller
  * counting rows reads as a second row.
+ *
+ * Deliberately not exported: the module's public surface is the two functions a
+ * spec should reach for, and arbitrary SQL from a spec is how an e2e suite grows
+ * assertions about state no user can see. Export it when a second caller with a
+ * good reason turns up.
  */
-export function runSql(sql: string): string[] {
+function runSql(sql: string): string[] {
   const containerId = postgresContainerId()
   if (containerId === null) {
     throw new Error(
