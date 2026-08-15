@@ -225,13 +225,18 @@ func TestClearIfStale_ScopesAccessReversalToTheMatchedRulesMediums(t *testing.T)
 			reason: models.FreshnessReasonAccessed, medium: "web",
 		},
 		{
-			// A rule deleted or disabled between the mark and this access no
-			// longer resolves. It cannot re-mark the resource, so it is skipped
-			// rather than treated as an error — but on its own it leaves nothing
-			// to match, and the next evaluation run clears the row.
-			name:   "a matched rule that no longer resolves is skipped",
-			rules:  []*models.FreshnessRule{{ID: "some-other-rule", TeamID: testTeamID}},
-			reason: models.FreshnessReasonAccessed, medium: "web",
+			// Every rule that marked this resource has since been deleted,
+			// disabled or narrowed, so none of them resolves. Nothing survives
+			// to re-mark it, which makes this the same case as "no rule claims
+			// it": clear now rather than leave the badge up for a whole interval
+			// waiting for the evaluator to reach the same conclusion. Disabling
+			// a rule is an ordinary admin action — UpdateRule does not strip the
+			// state it produced — so this path is reached without any race.
+			name:        "clears when no matched rule resolves any more",
+			rules:       []*models.FreshnessRule{{ID: "some-other-rule", TeamID: testTeamID}},
+			reason:      models.FreshnessReasonAccessed,
+			medium:      "web",
+			wantCleared: true,
 		},
 		{
 			name: "a resolvable sibling still clears when one id is dangling",
@@ -241,6 +246,16 @@ func TestClearIfStale_ScopesAccessReversalToTheMatchedRulesMediums(t *testing.T)
 			reason:      models.FreshnessReasonAccessed,
 			medium:      "web",
 			wantCleared: true,
+		},
+		{
+			// The distinction the previous two cases turn on: one live rule that
+			// does NOT watch this medium is enough to refuse, even though the
+			// other matched id is dangling. Only a surviving rule can re-mark.
+			name: "a dangling id does not rescue a live rule that ignores the medium",
+			rules: []*models.FreshnessRule{
+				{ID: "rule-2", TeamID: testTeamID, Mediums: []string{"mcp"}},
+			},
+			reason: models.FreshnessReasonAccessed, medium: "web",
 		},
 		{
 			name:        "an edit clears regardless of the rule's mediums",

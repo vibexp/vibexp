@@ -173,6 +173,13 @@ func TestIntegrationFreshnessClear_EvaluatorRemarksAfterReversal(t *testing.T) {
 // a column the rule does not read — so reversing on it would clear a badge the
 // very next evaluation run re-applies, once per interval, forever.
 //
+// The read is spelled as a direct Clearer call rather than through the access
+// service, so what this pins is the guard plus the evaluator's real reaction to
+// it. Deliberately: driving the whole access path would also move
+// last_accessed_web_at, and then a second run would leave the mark standing for
+// reasons that have nothing to do with the guard — the assertion would pass with
+// the fix reverted.
+//
 // Asserted across two runs with the mismatched access in between, because a
 // single run cannot tell "correctly refused" from "cleared and not yet
 // re-marked". On main this test fails with three audit entries (marked,

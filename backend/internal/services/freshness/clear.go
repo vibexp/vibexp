@@ -125,6 +125,13 @@ func (c *Clearer) ClearIfStale(ctx context.Context, teamID, resourceType, resour
 		return fmt.Errorf("freshness clear: failed to resolve rules for team %s: %w", teamID, err)
 	}
 	if blocked {
+		// Logged because the alternative is unanswerable: "I opened it and the
+		// badge stayed" leaves no audit row by design, so without this line
+		// there is nothing anywhere that says why.
+		c.logger.Debug("freshness clear: access medium is not watched by the rules that marked this resource",
+			"team_id", teamID, "resource_type", resourceType, "resource_id", resourceID,
+			"medium", medium, "matched_rule_ids", existing.MatchedRuleIDs,
+		)
 		return nil
 	}
 
@@ -204,16 +211,23 @@ func (c *Clearer) mediumBlocksReversal(
 // matching rule out of several is enough: the evaluator marks on the union of
 // its rules, so the reversal answers on the union too.
 //
-// One ListByTeam beats N GetByID calls regardless of how many rules matched,
-// and teams have few rules. A rule id that no longer resolves -- deleted or
-// disabled between the mark and this access -- is skipped rather than treated
-// as an error: it cannot re-mark the resource, and the next evaluation run
-// clears the row anyway.
+// One ListByTeam beats N GetByID calls regardless of how many rules matched, and
+// teams have few rules. It asks for ENABLED rules only, because a disabled rule
+// cannot mark anything either.
+//
+// A matched rule id that no longer resolves -- deleted, disabled, or narrowed so
+// it no longer covers this resource -- is skipped rather than treated as an
+// error. If NONE of them resolve, the answer is "clear it": nothing survives to
+// re-mark the resource, so the reversal cannot flap, and refusing it would leave
+// the badge up for a whole interval for no reason. That is the same reasoning as
+// the empty-ruleIDs case below, and a resource whose rules were all disabled is
+// an ordinary admin action, not a race -- UpdateRule does not strip freshness
+// state when Enabled flips to false, only DeleteRule does.
 func (c *Clearer) mediumMatchesRules(
 	ctx context.Context, teamID string, ruleIDs []string, medium string,
 ) (bool, error) {
 	// Nothing claims the resource, so nothing can re-mark it and the clear
-	// cannot flap.
+	// cannot flap. Answered without a query, not just faster than one.
 	if len(ruleIDs) == 0 {
 		return true, nil
 	}
@@ -228,16 +242,20 @@ func (c *Clearer) mediumMatchesRules(
 		byID[rule.ID] = rule
 	}
 
+	resolved := 0
 	for _, ruleID := range ruleIDs {
 		rule, ok := byID[ruleID]
 		if !ok {
 			continue
 		}
+		resolved++
 		if len(rule.Mediums) == 0 || slices.Contains(rule.Mediums, medium) {
 			return true, nil
 		}
 	}
-	return false, nil
+	// Only refuse when a rule that is still live watches this resource and does
+	// not watch this medium -- the one case where the next run would re-mark it.
+	return resolved == 0, nil
 }
 
 // reversibilityEnabled resolves the team's toggle, falling back to the default
