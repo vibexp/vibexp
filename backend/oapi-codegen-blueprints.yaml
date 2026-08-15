@@ -1,0 +1,32 @@
+# oapi-codegen configuration for the Blueprints READ path (issue #778, epic
+# #122), a spec-first strict-server domain. Following the same convention as
+# oapi-codegen-teamsettings.yaml, it generates into its OWN package under
+# internal/server/gen/blueprints so its StrictServerInterface mounts
+# independently of the other spec-first domains.
+#
+# DEPARTURE FROM THE include-tags CONVENTION, as in oapi-codegen-artifacts.yaml
+# (#776) and oapi-codegen-memories.yaml (#779): include-tags is oapi-codegen's
+# generation unit, so `include-tags: [Blueprints]` would pull all ten
+# Blueprints-tagged operations into one StrictServerInterface and force
+# create/update/delete, stats and versions to convert in the same change. #122
+# is closed domain-by-domain AND slice-by-slice, so the three read operations
+# are selected explicitly by id. Later slices append their ids here.
+#
+# NOTE THE LEGACY SPELLING: the two list operations are `listSpecLibraries` and
+# `listSpecLibrariesByProject`, not `listBlueprints`. An operationId is
+# published API surface, so they are not renamed -- and a wrong spelling here
+# does not error, it silently generates an EMPTY package.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: blueprintsgen
+output: internal/server/gen/blueprints/blueprints.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-operation-ids:
+    - listSpecLibraries
+    - listSpecLibrariesByProject
+    - getBlueprint

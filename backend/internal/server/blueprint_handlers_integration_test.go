@@ -19,6 +19,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
+	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
@@ -30,6 +31,14 @@ type MockBlueprintContainer struct {
 	AuthServiceMock      services.AuthServiceInterface
 	TeamServiceMock      services.TeamServiceInterface
 	APIKeyServiceMock    services.APIKeyServiceInterface
+	// ResourceAccessServiceMock lets a test observe the access event the detail
+	// read records (#778); the embedded base returns nil, which the middleware
+	// treats as "do not record".
+	ResourceAccessServiceMock resourceaccess.ResourceAccessService
+}
+
+func (m *MockBlueprintContainer) ResourceAccessService() resourceaccess.ResourceAccessService {
+	return m.ResourceAccessServiceMock
 }
 
 func (m *MockBlueprintContainer) BlueprintService() services.BlueprintServiceInterface {
@@ -710,7 +719,7 @@ func TestHandleListBlueprints_LegacyMetadataParamsAreInert(t *testing.T) {
 	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
 
 	expectedResponse := &models.BlueprintListResponse{
-		Blueprints: []models.Blueprint{{ID: "spec-1", Slug: "spec-1", Title: "Blueprint 1"}},
+		Blueprints: []models.Blueprint{{ID: "spec-1", Slug: "spec-1", Title: "Blueprint 1", ProjectID: "550e8400-e29b-41d4-a716-446655440001"}},
 		TotalCount: 1,
 		Page:       1,
 		PerPage:    10,
@@ -826,7 +835,7 @@ func TestHandleListBlueprints_WithFilters(t *testing.T) {
 		"ListBlueprints",
 		"user-123",
 		mock.MatchedBy(func(filters services.BlueprintFilters) bool {
-			return filters.ProjectID == "my-project" &&
+			return filters.ProjectID == "550e8400-e29b-41d4-a716-446655440001" &&
 				filters.Status == "active" &&
 				filters.Type == "general" &&
 				filters.Page == 2 &&
@@ -861,7 +870,7 @@ func TestHandleListBlueprints_WithFilters(t *testing.T) {
 	req := createBlueprintAuthenticatedRequest(
 		"GET",
 		"/api/v1/550e8400-e29b-41d4-a716-446655440000/blueprints"+
-			"?project_id=my-project&status=active&type=general&page=2&limit=10",
+			"?project_id=550e8400-e29b-41d4-a716-446655440001&status=active&type=general&page=2&limit=10",
 		"",
 		"user-123")
 	rr := httptest.NewRecorder()
