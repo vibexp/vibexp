@@ -103,8 +103,6 @@ func TestIntegrationResourceFreshness_GetByResource_NotStale(t *testing.T) {
 	assert.Nil(t, got, "a resource that is not stale must yield (nil, nil), not an error")
 }
 
-// The second upsert of the same resource must update the one row rather than
-// insert a second, and must preserve `since` — that column means "first marked
 // `(xmax = 0)` is a system-column trick, not portable SQL, and sqlmock returns
 // whatever the test declares — so only real Postgres can prove the flag means
 // what the evaluator now branches on (#771). A row that is inserted, then
@@ -139,6 +137,8 @@ func TestIntegrationResourceFreshness_UpsertReportsWhetherItInserted(t *testing.
 	assert.True(t, inserted, "a write after a concurrent clear inserts again — the #771 race")
 }
 
+// The second upsert of the same resource must update the one row rather than
+// insert a second, and must preserve `since` — that column means "first marked
 // stale at", so re-evaluation resetting it would misreport every resource's age.
 func TestIntegrationResourceFreshness_UpsertPreservesSinceAndDoesNotDuplicate(t *testing.T) {
 	resetFreshnessTables(t)
