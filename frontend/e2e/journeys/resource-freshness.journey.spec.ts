@@ -129,8 +129,13 @@ const artifactRow = () =>
 test.describe.serial('Resource freshness journey', () => {
   test.describe.configure({ timeout: 180_000 })
 
+  // Skipping is for the developer who pointed Playwright at `npm run dev`. It
+  // must NEVER apply under CI: `make e2e` (which is all ci-e2e.yml runs, and
+  // which sets CI=true) always has the stack, so a missing container there means
+  // something is broken — and a silent skip would leave the epic's ship gate
+  // green while testing nothing at all. Failing loudly in beforeAll is correct.
   test.skip(
-    !HAS_E2E_STACK,
+    !HAS_E2E_STACK && !process.env.CI,
     'needs the docker e2e stack (make e2e): the seeded artifact is aged with SQL'
   )
 

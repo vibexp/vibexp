@@ -40,11 +40,24 @@ export type BackdatableTable = (typeof BACKDATABLE_TABLES)[number]
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+/**
+ * `execFileSync`'s thrown error says only "Command failed: docker exec …" and
+ * keeps the process's stderr on a separate property, so a rejected statement
+ * would surface as a bare exit code with the Postgres message nowhere in the
+ * test output. Re-throwing with stderr attached is what makes a failure here
+ * readable at all.
+ */
 function run(command: string, args: string[]): string {
-  return execFileSync(command, args, {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  }).trim()
+  try {
+    return execFileSync(command, args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim()
+  } catch (error) {
+    const stderr = (error as { stderr?: string }).stderr?.trim()
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(stderr ? `${message}\n${stderr}` : message)
+  }
 }
 
 /**
