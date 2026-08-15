@@ -136,14 +136,14 @@ func scanFreshnessAuditDest(entry *models.ResourceFreshnessAudit) []interface{} 
 // The bucket is rendered as text in exactly the layout the zero-filled series
 // uses, so the two key sets align without the caller parsing anything back.
 //
-// The explicit `AT TIME ZONE 'UTC'` is load-bearing and deliberately differs
-// from the older analytics queries, which use a bare `DATE(created_at)`:
-// created_at is timestamptz, so a bare DATE() truncates in the SESSION
-// timezone, and the DSN sets none. The caller builds its keys in UTC, so on a
-// server running any other zone a transition would land on a key outside the
-// window — dropping it from the totals AND shifting every earlier day's
-// reconstructed level, which is a wrong line on a chart rather than a missing
-// bar. (The pre-existing queries have the same latent bug; tracked separately.)
+// The explicit `AT TIME ZONE 'UTC'` is load-bearing: created_at is timestamptz,
+// so a bare DATE() truncates in the SESSION timezone, and the DSN sets none.
+// The caller builds its keys in UTC, so on a server running any other zone a
+// transition would land on a key outside the window — dropping it from the
+// totals AND shifting every earlier day's reconstructed level, which is a wrong
+// line on a chart rather than a missing bar. This query was the first to spell
+// it out; #773 brought every other analytics series in line, so it is now the
+// shared convention rather than a deliberate divergence.
 func (r *FreshnessAuditRepository) CountTransitionsByDay(
 	ctx context.Context, teamID string, since time.Time,
 ) ([]models.FreshnessTransitionCount, error) {

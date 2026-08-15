@@ -17,21 +17,42 @@ import (
 const testAnalyticsTeamID = "team-analytics-1"
 
 // The bucket expressions are the point of these assertions, not incidental
-// query text (#773). Each pins BOTH halves of the aware/naive rule at once,
-// because the two failure modes are opposite and a regex covering only one
-// would pass for the wrong fix:
+// query text (#773). Each branch is pinned SEPARATELY and anchored from its own
+// FROM through its own GROUP BY: an unanchored `FROM prompts .*GROUP BY <utc>`
+// would be satisfied by any later branch's converted GROUP BY, so a regression
+// of the prompts branch alone would still match and the assertion would be a
+// decoration.
+//
+// Both halves of the aware/naive rule are asserted, because the two failure
+// modes are opposite:
 //   - a TIMESTAMPTZ branch must convert with `AT TIME ZONE 'UTC'`, or a bare
 //     DATE() casts through the session timezone and produces keys the handler's
 //     zero-fill never generated, which are then dropped silently;
 //   - the memories branch is a plain TIMESTAMP and must NOT convert, since on a
-//     naive value the same operator offsets in the other direction.
+//     naive value the same operator offsets in the other direction -- and its
+//     predicate needs its own $3::timestamp, or the shared timestamptz $2
+//     converts the column instead.
 //
-// (?s) so `.` spans the newlines between UNION branches.
+// sqlmock collapses all whitespace to single spaces before matching (its
+// stripQuery), so these patterns are written against a one-line query and need
+// no (?s).
 const (
-	teamResourceCreationBucketRE = `(?s)FROM prompts .*GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date` +
-		`.*FROM memories .*GROUP BY DATE\(created_at\)`
-	teamFeedCreationBucketRE = `(?s)FROM feeds .*GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date` +
-		`.*FROM feed_items .*GROUP BY \(posted_at AT TIME ZONE 'UTC'\)::date`
+	awareBucketGroupBy = `GROUP BY \(created_at AT TIME ZONE 'UTC'\)::date`
+
+	teamResourceCreationBucketRE = `FROM prompts WHERE team_id = \$1 AND created_at >= \$2 ` + awareBucketGroupBy +
+		`.*FROM artifacts WHERE team_id = \$1 AND created_at >= \$2 ` + awareBucketGroupBy +
+		`.*FROM blueprints WHERE team_id = \$1 AND created_at >= \$2 ` + awareBucketGroupBy +
+		`.*FROM memories WHERE team_id = \$1 AND created_at >= \$3::timestamp GROUP BY DATE\(created_at\)` +
+		`.*FROM projects WHERE team_id = \$1 AND created_at >= \$2 ` + awareBucketGroupBy
+
+	teamFeedCreationBucketRE = `FROM feeds WHERE team_id = \$1 AND created_at >= \$2 ` + awareBucketGroupBy +
+		`.*FROM feed_items WHERE team_id = \$1 AND posted_at >= \$2 ` +
+		`GROUP BY \(posted_at AT TIME ZONE 'UTC'\)::date`
+
+	// The two access-metric queries changed identically to their siblings, so
+	// they are pinned the same way rather than by a bare table name.
+	teamAccessMetricsRE = `SELECT TO_CHAR\(\(created_at AT TIME ZONE 'UTC'\)::date, 'YYYY-MM-DD'\) AS date, ` +
+		`source, COUNT\(\*\) AS count FROM resource_access_events`
 )
 
 // TestTeamRepository_GetTeamStats verifies all six team-wide counts are scoped by
@@ -82,7 +103,7 @@ func TestTeamRepository_GetTeamResourceCreationMetrics_Success(t *testing.T) {
 	since := time.Now().UTC().AddDate(0, 0, -7)
 
 	mock.ExpectQuery(teamResourceCreationBucketRE).
-		WithArgs(testAnalyticsTeamID, since).
+		WithArgs(testAnalyticsTeamID, since, since.UTC()).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "resource_type", "count"}).
 			AddRow("2026-05-28", "projects", 1).
 			AddRow("2026-05-28", "prompts", 3).
@@ -114,7 +135,7 @@ func TestTeamRepository_GetTeamResourceCreationMetrics_Empty(t *testing.T) {
 	since := time.Now().UTC().AddDate(0, 0, -30)
 
 	mock.ExpectQuery(teamResourceCreationBucketRE).
-		WithArgs(testAnalyticsTeamID, since).
+		WithArgs(testAnalyticsTeamID, since, since.UTC()).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "resource_type", "count"}))
 
 	got, err := repo.GetTeamResourceCreationMetrics(context.Background(), testAnalyticsTeamID, since)
@@ -139,7 +160,7 @@ func TestResourceAccessRepository_GetTeamMetrics(t *testing.T) {
 	repo := postgres.NewResourceAccessRepository(&database.DB{DB: db})
 	since := time.Now().UTC().AddDate(0, 0, -7)
 
-	mock.ExpectQuery(`FROM resource_access_events`).
+	mock.ExpectQuery(teamAccessMetricsRE).
 		WithArgs(testAnalyticsTeamID, since).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "source", "count"}).
 			AddRow("2026-05-28", "web", 3).

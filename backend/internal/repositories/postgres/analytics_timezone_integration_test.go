@@ -99,7 +99,43 @@ func seedBoundaryRows(t *testing.T) (teamID, projectID string, beforeUTC, afterU
 			"UPDATE prompts SET created_at = $1 WHERE id = $2", at, promptID)
 		require.NoError(t, err)
 	}
+
+	// A memories row either side too. This is not decoration: memories is the
+	// NAIVE branch of the same UNION, and its window edge behaves differently
+	// from its bucket -- a fixture of prompts alone makes both branches of that
+	// distinction invisible, which is exactly how the shared-placeholder defect
+	// survived the first version of this test.
+	for _, at := range []time.Time{beforeUTC, afterUTC} {
+		memoryID := insertTestMemory(t, userID, teamID, projectID, "m-"+uuid.New().String()[:8])
+		// memories carries a BEFORE UPDATE trigger that rewrites updated_at
+		// (migration 014); it does not touch created_at, so a plain UPDATE is
+		// fine here. The value is written naive, as the column is.
+		_, err := integrationDB.ExecContext(context.Background(),
+			"UPDATE memories SET created_at = $1 WHERE id = $2", at.Format("2006-01-02 15:04:05"), memoryID)
+		require.NoError(t, err)
+	}
 	return teamID, projectID, beforeUTC, afterUTC
+}
+
+// seedFeedBoundaryRows creates a feed and a feed item either side of a UTC
+// midnight. GetTeamFeedCreationMetrics buckets two different aware columns
+// (feeds.created_at and feed_items.posted_at), so it needs its own fixture.
+func seedFeedBoundaryRows(t *testing.T, userID, teamID string, beforeUTC, afterUTC time.Time) {
+	t.Helper()
+
+	feedID := uuid.New().String()
+	_, err := integrationDB.ExecContext(context.Background(),
+		`INSERT INTO feeds (id, team_id, name, created_by_user_id, created_at)
+		 VALUES ($1, $2, 'boundary feed', $3, $4)`,
+		feedID, teamID, userID, beforeUTC)
+	require.NoError(t, err)
+
+	_, err = integrationDB.ExecContext(context.Background(),
+		`INSERT INTO feed_items
+		   (id, team_id, feed_id, title, content, excerpt, ai_assistant_name, posted_by_user_id, posted_at)
+		 VALUES ($1, $2, $3, 'boundary item', 'content', 'excerpt', 'Claude Code', $4, $5)`,
+		uuid.New().String(), teamID, feedID, userID, afterUTC)
+	require.NoError(t, err)
 }
 
 // countsByDate flattens a creation-metrics result into date -> total.
@@ -142,6 +178,22 @@ func TestIntegrationAnalyticsTimezone_TeamResourceCreationBucketsAreUTC(t *testi
 		func(r models.TeamResourceCreationCount) int { return r.Count })
 	assert.Equal(t, map[string]int{"2026-03-01": 2, "2026-03-02": 2}, byDate,
 		"rows must land on their UTC day, two either side of the boundary")
+
+	// The naive branch, asserted separately because its failure mode is the
+	// window edge rather than the bucket: with the memories predicate sharing a
+	// placeholder that other branches make timestamptz, the earlier row is
+	// filtered out entirely under a non-UTC session and this map loses a key.
+	memories := make([]models.TeamResourceCreationCount, 0, len(utc))
+	for _, row := range utc {
+		if row.ResourceType == "memories" {
+			memories = append(memories, row)
+		}
+	}
+	byMemoryDate := countsByDate(memories,
+		func(r models.TeamResourceCreationCount) string { return r.Date },
+		func(r models.TeamResourceCreationCount) int { return r.Count })
+	assert.Equal(t, map[string]int{"2026-03-01": 1, "2026-03-02": 1}, byMemoryDate,
+		"the naive memories branch must survive the range predicate too")
 }
 
 func TestIntegrationAnalyticsTimezone_ProjectResourceCreationBucketsAreUTC(t *testing.T) {
@@ -156,6 +208,12 @@ func TestIntegrationAnalyticsTimezone_ProjectResourceCreationBucketsAreUTC(t *te
 		promptID := insertTestPrompt(t, userID, teamID, projectID, "p-"+uuid.New().String()[:8], "body", "published")
 		_, err := integrationDB.ExecContext(context.Background(),
 			"UPDATE prompts SET created_at = $1 WHERE id = $2", at, promptID)
+		require.NoError(t, err)
+
+		// The naive branch, for the same reason as the team fixture.
+		memoryID := insertTestMemory(t, userID, teamID, projectID, "m-"+uuid.New().String()[:8])
+		_, err = integrationDB.ExecContext(context.Background(),
+			"UPDATE memories SET created_at = $1 WHERE id = $2", at.Format("2006-01-02 15:04:05"), memoryID)
 		require.NoError(t, err)
 	}
 
@@ -178,7 +236,36 @@ func TestIntegrationAnalyticsTimezone_ProjectResourceCreationBucketsAreUTC(t *te
 	byDate := countsByDate(utc,
 		func(r models.ProjectResourceCreationCount) string { return r.Date },
 		func(r models.ProjectResourceCreationCount) int { return r.Count })
-	assert.Equal(t, map[string]int{"2026-03-01": 1, "2026-03-02": 1}, byDate)
+	// One prompt + one memory on each side of the boundary.
+	assert.Equal(t, map[string]int{"2026-03-01": 2, "2026-03-02": 2}, byDate)
+}
+
+// GetTeamFeedCreationMetrics buckets two DIFFERENT aware columns
+// (feeds.created_at and feed_items.posted_at), so a fix applied to one and not
+// the other would be invisible to every other test.
+func TestIntegrationAnalyticsTimezone_TeamFeedCreationBucketsAreUTC(t *testing.T) {
+	resetIntegrationTables(t)
+	userID := insertTestUser(t)
+	teamID := insertTestTeam(t, userID)
+
+	beforeUTC := time.Date(2026, 3, 1, 23, 30, 0, 0, time.UTC)
+	afterUTC := time.Date(2026, 3, 2, 0, 30, 0, 0, time.UTC)
+	seedFeedBoundaryRows(t, userID, teamID, beforeUTC, afterUTC)
+
+	ctx := context.Background()
+	since := beforeUTC.Add(-24 * time.Hour)
+
+	utc, err := NewTeamRepository(integrationDB).GetTeamFeedCreationMetrics(ctx, teamID, since)
+	require.NoError(t, err)
+	shifted, err := NewTeamRepository(openSessionTZDB(t, tzTestZone)).
+		GetTeamFeedCreationMetrics(ctx, teamID, since)
+	require.NoError(t, err)
+
+	assert.Equal(t, utc, shifted, "neither created_at nor posted_at may follow the session timezone")
+	assert.ElementsMatch(t, []models.TeamFeedCreationCount{
+		{Date: "2026-03-01", EntityType: "feeds", Count: 1},
+		{Date: "2026-03-02", EntityType: "feed_items", Count: 1},
+	}, utc, "the feed and the item sit on different UTC days")
 }
 
 // resource_access_events is the highest-traffic of these series and the one

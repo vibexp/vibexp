@@ -400,8 +400,17 @@ func (r *TeamRepository) GetTeamResourceCreationMetrics(
 	// DATE(), which is already session-independent. Same rule as
 	// admin_dashboard.go, which documents the overload in full.
 	//
-	// Range predicates stay on the raw column so they remain index-eligible;
-	// only the bucket expression is normalized.
+	// Range predicates stay on the raw column so they remain index-eligible.
+	// The memories branch needs its OWN placeholder, though: $2 is also bound to
+	// TIMESTAMPTZ columns in the other branches, so Postgres infers it as
+	// timestamptz -- and comparing the naive memories.created_at against a
+	// timestamptz converts the COLUMN through the session timezone, dropping
+	// every memory within the session's offset of `since`. That is the same
+	// defect as the bucket, on the window edge, and casting the shared $2 does
+	// not fix it (the cast then happens in the session zone too). A separate
+	// $3::timestamp, bound to the same instant in UTC, is what makes the
+	// comparison naive-to-naive. Verified against real Postgres under
+	// Pacific/Auckland; see analytics_timezone_integration_test.go.
 	const query = `
 		SELECT TO_CHAR((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS date,
 		       'prompts' AS resource_type, COUNT(*) AS count
@@ -417,14 +426,14 @@ func (r *TeamRepository) GetTeamResourceCreationMetrics(
 		GROUP BY (created_at AT TIME ZONE 'UTC')::date
 		UNION ALL
 		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD'), 'memories', COUNT(*)
-		FROM memories WHERE team_id = $1 AND created_at >= $2 GROUP BY DATE(created_at)
+		FROM memories WHERE team_id = $1 AND created_at >= $3::timestamp GROUP BY DATE(created_at)
 		UNION ALL
 		SELECT TO_CHAR((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD'), 'projects', COUNT(*)
 		FROM projects WHERE team_id = $1 AND created_at >= $2
 		GROUP BY (created_at AT TIME ZONE 'UTC')::date
 		ORDER BY date, resource_type`
 
-	rows, err := r.db.QueryContext(ctx, query, teamID, since)
+	rows, err := r.db.QueryContext(ctx, query, teamID, since, since.UTC())
 	if err != nil {
 		return nil, fmt.Errorf("failed to query team resource creation metrics: %w", err)
 	}
