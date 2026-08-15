@@ -1552,7 +1552,12 @@ type ResourceFreshnessRepository interface {
 	// the existing row on conflict, so it keeps meaning "first marked at" for
 	// a resource that stays stale across evaluations; the model is populated
 	// from the persisted row on return.
-	Upsert(ctx context.Context, f *models.ResourceFreshness) error
+	//
+	// It reports whether a row was actually INSERTED, as opposed to updated on
+	// conflict. A caller cannot infer that from state it read earlier: a
+	// concurrent clear between the read and this call turns what looked like
+	// an update into an insert, and only the database knows (#771).
+	Upsert(ctx context.Context, f *models.ResourceFreshness) (bool, error)
 	// GetByResource returns the freshness state of one resource, or
 	// (nil, nil) -- not an error -- when the resource is not stale.
 	GetByResource(ctx context.Context, resourceType, resourceID string) (*models.ResourceFreshness, error)

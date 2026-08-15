@@ -617,21 +617,31 @@ func (_c *MockResourceFreshnessRepository_RemoveRule_Call) RunAndReturn(run func
 }
 
 // Upsert provides a mock function with given fields: ctx, f
-func (_m *MockResourceFreshnessRepository) Upsert(ctx context.Context, f *models.ResourceFreshness) error {
+func (_m *MockResourceFreshnessRepository) Upsert(ctx context.Context, f *models.ResourceFreshness) (bool, error) {
 	ret := _m.Called(ctx, f)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Upsert")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *models.ResourceFreshness) error); ok {
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.ResourceFreshness) (bool, error)); ok {
+		return rf(ctx, f)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *models.ResourceFreshness) bool); ok {
 		r0 = rf(ctx, f)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(bool)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, *models.ResourceFreshness) error); ok {
+		r1 = rf(ctx, f)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockResourceFreshnessRepository_Upsert_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Upsert'
@@ -653,12 +663,12 @@ func (_c *MockResourceFreshnessRepository_Upsert_Call) Run(run func(ctx context.
 	return _c
 }
 
-func (_c *MockResourceFreshnessRepository_Upsert_Call) Return(_a0 error) *MockResourceFreshnessRepository_Upsert_Call {
-	_c.Call.Return(_a0)
+func (_c *MockResourceFreshnessRepository_Upsert_Call) Return(_a0 bool, _a1 error) *MockResourceFreshnessRepository_Upsert_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockResourceFreshnessRepository_Upsert_Call) RunAndReturn(run func(context.Context, *models.ResourceFreshness) error) *MockResourceFreshnessRepository_Upsert_Call {
+func (_c *MockResourceFreshnessRepository_Upsert_Call) RunAndReturn(run func(context.Context, *models.ResourceFreshness) (bool, error)) *MockResourceFreshnessRepository_Upsert_Call {
 	_c.Call.Return(run)
 	return _c
 }

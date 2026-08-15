@@ -38,7 +38,15 @@ func NewResourceFreshnessRepository(db *database.DB) repositories.ResourceFreshn
 // `since` is NOT overwritten on conflict: it must keep meaning "first marked
 // stale at" for a resource that stays stale across successive evaluations,
 // otherwise every run would reset the age the UI reports.
-func (r *ResourceFreshnessRepository) Upsert(ctx context.Context, f *models.ResourceFreshness) error {
+//
+// It reports whether the row was INSERTED, as opposed to updated on conflict --
+// the same "say what actually happened" contract DeleteByResource has, and for
+// the same reason. `xmax = 0` is the standard Postgres spelling: xmax is the
+// deleting/locking transaction id on the tuple, which is zero for a freshly
+// inserted row and non-zero for the row DO UPDATE rewrote. Without it a caller
+// can only guess from state it read earlier, and a concurrent delete in between
+// makes that guess wrong (#771).
+func (r *ResourceFreshnessRepository) Upsert(ctx context.Context, f *models.ResourceFreshness) (bool, error) {
 	query := `
 		INSERT INTO resource_freshness
 			(team_id, project_id, resource_type, resource_id, status, matched_rule_ids, since, reason)
@@ -50,7 +58,7 @@ func (r *ResourceFreshnessRepository) Upsert(ctx context.Context, f *models.Reso
 		    matched_rule_ids = EXCLUDED.matched_rule_ids,
 		    reason           = EXCLUDED.reason,
 		    updated_at       = now()
-		RETURNING ` + resourceFreshnessColumns
+		RETURNING ` + resourceFreshnessColumns + `, (xmax = 0) AS inserted`
 
 	// A zero Since defers to the database clock, so a caller that does not
 	// care about the exact instant cannot write a zero timestamp.
@@ -59,14 +67,15 @@ func (r *ResourceFreshnessRepository) Upsert(ctx context.Context, f *models.Reso
 		since = nil
 	}
 
+	var inserted bool
 	if err := r.db.QueryRowContext(
 		ctx, query,
 		f.TeamID, f.ProjectID, f.ResourceType, f.ResourceID,
 		f.Status, pq.Array(f.MatchedRuleIDs), since, f.Reason,
-	).Scan(scanResourceFreshnessDest(f)...); err != nil {
-		return fmt.Errorf("failed to upsert resource freshness: %w", err)
+	).Scan(append(scanResourceFreshnessDest(f), &inserted)...); err != nil {
+		return false, fmt.Errorf("failed to upsert resource freshness: %w", err)
 	}
-	return nil
+	return inserted, nil
 }
 
 // GetByResource returns the freshness state of one resource, or (nil, nil)

@@ -45,6 +45,17 @@ func seedFreshnessScope(t *testing.T) (teamID, projectID string) {
 	return teamID, projectID
 }
 
+// upsertFreshness writes a fixture row and discards the inserted flag (#771).
+// The flag itself is proved against real Postgres by
+// TestIntegrationResourceFreshness_UpsertReportsWhetherItInserted; everywhere
+// else below only cares that the row landed.
+func upsertFreshness(
+	ctx context.Context, repo repositories.ResourceFreshnessRepository, f *models.ResourceFreshness,
+) error {
+	_, err := repo.Upsert(ctx, f)
+	return err
+}
+
 func newFreshnessState(teamID, projectID, resourceType string, ruleIDs []string) *models.ResourceFreshness {
 	return &models.ResourceFreshness{
 		TeamID:         teamID,
@@ -69,7 +80,7 @@ func TestIntegrationResourceFreshness_UpsertRoundTrip(t *testing.T) {
 
 	ruleA, ruleB := uuid.New().String(), uuid.New().String()
 	state := newFreshnessState(teamID, projectID, "artifact", []string{ruleA, ruleB})
-	require.NoError(t, repo.Upsert(ctx, state))
+	require.NoError(t, upsertFreshness(ctx, repo, state))
 
 	require.NotEmpty(t, state.ID)
 	assert.False(t, state.Since.IsZero(), "a zero Since must default to the database clock")
@@ -94,6 +105,40 @@ func TestIntegrationResourceFreshness_GetByResource_NotStale(t *testing.T) {
 
 // The second upsert of the same resource must update the one row rather than
 // insert a second, and must preserve `since` — that column means "first marked
+// `(xmax = 0)` is a system-column trick, not portable SQL, and sqlmock returns
+// whatever the test declares — so only real Postgres can prove the flag means
+// what the evaluator now branches on (#771). A row that is inserted, then
+// deleted, then written again must report true BOTH times: that second insert
+// is exactly the race, a clear having removed the row mid-run.
+func TestIntegrationResourceFreshness_UpsertReportsWhetherItInserted(t *testing.T) {
+	resetFreshnessTables(t)
+	teamID, projectID := seedFreshnessScope(t)
+	repo := NewResourceFreshnessRepository(integrationDB)
+	ctx := context.Background()
+
+	row := newFreshnessState(teamID, projectID, "prompt", []string{uuid.New().String()})
+
+	inserted, err := repo.Upsert(ctx, row)
+	require.NoError(t, err)
+	assert.True(t, inserted, "the first write of a resource inserts")
+
+	again := newFreshnessState(teamID, projectID, "prompt", []string{uuid.New().String()})
+	again.ResourceID = row.ResourceID
+	inserted, err = repo.Upsert(ctx, again)
+	require.NoError(t, err)
+	assert.False(t, inserted, "a second write of the same resource updates on conflict")
+
+	deleted, err := repo.DeleteByResource(ctx, "prompt", row.ResourceID)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	afterClear := newFreshnessState(teamID, projectID, "prompt", []string{uuid.New().String()})
+	afterClear.ResourceID = row.ResourceID
+	inserted, err = repo.Upsert(ctx, afterClear)
+	require.NoError(t, err)
+	assert.True(t, inserted, "a write after a concurrent clear inserts again — the #771 race")
+}
+
 // stale at", so re-evaluation resetting it would misreport every resource's age.
 func TestIntegrationResourceFreshness_UpsertPreservesSinceAndDoesNotDuplicate(t *testing.T) {
 	resetFreshnessTables(t)
@@ -104,14 +149,14 @@ func TestIntegrationResourceFreshness_UpsertPreservesSinceAndDoesNotDuplicate(t 
 	original := time.Now().UTC().Add(-30 * 24 * time.Hour).Truncate(time.Microsecond)
 	first := newFreshnessState(teamID, projectID, "prompt", []string{uuid.New().String()})
 	first.Since = original
-	require.NoError(t, repo.Upsert(ctx, first))
+	require.NoError(t, upsertFreshness(ctx, repo, first))
 	require.True(t, first.Since.Equal(original))
 
 	newRule := uuid.New().String()
 	second := newFreshnessState(teamID, projectID, "prompt", []string{newRule})
 	second.ResourceID = first.ResourceID
 	second.Since = time.Now().UTC() // a later "since" the upsert must ignore
-	require.NoError(t, repo.Upsert(ctx, second))
+	require.NoError(t, upsertFreshness(ctx, repo, second))
 
 	assert.Equal(t, first.ID, second.ID, "upsert must update the existing row, not insert a second")
 	assert.True(t, second.Since.Equal(original),
@@ -132,9 +177,9 @@ func TestIntegrationResourceFreshness_ListFilters(t *testing.T) {
 	ctx := context.Background()
 
 	rule := uuid.New().String()
-	require.NoError(t, repo.Upsert(ctx, newFreshnessState(teamID, projectID, "artifact", []string{rule})))
-	require.NoError(t, repo.Upsert(ctx, newFreshnessState(teamID, projectID, "prompt", []string{rule})))
-	require.NoError(t, repo.Upsert(ctx, newFreshnessState(otherTeamID, otherProjectID, "artifact", []string{rule})))
+	require.NoError(t, upsertFreshness(ctx, repo, newFreshnessState(teamID, projectID, "artifact", []string{rule})))
+	require.NoError(t, upsertFreshness(ctx, repo, newFreshnessState(teamID, projectID, "prompt", []string{rule})))
+	require.NoError(t, upsertFreshness(ctx, repo, newFreshnessState(otherTeamID, otherProjectID, "artifact", []string{rule})))
 
 	tests := []struct {
 		name    string
@@ -181,7 +226,7 @@ func TestIntegrationResourceFreshness_ListPaginates(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 5; i++ {
-		require.NoError(t, repo.Upsert(ctx,
+		require.NoError(t, upsertFreshness(ctx, repo,
 			newFreshnessState(teamID, projectID, "memory", []string{uuid.New().String()})))
 	}
 
@@ -201,7 +246,7 @@ func TestIntegrationResourceFreshness_DeleteByResource(t *testing.T) {
 	ctx := context.Background()
 
 	state := newFreshnessState(teamID, projectID, "blueprint", []string{uuid.New().String()})
-	require.NoError(t, repo.Upsert(ctx, state))
+	require.NoError(t, upsertFreshness(ctx, repo, state))
 
 	deleted, err := repo.DeleteByResource(ctx, "blueprint", state.ResourceID)
 	require.NoError(t, err)
@@ -226,7 +271,7 @@ func TestIntegrationResourceFreshness_RemoveRule(t *testing.T) {
 	both := newFreshnessState(teamID, projectID, "prompt", []string{doomed, survivor})
 	untouched := newFreshnessState(teamID, projectID, "memory", []string{survivor})
 	for _, s := range []*models.ResourceFreshness{onlyDoomed, both, untouched} {
-		require.NoError(t, repo.Upsert(ctx, s))
+		require.NoError(t, upsertFreshness(ctx, repo, s))
 	}
 
 	deleted, err := repo.RemoveRule(ctx, doomed)
@@ -262,11 +307,11 @@ func TestIntegrationResourceFreshness_RemoveRuleLeavesUnrelatedEmptyRowsAlone(t 
 	// A row belonging to another team that already matches no rule. Upsert
 	// accepts an empty array, so this state is reachable through the API.
 	bystander := newFreshnessState(otherTeamID, otherProjectID, "artifact", []string{})
-	require.NoError(t, repo.Upsert(ctx, bystander))
+	require.NoError(t, upsertFreshness(ctx, repo, bystander))
 
 	doomed := uuid.New().String()
 	target := newFreshnessState(teamID, projectID, "prompt", []string{doomed})
-	require.NoError(t, repo.Upsert(ctx, target))
+	require.NoError(t, upsertFreshness(ctx, repo, target))
 
 	deleted, err := repo.RemoveRule(ctx, doomed)
 	require.NoError(t, err)
@@ -285,7 +330,7 @@ func TestIntegrationResourceFreshness_TeamCascade(t *testing.T) {
 	ctx := context.Background()
 
 	state := newFreshnessState(teamID, projectID, "artifact", []string{uuid.New().String()})
-	require.NoError(t, repo.Upsert(ctx, state))
+	require.NoError(t, upsertFreshness(ctx, repo, state))
 
 	_, err := integrationDB.ExecContext(ctx, "DELETE FROM teams WHERE id = $1", teamID)
 	require.NoError(t, err)
@@ -702,7 +747,7 @@ func TestIntegrationFreshness_ListingQueriesUseIndexes(t *testing.T) {
 
 	repo := NewResourceFreshnessRepository(integrationDB)
 	for i := 0; i < 3; i++ {
-		require.NoError(t, repo.Upsert(ctx,
+		require.NoError(t, upsertFreshness(ctx, repo,
 			newFreshnessState(teamID, projectID, "artifact", []string{uuid.New().String()})))
 	}
 

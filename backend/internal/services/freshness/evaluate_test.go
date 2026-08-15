@@ -103,7 +103,7 @@ func TestEvaluate_MarksNewlyStaleResource(t *testing.T) {
 	var written *models.ResourceFreshness
 	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).
 		Run(func(_ context.Context, f *models.ResourceFreshness) { written = f }).
-		Return(nil).Once()
+		Return(true, nil).Once()
 
 	var logged *models.ResourceFreshnessAudit
 	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).
@@ -145,7 +145,7 @@ func TestEvaluate_UnionsMatchingRules(t *testing.T) {
 	var written *models.ResourceFreshness
 	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).
 		Run(func(_ context.Context, f *models.ResourceFreshness) { written = f }).
-		Return(nil).Once()
+		Return(true, nil).Once()
 
 	var logged *models.ResourceFreshnessAudit
 	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).
@@ -177,7 +177,7 @@ func TestEvaluate_EvaluatesEveryResourceTypeOfARule(t *testing.T) {
 	marked := make(map[string]string)
 	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).
 		Run(func(_ context.Context, f *models.ResourceFreshness) { marked[f.ResourceType] = f.ResourceID }).
-		Return(nil).Twice()
+		Return(true, nil).Twice()
 	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Twice()
 
 	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
@@ -218,6 +218,11 @@ func TestEvaluate_StoredRuleOrderDoesNotForceAWrite(t *testing.T) {
 // When one of two matching rules stops matching, the row is rewritten with the
 // narrowed set -- but the resource never stopped being stale, so no audit row
 // is written. Auditing here is what would flood the log.
+//
+// The upsert reporting `inserted = false` is what makes this the bookkeeping
+// path: the row the snapshot saw was still there for it to update. This is the
+// #732 guard, and the half of #771's change that must NOT widen -- the t-bound
+// audit mock has no expectation, so a stray audit row fails the test.
 func TestEvaluate_NarrowedRuleSetRefreshesWithoutAudit(t *testing.T) {
 	evaluator, deps := newEvaluator(t)
 
@@ -230,11 +235,46 @@ func TestEvaluate_NarrowedRuleSetRefreshesWithoutAudit(t *testing.T) {
 	var written *models.ResourceFreshness
 	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).
 		Run(func(_ context.Context, f *models.ResourceFreshness) { written = f }).
-		Return(nil).Once()
+		Return(false, nil).Once()
 
 	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
 	require.NotNil(t, written)
 	assert.Equal(t, []string{testRuleID}, written.MatchedRuleIDs)
+}
+
+// The #771 race. Same setup as the narrowed-rule-set case above -- the snapshot
+// says the resource is already stale -- but a Clearer (an access or an edit,
+// #733) deleted the row between the snapshot and the upsert, so the upsert
+// INSERTED. That is a real stale-again transition: without the audit row, the
+// newest entry for this resource would be the clear, and the audit tab would
+// contradict the live state.
+//
+// It is asserted through the mocked `inserted` flag rather than by a real
+// concurrent delete, because that flag IS the fix -- it is how the evaluator
+// learns what the database did instead of trusting its snapshot.
+func TestEvaluate_ResourceClearedMidRunIsAuditedAsMarkedAgain(t *testing.T) {
+	evaluator, deps := newEvaluator(t)
+
+	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
+		Return([]*models.FreshnessRule{rule(testRuleID, "prompt")}, nil).Once()
+	deps.expectCandidates("prompt", promptCandidate())
+	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
+		Return([]*models.ResourceFreshness{storedStale(testRuleID, testOtherRule)}, nil).Once()
+
+	// The clear happened here, so the upsert inserts rather than updates.
+	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).Return(true, nil).Once()
+
+	var logged *models.ResourceFreshnessAudit
+	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, e *models.ResourceFreshnessAudit) { logged = e }).
+		Return(nil).Once()
+
+	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
+
+	require.NotNil(t, logged, "an insert is a transition and must be audited, whatever the snapshot said")
+	assert.Equal(t, models.FreshnessActionMarked, logged.Action)
+	assert.Equal(t, models.FreshnessReasonRuleRun, logged.Reason)
+	assert.Equal(t, testPromptID, logged.ResourceID)
 }
 
 // Clearing is the other half of reconciliation: a stored row no rule matches
@@ -325,7 +365,7 @@ func TestEvaluate_PagesThroughCandidates(t *testing.T) {
 
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{}, nil).Once()
-	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil).Times(501)
+	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).Return(true, nil).Times(501)
 	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Times(501)
 
 	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
@@ -371,7 +411,7 @@ func TestEvaluate_PropagatesRepositoryErrors(t *testing.T) {
 				deps.expectCandidates("prompt", promptCandidate())
 				deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 					Return([]*models.ResourceFreshness{}, nil).Once()
-				deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).Return(failure).Once()
+				deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).Return(false, failure).Once()
 			},
 		},
 		{
@@ -382,7 +422,7 @@ func TestEvaluate_PropagatesRepositoryErrors(t *testing.T) {
 				deps.expectCandidates("prompt", promptCandidate())
 				deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 					Return([]*models.ResourceFreshness{}, nil).Once()
-				deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil).Once()
+				deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).Return(true, nil).Once()
 				deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(failure).Once()
 			},
 		},
@@ -472,7 +512,7 @@ func TestEvaluate_ClearsBeforeMarks(t *testing.T) {
 		Return(true, nil).Once()
 	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).
 		Run(func(_ context.Context, _ *models.ResourceFreshness) { order = append(order, "mark") }).
-		Return(nil).Once()
+		Return(true, nil).Once()
 	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Twice()
 
 	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))

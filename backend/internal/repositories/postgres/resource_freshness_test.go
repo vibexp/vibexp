@@ -24,6 +24,12 @@ func resourceFreshnessCols() []string {
 	}
 }
 
+// upsertCols is the projection Upsert returns: the shared columns plus the
+// synthetic `inserted` flag it appends (#771).
+func upsertCols() []string {
+	return append(resourceFreshnessCols(), "inserted")
+}
+
 func setupResourceFreshnessTest(t *testing.T) (*ResourceFreshnessRepository, sqlmock.Sqlmock) {
 	t.Helper()
 
@@ -53,6 +59,16 @@ func resourceFreshnessRow(ruleIDs string, since time.Time) *sqlmock.Rows {
 	)
 }
 
+// upsertRow is the same row plus the `inserted` flag, as Upsert's RETURNING
+// clause projects it.
+func upsertRow(ruleIDs string, since time.Time, inserted bool) *sqlmock.Rows {
+	return sqlmock.NewRows(upsertCols()).AddRow(
+		"fresh-1", "team-1", "proj-1", "artifact", "res-1",
+		models.FreshnessStatusStale, []byte(ruleIDs), since,
+		models.FreshnessReasonRuleRun, since, since, inserted,
+	)
+}
+
 func TestResourceFreshnessRepository_Upsert_PopulatesModel(t *testing.T) {
 	repo, mock := setupResourceFreshnessTest(t)
 	since := time.Now().UTC().Truncate(time.Second)
@@ -62,7 +78,7 @@ func TestResourceFreshnessRepository_Upsert_PopulatesModel(t *testing.T) {
 			"team-1", "proj-1", "artifact", "res-1", models.FreshnessStatusStale,
 			pq.Array([]string{"rule-a"}), since, models.FreshnessReasonRuleRun,
 		).
-		WillReturnRows(resourceFreshnessRow("{rule-a}", since))
+		WillReturnRows(upsertRow("{rule-a}", since, true))
 
 	f := &models.ResourceFreshness{
 		TeamID: "team-1", ProjectID: "proj-1",
@@ -70,7 +86,9 @@ func TestResourceFreshnessRepository_Upsert_PopulatesModel(t *testing.T) {
 		Status: models.FreshnessStatusStale, MatchedRuleIDs: []string{"rule-a"},
 		Since: since, Reason: models.FreshnessReasonRuleRun,
 	}
-	require.NoError(t, repo.Upsert(context.Background(), f))
+	inserted, err := repo.Upsert(context.Background(), f)
+	require.NoError(t, err)
+	assert.True(t, inserted)
 
 	assert.Equal(t, "fresh-1", f.ID)
 	assert.Equal(t, []string{"rule-a"}, f.MatchedRuleIDs)
@@ -89,7 +107,7 @@ func TestResourceFreshnessRepository_Upsert_ZeroSinceBindsNull(t *testing.T) {
 			"team-1", "proj-1", "prompt", "res-2", models.FreshnessStatusStale,
 			pq.Array([]string{}), nil, models.FreshnessReasonRuleRun,
 		).
-		WillReturnRows(resourceFreshnessRow("{}", dbSince))
+		WillReturnRows(upsertRow("{}", dbSince, true))
 
 	f := &models.ResourceFreshness{
 		TeamID: "team-1", ProjectID: "proj-1",
@@ -97,7 +115,8 @@ func TestResourceFreshnessRepository_Upsert_ZeroSinceBindsNull(t *testing.T) {
 		Status: models.FreshnessStatusStale, MatchedRuleIDs: []string{},
 		Reason: models.FreshnessReasonRuleRun,
 	}
-	require.NoError(t, repo.Upsert(context.Background(), f))
+	_, err := repo.Upsert(context.Background(), f)
+	require.NoError(t, err)
 
 	assert.False(t, f.Since.IsZero(), "Since must come back from the database")
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -115,10 +134,36 @@ func TestResourceFreshnessRepository_Upsert_DoesNotOverwriteSince(t *testing.T) 
 			`project_id = EXCLUDED\.project_id, status = EXCLUDED\.status, ` +
 			`matched_rule_ids = EXCLUDED\.matched_rule_ids, reason = EXCLUDED\.reason, ` +
 			`updated_at = now\(\) RETURNING`,
-	).WillReturnRows(resourceFreshnessRow("{}", since))
+	).WillReturnRows(upsertRow("{}", since, false))
 
-	require.NoError(t, repo.Upsert(context.Background(), &models.ResourceFreshness{Since: since}))
+	_, err := repo.Upsert(context.Background(), &models.ResourceFreshness{Since: since})
+	require.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// The flag is what tells a genuine stale-again transition from bookkeeping on a
+// surviving row (#771), so the projection must actually ask for it — a caller
+// cannot recover it from anything else in the result.
+func TestResourceFreshnessRepository_Upsert_SelectsAndScansTheInsertedFlag(t *testing.T) {
+	for _, inserted := range []bool{true, false} {
+		name := "conflict update reports false"
+		if inserted {
+			name = "insert reports true"
+		}
+		t.Run(name, func(t *testing.T) {
+			repo, mock := setupResourceFreshnessTest(t)
+			since := time.Now().UTC()
+
+			mock.ExpectQuery(`RETURNING .*, \(xmax = 0\) AS inserted`).
+				WillReturnRows(upsertRow("{}", since, inserted))
+
+			got, err := repo.Upsert(context.Background(), &models.ResourceFreshness{Since: since})
+
+			require.NoError(t, err)
+			assert.Equal(t, inserted, got)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }
 
 func TestResourceFreshnessRepository_Upsert_Error(t *testing.T) {
@@ -126,8 +171,9 @@ func TestResourceFreshnessRepository_Upsert_Error(t *testing.T) {
 
 	mock.ExpectQuery(`INSERT INTO resource_freshness`).WillReturnError(errors.New("boom"))
 
-	err := repo.Upsert(context.Background(), &models.ResourceFreshness{})
+	inserted, err := repo.Upsert(context.Background(), &models.ResourceFreshness{})
 	require.Error(t, err)
+	assert.False(t, inserted, "a failed upsert must not claim it inserted")
 	assert.Contains(t, err.Error(), "failed to upsert resource freshness")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
