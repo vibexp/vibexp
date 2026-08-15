@@ -594,7 +594,6 @@ func TestHandleListMemories_SortBy(t *testing.T) {
 			srv := createMemoryTestServer(mockContainer)
 			url := "/api/v1/" + memoriesTestTeamID + "/memories?sort_by=" + sortField + "&sort_order=asc"
 			req := makeMemoryAuthenticatedRequest("GET", url, nil, "test-user-123")
-			req = addRouteParams(req, map[string]string{"team_id": memoriesTestTeamID})
 			w := httptest.NewRecorder()
 
 			srv.router.ServeHTTP(w, req)
