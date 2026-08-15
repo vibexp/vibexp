@@ -261,6 +261,10 @@ func createCoverageTestServer(container *CoverageTestContainer) *Server {
 		router:    r,
 	}
 
+	// The memories read operations are served by the generated strict handler
+	// (#779), so they have to be mounted rather than called directly.
+	srv.mountMemoriesHandlers(r)
+
 	return srv
 }
 
@@ -312,11 +316,12 @@ func TestMemoryListCoverage_WithTeamFilter(t *testing.T) {
 		TotalPages: 0,
 	}, nil).Maybe()
 
+	// No addCoverageChiParams: the request goes through the real router now, and
+	// a pre-seeded chi RouteContext makes chi reuse it instead of routing (#779).
 	req := makeCoverageAuthRequest("GET", "/api/v1/"+teamID+"/memories", nil)
-	req = addCoverageChiParams(req, map[string]string{"team_id": teamID})
 	rr := httptest.NewRecorder()
 
-	srv.handleListMemories(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 }

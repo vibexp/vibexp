@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
@@ -23,6 +22,9 @@ const (
 	memoryMsgNotFound         = "Memory not found"
 	memoryMsgInvalidProjectID = "project_id must be a valid UUID"
 	memoryMsgInvalidStatus    = "status must be one of: active, draft, archived"
+	// memoriesMsgInternalError is the opaque message the strict read handlers
+	// return for anything unexpected; details go to the log, never to the client.
+	memoriesMsgInternalError = "Internal server error"
 )
 
 // handleCreateMemoryError handles errors from CreateMemory and writes appropriate responses
@@ -139,146 +141,6 @@ func isAllowedMemoryStatus(status string) bool {
 	default:
 		return false
 	}
-}
-
-// parseMemoryFilters parses query parameters into MemoryFilters
-func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (services.MemoryFilters, bool) {
-	query := r.URL.Query()
-
-	freshness, ok := parseFreshnessFilter(w, r)
-	if !ok {
-		return services.MemoryFilters{}, false
-	}
-
-	sortBy := query.Get("sort_by")
-	if sortBy != "" && !allowedMemorySortFields[sortBy] {
-		writeErrorResponse(w, nil, "validation_error", "invalid sort_by value: "+sortBy, http.StatusBadRequest)
-		return services.MemoryFilters{}, false
-	}
-
-	// Parse and validate pagination parameters with bounds checking
-	pagination := validatePaginationParams(query.Get("page"), query.Get("limit"))
-
-	search := query.Get("search")
-
-	var projectID *string
-	if pid := query.Get("project_id"); pid != "" {
-		if !isValidUUID(pid) {
-			writeErrorResponse(w, nil, "validation_error", memoryMsgInvalidProjectID, http.StatusBadRequest)
-			return services.MemoryFilters{}, false
-		}
-		projectID = &pid
-	}
-
-	var status *string
-	if st := query.Get("status"); st != "" {
-		if !isAllowedMemoryStatus(st) {
-			writeErrorResponse(
-				w, nil, "validation_error",
-				memoryMsgInvalidStatus, http.StatusBadRequest,
-			)
-			return services.MemoryFilters{}, false
-		}
-		status = &st
-	}
-
-	metadataFilter, ok := parseMetadataQueryParam(w, r)
-	if !ok {
-		return services.MemoryFilters{}, false
-	}
-
-	filters := services.MemoryFilters{
-		Freshness:      freshness,
-		TeamID:         teamID,
-		ProjectID:      projectID,
-		Search:         search,
-		MetadataFilter: metadataFilter,
-		Status:         status,
-		SortBy:         sortBy,
-		SortOrder:      strings.ToLower(query.Get("sort_order")),
-		Page:           pagination.Page,
-		Limit:          pagination.Limit,
-	}
-
-	return filters, true
-}
-
-func (s *Server) handleGetMemory(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(contextKeyUserID).(string)
-	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
-	memoryID := chi.URLParam(r, "id")
-
-	s.logger.With(
-		"service", serverLogServiceName,
-		"handler", "handleGetMemory",
-		"user_id", userID,
-		"team_id", teamID,
-		"memory_id", memoryID,
-	).Info("Get memory request received")
-
-	memory, err := s.container.MemoryService().GetMemory(userID, teamID, memoryID)
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleGetMemory",
-			"user_id", userID,
-			"memory_id", memoryID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to get memory")
-
-		if errors.Is(err, repositories.ErrMemoryNotFound) {
-			writeErrorResponse(w, nil, "not_found", memoryMsgNotFound, http.StatusNotFound)
-			return
-		}
-
-		writeErrorResponse(w, nil, "internal_error", "Failed to get memory", http.StatusInternalServerError)
-		return
-	}
-
-	contextkeys.SetAccessedResourceID(r.Context(), memory.ID)
-
-	memory.Related = s.relatedForResource(
-		r.Context(), userID, teamID, models.RelationResourceTypeMemory, memory.ID,
-	)
-	memory.Similar = s.similarForResource(r.Context(), teamID, models.RelationResourceTypeMemory, memory.ID)
-	memory.Freshness = s.freshnessForResource(
-		r.Context(), teamID, models.RelationResourceTypeMemory, memory.ID,
-	)
-
-	writeOK(w, memory, s.logger)
-}
-
-func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(contextKeyUserID).(string)
-	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
-
-	s.logger.With(
-		"service", serverLogServiceName,
-		"handler", "handleListMemories",
-		"user_id", userID,
-		"team_id", teamID,
-	).Info("List memories request received")
-
-	filters, ok := parseMemoryFilters(w, r, teamID)
-	if !ok {
-		return
-	}
-
-	response, err := s.container.MemoryService().ListMemories(userID, filters)
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleListMemories",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to list memories")
-		writeErrorResponse(w, nil, "internal_error", "Failed to list memories", http.StatusInternalServerError)
-		return
-	}
-
-	attachPageFreshness(s, r.Context(), teamID, models.RelationResourceTypeMemory,
-		response.Memories, memoryID, setMemoryFreshness)
-	writeOK(w, response, s.logger)
 }
 
 func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
