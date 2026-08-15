@@ -39,11 +39,11 @@ func newArtifactRelatedServer(
 		ArtifactServiceMock: artSvc,
 		RelationServiceMock: relSvc,
 	}
-	return srv
+	return mountArtifactReadRoutes(srv)
 }
 
 func getArtifactRelatedRequest() *http.Request {
-	url := "/api/v1/" + relArtTeamID + "/artifacts/test-project/test-slug"
+	url := "/api/v1/" + relArtTeamID + "/artifacts/" + relArtProject + "/test-slug"
 	req := createAuthenticatedRequest("GET", url, "", relArtUserID)
 	return addURLParams(req, map[string]string{
 		"team_id":    relArtTeamID,
@@ -97,7 +97,7 @@ func TestHandleGetArtifact_RelatedPopulated_ConformsToSpec(t *testing.T) {
 	srv := newArtifactRelatedServer(artSvc, relSvc)
 	req := getArtifactRelatedRequest()
 	rr := httptest.NewRecorder()
-	srv.handleGetArtifact(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	specconformance.AssertConformsToSpec(t, req, rr)
@@ -125,7 +125,7 @@ func TestHandleGetArtifact_RelatedEmpty_IsArrayNotNull(t *testing.T) {
 	srv := newArtifactRelatedServer(artSvc, relSvc)
 	req := getArtifactRelatedRequest()
 	rr := httptest.NewRecorder()
-	srv.handleGetArtifact(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	specconformance.AssertConformsToSpec(t, req, rr)
@@ -148,7 +148,7 @@ func TestHandleGetArtifact_RelatedServiceError_StillReturnsArtifact(t *testing.T
 	srv := newArtifactRelatedServer(artSvc, relSvc)
 	req := getArtifactRelatedRequest()
 	rr := httptest.NewRecorder()
-	srv.handleGetArtifact(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), `"related":[]`)

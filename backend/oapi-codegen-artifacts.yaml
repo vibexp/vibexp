@@ -1,0 +1,28 @@
+# oapi-codegen configuration for the Artifacts READ path (issue #776, epic
+# #122), a spec-first strict-server domain. Following the same convention as
+# oapi-codegen-teamsettings.yaml, it generates into its OWN package under
+# internal/server/gen/artifacts so its StrictServerInterface mounts
+# independently of the other spec-first domains.
+#
+# DEPARTURE FROM THE include-tags CONVENTION, for the same reason as
+# oapi-codegen-memories.yaml (#779) and oapi-codegen-embedding-providers.yaml:
+# include-tags is oapi-codegen's generation unit, so `include-tags: [Artifacts]`
+# would pull all fourteen Artifacts-tagged operations into one
+# StrictServerInterface and force create/update/delete, stats, attachments and
+# versions to convert in the same change. #122 is deliberately closed
+# domain-by-domain AND slice-by-slice, so the three read operations are selected
+# explicitly by id. Later slices append their ids to this list.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: artifactsgen
+output: internal/server/gen/artifacts/artifacts.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-operation-ids:
+    - listArtifacts
+    - listArtifactsByProject
+    - getArtifact

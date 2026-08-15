@@ -56,7 +56,7 @@ func TestHandleGetArtifact_StaleCarriesFreshness(t *testing.T) {
 
 	req := getArtifactRelatedRequest()
 	rr := httptest.NewRecorder()
-	srv.handleGetArtifact(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	specconformance.AssertConformsToSpec(t, req, rr)
@@ -89,7 +89,7 @@ func TestHandleGetArtifact_FreshOmitsTheField(t *testing.T) {
 
 	req := getArtifactRelatedRequest()
 	rr := httptest.NewRecorder()
-	srv.handleGetArtifact(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	specconformance.AssertConformsToSpec(t, req, rr)
@@ -121,7 +121,7 @@ func TestHandleGetArtifact_FreshnessFailureDoesNotFailTheRead(t *testing.T) {
 
 	req := getArtifactRelatedRequest()
 	rr := httptest.NewRecorder()
-	srv.handleGetArtifact(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	specconformance.AssertConformsToSpec(t, req, rr)
@@ -141,7 +141,7 @@ func TestHandleGetArtifact_NoFreshnessServiceIsUnchanged(t *testing.T) {
 
 	req := getArtifactRelatedRequest()
 	rr := httptest.NewRecorder()
-	srv.handleGetArtifact(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	var raw map[string]any

@@ -162,7 +162,7 @@ func TestHandleListArtifacts_PageCarriesFreshnessAndConformsToSpec(t *testing.T)
 		return filters.Freshness == services.FreshnessFilterStale
 	})).Return(&models.ArtifactListResponse{
 		Artifacts: []models.Artifact{
-			{ID: "art-1", ProjectID: "test-project", Slug: "s1", Title: "One", Content: "c",
+			{ID: "art-1", ProjectID: "550e8400-e29b-41d4-a716-446655440001", Slug: "s1", Title: "One", Content: "c",
 				UserID: "user-123", Type: "general", Status: "active",
 				Metadata: map[string]interface{}{}},
 		},
@@ -178,10 +178,9 @@ func TestHandleListArtifacts_PageCarriesFreshnessAndConformsToSpec(t *testing.T)
 	srv.container.(*MockArtifactContainer).FreshnessServiceMock = freshSvc
 
 	req := createAuthenticatedRequest("GET", "/api/v1/"+teamID+"/artifacts?freshness=stale", "", "user-123")
-	req = addURLParams(req, map[string]string{"team_id": teamID})
 	rr := httptest.NewRecorder()
 
-	srv.handleListArtifacts(rr, req)
+	srv.router.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	specconformance.AssertConformsToSpec(t, req, rr)
