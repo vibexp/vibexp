@@ -12,7 +12,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
@@ -70,143 +69,6 @@ func (s *Server) handleCreateBlueprint(w http.ResponseWriter, r *http.Request) {
 	}, r)
 
 	writeCreated(w, blueprint, s.logger)
-}
-
-func (s *Server) handleGetBlueprint(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(contextKeyUserID).(string)
-	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
-	projectID := chi.URLParam(r, "project_id")
-	slug := chi.URLParam(r, "slug")
-
-	decodedProjectID, decodedSlug, ok := s.decodeBlueprintURLParams(
-		w, userID, "handleGetBlueprint", projectID, slug,
-	)
-	if !ok {
-		return
-	}
-
-	// Validate project_id is a valid UUID
-	if !isValidUUID(decodedProjectID) {
-		writeErrorResponse(w, nil, "bad_request", msgInvalidProjectIDFormat, http.StatusBadRequest)
-		return
-	}
-
-	s.logger.With(
-		"service", serverLogServiceName,
-		"handler", "handleGetBlueprint",
-		"user_id", userID,
-		"project_id", decodedProjectID,
-		"slug", decodedSlug,
-	).Info("Get blueprint request received")
-
-	blueprint, err := s.container.BlueprintService().GetBlueprintByProjectIDAndSlugInTeam(
-		userID, teamID, decodedProjectID, decodedSlug,
-	)
-	if err != nil {
-		s.handleGetBlueprintError(w, userID, decodedProjectID, decodedSlug, err)
-		return
-	}
-
-	contextkeys.SetAccessedResourceID(r.Context(), blueprint.ID)
-
-	blueprint.Related = s.relatedForResource(
-		r.Context(), userID, teamID, models.RelationResourceTypeBlueprint, blueprint.ID,
-	)
-	blueprint.Similar = s.similarForResource(r.Context(), teamID, models.RelationResourceTypeBlueprint, blueprint.ID)
-	blueprint.Freshness = s.freshnessForResource(
-		r.Context(), teamID, models.RelationResourceTypeBlueprint, blueprint.ID,
-	)
-
-	writeOK(w, blueprint, s.logger)
-}
-
-func (s *Server) handleListBlueprints(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(contextKeyUserID).(string)
-	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
-
-	s.logger.With(
-		"service", serverLogServiceName,
-		"handler", "handleListBlueprints",
-		"user_id", userID,
-		"team_id", teamID,
-	).
-		Info("List blueprints request received")
-
-	filters, ok := s.buildBlueprintFilters(w, r, "", teamID)
-	if !ok {
-		return
-	}
-
-	response, listErr := s.container.BlueprintService().ListBlueprints(userID, filters)
-	if listErr != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleListBlueprints",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", listErr),
-		).Error(blueprintMsgListFailed)
-
-		writeErrorResponse(w, nil, "internal_error", blueprintMsgListFailed, http.StatusInternalServerError)
-		return
-	}
-
-	attachPageFreshness(s, r.Context(), teamID, models.RelationResourceTypeBlueprint,
-		response.Blueprints, blueprintID, setBlueprintFreshness)
-	writeOK(w, response, s.logger)
-}
-
-func (s *Server) handleListBlueprintsByProject(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(contextKeyUserID).(string)
-	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
-	projectID := chi.URLParam(r, "project_id")
-
-	decodedProjectID, err := url.PathUnescape(projectID)
-	if err != nil {
-		s.logHandlerError(w, handlerErrorParams{
-			handler: "handleListBlueprintsByProject", userID: userID, projectID: projectID, err: err,
-			logMsg: "Failed to decode project ID", errCode: "bad_request",
-			errMsg: "Invalid project ID encoding", statusCode: http.StatusBadRequest,
-		})
-		return
-	}
-
-	// Validate project_id is a valid UUID
-	if !isValidUUID(decodedProjectID) {
-		writeErrorResponse(w, nil, "bad_request", msgInvalidProjectIDFormat, http.StatusBadRequest)
-		return
-	}
-
-	s.logger.With(
-		"service", serverLogServiceName,
-		"handler", "handleListBlueprintsByProject",
-		"user_id", userID,
-		"team_id", teamID,
-		"project_id", decodedProjectID,
-	).Info("List blueprints by project request received")
-
-	filters, ok := s.buildBlueprintFilters(w, r, decodedProjectID, teamID)
-	if !ok {
-		return
-	}
-
-	response, listErr := s.container.BlueprintService().ListBlueprints(userID, filters)
-	if listErr != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleListBlueprintsByProject",
-			"user_id", userID,
-			"team_id", teamID,
-			"project_id", decodedProjectID,
-			"error", fmt.Sprintf("%+v", listErr),
-		).Error("Failed to list blueprints by project")
-
-		writeErrorResponse(w, nil, "internal_error", blueprintMsgListFailed, http.StatusInternalServerError)
-		return
-	}
-
-	attachPageFreshness(s, r.Context(), teamID, models.RelationResourceTypeBlueprint,
-		response.Blueprints, blueprintID, setBlueprintFreshness)
-	writeOK(w, response, s.logger)
 }
 
 func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
@@ -727,49 +589,6 @@ func (s *Server) handleUpdateBlueprintError(w http.ResponseWriter, userID, proje
 	}
 
 	writeErrorResponse(w, nil, "internal_error", "Failed to update blueprint", http.StatusInternalServerError)
-}
-
-// buildBlueprintFilters builds blueprint filters from request query parameters
-func (s *Server) buildBlueprintFilters(
-	w http.ResponseWriter, r *http.Request, projectID string, teamID string,
-) (services.BlueprintFilters, bool) {
-	query := r.URL.Query()
-
-	freshness, ok := parseFreshnessFilter(w, r)
-	if !ok {
-		return services.BlueprintFilters{}, false
-	}
-
-	filters := services.BlueprintFilters{
-		Freshness: freshness,
-		ProjectID: projectID,
-		TeamID:    teamID,
-		Status:    query.Get("status"),
-		Type:      query.Get("type"),
-		Subtype:   query.Get("subtype"),
-		Search:    query.Get("search"),
-		SortBy:    query.Get("sort_by"),
-		SortOrder: query.Get("sort_order"),
-		Page:      1,
-		Limit:     20,
-	}
-
-	if projectID == "" {
-		filters.ProjectID = query.Get("project_id")
-	}
-
-	metadataFilter, ok := parseMetadataQueryParam(w, r)
-	if !ok {
-		return services.BlueprintFilters{}, false
-	}
-	filters.MetadataFilter = metadataFilter
-
-	// Parse and validate pagination parameters with bounds checking
-	pagination := validatePaginationParams(query.Get("page"), query.Get("limit"))
-	filters.Page = pagination.Page
-	filters.Limit = pagination.Limit
-
-	return filters, true
 }
 
 // deleteBlueprintEmbeddings deletes embeddings for a blueprint

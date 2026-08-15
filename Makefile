@@ -224,6 +224,8 @@ backend-generate-openapi-server: backend-bundle-openapi
 	@cd backend && mkdir -p internal/server/gen/memories && go tool oapi-codegen -config oapi-codegen-memories.yaml dist/openapi.bundled.yaml
 	@echo "🧬 Generating OpenAPI strict-server code (Artifacts)..."
 	@cd backend && mkdir -p internal/server/gen/artifacts && go tool oapi-codegen -config oapi-codegen-artifacts.yaml dist/openapi.bundled.yaml
+	@echo "🧬 Generating OpenAPI strict-server code (Blueprints)..."
+	@cd backend && mkdir -p internal/server/gen/blueprints && go tool oapi-codegen -config oapi-codegen-blueprints.yaml dist/openapi.bundled.yaml
 
 # Regenerate the strict-server bindings, then fail if they differ from the
 # committed files — catches a hand-edited *.gen.go and a spec change that was

@@ -30,6 +30,7 @@ import (
 	"github.com/vibexp/vibexp/internal/server/gen"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	artifactsgen "github.com/vibexp/vibexp/internal/server/gen/artifacts"
+	blueprintsgen "github.com/vibexp/vibexp/internal/server/gen/blueprints"
 	commentsgen "github.com/vibexp/vibexp/internal/server/gen/comments"
 	embeddingprovidersgen "github.com/vibexp/vibexp/internal/server/gen/embeddingproviders"
 	freshnessgen "github.com/vibexp/vibexp/internal/server/gen/freshness"
@@ -1095,20 +1096,63 @@ func (s *Server) artifactTeamValidationMiddleware() func(http.Handler) http.Hand
 }
 
 func (s *Server) setupBlueprintRoutes(r chi.Router) {
-	r.Route("/api/v1/{team_id}/blueprints", func(r chi.Router) {
-		r.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
-		r.Post("/", s.handleCreateBlueprint)
-		r.Get("/", s.handleListBlueprints)
-		r.Get(routePatternStats, s.handleGetBlueprintStats)
-		r.Get("/{project_id}", s.handleListBlueprintsByProject)
-		r.With(s.recordResourceAccess(resourceTypeBlueprint)).Get(routePatternProjectSlug, s.handleGetBlueprint)
-		r.Put(routePatternProjectSlug, s.handleUpdateBlueprint)
-		r.Delete(routePatternProjectSlug, s.handleDeleteBlueprint)
-		// Blueprint content versions
-		r.Get("/{project_id}/{slug}/versions", s.handleListBlueprintVersions)
-		r.Get("/{project_id}/{slug}/versions/{version_number}", s.handleGetBlueprintVersion)
-		r.Post("/{project_id}/{slug}/versions/{version_number}/restore", s.handleRestoreBlueprintVersion)
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
+		s.mountBlueprintsHandlers(gr)
 	})
+}
+
+// mountBlueprintsHandlers registers the domain's routes on an already-scoped
+// router: the three generated read operations (#778, epic #122) plus the seven
+// that stay on chi handlers.
+//
+// Every route is registered at FULL LENGTH rather than inside an
+// `r.Route("/api/v1/{team_id}/blueprints")` prefix group, because the generated
+// handler registers absolute paths and a prefix Mount at the same pattern would
+// shadow them — the route-drift gate catches exactly that, reporting the
+// documented GETs as unserved. Same shape as mountArtifactsHandlers (#776).
+//
+// `/stats` still beats `/{project_id}`: chi is a radix trie and a static segment
+// always wins over a param at the same position, whatever the registration
+// order and whichever router registered it.
+//
+// Split out of setupBlueprintRoutes so tests can exercise the real route tree
+// without the tenancy middleware.
+func (s *Server) mountBlueprintsHandlers(r chi.Router) {
+	// recordResourceAccess wraps all three generated operations, where the chi
+	// routes wrapped only the detail one. That is not a behaviour change: the
+	// middleware records nothing unless the handler calls SetAccessedResourceID,
+	// which only GetBlueprint does — a list response carries no single resource
+	// to attribute an access to.
+	r.Group(func(rr chi.Router) {
+		rr.Use(s.recordResourceAccess(resourceTypeBlueprint))
+		// An empty query value meant "no filter" to the chi parser these
+		// handlers replaced; the generated binder would treat it as a present
+		// parameter and 400. See dropEmptyQueryValues (#779).
+		rr.Use(dropEmptyQueryValues)
+		strict := blueprintsgen.NewStrictHandlerWithOptions(
+			&blueprintsStrictServer{s: s},
+			nil,
+			blueprintsgen.StrictHTTPServerOptions{
+				RequestErrorHandlerFunc:  s.blueprintsBindErrorHandler,
+				ResponseErrorHandlerFunc: s.blueprintsResponseErrorHandler,
+			},
+		)
+		blueprintsgen.HandlerWithOptions(strict, blueprintsgen.ChiServerOptions{
+			BaseRouter:       rr,
+			ErrorHandlerFunc: s.blueprintsBindErrorHandler,
+		})
+	})
+
+	const base = "/api/v1/{team_id}/blueprints"
+	r.Post(base, s.handleCreateBlueprint)
+	r.Get(base+routePatternStats, s.handleGetBlueprintStats)
+	r.Put(base+routePatternProjectSlug, s.handleUpdateBlueprint)
+	r.Delete(base+routePatternProjectSlug, s.handleDeleteBlueprint)
+	// Blueprint content versions (generic content-versioning core, resource_type=blueprint).
+	r.Get(base+"/{project_id}/{slug}/versions", s.handleListBlueprintVersions)
+	r.Get(base+"/{project_id}/{slug}/versions/{version_number}", s.handleGetBlueprintVersion)
+	r.Post(base+"/{project_id}/{slug}/versions/{version_number}/restore", s.handleRestoreBlueprintVersion)
 }
 
 func (s *Server) setupFeedsRoutes(r chi.Router) {

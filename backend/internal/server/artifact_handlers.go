@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/vibexp/vibexp/internal/models"
-	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
@@ -683,21 +682,6 @@ func (s *Server) handleUpdateArtifactError(w http.ResponseWriter, userID, projec
 	}
 
 	writeErrorResponse(w, nil, "internal_error", "Failed to update artifact", http.StatusInternalServerError)
-}
-
-// parseMetadataQueryParam parses the shared `metadata` list filter (epic #519)
-// from the request. It lives here, rather than beside any one resource, because
-// the artifact, blueprint and memory list handlers all call it.
-//
-// On a malformed filter it writes a 400 problem+json and reports false, so the
-// caller returns without querying.
-func parseMetadataQueryParam(w http.ResponseWriter, r *http.Request) (repositories.MetadataFilter, bool) {
-	filter, err := repositories.ParseMetadataFilter(r.URL.Query().Get("metadata"))
-	if err != nil {
-		writeErrorResponse(w, r, "validation_error", err.Error(), http.StatusBadRequest)
-		return nil, false
-	}
-	return filter, true
 }
 
 // deleteArtifactEmbeddings deletes embeddings for an artifact
