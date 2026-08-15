@@ -135,7 +135,6 @@ var requiredArrayResponseRegistry = map[string]any{
 	"ArtifactVersionListResponse":    models.ArtifactVersionListResponse{},
 	"AttachmentListResponse":         models.AttachmentListResponse{},
 	"BlueprintImportReport":          models.BlueprintImportReport{},
-	"BlueprintListResponse":          models.BlueprintListResponse{},
 	"BlueprintVersionListResponse":   models.BlueprintVersionListResponse{},
 	"ConversationListResponse":       models.ConversationListResponse{},
 	"EmbeddingCoverageResponse":      models.EmbeddingCoverageResponse{},

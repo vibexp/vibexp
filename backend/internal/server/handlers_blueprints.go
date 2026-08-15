@@ -586,11 +586,15 @@ func (s *Server) blueprintsBindErrorHandler(w http.ResponseWriter, r *http.Reque
 	apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(msg))
 }
 
-// blueprintsUUIDParams are the parameters the spec types as UUIDs. The PATH
-// project_id is deliberately absent: the spec declares it a plain string, so a
-// malformed one never reaches the bind-error path -- blueprintPathProjectID
-// rejects it instead.
-var blueprintsUUIDParams = map[string]bool{"team_id": true}
+// blueprintsUUIDParams are the parameters the spec types as UUIDs, and so the
+// ones a bind failure should be reported as "must be a valid UUID".
+//
+// project_id is here for the QUERY parameter on the team-wide list, which the
+// spec does type as format: uuid. The PATH parameter of the same name is a plain
+// string and is rejected by blueprintPathProjectID instead -- it can only reach
+// this path via an undecodable percent-escape, where "must be a valid UUID" is
+// still true of the value.
+var blueprintsUUIDParams = map[string]bool{"team_id": true, "project_id": true}
 
 // blueprintsResponseErrorHandler writes the API error a handler returned.
 // Without the errors.As arm every handler error would collapse into a 500,
