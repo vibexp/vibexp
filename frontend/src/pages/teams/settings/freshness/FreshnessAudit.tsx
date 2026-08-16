@@ -58,11 +58,14 @@ function typeLabel(type: FreshnessAuditEntry['resource_type']): string {
  *
  * The entry carries the identifiers `buildResourceUrl` needs — `slug` and
  * `project_id`, resolved server-side at read time (#789) — so all four resource
- * types link. Both are null when the resource was deleted after the event was
- * logged, and `slug` is additionally always null for memories, which are keyed
- * by id; either way the helper returns `null` and the row stays plain text
- * rather than becoming a link that 404s. The log is append-only, so an entry
- * outliving its resource is normal, not an error.
+ * types link.
+ *
+ * The log is append-only, so an entry outliving its resource is normal rather
+ * than an error: the server then resolves both identifiers to null, the helper
+ * returns `null`, and the row stays plain text instead of becoming a link that
+ * 404s. Memories are the exception in both directions — they have no slug
+ * column, so theirs is always null, and the helper keys them by id alone, so a
+ * memory row links whether or not the memory still exists.
  */
 function ResourceCell({ entry }: Readonly<{ entry: FreshnessAuditEntry }>) {
   const href = buildResourceUrl({
