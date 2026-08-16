@@ -249,7 +249,7 @@ export function Home() {
     <div className="space-y-10">
       <PageHeader
         title={greeting}
-        description="Your AI command center is ready to boost your productivity."
+        description="Your shared brain is ready. Every session makes the next one smarter."
       />
 
       <section className="space-y-4">

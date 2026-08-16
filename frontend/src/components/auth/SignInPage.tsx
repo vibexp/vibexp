@@ -135,12 +135,14 @@ const PITCH_BULLETS = [
   {
     icon: Shield,
     title: 'Your data, your control',
-    description: 'Local-first storage with optional sync.',
+    description:
+      'Free and open source. Self-host it on your own infrastructure.',
   },
   {
     icon: Users,
     title: 'Teams & agents',
-    description: 'Share prompts and orchestrate A2A workflows.',
+    description:
+      "One workspace your whole team's AI reads from and writes back to.",
   },
 ] as const
 
@@ -165,11 +167,12 @@ function PitchPanel() {
       <div className="relative z-10 max-w-md">
         <Brand />
         <h2 className="mt-6 text-3xl leading-tight font-bold tracking-tight">
-          Your personal AI command center.
+          One shared brain for all your AI.
         </h2>
         <p className="text-muted-foreground mt-3 max-w-sm text-sm leading-relaxed">
-          Centralize your prompts, memories, artifacts, agents and MCP
-          integrations across Claude Code, Cursor and VS Code.
+          Your prompts, rules, memory and artifacts in one place every AI tool
+          plugs into. Claude Code, Cursor, VS Code and any MCP-compatible tool
+          read from it and write back, so your AI never starts from scratch.
         </p>
         <div className="mt-8 flex flex-col gap-4">
           {PITCH_BULLETS.map(({ icon: Icon, title, description }) => (
@@ -311,7 +314,7 @@ export function SignInPage() {
               Sign in to {SITE_NAME}
             </h1>
             <p className="text-muted-foreground mt-1.5 text-sm">
-              Your personal AI command center. Pick up where you left off.
+              Your team&apos;s shared brain. Pick up where you left off.
             </p>
 
             {(error || providersError) && (
