@@ -34,6 +34,28 @@ import (
 // `$n::timestamp` (the cast drops the offset lib/pq sends, making the comparison
 // independent of the session timezone).
 //
+// ⚠️ `$n::timestamp` is sufficient ONLY when that placeholder binds naive
+// columns EXCLUSIVELY. Postgres infers a parameter's type once per statement,
+// from all of its uses: if the same placeholder also bounds a `timestamptz`
+// column somewhere in the statement, it is inferred as `timestamptz`, and
+// `$n::timestamp` then converts it back down IN THE SESSION TIMEZONE — so the
+// naive rows within the session's offset of the window edge are still dropped.
+// The remedy in that case is a SEPARATE placeholder for the naive branch, bound
+// to the same instant in UTC (`from.UTC()`).
+//
+// Both cases are present in this file, and the difference is exactly which
+// columns share the parameter:
+//   - adminGrowthQueryFmt (GetGrowthSeries) needs the SPLIT: `$1`/`$2` bound the
+//     five aware branches, so `memories` gets its own `$3`/`$4`. Measured before
+//     the split under Pacific/Auckland: an aware row and a naive row at the same
+//     instant, with the window starting at that instant, returned 1 and 0 (#798).
+//   - adminSignInQueryFmt (GetSignInSeries) does NOT: `$2`/`$3` bound only
+//     `activities`, so the parameter is already inferred as `timestamp` and the
+//     plain cast is enough.
+//
+// The rule of thumb: grep the statement for every use of the placeholder before
+// trusting the cast.
+//
 // Note this keeps the predicate index-ELIGIBLE, which is not the same as fast:
 // `users` is the one aggregated table with no created_at index (every other one
 // has at least one), so that branch is a sequential scan. What actually bounds
@@ -208,7 +230,7 @@ SELECT entity, bucket, COUNT(*) AS count FROM (
 		FROM artifacts WHERE created_at >= $1 AND created_at < $2
 	UNION ALL
 	SELECT 'memories', date_trunc('%[1]s', created_at)
-		FROM memories WHERE created_at >= $1::timestamp AND created_at < $2::timestamp
+		FROM memories WHERE created_at >= $3::timestamp AND created_at < $4::timestamp
 ) g
 GROUP BY entity, bucket
 ORDER BY bucket, entity
@@ -220,7 +242,10 @@ func (r *AdminRepository) GetGrowthSeries(
 	ctx context.Context, from, to time.Time, granularity string,
 ) ([]models.AdminGrowthCount, error) {
 	query := fmt.Sprintf(adminGrowthQueryFmt, adminTruncUnit(granularity))
-	rows, err := r.db.QueryContext(ctx, query, from, to)
+	// $3/$4 are the SAME instants as $1/$2, bound separately so the naive
+	// `memories` branch gets a parameter Postgres infers as `timestamp`; see the
+	// package comment for why casting the shared $1/$2 does not work.
+	rows, err := r.db.QueryContext(ctx, query, from, to, from.UTC(), to.UTC())
 	if err != nil {
 		return nil, fmt.Errorf("failed to query growth series: %w", err)
 	}

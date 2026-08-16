@@ -401,3 +401,233 @@ func TestIntegrationAnalyticsTimezone_NaiveActivityBucketsAreSessionIndependent(
 	assert.NotEqual(t, utcDates, converted,
 		"AT TIME ZONE 'UTC' on a NAIVE column re-labels rather than converts, shifting the day the wrong way")
 }
+
+// ---------------------------------------------------------------------------
+// #798 — the sites #773 did not reach.
+//
+// Two of these are fully deterministic because their window comes from an
+// ARGUMENT (GetGrowthSeries) or from fixture rows alone (getWeekStarts), so the
+// assertion discriminates whatever time the suite runs at. The `activities`
+// anchors are different: they are derived from now(), and whether a wrong
+// anchor produces a wrong ANSWER depends on where the clock happens to be
+// relative to the session's date boundary. Asserting only through the
+// repository would therefore be a test that passes most of the day with the bug
+// in place — so the anchors are pinned at the expression level too, which is
+// deterministic and is exactly what distinguishes the right form from the wrong
+// one.
+// ---------------------------------------------------------------------------
+
+// seedNaiveAndAwareAt writes one memories row (naive family) and one prompts
+// row (aware family) at the SAME instant, returning the scope.
+//
+// Both families in one fixture is the point: a fixture of aware rows alone lets
+// a broken naive branch contribute zero in both sessions, so the comparison
+// passes while the defect stands. That is how the shared-placeholder bug
+// survived the first version of this file (#773).
+func seedNaiveAndAwareAt(t *testing.T, at time.Time) (userID, teamID, projectID string) {
+	t.Helper()
+
+	userID = insertTestUser(t)
+	teamID = insertTestTeam(t, userID)
+	projectID = insertTestProject(t, userID, teamID)
+
+	// The users row is backdated too, not just the two resources: `users` is one
+	// of the six tables getWeekStarts unions, so a helper-created row at now()
+	// contributes a second, unrelated week and makes the exact-value assertion
+	// about the fixture instead of about the query.
+	_, err := integrationDB.ExecContext(context.Background(),
+		"UPDATE users SET created_at = $1 WHERE id = $2", at, userID)
+	require.NoError(t, err)
+
+	promptID := insertTestPrompt(t, userID, teamID, projectID, "p-"+uuid.New().String()[:8], "body", "published")
+	_, err = integrationDB.ExecContext(context.Background(),
+		"UPDATE prompts SET created_at = $1 WHERE id = $2", at, promptID)
+	require.NoError(t, err)
+
+	memoryID := insertTestMemory(t, userID, teamID, projectID, "m-"+uuid.New().String()[:8])
+	_, err = integrationDB.ExecContext(context.Background(),
+		"UPDATE memories SET created_at = $1 WHERE id = $2", at.Format("2006-01-02 15:04:05"), memoryID)
+	require.NoError(t, err)
+
+	return userID, teamID, projectID
+}
+
+// getWeekStarts UNIONed a naive column into five aware ones, so Postgres
+// resolved the union to timestamptz -- assuming the naive values were in the
+// session zone -- and then truncated in the session zone as well.
+//
+// The fixture is two rows at the SAME instant, late on a Sunday UTC. Under
+// Pacific/Auckland that instant is already Monday locally, so before the fix
+// the query reported TWO distinct week starts for one instant, and only one
+// under UTC. Deterministic: nothing here depends on now().
+func TestIntegrationAnalyticsTimezone_WeekStartsAreSessionIndependent(t *testing.T) {
+	resetIntegrationTables(t)
+
+	// Sunday 2026-03-01 23:30 UTC; the following Monday starts a new week.
+	at := time.Date(2026, 3, 1, 23, 30, 0, 0, time.UTC)
+	seedNaiveAndAwareAt(t, at)
+
+	usage := func(db *database.DB) []models.UsageMetricsRow {
+		rows, err := NewBackofficeRepository(db).GetUsageMetrics(context.Background(), nil, nil)
+		require.NoError(t, err)
+		return rows
+	}
+	weekStarts := func(rows []models.UsageMetricsRow) []string {
+		out := make([]string, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, row.WeekStart.Format("2006-01-02"))
+		}
+		return out
+	}
+
+	utcRows := usage(integrationDB)
+	shiftedRows := usage(openSessionTZDB(t, tzTestZone))
+
+	assert.Equal(t, []string{"2026-02-23"}, weekStarts(utcRows),
+		"both rows are the same instant in the week beginning Monday 2026-02-23")
+	assert.Equal(t, weekStarts(utcRows), weekStarts(shiftedRows),
+		"a naive column unioned into aware ones must be normalized per branch, not after the union")
+
+	// The whole row, not just its key. buildUsageMetricsRow counts each table in
+	// its OWN statement, so every placeholder there binds a single column family
+	// and needs no split -- but that is a claim worth holding to the same
+	// standard as the rest of this file rather than reasoning about once.
+	require.Len(t, utcRows, 1)
+	assert.Equal(t, 1, utcRows[0].NewMemories, "fixture: the naive row is inside the week")
+	assert.Equal(t, 1, utcRows[0].NewPrompts, "fixture: the aware row is inside the week")
+	assert.Equal(t, utcRows, shiftedRows, "the per-week counts must not move with the session timezone either")
+}
+
+// GetGrowthSeries is the case admin_dashboard.go's own comment got wrong: the
+// `memories` branch was bounded by $1/$2, which five timestamptz branches also
+// bound, so Postgres inferred them as timestamptz and `$1::timestamp` converted
+// back in the session zone -- dropping the naive row.
+//
+// Deterministic: the window comes from the arguments, and it starts at exactly
+// the seeded instant, which is what puts the row inside the session's offset of
+// the edge. A margin here would swallow the defect (#773's second fixture
+// lesson).
+func TestIntegrationAnalyticsTimezone_AdminGrowthCountsNaiveRowsInBothSessions(t *testing.T) {
+	resetIntegrationTables(t)
+
+	at := time.Date(2026, 3, 1, 23, 30, 0, 0, time.UTC)
+	seedNaiveAndAwareAt(t, at)
+
+	countsByEntity := func(db *database.DB) map[string]int64 {
+		rows, err := NewAdminRepository(db).
+			GetGrowthSeries(context.Background(), at, at.Add(48*time.Hour), "day")
+		require.NoError(t, err)
+		out := map[string]int64{}
+		for _, row := range rows {
+			out[row.Entity] += row.Count
+		}
+		return out
+	}
+
+	utcCounts := countsByEntity(integrationDB)
+	shiftedCounts := countsByEntity(openSessionTZDB(t, tzTestZone))
+
+	assert.Equal(t, int64(1), utcCounts["memories"], "fixture: the memories row is inside the window")
+	assert.Equal(t, int64(1), utcCounts["prompts"], "fixture: the prompts row is inside the window")
+	assert.Equal(t, utcCounts, shiftedCounts,
+		"the naive branch needs its OWN placeholder; a shared one is inferred timestamptz and drops the row")
+}
+
+// The four now()-derived anchors in activity.go. Pinned at the expression level
+// because that is deterministic: a `timestamp with time zone` anchor compared
+// against the naive activities.created_at is the defect, whatever today's date
+// happens to be.
+//
+// The type assertion is not pedantry. The obvious spelling
+// DATE_TRUNC('week', (now() AT TIME ZONE 'UTC')::date) LOOKS naive and is not:
+// date_trunc has no `date` overload, so the argument is promoted to timestamptz
+// and the boundary follows the session again.
+func TestIntegrationAnalyticsTimezone_ActivityNowAnchorsAreNaiveAndSessionIndependent(t *testing.T) {
+	anchors := map[string]string{
+		"week":    "DATE_TRUNC('week', now() AT TIME ZONE 'UTC')",
+		"30 days": "(now() AT TIME ZONE 'UTC')::date - INTERVAL '30 days'",
+		"7 days":  "(now() AT TIME ZONE 'UTC')::date - INTERVAL '7 days'",
+	}
+	shiftedDB := openSessionTZDB(t, tzTestZone)
+
+	for name, expr := range anchors {
+		t.Run(name, func(t *testing.T) {
+			var gotType string
+			require.NoError(t, integrationDB.QueryRowContext(context.Background(),
+				"SELECT pg_typeof("+expr+")::text").Scan(&gotType))
+			assert.Equal(t, "timestamp without time zone", gotType,
+				"an aware anchor converts the naive column through the session timezone")
+
+			var utcValue, shiftedValue string
+			require.NoError(t, integrationDB.QueryRowContext(context.Background(),
+				"SELECT ("+expr+")::text").Scan(&utcValue))
+			require.NoError(t, shiftedDB.QueryRowContext(context.Background(),
+				"SELECT ("+expr+")::text").Scan(&shiftedValue))
+			assert.Equal(t, utcValue, shiftedValue, "the anchor must not move with the session timezone")
+		})
+	}
+
+	// And the form these replaced, kept as the converse assertion: without it,
+	// the checks above pass just as well after someone reinstates CURRENT_DATE
+	// on a day when the two zones happen to agree.
+	var currentDateType string
+	require.NoError(t, integrationDB.QueryRowContext(context.Background(),
+		"SELECT pg_typeof(DATE_TRUNC('week', CURRENT_DATE))::text").Scan(&currentDateType))
+	assert.Equal(t, "timestamp with time zone", currentDateType,
+		"CURRENT_DATE's week anchor is aware, which is why it was replaced")
+
+	var promotedType string
+	require.NoError(t, integrationDB.QueryRowContext(context.Background(),
+		"SELECT pg_typeof(DATE_TRUNC('week', (now() AT TIME ZONE 'UTC')::date))::text").Scan(&promotedType))
+	assert.Equal(t, "timestamp with time zone", promotedType,
+		"the ::date spelling is promoted back to timestamptz -- the trap this test exists to document")
+}
+
+// The user-visible symptom of a session-dependent week anchor is a payload that
+// contradicts itself, so assert the invariant rather than either query alone.
+// Also covers the wire format of activities_by_date_week (item 4): a raw SQL
+// `date` scanned into a string renders as RFC3339, where every neighbouring
+// series emits YYYY-MM-DD.
+func TestIntegrationAnalyticsTimezone_ActivityStatsAgreeAcrossSessions(t *testing.T) {
+	resetIntegrationTables(t)
+	userID := insertTestUser(t)
+
+	// Rows across today and the last few days, in UTC wall-clock, so the
+	// today/week/7-day windows all have something to count.
+	now := time.Now().UTC()
+	for _, at := range []time.Time{
+		now.Add(-2 * time.Hour),
+		now.Truncate(24 * time.Hour).Add(30 * time.Minute),
+		now.Add(-48 * time.Hour),
+	} {
+		_, err := integrationDB.ExecContext(context.Background(),
+			`INSERT INTO activities (id, user_id, activity_type, entity_type, description, created_at)
+			 VALUES ($1, $2, 'test', 'prompt', 'anchor row', $3)`,
+			uuid.New().String(), userID, at.Format("2006-01-02 15:04:05"))
+		require.NoError(t, err)
+	}
+
+	utcStats, err := NewActivityRepository(integrationDB).GetStats(context.Background(), userID)
+	require.NoError(t, err)
+	shiftedStats, err := NewActivityRepository(openSessionTZDB(t, tzTestZone)).
+		GetStats(context.Background(), userID)
+	require.NoError(t, err)
+
+	for label, stats := range map[string]*models.ActivityStatsResponse{
+		"UTC": utcStats, tzTestZone: shiftedStats,
+	} {
+		assert.LessOrEqual(t, stats.ActivitiesToday, stats.ActivitiesThisWeek,
+			"%s: today's activities are a subset of this week's; the reverse is the #798 symptom", label)
+	}
+
+	assert.Equal(t, utcStats.ActivitiesToday, shiftedStats.ActivitiesToday)
+	assert.Equal(t, utcStats.ActivitiesThisWeek, shiftedStats.ActivitiesThisWeek)
+	assert.Equal(t, utcStats.TotalActivities, shiftedStats.TotalActivities)
+
+	require.NotEmpty(t, utcStats.ActivitiesByDateWeek, "fixture: rows are inside the 7-day window")
+	for _, point := range utcStats.ActivitiesByDateWeek {
+		assert.Regexp(t, `^\d{4}-\d{2}-\d{2}$`, point.Date,
+			"the date key must be YYYY-MM-DD like every neighbouring series, not RFC3339")
+	}
+	assert.Equal(t, utcStats.ActivitiesByDateWeek, shiftedStats.ActivitiesByDateWeek)
+}

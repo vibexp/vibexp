@@ -51,22 +51,38 @@ func (r *BackofficeRepository) GetUsageMetrics(
 	return results, nil
 }
 
-// getWeekStarts gets all unique weeks from all tables
+// getWeekStarts gets all unique weeks from all tables.
+//
+// Each branch is normalized to a UTC wall-clock BEFORE the union, rather than
+// selecting the raw columns and truncating the result. Five of these tables are
+// the aware family and `memories` is the naive one (admin_dashboard.go
+// documents the overload in full), and a union mixing them resolves to
+// `timestamptz` -- so the naive values would be ASSUMED to be in the session
+// timezone on the way in, and `date_trunc('week', …)` would then truncate in
+// the session timezone as well. Two independent session dependencies in one
+// query, whose output drives the Go-side week arithmetic in GetUsageMetrics.
+//
+// Measured before the fix: one aware row and one naive row at the SAME instant
+// (Sunday 2026-03-01 23:30 UTC) yielded one week start under UTC and two under
+// Pacific/Auckland (#798).
+//
+// Normalizing per branch makes every branch `timestamp without time zone` in
+// UTC, so the truncation is session-independent by construction.
 func (r *BackofficeRepository) getWeekStarts(ctx context.Context) ([]time.Time, error) {
 	timelineQuery := `
 		SELECT DISTINCT date_trunc('week', created_at)::date AS week_start
 		FROM (
-			SELECT created_at FROM users
+			SELECT created_at AT TIME ZONE 'UTC' AS created_at FROM users
 			UNION ALL
-			SELECT created_at FROM artifacts
+			SELECT created_at AT TIME ZONE 'UTC' FROM artifacts
 			UNION ALL
 			SELECT created_at FROM memories
 			UNION ALL
-			SELECT created_at FROM api_keys
+			SELECT created_at AT TIME ZONE 'UTC' FROM api_keys
 			UNION ALL
-			SELECT created_at FROM prompts
+			SELECT created_at AT TIME ZONE 'UTC' FROM prompts
 			UNION ALL
-			SELECT created_at FROM agents
+			SELECT created_at AT TIME ZONE 'UTC' FROM agents
 		) AS all_dates
 		ORDER BY week_start DESC
 	`

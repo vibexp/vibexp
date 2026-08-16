@@ -539,14 +539,24 @@ func runActivityStatsScenario(t *testing.T, sc activityStatsScenario) {
 
 // The seven GetStats queries, in execution order, distinguished by their
 // characteristic fragments.
+//
+// Every "now" anchor here is spelled out in UTC rather than left to
+// CURRENT_DATE, which is today's date in the SESSION timezone (#798). The week
+// anchor is the one worth reading twice: `now() AT TIME ZONE 'UTC'` is already
+// a naive timestamp, so DATE_TRUNC over it stays `timestamp without time zone`
+// and compares against the naive column with no conversion on either side.
+// Wrapping it in `::date` first would promote it back to timestamptz --
+// date_trunc has no `date` overload -- which is the trap these regexes pin
+// shut.
 const (
 	statsTotalRE      = `SELECT COUNT\(\*\) FROM activities WHERE user_id = \$1`
 	statsTodayRE      = `DATE\(created_at\) = \(now\(\) AT TIME ZONE 'UTC'\)::date`
-	statsWeekRE       = `DATE_TRUNC\('week', CURRENT_DATE\)`
-	statsTopActRE     = `GROUP BY activity_type`
-	statsTopEntityRE  = `GROUP BY entity_type`
+	statsWeekRE       = `DATE_TRUNC\('week', now\(\) AT TIME ZONE 'UTC'\)`
+	statsTopActRE     = `>= \(now\(\) AT TIME ZONE 'UTC'\)::date - INTERVAL '30 days'[\s\S]*GROUP BY activity_type`
+	statsTopEntityRE  = `>= \(now\(\) AT TIME ZONE 'UTC'\)::date - INTERVAL '30 days'[\s\S]*GROUP BY entity_type`
 	statsRecentRE     = `ORDER BY created_at DESC LIMIT 10`
-	statsByDateWeekRE = `GROUP BY DATE\(created_at\)`
+	statsByDateWeekRE = `TO_CHAR\(DATE\(created_at\), 'YYYY-MM-DD'\)[\s\S]*` +
+		`>= \(now\(\) AT TIME ZONE 'UTC'\)::date - INTERVAL '7 days'[\s\S]*GROUP BY DATE\(created_at\)`
 )
 
 func TestActivityRepository_GetStats(t *testing.T) {
