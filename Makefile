@@ -53,11 +53,18 @@ ACTIONLINT_VERSION := v1.7.7
 # target is pinned to avoid, so the gate is scoped to workflow VALIDITY, which
 # is what #816 is about. Enabling them is a deliberate follow-up that has to
 # make the tooling available on both sides.
+#
+# Passed NO file arguments on purpose: actionlint then discovers the workflow
+# files itself, which covers BOTH the `.yml` and `.yaml` extensions GitHub
+# accepts. An explicit `.github/workflows/*.yml` glob silently skips a `.yaml`
+# workflow — verified: a `.yaml` file carrying the exact #816 expression passes
+# the glob form with exit 0 — and it would also disagree with the pre-commit
+# hook, whose `\.ya?ml$` pattern fires on files the glob would not lint. A gate
+# that reports green having checked nothing is worse than no gate.
 lint-workflows:
 	@echo "🔍 Linting GitHub Actions workflows (actionlint $(ACTIONLINT_VERSION))..."
 	@go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION) \
-		-shellcheck= -pyflakes= \
-		.github/workflows/*.yml
+		-shellcheck= -pyflakes=
 
 # ============================================
 # Container Runtime Detection Helper
