@@ -1048,3 +1048,31 @@ func TestTeamRepository_ResolveByIdentifier(t *testing.T) {
 		})
 	}
 }
+
+// TestUUIDOrNil pins which identifier shapes bind the uuid arm and in what form.
+// The canonical-form conversion is the point: uuid.Parse is more permissive than
+// Postgres's uuid input, so binding the caller's string directly would make an
+// unusual-but-valid identifier fail as 22P02 instead of resolving.
+func TestUUIDOrNil(t *testing.T) {
+	const canonical = "550e8400-e29b-41d4-a716-446655440000"
+
+	tests := []struct {
+		name       string
+		identifier string
+		want       interface{}
+	}{
+		{"canonical uuid binds as itself", canonical, canonical},
+		{"urn form binds canonically (Postgres rejects the urn prefix)", "urn:uuid:" + canonical, canonical},
+		{"braced form binds canonically", "{" + canonical + "}", canonical},
+		{"hyphenless form binds canonically", "550e8400e29b41d4a716446655440000", canonical},
+		{"slug binds nil so the planner prunes the id arm", "acme-team", nil},
+		{"empty binds nil", "", nil},
+		{"uuid-ish but invalid binds nil", "550e8400-e29b-41d4-a716-44665544000", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, uuidOrNil(tt.identifier))
+		})
+	}
+}

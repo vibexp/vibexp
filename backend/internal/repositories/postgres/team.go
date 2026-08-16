@@ -356,11 +356,18 @@ const resolveTeamByIdentifierQuery = `
 // UUID-shaped, and nil otherwise. Binding nil (rather than the raw string) is
 // what lets a single statement carry an indexable `t.id = $3::uuid` arm that the
 // planner prunes entirely for slug lookups.
+//
+// It binds the CANONICAL form, not the input: uuid.Parse also accepts
+// `urn:uuid:...`, `{...}` and the hyphenless form, and Postgres rejects the first
+// of those outright (22P02). Passing the input through would turn an identifier
+// that is merely unusual into an infrastructure error — same generic message to
+// the caller, but logged as a failure rather than a rejection.
 func uuidOrNil(identifier string) interface{} {
-	if _, err := uuid.Parse(identifier); err != nil {
+	parsed, err := uuid.Parse(identifier)
+	if err != nil {
 		return nil
 	}
-	return identifier
+	return parsed.String()
 }
 
 // ResolveByIdentifier resolves a team UUID or slug to the team in a single
