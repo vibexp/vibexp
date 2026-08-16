@@ -122,6 +122,22 @@ repos:
         pass_filenames: false
 
   # ------------------------------------------------------------------
+  # GitHub Actions workflow validation (#816)
+  # ------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: actionlint
+        name: GitHub Actions workflow lint
+        # Same Make target the CI `workflows` job runs, so hook and CI share one
+        # definition and one pinned actionlint (#547's pattern). An invalid
+        # workflow fails at STARTUP with no logs and silently stops producing
+        # its scheduled runs — `stale.yml` was dead for days that way (#816).
+        entry: bash -c 'make lint-workflows'
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+        pass_filenames: false
+
+  # ------------------------------------------------------------------
   # Security: Secret Detection
   # ------------------------------------------------------------------
   - repo: https://github.com/gitleaks/gitleaks

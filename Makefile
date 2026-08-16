@@ -1,4 +1,4 @@
-.PHONY: backend-test backend-test-coverage backend-test-coverage-integration backend-test-unit-coverage backend-test-integration-coverage backend-check-integration-shard backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-openapi-server-check backend-mock-check backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-ci-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-audit frontend-build frontend-run-dev build-combined e2e-up e2e-down frontend-deps e2e-browsers e2e-test e2e
+.PHONY: lint-workflows backend-test backend-test-coverage backend-test-coverage-integration backend-test-unit-coverage backend-test-integration-coverage backend-check-integration-shard backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-openapi-server-check backend-mock-check backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-ci-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-audit frontend-build frontend-run-dev build-combined e2e-up e2e-down frontend-deps e2e-browsers e2e-test e2e
 
 # ============================================
 # Toolchain Pinning
@@ -22,6 +22,42 @@ export GOTOOLCHAIN := go$(GO_VERSION)
 # `tool` directive in backend/go.mod and invoked with `go tool`.
 REDOCLY_VERSION := 2.5.0
 MOCKERY_VERSION := v2.53.6
+
+# Pin the GitHub Actions workflow linter for the same reason (#816): the
+# pre-commit hook and the CI job share this one definition, so an unpinned bump
+# would let a new upstream rule red a build on untouched workflows — and a hook
+# that disagrees with CI is worse than no hook at all.
+ACTIONLINT_VERSION := v1.7.7
+
+# ============================================
+# GitHub Actions Workflows
+# ============================================
+
+# Validate every workflow file (#816). An invalid workflow is a STARTUP failure:
+# GitHub cannot parse the file, so it never resolves the `on:` triggers, the run
+# carries no logs, it is labelled by file path instead of its `name:`, and — the
+# real damage — no scheduled run is ever created. `stale.yml` sat dead for days
+# that way. actionlint catches it in under a second, so this runs both as a
+# pre-commit hook and as a CI job.
+#
+# Invoked via `go run ...@$(ACTIONLINT_VERSION)` rather than an `actionlint`
+# binary off PATH, for the same reproducibility reason as mockery above: this
+# repo's recurring CI failure mode is a pinned tool resolving to a different
+# version locally than in CI.
+#
+# -shellcheck= and -pyflakes= disable actionlint's OPTIONAL linting of `run:`
+# script bodies. Those shell out to binaries that are preinstalled on
+# ubuntu-latest but absent on a typical dev machine, which would make the hook
+# strictly weaker than the CI job — a contributor would commit green and CI
+# would fail on findings they cannot reproduce. That is the exact skew this
+# target is pinned to avoid, so the gate is scoped to workflow VALIDITY, which
+# is what #816 is about. Enabling them is a deliberate follow-up that has to
+# make the tooling available on both sides.
+lint-workflows:
+	@echo "🔍 Linting GitHub Actions workflows (actionlint $(ACTIONLINT_VERSION))..."
+	@go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION) \
+		-shellcheck= -pyflakes= \
+		.github/workflows/*.yml
 
 # ============================================
 # Container Runtime Detection Helper
