@@ -30,6 +30,11 @@ const (
 	workspaceDefaultLimit = 10
 	// workspaceMaxLimit caps the page size. This feeds an agent's context window;
 	// a bigger page is how the truncation this tool exists to prevent starts.
+	//
+	// It is applied per entity type, to lists that are ALREADY flattened across
+	// teams: at most workspaceMaxLimit teams and, independently, at most
+	// workspaceMaxLimit projects in total — never per team, which is the shape
+	// that would let a broad query balloon the response.
 	workspaceMaxLimit = 25
 	// workspaceDescriptionLimit truncates project descriptions, counted in RUNES
 	// so a multi-byte character is never cut in half.
@@ -335,20 +340,12 @@ func (s *Server) assembleSearchResult(
 	}
 
 	// Teams that hold a matching project but did not match themselves still need
-	// a name and slug. One bounded lookup of the caller's own teams covers every
-	// such team, instead of a GetByID per team id.
-	if missing := missingTeamIDs(byTeam, seen); len(missing) > 0 {
-		owned, _, err := s.container.TeamRepository().ListByUserID(ctx, userID, workspaceTeamLookupLimit, 0)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load teams for project hits: %w", err)
-		}
-		for i := range owned {
-			if missing[owned[i].ID] {
-				seen[owned[i].ID] = true
-				ordered = append(ordered, owned[i])
-			}
-		}
+	// a name and slug before their projects can be nested under them.
+	named, err := s.nameTeamsHoldingHits(ctx, userID, byTeam, seen)
+	if err != nil {
+		return nil, err
 	}
+	ordered = append(ordered, named...)
 
 	teams, err := s.annotateTeams(ctx, ordered)
 	if err != nil {
@@ -359,6 +356,55 @@ func (s *Server) assembleSearchResult(
 	}
 
 	return teams, nil
+}
+
+// nameTeamsHoldingHits resolves the teams that hold a matching project but did
+// not match the query themselves, so their projects have a named team to nest
+// under. One bounded lookup of the caller's own teams covers all of them,
+// instead of a GetByID per team id.
+//
+// It also PRUNES byTeam of anything it could not name: a team beyond the lookup
+// bound has nowhere to nest, and a bounded read that quietly discards results is
+// how a truncation becomes indistinguishable from "no matches" — the exact
+// failure this tool exists to remove. So the drop is logged rather than silent.
+//
+// Extracted from assembleSearchResult to keep it under the cognitive-complexity
+// budget; it is a cohesive step, not a budget shim.
+func (s *Server) nameTeamsHoldingHits(
+	ctx context.Context, userID string, byTeam map[string][]workspaceProject, seen map[string]bool,
+) ([]models.Team, error) {
+	missing := missingTeamIDs(byTeam, seen)
+	if len(missing) == 0 {
+		return nil, nil
+	}
+
+	owned, _, err := s.container.TeamRepository().ListByUserID(ctx, userID, workspaceTeamLookupLimit, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load teams for project hits: %w", err)
+	}
+
+	named := make([]models.Team, 0, len(missing))
+	for i := range owned {
+		if missing[owned[i].ID] {
+			seen[owned[i].ID] = true
+			named = append(named, owned[i])
+			delete(missing, owned[i].ID)
+		}
+	}
+
+	if len(missing) > 0 {
+		slog.With(
+			"tool", "vibexp_io_list_teams_and_projects",
+			"user_id", userID,
+			"dropped_teams", len(missing),
+			"lookup_limit", workspaceTeamLookupLimit,
+		).Warn("Dropped project hits whose team fell outside the team lookup bound")
+		for teamID := range missing {
+			delete(byTeam, teamID)
+		}
+	}
+
+	return named, nil
 }
 
 // missingTeamIDs returns the team ids that hold matching projects but are not

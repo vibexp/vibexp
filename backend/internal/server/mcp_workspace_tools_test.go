@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -299,4 +300,89 @@ func TestPageOf(t *testing.T) {
 	assert.Equal(t, []int{3, 4}, pageOf(items, 2, 2))
 	assert.Equal(t, []int{5}, pageOf(items, 4, 2), "a partial final page")
 	assert.Nil(t, pageOf(items, 10, 2), "past the end is empty, not a panic")
+}
+
+// capturingHandler records log records so a test can assert on a warning that
+// has no other observable effect.
+//
+// Enabled MUST return true: embedding a discarding handler inherits
+// Enabled() == false, slog checks that BEFORE calling Handle, and the capture
+// then stays empty while every assertion on it passes vacuously.
+type capturingHandler struct {
+	slog.Handler
+	records *[]slog.Record
+}
+
+func (h capturingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h capturingHandler) Handle(_ context.Context, r slog.Record) error {
+	*h.records = append(*h.records, r)
+	return nil
+}
+
+// WithAttrs and WithGroup MUST be implemented, not inherited. slog.With() calls
+// WithAttrs, and the promoted method returns the EMBEDDED handler — so a logger
+// built with slog.With would discard every record and leave the capture empty
+// while the assertions on it pass vacuously.
+func (h capturingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return capturingHandler{Handler: h.Handler.WithAttrs(attrs), records: h.records}
+}
+
+func (h capturingHandler) WithGroup(name string) slog.Handler {
+	return capturingHandler{Handler: h.Handler.WithGroup(name), records: h.records}
+}
+
+// captureLogs swaps slog's default logger for the duration of the test.
+func captureLogs(t *testing.T) *[]slog.Record {
+	t.Helper()
+	records := &[]slog.Record{}
+	previous := slog.Default()
+	slog.SetDefault(slog.New(capturingHandler{Handler: slog.DiscardHandler, records: records}))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return records
+}
+
+// TestWorkspace_DropsUnnameableProjectHitsLoudly covers the bounded-lookup edge:
+// when a matching project belongs to a team beyond the team-lookup bound, the
+// hit cannot be nested anywhere. It must be dropped from the payload rather than
+// attached to a nameless team — and the drop must be ANNOUNCED, because a
+// bounded read that silently discards results is indistinguishable from "no
+// matches", which is the failure this whole tool exists to remove.
+func TestWorkspace_DropsUnnameableProjectHitsLoudly(t *testing.T) {
+	srv, m := newWorkspaceTestServer(t)
+	records := captureLogs(t)
+
+	m.projects.On("SearchProjects", mock.Anything, testMemberUserID, mock.Anything).
+		Return([]models.ProjectSearchResult{{
+			Project: models.Project{ID: testOtherProjectID, Slug: "orphan", Name: "Orphan", TeamID: "team-beyond-the-bound"},
+			Score:   0.5,
+		}}, nil)
+	m.teams.On("SearchTeams", mock.Anything, testMemberUserID, "orphan", 10).
+		Return([]models.TeamSearchResult{}, nil)
+	// The lookup does not contain the project's team.
+	m.teams.On("ListByUserID", mock.Anything, testMemberUserID, workspaceTeamLookupLimit, 0).
+		Return([]models.Team{memberTeam()}, 1, nil)
+	m.projects.On("CountsByTeamIDs", mock.Anything, []string{}).Return(map[string]int{}, nil)
+
+	resp, text := callWorkspace(t, srv, &ListTeamsAndProjectsParams{Query: "orphan"})
+
+	assert.Empty(t, resp.Teams, "an unnameable hit is dropped, never emitted under a blank team")
+	assert.NotContains(t, text, "Orphan")
+
+	// Paired assertions: the warning must be PRESENT (an empty capture would make
+	// a "no unexpected warnings" check pass for the wrong reason) and must carry
+	// how many teams were dropped, which is what makes the drop diagnosable.
+	var warned bool
+	for _, r := range *records {
+		if r.Level == slog.LevelWarn && strings.Contains(r.Message, "Dropped project hits") {
+			warned = true
+			r.Attrs(func(a slog.Attr) bool {
+				if a.Key == "dropped_teams" {
+					assert.Equal(t, int64(1), a.Value.Int64())
+				}
+				return true
+			})
+		}
+	}
+	assert.True(t, warned, "dropping a matching hit must be logged, not silent")
 }
