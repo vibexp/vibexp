@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -335,6 +337,83 @@ func (r *TeamRepository) ListByUserID(
 	}
 
 	return teams, totalCount, nil
+}
+
+// resolveTeamByIdentifierQuery resolves a team UUID or slug under an
+// owner-OR-member predicate. Package-level so the integration suite can EXPLAIN
+// the exact statement production runs (see ResolveByIdentifier for why each
+// binding is shaped the way it is).
+const resolveTeamByIdentifierQuery = `
+	SELECT t.id, t.owner_id, t.name, t.slug, t.description, t.is_personal, t.created_at, t.updated_at
+	FROM teams t
+	WHERE (($3::uuid IS NOT NULL AND t.id = $3::uuid) OR t.slug = $2)
+		AND (t.owner_id = $1
+			OR EXISTS (SELECT 1 FROM team_members WHERE team_id = t.id AND user_id = $1))
+	LIMIT 1
+`
+
+// uuidOrNil returns identifier as a bindable uuid parameter when it is
+// UUID-shaped, and nil otherwise. Binding nil (rather than the raw string) is
+// what lets a single statement carry an indexable `t.id = $3::uuid` arm that the
+// planner prunes entirely for slug lookups.
+//
+// It binds the CANONICAL form, not the input: uuid.Parse also accepts
+// `urn:uuid:...`, `{...}` and the hyphenless form, and Postgres rejects the first
+// of those outright (22P02). Passing the input through would turn an identifier
+// that is merely unusual into an infrastructure error — same generic message to
+// the caller, but logged as a failure rather than a rejection.
+func uuidOrNil(identifier string) interface{} {
+	parsed, err := uuid.Parse(identifier)
+	if err != nil {
+		return nil
+	}
+	return parsed.String()
+}
+
+// ResolveByIdentifier resolves a team UUID or slug to the team in a single
+// query, enforcing owner-OR-member access in the SQL rather than post-filtering
+// in Go. Returns repositories.ErrTeamNotFound when nothing matches, whether the
+// team does not exist or the user simply does not belong to it — callers rely on
+// that indistinguishability for anti-enumeration.
+func (r *TeamRepository) ResolveByIdentifier(
+	ctx context.Context, userID, identifier string,
+) (*models.Team, error) {
+	// The identifier is bound TWICE, and both bindings are load-bearing:
+	//
+	//   $2 (text) serves the slug arm. It cannot also serve the id arm —
+	//   `t.id = $2 OR t.slug = $2` asks Postgres to infer one type for two
+	//   incompatible comparisons and fails for EVERY identifier, UUID ones
+	//   included (measured 42883, "operator does not exist: character varying =
+	//   uuid", since lib/pq sends the argument as text).
+	//
+	//   $3 (uuid, NULL unless the identifier is UUID-shaped) serves the id arm.
+	//   Casting the COLUMN instead (`t.id::text = $2`) fixes the type error but
+	//   matches no index, and an OR with one unindexable arm seq-scans the whole
+	//   table — measured 10.09ms over 50k teams versus 0.08ms here, plus a seq
+	//   scan of team_members as the correlated EXISTS degrades with it. Comparing
+	//   the column bare against a typed parameter keeps teams_pkey reachable:
+	//   a UUID identifier plans BitmapOr(teams_pkey, idx_teams_slug), and a slug
+	//   identifier prunes the NULL arm to a plain index scan on idx_teams_slug.
+	//
+	// Neither property is visible to sqlmock (it never type-checks arguments and
+	// never plans anything) — the integration suite proves both, which is why the
+	// statement is a package-level const it can EXPLAIN directly rather than a
+	// copy that would drift from this one.
+	var team models.Team
+	err := r.db.QueryRowContext(
+		ctx, resolveTeamByIdentifierQuery, userID, identifier, uuidOrNil(identifier),
+	).Scan(
+		&team.ID, &team.OwnerID, &team.Name, &team.Slug,
+		&team.Description, &team.IsPersonal, &team.CreatedAt, &team.UpdatedAt,
+	)
+	if err != nil {
+		return nil, mapNoRows(
+			fmt.Errorf("failed to resolve team by identifier: %w", err),
+			repositories.ErrTeamNotFound,
+		)
+	}
+
+	return &team, nil
 }
 
 // CountByOwnerID counts all teams owned by a user

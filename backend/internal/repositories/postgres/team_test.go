@@ -12,6 +12,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 func setupTeamTest(t *testing.T) (*TeamRepository, sqlmock.Sqlmock, *sql.DB) {
@@ -951,6 +952,127 @@ func TestTeamRepository_ListByUserID(t *testing.T) {
 			}
 
 			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+// TestTeamRepository_ResolveByIdentifier covers the single-query team resolution
+// behind every team-scoped MCP call (#812). The regex pins the two properties the
+// query cannot be allowed to lose: the `::text` cast on t.id (without it the
+// statement fails against real Postgres for every identifier — see
+// team_resolve_integration_test.go) and the owner-OR-member predicate that makes
+// a successful match prove membership.
+func TestTeamRepository_ResolveByIdentifier(t *testing.T) {
+	repo, mock, mockDB := setupTeamTest(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	ctx := context.Background()
+	now := time.Now()
+
+	// A real UUID, not a "team-123" placeholder: the identifier's SHAPE now decides
+	// whether $3 binds, so the fixture has to be parseable for the id arm to bind.
+	const teamUUID = "550e8400-e29b-41d4-a716-446655440000"
+
+	const queryRe = `SELECT t.id, t.owner_id, t.name, t.slug, t.description, t.is_personal, t.created_at, t.updated_at\s+` +
+		`FROM teams t\s+WHERE \(\(\$3::uuid IS NOT NULL AND t.id = \$3::uuid\) OR t.slug = \$2\)\s+` +
+		`AND \(t.owner_id = \$1\s+OR EXISTS`
+
+	teamRow := func() *sqlmock.Rows {
+		return sqlmock.NewRows([]string{
+			"id", "owner_id", "name", "slug", "description", "is_personal", "created_at", "updated_at",
+		}).AddRow(teamUUID, "user-123", "Acme Team", "acme-team", "desc", false, now, now)
+	}
+
+	tests := []struct {
+		name       string
+		identifier string
+		setupMock  func()
+		expectErr  error
+	}{
+		{
+			name:       "resolves by UUID",
+			identifier: teamUUID,
+			setupMock: func() {
+				// A UUID identifier binds $3, so the id arm is live and indexable.
+				mock.ExpectQuery(queryRe).WithArgs("user-123", teamUUID, teamUUID).WillReturnRows(teamRow())
+			},
+		},
+		{
+			name:       "resolves by slug",
+			identifier: "acme-team",
+			setupMock: func() {
+				// A slug binds $3 as NULL, which prunes the id arm entirely.
+				mock.ExpectQuery(queryRe).WithArgs("user-123", "acme-team", nil).WillReturnRows(teamRow())
+			},
+		},
+		{
+			name:       "no match maps to ErrTeamNotFound",
+			identifier: "not-mine",
+			setupMock: func() {
+				mock.ExpectQuery(queryRe).WithArgs("user-123", "not-mine", nil).WillReturnError(sql.ErrNoRows)
+			},
+			expectErr: repositories.ErrTeamNotFound,
+		},
+		{
+			name:       "database error is propagated, not masked as not-found",
+			identifier: teamUUID,
+			setupMock: func() {
+				mock.ExpectQuery(queryRe).WithArgs("user-123", teamUUID, teamUUID).WillReturnError(sql.ErrConnDone)
+			},
+			expectErr: sql.ErrConnDone,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock()
+
+			result, err := repo.ResolveByIdentifier(ctx, "user-123", tt.identifier)
+
+			if tt.expectErr != nil {
+				require.ErrorIs(t, err, tt.expectErr)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, teamUUID, result.ID, "both identifier forms resolve to the canonical UUID")
+				assert.Equal(t, "acme-team", result.Slug)
+				assert.Equal(t, "user-123", result.OwnerID)
+			}
+
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+// TestUUIDOrNil pins which identifier shapes bind the uuid arm and in what form.
+// The canonical-form conversion is the point: uuid.Parse is more permissive than
+// Postgres's uuid input, so binding the caller's string directly would make an
+// unusual-but-valid identifier fail as 22P02 instead of resolving.
+func TestUUIDOrNil(t *testing.T) {
+	const canonical = "550e8400-e29b-41d4-a716-446655440000"
+
+	tests := []struct {
+		name       string
+		identifier string
+		want       interface{}
+	}{
+		{"canonical uuid binds as itself", canonical, canonical},
+		{"urn form binds canonically (Postgres rejects the urn prefix)", "urn:uuid:" + canonical, canonical},
+		{"braced form binds canonically", "{" + canonical + "}", canonical},
+		{"hyphenless form binds canonically", "550e8400e29b41d4a716446655440000", canonical},
+		{"slug binds nil so the planner prunes the id arm", "acme-team", nil},
+		{"empty binds nil", "", nil},
+		{"uuid-ish but invalid binds nil", "550e8400-e29b-41d4-a716-44665544000", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, uuidOrNil(tt.identifier))
 		})
 	}
 }

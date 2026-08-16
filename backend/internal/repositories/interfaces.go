@@ -368,6 +368,14 @@ type TeamRepository interface {
 	Delete(ctx context.Context, ownerID, teamID string) error
 	ListByOwnerID(ctx context.Context, ownerID string, limit, offset int) ([]models.Team, int, error)
 	ListByUserID(ctx context.Context, userID string, limit, offset int) ([]models.Team, int, error)
+	// ResolveByIdentifier resolves a team identifier — either a team UUID or a
+	// team slug — to the team, in one query, for a user who must be its owner or
+	// a member. Membership is enforced in the SQL (the same owner-OR-member
+	// predicate ListByUserID uses), so a successful match implicitly proves
+	// membership and callers need no separate membership check. Returns
+	// ErrTeamNotFound when the identifier matches no team the user belongs to,
+	// without distinguishing "does not exist" from "not a member".
+	ResolveByIdentifier(ctx context.Context, userID, identifier string) (*models.Team, error)
 	CountByOwnerID(ctx context.Context, ownerID string) (int, error)
 	// GetTeamStats returns team-wide resource counts (projects, prompts, artifacts,
 	// blueprints, memories, feed_items) for the team. Authorization is the caller's

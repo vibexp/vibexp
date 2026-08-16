@@ -669,6 +669,66 @@ func (_c *MockTeamRepository_ListByUserID_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
+// ResolveByIdentifier provides a mock function with given fields: ctx, userID, identifier
+func (_m *MockTeamRepository) ResolveByIdentifier(ctx context.Context, userID string, identifier string) (*models.Team, error) {
+	ret := _m.Called(ctx, userID, identifier)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ResolveByIdentifier")
+	}
+
+	var r0 *models.Team
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*models.Team, error)); ok {
+		return rf(ctx, userID, identifier)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *models.Team); ok {
+		r0 = rf(ctx, userID, identifier)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Team)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, userID, identifier)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTeamRepository_ResolveByIdentifier_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ResolveByIdentifier'
+type MockTeamRepository_ResolveByIdentifier_Call struct {
+	*mock.Call
+}
+
+// ResolveByIdentifier is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - identifier string
+func (_e *MockTeamRepository_Expecter) ResolveByIdentifier(ctx interface{}, userID interface{}, identifier interface{}) *MockTeamRepository_ResolveByIdentifier_Call {
+	return &MockTeamRepository_ResolveByIdentifier_Call{Call: _e.mock.On("ResolveByIdentifier", ctx, userID, identifier)}
+}
+
+func (_c *MockTeamRepository_ResolveByIdentifier_Call) Run(run func(ctx context.Context, userID string, identifier string)) *MockTeamRepository_ResolveByIdentifier_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockTeamRepository_ResolveByIdentifier_Call) Return(_a0 *models.Team, _a1 error) *MockTeamRepository_ResolveByIdentifier_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTeamRepository_ResolveByIdentifier_Call) RunAndReturn(run func(context.Context, string, string) (*models.Team, error)) *MockTeamRepository_ResolveByIdentifier_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // TransferOwnership provides a mock function with given fields: ctx, teamID, fromUserID, toUserID
 func (_m *MockTeamRepository) TransferOwnership(ctx context.Context, teamID string, fromUserID string, toUserID string) error {
 	ret := _m.Called(ctx, teamID, fromUserID, toUserID)

@@ -25,12 +25,11 @@ func newPromptTestServer(t *testing.T) (*Server, *mocks.MockPromptServiceInterfa
 	t.Helper()
 	srv := newServerWithNullLogger(t)
 	mockPromptService := mocks.NewMockPromptServiceInterface(t)
-	mockTeamService := mocks.NewMockTeamServiceInterface(t)
+	teamRepo := stubTeamResolution(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{
-		PromptServiceMock: mockPromptService,
-		TeamServiceMock:   mockTeamService,
+		PromptServiceMock:  mockPromptService,
+		TeamRepositoryMock: teamRepo,
 	}
-	stubUserTeams(mockTeamService, []models.Team{memberTeam()})
 	return srv, mockPromptService
 }
 
