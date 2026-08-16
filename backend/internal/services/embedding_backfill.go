@@ -227,18 +227,16 @@ func (s *EmbeddingBackfillService) logCoverageSnapshot(ctx context.Context, req 
 		return
 	}
 
-	logger := s.logger.With(
+	// One stable key holding the whole per-type array, rather than keys built from
+	// each entity type (`memory_pending`, …): a key set that varies with the data
+	// cannot be indexed by a log backend, has no precedent in this backend, and
+	// would drop EmbeddedPercent. EmbeddingCoverageItem carries JSON tags, so a
+	// JSON handler renders this as a proper array.
+	s.logger.With(
 		"team_id", req.TeamID,
 		"has_active_provider", coverage.HasActiveProvider,
-	)
-	for _, item := range coverage.Coverage {
-		logger = logger.With(
-			item.EntityType+"_embedded", item.Embedded,
-			item.EntityType+"_total", item.Total,
-			item.EntityType+"_pending", item.Pending,
-		)
-	}
-	logger.Info("Embedding backfill: coverage after run (snapshot; generation is async)")
+		slog.Any("coverage", coverage.Coverage),
+	).Info("Embedding backfill: coverage after run (snapshot; generation is async)")
 }
 
 // backfillType pages through one entity type and republishes its `.created` events.

@@ -469,9 +469,10 @@ func TestEmbeddingBackfill_LogsCoverageSnapshotAfterTeamRun(t *testing.T) {
 	out := logs.String()
 	assert.Contains(t, out, "Embedding backfill: coverage after run")
 	assert.Contains(t, out, "snapshot", "the line must say it is a snapshot, not a completion assertion")
-	assert.Contains(t, out, `"memory_total":10`)
-	assert.Contains(t, out, `"memory_embedded":6`)
-	assert.Contains(t, out, `"memory_pending":4`)
+	// One stable "coverage" key carrying the whole per-type array, so the log
+	// schema does not grow a column per entity type.
+	assert.Contains(t, out, `"coverage":[{"entity_type":"memory","total":10,"embedded":6,"pending":4,`)
+	assert.Contains(t, out, `"has_active_provider":true`)
 }
 
 // The snapshot is skipped where it would be meaningless or wrong: no getter wired,

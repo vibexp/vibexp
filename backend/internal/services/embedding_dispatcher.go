@@ -204,6 +204,15 @@ func (d *EmbeddingDispatcher) submitGenerate(input embeddingInput, teamID string
 		concurrency = 1
 	}
 
+	// The submitted half of the submitted/terminal pair (#755), emitted BEFORE the
+	// enqueue: submit() signals a worker that can run the job to completion while
+	// this goroutine is still between the unlock and its own log call, which would
+	// order a terminal line ahead of the submitted line it closes. It stays outside
+	// the mutex on purpose — logging under d.mu would serialize every team's
+	// submissions behind one lock on the hot path.
+	d.stats.submitted.Add(1)
+	d.entityLogger(input, teamID).Info("Embedding job submitted")
+
 	d.mu.Lock()
 	pe := d.execs[teamID]
 	if pe == nil || pe.concurrency != concurrency {
@@ -219,20 +228,12 @@ func (d *EmbeddingDispatcher) submitGenerate(input embeddingInput, teamID string
 	if !ok {
 		// Unreachable in practice: the executor was just fetched or created live
 		// under the lock, and an executor is only closed after being replaced in
-		// the map. Log rather than drop, so a regression never goes silent. This is
-		// a non-submit, so it is deliberately outside the submitted/terminal
-		// ledger — it is already its own terminal, entity-named ERROR.
+		// the map. Log rather than drop, so a regression never goes silent. This
+		// counts as the job's terminal — the entity was announced as submitted and
+		// will never be generated — so the ledger stays balanced.
+		d.stats.failed.Add(1)
 		d.entityLogger(input, teamID).Error("Embedding job not enqueued; entity left unembedded")
-		return
 	}
-
-	// The submitted half of the submitted/terminal pair (#755). It is emitted after
-	// the enqueue succeeded and before generation is attempted, so an entity that
-	// reaches a provider executor and never produces a terminal line is visible as a
-	// gap in the logs — the shape the in-memory queue's non-durability (#820) takes
-	// when a restart discards queued work.
-	d.stats.submitted.Add(1)
-	d.entityLogger(input, teamID).Info("Embedding job submitted")
 }
 
 // entityLogger builds the dispatcher's standard structured logger for one entity,

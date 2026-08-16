@@ -354,6 +354,24 @@ func countJSONLines(out string, contains ...string) int {
 	return n
 }
 
+// lineIndexOf returns the index of the first captured log line containing every
+// given substring, or -1. Used to pin the ordering of the submitted/terminal pair.
+func lineIndexOf(out string, contains ...string) int {
+	for i, line := range strings.Split(out, "\n") {
+		matched := true
+		for _, c := range contains {
+			if !strings.Contains(line, c) {
+				matched = false
+				break
+			}
+		}
+		if matched && strings.TrimSpace(line) != "" {
+			return i
+		}
+	}
+	return -1
+}
+
 // Every submitted entity must produce exactly one submitted line carrying its
 // identifiers and exactly one terminal line — that pair is what turns a job lost
 // between the two (the in-memory queue is not durable, #820) into a visible gap.
@@ -372,6 +390,9 @@ func TestEmbeddingDispatcher_SubmittedAndTerminalLinesPairUpOnSuccess(t *testing
 
 	d := newDispatcher(resolver, svc, logger,
 		EmbeddingRetryConfig{MaxRetries: 3, BaseBackoff: time.Millisecond})
+	// Stop is idempotent, so the explicit quiescing Stop below still works; this
+	// defer only guarantees the workers are reaped when an assertion fails first.
+	defer d.Stop()
 
 	const k = 5
 	for i := 0; i < k; i++ {
@@ -394,6 +415,17 @@ func TestEmbeddingDispatcher_SubmittedAndTerminalLinesPairUpOnSuccess(t *testing
 	// The submitted line must carry the fields an operator diffs on.
 	assert.Contains(t, out, `"entity_type":"prompt"`)
 	assert.Contains(t, out, `"team_id":"team-1"`)
+	// Submitted is logged before the job is enqueued, so it can never be ordered
+	// after the terminal line it opens — a worker can otherwise finish the job
+	// while the submitting goroutine is still on its way to the log call.
+	for i := 0; i < k; i++ {
+		id := fmt.Sprintf("ledger-%d", i)
+		sub := lineIndexOf(out, "Embedding job submitted", id)
+		term := lineIndexOf(out, "Embedding job completed", id)
+		require.NotEqual(t, -1, sub)
+		require.NotEqual(t, -1, term)
+		assert.Less(t, sub, term, "submitted must precede its terminal line for %s", id)
+	}
 
 	stats := d.Stats()
 	assert.Equal(t, int64(k), stats.Submitted)
@@ -420,6 +452,7 @@ func TestEmbeddingDispatcher_SubmittedAndTerminalLinesPairUpOnFailure(t *testing
 
 	d := newDispatcher(resolver, svc, logger,
 		EmbeddingRetryConfig{MaxRetries: 2, BaseBackoff: time.Millisecond})
+	defer d.Stop()
 
 	const id = "ledger-doomed"
 	require.NoError(t, d.ProcessEvent(context.Background(), promptEvent(id)))
@@ -453,6 +486,7 @@ func TestEmbeddingDispatcher_ResolveFailureIsNotCountedAsSubmitted(t *testing.T)
 
 	d := newDispatcher(erroringResolver{}, svc, logger,
 		EmbeddingRetryConfig{MaxRetries: 2, BaseBackoff: time.Millisecond})
+	defer d.Stop()
 
 	require.NoError(t, d.ProcessEvent(context.Background(), promptEvent("never-submitted")))
 
