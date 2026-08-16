@@ -196,9 +196,15 @@ func TestArtifactHandlers_InvalidPaths(t *testing.T) {
 			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts", http.StatusMethodNotAllowed,
 		},
 		{
-			"Invalid artifact path", "GET",
+			// 401, not 404, since #800: stripAPITrailingSlash normalises this to
+			// `/artifacts/project`, which matches a real route and therefore
+			// reaches the auth middleware. Making the trailing-slash form
+			// equivalent to the bare path is the point of that change; the
+			// consequence for a path whose LAST segment was empty is that it now
+			// resolves one segment shorter instead of matching nothing.
+			"Trailing slash resolves one segment shorter", "GET",
 			"/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/project/",
-			http.StatusNotFound,
+			http.StatusUnauthorized,
 		},
 		{
 			"Invalid stats path", "POST",

@@ -150,40 +150,6 @@ func TestHandleGetArtifact_NoFreshnessServiceIsUnchanged(t *testing.T) {
 	assert.False(t, present)
 }
 
-// The filter is validated, not ignored. An ignored `?freshness=stail` returns
-// the FULL list, which reads as a legitimate answer to the question asked —
-// the reason this rejects rather than falling back.
-func TestParseFreshnessFilter(t *testing.T) {
-	tests := []struct {
-		name      string
-		query     string
-		want      string
-		wantOK    bool
-		wantsCode int
-	}{
-		{name: "absent", query: "", want: "", wantOK: true},
-		{name: "stale", query: "?freshness=stale", want: "stale", wantOK: true},
-		{name: "typo", query: "?freshness=stail", wantOK: false, wantsCode: http.StatusBadRequest},
-		{name: "fresh is not a value", query: "?freshness=fresh", wantOK: false, wantsCode: http.StatusBadRequest},
-		{name: "empty value", query: "?freshness=", want: "", wantOK: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/x/artifacts"+tt.query, nil)
-			rr := httptest.NewRecorder()
-
-			got, ok := parseFreshnessFilter(rr, req)
-
-			assert.Equal(t, tt.wantOK, ok)
-			assert.Equal(t, tt.want, got)
-			if !tt.wantOK {
-				assert.Equal(t, tt.wantsCode, rr.Code)
-			}
-		})
-	}
-}
-
 // The page attach must issue ONE lookup for the whole page and key each item on
 // its own id — a transposition here would label resources with each other's
 // staleness, which no other test would notice.

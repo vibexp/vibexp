@@ -282,6 +282,14 @@ func TestListMemories_RejectsInvalidEnumQueryValues(t *testing.T) {
 
 			require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 			assert.Contains(t, w.Body.String(), tt.want)
+
+			// The code is part of the body a client sees, and all four converted
+			// domains answer the same one for this class of rejection since #800
+			// (prompts previously answered VALIDATION_FAILED, preserved from the
+			// handler it replaced).
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, "BAD_REQUEST", body["code"])
 		})
 	}
 }

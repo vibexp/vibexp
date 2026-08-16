@@ -142,7 +142,10 @@ func TestMemoryHandlers_InvalidPaths(t *testing.T) {
 	}{
 		{"Invalid path", "GET", testPath + "/invalid/path", http.StatusNotFound},
 		{"Method not allowed", "PATCH", testPath, http.StatusMethodNotAllowed},
-		{"Invalid memory ID format", "GET", testPath + "/", http.StatusNotFound},
+		// 401, not 404, since #800: the trailing-slash form of a collection is
+		// the collection again, so this reaches the auth middleware exactly as
+		// the bare path does. That reachability is the regression #800 fixes.
+		{"Collection with a trailing slash", "GET", testPath + "/", http.StatusUnauthorized},
 		{"Extra path segments", "GET", testPath + "/test-id/extra", http.StatusNotFound},
 		{"Invalid search path", "GET", testPath + "/search/extra", http.StatusNotFound},
 	}

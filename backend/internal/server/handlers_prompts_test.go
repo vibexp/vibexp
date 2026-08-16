@@ -370,10 +370,14 @@ func TestStrictListPrompts_OutOfRangePaginationIsClampedNotRejected(t *testing.T
 // returns the full list, and an unchecked sort_by reaches the repository.
 func TestStrictListPrompts_KeepsTheHandRolledEnumChecks(t *testing.T) {
 	cases := map[string]struct{ query, detail, code string }{
-		// Both codes are VALIDATION_FAILED because both rejections went through
-		// writeErrorResponse's "validation_error" arm before the conversion.
-		"freshness": {"?freshness=stail", "freshness must be stale", "VALIDATION_FAILED"},
-		"sort_by":   {"?sort_by=passwords", "invalid sort_by value: passwords", "VALIDATION_FAILED"},
+		// BAD_REQUEST, not the VALIDATION_FAILED these carried immediately after
+		// the conversion. That code was preserved from the pre-conversion
+		// handler's "validation_error" arm, while memories, artifacts and
+		// blueprints answered BAD_REQUEST for the same class -- so the API gave
+		// two codes for one thing. #800 converged all four on the apierrors
+		// defaults; the sibling assertions live in each domain's own test.
+		"freshness": {"?freshness=stail", "freshness must be stale", "BAD_REQUEST"},
+		"sort_by":   {"?sort_by=passwords", "invalid sort_by value: passwords", "BAD_REQUEST"},
 	}
 
 	for name, tc := range cases {
