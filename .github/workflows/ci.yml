@@ -133,13 +133,13 @@ jobs:
       # payload, or the PR API keyed on this number), which keeps the
       # fork-influenced surface down to a single integer it re-validates.
       - name: Record the PR number for the fork Sonar run
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: printf '%s\n' "$PR_NUMBER" > pr-number.txt
 
       - name: Upload the PR number
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: pr-number
@@ -710,11 +710,17 @@ jobs:
     # `SONAR_TOKEN` is empty here and the scanner hard-fails with "Not
     # authorized or project not found" (observed on #792). Approving the run
     # does not help: that control gates whether the run starts, it never grants
-    # secrets. On a `push` event `github.event.pull_request` is null, so the
-    # fork check is falsy and pushes are unaffected.
+    # secrets.
+    #
+    # The test is "head repo is not this repo", NOT `head.repo.fork`, and it
+    # must stay the exact complement of sonar-fork.yml's job condition. If
+    # vibexp/vibexp ever became a fork itself, `head.repo.fork` would be true
+    # for INTERNAL PRs too: this job would skip them and sonar-fork.yml would
+    # also skip them (its full_name check matches), so Sonar would silently
+    # stop running on every PR. The event guard keeps `push` unaffected.
     if: >-
       always() &&
-      !github.event.pull_request.head.repo.fork &&
+      !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) &&
       !(github.event_name == 'push' && startsWith(github.ref, 'refs/heads/release/')) &&
       (needs.unit.result == 'success' || needs.integration.result == 'success' || needs.frontend-test.result == 'success') &&
       needs.unit.result != 'failure' && needs.unit.result != 'cancelled' &&

@@ -58,15 +58,34 @@ on:
 permissions:
   contents: read
 
+# A cancelled CI run still emits a `completed` workflow_run, so a rapid second
+# push produces two concurrent runs writing the SAME `sonar.pullrequest.key`.
+# Without this the stale, coverage-less analysis can land AFTER the good one and
+# leave the PR decorated red. Keyed on the fork + branch rather than the SHA,
+# which is what identifies "the same PR" across pushes. The status step is
+# `if: always()`, so it still reports on the cancelled run.
+concurrency:
+  group: >-
+    sonar-fork-${{ github.event.workflow_run.head_repository.full_name }}-${{
+    github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
 jobs:
   sonar:
     name: Sonar Scan (fork PR)
     runs-on: ubuntu-latest
+    # `sonar.qualitygate.wait=true` blocks on SonarCloud, so cap the job rather
+    # than letting a stuck runner hold SONAR_TOKEN and `statuses: write` for the
+    # 360-minute default.
+    timeout-minutes: 20
     # Fork pull requests only. Internal PRs and pushes are analysed inline by
-    # ci.yml's own `sonar` job and must not be scanned twice.
+    # ci.yml's own `sonar` job and must not be scanned twice. A cancelled run is
+    # dropped outright: its test jobs never uploaded coverage, so there is
+    # nothing worth analysing and a privileged job should not start at all.
     if: >-
       github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.head_repository.full_name != github.repository
+      github.event.workflow_run.head_repository.full_name != github.repository &&
+      github.event.workflow_run.conclusion != 'cancelled'
 
     permissions:
       contents: read
@@ -103,9 +122,15 @@ jobs:
       - name: Resolve PR context
         id: pr
         if: steps.prnum.outcome == 'success'
+        env:
+          RUN_HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+          RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           set -euo pipefail
-          number="$(tr -dc '0-9' < "$RUNNER_TEMP/pr-number/pr-number.txt")"
+          # Bounded read: the artifact is fork-authored, so a multi-gigabyte
+          # file must not be slurped into a command substitution. `head` first
+          # in the pipeline, or pipefail catches tr's SIGPIPE.
+          number="$(head -c 64 "$RUNNER_TEMP/pr-number/pr-number.txt" | tr -dc '0-9')"
           number="${number:0:9}"
           if [ -z "$number" ]; then
             echo "::error::pr-number artifact contained no digits"
@@ -115,12 +140,39 @@ jobs:
           pr_json="$(gh api "repos/$REPO/pulls/$number")"
           head_ref="$(printf '%s' "$pr_json" | jq -r '.head.ref')"
           base_ref="$(printf '%s' "$pr_json" | jq -r '.base.ref')"
+          pr_head_repo="$(printf '%s' "$pr_json" | jq -r '.head.repo.full_name // ""')"
 
-          # Both end up inside the scanner's `args`, and git refnames legally
-          # contain `;`, `&`, backticks and `$` — enough to break out of a
-          # command line. Anything outside this set is rejected rather than
-          # escaped: a branch name that needs escaping is not a branch name we
-          # need to analyse.
+          # THE TRUST BOUNDARY. A `pull_request` run executes the workflow
+          # definition from the PR HEAD, so a fork controls what ci.yml writes
+          # into pr-number.txt and can name ANY pull request. Digit-stripping
+          # only proves the value is a number, not that it is OUR number.
+          #
+          # Unbound, a fork could have its own code analysed under a victim
+          # PR's `sonar.pullrequest.key`, and SonarCloud would re-decorate that
+          # victim PR with the attacker's gate result — green (trivial
+          # fully-covered code) or red, at the attacker's choice.
+          #
+          # The head repo and branch of a PR cannot legitimately differ from the
+          # run that produced the artifact, so require both to match. (The head
+          # SHA legitimately moves on a re-push and is only reported below.)
+          if [ "$pr_head_repo" != "$RUN_HEAD_REPO" ] || [ "$head_ref" != "$RUN_HEAD_BRANCH" ]; then
+            echo "::error::pr-number artifact claims PR #$number ($pr_head_repo:$head_ref) but this run is $RUN_HEAD_REPO:$RUN_HEAD_BRANCH"
+            exit 1
+          fi
+
+          # Both end up inside the scanner's `args`. This is NOT about shell
+          # metacharacters: at the pinned SHA the action tokenises `args` with
+          # string-argv and passes an argv ARRAY to exec.exec, so no shell is
+          # involved and `;` or backticks are inert.
+          #
+          # It is about QUOTES. string-argv honours them, and git permits `"` in
+          # a refname (it forbids space, `~ ^ : ? * [ \` and control chars, not
+          # quotes). A branch named `x"` unbalances the tokenizer and swallows
+          # the rest of the folded args scalar — including
+          # `-Dsonar.qualitygate.wait=true`, after which the scanner exits 0
+          # without waiting and the status step below reports success. So this
+          # allowlist prevents a real gate bypass. Do not remove it on the
+          # grounds that exec.exec takes an array.
           for ref in "$head_ref" "$base_ref"; do
             case "$ref" in
               ''|*[!A-Za-z0-9._/-]*)
@@ -161,10 +213,40 @@ jobs:
               | awk -F'\t' -v want="$1" '$1 == want && !seen { print $2; seen = 1 }
                                          END { if (!seen) print "missing" }'
           }
+          unit="$(result_of 'Build & Unit Test')"
+          integration="$(result_of 'Integration Test')"
+          frontend="$(result_of 'Frontend Test & Build')"
+          echo "CI job results: unit=$unit integration=$integration frontend=$frontend"
+
+          # These are ci.yml DISPLAY names, and nothing else depends on them —
+          # `needs:` keys on job ids, so renaming one keeps CI green. Treating a
+          # lookup miss as "not success" would silently turn the coverage guard
+          # below into a no-op, so a miss is fatal instead.
+          for r in "$unit" "$integration" "$frontend"; do
+            if [ "$r" = "missing" ]; then
+              echo "::error::a expected CI job name was not found in run $RUN_ID - sonar-fork.yml is out of sync with ci.yml"
+              exit 1
+            fi
+          done
+
+          # ci.yml's inline sonar job refuses to scan on red or cancelled tests
+          # (its `needs.*.result != failure/cancelled` guard). Mirror that: with
+          # cancelled jobs the coverage artifacts were never uploaded, so the
+          # scan would publish 0% under the real PR key and fail the gate for a
+          # reason that has nothing to do with the contributor's code.
+          for r in "$unit" "$integration" "$frontend"; do
+            case "$r" in
+              failure|cancelled)
+                echo "::error::CI did not complete cleanly (unit=$unit integration=$integration frontend=$frontend); refusing to scan"
+                exit 1
+                ;;
+            esac
+          done
+
           {
-            echo "unit=$(result_of 'Build & Unit Test')"
-            echo "integration=$(result_of 'Integration Test')"
-            echo "frontend=$(result_of 'Frontend Test & Build')"
+            echo "unit=$unit"
+            echo "integration=$integration"
+            echo "frontend=$frontend"
           } >> "$GITHUB_OUTPUT"
 
       # MUST precede the coverage downloads: actions/checkout wipes the
@@ -235,6 +317,7 @@ jobs:
       - name: Rewrite frontend lcov paths to repo-root-relative
         if: steps.pr.outcome == 'success'
         run: |
+          set -euo pipefail
           if [ -f frontend/coverage/lcov.info ]; then
             sed -i 's#^SF:#SF:frontend/#' frontend/coverage/lcov.info
           fi
@@ -276,14 +359,26 @@ jobs:
             -Dsonar.pullrequest.base=${{ steps.pr.outputs.base_ref }}
             -Dsonar.qualitygate.wait=true
 
-      # ALWAYS posts, on every path including a failed scan or an aborted job.
-      # A status that is expected but never arrives leaves the PR waiting
-      # forever the moment this context is made a required check.
+      # ALWAYS posts, on every path including a failed scan or an aborted job,
+      # so the context is never silently absent once a run has started.
+      #
+      # BUT THIS IS ADVISORY TODAY, NOT FAIL-CLOSED. Two reasons, both real:
+      #   * The repo has no branch protection and no rulesets, so a missing
+      #     status blocks nothing.
+      #   * `workflow_run.workflows: [CI]` matches on ci.yml's `name:` field,
+      #     and a fork controls ci.yml in its own run. Renaming `name: CI` by
+      #     one character means this workflow never fires and no status is ever
+      #     posted, which reads as all-green.
+      # Making this context required would also hang every INTERNAL PR, because
+      # ci.yml's inline sonar job does not post it. Closing that gap (post the
+      # same context from ci.yml, then require it) is deliberately left to a
+      # follow-up so this change stays reviewable.
       - name: Publish the quality gate verdict to the PR head commit
         if: always()
         env:
           SCAN_OUTCOME: ${{ steps.scan.outcome }}
           PR_OUTCOME: ${{ steps.pr.outcome }}
+          JOBS_OUTCOME: ${{ steps.jobs.outcome }}
           CI_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -297,6 +392,8 @@ jobs:
               state=error
               if [ "$PR_OUTCOME" != "success" ]; then
                 description="Could not resolve the pull request for this run"
+              elif [ "$JOBS_OUTCOME" != "success" ]; then
+                description="CI did not complete cleanly, so no analysis was run"
               else
                 description="Analysis did not complete (CI conclusion: $CI_CONCLUSION)"
               fi
