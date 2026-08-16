@@ -97,6 +97,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       migrations: ${{ steps.filter.outputs.migrations }}
+      workflows: ${{ steps.filter.outputs.workflows }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -122,6 +123,9 @@ jobs:
               - 'backend/migrations/**'
               - '.github/scripts/check-duplicate-migrations.sh'
               - '.github/workflows/ci.yml'
+            workflows:
+              - '.github/workflows/**'
+              - 'Makefile'
 
       # Hand the PR number to sonar-fork.yml (#809). That workflow runs on
       # `workflow_run`, whose payload carries `head_sha` and `head_branch` but
@@ -189,6 +193,40 @@ jobs:
             echo "::error::Migration version collision with origin/$BASE_REF. If this renumbering is deliberate (e.g. a post-release consolidation), add the 'migration-renumbering' label to the PR and re-run this job."
             exit 1
           fi
+
+  # An invalid workflow file is a STARTUP failure, which is the easiest kind of
+  # breakage to miss: the run appears already-failed with no logs, labelled by
+  # file path rather than its `name:`, and — the real damage — GitHub cannot
+  # resolve the `on:` triggers, so the file's SCHEDULED runs simply stop being
+  # created. `stale.yml` was dead for days that way after #805 shipped a `+`
+  # arithmetic expression, which Actions does not support (#816).
+  #
+  # Nothing validated workflow files before, in CI or in pre-commit, which is
+  # how it reached main and stayed there. `make lint-workflows` is the same
+  # target the pre-commit hook runs, against the same pinned actionlint, so the
+  # two can never disagree (#547's hook-and-CI-share-one-definition pattern).
+  #
+  # Deliberately uncached: the job is a single `go run` of one small tool and
+  # finishes in seconds, whereas a cache entry here would either collide with
+  # the shared go-build namespace described in the header or add another
+  # ~hundreds-of-MB claim on the 10GB repo cache limit for no real saving.
+  workflows:
+    name: Workflow lint
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true' || github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version: '1.25.13'
+          cache: false
+
+      - name: Lint workflows
+        run: make lint-workflows
 
   unit:
     name: Build & Unit Test
