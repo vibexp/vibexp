@@ -123,6 +123,29 @@ jobs:
               - '.github/scripts/check-duplicate-migrations.sh'
               - '.github/workflows/ci.yml'
 
+      # Hand the PR number to sonar-fork.yml (#809). That workflow runs on
+      # `workflow_run`, whose payload carries `head_sha` and `head_branch` but
+      # an EMPTY `pull_requests` array for a fork — GitHub does not resolve the
+      # PR for a cross-repository run. The scanner needs
+      # `sonar.pullrequest.key`, so the number has to be handed over out of
+      # band. Only the number is written: everything else the consumer needs is
+      # available from an authoritative source on its side (the workflow_run
+      # payload, or the PR API keyed on this number), which keeps the
+      # fork-influenced surface down to a single integer it re-validates.
+      - name: Record the PR number for the fork Sonar run
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: printf '%s\n' "$PR_NUMBER" > pr-number.txt
+
+      - name: Upload the PR number
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: pr-number
+          path: pr-number.txt
+          retention-days: 1
+
   # golang-migrate identifies a migration by its numeric prefix alone, so two
   # branches each adding their own 0NN_*.sql merge cleanly in git yet break
   # every startup with a duplicate-version error. Local pre-commit checks
@@ -681,8 +704,17 @@ jobs:
     # publish a second, older baseline whose coverage lags main by design (the
     # branch is main-as-of-the-last-tag plus cherry-picks). PRs *into* a release
     # branch still scan normally — that is ordinary new-code analysis.
+    #
+    # Fork PRs are excluded (#809) and picked up by `sonar-fork.yml` instead. A
+    # `pull_request` run originating in a fork gets NO repository secrets, so
+    # `SONAR_TOKEN` is empty here and the scanner hard-fails with "Not
+    # authorized or project not found" (observed on #792). Approving the run
+    # does not help: that control gates whether the run starts, it never grants
+    # secrets. On a `push` event `github.event.pull_request` is null, so the
+    # fork check is falsy and pushes are unaffected.
     if: >-
       always() &&
+      !github.event.pull_request.head.repo.fork &&
       !(github.event_name == 'push' && startsWith(github.ref, 'refs/heads/release/')) &&
       (needs.unit.result == 'success' || needs.integration.result == 'success' || needs.frontend-test.result == 'success') &&
       needs.unit.result != 'failure' && needs.unit.result != 'cancelled' &&
