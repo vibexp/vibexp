@@ -199,6 +199,65 @@ func (_c *MockFreshnessAuditRepository_ListByTeam_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// ListStaleResourcesMissingMark provides a mock function with given fields: ctx, teamID
+func (_m *MockFreshnessAuditRepository) ListStaleResourcesMissingMark(ctx context.Context, teamID string) ([]models.FreshnessResourceRef, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListStaleResourcesMissingMark")
+	}
+
+	var r0 []models.FreshnessResourceRef
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]models.FreshnessResourceRef, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []models.FreshnessResourceRef); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.FreshnessResourceRef)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockFreshnessAuditRepository_ListStaleResourcesMissingMark_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListStaleResourcesMissingMark'
+type MockFreshnessAuditRepository_ListStaleResourcesMissingMark_Call struct {
+	*mock.Call
+}
+
+// ListStaleResourcesMissingMark is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+func (_e *MockFreshnessAuditRepository_Expecter) ListStaleResourcesMissingMark(ctx interface{}, teamID interface{}) *MockFreshnessAuditRepository_ListStaleResourcesMissingMark_Call {
+	return &MockFreshnessAuditRepository_ListStaleResourcesMissingMark_Call{Call: _e.mock.On("ListStaleResourcesMissingMark", ctx, teamID)}
+}
+
+func (_c *MockFreshnessAuditRepository_ListStaleResourcesMissingMark_Call) Run(run func(ctx context.Context, teamID string)) *MockFreshnessAuditRepository_ListStaleResourcesMissingMark_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockFreshnessAuditRepository_ListStaleResourcesMissingMark_Call) Return(_a0 []models.FreshnessResourceRef, _a1 error) *MockFreshnessAuditRepository_ListStaleResourcesMissingMark_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockFreshnessAuditRepository_ListStaleResourcesMissingMark_Call) RunAndReturn(run func(context.Context, string) ([]models.FreshnessResourceRef, error)) *MockFreshnessAuditRepository_ListStaleResourcesMissingMark_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockFreshnessAuditRepository creates a new instance of MockFreshnessAuditRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockFreshnessAuditRepository(t interface {

@@ -121,6 +121,69 @@ func (r *FreshnessAuditRepository) countByTeam(ctx context.Context, teamID strin
 	return total, nil
 }
 
+// ListStaleResourcesMissingMark returns the team's live freshness rows whose
+// newest audit entry is not a `marked`.
+//
+// The shape is a LEFT JOIN LATERAL from the state table rather than a
+// DISTINCT ON over the log, for three reasons. It drives off
+// resource_freshness, so the result is bounded by what is currently stale
+// instead of by every resource the team has ever marked and since cleared. The
+// per-resource subquery is served by idx_resource_freshness_audit_resource
+// (resource_type, resource_id, created_at DESC, id DESC), so each row costs an
+// index seek to a single tuple rather than a sort of the team's whole history.
+// And a resource with no entry at all comes back as a NULL action, which is
+// answerable here -- a query over the log alone can only omit such a resource,
+// leaving the caller to infer it from an absence.
+//
+// The subquery's ordering matches ListByTeam's, and the id tiebreaker is
+// load-bearing for the same reason: `now()` is transaction-start time, so one
+// run writes an identical created_at to every row it inserts and "the newest
+// entry" is otherwise undefined between a mark and a clear written together.
+//
+// Tenancy-only predicate, no role predicates (authz decision D3).
+func (r *FreshnessAuditRepository) ListStaleResourcesMissingMark(
+	ctx context.Context, teamID string,
+) ([]models.FreshnessResourceRef, error) {
+	query := `
+		SELECT f.resource_type, f.resource_id
+		FROM resource_freshness f
+		LEFT JOIN LATERAL (
+			SELECT a.action
+			FROM resource_freshness_audit a
+			WHERE a.team_id = f.team_id
+			  AND a.resource_type = f.resource_type
+			  AND a.resource_id = f.resource_id
+			ORDER BY a.created_at DESC, a.id DESC
+			LIMIT 1
+		) latest ON TRUE
+		WHERE f.team_id = $1
+		  AND (latest.action IS NULL OR latest.action <> $2)
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, teamID, models.FreshnessActionMarked)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list stale resources missing a mark: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close stale-missing-mark rows", "error", closeErr)
+		}
+	}()
+
+	refs := make([]models.FreshnessResourceRef, 0)
+	for rows.Next() {
+		var ref models.FreshnessResourceRef
+		if err := rows.Scan(&ref.ResourceType, &ref.ResourceID); err != nil {
+			return nil, fmt.Errorf("failed to scan stale resource missing a mark: %w", err)
+		}
+		refs = append(refs, ref)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate stale resources missing a mark: %w", err)
+	}
+	return refs, nil
+}
+
 // scanFreshnessAuditDest returns the scan targets for freshnessAuditColumns,
 // in order.
 func scanFreshnessAuditDest(entry *models.ResourceFreshnessAudit) []interface{} {

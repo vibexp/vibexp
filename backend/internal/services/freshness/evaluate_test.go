@@ -125,6 +125,16 @@ func (d evaluatorDeps) expectCandidates(
 		Return(candidates, nil).Once()
 }
 
+// expectNoRepairs answers the repair phase's single query with an empty set:
+// this scenario has no live stale row whose newest audit entry is missing a
+// mark. Every run reaching reconciliation asks once, so it is stated per test
+// rather than defaulted in the constructor -- a test that DOES exercise the
+// repair must not be able to inherit the wrong answer silently.
+func (d evaluatorDeps) expectNoRepairs() {
+	d.audit.EXPECT().ListStaleResourcesMissingMark(mock.Anything, testTeamID).
+		Return([]models.FreshnessResourceRef{}, nil).Once()
+}
+
 // A resource the rules match and the state does not know about is marked, with
 // exactly one audit row recording the transition.
 func TestEvaluate_MarksNewlyStaleResource(t *testing.T) {
@@ -135,6 +145,7 @@ func TestEvaluate_MarksNewlyStaleResource(t *testing.T) {
 	deps.expectCandidates("prompt", promptCandidate())
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{}, nil).Once()
+	deps.expectNoRepairs()
 
 	var written *models.ResourceFreshness
 	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).
@@ -177,6 +188,7 @@ func TestEvaluate_UnionsMatchingRules(t *testing.T) {
 		Return([]models.FreshnessCandidate{promptCandidate()}, nil).Twice()
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{}, nil).Once()
+	deps.expectNoRepairs()
 
 	var written *models.ResourceFreshness
 	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).
@@ -209,6 +221,7 @@ func TestEvaluate_EvaluatesEveryResourceTypeOfARule(t *testing.T) {
 	})
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{}, nil).Once()
+	deps.expectNoRepairs()
 
 	marked := make(map[string]string)
 	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).
@@ -230,6 +243,7 @@ func TestEvaluate_IsIdempotent(t *testing.T) {
 	deps.expectCandidates("prompt", promptCandidate())
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{storedStale(testRuleID)}, nil).Once()
+	deps.expectNoRepairs()
 
 	// No Upsert, DeleteByResource or audit Create is expected; the t-bound
 	// mocks fail the test if any of them is called.
@@ -247,6 +261,7 @@ func TestEvaluate_StoredRuleOrderDoesNotForceAWrite(t *testing.T) {
 		Return([]models.FreshnessCandidate{promptCandidate()}, nil).Twice()
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{storedStale(testOtherRule, testRuleID)}, nil).Once()
+	deps.expectNoRepairs()
 
 	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
 }
@@ -267,6 +282,7 @@ func TestEvaluate_NarrowedRuleSetRefreshesWithoutAudit(t *testing.T) {
 	deps.expectCandidates("prompt", promptCandidate())
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{storedStale(testRuleID, testOtherRule)}, nil).Once()
+	deps.expectNoRepairs()
 
 	var written *models.ResourceFreshness
 	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).
@@ -301,6 +317,7 @@ func TestEvaluate_ResourceClearedMidRunIsAuditedAsMarkedAgain(t *testing.T) {
 	deps.expectCandidates("prompt", promptCandidate())
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{storedStale(testRuleID, testOtherRule)}, nil).Once()
+	deps.expectNoRepairs()
 
 	// The clear happened here, so the upsert inserts rather than updates.
 	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).Return(true, nil).Once()
@@ -335,6 +352,7 @@ func TestEvaluate_ClearsResourceNoRuleMatches(t *testing.T) {
 	deps.expectCandidates("prompt")
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{storedStale(testRuleID)}, nil).Once()
+	deps.expectNoRepairs()
 	deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).
 		Return(true, nil).Once()
 
@@ -361,6 +379,7 @@ func TestEvaluate_NoEnabledRulesClearsEverything(t *testing.T) {
 		Return([]*models.FreshnessRule{}, nil).Once()
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{storedStale(testRuleID)}, nil).Once()
+	deps.expectNoRepairs()
 	deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).
 		Return(true, nil).Once()
 	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
@@ -377,6 +396,7 @@ func TestEvaluate_ClearAlreadyGoneWritesNoAudit(t *testing.T) {
 		Return([]*models.FreshnessRule{}, nil).Once()
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{storedStale(testRuleID)}, nil).Once()
+	deps.expectNoRepairs()
 	deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).
 		Return(false, nil).Once()
 
@@ -413,6 +433,7 @@ func TestEvaluate_PagesThroughCandidates(t *testing.T) {
 
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{}, nil).Once()
+	deps.expectNoRepairs()
 	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).Return(true, nil).Times(501)
 	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Times(501)
 
@@ -553,6 +574,7 @@ func TestEvaluate_ClearsBeforeMarks(t *testing.T) {
 	deps.expectCandidates("prompt", goneStale)
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{storedStale(testRuleID)}, nil).Once()
+	deps.expectNoRepairs()
 
 	var order []string
 	deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).
@@ -565,4 +587,221 @@ func TestEvaluate_ClearsBeforeMarks(t *testing.T) {
 
 	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
 	assert.Equal(t, []string{"clear", "mark"}, order)
+}
+
+// promptRef is the repair query's answer naming the prompt every scenario
+// above revolves around.
+func promptRef() models.FreshnessResourceRef {
+	return models.FreshnessResourceRef{ResourceType: "prompt", ResourceID: testPromptID}
+}
+
+// The #796 repair. A live stale row whose newest audit entry is a `cleared` is
+// one whose `marked` write did not land: the row's presence makes every later
+// upsert an UPDATE, so the mark path takes its bookkeeping branch forever and
+// no re-run can fix it. The repair pass writes the missing entry.
+//
+// The scenario is driven entirely through the mocked repository answer,
+// because that answer IS the fix: the evaluator learns which rows are missing
+// a mark from the database, not from the snapshot it read at the top of the
+// run.
+func TestEvaluate_RepairsLiveStaleRowWhoseNewestEntryIsCleared(t *testing.T) {
+	evaluator, deps, counts := newEvaluatorWithCounters(t)
+
+	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
+		Return([]*models.FreshnessRule{rule(testRuleID, "prompt")}, nil).Once()
+	deps.expectCandidates("prompt", promptCandidate())
+	// Stored with exactly the rule set the run computes, so applyMarks
+	// short-circuits and writes nothing: the only audit row this run can
+	// produce is the repair.
+	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
+		Return([]*models.ResourceFreshness{storedStale(testRuleID)}, nil).Once()
+	deps.audit.EXPECT().ListStaleResourcesMissingMark(mock.Anything, testTeamID).
+		Return([]models.FreshnessResourceRef{promptRef()}, nil).Once()
+
+	var logged *models.ResourceFreshnessAudit
+	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, e *models.ResourceFreshnessAudit) { logged = e }).
+		Return(nil).Once()
+
+	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
+
+	require.NotNil(t, logged, "the missing mark must be written")
+	assert.Equal(t, models.FreshnessActionMarked, logged.Action)
+	assert.Equal(t, models.FreshnessReasonRuleRun, logged.Reason)
+	assert.Equal(t, "prompt", logged.ResourceType)
+	assert.Equal(t, testPromptID, logged.ResourceID)
+	require.NotNil(t, logged.RuleID, "one matched rule on the row is attributable")
+	assert.Equal(t, testRuleID, *logged.RuleID)
+
+	// Reported as a repair, not as a mark: a mark claims the resource became
+	// stale during this run, and it did not.
+	assert.Equal(t, int64(1), counts["repaired"])
+	assert.Equal(t, int64(0), counts["marked"])
+}
+
+// A resource with NO audit entry at all is the same defect as a `cleared`
+// newest entry, and the repository reports it the same way -- which is why the
+// query answers "missing a mark" rather than handing back newest actions for
+// the evaluator to interpret. The row is repaired, and the freshness row
+// itself is NOT rewritten: nothing about the state changed, so moving
+// updated_at would misdate it.
+func TestEvaluate_RepairsLiveStaleRowWithNoAuditHistory(t *testing.T) {
+	evaluator, deps, counts := newEvaluatorWithCounters(t)
+
+	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
+		Return([]*models.FreshnessRule{rule(testRuleID, "prompt")}, nil).Once()
+	deps.expectCandidates("prompt", promptCandidate())
+	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
+		Return([]*models.ResourceFreshness{storedStale(testRuleID)}, nil).Once()
+	deps.audit.EXPECT().ListStaleResourcesMissingMark(mock.Anything, testTeamID).
+		Return([]models.FreshnessResourceRef{promptRef()}, nil).Once()
+	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+
+	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
+
+	assert.Equal(t, int64(1), counts["repaired"])
+	// No Upsert expectation is set, so the t-bound mock fails the test if the
+	// repair rewrote the row it is describing.
+}
+
+// The union case: a repaired entry attributes no single rule when the row
+// matched several, exactly as a freshly written mark does.
+func TestEvaluate_RepairedEntryAttributesNoRuleWhenSeveralMatched(t *testing.T) {
+	evaluator, deps := newEvaluator(t)
+
+	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
+		Return([]*models.FreshnessRule{rule(testOtherRule, "prompt"), rule(testRuleID, "prompt")}, nil).Once()
+	deps.candidates.EXPECT().ListStaleCandidates(mock.Anything, mock.Anything).
+		Return([]models.FreshnessCandidate{promptCandidate()}, nil).Twice()
+	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
+		Return([]*models.ResourceFreshness{storedStale(testRuleID, testOtherRule)}, nil).Once()
+	deps.audit.EXPECT().ListStaleResourcesMissingMark(mock.Anything, testTeamID).
+		Return([]models.FreshnessResourceRef{promptRef()}, nil).Once()
+
+	var logged *models.ResourceFreshnessAudit
+	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, e *models.ResourceFreshnessAudit) { logged = e }).
+		Return(nil).Once()
+
+	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
+
+	require.NotNil(t, logged)
+	assert.Nil(t, logged.RuleID, "several rules matched, so no single rule caused it")
+}
+
+// A row whose newest entry is already a `marked` is not in the repository's
+// answer, so nothing is repaired. This is the idempotence the package doc
+// rests on: the second of two consecutive runs writes nothing, because the
+// first one's repair is now the newest entry.
+func TestEvaluate_RepairIsIdempotent(t *testing.T) {
+	evaluator, deps, counts := newEvaluatorWithCounters(t)
+
+	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
+		Return([]*models.FreshnessRule{rule(testRuleID, "prompt")}, nil).Once()
+	deps.expectCandidates("prompt", promptCandidate())
+	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
+		Return([]*models.ResourceFreshness{storedStale(testRuleID)}, nil).Once()
+	deps.expectNoRepairs()
+
+	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
+
+	assert.Equal(t, int64(0), counts["repaired"])
+	// No Create expectation: the t-bound mock fails if anything was audited.
+}
+
+// The repair is bounded by the run's own snapshot as well as by the database.
+// A row the query reports but the snapshot never saw appeared after the pass
+// began, so this run cannot say which rules made it stale -- it is skipped
+// rather than audited with a guess, and the next run repairs it.
+func TestEvaluate_RepairSkipsRowAbsentFromTheSnapshot(t *testing.T) {
+	evaluator, deps, counts := newEvaluatorWithCounters(t)
+
+	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
+		Return([]*models.FreshnessRule{rule(testRuleID, "prompt")}, nil).Once()
+	deps.expectCandidates("prompt")
+	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
+		Return([]*models.ResourceFreshness{}, nil).Once()
+	deps.audit.EXPECT().ListStaleResourcesMissingMark(mock.Anything, testTeamID).
+		Return([]models.FreshnessResourceRef{promptRef()}, nil).Once()
+
+	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
+
+	assert.Equal(t, int64(0), counts["repaired"])
+	// No Create expectation: the t-bound mock fails if the unknown row was
+	// audited on a guess.
+}
+
+// The repair query failing fails the run, like every other repository error --
+// it is a reconciliation phase, not a best-effort extra.
+func TestEvaluate_PropagatesRepairQueryError(t *testing.T) {
+	evaluator, deps := newEvaluator(t)
+	failure := errors.New("boom")
+
+	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
+		Return([]*models.FreshnessRule{rule(testRuleID, "prompt")}, nil).Once()
+	deps.expectCandidates("prompt", promptCandidate())
+	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
+		Return([]*models.ResourceFreshness{storedStale(testRuleID)}, nil).Once()
+	deps.audit.EXPECT().ListStaleResourcesMissingMark(mock.Anything, testTeamID).
+		Return(nil, failure).Once()
+
+	err := evaluator.Evaluate(context.Background(), testTeamID)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, failure)
+}
+
+// The #796 half of the snapshot cleanup. The snapshot says the resource is NOT
+// stale, and the upsert reports it UPDATED an existing row -- so the resource
+// did not transition and nothing may be audited on the strength of the
+// snapshot. The decision belongs to the database's `inserted`, symmetrically
+// with clearStale deciding on `deleted`.
+//
+// The combination is unreachable in production (Upsert has one production
+// caller and the advisory lock keeps same-team runs from overlapping), so the
+// mocked report is the only way to reach it -- which is the point: it is
+// settled deliberately rather than resting on who holds the lock.
+func TestEvaluate_UnseenRowThatUpdatedIsNotAuditedOnTheSnapshot(t *testing.T) {
+	evaluator, deps, counts := newEvaluatorWithCounters(t)
+
+	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
+		Return([]*models.FreshnessRule{rule(testRuleID, "prompt")}, nil).Once()
+	deps.expectCandidates("prompt", promptCandidate())
+	// Empty snapshot: wasStale is false for the candidate.
+	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
+		Return([]*models.ResourceFreshness{}, nil).Once()
+	deps.expectNoRepairs()
+
+	// ...yet the row was there, so the upsert updated rather than inserted.
+	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).Return(false, nil).Once()
+
+	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
+
+	// No audit Create expectation: the t-bound mock fails the test if the run
+	// wrote a `marked` entry, which is what it did before #796.
+	assert.Equal(t, int64(0), counts["marked"])
+	assert.Equal(t, int64(1), counts["refreshed"])
+}
+
+// A repair whose own audit write fails must fail the run, not swallow the
+// error -- the log is still contradicting the state, and the next tick has to
+// try again. That the repair itself can fail this way is the very defect it
+// exists to heal, so it may not be treated as best-effort.
+func TestEvaluate_PropagatesRepairAuditError(t *testing.T) {
+	evaluator, deps := newEvaluator(t)
+	failure := errors.New("boom")
+
+	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
+		Return([]*models.FreshnessRule{rule(testRuleID, "prompt")}, nil).Once()
+	deps.expectCandidates("prompt", promptCandidate())
+	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
+		Return([]*models.ResourceFreshness{storedStale(testRuleID)}, nil).Once()
+	deps.audit.EXPECT().ListStaleResourcesMissingMark(mock.Anything, testTeamID).
+		Return([]models.FreshnessResourceRef{promptRef()}, nil).Once()
+	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(failure).Once()
+
+	err := evaluator.Evaluate(context.Background(), testTeamID)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, failure)
 }

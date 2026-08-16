@@ -75,6 +75,24 @@ func disableRule(t *testing.T, ruleID string) {
 	require.NoError(t, err)
 }
 
+// appendAuditEntry writes one log entry through the same repository the
+// evaluator uses, so a fixture cannot drift from the real write path. It is
+// how a test reproduces a log that disagrees with the state: writing a
+// `cleared` WITHOUT deleting the row is precisely the damage a failed audit
+// write leaves behind, and no production path produces it.
+func appendAuditEntry(t *testing.T, teamID, resourceType, resourceID, action string, ruleID *string) {
+	t.Helper()
+	require.NoError(t, NewFreshnessAuditRepository(integrationDB).Create(context.Background(),
+		&models.ResourceFreshnessAudit{
+			TeamID:       teamID,
+			ResourceType: resourceType,
+			ResourceID:   resourceID,
+			RuleID:       ruleID,
+			Action:       action,
+			Reason:       models.FreshnessReasonRuleRun,
+		}))
+}
+
 func auditEntries(t *testing.T, teamID string) []*models.ResourceFreshnessAudit {
 	t.Helper()
 	entries, _, err := NewFreshnessAuditRepository(integrationDB).
@@ -283,4 +301,130 @@ func TestIntegrationFreshnessEvaluate_RecoversAfterRuleDeletion(t *testing.T) {
 	require.Len(t, entries, 1, "RemoveRule already cleared the row, so this run had nothing left to clear")
 	require.NotNil(t, entries[0].RuleID)
 	assert.Equal(t, ruleID, *entries[0].RuleID)
+}
+
+// The #796 repair, end to end. Only real Postgres can show this: the sqlmock
+// test proves the query ASKS for the newest entry per live row, but what
+// "newest" resolves to -- and that the LATERAL join really is bounded by the
+// state table -- is the database's answer, not the mock's.
+//
+// The starting position is what a failed audit write leaves behind: a live
+// stale row whose newest entry says `cleared`. No re-run repairs it on its
+// own, because the row's presence makes every later upsert an UPDATE, which
+// takes the bookkeeping branch and writes nothing.
+func TestIntegrationFreshnessEvaluate_RepairsLiveRowWhoseNewestEntryIsCleared(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	ctx := context.Background()
+	evaluator := newIntegrationEvaluator()
+	state := NewResourceFreshnessRepository(integrationDB)
+
+	promptID := insertTestPrompt(t, scope.userID, scope.teamID, scope.projectID, "old", "body", "published")
+	touchResource(t, "prompts", promptID, "", daysAgo(120), nil)
+	ruleID := insertEvaluationRule(t, scope.teamID, 30, "prompt")
+
+	// Run 1 marks it and audits the transition.
+	require.NoError(t, evaluator.Evaluate(ctx, scope.teamID))
+	marked, err := state.GetByResource(ctx, "prompt", promptID)
+	require.NoError(t, err)
+	require.NotNil(t, marked)
+	require.Len(t, auditEntries(t, scope.teamID), 1)
+
+	// Now reproduce the damage a failed audit write leaves: the row stays, but
+	// the log's newest entry is a clear. Written directly rather than through
+	// the clear path, because the clear path would also delete the row -- the
+	// whole defect is the two halves disagreeing.
+	appendAuditEntry(t, scope.teamID, "prompt", promptID, models.FreshnessActionCleared, &ruleID)
+	require.Len(t, auditEntries(t, scope.teamID), 2)
+	require.Equal(t, models.FreshnessActionCleared, auditEntries(t, scope.teamID)[0].Action,
+		"the log now contradicts the live row")
+
+	// Run 2 repairs it.
+	require.NoError(t, evaluator.Evaluate(ctx, scope.teamID))
+
+	entries := auditEntries(t, scope.teamID)
+	require.Len(t, entries, 3, "exactly one entry is added -- the missing mark")
+	assert.Equal(t, models.FreshnessActionMarked, entries[0].Action, "newest first")
+	assert.Equal(t, models.FreshnessReasonRuleRun, entries[0].Reason)
+	assert.Equal(t, promptID, entries[0].ResourceID)
+	require.NotNil(t, entries[0].RuleID, "one rule matched, so it is attributable")
+	assert.Equal(t, ruleID, *entries[0].RuleID)
+
+	// The repair describes the row; it must not rewrite it.
+	repaired, err := state.GetByResource(ctx, "prompt", promptID)
+	require.NoError(t, err)
+	require.NotNil(t, repaired)
+	assert.Equal(t, marked.Since, repaired.Since)
+	assert.Equal(t, marked.UpdatedAt, repaired.UpdatedAt,
+		"a repair writes to the log, never to the state row")
+
+	// Run 3 is the invariant the package doc rests on: the pass stays a no-op
+	// once the log agrees with the state, so a repair cannot become a source
+	// of one audit row per tick.
+	require.NoError(t, evaluator.Evaluate(ctx, scope.teamID))
+	assert.Len(t, auditEntries(t, scope.teamID), 3, "the repair is idempotent")
+}
+
+// A live stale row with NO audit history at all is the same defect, and the
+// LATERAL join's NULL arm is what sees it -- a query over the log alone could
+// only omit such a resource.
+func TestIntegrationFreshnessEvaluate_RepairsLiveRowWithNoAuditHistory(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	ctx := context.Background()
+	evaluator := newIntegrationEvaluator()
+
+	promptID := insertTestPrompt(t, scope.userID, scope.teamID, scope.projectID, "old", "body", "published")
+	touchResource(t, "prompts", promptID, "", daysAgo(120), nil)
+	ruleID := insertEvaluationRule(t, scope.teamID, 30, "prompt")
+
+	require.NoError(t, evaluator.Evaluate(ctx, scope.teamID))
+	require.Len(t, auditEntries(t, scope.teamID), 1)
+
+	// Wipe the log, leaving the state row: exactly what a mark whose audit
+	// write never landed looks like on a resource that had no history before.
+	_, err := integrationDB.ExecContext(ctx,
+		"DELETE FROM resource_freshness_audit WHERE team_id = $1", scope.teamID)
+	require.NoError(t, err)
+
+	require.NoError(t, evaluator.Evaluate(ctx, scope.teamID))
+
+	entries := auditEntries(t, scope.teamID)
+	require.Len(t, entries, 1)
+	assert.Equal(t, models.FreshnessActionMarked, entries[0].Action)
+	require.NotNil(t, entries[0].RuleID)
+	assert.Equal(t, ruleID, *entries[0].RuleID)
+}
+
+// A resource the run CLEARS must not then be repaired. Its newest entry is the
+// clear this run just wrote, so a repair driven off the run's snapshot -- which
+// still holds the cleared key -- would write a `marked` for a resource that is
+// no longer stale: the defect being fixed here, inverted. Driving off the state
+// table is what rules it out.
+func TestIntegrationFreshnessEvaluate_ClearedResourceIsNotRepaired(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	ctx := context.Background()
+	evaluator := newIntegrationEvaluator()
+	state := NewResourceFreshnessRepository(integrationDB)
+
+	promptID := insertTestPrompt(t, scope.userID, scope.teamID, scope.projectID, "old", "body", "published")
+	touchResource(t, "prompts", promptID, "", daysAgo(120), nil)
+	ruleID := insertEvaluationRule(t, scope.teamID, 30, "prompt")
+
+	require.NoError(t, evaluator.Evaluate(ctx, scope.teamID))
+	require.Len(t, auditEntries(t, scope.teamID), 1)
+
+	// One run that both clears the resource and reaches the repair phase.
+	disableRule(t, ruleID)
+	require.NoError(t, evaluator.Evaluate(ctx, scope.teamID))
+
+	gone, err := state.GetByResource(ctx, "prompt", promptID)
+	require.NoError(t, err)
+	require.Nil(t, gone)
+
+	entries := auditEntries(t, scope.teamID)
+	require.Len(t, entries, 2, "the clear, and nothing after it")
+	assert.Equal(t, models.FreshnessActionCleared, entries[0].Action,
+		"a cleared resource has no live row, so there is no mark to repair")
 }

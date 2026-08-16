@@ -11,6 +11,29 @@
 // stored, and applies only the differences -- so running it twice in a row is
 // a no-op, which is what makes it safe under the scheduler's at-least-once
 // delivery.
+//
+// # The mark and its audit entry are two writes, and that is deliberate
+//
+// Marking a resource writes the freshness row and the audit row as separate
+// statements with no transaction around them, for the reason Evaluate's own
+// doc gives: one transaction spanning a large team would hold the scheduler's
+// advisory lock while blocking writers on resource_freshness, for no
+// correctness gain over reconciling next run.
+//
+// The residue is that a failure BETWEEN the two -- audit.Create erroring, the
+// job's timeout firing, the process dying -- leaves a live stale row with no
+// `marked` entry, and no later run repairs it: the row now exists, so every
+// subsequent upsert UPDATEs rather than INSERTs, takes the bookkeeping branch,
+// and writes no audit row. The log would contradict the live state forever
+// (#796).
+//
+// repairMissingMarks is what closes that, and it is why the non-transactional
+// design is safe rather than merely cheap. It asks the database which live
+// stale rows have no `marked` as their newest entry and writes the missing
+// entry, so the log converges on the state within one tick. Repairing after
+// the fact was chosen over a transactional seam because a transaction only
+// prevents FUTURE gaps: rows already broken in a running deployment stay
+// broken, and finding those needs this query regardless.
 package freshness
 
 import (
@@ -125,7 +148,7 @@ func (e *Evaluator) Evaluate(ctx context.Context, teamID string) error {
 		return fmt.Errorf("freshness evaluate: failed to load freshness state for team %s: %w", teamID, err)
 	}
 
-	marked, refreshed, cleared, err := e.reconcile(ctx, teamID, desired, stored)
+	counts, err := e.reconcile(ctx, teamID, desired, stored)
 	if err != nil {
 		return err
 	}
@@ -134,11 +157,22 @@ func (e *Evaluator) Evaluate(ctx context.Context, teamID string) error {
 		"team_id", teamID,
 		"enabled_rules", len(rules),
 		"stale_total", len(desired),
-		"marked", marked,
-		"refreshed", refreshed,
-		"cleared", cleared,
+		"marked", counts.marked,
+		"refreshed", counts.refreshed,
+		"cleared", counts.cleared,
+		"repaired", counts.repaired,
 	)
 	return nil
+}
+
+// reconcileCounts tallies one pass, one field per phase. It exists because the
+// phases now outnumber what a readable multi-return can carry, and because
+// they are reported together in a single log line.
+type reconcileCounts struct {
+	marked    int
+	refreshed int
+	cleared   int
+	repaired  int
 }
 
 // desiredStale computes the union of every enabled rule's matches.
@@ -220,13 +254,13 @@ func addMatch(desired map[resourceKey]*desiredState, candidate models.FreshnessC
 
 // reconcile applies the difference between the desired stale set and the
 // stored one, returning how many resources were newly marked, refreshed
-// (already stale, matching rules changed) and cleared.
+// (already stale, matching rules changed), cleared and repaired.
 func (e *Evaluator) reconcile(
 	ctx context.Context,
 	teamID string,
 	desired map[resourceKey]*desiredState,
 	stored []*models.ResourceFreshness,
-) (marked, refreshed, cleared int, err error) {
+) (counts reconcileCounts, err error) {
 	storedByKey := make(map[resourceKey]*models.ResourceFreshness, len(stored))
 	for _, row := range stored {
 		// The desired sets are built sorted, so sorting the stored one makes
@@ -244,13 +278,62 @@ func (e *Evaluator) reconcile(
 	// team big enough to exhaust the timeout never reaches its clears, so its
 	// flags would become permanently sticky while new marks kept landing. The
 	// two phases touch disjoint keys, so the order does not change the result.
-	cleared, err = e.applyClears(ctx, teamID, desired, storedByKey)
+	counts.cleared, err = e.applyClears(ctx, teamID, desired, storedByKey)
 	if err != nil {
-		return marked, refreshed, cleared, err
+		return counts, err
 	}
 
-	marked, refreshed, err = e.applyMarks(ctx, teamID, desired, storedByKey)
-	return marked, refreshed, cleared, err
+	counts.marked, counts.refreshed, err = e.applyMarks(ctx, teamID, desired, storedByKey)
+	if err != nil {
+		return counts, err
+	}
+
+	// Repairs run LAST, and that ordering is load-bearing in both directions.
+	// It must follow applyMarks so a resource this run has just marked and
+	// audited is not audited a second time -- the repair query reads the log
+	// after those writes land, so it already sees them. It must equally follow
+	// applyClears, whose keys are still present in storedByKey (nothing
+	// removes them): driving repairs off the snapshot instead of off the
+	// database would write a `marked` entry for a resource this very run
+	// cleared, which is the corruption being fixed here, inverted.
+	counts.repaired, err = e.repairMissingMarks(ctx, teamID, storedByKey)
+	return counts, err
+}
+
+// repairMissingMarks writes the `marked` audit entry for every live stale row
+// whose newest entry is not one, healing a mark whose audit write did not land
+// (#796; see the package doc for why that gap exists by design).
+//
+// The set of rows to repair comes from the repository, never from the
+// snapshot: only the database knows which rows are still live after this run's
+// clears, and only it knows what the log's newest entry now is after this
+// run's marks. The snapshot is consulted for one thing the query does not
+// return -- the row's matched_rule_ids, so the repaired entry attributes the
+// same rules the live row does. A live row absent from the snapshot is skipped
+// rather than guessed at: it appeared after the pass began, so it is not this
+// run's to describe, and the next run repairs it if it still needs it.
+func (e *Evaluator) repairMissingMarks(
+	ctx context.Context, teamID string, storedByKey map[resourceKey]*models.ResourceFreshness,
+) (int, error) {
+	refs, err := e.audit.ListStaleResourcesMissingMark(ctx, teamID)
+	if err != nil {
+		return 0, fmt.Errorf(
+			"freshness evaluate: failed to list stale resources missing a mark for team %s: %w", teamID, err)
+	}
+
+	repaired := 0
+	for _, ref := range refs {
+		key := resourceKey{resourceType: ref.ResourceType, resourceID: ref.ResourceID}
+		row, known := storedByKey[key]
+		if !known {
+			continue
+		}
+		if err := e.recordAudit(ctx, teamID, key, models.FreshnessActionMarked, row.MatchedRuleIDs); err != nil {
+			return repaired, err
+		}
+		repaired++
+	}
+	return repaired, nil
 }
 
 // applyMarks writes every resource the rules currently match whose stored rule
@@ -275,21 +358,30 @@ func (e *Evaluator) applyMarks(
 		if inserted, err = e.markStale(ctx, teamID, key, want); err != nil {
 			return marked, refreshed, err
 		}
-		if wasStale && !inserted {
-			// Already stale under a different set of rules, and the row was
-			// still there for the upsert to update: the state is refreshed but
-			// the resource did not change status, so no audit row is written.
-			// The audit log records transitions, not the bookkeeping between
-			// them.
+		if !inserted {
+			// The upsert UPDATED a row that was already there, so the resource
+			// did not change status: the state is refreshed and no audit row is
+			// written. The audit log records transitions, not the bookkeeping
+			// between them.
+			//
+			// The decision is the database's `inserted` alone -- the snapshot's
+			// wasStale is used only for the equal-rule-set short-circuit above,
+			// exactly as clearStale decides on `deleted` and not on what it
+			// read (#796). The combination that made the difference,
+			// !wasStale && !inserted, is unreachable today (Upsert has one
+			// production caller and the scheduler's advisory lock keeps
+			// same-team runs from overlapping), but it is the same class of bug
+			// as #771 and is settled deliberately rather than left resting on
+			// who holds the lock.
 			refreshed++
 			continue
 		}
-		// wasStale && inserted is the race (#771): the snapshot saw a stale
-		// row, a clear deleted it before the upsert, and the upsert therefore
-		// INSERTED. That is a real stale-again transition, and without an audit
-		// row the newest entry for this resource would be the clear -- an audit
-		// log that contradicts the live state. Trust what the database did, not
-		// what the snapshot believed.
+		// The upsert INSERTED. Usually that is a resource becoming stale for
+		// the first time; when the snapshot also said wasStale it is the race
+		// (#771) -- a clear deleted the row between the read and the upsert.
+		// Either way it is a real transition into stale, and without an audit
+		// row the newest entry for this resource would be the clear, an audit
+		// log that contradicts the live state.
 		if err = e.recordAudit(ctx, teamID, key, models.FreshnessActionMarked, want.ruleIDs); err != nil {
 			return marked, refreshed, err
 		}
