@@ -188,8 +188,8 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	adminRepository := providers.ProvideAdminRepository(db)
 	adminServiceInterface := providers.ProvideAdminService(adminRepository, userRepository, eventManager)
 	embeddingBackfillRepository := providers.ProvideEmbeddingBackfillRepository(db)
-	embeddingBackfiller := providers.ProvideEmbeddingBackfillService(embeddingBackfillRepository, eventManager, promptServiceInterface, logger)
 	embeddingCoverageGetter := providers.ProvideEmbeddingStatusService(embeddingProviderRepository, embeddingBackfillRepository, logger)
+	embeddingBackfiller := providers.ProvideEmbeddingBackfillService(embeddingBackfillRepository, eventManager, promptServiceInterface, embeddingCoverageGetter, logger)
 	userPreferencesServiceInterface := providers.ProvideUserPreferencesService(userPreferencesRepository)
 	teamInvitationServiceDeps := services.TeamInvitationServiceDeps{
 		InvitationRepo: teamInvitationRepository,

@@ -11,7 +11,12 @@ import "sync"
 // submit never blocks (the queue is unbounded), so a burst is absorbed in memory
 // rather than dropped or fanned out onto unbounded goroutines. The trade-off is
 // bounded goroutines for an unbounded in-memory backlog; a durable, spillable job
-// queue is deferred to the embedding-pipeline-v2 epic (#143).
+// queue is deferred to #820.
+//
+// The backlog is NOT durable: a restart, a crash, or a Stop() that outlives its
+// drain discards every job still queued, silently as far as this type is concerned.
+// #755 added the dispatcher's submitted/terminal log pair so such a loss is at least
+// visible (submitted line, no terminal line) until #820 makes it impossible.
 type boundedExecutor struct {
 	mu     sync.Mutex
 	cond   *sync.Cond

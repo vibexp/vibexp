@@ -328,3 +328,173 @@ func TestEmbeddingDispatcher_ConcurrencyChangeDropsNothing(t *testing.T) {
 		"every entity embeds across a concurrency change — none dropped")
 	assert.Equal(t, int32(k), provider.calls.Load())
 }
+
+// --- submitted/terminal ledger (#755) ---
+
+// countJSONLines counts how many captured log lines contain every given substring.
+// The handler writes one JSON object per line, so this is an exact per-entity count
+// rather than the substring-anywhere check the older assertions use.
+func countJSONLines(out string, contains ...string) int {
+	n := 0
+	for _, line := range strings.Split(out, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		matched := true
+		for _, c := range contains {
+			if !strings.Contains(line, c) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			n++
+		}
+	}
+	return n
+}
+
+// lineIndexOf returns the index of the first captured log line containing every
+// given substring, or -1. Used to pin the ordering of the submitted/terminal pair.
+func lineIndexOf(out string, contains ...string) int {
+	for i, line := range strings.Split(out, "\n") {
+		matched := true
+		for _, c := range contains {
+			if !strings.Contains(line, c) {
+				matched = false
+				break
+			}
+		}
+		if matched && strings.TrimSpace(line) != "" {
+			return i
+		}
+	}
+	return -1
+}
+
+// Every submitted entity must produce exactly one submitted line carrying its
+// identifiers and exactly one terminal line — that pair is what turns a job lost
+// between the two (the in-memory queue is not durable, #820) into a visible gap.
+func TestEmbeddingDispatcher_SubmittedAndTerminalLinesPairUpOnSuccess(t *testing.T) {
+	t.Parallel()
+
+	provider := &countingProvider{}
+	resolver := &perTeamResolver{
+		providers:   map[string]EmbeddingProvider{"team-1": provider},
+		concurrency: map[string]int{"team-1": 2},
+	}
+	svc := newRecordingEmbeddingService(func(string) string { return "team-1" })
+
+	var logs syncBuffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	d := newDispatcher(resolver, svc, logger,
+		EmbeddingRetryConfig{MaxRetries: 3, BaseBackoff: time.Millisecond})
+	// Stop is idempotent, so the explicit quiescing Stop below still works; this
+	// defer only guarantees the workers are reaped when an assertion fails first.
+	defer d.Stop()
+
+	const k = 5
+	for i := 0; i < k; i++ {
+		require.NoError(t, d.ProcessEvent(context.Background(), promptEvent(fmt.Sprintf("ledger-%d", i))))
+	}
+
+	waitFor(t, func() bool { return svc.savedCount() == k }, "all entities must embed")
+	// Stop drains every executor, so the ledger is quiesced and the totals are
+	// comparable — a snapshot taken mid-flight would legitimately show a shortfall.
+	d.Stop()
+
+	out := logs.String()
+	for i := 0; i < k; i++ {
+		id := fmt.Sprintf("ledger-%d", i)
+		assert.Equal(t, 1, countJSONLines(out, "Embedding job submitted", id),
+			"exactly one submitted line for %s", id)
+		assert.Equal(t, 1, countJSONLines(out, "Embedding job completed", id),
+			"exactly one terminal line for %s", id)
+	}
+	// The submitted line must carry the fields an operator diffs on.
+	assert.Contains(t, out, `"entity_type":"prompt"`)
+	assert.Contains(t, out, `"team_id":"team-1"`)
+	// Submitted is logged before the job is enqueued, so it can never be ordered
+	// after the terminal line it opens — a worker can otherwise finish the job
+	// while the submitting goroutine is still on its way to the log call.
+	for i := 0; i < k; i++ {
+		id := fmt.Sprintf("ledger-%d", i)
+		sub := lineIndexOf(out, "Embedding job submitted", id)
+		term := lineIndexOf(out, "Embedding job completed", id)
+		require.NotEqual(t, -1, sub)
+		require.NotEqual(t, -1, term)
+		assert.Less(t, sub, term, "submitted must precede its terminal line for %s", id)
+	}
+
+	stats := d.Stats()
+	assert.Equal(t, int64(k), stats.Submitted)
+	assert.Equal(t, int64(k), stats.Succeeded)
+	assert.Zero(t, stats.Failed)
+	assert.Equal(t, stats.Submitted, stats.Succeeded+stats.Failed,
+		"a quiesced dispatcher must account for every submitted job")
+}
+
+// The exhausted-retries path is the other terminal: one submitted line, one ERROR,
+// and no success line — so the ledger still balances when nothing gets embedded.
+func TestEmbeddingDispatcher_SubmittedAndTerminalLinesPairUpOnFailure(t *testing.T) {
+	t.Parallel()
+
+	provider := &countingProvider{err: errors.New("provider exploded")}
+	resolver := &perTeamResolver{
+		providers:   map[string]EmbeddingProvider{"team-1": provider},
+		concurrency: map[string]int{"team-1": 1},
+	}
+	svc := newRecordingEmbeddingService(func(string) string { return "team-1" })
+
+	var logs syncBuffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	d := newDispatcher(resolver, svc, logger,
+		EmbeddingRetryConfig{MaxRetries: 2, BaseBackoff: time.Millisecond})
+	defer d.Stop()
+
+	const id = "ledger-doomed"
+	require.NoError(t, d.ProcessEvent(context.Background(), promptEvent(id)))
+
+	waitFor(t, func() bool { return strings.Contains(logs.String(), "failed after all retries") },
+		"a terminal ERROR must be logged")
+	d.Stop()
+
+	out := logs.String()
+	assert.Equal(t, 1, countJSONLines(out, "Embedding job submitted", id))
+	assert.Equal(t, 1, countJSONLines(out, "failed after all retries", id))
+	assert.Zero(t, countJSONLines(out, "Embedding job completed", id),
+		"a job that never embedded must not log a success terminal")
+
+	stats := d.Stats()
+	assert.Equal(t, int64(1), stats.Submitted)
+	assert.Equal(t, int64(1), stats.Failed)
+	assert.Zero(t, stats.Succeeded)
+	assert.Equal(t, stats.Submitted, stats.Succeeded+stats.Failed)
+}
+
+// A resolve-stage failure happens BEFORE the job reaches a provider executor, so it
+// must not enter the ledger at all — otherwise every unembeddable event would read
+// as a lost job.
+func TestEmbeddingDispatcher_ResolveFailureIsNotCountedAsSubmitted(t *testing.T) {
+	t.Parallel()
+
+	svc := newRecordingEmbeddingService(func(string) string { return "team-1" })
+	var logs syncBuffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	d := newDispatcher(erroringResolver{}, svc, logger,
+		EmbeddingRetryConfig{MaxRetries: 2, BaseBackoff: time.Millisecond})
+	defer d.Stop()
+
+	require.NoError(t, d.ProcessEvent(context.Background(), promptEvent("never-submitted")))
+
+	waitFor(t, func() bool { return strings.Contains(logs.String(), "Failed to resolve embedding job") },
+		"resolve failure must be logged")
+	d.Stop()
+
+	assert.Zero(t, countJSONLines(logs.String(), "Embedding job submitted"),
+		"nothing was submitted, so nothing may be logged as submitted")
+	assert.Equal(t, EmbeddingDispatcherStats{}, d.Stats())
+}
