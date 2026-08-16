@@ -101,6 +101,16 @@ type FreshnessCandidate struct {
 	ProjectID    string
 }
 
+// FreshnessResourceRef identifies a resource in the freshness subsystem
+// without carrying any of its state. It is the same (type, id) pair the unique
+// index on resource_freshness uses, exported so repositories can hand back a
+// set of resources for the evaluator to act on -- the evaluator's own
+// resourceKey is unexported and package-local.
+type FreshnessResourceRef struct {
+	ResourceType string
+	ResourceID   string
+}
+
 // FreshnessRule is one team's staleness policy: the resources it covers and
 // how long they may go unaccessed before being marked stale.
 //

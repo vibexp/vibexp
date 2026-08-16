@@ -271,3 +271,102 @@ func TestFreshnessAuditRepository_CountTransitionsByDay_Errors(t *testing.T) {
 		})
 	}
 }
+
+// The repair query (#796) drives off the STATE table and asks the log only for
+// each live row's newest entry, so what comes back is bounded by what is
+// currently stale rather than by everything the team ever audited.
+//
+// The expectation pins the whole shape, because each piece is load-bearing and
+// a laxer regex would match a query that answers a different question: the
+// FROM must be resource_freshness (not the log), the subquery must order by
+// created_at DESC with the id tiebreaker (a run writes one transaction
+// timestamp to every row, so without it "newest" is undefined between a mark
+// and a clear), and the predicate must accept a NULL action -- that is the
+// resource with no audit history at all, which this query answers rather than
+// leaving the caller to infer from an absence.
+func TestFreshnessAuditRepository_ListStaleResourcesMissingMark(t *testing.T) {
+	repo, mock := setupFreshnessAuditTest(t)
+
+	mock.ExpectQuery(`FROM resource_freshness f\s+LEFT JOIN LATERAL \(\s+SELECT a\.action\s+`+
+		`FROM resource_freshness_audit a\s+WHERE a\.team_id = f\.team_id\s+`+
+		`AND a\.resource_type = f\.resource_type\s+AND a\.resource_id = f\.resource_id\s+`+
+		`ORDER BY a\.created_at DESC, a\.id DESC\s+LIMIT 1\s+\) latest ON TRUE\s+`+
+		`WHERE f\.team_id = \$1\s+AND \(latest\.action IS NULL OR latest\.action <> \$2\)`).
+		WithArgs("team-1", models.FreshnessActionMarked).
+		WillReturnRows(sqlmock.NewRows([]string{"resource_type", "resource_id"}).
+			AddRow("artifact", "res-1").
+			AddRow("prompt", "res-2"))
+
+	refs, err := repo.ListStaleResourcesMissingMark(context.Background(), "team-1")
+	require.NoError(t, err)
+
+	assert.Equal(t, []models.FreshnessResourceRef{
+		{ResourceType: "artifact", ResourceID: "res-1"},
+		{ResourceType: "prompt", ResourceID: "res-2"},
+	}, refs)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// Nothing to repair is the normal case, and it must come back as an empty
+// slice rather than nil: the caller ranges over it either way, but a nil here
+// would be the only list in this repository that is not [].
+func TestFreshnessAuditRepository_ListStaleResourcesMissingMark_Empty(t *testing.T) {
+	repo, mock := setupFreshnessAuditTest(t)
+
+	mock.ExpectQuery(`FROM resource_freshness f`).
+		WithArgs("team-1", models.FreshnessActionMarked).
+		WillReturnRows(sqlmock.NewRows([]string{"resource_type", "resource_id"}))
+
+	refs, err := repo.ListStaleResourcesMissingMark(context.Background(), "team-1")
+	require.NoError(t, err)
+	assert.Equal(t, []models.FreshnessResourceRef{}, refs)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestFreshnessAuditRepository_ListStaleResourcesMissingMark_Errors(t *testing.T) {
+	tests := []struct {
+		name    string
+		arrange func(sqlmock.Sqlmock)
+		wantErr string
+	}{
+		{
+			name: "query fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`FROM resource_freshness f`).WillReturnError(errors.New("boom"))
+			},
+			wantErr: "failed to list stale resources missing a mark",
+		},
+		{
+			name: "row does not scan",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`FROM resource_freshness f`).WillReturnRows(
+					sqlmock.NewRows([]string{"resource_type"}).AddRow("only-one-column"),
+				)
+			},
+			wantErr: "failed to scan stale resource missing a mark",
+		},
+		{
+			name: "iteration fails",
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`FROM resource_freshness f`).WillReturnRows(
+					sqlmock.NewRows([]string{"resource_type", "resource_id"}).
+						AddRow("artifact", "res-1").
+						RowError(0, errors.New("boom")),
+				)
+			},
+			wantErr: "failed to iterate stale resources missing a mark",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, mock := setupFreshnessAuditTest(t)
+			tt.arrange(mock)
+
+			_, err := repo.ListStaleResourcesMissingMark(context.Background(), "team-1")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}

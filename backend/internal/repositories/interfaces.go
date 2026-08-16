@@ -1711,4 +1711,20 @@ type FreshnessAuditRepository interface {
 	CountTransitionsByDay(
 		ctx context.Context, teamID string, since time.Time,
 	) ([]models.FreshnessTransitionCount, error)
+	// ListStaleResourcesMissingMark returns the team's LIVE freshness rows
+	// whose newest audit entry is not a `marked` -- either it is a `cleared`,
+	// or the resource has no entry at all.
+	//
+	// Such a row is one whose `marked` audit write did not land: the mark and
+	// its audit entry are two separate statements by design (see the freshness
+	// package doc), so a failure between them leaves the row in place with the
+	// log contradicting it. No re-run repairs that on its own, because the
+	// row's presence makes every later upsert an UPDATE rather than an INSERT
+	// (#796). Callers write the missing entry for what this returns.
+	//
+	// It deliberately joins the state table rather than reading the log alone:
+	// scoping to live rows is what bounds the answer to the team's stale set
+	// instead of every resource it has ever audited, and it is what lets "no
+	// entry at all" be answered here rather than inferred from an absence.
+	ListStaleResourcesMissingMark(ctx context.Context, teamID string) ([]models.FreshnessResourceRef, error)
 }
