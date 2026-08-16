@@ -27,9 +27,19 @@ func keysOf(t *testing.T, v any) map[string]struct{} {
 	return keys
 }
 
+// The ids are real UUIDs because the read converters validate them: a fixture
+// with "a-1" cannot reach toGenArtifact at all.
+const (
+	shapeArtifactID  = "11111111-1111-4111-8111-111111111111"
+	shapeProjectID   = "22222222-2222-4222-8222-222222222222"
+	shapeTeamID      = "33333333-3333-4333-8333-333333333333"
+	shapeUserID      = "44444444-4444-4444-8444-444444444444"
+	shapeBlueprintID = "55555555-5555-4555-8555-555555555555"
+)
+
 func populatedArtifact() *models.Artifact {
 	return &models.Artifact{
-		ID: "a-1", TeamID: "team-1", ProjectID: "p-1", Slug: "s", UserID: "u-1",
+		ID: shapeArtifactID, TeamID: shapeTeamID, ProjectID: shapeProjectID, Slug: "s", UserID: shapeUserID,
 		Title: "T", Type: "general", Status: "active", Content: "body", Version: 7,
 		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
 	}
@@ -37,7 +47,7 @@ func populatedArtifact() *models.Artifact {
 
 func populatedBlueprint() *models.Blueprint {
 	return &models.Blueprint{
-		ID: "b-1", TeamID: "team-1", ProjectID: "p-1", Slug: "s", UserID: "u-1",
+		ID: shapeBlueprintID, TeamID: shapeTeamID, ProjectID: shapeProjectID, Slug: "s", UserID: shapeUserID,
 		Title: "T", Type: "general", Status: "active", Content: "body", Version: 7,
 		Path: ".claude/s.md", RawContent: "---\nname: s\n---\nbody",
 		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
@@ -108,10 +118,52 @@ func TestWriteResponseShapesPreserveValues(t *testing.T) {
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(raw, &body))
 
-	assert.Equal(t, "a-1", body["id"])
-	assert.Equal(t, "p-1", body["project_id"])
+	assert.Equal(t, shapeArtifactID, body["id"])
+	assert.Equal(t, shapeProjectID, body["project_id"])
 	assert.Equal(t, "s", body["slug"])
 	assert.Equal(t, "T", body["title"])
 	assert.Equal(t, "body", body["content"])
 	assert.Equal(t, "active", body["status"])
+}
+
+// The point of the wrapper: the write body and the converted READ body agree on
+// the two keys #800 decided. Before it, create-then-read returned `team_id` and
+// `version` on the write and not on the read — two shapes for one resource.
+//
+// Asserted as agreement on those keys rather than as full key-set equality,
+// because the two shapes legitimately differ elsewhere and pretending otherwise
+// would be a false claim: the generated read type omits `related`/`similar`
+// when empty where the model always emits `[]`, and it has no `raw_content`
+// at all (that is declared on BlueprintDetail, not on the `Blueprint` schema
+// these write ops return). Those differences were not in scope for #800.
+func TestWriteAndReadShapesAgreeOnTheDecidedKeys(t *testing.T) {
+	t.Run("artifact", func(t *testing.T) {
+		model := populatedArtifact()
+
+		read, err := toGenArtifact(model)
+		require.NoError(t, err)
+
+		readKeys := keysOf(t, read)
+		writeKeys := keysOf(t, artifactWriteBody(model))
+
+		for _, key := range []string{"team_id", "version"} {
+			assert.NotContains(t, readKeys, key, "read side")
+			assert.NotContains(t, writeKeys, key, "write side")
+		}
+	})
+
+	t.Run("blueprint", func(t *testing.T) {
+		model := populatedBlueprint()
+
+		read, err := toGenBlueprint(model)
+		require.NoError(t, err)
+
+		readKeys := keysOf(t, read)
+		writeKeys := keysOf(t, blueprintWriteBody(model))
+
+		for _, key := range []string{"team_id", "version"} {
+			assert.NotContains(t, readKeys, key, "read side")
+			assert.NotContains(t, writeKeys, key, "write side")
+		}
+	})
 }

@@ -92,6 +92,22 @@ func TestTrailingSlash_LeavesNonAPINamespacesAlone(t *testing.T) {
 	t.Run("the root path is untouched", func(t *testing.T) {
 		assert.NotEqual(t, http.StatusMethodNotAllowed, statusFor(t, srv, "/"))
 	})
+
+	// The two namespaces the acceptance criterion names explicitly, because
+	// they are the ones where a normalisation would be more than cosmetic: the
+	// MCP endpoint is mounted as a prefix, and the OAuth AS metadata path is
+	// part of a security-relevant surface (its siblings are HTTPS-gated by
+	// requireHTTPSMiddleware). Both sit outside /api/v1/, so the middleware
+	// never touches them -- asserted rather than assumed.
+	t.Run("MCP endpoint still resolves", func(t *testing.T) {
+		code := statusFor(t, srv, "/mcp/v1/common")
+		assert.NotEqual(t, http.StatusNotFound, code, "the MCP mount must still be reachable")
+	})
+
+	t.Run("OAuth AS metadata still resolves", func(t *testing.T) {
+		code := statusFor(t, srv, mcpAuthorizationServerMetadataPath)
+		assert.NotEqual(t, http.StatusMethodNotAllowed, code)
+	})
 }
 
 // The middleware must not let a trailing slash skip authentication: it rewrites
