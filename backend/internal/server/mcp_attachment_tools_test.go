@@ -34,7 +34,7 @@ func newAttachmentMCPTestServer(t *testing.T) (*Server, attachmentMCPMocks) {
 	mockArtifact := mocks.NewMockArtifactServiceInterface(t)
 	mockAttachment := mocks.NewMockAttachmentServiceInterface(t)
 
-	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
+	teamRepo := stubTeamResolution(t, []models.Team{memberTeam()})
 	c := &TestContainer{
 		TeamRepositoryMock:    teamRepo,
 		ArtifactServiceMock:   mockArtifact,

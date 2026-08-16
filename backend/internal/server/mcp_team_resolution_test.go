@@ -36,7 +36,7 @@ func newServerWithNullLogger(t *testing.T) *Server {
 	return New("8080", nil, "test-api-key", cfg, logger)
 }
 
-// stubUserTeams builds the TeamRepository mock resolveTeam resolves team_id
+// stubTeamResolution builds the TeamRepository mock resolveTeam resolves team_id
 // through, standing in for the single owner-OR-member query: an identifier
 // matching one of the given teams by UUID or slug resolves, anything else gets
 // ErrTeamNotFound exactly as the real query's no-rows path does. This is the
@@ -45,7 +45,7 @@ func newServerWithNullLogger(t *testing.T) *Server {
 //
 // The expectation is optional (.Maybe()) because some tool tests (e.g. missing
 // team_id) reject before resolveTeam reaches the repository.
-func stubUserTeams(t *testing.T, teams []models.Team) *repomocks.MockTeamRepository {
+func stubTeamResolution(t *testing.T, teams []models.Team) *repomocks.MockTeamRepository {
 	t.Helper()
 	repo := repomocks.NewMockTeamRepository(t)
 	repo.On("ResolveByIdentifier", mock.Anything, testMemberUserID, mock.AnythingOfType("string")).
@@ -81,7 +81,7 @@ func memberTeam() models.Team {
 
 func TestResolveTeam_MatchesByUUID(t *testing.T) {
 	srv := newServerWithNullLogger(t)
-	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
+	teamRepo := stubTeamResolution(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{TeamRepositoryMock: teamRepo}
 
 	teamID, errResult := srv.resolveTeam(context.Background(), testMemberUserID, testTeamUUID)
@@ -94,7 +94,7 @@ func TestResolveTeam_MatchesByUUID(t *testing.T) {
 
 func TestResolveTeam_MatchesBySlug(t *testing.T) {
 	srv := newServerWithNullLogger(t)
-	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
+	teamRepo := stubTeamResolution(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{TeamRepositoryMock: teamRepo}
 
 	teamID, errResult := srv.resolveTeam(context.Background(), testMemberUserID, testTeamSlug)
@@ -117,7 +117,7 @@ func TestResolveTeam_SingleQueryRegardlessOfTeamCount(t *testing.T) {
 		})
 	}
 	teams = append(teams, memberTeam())
-	teamRepo := stubUserTeams(t, teams)
+	teamRepo := stubTeamResolution(t, teams)
 	srv.container = &TestContainer{TeamRepositoryMock: teamRepo}
 
 	teamID, errResult := srv.resolveTeam(context.Background(), testMemberUserID, testTeamSlug)
@@ -130,7 +130,7 @@ func TestResolveTeam_SingleQueryRegardlessOfTeamCount(t *testing.T) {
 func TestResolveTeam_NonMemberDenied(t *testing.T) {
 	srv := newServerWithNullLogger(t)
 	// The user only belongs to their own team; a different team's UUID must not resolve.
-	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
+	teamRepo := stubTeamResolution(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{TeamRepositoryMock: teamRepo}
 
 	teamID, errResult := srv.resolveTeam(context.Background(), testMemberUserID, testOtherTeamUUID)
@@ -143,7 +143,7 @@ func TestResolveTeam_NonMemberDenied(t *testing.T) {
 
 func TestResolveTeam_NonMemberSlugDenied(t *testing.T) {
 	srv := newServerWithNullLogger(t)
-	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
+	teamRepo := stubTeamResolution(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{TeamRepositoryMock: teamRepo}
 
 	teamID, errResult := srv.resolveTeam(context.Background(), testMemberUserID, testOtherTeamSlug)
@@ -156,7 +156,7 @@ func TestResolveTeam_NonMemberSlugDenied(t *testing.T) {
 
 func TestResolveTeam_EmptyIdentifier(t *testing.T) {
 	srv := newServerWithNullLogger(t)
-	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
+	teamRepo := stubTeamResolution(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{TeamRepositoryMock: teamRepo}
 
 	teamID, errResult := srv.resolveTeam(context.Background(), testMemberUserID, "  ")

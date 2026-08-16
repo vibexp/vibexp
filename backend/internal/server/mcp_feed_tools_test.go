@@ -28,7 +28,7 @@ func newMCPFeedTestServer(
 	t.Helper()
 	srv := newServerWithNullLogger(t)
 	srv.config.Frontend.BaseURL = "https://app.vibexp.io"
-	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
+	teamRepo := stubTeamResolution(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{
 		FeedServiceMock:          feedSvc,
 		FeedItemServiceMock:      feedItemSvc,

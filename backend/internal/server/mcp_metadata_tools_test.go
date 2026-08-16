@@ -49,7 +49,7 @@ func newMetadataToolTestServer(
 	catalog := servicesmocks.NewMockMetadataCatalogServiceInterface(t)
 	srv.container = &TestContainer{
 		MetadataCatalogMock: catalog,
-		TeamRepositoryMock:  stubUserTeams(t, []models.Team{memberTeam()}),
+		TeamRepositoryMock:  stubTeamResolution(t, []models.Team{memberTeam()}),
 	}
 	return srv, catalog
 }
@@ -283,7 +283,7 @@ func TestListResources_MetadataFilterReachesEachService(t *testing.T) {
 		memSvc := servicesmocks.NewMockMemoryServiceInterface(t)
 		srv.container = &TestContainer{
 			MemoryServiceMock:  memSvc,
-			TeamRepositoryMock: stubUserTeams(t, []models.Team{memberTeam()}),
+			TeamRepositoryMock: stubTeamResolution(t, []models.Team{memberTeam()}),
 		}
 
 		memSvc.EXPECT().ListMemories(testMemberUserID, mock.MatchedBy(
@@ -304,7 +304,7 @@ func TestListResources_MetadataFilterReachesEachService(t *testing.T) {
 		artSvc := servicesmocks.NewMockArtifactServiceInterface(t)
 		srv.container = &TestContainer{
 			ArtifactServiceMock: artSvc,
-			TeamRepositoryMock:  stubUserTeams(t, []models.Team{memberTeam()}),
+			TeamRepositoryMock:  stubTeamResolution(t, []models.Team{memberTeam()}),
 		}
 
 		artSvc.EXPECT().ListArtifactsByProject(testMemberUserID, testProjectID, mock.MatchedBy(
@@ -325,7 +325,7 @@ func TestListResources_MetadataFilterReachesEachService(t *testing.T) {
 		bpSvc := servicesmocks.NewMockBlueprintServiceInterface(t)
 		srv.container = &TestContainer{
 			BlueprintServiceMock: bpSvc,
-			TeamRepositoryMock:   stubUserTeams(t, []models.Team{memberTeam()}),
+			TeamRepositoryMock:   stubTeamResolution(t, []models.Team{memberTeam()}),
 		}
 
 		bpSvc.EXPECT().ListBlueprintsByProject(testMemberUserID, testProjectID, mock.MatchedBy(
@@ -349,7 +349,7 @@ func TestListResources_InvalidMetadataIsRejectedBeforeTheService(t *testing.T) {
 	memSvc := servicesmocks.NewMockMemoryServiceInterface(t)
 	srv.container = &TestContainer{
 		MemoryServiceMock:  memSvc,
-		TeamRepositoryMock: stubUserTeams(t, []models.Team{memberTeam()}),
+		TeamRepositoryMock: stubTeamResolution(t, []models.Team{memberTeam()}),
 	}
 
 	result, _, err := srv.listResources(context.Background(), nil, &ListResourcesParams{

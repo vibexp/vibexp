@@ -31,7 +31,7 @@ func newArtifactTestServer(t *testing.T) (*Server, *mocks.MockArtifactServiceInt
 	t.Helper()
 	srv := newServerWithNullLogger(t)
 	mockArtifactService := mocks.NewMockArtifactServiceInterface(t)
-	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
+	teamRepo := stubTeamResolution(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{
 		ArtifactServiceMock: mockArtifactService,
 		TeamRepositoryMock:  teamRepo,
@@ -673,7 +673,7 @@ type TestContainer struct {
 
 // TeamRepository returns the configured team-repository mock. Every team-scoped
 // MCP tool test needs one, because resolveTeam resolves team_id through it
-// (#812); stubUserTeams builds the mock these tests install here.
+// (#812); stubTeamResolution builds the mock these tests install here.
 func (tc *TestContainer) TeamRepository() repositories.TeamRepository {
 	return tc.TeamRepositoryMock
 }

@@ -40,7 +40,7 @@ func newDeleteResourceTestServer(t *testing.T) (*Server, *deleteResourceMocks) {
 		ArtifactServiceMock:  m.artifact,
 		BlueprintServiceMock: m.blueprint,
 		EmbeddingServiceMock: m.embedding,
-		TeamRepositoryMock:   stubUserTeams(t, []models.Team{memberTeam()}),
+		TeamRepositoryMock:   stubTeamResolution(t, []models.Team{memberTeam()}),
 	}
 	return srv, m
 }

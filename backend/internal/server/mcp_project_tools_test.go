@@ -31,7 +31,7 @@ func newProjectTestServer(t *testing.T) (*Server, *mocks.MockProjectServiceInter
 	t.Helper()
 	srv := newServerWithNullLogger(t)
 	mockProjectService := mocks.NewMockProjectServiceInterface(t)
-	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
+	teamRepo := stubTeamResolution(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{
 		ProjectServiceMock: mockProjectService,
 		TeamRepositoryMock: teamRepo,

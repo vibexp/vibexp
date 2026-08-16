@@ -24,7 +24,7 @@ func newSearchServer(t *testing.T) (*Server, *mocks.MockSearcher) {
 	srv := newServerWithNullLogger(t)
 	srv.config.Frontend.BaseURL = "https://app.vibexp.io"
 	mockSearchSvc := mocks.NewMockSearcher(t)
-	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
+	teamRepo := stubTeamResolution(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{
 		SearchServiceMock:  mockSearchSvc,
 		TeamRepositoryMock: teamRepo,

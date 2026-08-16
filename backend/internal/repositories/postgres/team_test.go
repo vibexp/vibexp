@@ -973,13 +973,18 @@ func TestTeamRepository_ResolveByIdentifier(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
+	// A real UUID, not a "team-123" placeholder: the identifier's SHAPE now decides
+	// whether $3 binds, so the fixture has to be parseable for the id arm to bind.
+	const teamUUID = "550e8400-e29b-41d4-a716-446655440000"
+
 	const queryRe = `SELECT t.id, t.owner_id, t.name, t.slug, t.description, t.is_personal, t.created_at, t.updated_at\s+` +
-		`FROM teams t\s+WHERE \(t.id::text = \$2 OR t.slug = \$2\)\s+AND \(t.owner_id = \$1\s+OR EXISTS`
+		`FROM teams t\s+WHERE \(\(\$3::uuid IS NOT NULL AND t.id = \$3::uuid\) OR t.slug = \$2\)\s+` +
+		`AND \(t.owner_id = \$1\s+OR EXISTS`
 
 	teamRow := func() *sqlmock.Rows {
 		return sqlmock.NewRows([]string{
 			"id", "owner_id", "name", "slug", "description", "is_personal", "created_at", "updated_at",
-		}).AddRow("team-123", "user-123", "Acme Team", "acme-team", "desc", false, now, now)
+		}).AddRow(teamUUID, "user-123", "Acme Team", "acme-team", "desc", false, now, now)
 	}
 
 	tests := []struct {
@@ -990,31 +995,33 @@ func TestTeamRepository_ResolveByIdentifier(t *testing.T) {
 	}{
 		{
 			name:       "resolves by UUID",
-			identifier: "team-123",
+			identifier: teamUUID,
 			setupMock: func() {
-				mock.ExpectQuery(queryRe).WithArgs("user-123", "team-123").WillReturnRows(teamRow())
+				// A UUID identifier binds $3, so the id arm is live and indexable.
+				mock.ExpectQuery(queryRe).WithArgs("user-123", teamUUID, teamUUID).WillReturnRows(teamRow())
 			},
 		},
 		{
 			name:       "resolves by slug",
 			identifier: "acme-team",
 			setupMock: func() {
-				mock.ExpectQuery(queryRe).WithArgs("user-123", "acme-team").WillReturnRows(teamRow())
+				// A slug binds $3 as NULL, which prunes the id arm entirely.
+				mock.ExpectQuery(queryRe).WithArgs("user-123", "acme-team", nil).WillReturnRows(teamRow())
 			},
 		},
 		{
 			name:       "no match maps to ErrTeamNotFound",
 			identifier: "not-mine",
 			setupMock: func() {
-				mock.ExpectQuery(queryRe).WithArgs("user-123", "not-mine").WillReturnError(sql.ErrNoRows)
+				mock.ExpectQuery(queryRe).WithArgs("user-123", "not-mine", nil).WillReturnError(sql.ErrNoRows)
 			},
 			expectErr: repositories.ErrTeamNotFound,
 		},
 		{
 			name:       "database error is propagated, not masked as not-found",
-			identifier: "team-123",
+			identifier: teamUUID,
 			setupMock: func() {
-				mock.ExpectQuery(queryRe).WithArgs("user-123", "team-123").WillReturnError(sql.ErrConnDone)
+				mock.ExpectQuery(queryRe).WithArgs("user-123", teamUUID, teamUUID).WillReturnError(sql.ErrConnDone)
 			},
 			expectErr: sql.ErrConnDone,
 		},
@@ -1032,7 +1039,7 @@ func TestTeamRepository_ResolveByIdentifier(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				assert.Equal(t, "team-123", result.ID, "both identifier forms resolve to the canonical UUID")
+				assert.Equal(t, teamUUID, result.ID, "both identifier forms resolve to the canonical UUID")
 				assert.Equal(t, "acme-team", result.Slug)
 				assert.Equal(t, "user-123", result.OwnerID)
 			}
