@@ -205,6 +205,9 @@ type FreshnessAuditEntry struct {
 	CreatedAt time.Time                 `json:"created_at"`
 	Id        openapi_types.UUID        `json:"id"`
 
+	// ProjectId The project the resource currently belongs to, resolved at read time. Null when the resource no longer exists. Required alongside the slug to deep-link artifacts and blueprints.
+	ProjectId *openapi_types.UUID `json:"project_id,omitempty"`
+
 	// Reason What caused it — a scheduled evaluation, a read, or an edit.
 	Reason     FreshnessAuditEntryReason `json:"reason"`
 	ResourceId openapi_types.UUID        `json:"resource_id"`
@@ -214,6 +217,9 @@ type FreshnessAuditEntry struct {
 
 	// RuleId The rule that caused the change, when exactly one did. Null for a reversal (caused by a read or an edit) and for a mark attributable to several rules at once — the resource's own state carries the full set.
 	RuleId *openapi_types.UUID `json:"rule_id"`
+
+	// Slug The resource's current slug, resolved at read time so a client can deep-link the row. Null when the resource no longer exists, and always null for memories, which are deep-linked by id and have no slug column. Deliberately not stored on the log: slugs are mutable, so a stored copy would rot on the next rename and produce a confident link that 404s.
+	Slug *string `json:"slug,omitempty"`
 }
 
 // FreshnessAuditEntryAction Whether the resource became stale or stopped being stale.

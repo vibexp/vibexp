@@ -11,11 +11,29 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// freshnessAuditColumns is the canonical column list for
-// resource_freshness_audit SELECT/RETURNING clauses; scanFreshnessAuditDest
+// freshnessAuditColumns is the canonical STORED column list for
+// resource_freshness_audit INSERT ... RETURNING clauses; scanFreshnessAuditDest
 // reads them in this order.
+//
+// It is deliberately narrower than what ListByTeam selects: slug/project_id are
+// resolved by joining the live resource row, and an INSERT ... RETURNING cannot
+// produce them. Widening this constant would make Create scan two columns the
+// statement never returns (#789).
 const freshnessAuditColumns = "id, team_id, resource_type, resource_id, rule_id, " +
 	"action, reason, created_at"
+
+// freshnessAuditListColumns is freshnessAuditColumns qualified to the paged
+// subquery, plus the two join-resolved fields; scanFreshnessAuditListDest reads
+// them in this order.
+//
+// One COALESCE per field across the four resource tables: exactly one arm can be
+// non-null, because each LEFT JOIN is additionally gated on resource_type. A
+// future fifth resource type that is not added here resolves to NULL and simply
+// does not link — the same graceful degradation as a deleted resource.
+const freshnessAuditListColumns = "a.id, a.team_id, a.resource_type, a.resource_id, a.rule_id, " +
+	"a.action, a.reason, a.created_at, " +
+	"COALESCE(p.slug, ar.slug, b.slug) AS slug, " +
+	"COALESCE(p.project_id, ar.project_id, b.project_id, m.project_id) AS project_id"
 
 // FreshnessAuditRepository implements repositories.FreshnessAuditRepository
 // for PostgreSQL. The table is append-only: this repository deliberately
@@ -77,12 +95,40 @@ func (r *FreshnessAuditRepository) ListByTeam(
 		offset = 0
 	}
 
+	// Page FIRST in the subquery, then join. Joining before paging would fan the
+	// four LEFT JOINs across the team's entire history instead of the ≤20 rows
+	// actually returned, and would stop idx_resource_freshness_audit_team_created
+	// from driving the page. The ORDER BY is repeated on the outer SELECT because
+	// a join does not preserve subquery order.
+	//
+	// countByTeam is deliberately untouched: these are LEFT JOINs on the joined
+	// tables' primary keys, so they cannot add or drop a row, and total_count must
+	// describe the same set with or without them.
+	//
+	// Each join is additionally scoped to the entry's own team. Matching on the
+	// resource id alone would resolve whichever team owns that id — harmless while
+	// a resource can never change teams (nothing in the codebase reassigns
+	// team_id), but that invariant is enforced by the absence of such a write path
+	// rather than by a constraint, and this layer is where tenancy predicates
+	// belong. On a primary-key lookup the extra equality costs nothing.
 	query := `
-		SELECT ` + freshnessAuditColumns + `
-		FROM resource_freshness_audit
-		WHERE team_id = $1
-		ORDER BY created_at DESC, id DESC
-		LIMIT $2 OFFSET $3
+		SELECT ` + freshnessAuditListColumns + `
+		FROM (
+			SELECT ` + freshnessAuditColumns + `
+			FROM resource_freshness_audit
+			WHERE team_id = $1
+			ORDER BY created_at DESC, id DESC
+			LIMIT $2 OFFSET $3
+		) a
+		LEFT JOIN prompts    p  ON a.resource_type = 'prompt'
+		                       AND p.id  = a.resource_id AND p.team_id  = a.team_id
+		LEFT JOIN artifacts  ar ON a.resource_type = 'artifact'
+		                       AND ar.id = a.resource_id AND ar.team_id = a.team_id
+		LEFT JOIN blueprints b  ON a.resource_type = 'blueprint'
+		                       AND b.id  = a.resource_id AND b.team_id  = a.team_id
+		LEFT JOIN memories   m  ON a.resource_type = 'memory'
+		                       AND m.id  = a.resource_id AND m.team_id  = a.team_id
+		ORDER BY a.created_at DESC, a.id DESC
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, teamID, limitArg, offset)
@@ -98,7 +144,7 @@ func (r *FreshnessAuditRepository) ListByTeam(
 	entries := make([]*models.ResourceFreshnessAudit, 0)
 	for rows.Next() {
 		var entry models.ResourceFreshnessAudit
-		if err := rows.Scan(scanFreshnessAuditDest(&entry)...); err != nil {
+		if err := rows.Scan(scanFreshnessAuditListDest(&entry)...); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan freshness audit entry: %w", err)
 		}
 		entries = append(entries, &entry)
@@ -191,6 +237,13 @@ func scanFreshnessAuditDest(entry *models.ResourceFreshnessAudit) []interface{} 
 		&entry.ID, &entry.TeamID, &entry.ResourceType, &entry.ResourceID,
 		&entry.RuleID, &entry.Action, &entry.Reason, &entry.CreatedAt,
 	}
+}
+
+// scanFreshnessAuditListDest returns the scan targets for
+// freshnessAuditListColumns, in order: the stored columns followed by the two
+// join-resolved ones.
+func scanFreshnessAuditListDest(entry *models.ResourceFreshnessAudit) []interface{} {
+	return append(scanFreshnessAuditDest(entry), &entry.Slug, &entry.ProjectID)
 }
 
 // CountTransitionsByDay returns the team's marked/cleared counts per UTC day

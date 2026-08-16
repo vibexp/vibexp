@@ -14,12 +14,20 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// freshnessAuditCols mirrors the freshnessAuditColumns projection order.
+// freshnessAuditCols mirrors the freshnessAuditColumns projection order — the
+// STORED columns, which is what Create's INSERT ... RETURNING can produce.
 func freshnessAuditCols() []string {
 	return []string{
 		"id", "team_id", "resource_type", "resource_id", "rule_id",
 		"action", "reason", "created_at",
 	}
+}
+
+// freshnessAuditListCols mirrors freshnessAuditListColumns: the stored columns
+// plus the two resolved by joining the live resource row (#789). ListByTeam
+// scans this shape; Create must NOT, since its RETURNING cannot produce them.
+func freshnessAuditListCols() []string {
+	return append(freshnessAuditCols(), "slug", "project_id")
 }
 
 func setupFreshnessAuditTest(t *testing.T) (*FreshnessAuditRepository, sqlmock.Sqlmock) {
@@ -42,6 +50,18 @@ func freshnessAuditRow(ruleID interface{}, action, reason string) *sqlmock.Rows 
 	return sqlmock.NewRows(freshnessAuditCols()).AddRow(
 		"audit-1", "team-1", "artifact", "res-1", ruleID,
 		action, reason, time.Now().UTC(),
+	)
+}
+
+// freshnessAuditListRow is the ListByTeam row shape: the stored columns plus the
+// join-resolved slug/project_id. Pass nil for either to model a resource that has
+// since been deleted (or a memory, which never has a slug).
+func freshnessAuditListRow(
+	ruleID interface{}, action, reason string, slug, projectID interface{},
+) *sqlmock.Rows {
+	return sqlmock.NewRows(freshnessAuditListCols()).AddRow(
+		"audit-1", "team-1", "artifact", "res-1", ruleID,
+		action, reason, time.Now().UTC(), slug, projectID,
 	)
 }
 
@@ -112,8 +132,9 @@ func TestFreshnessAuditRepository_ListByTeam_OrdersWithTiebreaker(t *testing.T) 
 		`FROM resource_freshness_audit WHERE team_id = \$1 `+
 			`ORDER BY created_at DESC, id DESC LIMIT \$2 OFFSET \$3`,
 	).WithArgs("team-1", 25, 50).
-		WillReturnRows(freshnessAuditRow("rule-1",
-			models.FreshnessActionMarked, models.FreshnessReasonRuleRun))
+		WillReturnRows(freshnessAuditListRow("rule-1",
+			models.FreshnessActionMarked, models.FreshnessReasonRuleRun,
+			"my-artifact", "project-9"))
 
 	entries, total, err := repo.ListByTeam(context.Background(), "team-1", 25, 50)
 
@@ -121,6 +142,10 @@ func TestFreshnessAuditRepository_ListByTeam_OrdersWithTiebreaker(t *testing.T) 
 	assert.Equal(t, 42, total)
 	require.Len(t, entries, 1)
 	assert.Equal(t, "audit-1", entries[0].ID)
+	require.NotNil(t, entries[0].Slug)
+	assert.Equal(t, "my-artifact", *entries[0].Slug)
+	require.NotNil(t, entries[0].ProjectID)
+	assert.Equal(t, "project-9", *entries[0].ProjectID)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -148,7 +173,7 @@ func TestFreshnessAuditRepository_ListByTeam_PagingEdgeCases(t *testing.T) {
 				WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 			mock.ExpectQuery(`FROM resource_freshness_audit`).
 				WithArgs("team-1", tt.wantLimit, tt.wantOffset).
-				WillReturnRows(sqlmock.NewRows(freshnessAuditCols()))
+				WillReturnRows(sqlmock.NewRows(freshnessAuditListCols()))
 
 			entries, total, err := repo.ListByTeam(context.Background(), "team-1", tt.limit, tt.offset)
 
@@ -158,6 +183,78 @@ func TestFreshnessAuditRepository_ListByTeam_PagingEdgeCases(t *testing.T) {
 			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
+}
+
+// Create's INSERT ... RETURNING cannot produce the joined columns, so it must
+// keep scanning the narrow set. If it were widened alongside ListByTeam it would
+// try to read two columns the statement never returns.
+func TestFreshnessAuditRepository_Create_DoesNotScanJoinedColumns(t *testing.T) {
+	repo, mock := setupFreshnessAuditTest(t)
+	ruleID := "rule-1"
+
+	// Narrow rows on purpose: a Create that scanned the list shape fails here.
+	mock.ExpectQuery(`INSERT INTO resource_freshness_audit`).
+		WithArgs("team-1", "artifact", "res-1", &ruleID,
+			models.FreshnessActionMarked, models.FreshnessReasonRuleRun).
+		WillReturnRows(freshnessAuditRow("rule-1",
+			models.FreshnessActionMarked, models.FreshnessReasonRuleRun))
+
+	entry := &models.ResourceFreshnessAudit{
+		TeamID: "team-1", ResourceType: "artifact", ResourceID: "res-1",
+		RuleID: &ruleID, Action: models.FreshnessActionMarked,
+		Reason: models.FreshnessReasonRuleRun,
+	}
+	require.NoError(t, repo.Create(context.Background(), entry))
+
+	assert.Nil(t, entry.Slug, "slug is resolved at read time, never by Create")
+	assert.Nil(t, entry.ProjectID, "project_id is resolved at read time, never by Create")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// A resource deleted after its event was logged joins to nothing, so both fields
+// come back NULL and must scan into nil pointers rather than erroring — that is
+// what lets the client render plain text instead of a broken link.
+func TestFreshnessAuditRepository_ListByTeam_DeletedResourceScansNull(t *testing.T) {
+	repo, mock := setupFreshnessAuditTest(t)
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(`FROM resource_freshness_audit`).
+		WillReturnRows(freshnessAuditListRow("rule-1",
+			models.FreshnessActionMarked, models.FreshnessReasonRuleRun, nil, nil))
+
+	entries, _, err := repo.ListByTeam(context.Background(), "team-1", 10, 0)
+
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Nil(t, entries[0].Slug)
+	assert.Nil(t, entries[0].ProjectID)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// The page-first-then-join shape is load-bearing: joining before paging would fan
+// the four LEFT JOINs across the team's whole history and stop the
+// team_id/created_at index from driving the page.
+func TestFreshnessAuditRepository_ListByTeam_PagesBeforeJoining(t *testing.T) {
+	repo, mock := setupFreshnessAuditTest(t)
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	// LIMIT/OFFSET must appear INSIDE the subquery, before any LEFT JOIN, and the
+	// outer select must re-apply the ordering a join does not preserve.
+	mock.ExpectQuery(
+		`FROM \( SELECT .* FROM resource_freshness_audit WHERE team_id = \$1 `+
+			`ORDER BY created_at DESC, id DESC LIMIT \$2 OFFSET \$3 \) a `+
+			`LEFT JOIN prompts .* LEFT JOIN artifacts .* LEFT JOIN blueprints .* LEFT JOIN memories .* `+
+			`ORDER BY a.created_at DESC, a.id DESC`,
+	).WithArgs("team-1", 10, 0).
+		WillReturnRows(freshnessAuditListRow("rule-1",
+			models.FreshnessActionMarked, models.FreshnessReasonRuleRun, "s", "p"))
+
+	_, _, err := repo.ListByTeam(context.Background(), "team-1", 10, 0)
+
+	require.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestFreshnessAuditRepository_ListByTeam_CountError(t *testing.T) {

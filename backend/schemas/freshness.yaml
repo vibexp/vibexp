@@ -596,6 +596,23 @@ FreshnessAuditEntry:
         - accessed
         - edited
       description: What caused it — a scheduled evaluation, a read, or an edit.
+    slug:
+      type: string
+      nullable: true
+      description: >
+        The resource's current slug, resolved at read time so a client can
+        deep-link the row. Null when the resource no longer exists, and always
+        null for memories, which are deep-linked by id and have no slug column.
+        Deliberately not stored on the log: slugs are mutable, so a stored copy
+        would rot on the next rename and produce a confident link that 404s.
+    project_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: >
+        The project the resource currently belongs to, resolved at read time.
+        Null when the resource no longer exists. Required alongside the slug to
+        deep-link artifacts and blueprints.
     created_at:
       type: string
       format: date-time
