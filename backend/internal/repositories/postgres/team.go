@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -584,4 +585,64 @@ func (r *TeamRepository) GetTeamFeedCreationMetrics(
 	}
 
 	return counts, nil
+}
+
+// teamSearchSpec describes the `teams` table for the keyword ladder. The FTS and
+// trigram expressions must stay byte-identical (modulo the `t.` qualifier) to
+// the migration-016 index expressions.
+func teamSearchSpec() entitySearchSpec {
+	return entitySearchSpec{
+		table:    "teams t",
+		columns:  "t.id, t.owner_id, t.name, t.slug, t.description, t.is_personal, t.created_at, t.updated_at",
+		nameExpr: "t.name",
+		bodyExpr: "t.description",
+		slugExpr: "t.slug",
+		idExpr:   "t.id",
+		// Tenancy-only, matching ListByUserID's owner-OR-member shape (D3: no
+		// role predicates in repository SQL).
+		accessWhere: "(t.owner_id = $2 " +
+			"OR EXISTS (SELECT 1 FROM team_members WHERE team_id = t.id AND user_id = $2))",
+		orderTiebreak: "t.id ASC",
+	}
+}
+
+// SearchTeams returns the teams the user belongs to that match query, best match
+// first, through the shared keyword ladder (exact -> strict FTS -> relaxed FTS
+// -> trigram; see entity_search.go). Membership is enforced in the SQL on every
+// pass, so a team the caller does not belong to can never appear.
+//
+// A blank query returns no rows rather than every team: "search for nothing" has
+// no meaningful ranking, and callers that want a listing have ListByUserID.
+func (r *TeamRepository) SearchTeams(
+	ctx context.Context, userID, query string, limit int,
+) ([]models.TeamSearchResult, error) {
+	if strings.TrimSpace(query) == "" {
+		return []models.TeamSearchResult{}, nil
+	}
+
+	var results []models.TeamSearchResult
+	scan := func(rows *sql.Rows) (int, error) {
+		results = results[:0]
+		for rows.Next() {
+			var hit models.TeamSearchResult
+			if err := rows.Scan(
+				&hit.ID, &hit.OwnerID, &hit.Name, &hit.Slug,
+				&hit.Description, &hit.IsPersonal, &hit.CreatedAt, &hit.UpdatedAt, &hit.Score,
+			); err != nil {
+				return 0, fmt.Errorf("failed to scan team search result: %w", err)
+			}
+			results = append(results, hit)
+		}
+		return len(results), nil
+	}
+
+	in := searchInputs{query: query, userID: userID, uuidArg: uuidOrNil(query), limit: limit}
+	if err := runSearchLadder(ctx, r.db, teamSearchSpec(), in, scan); err != nil {
+		return nil, err
+	}
+
+	if results == nil {
+		results = []models.TeamSearchResult{}
+	}
+	return results, nil
 }

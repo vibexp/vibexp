@@ -729,6 +729,67 @@ func (_c *MockTeamRepository_ResolveByIdentifier_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// SearchTeams provides a mock function with given fields: ctx, userID, query, limit
+func (_m *MockTeamRepository) SearchTeams(ctx context.Context, userID string, query string, limit int) ([]models.TeamSearchResult, error) {
+	ret := _m.Called(ctx, userID, query, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SearchTeams")
+	}
+
+	var r0 []models.TeamSearchResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) ([]models.TeamSearchResult, error)); ok {
+		return rf(ctx, userID, query, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) []models.TeamSearchResult); ok {
+		r0 = rf(ctx, userID, query, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.TeamSearchResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int) error); ok {
+		r1 = rf(ctx, userID, query, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTeamRepository_SearchTeams_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SearchTeams'
+type MockTeamRepository_SearchTeams_Call struct {
+	*mock.Call
+}
+
+// SearchTeams is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - query string
+//   - limit int
+func (_e *MockTeamRepository_Expecter) SearchTeams(ctx interface{}, userID interface{}, query interface{}, limit interface{}) *MockTeamRepository_SearchTeams_Call {
+	return &MockTeamRepository_SearchTeams_Call{Call: _e.mock.On("SearchTeams", ctx, userID, query, limit)}
+}
+
+func (_c *MockTeamRepository_SearchTeams_Call) Run(run func(ctx context.Context, userID string, query string, limit int)) *MockTeamRepository_SearchTeams_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int))
+	})
+	return _c
+}
+
+func (_c *MockTeamRepository_SearchTeams_Call) Return(_a0 []models.TeamSearchResult, _a1 error) *MockTeamRepository_SearchTeams_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTeamRepository_SearchTeams_Call) RunAndReturn(run func(context.Context, string, string, int) ([]models.TeamSearchResult, error)) *MockTeamRepository_SearchTeams_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // TransferOwnership provides a mock function with given fields: ctx, teamID, fromUserID, toUserID
 func (_m *MockTeamRepository) TransferOwnership(ctx context.Context, teamID string, fromUserID string, toUserID string) error {
 	ret := _m.Called(ctx, teamID, fromUserID, toUserID)

@@ -97,3 +97,11 @@ type TeamMembersListResponse struct {
 	Page       int                         `json:"page"`
 	PageSize   int                         `json:"page_size"`
 }
+
+// TeamSearchResult is a team matched by keyword search, carrying the relevance
+// score the ranking ladder assigned it. See ProjectSearchResult for how the
+// score should (and should not) be compared.
+type TeamSearchResult struct {
+	Team
+	Score float64 `json:"score"`
+}

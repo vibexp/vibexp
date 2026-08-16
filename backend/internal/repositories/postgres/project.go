@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -711,4 +712,95 @@ func (r *ProjectRepository) ListByTeamID(ctx context.Context, teamID string) ([]
 		return nil, fmt.Errorf("failed to iterate projects by team: %w", err)
 	}
 	return projects, nil
+}
+
+// projectSearchSpec describes the `projects` table for the keyword ladder.
+// teamFilter selects between "every team the caller belongs to" and one team.
+//
+// The FTS and trigram expressions must stay byte-identical (modulo the `p.`
+// qualifier) to the migration-016 index expressions.
+func projectSearchSpec() entitySearchSpec {
+	return entitySearchSpec{
+		table: "projects p",
+		columns: "p.id, p.user_id, p.team_id, p.name, p.slug, p.description, " +
+			"p.git_url, p.homepage, p.created_at, p.updated_at, p.version",
+		nameExpr: "p.name",
+		bodyExpr: "p.description",
+		slugExpr: "p.slug",
+		idExpr:   "p.id",
+		// git_url is matched exactly rather than through FTS: the english parser
+		// reduces a repository URL to url/host tokens that no word-shaped query
+		// hits, so it earns its place only in the exact pass — where an agent
+		// pasting a clone URL lands on score 1.0.
+		extraExactExprs: []string{"p.git_url"},
+		// Row-correlated tenancy: this is what makes the cross-team search safe
+		// without a team_id. Tenancy-only, no role predicates (D3).
+		accessWhere: "(EXISTS (SELECT 1 FROM teams WHERE id = p.team_id AND owner_id = $2) " +
+			"OR EXISTS (SELECT 1 FROM team_members WHERE team_id = p.team_id AND user_id = $2))",
+		// NULL = every team the caller can read; otherwise narrow to one.
+		// $T is rewritten to the real placeholder number, which differs between
+		// the exact pass (which also binds the uuid) and the rest.
+		extraWhere:    "($T::uuid IS NULL OR p.team_id = $T::uuid)",
+		orderTiebreak: "p.id ASC",
+	}
+}
+
+// SearchProjects returns projects matching query across every team the user
+// belongs to, best match first, through the shared keyword ladder (exact ->
+// strict FTS -> relaxed FTS -> trigram; see entity_search.go). An optional
+// teamID narrows the search to one team.
+//
+// This is the query List cannot express: List hard-errors on an empty TeamID, so
+// "which of my teams has a project called X?" had no answer short of paginating
+// every team separately. Access is enforced per row in the SQL, so a project in
+// a team the caller does not belong to is unreachable on every pass.
+//
+// A blank query returns no rows rather than every project — see SearchTeams.
+func (r *ProjectRepository) SearchProjects(
+	ctx context.Context, userID string, filters repositories.ProjectSearchFilters,
+) ([]models.ProjectSearchResult, error) {
+	if strings.TrimSpace(filters.Query) == "" {
+		return []models.ProjectSearchResult{}, nil
+	}
+
+	var results []models.ProjectSearchResult
+	scan := func(rows *sql.Rows) (int, error) {
+		results = results[:0]
+		for rows.Next() {
+			var hit models.ProjectSearchResult
+			if err := rows.Scan(
+				&hit.ID, &hit.UserID, &hit.TeamID, &hit.Name, &hit.Slug, &hit.Description,
+				&hit.GitURL, &hit.Homepage, &hit.CreatedAt, &hit.UpdatedAt, &hit.Version, &hit.Score,
+			); err != nil {
+				return 0, fmt.Errorf("failed to scan project search result: %w", err)
+			}
+			results = append(results, hit)
+		}
+		return len(results), nil
+	}
+
+	in := searchInputs{
+		query:   filters.Query,
+		userID:  userID,
+		uuidArg: uuidOrNil(filters.Query),
+		teamArg: nullableTeamID(filters.TeamID),
+		limit:   filters.Limit,
+	}
+	if err := runSearchLadder(ctx, r.db, projectSearchSpec(), in, scan); err != nil {
+		return nil, err
+	}
+
+	if results == nil {
+		results = []models.ProjectSearchResult{}
+	}
+	return results, nil
+}
+
+// nullableTeamID binds an empty team filter as SQL NULL, which the spec's
+// `$4::uuid IS NULL OR ...` reads as "every team the caller can see".
+func nullableTeamID(teamID string) interface{} {
+	if strings.TrimSpace(teamID) == "" {
+		return nil
+	}
+	return teamID
 }

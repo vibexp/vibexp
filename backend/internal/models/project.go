@@ -84,3 +84,13 @@ type ProjectResourceCreationCount struct {
 	ResourceType string
 	Count        int
 }
+
+// ProjectSearchResult is a project matched by keyword search, carrying the
+// relevance score the ranking ladder assigned it (1.0 for an exact slug, id or
+// git_url match; ts_rank for a full-text match; word_similarity for a trigram
+// match). Scores are only comparable WITHIN one result set — each ladder pass
+// uses its own scale and only one pass ever contributes to a given search.
+type ProjectSearchResult struct {
+	Project
+	Score float64 `json:"score"`
+}

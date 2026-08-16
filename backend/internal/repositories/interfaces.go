@@ -368,6 +368,13 @@ type TeamRepository interface {
 	Delete(ctx context.Context, ownerID, teamID string) error
 	ListByOwnerID(ctx context.Context, ownerID string, limit, offset int) ([]models.Team, int, error)
 	ListByUserID(ctx context.Context, userID string, limit, offset int) ([]models.Team, int, error)
+	// SearchTeams returns the teams the user belongs to that match a keyword
+	// query, most relevant first, capped at limit. It runs the shared ranking
+	// ladder (exact identifier -> strict FTS -> relaxed FTS -> trigram), stopping
+	// at the first pass that matches, so scores are only comparable within one
+	// result set. Membership is enforced in the SQL on every pass. A blank query
+	// returns no results rather than every team.
+	SearchTeams(ctx context.Context, userID, query string, limit int) ([]models.TeamSearchResult, error)
 	// ResolveByIdentifier resolves a team identifier — either a team UUID or a
 	// team slug — to the team, in one query, for a user who must be its owner or
 	// a member. Membership is enforced in the SQL (the same owner-OR-member
@@ -1114,6 +1121,14 @@ type ProjectRepository interface {
 	GetByID(ctx context.Context, userID, projectID string) (*models.Project, error)
 	GetByGitURL(ctx context.Context, teamID, userID, gitURL string) (*models.Project, error)
 	List(ctx context.Context, userID string, filters ProjectListFilters) ([]models.Project, int, error)
+	// SearchProjects returns projects matching a keyword query across every team
+	// the user belongs to — the query List cannot express, since it requires a
+	// TeamID — optionally narrowed to one team. Same ranking ladder and same
+	// score caveat as TeamRepository.SearchTeams; access is enforced per row in
+	// the SQL, so a project in an unrelated team is unreachable on every pass.
+	SearchProjects(
+		ctx context.Context, userID string, filters ProjectSearchFilters,
+	) ([]models.ProjectSearchResult, error)
 	Update(ctx context.Context, project *models.Project) error
 	Delete(ctx context.Context, teamID, userID, slug string) error
 	CountByTeamID(ctx context.Context, teamID string) (int, error)
@@ -1146,6 +1161,15 @@ type ProjectRepository interface {
 }
 
 // ProjectListFilters represents filters for project queries
+// ProjectSearchFilters parameterizes ProjectRepository.SearchProjects. An empty
+// TeamID means "every team the caller belongs to" — the cross-team search —
+// rather than an error, which is the whole point of this path.
+type ProjectSearchFilters struct {
+	Query  string
+	TeamID string
+	Limit  int
+}
+
 type ProjectListFilters struct {
 	Search    string
 	SortBy    string
