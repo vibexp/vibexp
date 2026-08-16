@@ -17,11 +17,12 @@ import (
 // NOT distinguish "team does not exist" from "you are not a member" so callers
 // cannot probe for the existence of other teams.
 const teamAccessDeniedText = "Access denied: the supplied team_id does not match any team you belong to. " +
-	"Call vibexp_io_list_teams to list the teams you can use."
+	"Call vibexp_io_list_teams_and_projects to list the teams you can use."
 
 // teamRequiredText is returned when team_id is missing or blank.
 const teamRequiredText = "team_id is required. It accepts a team UUID or slug. " +
-	"Call vibexp_io_list_teams to discover the teams you belong to."
+	"Call vibexp_io_list_teams_and_projects to discover the teams you belong to — " +
+	"it also finds a project across all your teams when you pass a query."
 
 // mcpTextError builds an IsError CallToolResult carrying a single plain-text message.
 func mcpTextError(text string) *mcp.CallToolResult {

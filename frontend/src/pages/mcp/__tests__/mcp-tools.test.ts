@@ -18,17 +18,30 @@ const EXPECTED_TOOL_NAMES = new Set([
   'vibexp_io_get_user',
   'vibexp_io_search',
   'vibexp_io_list_teams',
+  'vibexp_io_list_teams_and_projects',
 ])
 
 describe('mcpTools catalog', () => {
-  it('contains exactly the 17 expected tool names', () => {
+  it('contains exactly the 18 expected tool names', () => {
     const actualNames = new Set(mcpTools.map(t => t.name))
     expect(actualNames).toEqual(EXPECTED_TOOL_NAMES)
   })
 
-  it('includes the team discovery tool vibexp_io_list_teams', () => {
+  it('includes the workspace discovery tool vibexp_io_list_teams_and_projects', () => {
     const names = new Set(mcpTools.map(t => t.name))
-    expect(names).toContain('vibexp_io_list_teams')
+    expect(names).toContain('vibexp_io_list_teams_and_projects')
+  })
+
+  it('still lists the deprecated aliases, with wording naming their replacement', () => {
+    // They survive one release (#814): removing them outright breaks agents
+    // mid-session. The deprecation wording is the only signal an already-running
+    // agent gets, so it is asserted rather than assumed.
+    for (const name of ['vibexp_io_list_teams', 'vibexp_io_list_projects']) {
+      const tool = mcpTools.find(t => t.name === name)
+      expect(tool).toBeDefined()
+      expect(tool?.description).toContain('DEPRECATED')
+      expect(tool?.description).toContain('vibexp_io_list_teams_and_projects')
+    }
   })
 
   it('every entry has non-empty name and description', () => {
@@ -38,13 +51,23 @@ describe('mcpTools catalog', () => {
     }
   })
 
-  it('team-scoped tools require team_id; the two user-scoped tools omit it', () => {
-    // vibexp_io_get_user (identity) and vibexp_io_list_teams (team discovery)
-    // are the only tools that do not take a team_id.
+  it('classifies every tool by how it takes team_id', () => {
+    // Three buckets, not two. The split used to be binary — a tool either
+    // required team_id or had none — but vibexp_io_list_teams_and_projects is
+    // deliberately both: it is the discovery entry point, so it MUST be callable
+    // before any team is known, and it accepts a team_id to narrow the search
+    // once one is. Classifying it as plain "user-scoped" would wrongly assert it
+    // has no team_id property at all; classifying it as team-scoped would
+    // wrongly require one. Hence a bucket of its own (#815).
     const userScoped = new Set(['vibexp_io_get_user', 'vibexp_io_list_teams'])
+    const optionalTeam = new Set(['vibexp_io_list_teams_and_projects'])
+
     for (const tool of mcpTools) {
       if (userScoped.has(tool.name)) {
         expect(tool.inputSchema.properties).not.toHaveProperty('team_id')
+        expect(tool.inputSchema.required).not.toContain('team_id')
+      } else if (optionalTeam.has(tool.name)) {
+        expect(tool.inputSchema.properties).toHaveProperty('team_id')
         expect(tool.inputSchema.required).not.toContain('team_id')
       } else {
         expect(tool.inputSchema.properties).toHaveProperty('team_id')

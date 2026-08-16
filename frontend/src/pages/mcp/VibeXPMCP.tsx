@@ -276,8 +276,9 @@ export function VibeXPMCP() {
           description={
             <>
               Hand one of these to your agent as the <Mono>team_id</Mono> on
-              each tool call — or let it discover teams with the{' '}
-              <Mono>vibexp_io_list_teams</Mono> tool.
+              each tool call — or let it find the right team, and the right
+              project, with the <Mono>vibexp_io_list_teams_and_projects</Mono>{' '}
+              tool.
             </>
           }
         />

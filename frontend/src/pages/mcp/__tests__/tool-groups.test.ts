@@ -28,6 +28,9 @@ describe('getToolKind', () => {
     expect(getToolKind(makeTool('vibexp_io_get_resource'))).toBe('read')
     expect(getToolKind(makeTool('vibexp_io_list_resources'))).toBe('read')
     expect(getToolKind(makeTool('vibexp_io_list_teams'))).toBe('read')
+    expect(getToolKind(makeTool('vibexp_io_list_teams_and_projects'))).toBe(
+      'read'
+    )
   })
 })
 
@@ -88,6 +91,16 @@ describe('groupTools', () => {
   it('omits groups with no matching tools', () => {
     const groups = groupTools([makeTool('vibexp_io_list_teams')])
     expect(groups.map(g => g.id)).toEqual(['teams'])
+  })
+
+  it('files the merged discovery tool under Projects & Feeds', () => {
+    // vibexp_io_list_teams_and_projects matches BOTH the projects-feeds rule
+    // (`_project`) and the teams rule (`_team`), and groups are first-match-wins
+    // in declaration order — so it lands in projects-feeds. Pinned here because
+    // it is otherwise incidental: reordering the group list would silently move
+    // this tool, and the assertion is what would catch it (#815).
+    const groups = groupTools([makeTool('vibexp_io_list_teams_and_projects')])
+    expect(groups.map(g => g.id)).toEqual(['projects-feeds'])
   })
 
   it('drops tools filtered out before grouping', () => {
