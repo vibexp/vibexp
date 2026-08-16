@@ -375,3 +375,27 @@ func TestIntegrationSearch_UsesTheMigration016Indexes(t *testing.T) {
 		})
 	}
 }
+
+// TestIntegrationSearch_CountsByTeamIDs proves the grouped count against a real
+// server: one query, correct per-team totals, and teams with no projects simply
+// absent. sqlmock returns whatever rows the test declares, so it cannot show
+// that GROUP BY actually groups.
+func TestIntegrationSearch_CountsByTeamIDs(t *testing.T) {
+	resetIntegrationTables(t)
+	f := seedSearchFixture(t)
+	repo := NewProjectRepository(integrationDB)
+
+	counts, err := repo.CountsByTeamIDs(context.Background(),
+		[]string{f.teamID, f.memberTeam, f.foreignTeam})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, counts[f.teamID], "the fixture's owned team holds one project")
+	assert.Equal(t, 1, counts[f.memberTeam])
+	assert.Equal(t, 1, counts[f.foreignTeam],
+		"tenancy is the caller's job here by design — this counts by team_id alone")
+
+	// A team id with no projects is omitted rather than reported as zero.
+	none, err := repo.CountsByTeamIDs(context.Background(), []string{uuid.New().String()})
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}

@@ -83,6 +83,65 @@ func (_c *MockProjectRepository_CountByTeamID_Call) RunAndReturn(run func(contex
 	return _c
 }
 
+// CountsByTeamIDs provides a mock function with given fields: ctx, teamIDs
+func (_m *MockProjectRepository) CountsByTeamIDs(ctx context.Context, teamIDs []string) (map[string]int, error) {
+	ret := _m.Called(ctx, teamIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountsByTeamIDs")
+	}
+
+	var r0 map[string]int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) (map[string]int, error)); ok {
+		return rf(ctx, teamIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) map[string]int); ok {
+		r0 = rf(ctx, teamIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]int)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, teamIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProjectRepository_CountsByTeamIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountsByTeamIDs'
+type MockProjectRepository_CountsByTeamIDs_Call struct {
+	*mock.Call
+}
+
+// CountsByTeamIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamIDs []string
+func (_e *MockProjectRepository_Expecter) CountsByTeamIDs(ctx interface{}, teamIDs interface{}) *MockProjectRepository_CountsByTeamIDs_Call {
+	return &MockProjectRepository_CountsByTeamIDs_Call{Call: _e.mock.On("CountsByTeamIDs", ctx, teamIDs)}
+}
+
+func (_c *MockProjectRepository_CountsByTeamIDs_Call) Run(run func(ctx context.Context, teamIDs []string)) *MockProjectRepository_CountsByTeamIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockProjectRepository_CountsByTeamIDs_Call) Return(_a0 map[string]int, _a1 error) *MockProjectRepository_CountsByTeamIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProjectRepository_CountsByTeamIDs_Call) RunAndReturn(run func(context.Context, []string) (map[string]int, error)) *MockProjectRepository_CountsByTeamIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Create provides a mock function with given fields: ctx, project
 func (_m *MockProjectRepository) Create(ctx context.Context, project *models.Project) error {
 	ret := _m.Called(ctx, project)

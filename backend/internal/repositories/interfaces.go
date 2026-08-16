@@ -1132,6 +1132,11 @@ type ProjectRepository interface {
 	Update(ctx context.Context, project *models.Project) error
 	Delete(ctx context.Context, teamID, userID, slug string) error
 	CountByTeamID(ctx context.Context, teamID string) (int, error)
+	// CountsByTeamIDs returns projectCount per team for the given team IDs in one
+	// grouped query; teams with no projects are omitted, so a missing key is zero.
+	// Tenancy-only by design — it counts by team_id and trusts the caller to pass
+	// IDs the user may read.
+	CountsByTeamIDs(ctx context.Context, teamIDs []string) (map[string]int, error)
 	// ListByTeamID returns every project in the team, ordered by name. It is
 	// tenancy-only by design: unlike List it takes no userID, because its
 	// callers report on the team as a whole (membership having already been

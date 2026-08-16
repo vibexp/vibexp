@@ -11,6 +11,15 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 )
 
+// listProjectsToolDescription is the agent-facing description of the deprecated
+// vibexp_io_list_projects tool.
+//
+//nolint:lll // verbatim agent-facing description
+const listProjectsToolDescription = "DEPRECATED — use vibexp_io_list_teams_and_projects instead, " +
+	"which returns a much smaller payload and can find a project across ALL your teams " +
+	"without knowing which team holds it. This tool will be removed in a future release. " +
+	"Lists projects within one team, with optional search and pagination."
+
 // ListProjectsParams defines the parameters for listing projects
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened

@@ -669,6 +669,14 @@ type TestContainer struct {
 	RelationServiceMock       services.RelationServiceInterface
 	MetadataCatalogMock       services.MetadataCatalogServiceInterface
 	TeamRepositoryMock        repositories.TeamRepository
+	ProjectRepositoryMock     repositories.ProjectRepository
+}
+
+// ProjectRepository returns the configured project-repository mock, used by the
+// merged workspace discovery tool (#814) for cross-team search and batched
+// project counts.
+func (tc *TestContainer) ProjectRepository() repositories.ProjectRepository {
+	return tc.ProjectRepositoryMock
 }
 
 // TeamRepository returns the configured team-repository mock. Every team-scoped

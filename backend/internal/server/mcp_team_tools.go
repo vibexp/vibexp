@@ -10,19 +10,28 @@ import (
 )
 
 // listTeamsPageSize is the page size used when listing the user's teams for the
-// vibexp_io_list_teams tool. It matches the maximum allowed by ListTeams.
+// deprecated vibexp_io_list_teams tool. It matches the maximum allowed by ListTeams.
 const listTeamsPageSize = 100
+
+// listTeamsMaxPages bounds the page walk below. The original loop had no bound
+// at all, which is the defect epic #811 is about: an unbounded walk is how a
+// discovery response grows until the agent truncates it and picks the wrong
+// workspace. The tool is deprecated, but a deprecated path should not outlive
+// this issue still carrying the bug.
+const listTeamsMaxPages = 10
 
 // ListTeamsParams defines the parameters for the list teams tool. This tool
 // takes no input parameters; teams are scoped to the authenticated user.
 type ListTeamsParams struct{}
 
 // listTeamsToolDescription is the agent-facing description of vibexp_io_list_teams.
-const listTeamsToolDescription = "List the teams the authenticated user belongs to. " +
-	"Call this FIRST to discover a team_id (UUID or slug) before using any other " +
-	"team-scoped tool (artifacts, memories, projects, feeds, search). " +
-	"Returns one entry per team with its uuid, name, and slug; pass either the uuid " +
-	"or the slug as the team_id parameter of other tools."
+//
+//nolint:lll // verbatim agent-facing description
+const listTeamsToolDescription = "DEPRECATED — use vibexp_io_list_teams_and_projects instead, " +
+	"which does everything this does and can also find a project without knowing its team. " +
+	"This tool will be removed in a future release. " +
+	"Lists the teams the authenticated user belongs to, one entry per team with its uuid, name and slug; " +
+	"pass either the uuid or the slug as the team_id parameter of other tools."
 
 // teamSummary is the per-team shape returned by vibexp_io_list_teams.
 type teamSummary struct {
@@ -66,6 +75,15 @@ func (s *Server) listTeamsForUser(
 		}
 
 		if page*listTeamsPageSize >= listResp.TotalCount || len(listResp.Teams) == 0 {
+			break
+		}
+		if page >= listTeamsMaxPages {
+			slog.With(
+				"tool", "vibexp_io_list_teams",
+				"user_id", userID,
+				"returned", len(summaries),
+				"total", listResp.TotalCount,
+			).Warn("Truncated deprecated list_teams response at the page cap")
 			break
 		}
 		page++

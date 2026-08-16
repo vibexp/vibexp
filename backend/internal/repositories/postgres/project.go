@@ -426,6 +426,47 @@ func (r *ProjectRepository) CountByTeamID(ctx context.Context, teamID string) (i
 	return count, nil
 }
 
+// CountsByTeamIDs returns projectCount per team for the given team IDs, in one
+// grouped query. Teams with no projects are omitted, so callers read a missing
+// key as zero.
+//
+// It exists so the discovery tool can annotate a page of teams without issuing
+// CountByTeamID per team — reintroducing exactly the per-team fan-out epic #811
+// is removing. Tenancy is the caller's responsibility: this counts by team_id
+// alone, and every caller passes IDs it has already established the user can
+// read.
+func (r *ProjectRepository) CountsByTeamIDs(ctx context.Context, teamIDs []string) (map[string]int, error) {
+	counts := make(map[string]int, len(teamIDs))
+	if len(teamIDs) == 0 {
+		return counts, nil
+	}
+
+	// `= ANY($1)` over a btree column (idx_projects_team_id) is index-servable —
+	// unlike `= ANY` against an array COLUMN, which no GIN index can serve.
+	query := `SELECT team_id, COUNT(*) FROM projects WHERE team_id = ANY($1) GROUP BY team_id`
+
+	rows, err := r.db.QueryContext(ctx, query, pq.Array(teamIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to count projects by team: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+
+	for rows.Next() {
+		var teamID string
+		var count int
+		if scanErr := rows.Scan(&teamID, &count); scanErr != nil {
+			return nil, fmt.Errorf("failed to scan project count: %w", scanErr)
+		}
+		counts[teamID] = count
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating project counts: %w", err)
+	}
+
+	return counts, nil
+}
+
 // GetNamesByIDs returns a map of projectID → name for the given IDs visible to userID
 // across all teams the user belongs to (owner or member).
 // Unknown or inaccessible IDs are omitted from the result map.
