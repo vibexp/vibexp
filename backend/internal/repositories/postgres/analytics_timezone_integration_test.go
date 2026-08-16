@@ -467,9 +467,12 @@ func TestIntegrationAnalyticsTimezone_WeekStartsAreSessionIndependent(t *testing
 	at := time.Date(2026, 3, 1, 23, 30, 0, 0, time.UTC)
 	seedNaiveAndAwareAt(t, at)
 
-	weekStarts := func(db *database.DB) []string {
+	usage := func(db *database.DB) []models.UsageMetricsRow {
 		rows, err := NewBackofficeRepository(db).GetUsageMetrics(context.Background(), nil, nil)
 		require.NoError(t, err)
+		return rows
+	}
+	weekStarts := func(rows []models.UsageMetricsRow) []string {
 		out := make([]string, 0, len(rows))
 		for _, row := range rows {
 			out = append(out, row.WeekStart.Format("2006-01-02"))
@@ -477,13 +480,22 @@ func TestIntegrationAnalyticsTimezone_WeekStartsAreSessionIndependent(t *testing
 		return out
 	}
 
-	utcWeeks := weekStarts(integrationDB)
-	shiftedWeeks := weekStarts(openSessionTZDB(t, tzTestZone))
+	utcRows := usage(integrationDB)
+	shiftedRows := usage(openSessionTZDB(t, tzTestZone))
 
-	assert.Equal(t, []string{"2026-02-23"}, utcWeeks,
+	assert.Equal(t, []string{"2026-02-23"}, weekStarts(utcRows),
 		"both rows are the same instant in the week beginning Monday 2026-02-23")
-	assert.Equal(t, utcWeeks, shiftedWeeks,
+	assert.Equal(t, weekStarts(utcRows), weekStarts(shiftedRows),
 		"a naive column unioned into aware ones must be normalized per branch, not after the union")
+
+	// The whole row, not just its key. buildUsageMetricsRow counts each table in
+	// its OWN statement, so every placeholder there binds a single column family
+	// and needs no split -- but that is a claim worth holding to the same
+	// standard as the rest of this file rather than reasoning about once.
+	require.Len(t, utcRows, 1)
+	assert.Equal(t, 1, utcRows[0].NewMemories, "fixture: the naive row is inside the week")
+	assert.Equal(t, 1, utcRows[0].NewPrompts, "fixture: the aware row is inside the week")
+	assert.Equal(t, utcRows, shiftedRows, "the per-week counts must not move with the session timezone either")
 }
 
 // GetGrowthSeries is the case admin_dashboard.go's own comment got wrong: the
