@@ -104,6 +104,13 @@ func (r *FreshnessAuditRepository) ListByTeam(
 	// countByTeam is deliberately untouched: these are LEFT JOINs on the joined
 	// tables' primary keys, so they cannot add or drop a row, and total_count must
 	// describe the same set with or without them.
+	//
+	// Each join is additionally scoped to the entry's own team. Matching on the
+	// resource id alone would resolve whichever team owns that id — harmless while
+	// a resource can never change teams (nothing in the codebase reassigns
+	// team_id), but that invariant is enforced by the absence of such a write path
+	// rather than by a constraint, and this layer is where tenancy predicates
+	// belong. On a primary-key lookup the extra equality costs nothing.
 	query := `
 		SELECT ` + freshnessAuditListColumns + `
 		FROM (
@@ -113,10 +120,14 @@ func (r *FreshnessAuditRepository) ListByTeam(
 			ORDER BY created_at DESC, id DESC
 			LIMIT $2 OFFSET $3
 		) a
-		LEFT JOIN prompts    p  ON a.resource_type = 'prompt'    AND p.id  = a.resource_id
-		LEFT JOIN artifacts  ar ON a.resource_type = 'artifact'  AND ar.id = a.resource_id
-		LEFT JOIN blueprints b  ON a.resource_type = 'blueprint' AND b.id  = a.resource_id
-		LEFT JOIN memories   m  ON a.resource_type = 'memory'    AND m.id  = a.resource_id
+		LEFT JOIN prompts    p  ON a.resource_type = 'prompt'
+		                       AND p.id  = a.resource_id AND p.team_id  = a.team_id
+		LEFT JOIN artifacts  ar ON a.resource_type = 'artifact'
+		                       AND ar.id = a.resource_id AND ar.team_id = a.team_id
+		LEFT JOIN blueprints b  ON a.resource_type = 'blueprint'
+		                       AND b.id  = a.resource_id AND b.team_id  = a.team_id
+		LEFT JOIN memories   m  ON a.resource_type = 'memory'
+		                       AND m.id  = a.resource_id AND m.team_id  = a.team_id
 		ORDER BY a.created_at DESC, a.id DESC
 	`
 

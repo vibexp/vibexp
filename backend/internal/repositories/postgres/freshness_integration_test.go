@@ -1062,3 +1062,45 @@ func TestIntegrationFreshnessAudit_JoinsPreservePagingAndTotal(t *testing.T) {
 	}
 	assert.Len(t, seen, n)
 }
+
+// The resource joins are scoped to the entry's own team, so an id belonging to
+// another team resolves nothing. A resource cannot currently change teams, which
+// is why this is defence in depth rather than a live bug — but the invariant is
+// enforced by the absence of a write path, not by a constraint.
+func TestIntegrationFreshnessAudit_JoinsAreTeamScoped(t *testing.T) {
+	resetFreshnessTables(t)
+	userID := insertTestUser(t)
+	teamID := insertTestTeam(t, userID)
+	projectID := insertTestProject(t, userID, teamID)
+	otherUserID := insertTestUser(t)
+	otherTeamID := insertTestTeam(t, otherUserID)
+	otherProjectID := insertTestProject(t, otherUserID, otherTeamID)
+	repo := NewFreshnessAuditRepository(integrationDB)
+	ctx := context.Background()
+
+	// A resource owned by the OTHER team, referenced by an audit entry logged
+	// against this one.
+	foreignID := insertTestArtifact(t, otherUserID, otherTeamID, otherProjectID, "Foreign", "content", "active")
+	require.NoError(t, repo.Create(ctx, &models.ResourceFreshnessAudit{
+		TeamID: teamID, ResourceType: "artifact", ResourceID: foreignID,
+		Action: models.FreshnessActionMarked, Reason: models.FreshnessReasonRuleRun,
+	}))
+
+	entries, total, err := repo.ListByTeam(ctx, teamID, 0, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+	require.Len(t, entries, 1)
+	assert.Nil(t, entries[0].Slug, "another team's slug must not leak through the join")
+	assert.Nil(t, entries[0].ProjectID, "another team's project must not leak through the join")
+
+	// Sanity: the same shape resolves fine when the resource really is this team's.
+	ownID := insertTestArtifact(t, userID, teamID, projectID, "Own", "content", "active")
+	require.NoError(t, repo.Create(ctx, &models.ResourceFreshnessAudit{
+		TeamID: teamID, ResourceType: "artifact", ResourceID: ownID,
+		Action: models.FreshnessActionMarked, Reason: models.FreshnessReasonRuleRun,
+	}))
+	entries, _, err = repo.ListByTeam(ctx, teamID, 1, 0)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.NotNil(t, entries[0].Slug, "the team's own resource still resolves")
+}
