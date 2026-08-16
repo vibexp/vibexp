@@ -49,7 +49,7 @@ export const SidebarBrand = forwardRef<HTMLAnchorElement, SidebarBrandProps>(
         >
           <span className="text-sm font-bold tracking-tight">VibeXP</span>
           <span className="text-muted-foreground text-xs font-normal">
-            AI Command Center
+            Your team&apos;s shared brain
           </span>
         </span>
       </Link>

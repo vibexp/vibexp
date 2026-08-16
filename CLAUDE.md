@@ -12,7 +12,7 @@ Judge features against this: anything that depends on humans hand-maintaining co
 
 ## What this is
 
-**VibeXP**: open-source, self-hostable AI command center (prompts, memories, artifacts, agents, MCP integrations for Claude Code, Cursor, VS Code, etc.). Monorepo shipped as a **single combined Docker image** (issue #61): the Go backend embeds the built frontend SPA and serves it *and* the API from one port — `docker run ghcr.io/vibexp/vibexp`. Two source components, one deployable artifact:
+**VibeXP**: open-source, self-hostable shared knowledge base for a team's AI (prompts, memories, artifacts, agents, MCP integrations for Claude Code, Cursor, VS Code, etc.). Monorepo shipped as a **single combined Docker image** (issue #61): the Go backend embeds the built frontend SPA and serves it *and* the API from one port — `docker run ghcr.io/vibexp/vibexp`. Two source components, one deployable artifact:
 
 - **`backend/`**: Go REST API (module `github.com/vibexp/vibexp`). Spec-first OpenAPI, PostgreSQL + pgvector, MCP endpoint, pluggable identity-provider auth (Google/GitHub/generic OIDC). Also embeds + serves the SPA (`internal/server/spa.go`, behind the `embedfrontend` build tag) and renders runtime `/config.js`.
 - **`frontend/`**: Vite + React + TypeScript SPA. Built to `frontend/dist`, embedded into the backend for release; served by the Vite dev server in local development.
