@@ -56,17 +56,20 @@ function typeLabel(type: FreshnessAuditEntry['resource_type']): string {
 /**
  * The resource cell.
  *
- * The audit entry carries only `resource_type` + `resource_id`, and
- * `buildResourceUrl` needs a slug (plus a project id for artifacts and
- * blueprints), so today only memories resolve to a URL. That is exactly the
- * case the helper's `null` return exists for — render plain text rather than a
- * link that 404s. Deep-linking the other three needs `slug`/`project_id` on the
- * audit payload; tracked as a follow-up.
+ * The entry carries the identifiers `buildResourceUrl` needs — `slug` and
+ * `project_id`, resolved server-side at read time (#789) — so all four resource
+ * types link. Both are null when the resource was deleted after the event was
+ * logged, and `slug` is additionally always null for memories, which are keyed
+ * by id; either way the helper returns `null` and the row stays plain text
+ * rather than becoming a link that 404s. The log is append-only, so an entry
+ * outliving its resource is normal, not an error.
  */
 function ResourceCell({ entry }: Readonly<{ entry: FreshnessAuditEntry }>) {
   const href = buildResourceUrl({
     type: entry.resource_type,
     id: entry.resource_id,
+    slug: entry.slug,
+    projectId: entry.project_id,
   })
   const label = `${typeLabel(entry.resource_type)} ${entry.resource_id.slice(0, 8)}`
 

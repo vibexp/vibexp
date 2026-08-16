@@ -13,6 +13,8 @@ import { FreshnessAudit } from '../FreshnessAudit'
 
 const mocked = vi.mocked(freshnessService)
 
+const PROJECT_ID = '99999999-8888-7777-6666-555555555555'
+
 const entry = (
   overrides: Partial<FreshnessAuditEntry> = {}
 ): FreshnessAuditEntry => ({
@@ -22,6 +24,8 @@ const entry = (
   rule_id: 'r1',
   action: 'marked',
   reason: 'rule_run',
+  slug: 'my-artifact',
+  project_id: PROJECT_ID,
   created_at: '2026-08-10T12:00:00Z',
   ...overrides,
 })
@@ -86,26 +90,50 @@ describe('FreshnessAudit', () => {
     })
   })
 
-  it('links a memory row to the memory', async () => {
+  // All four resource types deep-link now that the payload carries the
+  // server-resolved slug/project_id (#789). Memories are keyed by id and carry
+  // no slug at all, which is why they are in the same table rather than an
+  // exception to it.
+  it.each([
+    [
+      'prompt' as const,
+      { slug: 'my-prompt', project_id: PROJECT_ID },
+      '/prompts/my-prompt',
+    ],
+    [
+      'artifact' as const,
+      { slug: 'my-artifact', project_id: PROJECT_ID },
+      `/artifacts/${PROJECT_ID}/my-artifact`,
+    ],
+    [
+      'blueprint' as const,
+      { slug: 'my-blueprint', project_id: PROJECT_ID },
+      `/blueprints/${PROJECT_ID}/my-blueprint`,
+    ],
+    [
+      'memory' as const,
+      { resource_id: 'mem-1', slug: null, project_id: PROJECT_ID },
+      '/memories/mem-1',
+    ],
+  ])('deep-links a %s row', async (type, fields, expected) => {
     mocked.getAudit.mockResolvedValue(
-      page([entry({ resource_type: 'memory', resource_id: 'mem-1' })])
+      page([entry({ resource_type: type, ...fields })])
     )
     renderTab()
 
     await waitFor(() => {
-      expect(screen.getByRole('link')).toHaveAttribute(
-        'href',
-        '/memories/mem-1'
-      )
+      expect(screen.getByRole('link')).toHaveAttribute('href', expected)
     })
   })
 
   it.each(['artifact', 'blueprint', 'prompt'] as const)(
-    'renders a %s row unlinked, because the payload carries no slug',
+    'renders a deleted %s as plain text rather than a broken link',
     async type => {
-      // buildResourceUrl needs a slug (and a project id for artifacts and
-      // blueprints); a fabricated href would 404, so the row stays plain text.
-      mocked.getAudit.mockResolvedValue(page([entry({ resource_type: type })]))
+      // The log is append-only, so an entry outlives its resource. The server
+      // resolves null for both identifiers and a fabricated href would 404.
+      mocked.getAudit.mockResolvedValue(
+        page([entry({ resource_type: type, slug: null, project_id: null })])
+      )
       renderTab()
 
       await waitFor(() => {
@@ -114,6 +142,23 @@ describe('FreshnessAudit', () => {
       expect(screen.queryByRole('link')).not.toBeInTheDocument()
     }
   )
+
+  // An artifact/blueprint needs BOTH identifiers; one without the other must not
+  // produce a half-built URL.
+  it.each([
+    ['slug only', { slug: 'my-artifact', project_id: null }],
+    ['project only', { slug: null, project_id: PROJECT_ID }],
+  ])('renders an artifact with %s as plain text', async (_name, fields) => {
+    mocked.getAudit.mockResolvedValue(
+      page([entry({ resource_type: 'artifact', ...fields })])
+    )
+    renderTab()
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('audit-row')).toHaveLength(1)
+    })
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
 
   it('shows an explanatory empty state', async () => {
     mocked.getAudit.mockResolvedValue(page([], 0, 0))
