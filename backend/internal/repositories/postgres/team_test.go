@@ -1076,3 +1076,96 @@ func TestUUIDOrNil(t *testing.T) {
 		})
 	}
 }
+
+// TestTeamRepository_SearchTeams covers the repository half of the ladder: the
+// blank-query short-circuit, the scan into TeamSearchResult, and error
+// propagation. Which rows Postgres actually returns is proven against a real
+// server in team_project_search_integration_test.go.
+func TestTeamRepository_SearchTeams(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+
+	t.Run("blank query short-circuits without touching the database", func(t *testing.T) {
+		repo, mock, mockDB := setupTeamTest(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		results, err := repo.SearchTeams(ctx, "user-1", "   ", 10)
+
+		require.NoError(t, err)
+		assert.Empty(t, results)
+		// No ExpectBegin: a blank search must not even open a transaction.
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("scans matches with their score", func(t *testing.T) {
+		repo, mock, mockDB := setupTeamTest(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`set_config`).WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectQuery(`SELECT t.id`).WillReturnRows(sqlmock.NewRows([]string{
+			"id", "owner_id", "name", "slug", "description", "is_personal", "created_at", "updated_at", "score",
+		}).AddRow("team-1", "user-1", "Acme", "acme", "desc", false, now, now, 1.0))
+		mock.ExpectRollback()
+
+		results, err := repo.SearchTeams(ctx, "user-1", "acme", 10)
+
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, "team-1", results[0].ID)
+		assert.Equal(t, "Acme", results[0].Name)
+		assert.InDelta(t, 1.0, results[0].Score, 0.0001)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("no match returns an empty slice, never nil", func(t *testing.T) {
+		repo, mock, mockDB := setupTeamTest(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`set_config`).WillReturnResult(sqlmock.NewResult(0, 0))
+		for i := 0; i < 4; i++ {
+			mock.ExpectQuery(`SELECT t.id`).WillReturnRows(sqlmock.NewRows([]string{"id", "score"}))
+		}
+		mock.ExpectRollback()
+
+		results, err := repo.SearchTeams(ctx, "user-1", "nothing", 10)
+
+		require.NoError(t, err)
+		assert.NotNil(t, results, "callers marshal this straight to JSON; nil would serialize as null")
+		assert.Empty(t, results)
+	})
+
+	t.Run("a malformed row surfaces as an error", func(t *testing.T) {
+		repo, mock, mockDB := setupTeamTest(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`set_config`).WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectQuery(`SELECT t.id`).WillReturnRows(
+			sqlmock.NewRows([]string{"id", "score"}).AddRow("team-1", 1.0))
+		mock.ExpectRollback()
+
+		results, err := repo.SearchTeams(ctx, "user-1", "acme", 10)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "scan team search result")
+		assert.Nil(t, results)
+	})
+}

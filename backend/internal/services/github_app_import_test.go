@@ -117,6 +117,17 @@ func (m *MockProjectRepository) List(
 	return args.Get(0).([]models.Project), args.Int(1), args.Error(2)
 }
 
+// SearchProjects satisfies the interface for this hand-written double; the
+// GitHub App import path never searches, so no test sets an expectation on it.
+func (m *MockProjectRepository) SearchProjects(
+	ctx context.Context,
+	userID string,
+	filters repositories.ProjectSearchFilters,
+) ([]models.ProjectSearchResult, error) {
+	args := m.Called(ctx, userID, filters)
+	return args.Get(0).([]models.ProjectSearchResult), args.Error(1)
+}
+
 func (m *MockProjectRepository) Update(ctx context.Context, project *models.Project) error {
 	return mockErrCall(&m.Mock, "Update", ctx, project)
 }

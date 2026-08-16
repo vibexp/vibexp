@@ -730,6 +730,66 @@ func (_c *MockProjectRepository_ListGitURLToSlugByTeam_Call) RunAndReturn(run fu
 	return _c
 }
 
+// SearchProjects provides a mock function with given fields: ctx, userID, filters
+func (_m *MockProjectRepository) SearchProjects(ctx context.Context, userID string, filters repositories.ProjectSearchFilters) ([]models.ProjectSearchResult, error) {
+	ret := _m.Called(ctx, userID, filters)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SearchProjects")
+	}
+
+	var r0 []models.ProjectSearchResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, repositories.ProjectSearchFilters) ([]models.ProjectSearchResult, error)); ok {
+		return rf(ctx, userID, filters)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, repositories.ProjectSearchFilters) []models.ProjectSearchResult); ok {
+		r0 = rf(ctx, userID, filters)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.ProjectSearchResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, repositories.ProjectSearchFilters) error); ok {
+		r1 = rf(ctx, userID, filters)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProjectRepository_SearchProjects_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SearchProjects'
+type MockProjectRepository_SearchProjects_Call struct {
+	*mock.Call
+}
+
+// SearchProjects is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - filters repositories.ProjectSearchFilters
+func (_e *MockProjectRepository_Expecter) SearchProjects(ctx interface{}, userID interface{}, filters interface{}) *MockProjectRepository_SearchProjects_Call {
+	return &MockProjectRepository_SearchProjects_Call{Call: _e.mock.On("SearchProjects", ctx, userID, filters)}
+}
+
+func (_c *MockProjectRepository_SearchProjects_Call) Run(run func(ctx context.Context, userID string, filters repositories.ProjectSearchFilters)) *MockProjectRepository_SearchProjects_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(repositories.ProjectSearchFilters))
+	})
+	return _c
+}
+
+func (_c *MockProjectRepository_SearchProjects_Call) Return(_a0 []models.ProjectSearchResult, _a1 error) *MockProjectRepository_SearchProjects_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProjectRepository_SearchProjects_Call) RunAndReturn(run func(context.Context, string, repositories.ProjectSearchFilters) ([]models.ProjectSearchResult, error)) *MockProjectRepository_SearchProjects_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Update provides a mock function with given fields: ctx, project
 func (_m *MockProjectRepository) Update(ctx context.Context, project *models.Project) error {
 	ret := _m.Called(ctx, project)
