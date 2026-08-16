@@ -759,7 +759,7 @@ func (r *ProjectRepository) ListByTeamID(ctx context.Context, teamID string) ([]
 // teamFilter selects between "every team the caller belongs to" and one team.
 //
 // The FTS and trigram expressions must stay byte-identical (modulo the `p.`
-// qualifier) to the migration-016 index expressions.
+// qualifier) to the index expressions in 013_consolidated (#813).
 func projectSearchSpec() entitySearchSpec {
 	return entitySearchSpec{
 		table: "projects p",

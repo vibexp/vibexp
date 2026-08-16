@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Up/down round-trip for migration 013_resource_freshness (#729), on its OWN
-// scratch database: this test migrates DOWN, which would corrupt the shared
-// integrationDB (and, since that database is shared across worktrees, other
-// checkouts too).
+// Up/down round-trip for the freshness schema in migration 013_consolidated
+// (originally 013_resource_freshness, #729), on its OWN scratch database: this
+// test migrates DOWN, which would corrupt the shared integrationDB (and, since
+// that database is shared across worktrees, other checkouts too).
 //
 // Two properties matter beyond "it applies":
 //  1. the down migration drops the resource columns even when they hold data

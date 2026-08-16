@@ -336,9 +336,12 @@ func (s *FreshnessService) ResetSettings(ctx context.Context, userID, teamID str
 //
 // The drift is repaired by the next rule or settings write, and NOT by
 // anything else: a team whose very first rule failed to provision a schedule
-// is not evaluated at all until someone writes again. That is the same state
-// migration 015 exists to repair for pre-existing rules, and there is no
-// runtime repair path for it yet -- see #768.
+// is not evaluated at all until someone writes again. There is no runtime
+// repair path for it yet -- see #768. A one-off seeding migration used to
+// cover the analogous case of rules created before this write path existed,
+// but it was dropped in the 013_consolidated squash: on that chain
+// `freshness_rules` is created empty in the same migration, so it could never
+// have matched a row.
 func (s *FreshnessService) syncSchedule(ctx context.Context, teamID string) {
 	log := s.logger.With("team_id", teamID, "job_type", models.JobTypeFreshnessEvaluate)
 
