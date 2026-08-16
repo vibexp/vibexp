@@ -181,6 +181,44 @@ func TestVerify_WithInProcessKeySet(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrInvalidToken))
 }
 
+// TestVerify_KeyRetrievalError verifies that a failure to obtain the in-process
+// keys (e.g. a transient DB error in KeyManager.PublicJWKS) surfaces as the
+// infrastructure error ErrKeyRetrieval — NOT ErrInvalidToken. Collapsing it into
+// ErrInvalidToken would emit a 401, telling clients their token is invalid
+// (RFC 6750 §3.1) and kicking every MCP client into a spurious re-auth loop on a
+// transient key-store blip.
+func TestVerify_KeyRetrievalError(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	const issuer = "http://localhost:8081"
+	dbErr := errors.New("dial tcp 127.0.0.1:5432: connect: connection refused")
+	getKeys := func(context.Context) ([]crypto.PublicKey, error) {
+		return nil, dbErr
+	}
+	v, err := New(
+		context.Background(),
+		issuer,
+		RequireAudience(testResource),
+		stubResolver{id: testInternalID},
+		WithKeySet(NewLocalKeySet(getKeys)),
+	)
+	require.NoError(t, err)
+
+	// A well-formed RS256 token (passes the alg pin, so verification reaches the
+	// key set where getKeys fails — proving the classification is about key
+	// retrieval, not a malformed/expired token).
+	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, validClaims(issuer))
+	tok.Header["kid"] = testKeyID
+	signed, err := tok.SignedString(key)
+	require.NoError(t, err)
+
+	_, err = v.Verify(context.Background(), signed)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrKeyRetrieval), "key-store failure must surface as ErrKeyRetrieval (→ 500)")
+	assert.False(t, errors.Is(err, ErrInvalidToken), "key-store failure must NOT be an auth failure (→ 401)")
+}
+
 func TestVerify_AudienceAsArray(t *testing.T) {
 	j := newJWKSTestServer(t)
 	v := newTestVerifier(t, j, RequireAudience(testResource), stubResolver{id: testInternalID})

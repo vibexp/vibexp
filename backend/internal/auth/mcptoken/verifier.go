@@ -34,6 +34,13 @@ import (
 // is reported as ErrInvalidToken instead.
 var errUserResolution = errors.New("mcptoken: user resolution failed")
 
+// errKeyRetrieval signals that obtaining the verification keys failed for an
+// infrastructure reason (e.g. the in-process key set hitting a transient
+// database error). Like errUserResolution it does NOT unwrap to
+// mcpauth.ErrInvalidToken, so the middleware maps it to a 500 rather than a 401
+// — a transient key-store blip must not tell clients their token is invalid.
+var errKeyRetrieval = errors.New("mcptoken: verification key retrieval failed")
+
 // clockSkewLeeway is the tolerance applied to the exp and nbf checks to absorb
 // minor clock drift between AuthKit and this server.
 const clockSkewLeeway = authkit.ClockSkewLeeway
@@ -51,7 +58,12 @@ type Verifier struct {
 // resourceURI is the RFC 8707 audience this server accepts. Optional authkit
 // options are forwarded to the underlying verifier — notably authkit.WithKeySet
 // to verify against the embedded AS's in-process keys.
-func New(ctx context.Context, issuer, resourceURI string, resolver UserResolver, opts ...authkit.Option) (*Verifier, error) {
+func New(
+	ctx context.Context,
+	issuer, resourceURI string,
+	resolver UserResolver,
+	opts ...authkit.Option,
+) (*Verifier, error) {
 	if resourceURI == "" {
 		return nil, fmt.Errorf("mcptoken: resource URI is required")
 	}
@@ -88,6 +100,9 @@ func (v *Verifier) Verify(ctx context.Context, token string, _ *http.Request) (*
 func translateError(err error) error {
 	if errors.Is(err, authkit.ErrUserResolution) {
 		return errUserResolution
+	}
+	if errors.Is(err, authkit.ErrKeyRetrieval) {
+		return errKeyRetrieval
 	}
 	if errors.Is(err, authkit.ErrUnknownSubject) {
 		return fmt.Errorf("%w", mcpauth.ErrInvalidToken)

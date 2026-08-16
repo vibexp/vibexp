@@ -34,6 +34,15 @@ var ErrInvalidToken = errors.New("authkit: invalid token")
 // failure and is reported as ErrInvalidToken instead.
 var ErrUserResolution = errors.New("authkit: user resolution failed")
 
+// ErrKeyRetrieval signals that obtaining the verification keys failed for an
+// infrastructure reason (e.g. a transient database error while an in-process key
+// set reads the Authorization Server's signing keys — see NewLocalKeySet). Like
+// ErrUserResolution it is NOT an authentication failure: callers map it to a
+// 500, never a 401. Collapsing it into ErrInvalidToken would tell the client its
+// token is invalid (RFC 6750 §3.1), pushing every MCP client into a spurious
+// re-auth loop on a transient key-store blip.
+var ErrKeyRetrieval = errors.New("authkit: verification key retrieval failed")
+
 // ErrUnknownSubject is the ErrInvalidToken sub-case for a cryptographically
 // valid token whose subject does not resolve to a provisioned user. It is
 // distinguishable so callers can keep their client-facing message fully opaque
@@ -176,7 +185,13 @@ func WithKeySet(ks oidc.KeySet) Option {
 // at the issuer's JWKS endpoint (<issuer>/oauth2/jwks.json); pass WithKeySet to
 // verify against an in-process key set instead. issuer must be non-empty;
 // audience and resolver must be non-nil.
-func New(ctx context.Context, issuer string, audience AudiencePolicy, resolver UserResolver, opts ...Option) (*Verifier, error) {
+func New(
+	ctx context.Context,
+	issuer string,
+	audience AudiencePolicy,
+	resolver UserResolver,
+	opts ...Option,
+) (*Verifier, error) {
 	if issuer == "" {
 		return nil, fmt.Errorf("authkit: issuer is required")
 	}
@@ -221,7 +236,12 @@ type localKeySet struct {
 func (l *localKeySet) VerifySignature(ctx context.Context, token string) ([]byte, error) {
 	keys, err := l.getKeys(ctx)
 	if err != nil {
-		return nil, err
+		// A key-store failure is an infrastructure error, not a bad signature.
+		// Return ErrKeyRetrieval (logged here with detail, opaque to the caller)
+		// so Verify keeps it out of ErrInvalidToken and it surfaces as a 500.
+		contextkeys.GetLoggerFromContext(ctx).
+			Error("AuthKit in-process key retrieval failed (infrastructure error)", "error", err)
+		return nil, ErrKeyRetrieval
 	}
 	return (&oidc.StaticKeySet{PublicKeys: keys}).VerifySignature(ctx, token)
 }
@@ -236,9 +256,9 @@ func jwksURL(issuer string) string {
 
 // Verify validates the token signature and claims and resolves the subject to
 // an internal user. Authentication failures unwrap to ErrInvalidToken;
-// infrastructure failures during subject resolution unwrap to
-// ErrUserResolution. Error messages stay opaque — no claim or infrastructure
-// detail is included beyond the failure category.
+// infrastructure failures unwrap to ErrKeyRetrieval (obtaining the verification
+// keys) or ErrUserResolution (resolving the subject). Error messages stay opaque
+// — no claim or infrastructure detail is included beyond the failure category.
 func (v *Verifier) Verify(ctx context.Context, token string) (*TokenInfo, error) {
 	if err := assertSigningAlg(token); err != nil {
 		return nil, err
@@ -246,6 +266,12 @@ func (v *Verifier) Verify(ctx context.Context, token string) (*TokenInfo, error)
 
 	payload, err := v.keys.VerifySignature(ctx, token)
 	if err != nil {
+		// A failure to obtain the verification keys (e.g. an in-process key set
+		// hitting a transient DB error) is infrastructure, not a bad token: keep
+		// it as ErrKeyRetrieval (→ 500) rather than collapsing it into a 401.
+		if errors.Is(err, ErrKeyRetrieval) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("%w: signature verification failed", ErrInvalidToken)
 	}
 
