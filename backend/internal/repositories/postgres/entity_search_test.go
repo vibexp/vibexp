@@ -370,3 +370,26 @@ func TestProjectRepository_SearchProjects(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
+
+// TestClampSearchLimit pins the zero-value trap: `LIMIT 0` is valid SQL that
+// returns nothing, so an unset limit must not reach the database unchanged or a
+// caller who omitted the field sees an empty result rather than an error, and
+// cannot tell it from a genuine miss. Negative values are worse still — Postgres
+// rejects them outright.
+func TestClampSearchLimit(t *testing.T) {
+	assert.Equal(t, defaultSearchLimit, clampSearchLimit(0), "the zero value must not mean LIMIT 0")
+	assert.Equal(t, defaultSearchLimit, clampSearchLimit(-5), "Postgres rejects a negative LIMIT")
+	assert.Equal(t, 10, clampSearchLimit(10))
+	assert.Equal(t, maxSearchLimit, clampSearchLimit(maxSearchLimit+1))
+	assert.Equal(t, maxSearchLimit, clampSearchLimit(maxSearchLimit))
+}
+
+// TestBuildPasses_ClampsTheLimitItBinds verifies the clamp is applied where the
+// argument is actually bound, not merely available as a helper.
+func TestBuildPasses_ClampsTheLimitItBinds(t *testing.T) {
+	passes := teamSearchSpec().buildPasses(searchInputs{query: "q", userID: "u", limit: 0})
+	for _, pass := range passes {
+		assert.Equal(t, defaultSearchLimit, pass.args[len(pass.args)-1],
+			"pass %q must bind the clamped limit", pass.name)
+	}
+}

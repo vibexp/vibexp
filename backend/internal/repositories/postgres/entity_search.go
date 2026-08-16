@@ -99,6 +99,31 @@ func (s entitySearchSpec) exactPredicate() string {
 	return "(" + strings.Join(terms, " OR ") + ")"
 }
 
+const (
+	// defaultSearchLimit is what an unset limit becomes. `LIMIT 0` is valid SQL
+	// that returns nothing, so passing the zero value of a filters struct through
+	// unchanged would turn "I forgot to set a limit" into "nothing matched" —
+	// silently, and identically to a genuine miss.
+	defaultSearchLimit = 20
+	// maxSearchLimit caps what a caller can ask for. These are discovery
+	// lookups feeding an agent's context window, not a bulk export.
+	maxSearchLimit = 100
+)
+
+// clampSearchLimit turns any caller-supplied limit into a usable one: a
+// non-positive limit (including a negative, which Postgres rejects outright with
+// "LIMIT must not be negative") becomes the default, and anything oversized is
+// capped.
+func clampSearchLimit(limit int) int {
+	if limit <= 0 {
+		return defaultSearchLimit
+	}
+	if limit > maxSearchLimit {
+		return maxSearchLimit
+	}
+	return limit
+}
+
 // searchInputs are the values the ladder binds, in whatever positions each pass
 // needs them.
 type searchInputs struct {
@@ -168,7 +193,7 @@ func (s entitySearchSpec) newPass(in searchInputs, withUUID bool) *passBuilder {
 		b.args = append(b.args, in.teamArg)
 		b.teamArg = len(b.args)
 	}
-	b.args = append(b.args, in.limit)
+	b.args = append(b.args, clampSearchLimit(in.limit))
 	b.limitArg = len(b.args)
 	return b
 }
