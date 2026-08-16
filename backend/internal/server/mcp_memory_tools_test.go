@@ -24,12 +24,11 @@ func newMemoryTestServer(t *testing.T) (*Server, *mocks.MockMemoryServiceInterfa
 	t.Helper()
 	srv := newServerWithNullLogger(t)
 	mockMemoryService := mocks.NewMockMemoryServiceInterface(t)
-	mockTeamService := mocks.NewMockTeamServiceInterface(t)
+	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{
-		MemoryServiceMock: mockMemoryService,
-		TeamServiceMock:   mockTeamService,
+		MemoryServiceMock:  mockMemoryService,
+		TeamRepositoryMock: teamRepo,
 	}
-	stubUserTeams(mockTeamService, []models.Team{memberTeam()})
 	return srv, mockMemoryService
 }
 

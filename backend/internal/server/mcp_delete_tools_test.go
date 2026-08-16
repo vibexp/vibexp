@@ -19,7 +19,6 @@ type deleteResourceMocks struct {
 	artifact  *mocks.MockArtifactServiceInterface
 	blueprint *mocks.MockBlueprintServiceInterface
 	embedding *mocks.MockEmbeddingServiceInterface
-	team      *mocks.MockTeamServiceInterface
 }
 
 // newDeleteResourceTestServer builds a server whose resource + team + embedding
@@ -34,7 +33,6 @@ func newDeleteResourceTestServer(t *testing.T) (*Server, *deleteResourceMocks) {
 		artifact:  mocks.NewMockArtifactServiceInterface(t),
 		blueprint: mocks.NewMockBlueprintServiceInterface(t),
 		embedding: mocks.NewMockEmbeddingServiceInterface(t),
-		team:      mocks.NewMockTeamServiceInterface(t),
 	}
 	srv.container = &TestContainer{
 		MemoryServiceMock:    m.memory,
@@ -42,9 +40,8 @@ func newDeleteResourceTestServer(t *testing.T) (*Server, *deleteResourceMocks) {
 		ArtifactServiceMock:  m.artifact,
 		BlueprintServiceMock: m.blueprint,
 		EmbeddingServiceMock: m.embedding,
-		TeamServiceMock:      m.team,
+		TeamRepositoryMock:   stubUserTeams(t, []models.Team{memberTeam()}),
 	}
-	stubUserTeams(m.team, []models.Team{memberTeam()})
 	return srv, m
 }
 

@@ -47,12 +47,10 @@ func newMetadataToolTestServer(
 	t.Helper()
 	srv := newServerWithNullLogger(t)
 	catalog := servicesmocks.NewMockMetadataCatalogServiceInterface(t)
-	teamSvc := servicesmocks.NewMockTeamServiceInterface(t)
 	srv.container = &TestContainer{
 		MetadataCatalogMock: catalog,
-		TeamServiceMock:     teamSvc,
+		TeamRepositoryMock:  stubUserTeams(t, []models.Team{memberTeam()}),
 	}
-	stubUserTeams(teamSvc, []models.Team{memberTeam()})
 	return srv, catalog
 }
 
@@ -283,9 +281,10 @@ func TestListResources_MetadataFilterReachesEachService(t *testing.T) {
 	t.Run("memory", func(t *testing.T) {
 		srv := newServerWithNullLogger(t)
 		memSvc := servicesmocks.NewMockMemoryServiceInterface(t)
-		teamSvc := servicesmocks.NewMockTeamServiceInterface(t)
-		srv.container = &TestContainer{MemoryServiceMock: memSvc, TeamServiceMock: teamSvc}
-		stubUserTeams(teamSvc, []models.Team{memberTeam()})
+		srv.container = &TestContainer{
+			MemoryServiceMock:  memSvc,
+			TeamRepositoryMock: stubUserTeams(t, []models.Team{memberTeam()}),
+		}
 
 		memSvc.EXPECT().ListMemories(testMemberUserID, mock.MatchedBy(
 			func(f services.MemoryFilters) bool {
@@ -303,9 +302,10 @@ func TestListResources_MetadataFilterReachesEachService(t *testing.T) {
 	t.Run("artifact", func(t *testing.T) {
 		srv := newServerWithNullLogger(t)
 		artSvc := servicesmocks.NewMockArtifactServiceInterface(t)
-		teamSvc := servicesmocks.NewMockTeamServiceInterface(t)
-		srv.container = &TestContainer{ArtifactServiceMock: artSvc, TeamServiceMock: teamSvc}
-		stubUserTeams(teamSvc, []models.Team{memberTeam()})
+		srv.container = &TestContainer{
+			ArtifactServiceMock: artSvc,
+			TeamRepositoryMock:  stubUserTeams(t, []models.Team{memberTeam()}),
+		}
 
 		artSvc.EXPECT().ListArtifactsByProject(testMemberUserID, testProjectID, mock.MatchedBy(
 			func(f services.ArtifactFilters) bool {
@@ -323,9 +323,10 @@ func TestListResources_MetadataFilterReachesEachService(t *testing.T) {
 	t.Run("blueprint", func(t *testing.T) {
 		srv := newServerWithNullLogger(t)
 		bpSvc := servicesmocks.NewMockBlueprintServiceInterface(t)
-		teamSvc := servicesmocks.NewMockTeamServiceInterface(t)
-		srv.container = &TestContainer{BlueprintServiceMock: bpSvc, TeamServiceMock: teamSvc}
-		stubUserTeams(teamSvc, []models.Team{memberTeam()})
+		srv.container = &TestContainer{
+			BlueprintServiceMock: bpSvc,
+			TeamRepositoryMock:   stubUserTeams(t, []models.Team{memberTeam()}),
+		}
 
 		bpSvc.EXPECT().ListBlueprintsByProject(testMemberUserID, testProjectID, mock.MatchedBy(
 			func(f services.BlueprintFilters) bool {
@@ -346,9 +347,10 @@ func TestListResources_MetadataFilterReachesEachService(t *testing.T) {
 func TestListResources_InvalidMetadataIsRejectedBeforeTheService(t *testing.T) {
 	srv := newServerWithNullLogger(t)
 	memSvc := servicesmocks.NewMockMemoryServiceInterface(t)
-	teamSvc := servicesmocks.NewMockTeamServiceInterface(t)
-	srv.container = &TestContainer{MemoryServiceMock: memSvc, TeamServiceMock: teamSvc}
-	stubUserTeams(teamSvc, []models.Team{memberTeam()})
+	srv.container = &TestContainer{
+		MemoryServiceMock:  memSvc,
+		TeamRepositoryMock: stubUserTeams(t, []models.Team{memberTeam()}),
+	}
 
 	result, _, err := srv.listResources(context.Background(), nil, &ListResourcesParams{
 		TeamID: testTeamUUID, ResourceType: "memory", ProjectID: testProjectID,

@@ -12,6 +12,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 func setupTeamTest(t *testing.T) (*TeamRepository, sqlmock.Sqlmock, *sql.DB) {
@@ -948,6 +949,92 @@ func TestTeamRepository_ListByUserID(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Len(t, teams, tt.expectCount)
 				assert.Equal(t, tt.expectTotal, total)
+			}
+
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+// TestTeamRepository_ResolveByIdentifier covers the single-query team resolution
+// behind every team-scoped MCP call (#812). The regex pins the two properties the
+// query cannot be allowed to lose: the `::text` cast on t.id (without it the
+// statement fails against real Postgres for every identifier — see
+// team_resolve_integration_test.go) and the owner-OR-member predicate that makes
+// a successful match prove membership.
+func TestTeamRepository_ResolveByIdentifier(t *testing.T) {
+	repo, mock, mockDB := setupTeamTest(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	ctx := context.Background()
+	now := time.Now()
+
+	const queryRe = `SELECT t.id, t.owner_id, t.name, t.slug, t.description, t.is_personal, t.created_at, t.updated_at\s+` +
+		`FROM teams t\s+WHERE \(t.id::text = \$2 OR t.slug = \$2\)\s+AND \(t.owner_id = \$1\s+OR EXISTS`
+
+	teamRow := func() *sqlmock.Rows {
+		return sqlmock.NewRows([]string{
+			"id", "owner_id", "name", "slug", "description", "is_personal", "created_at", "updated_at",
+		}).AddRow("team-123", "user-123", "Acme Team", "acme-team", "desc", false, now, now)
+	}
+
+	tests := []struct {
+		name       string
+		identifier string
+		setupMock  func()
+		expectErr  error
+	}{
+		{
+			name:       "resolves by UUID",
+			identifier: "team-123",
+			setupMock: func() {
+				mock.ExpectQuery(queryRe).WithArgs("user-123", "team-123").WillReturnRows(teamRow())
+			},
+		},
+		{
+			name:       "resolves by slug",
+			identifier: "acme-team",
+			setupMock: func() {
+				mock.ExpectQuery(queryRe).WithArgs("user-123", "acme-team").WillReturnRows(teamRow())
+			},
+		},
+		{
+			name:       "no match maps to ErrTeamNotFound",
+			identifier: "not-mine",
+			setupMock: func() {
+				mock.ExpectQuery(queryRe).WithArgs("user-123", "not-mine").WillReturnError(sql.ErrNoRows)
+			},
+			expectErr: repositories.ErrTeamNotFound,
+		},
+		{
+			name:       "database error is propagated, not masked as not-found",
+			identifier: "team-123",
+			setupMock: func() {
+				mock.ExpectQuery(queryRe).WithArgs("user-123", "team-123").WillReturnError(sql.ErrConnDone)
+			},
+			expectErr: sql.ErrConnDone,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock()
+
+			result, err := repo.ResolveByIdentifier(ctx, "user-123", tt.identifier)
+
+			if tt.expectErr != nil {
+				require.ErrorIs(t, err, tt.expectErr)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, "team-123", result.ID, "both identifier forms resolve to the canonical UUID")
+				assert.Equal(t, "acme-team", result.Slug)
+				assert.Equal(t, "user-123", result.OwnerID)
 			}
 
 			assert.NoError(t, mock.ExpectationsWereMet())

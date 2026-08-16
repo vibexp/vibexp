@@ -31,12 +31,12 @@ func newAttachmentMCPTestServer(t *testing.T) (*Server, attachmentMCPMocks) {
 	t.Helper()
 	srv := newServerWithNullLogger(t)
 
-	mockTeam := mocks.NewMockTeamServiceInterface(t)
 	mockArtifact := mocks.NewMockArtifactServiceInterface(t)
 	mockAttachment := mocks.NewMockAttachmentServiceInterface(t)
 
+	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
 	c := &TestContainer{
-		TeamServiceMock:       mockTeam,
+		TeamRepositoryMock:    teamRepo,
 		ArtifactServiceMock:   mockArtifact,
 		AttachmentServiceMock: mockAttachment,
 	}
@@ -44,7 +44,6 @@ func newAttachmentMCPTestServer(t *testing.T) (*Server, attachmentMCPMocks) {
 	// Rebuild the registry against the mock container (mirrors newAttachmentTestServer).
 	srv.attachmentAuthorizers = setupAttachmentAuthorizers(c)
 
-	stubUserTeams(mockTeam, []models.Team{memberTeam()})
 	return srv, attachmentMCPMocks{attachment: mockAttachment, artifact: mockArtifact}
 }
 

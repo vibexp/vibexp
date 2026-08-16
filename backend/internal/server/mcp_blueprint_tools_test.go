@@ -24,12 +24,11 @@ func newBlueprintTestServer(t *testing.T) (*Server, *mocks.MockBlueprintServiceI
 	t.Helper()
 	srv := newServerWithNullLogger(t)
 	mockBlueprintService := mocks.NewMockBlueprintServiceInterface(t)
-	mockTeamService := mocks.NewMockTeamServiceInterface(t)
+	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{
 		BlueprintServiceMock: mockBlueprintService,
-		TeamServiceMock:      mockTeamService,
+		TeamRepositoryMock:   teamRepo,
 	}
-	stubUserTeams(mockTeamService, []models.Team{memberTeam()})
 	return srv, mockBlueprintService
 }
 

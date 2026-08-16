@@ -60,7 +60,7 @@ func TestAddUserPromptsToMCP_AcrossTeamsDedupesSlugCollision(t *testing.T) {
 		{ID: testTeamUUID, Name: "Acme", Slug: testTeamSlug},
 		{ID: testOtherTeamUUID, Name: "Other", Slug: testOtherTeamSlug},
 	}
-	stubUserTeams(mockTeam, teams)
+	stubListTeams(mockTeam, teams)
 
 	// Both teams expose a prompt with the same slug "deploy".
 	mockPrompt.On("ListPrompts", testMemberUserID,
@@ -163,7 +163,7 @@ func TestAddUserPromptsToMCP_CapsPrimitives(t *testing.T) {
 	mockPrompt := mocks.NewMockPromptServiceInterface(t)
 	srv.container = &TestContainer{TeamServiceMock: mockTeam, PromptServiceMock: mockPrompt}
 
-	stubUserTeams(mockTeam, []models.Team{{ID: testTeamUUID, Name: "Acme", Slug: testTeamSlug}})
+	stubListTeams(mockTeam, []models.Team{{ID: testTeamUUID, Name: "Acme", Slug: testTeamSlug}})
 
 	prompts := make([]models.Prompt, maxPromptPrimitives+10)
 	for i := range prompts {

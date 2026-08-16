@@ -2,16 +2,15 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-)
 
-// resolveTeamPageSize is the page size used when paging through a user's teams
-// to resolve a team identifier. It matches the maximum allowed by ListTeams.
-const resolveTeamPageSize = 100
+	"github.com/vibexp/vibexp/internal/repositories"
+)
 
 // teamAccessDeniedText is the generic, anti-enumeration message returned when a
 // supplied team identifier does not match any team the user belongs to. It does
@@ -35,11 +34,16 @@ func mcpTextError(text string) *mcp.CallToolResult {
 // resolveTeam resolves an untrusted per-call team identifier (a UUID or slug)
 // to the canonical team UUID, validating membership in the same pass.
 //
-// It lists the teams the authenticated user belongs to and matches teamIdentifier
-// against each team's ID (UUID) or Slug. Because only the user's own teams are
-// considered, a successful match implicitly proves membership — there is no
-// separate IsUserMemberOfTeam call to forget. On no match it returns a generic
+// It delegates to TeamRepository.ResolveByIdentifier, which matches the
+// identifier against the team's ID (UUID) or slug while enforcing owner-OR-member
+// access in the SQL. Because the query only considers the user's own teams, a
+// successful match implicitly proves membership — there is no separate
+// IsUserMemberOfTeam call to forget. On no match it returns a generic
 // access-denied result that does not reveal whether the team exists.
+//
+// The lookup is a single query regardless of how many teams the user belongs to:
+// this runs before every team-scoped MCP tool, so the previous implementation's
+// page-through-every-team cost was paid on every call (#812).
 //
 // resolveTeam MUST be the first statement in every team-scoped MCP tool handler.
 // On success it returns the canonical UUID and a nil errResult; on any failure
@@ -53,34 +57,24 @@ func (s *Server) resolveTeam(
 		return "", mcpTextError(teamRequiredText)
 	}
 
-	page := 1
-	for {
-		listResp, err := s.container.TeamService().ListTeams(ctx, userID, page, resolveTeamPageSize)
-		if err != nil {
+	team, err := s.container.TeamRepository().ResolveByIdentifier(ctx, userID, identifier)
+	if err != nil {
+		// Both arms return the SAME generic message: a not-found and an
+		// infrastructure failure must stay indistinguishable to the caller, or
+		// the anti-enumeration property is lost.
+		if errors.Is(err, repositories.ErrTeamNotFound) {
+			slog.With(
+				"user_id", userID,
+				"team_identifier", identifier,
+			).Warn("MCP tool rejected: team_id did not match any team the user belongs to")
+		} else {
 			slog.With(
 				"user_id", userID,
 				"error", fmt.Sprintf("%+v", err),
-			).Error("Failed to list teams while resolving team identifier for MCP tool")
-			// Generic message: never leak whether the failure was lookup or membership.
-			return "", mcpTextError(teamAccessDeniedText)
+			).Error("Failed to resolve team identifier for MCP tool")
 		}
-
-		for i := range listResp.Teams {
-			team := &listResp.Teams[i]
-			if team.ID == identifier || team.Slug == identifier {
-				return team.ID, nil
-			}
-		}
-
-		if page*resolveTeamPageSize >= listResp.TotalCount || len(listResp.Teams) == 0 {
-			break
-		}
-		page++
+		return "", mcpTextError(teamAccessDeniedText)
 	}
 
-	slog.With(
-		"user_id", userID,
-		"team_identifier", identifier,
-	).Warn("MCP tool rejected: team_id did not match any team the user belongs to")
-	return "", mcpTextError(teamAccessDeniedText)
+	return team.ID, nil
 }

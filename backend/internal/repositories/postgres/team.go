@@ -337,6 +337,46 @@ func (r *TeamRepository) ListByUserID(
 	return teams, totalCount, nil
 }
 
+// ResolveByIdentifier resolves a team UUID or slug to the team in a single
+// query, enforcing owner-OR-member access in the SQL rather than post-filtering
+// in Go. Returns repositories.ErrTeamNotFound when nothing matches, whether the
+// team does not exist or the user simply does not belong to it — callers rely on
+// that indistinguishability for anti-enumeration.
+func (r *TeamRepository) ResolveByIdentifier(
+	ctx context.Context, userID, identifier string,
+) (*models.Team, error) {
+	// $2 binds as text and t.id is cast to match it. Comparing the uuid column
+	// against the same placeholder directly (`t.id = $2 OR t.slug = $2`) makes
+	// Postgres infer one type for two incompatible comparisons and the statement
+	// fails for EVERY identifier, UUID ones included — measured as 42883
+	// "operator does not exist: character varying = uuid" under lib/pq, which
+	// sends the argument as text. The cast is load-bearing, not cosmetic; the
+	// integration suite is the only layer that can prove it (sqlmock never
+	// type-checks arguments).
+	query := `
+		SELECT t.id, t.owner_id, t.name, t.slug, t.description, t.is_personal, t.created_at, t.updated_at
+		FROM teams t
+		WHERE (t.id::text = $2 OR t.slug = $2)
+			AND (t.owner_id = $1
+				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = t.id AND user_id = $1))
+		LIMIT 1
+	`
+
+	var team models.Team
+	err := r.db.QueryRowContext(ctx, query, userID, identifier).Scan(
+		&team.ID, &team.OwnerID, &team.Name, &team.Slug,
+		&team.Description, &team.IsPersonal, &team.CreatedAt, &team.UpdatedAt,
+	)
+	if err != nil {
+		return nil, mapNoRows(
+			fmt.Errorf("failed to resolve team by identifier: %w", err),
+			repositories.ErrTeamNotFound,
+		)
+	}
+
+	return &team, nil
+}
+
 // CountByOwnerID counts all teams owned by a user
 func (r *TeamRepository) CountByOwnerID(ctx context.Context, ownerID string) (int, error) {
 	var count int

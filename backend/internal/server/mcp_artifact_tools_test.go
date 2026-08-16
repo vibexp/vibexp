@@ -12,6 +12,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/container"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
@@ -30,12 +31,11 @@ func newArtifactTestServer(t *testing.T) (*Server, *mocks.MockArtifactServiceInt
 	t.Helper()
 	srv := newServerWithNullLogger(t)
 	mockArtifactService := mocks.NewMockArtifactServiceInterface(t)
-	mockTeamService := mocks.NewMockTeamServiceInterface(t)
+	teamRepo := stubUserTeams(t, []models.Team{memberTeam()})
 	srv.container = &TestContainer{
 		ArtifactServiceMock: mockArtifactService,
-		TeamServiceMock:     mockTeamService,
+		TeamRepositoryMock:  teamRepo,
 	}
-	stubUserTeams(mockTeamService, []models.Team{memberTeam()})
 	return srv, mockArtifactService
 }
 
@@ -668,6 +668,14 @@ type TestContainer struct {
 	EmbeddingServiceMock      services.EmbeddingServiceInterface
 	RelationServiceMock       services.RelationServiceInterface
 	MetadataCatalogMock       services.MetadataCatalogServiceInterface
+	TeamRepositoryMock        repositories.TeamRepository
+}
+
+// TeamRepository returns the configured team-repository mock. Every team-scoped
+// MCP tool test needs one, because resolveTeam resolves team_id through it
+// (#812); stubUserTeams builds the mock these tests install here.
+func (tc *TestContainer) TeamRepository() repositories.TeamRepository {
+	return tc.TeamRepositoryMock
 }
 
 // MetadataCatalogService returns the configured metadata-catalog mock, used by

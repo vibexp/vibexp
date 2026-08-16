@@ -24,7 +24,7 @@ func TestListTeamsForUser_ReturnsUUIDNameSlug(t *testing.T) {
 		{ID: testTeamUUID, Name: "Acme Team", Slug: testTeamSlug},
 		{ID: testOtherTeamUUID, Name: "Other Team", Slug: testOtherTeamSlug},
 	}
-	stubUserTeams(mockTeam, teams)
+	stubListTeams(mockTeam, teams)
 
 	result, structured, err := srv.listTeamsForUser(context.Background(), nil, &ListTeamsParams{}, testMemberUserID)
 
@@ -55,7 +55,7 @@ func TestListTeamsForUser_Empty(t *testing.T) {
 	srv := newServerWithNullLogger(t)
 	mockTeam := mocks.NewMockTeamServiceInterface(t)
 	srv.container = &TestContainer{TeamServiceMock: mockTeam}
-	stubUserTeams(mockTeam, []models.Team{})
+	stubListTeams(mockTeam, []models.Team{})
 
 	result, structured, err := srv.listTeamsForUser(context.Background(), nil, &ListTeamsParams{}, testMemberUserID)
 
