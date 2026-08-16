@@ -166,7 +166,10 @@ func TestResolveTeam_EmptyIdentifier(t *testing.T) {
 	assert.Empty(t, teamID)
 	text := extractText(t, errResult)
 	assert.Contains(t, text, "team_id is required")
-	assert.Contains(t, text, "vibexp_io_list_teams")
+	// The full merged-tool name, not the bare "vibexp_io_list_teams" prefix it
+	// contains — otherwise this assertion cannot tell the deprecated tool from
+	// its replacement (#815).
+	assert.Contains(t, text, "vibexp_io_list_teams_and_projects")
 	// Membership lookup must not even be attempted for empty input.
 	teamRepo.AssertNotCalled(t, "ResolveByIdentifier")
 }
@@ -231,5 +234,5 @@ func assertGenericAccessDenied(t *testing.T, res *mcp.CallToolResult) {
 	t.Helper()
 	text := extractText(t, res)
 	assert.Contains(t, text, "Access denied")
-	assert.Contains(t, text, "vibexp_io_list_teams")
+	assert.Contains(t, text, "vibexp_io_list_teams_and_projects")
 }

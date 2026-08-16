@@ -321,7 +321,7 @@ export const mcpTools: MCPTool[] = [
   {
     name: 'vibexp_io_list_projects',
     description:
-      'List projects available in the current VibeXP team with filtering and pagination support.',
+      'DEPRECATED — use vibexp_io_list_teams_and_projects instead, which returns a much smaller payload and can find a project across all your teams without knowing which team holds it. This tool will be removed in a future release. Lists projects within one team, with filtering and pagination support.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -556,10 +556,45 @@ export const mcpTools: MCPTool[] = [
   {
     name: 'vibexp_io_list_teams',
     description:
-      "List the teams the authenticated user belongs to. The MCP endpoint is team-agnostic, so most tools require a team_id (the team's UUID or slug) to target the right team. Call this tool to discover which teams are available and obtain each team's id (UUID), name, and slug — then pass the chosen id or slug as team_id on subsequent tool calls.",
+      "DEPRECATED — use vibexp_io_list_teams_and_projects instead, which does everything this does and can also find a project without knowing its team. This tool will be removed in a future release. Lists the teams the authenticated user belongs to, with each team's id (UUID), name and slug.",
     inputSchema: {
       type: 'object',
       properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'vibexp_io_list_teams_and_projects',
+    description:
+      "Discover the workspace: find teams and projects, or list them. Call this first to obtain a team_id (UUID or slug) or a project slug before using any other tool. With no arguments it returns the teams you belong to with their project counts. With a query it searches team AND project names, slugs, descriptions and project git URLs across all your teams at once, returning matching teams with their matching projects nested and ranked — use this when you know a project or repository name but not which team holds it. With team_id and no query it lists that team's projects. Typo-tolerant: a single mistyped character still matches. Replaces vibexp_io_list_teams and vibexp_io_list_projects.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description:
+            'Search text. Matches team name/slug/description and project name/slug/description/git_url across every team you belong to. Typo-tolerant.',
+        },
+        team_id: {
+          type: 'string',
+          description:
+            'Optional team UUID or slug. Narrows the result to one team; without it every team you belong to is searched.',
+        },
+        scope: {
+          type: 'string',
+          description:
+            'What to return: teams, projects, or both (default both).',
+        },
+        page: {
+          type: 'integer',
+          description: 'Page number (default: 1)',
+        },
+        limit: {
+          type: 'integer',
+          description: 'Items per page (default: 10, max: 25)',
+        },
+      },
       required: [],
       additionalProperties: false,
     },

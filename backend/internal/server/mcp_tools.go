@@ -15,12 +15,15 @@ import (
 // rather than being repeated in every team-scoped tool's team_id parameter
 // description, which keeps the per-tool schemas terse.
 const mcpServerInstructions = "VibeXP MCP server. Most tools are team-scoped and take a required team_id " +
-	"parameter — a team UUID or slug. If you do not have a team_id, call vibexp_io_list_teams first to " +
-	"discover the teams you belong to, then pass one you are a member of (each call resolves and " +
-	"membership-checks the team). The only user-scoped tools that take no team_id are vibexp_io_get_user " +
-	"(your identity) and vibexp_io_list_teams (team discovery). As you work, record how resources relate " +
-	"with vibexp_io_link_resources (governed-by, supersedes, built-from, explained-by); every " +
-	"vibexp_io_get_resource returns the resource's typed neighborhood in its `related` array."
+	"parameter — a team UUID or slug. If you do not have a team_id, call vibexp_io_list_teams_and_projects " +
+	"first: with no arguments it lists the teams you belong to, and with a `query` it searches teams AND " +
+	"projects across all of them at once — use that when you know a project or repository name but not " +
+	"which team holds it, rather than listing teams and then listing each team's projects. Then pass a " +
+	"team you are a member of (each call resolves and membership-checks the team). The only user-scoped " +
+	"tools that take no team_id are vibexp_io_get_user (your identity) and vibexp_io_list_teams_and_projects " +
+	"(workspace discovery). As you work, record how resources relate with vibexp_io_link_resources " +
+	"(governed-by, supersedes, built-from, explained-by); every vibexp_io_get_resource returns the " +
+	"resource's typed neighborhood in its `related` array."
 
 // MCPToolsManager manages all MCP tools and provides better organization
 type MCPToolsManager struct {
@@ -37,8 +40,10 @@ func NewMCPToolsManager(server *Server) *MCPToolsManager {
 // AddAllTools registers every MCP tool on the given server for the authenticated
 // user. Team-scoped tools take a required team_id (UUID or slug) parameter that
 // each handler resolves and membership-checks per call via resolveTeam; the two
-// exceptions are vibexp_io_get_user (user identity) and vibexp_io_list_teams
-// (team discovery), which are user-scoped and take no team_id.
+// exceptions are vibexp_io_get_user (user identity) and
+// vibexp_io_list_teams_and_projects (workspace discovery), which are user-scoped
+// and take no team_id. The deprecated vibexp_io_list_teams alias is also
+// user-scoped for as long as it survives (#814).
 func (m *MCPToolsManager) AddAllTools(mcpServer *mcp.Server, userID string) {
 	m.addUserTools(mcpServer, userID)
 	m.addTeamTools(mcpServer, userID)

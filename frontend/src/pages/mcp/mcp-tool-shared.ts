@@ -24,4 +24,4 @@ export interface MCPTool {
 }
 
 export const TEAM_ID_DESCRIPTION =
-  'The team (UUID or slug) to operate within. Call vibexp_io_list_teams to discover valid identifiers.'
+  'The team (UUID or slug) to operate within. Call vibexp_io_list_teams_and_projects to discover valid identifiers.'
