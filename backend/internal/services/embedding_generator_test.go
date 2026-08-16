@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -155,4 +156,160 @@ func TestNewGenerationProvider_Factory(t *testing.T) {
 	// Nil provider is rejected.
 	_, err = NewGenerationProvider(nil, "", "m", 2, time.Second, loopbackProviderGuard())
 	assert.ErrorContains(t, err, "nil")
+}
+
+// --- batching, error bodies, and permanence classification (#756) ---
+
+// batchingServer records the Input of every request it serves and answers each
+// with correctly-indexed unit vectors, so a test can assert both the split and the
+// reassembled order.
+func batchingServer(t *testing.T, dims int) (*httptest.Server, *[][]string) {
+	t.Helper()
+	var batches [][]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req openAIEmbeddingsRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		batches = append(batches, req.Input)
+
+		data := make([]map[string]interface{}, 0, len(req.Input))
+		for i, text := range req.Input {
+			// Encode the input text's identity into the vector so the assembled
+			// output can be checked against input ORDER, not just length.
+			vec := make([]float32, dims)
+			vec[0] = float32(len(text))
+			data = append(data, map[string]interface{}{"index": i, "embedding": vec})
+		}
+		writeJSON(t, w, map[string]interface{}{"data": data})
+	}))
+	return server, &batches
+}
+
+// An entity longer than one batch must still embed: the request is split, and the
+// vectors come back in input order. This is the ~73-chunk memory from the report.
+func TestOpenAICompatibleProvider_SplitsIntoBatches(t *testing.T) {
+	server, batches := batchingServer(t, 2)
+	defer server.Close()
+
+	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, 5*time.Second, loopbackProviderGuard())
+	require.NoError(t, err)
+
+	const n = 73
+	texts := make([]string, n)
+	for i := range texts {
+		// Distinct lengths so vec[0] identifies which input produced each vector.
+		texts[i] = strings.Repeat("x", i+1)
+	}
+
+	vectors, err := p.GenerateEmbeddings(context.Background(), texts)
+	require.NoError(t, err)
+	require.Len(t, vectors, n, "one vector per input across all batches")
+
+	for i := range vectors {
+		assert.Equal(t, float32(i+1), vectors[i][0],
+			"vector %d must correspond to input %d — order preserved across batches", i, i)
+	}
+
+	require.Len(t, *batches, 3, "73 inputs at batch size 32 is 32+32+9")
+	for i, b := range *batches {
+		assert.LessOrEqual(t, len(b), maxEmbeddingBatchSize,
+			"batch %d must not exceed the provider's client batch limit", i)
+	}
+	assert.Len(t, (*batches)[2], 9, "the trailing partial batch carries the remainder")
+}
+
+// Exactly one batch worth of input must still be a single request — batching must
+// not add a round trip at the boundary.
+func TestOpenAICompatibleProvider_ExactBatchSizeIsOneRequest(t *testing.T) {
+	server, batches := batchingServer(t, 2)
+	defer server.Close()
+
+	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, 5*time.Second, loopbackProviderGuard())
+	require.NoError(t, err)
+
+	texts := make([]string, maxEmbeddingBatchSize)
+	for i := range texts {
+		texts[i] = strings.Repeat("y", i+1)
+	}
+
+	vectors, err := p.GenerateEmbeddings(context.Background(), texts)
+	require.NoError(t, err)
+	assert.Len(t, vectors, maxEmbeddingBatchSize)
+	assert.Len(t, *batches, 1, "a full-but-not-over batch is one request")
+}
+
+// A provider rejection must carry its own explanation: the status alone is what
+// made the reported 422 undiagnosable.
+func TestOpenAICompatibleProvider_ErrorCarriesTruncatedBody(t *testing.T) {
+	const reason = `{"error":"batch size 73 > maximum allowed batch size 32"}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, writeErr := w.Write([]byte(reason))
+		require.NoError(t, writeErr)
+	}))
+	defer server.Close()
+
+	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, time.Second, loopbackProviderGuard())
+	require.NoError(t, err)
+
+	_, err = p.GenerateEmbeddings(context.Background(), []string{"x"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "status 422", "the existing message prefix is kept for operator greps")
+	assert.Contains(t, err.Error(), "maximum allowed batch size",
+		"the provider's own reason must reach the error")
+
+	var providerErr *providerHTTPError
+	require.ErrorAs(t, err, &providerErr)
+	assert.Equal(t, http.StatusUnprocessableEntity, providerErr.StatusCode)
+	assert.True(t, providerErr.Permanent(), "422 is a rejection of the request itself")
+}
+
+// A huge error body (an HTML error page from a proxy) must not flood the log.
+func TestOpenAICompatibleProvider_ErrorBodyIsCapped(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, writeErr := w.Write([]byte(strings.Repeat("A", 100_000)))
+		require.NoError(t, writeErr)
+	}))
+	defer server.Close()
+
+	p, err := NewOpenAICompatibleProvider(server.URL, "k", "m", 2, time.Second, loopbackProviderGuard())
+	require.NoError(t, err)
+
+	_, err = p.GenerateEmbeddings(context.Background(), []string{"x"})
+	require.Error(t, err)
+
+	var providerErr *providerHTTPError
+	require.ErrorAs(t, err, &providerErr)
+	assert.Len(t, providerErr.Body, maxProviderErrorBodyBytes, "body is truncated to the cap")
+	assert.False(t, providerErr.Permanent(), "502 is a server-side fault and stays retryable")
+}
+
+// The classification table. 408 and 429 are the two 4xx that describe a transient
+// condition; everything else in 4xx is the provider refusing this exact request.
+func TestProviderHTTPError_Permanent(t *testing.T) {
+	cases := []struct {
+		status    int
+		permanent bool
+	}{
+		{http.StatusBadRequest, true},
+		{http.StatusUnauthorized, true},
+		{http.StatusForbidden, true},
+		{http.StatusNotFound, true},
+		{http.StatusUnprocessableEntity, true},
+		{http.StatusRequestTimeout, false},
+		{http.StatusTooManyRequests, false},
+		{http.StatusInternalServerError, false},
+		{http.StatusServiceUnavailable, false},
+	}
+	for _, tc := range cases {
+		err := &providerHTTPError{StatusCode: tc.status}
+		assert.Equal(t, tc.permanent, err.Permanent(), "status %d", tc.status)
+	}
+}
+
+// With no body the message must be byte-identical to what it was before #756, so
+// existing operator greps and alerts keep matching.
+func TestProviderHTTPError_MessageWithoutBody(t *testing.T) {
+	err := &providerHTTPError{StatusCode: 422}
+	assert.Equal(t, "embeddings endpoint returned status 422", err.Error())
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -32,6 +33,47 @@ const EmbeddingVectorDimensions = 1024
 
 // generateEmbeddingsTimeout bounds a single outbound embeddings call.
 const generateEmbeddingsTimeout = 30 * time.Second
+
+// maxEmbeddingBatchSize caps how many chunks go into one /embeddings request.
+// It matches text-embeddings-inference's default --max-client-batch-size, the
+// most restrictive limit among the common OpenAI-compatible backends, so the
+// default works against a stock TEI sidecar. Without it a long entity posts every
+// chunk at once — a 58k-char memory at chunk_size 1000 is ~73 inputs — and TEI
+// rejects the whole request with 422, making that entity permanently
+// un-embeddable (#756).
+const maxEmbeddingBatchSize = 32
+
+// maxProviderErrorBodyBytes caps how much of a non-200 response body is carried
+// in the error. The body is what makes a provider rejection diagnosable, but it
+// can be an HTML error page, so it is truncated before it reaches a log line.
+const maxProviderErrorBodyBytes = 512
+
+// providerHTTPError is a non-200 response from an embeddings endpoint. It carries
+// the status and the (truncated) body so the failure is diagnosable from one log
+// line, and classifies itself so the caller can tell "retrying will help" from
+// "this request will be rejected identically forever".
+type providerHTTPError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *providerHTTPError) Error() string {
+	if e.Body == "" {
+		return fmt.Sprintf("embeddings endpoint returned status %d", e.StatusCode)
+	}
+	return fmt.Sprintf("embeddings endpoint returned status %d: %s", e.StatusCode, e.Body)
+}
+
+// Permanent reports whether retrying this request is pointless. Every 4xx says
+// the request itself is unacceptable, so the provider will reject an identical
+// retry — except 408 (Request Timeout) and 429 (Too Many Requests), which are the
+// two 4xx that genuinely describe a transient condition. 5xx stays retryable.
+func (e *providerHTTPError) Permanent() bool {
+	if e.StatusCode == http.StatusRequestTimeout || e.StatusCode == http.StatusTooManyRequests {
+		return false
+	}
+	return e.StatusCode >= 400 && e.StatusCode < 500
+}
 
 // EmbeddingProvider generates embedding vectors for text. It is the pluggable
 // seam that lets VibeXP target any embedding backend: adding a new backend is one
@@ -152,6 +194,15 @@ type openAIEmbeddingsResponse struct {
 
 // GenerateEmbeddings embeds texts via the OpenAI-compatible endpoint and returns
 // the vectors in input order, validating count and per-vector dimensionality.
+//
+// The request is split into batches of at most maxEmbeddingBatchSize, run
+// sequentially and concatenated, so an entity of any length embeds regardless of
+// the backend's per-request input limit (#756). Batching is an implementation
+// detail: the interface contract — one vector per input, in input order — is
+// unchanged, and callers still pass the entity's whole chunk list. Sequential
+// rather than concurrent on purpose: a single-threaded local TEI is the common
+// deployment, and per-provider fan-out is already bounded one layer up by the
+// dispatcher.
 func (p *OpenAICompatibleProvider) GenerateEmbeddings(
 	ctx context.Context, texts []string,
 ) ([][]float32, error) {
@@ -159,6 +210,27 @@ func (p *OpenAICompatibleProvider) GenerateEmbeddings(
 		return nil, nil
 	}
 
+	vectors := make([][]float32, 0, len(texts))
+	for start := 0; start < len(texts); start += maxEmbeddingBatchSize {
+		end := min(start+maxEmbeddingBatchSize, len(texts))
+
+		batch, err := p.generateBatch(ctx, texts[start:end])
+		if err != nil {
+			return nil, err
+		}
+		vectors = append(vectors, batch...)
+	}
+
+	return vectors, nil
+}
+
+// generateBatch embeds one batch in a single request. The caller guarantees the
+// batch is non-empty and within maxEmbeddingBatchSize; count and per-vector width
+// are validated per batch, so a bad response fails the whole entity rather than
+// silently contributing short output.
+func (p *OpenAICompatibleProvider) generateBatch(
+	ctx context.Context, texts []string,
+) ([][]float32, error) {
 	body, err := json.Marshal(openAIEmbeddingsRequest{
 		Input:          texts,
 		Model:          p.model,
@@ -192,7 +264,18 @@ func (p *OpenAICompatibleProvider) GenerateEmbeddings(
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("embeddings endpoint returned status %d", resp.StatusCode)
+		// The body is the only place a provider explains itself (TEI's 422 names the
+		// batch limit it hit). Read it through a LimitReader so an HTML error page
+		// cannot flood the log, and carry it in the error rather than logging here —
+		// the dispatcher logs it once, with the entity's identifiers attached.
+		errBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxProviderErrorBodyBytes))
+		if readErr != nil {
+			errBody = nil
+		}
+		return nil, &providerHTTPError{
+			StatusCode: resp.StatusCode,
+			Body:       strings.TrimSpace(string(errBody)),
+		}
 	}
 
 	var decoded openAIEmbeddingsResponse

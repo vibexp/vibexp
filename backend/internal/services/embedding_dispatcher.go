@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -263,19 +264,31 @@ func (d *EmbeddingDispatcher) generate(input embeddingInput, teamID string, reso
 	bo := d.newBackoff()
 
 	var lastErr error
+	attempts := 0
+	retryable := true
 	for attempt := 0; attempt < d.retry.MaxRetries; attempt++ {
 		if attempt > 0 && !sleepCtx(ctx, bo.NextBackOff()) {
 			lastErr = ctx.Err()
 			break
 		}
 
+		attempts = attempt + 1
 		lastErr = d.engine.generateAndSave(ctx, input, teamID, resolved)
 		if lastErr == nil {
 			d.stats.succeeded.Add(1)
 			d.entityLogger(input, teamID).
-				With("attempts", attempt+1).
+				With("attempts", attempts).
 				Info("Embedding job completed")
 			return
+		}
+
+		// A provider that rejected the request itself (4xx other than 408/429) will
+		// reject an identical retry, so retrying only burns two more attempts plus
+		// backoff per entity on every reprocess — and buries the real reason under a
+		// misleading attempts=MaxRetries (#756).
+		if isPermanentProviderError(lastErr) {
+			retryable = false
+			break
 		}
 
 		// The provider call already bounds itself with its own HTTP timeout; a
@@ -287,9 +300,28 @@ func (d *EmbeddingDispatcher) generate(input embeddingInput, teamID string, reso
 
 	d.stats.failed.Add(1)
 	d.entityLogger(input, teamID).With(
-		"attempts", d.retry.MaxRetries,
+		"attempts", attempts,
+		"retryable", retryable,
 		"error", fmt.Sprintf("%+v", lastErr),
-	).Error("Embedding generation failed after all retries; entity left unembedded")
+	).Error(terminalFailureMessage(retryable))
+}
+
+// isPermanentProviderError reports whether err is a provider rejection that an
+// identical retry cannot fix. generateAndSave wraps with %w, so errors.As reaches
+// the provider error through the wrapping.
+func isPermanentProviderError(err error) bool {
+	var providerErr *providerHTTPError
+	return errors.As(err, &providerErr) && providerErr.Permanent()
+}
+
+// terminalFailureMessage names the two failure outcomes distinctly, so a permanent
+// rejection is not read as an exhausted-retries blip. Both keep the
+// "entity left unembedded" suffix that existing operator greps match on.
+func terminalFailureMessage(retryable bool) string {
+	if retryable {
+		return "Embedding generation failed after all retries; entity left unembedded"
+	}
+	return "Embedding generation rejected by provider (not retryable); entity left unembedded"
 }
 
 // Stop drains and stops all workers: the resolve stage first (so no new generate

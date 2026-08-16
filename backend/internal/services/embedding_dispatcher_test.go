@@ -498,3 +498,79 @@ func TestEmbeddingDispatcher_ResolveFailureIsNotCountedAsSubmitted(t *testing.T)
 		"nothing was submitted, so nothing may be logged as submitted")
 	assert.Equal(t, EmbeddingDispatcherStats{}, d.Stats())
 }
+
+// --- permanent vs retryable provider failures (#756) ---
+
+// runDispatcherWithProviderError drives one entity through a provider that always
+// fails with err, and returns how many provider calls were made plus the captured
+// logs once the dispatcher has quiesced.
+func runDispatcherWithProviderError(t *testing.T, err error, maxRetries int) (int32, string) {
+	t.Helper()
+
+	provider := &countingProvider{err: err}
+	resolver := &perTeamResolver{
+		providers:   map[string]EmbeddingProvider{"team-1": provider},
+		concurrency: map[string]int{"team-1": 1},
+	}
+	svc := newRecordingEmbeddingService(func(string) string { return "team-1" })
+
+	var logs syncBuffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	d := newDispatcher(resolver, svc, logger,
+		EmbeddingRetryConfig{MaxRetries: maxRetries, BaseBackoff: time.Millisecond})
+	defer d.Stop()
+
+	require.NoError(t, d.ProcessEvent(context.Background(), promptEvent("perm-test")))
+	waitFor(t, func() bool { return strings.Contains(logs.String(), "entity left unembedded") },
+		"a terminal ERROR must be logged")
+	d.Stop() // quiesce before reading the call count and the ledger
+
+	return provider.calls.Load(), logs.String()
+}
+
+// A 422 will be answered identically on every retry, so retrying only burns
+// attempts and backoff and hides the reason behind attempts=MaxRetries.
+func TestEmbeddingDispatcher_PermanentProviderErrorIsNotRetried(t *testing.T) {
+	t.Parallel()
+
+	calls, out := runDispatcherWithProviderError(t,
+		&providerHTTPError{StatusCode: 422, Body: "batch size 73 > maximum allowed batch size 32"}, 3)
+
+	assert.Equal(t, int32(1), calls, "a permanent rejection must be attempted exactly once")
+	assert.Contains(t, out, "rejected by provider (not retryable)",
+		"the terminal line must name this as non-retryable")
+	assert.Contains(t, out, `"retryable":false`)
+	assert.Contains(t, out, `"attempts":1`, "attempts must report what was actually tried")
+	assert.Contains(t, out, "maximum allowed batch size",
+		"the provider's own reason must reach the terminal log line")
+	assert.NotContains(t, out, "failed after all retries",
+		"a one-attempt failure must not claim its retries were exhausted")
+}
+
+// A 503 is a server-side fault that a retry may well clear — existing behaviour.
+func TestEmbeddingDispatcher_RetryableProviderErrorStillRetries(t *testing.T) {
+	t.Parallel()
+
+	const maxRetries = 3
+	calls, out := runDispatcherWithProviderError(t,
+		&providerHTTPError{StatusCode: 503, Body: "upstream unavailable"}, maxRetries)
+
+	assert.Equal(t, int32(maxRetries), calls, "a transient failure still exhausts the retry budget")
+	assert.Contains(t, out, "failed after all retries")
+	assert.Contains(t, out, `"retryable":true`)
+	assert.Contains(t, out, `"attempts":3`)
+}
+
+// 429 is a 4xx but describes a transient condition, so it must not be classified
+// as permanent — rate limiting is exactly what backoff exists for.
+func TestEmbeddingDispatcher_RateLimitIsRetried(t *testing.T) {
+	t.Parallel()
+
+	const maxRetries = 2
+	calls, out := runDispatcherWithProviderError(t,
+		&providerHTTPError{StatusCode: 429, Body: "slow down"}, maxRetries)
+
+	assert.Equal(t, int32(maxRetries), calls, "429 must keep retrying despite being a 4xx")
+	assert.Contains(t, out, `"retryable":true`)
+}
