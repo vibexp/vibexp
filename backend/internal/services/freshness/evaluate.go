@@ -291,12 +291,12 @@ func (e *Evaluator) reconcile(
 	// Repairs run LAST, and that ordering is load-bearing in both directions.
 	// It must follow applyMarks so a resource this run has just marked and
 	// audited is not audited a second time -- the repair query reads the log
-	// after those writes land, so it already sees them. It must equally follow
-	// applyClears, whose keys are still present in storedByKey (nothing
-	// removes them): driving repairs off the snapshot instead of off the
-	// database would write a `marked` entry for a resource this very run
-	// cleared, which is the corruption being fixed here, inverted.
-	counts.repaired, err = e.repairMissingMarks(ctx, teamID, storedByKey)
+	// after those writes land, so it already sees them. And it must follow
+	// applyClears so a resource this run cleared is already gone from the
+	// state table when the query asks, which is what keeps the repair from
+	// writing a `marked` for a resource that is no longer stale -- the
+	// corruption being fixed here, inverted.
+	counts.repaired, err = e.repairMissingMarks(ctx, teamID, desired)
 	return counts, err
 }
 
@@ -304,16 +304,23 @@ func (e *Evaluator) reconcile(
 // whose newest entry is not one, healing a mark whose audit write did not land
 // (#796; see the package doc for why that gap exists by design).
 //
-// The set of rows to repair comes from the repository, never from the
-// snapshot: only the database knows which rows are still live after this run's
-// clears, and only it knows what the log's newest entry now is after this
-// run's marks. The snapshot is consulted for one thing the query does not
-// return -- the row's matched_rule_ids, so the repaired entry attributes the
-// same rules the live row does. A live row absent from the snapshot is skipped
-// rather than guessed at: it appeared after the pass began, so it is not this
-// run's to describe, and the next run repairs it if it still needs it.
+// WHICH rows need repairing comes from the repository, never from the
+// snapshot: only the database knows which rows survived this run's clears, and
+// only it knows what the log's newest entry is after this run's marks.
+//
+// WHAT to attribute them to comes from `desired` -- this run's computed rule
+// set, which is exactly what applyMarks wrote to the row. The snapshot is the
+// wrong source: a row can be refreshed (its rule set rewritten, no audit) and
+// repaired in the same run, and the snapshot still holds the rule ids the row
+// carried BEFORE that rewrite, so the repaired entry would attribute rules the
+// live row no longer matches.
+//
+// A live row absent from `desired` is skipped rather than guessed at. After
+// applyClears every surviving row is in `desired` by construction, so this
+// means the row appeared mid-pass: it is not this run's to describe, and the
+// next run repairs it if it still needs it.
 func (e *Evaluator) repairMissingMarks(
-	ctx context.Context, teamID string, storedByKey map[resourceKey]*models.ResourceFreshness,
+	ctx context.Context, teamID string, desired map[resourceKey]*desiredState,
 ) (int, error) {
 	refs, err := e.audit.ListStaleResourcesMissingMark(ctx, teamID)
 	if err != nil {
@@ -324,11 +331,11 @@ func (e *Evaluator) repairMissingMarks(
 	repaired := 0
 	for _, ref := range refs {
 		key := resourceKey{resourceType: ref.ResourceType, resourceID: ref.ResourceID}
-		row, known := storedByKey[key]
-		if !known {
+		want, stale := desired[key]
+		if !stale {
 			continue
 		}
-		if err := e.recordAudit(ctx, teamID, key, models.FreshnessActionMarked, row.MatchedRuleIDs); err != nil {
+		if err := e.recordAudit(ctx, teamID, key, models.FreshnessActionMarked, want.ruleIDs); err != nil {
 			return repaired, err
 		}
 		repaired++

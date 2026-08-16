@@ -709,11 +709,12 @@ func TestEvaluate_RepairIsIdempotent(t *testing.T) {
 	// No Create expectation: the t-bound mock fails if anything was audited.
 }
 
-// The repair is bounded by the run's own snapshot as well as by the database.
-// A row the query reports but the snapshot never saw appeared after the pass
-// began, so this run cannot say which rules made it stale -- it is skipped
-// rather than audited with a guess, and the next run repairs it.
-func TestEvaluate_RepairSkipsRowAbsentFromTheSnapshot(t *testing.T) {
+// The repair is bounded by this run's computed stale set as well as by the
+// database. A row the query reports but no rule matches appeared after the
+// pass began (applyClears removes every other such row), so this run cannot
+// say which rules made it stale -- it is skipped rather than audited with a
+// guess, and the next run repairs it.
+func TestEvaluate_RepairSkipsRowNoRuleMatches(t *testing.T) {
 	evaluator, deps, counts := newEvaluatorWithCounters(t)
 
 	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
@@ -804,4 +805,49 @@ func TestEvaluate_PropagatesRepairAuditError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, failure)
+}
+
+// A row can be refreshed and repaired in the SAME run: its rule set changed
+// (so applyMarks rewrites the row and, correctly, writes no audit entry) while
+// it is also #796-damaged (so the repair fires). The repaired entry must
+// attribute the rules the live row now carries, not the ones the snapshot read
+// before applyMarks rewrote them -- otherwise the log names a rule the
+// resource no longer matches, which is a subtler version of the very
+// contradiction this pass exists to remove.
+func TestEvaluate_RepairedEntryAttributesTheRefreshedRuleSet(t *testing.T) {
+	evaluator, deps, counts := newEvaluatorWithCounters(t)
+
+	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
+		Return([]*models.FreshnessRule{rule(testOtherRule, "prompt")}, nil).Once()
+	deps.expectCandidates("prompt", promptCandidate())
+	// The snapshot says rule-1; this run computes rule-2, so applyMarks
+	// refreshes the row without auditing.
+	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
+		Return([]*models.ResourceFreshness{storedStale(testRuleID)}, nil).Once()
+
+	var written *models.ResourceFreshness
+	deps.state.EXPECT().Upsert(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, f *models.ResourceFreshness) { written = f }).
+		Return(false, nil).Once()
+
+	deps.audit.EXPECT().ListStaleResourcesMissingMark(mock.Anything, testTeamID).
+		Return([]models.FreshnessResourceRef{promptRef()}, nil).Once()
+
+	var logged *models.ResourceFreshnessAudit
+	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, e *models.ResourceFreshnessAudit) { logged = e }).
+		Return(nil).Once()
+
+	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
+
+	require.NotNil(t, written)
+	require.Equal(t, []string{testOtherRule}, written.MatchedRuleIDs, "the row now matches rule-2")
+
+	require.NotNil(t, logged)
+	require.NotNil(t, logged.RuleID)
+	assert.Equal(t, testOtherRule, *logged.RuleID,
+		"the repaired entry must name what the live row carries, not the pre-refresh snapshot")
+
+	assert.Equal(t, int64(1), counts["refreshed"])
+	assert.Equal(t, int64(1), counts["repaired"])
 }
