@@ -1,3 +1,41 @@
+-- Consolidated post-v0.10.0 migration.
+--
+-- Squashes the migrations that accumulated after the v0.10.0 release into a
+-- single step, applied on top of 012, mirroring the 002/006/011
+-- consolidations (#76, #399, #710). Merged here (in original order):
+--   * 013_resource_freshness                        (issue #729, epic #726)
+--   * 014_memories_updated_at_ignores_last_accessed (issue #730, epic #726)
+--   * 015_seed_freshness_evaluate_schedules         (issue #732, epic #726)  -- up-block dropped, see below
+--   * 016_team_project_search                       (issue #813, epic #811)
+-- No deployed instance has applied any of them (none shipped in a release),
+-- so renumbering is safe.
+--
+-- Unlike the 011 consolidation, these are NOT all disjoint, and one block did
+-- need reconciling:
+--
+--   * 013 and 014 are ordered, not independent: 014 narrows the
+--     `update_memories_updated_at` trigger with a WHEN clause naming the
+--     `last_accessed_*` columns 013 adds. Carried verbatim in original order,
+--     which preserves that dependency; the down-block reverses it.
+--
+--   * 015's up-block is DROPPED. It was a *repair* migration -- it back-filled
+--     a `freshness_evaluate` schedule row for teams whose `freshness_rules`
+--     had been created by #731 before #732 shipped, because only the service
+--     write path creates that row and such a team might never write again. On
+--     this chain `freshness_rules` is CREATED EMPTY by the block immediately
+--     above, so its `INSERT ... SELECT FROM freshness_rules` can never match a
+--     row: it is provably a no-op, and keeping dead SQL in a file operators
+--     read would only mislead. The state it repaired cannot exist here.
+--     Its DOWN-block is KEPT (see 013_consolidated.down.sql) and is still
+--     load-bearing: the service writes `freshness_evaluate` rows at runtime,
+--     so rolling back past 013 must still remove them.
+--
+--   * 016 is independent of the other three (indexes on teams/projects).
+
+-- ===========================================================================
+-- 013_resource_freshness (#729)
+-- ===========================================================================
+
 -- ===========================================================================
 -- Resource Freshness: schema foundation (issue #729, epic #726).
 --
@@ -271,3 +309,112 @@ COMMENT ON COLUMN memories.last_accessed_mcp_at IS
     'Last read through the MCP server; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
 COMMENT ON COLUMN memories.last_accessed_api_at IS
     'Last read through any other API consumer; NULL means never. Denormalized from resource_access_events by #730; not backfilled.';
+
+-- ===========================================================================
+-- 014_memories_updated_at_ignores_last_accessed (#730)
+-- ===========================================================================
+
+-- ===========================================================================
+-- Stop `memories.updated_at` from moving when only a last-accessed column is
+-- written (issue #730, epic #726).
+--
+-- Of the four resource tables, `memories` is the ONLY one carrying a
+-- BEFORE UPDATE trigger (`update_memories_updated_at`, from 001_baseline).
+-- Its function sets `NEW.updated_at = CURRENT_TIMESTAMP` unconditionally, so
+-- ANY update to the row moves updated_at -- including the per-medium
+-- last-accessed write #730 performs on every detail read.
+--
+-- That would make a READ indistinguishable from an EDIT, and updated_at is
+-- load-bearing in at least three places:
+--   * search recency ranking weights it (`rank_weight_updated`), so merely
+--     reading a memory would push it up the results;
+--   * the freshness reversibility rules (#733) treat an edit as a distinct
+--     signal from an access;
+--   * the UI reports it as "last updated" to humans.
+-- prompts/artifacts/blueprints have no such trigger and are unaffected.
+--
+-- The fix is a WHEN clause rather than dropping the trigger. Dropping it looks
+-- tempting -- `memory.go`'s UPDATE already passes `updated_at = $7` explicitly,
+-- so the column appears app-managed -- but that value is currently OVERWRITTEN
+-- by this trigger on every edit, meaning the trigger, not the application, is
+-- the de-facto writer. Removing it would silently promote whatever the service
+-- happens to pass (possibly a zero time) to the stored value. Narrowing when
+-- the trigger fires changes nothing about existing edits.
+--
+-- The predicate reads "fire only when no last-accessed column changed":
+-- every pre-existing write path touches content columns and never these four,
+-- so it behaves exactly as before; the #730 path touches only these four and
+-- is therefore skipped. Enumerating the last-accessed columns rather than the
+-- content columns also keeps this future-proof -- a new content column added
+-- to `memories` later still bumps updated_at with no further migration.
+-- ===========================================================================
+
+DROP TRIGGER IF EXISTS update_memories_updated_at ON memories;
+
+CREATE TRIGGER update_memories_updated_at
+    BEFORE UPDATE ON memories
+    FOR EACH ROW
+    WHEN (
+        OLD.last_accessed_web_at IS NOT DISTINCT FROM NEW.last_accessed_web_at
+    AND OLD.last_accessed_cli_at IS NOT DISTINCT FROM NEW.last_accessed_cli_at
+    AND OLD.last_accessed_mcp_at IS NOT DISTINCT FROM NEW.last_accessed_mcp_at
+    AND OLD.last_accessed_api_at IS NOT DISTINCT FROM NEW.last_accessed_api_at
+    )
+    EXECUTE FUNCTION public.update_updated_at_column();
+
+COMMENT ON TRIGGER update_memories_updated_at ON memories IS
+    'Maintains updated_at on edits. Deliberately skipped when an update touches only the last_accessed_* columns (#730), so a read never looks like an edit.';
+
+-- ===========================================================================
+-- 016_team_project_search (#813)
+-- ===========================================================================
+
+-- ===========================================================================
+-- Keyword search indexes for teams and projects (issue #813, epic #811).
+--
+-- Teams had no search path at all, and project search was `ILIKE '%term%'` on
+-- name/description/slug -- a leading wildcard, so `idx_projects_name` could not
+-- serve it and every search sequentially scanned the table, ordered by
+-- created_at rather than relevance, with no typo tolerance.
+--
+-- These four indexes back the ranking ladder in postgres/entity_search.go,
+-- which mirrors the one SearchKeyword already runs over the four resource
+-- domains: strict FTS -> relaxed (OR-rewritten) FTS -> pg_trgm word similarity.
+--
+-- pg_trgm is ALREADY installed by migration 005, so there is no CREATE
+-- EXTENSION here and no new operator action for self-hosters on managed
+-- Postgres.
+--
+-- INDEX EXPRESSIONS MUST STAY BYTE-IDENTICAL TO THE EXPRESSIONS THE QUERIES
+-- EMIT, or the planner silently ignores them and every pass seq-scans. The Go
+-- side renders these same strings (entity_search.go: ftsMatchExpr / trgmNameExpr)
+-- and team_project_search_integration_test.go asserts the plans actually use
+-- them. Column qualification is the one permitted difference: the queries say
+-- `t.name` / `p.name` where these say `name`, and Postgres resolves both to the
+-- same column (the same convention as the 005 trigram indexes).
+--
+-- The FTS expression deliberately covers name + description only. `git_url` is
+-- matched EXACTLY (score 1.0) instead of through FTS: the english parser turns
+-- a repository URL into url/host tokens
+-- ('github.com/shaharia-lab/games-for-agents', 'github.com'), which no
+-- word-shaped query matches, so indexing it for FTS would cost index size and
+-- buy nothing.
+-- ===========================================================================
+
+CREATE INDEX IF NOT EXISTS idx_teams_fts ON teams
+    USING gin (to_tsvector('english', coalesce(name, '') || ' ' || coalesce(description, '')));
+
+CREATE INDEX IF NOT EXISTS idx_projects_fts ON projects
+    USING gin (to_tsvector('english', coalesce(name, '') || ' ' || coalesce(description, '')));
+
+-- Trigram indexes on the NAME only: a typo is tolerated against the short,
+-- high-signal name, never the body (whole-document similarity dilutes to near
+-- zero on long text). This is also the pass that carries slash/hyphen-heavy
+-- project names -- the english parser tokenizes `shaharia-lab/games-for-agents`
+-- as a file path (`/games-for-agents`), so neither FTS pass matches a query of
+-- "games for agents" at all, while word_similarity scores it 1.0.
+CREATE INDEX IF NOT EXISTS idx_teams_name_trgm ON teams
+    USING gin ((coalesce(name, '')) gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_projects_name_trgm ON projects
+    USING gin ((coalesce(name, '')) gin_trgm_ops);

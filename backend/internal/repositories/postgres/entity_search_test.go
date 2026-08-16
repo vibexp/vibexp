@@ -235,11 +235,12 @@ func TestBuildPasses_ArgumentsMatchPlaceholders(t *testing.T) {
 	}
 }
 
-// TestBuildPasses_ExpressionsMatchMigration016 keeps the query expressions
-// byte-identical to the index expressions in 016_team_project_search.up.sql. The
-// integration suite proves the planner agrees; this catches the drift in the
-// cheap layer, and states the two strings that must move together.
-func TestBuildPasses_ExpressionsMatchMigration016(t *testing.T) {
+// TestBuildPasses_ExpressionsMatchMigrationIndexes keeps the query expressions
+// byte-identical to the team/project index expressions in
+// 013_consolidated.up.sql (#813). The integration suite proves the planner
+// agrees; this catches the drift in the cheap layer, and states the two
+// strings that must move together.
+func TestBuildPasses_ExpressionsMatchMigrationIndexes(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		spec     entitySearchSpec

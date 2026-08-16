@@ -17,8 +17,8 @@ import (
 
 // Behavior-level tests for the team/project keyword ladder against real Postgres
 // (#813). Everything here needs a real server: FTS tokenization, trigram
-// scoring, the transaction-local similarity threshold and the migration-016
-// index expressions are all Postgres behaviour that sqlmock can only pretend to
+// scoring, the transaction-local similarity threshold and the #813 index
+// expressions are all Postgres behaviour that sqlmock can only pretend to
 // have.
 
 // searchFixture is one caller plus the teams and projects around them: two teams
