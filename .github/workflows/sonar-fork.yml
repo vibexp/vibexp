@@ -83,13 +83,16 @@ jobs:
       # The PR number is the ONLY value taken from the triggering run, because
       # `workflow_run.pull_requests` is empty for a cross-repository run. It is
       # re-validated below rather than trusted.
+      #
+      # Downloaded to RUNNER_TEMP, not the workspace: the checkout further down
+      # wipes the workspace before cloning, which would delete it.
       - name: Download the PR number
         id: prnum
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: pr-number
-          path: pr-number
+          path: ${{ runner.temp }}/pr-number
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
 
@@ -102,15 +105,16 @@ jobs:
         if: steps.prnum.outcome == 'success'
         run: |
           set -euo pipefail
-          number="$(tr -dc '0-9' < pr-number/pr-number.txt)"
+          number="$(tr -dc '0-9' < "$RUNNER_TEMP/pr-number/pr-number.txt")"
           number="${number:0:9}"
           if [ -z "$number" ]; then
             echo "::error::pr-number artifact contained no digits"
             exit 1
           fi
 
-          head_ref="$(gh api "repos/$REPO/pulls/$number" --jq '.head.ref')"
-          base_ref="$(gh api "repos/$REPO/pulls/$number" --jq '.base.ref')"
+          pr_json="$(gh api "repos/$REPO/pulls/$number")"
+          head_ref="$(printf '%s' "$pr_json" | jq -r '.head.ref')"
+          base_ref="$(printf '%s' "$pr_json" | jq -r '.base.ref')"
 
           # Both end up inside the scanner's `args`, and git refnames legally
           # contain `;`, `&`, backticks and `$` — enough to break out of a
@@ -129,7 +133,7 @@ jobs:
           # Informational only. The PR head moves when the contributor pushes
           # again, and each run posts its status to the commit it actually
           # analysed, so a mismatch here is a superseded run, not an error.
-          head_sha_now="$(gh api "repos/$REPO/pulls/$number" --jq '.head.sha')"
+          head_sha_now="$(printf '%s' "$pr_json" | jq -r '.head.sha')"
           if [ "$head_sha_now" != "$HEAD_SHA" ]; then
             echo "::notice::PR #$number has moved on to $head_sha_now; this run analyses $HEAD_SHA"
           fi
@@ -163,6 +167,22 @@ jobs:
             echo "frontend=$(result_of 'Frontend Test & Build')"
           } >> "$GITHUB_OUTPUT"
 
+      # MUST precede the coverage downloads: actions/checkout wipes the
+      # workspace before cloning, so anything downloaded into it first is
+      # deleted. (The PR number survives because it lands in RUNNER_TEMP.)
+      #
+      # UNTRUSTED. Analysed, never executed — see the header. `persist-
+      # credentials: false` keeps the checkout token out of the working tree.
+      - name: Check out the PR head from the fork
+        if: steps.pr.outcome == 'success'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_sha }}
+          # Full history so SonarCloud can attribute new code / blame accurately.
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Download backend unit coverage
         if: steps.pr.outcome == 'success'
         continue-on-error: true
@@ -192,18 +212,6 @@ jobs:
           path: frontend/coverage
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
-
-      # UNTRUSTED. Analysed, never executed — see the header. `persist-
-      # credentials: false` keeps the checkout token out of the working tree.
-      - name: Check out the PR head from the fork
-        if: steps.pr.outcome == 'success'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          repository: ${{ github.event.workflow_run.head_repository.full_name }}
-          ref: ${{ github.event.workflow_run.head_sha }}
-          # Full history so SonarCloud can attribute new code / blame accurately.
-          fetch-depth: 0
-          persist-credentials: false
 
       # Overwrite whatever the fork shipped. See the header: this file decides
       # what is analysed and what counts toward coverage, so it must come from
