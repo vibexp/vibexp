@@ -68,7 +68,7 @@ func (s *Server) handleCreateBlueprint(w http.ResponseWriter, r *http.Request) {
 		projectID: req.ProjectID, slug: req.Slug, description: "Created new blueprint: " + req.Title,
 	}, r)
 
-	writeCreated(w, blueprint, s.logger)
+	writeCreated(w, blueprintWriteBody(blueprint), s.logger)
 }
 
 func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
@@ -126,7 +126,7 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 		projectID: decodedProjectID, slug: decodedSlug, description: "Updated blueprint: " + blueprint.Title,
 	}, r)
 
-	writeOK(w, blueprint, s.logger)
+	writeOK(w, blueprintWriteBody(blueprint), s.logger)
 }
 
 //nolint:funlen // structured slog attributes are marginally more verbose than the prior logrus WithFields calls
@@ -762,7 +762,7 @@ func (s *Server) handleRestoreBlueprintVersion(w http.ResponseWriter, r *http.Re
 		projectID: decodedProjectID, slug: decodedSlug, description: "Restored blueprint: " + blueprint.Title,
 	}, r)
 
-	writeOK(w, blueprint, s.logger)
+	writeOK(w, blueprintWriteBody(blueprint), s.logger)
 }
 
 // handleBlueprintVersionError maps content-version lookup errors to HTTP responses.

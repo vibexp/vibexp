@@ -283,6 +283,14 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 	// Security headers on every response (after CORS so preflight is unaffected).
 	r.Use(securityHeadersMiddleware)
 
+	// `/api/v1/.../<collection>/` resolves to the same route as the bare path.
+	// Mounted on the ROOT router because chi's StripSlashes rewrites the route
+	// path and must run before routing — a Group's middleware never sees a path
+	// that matched no route. Scoped to the API prefix so the SPA catch-all, the
+	// MCP endpoint and the OAuth AS routes are untouched. See
+	// stripAPITrailingSlash (#800).
+	r.Use(stripAPITrailingSlash)
+
 	// Fix url.scheme for Cloud Run: TLS is terminated at the Cloud Run proxy and
 	// forwarded to the container over plain HTTP. Correct the scheme before the
 	// OTel middleware reads it so that url.scheme spans show "https" instead of "http".

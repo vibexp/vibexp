@@ -2,10 +2,8 @@ package server
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/vibexp/vibexp/internal/models"
-	"github.com/vibexp/vibexp/internal/services"
 )
 
 // Surfacing freshness on the resource payloads and list endpoints (issue #735).
@@ -25,30 +23,6 @@ import (
 // why the MCP getters (mcp_read_tools.go) attach it themselves exactly as they
 // attach Related and Similar — an MCP client would otherwise never see it,
 // while still triggering the access that clears it (#733).
-
-// freshnessQueryParam is the list filter's query-string name.
-const freshnessQueryParam = "freshness"
-
-// parseFreshnessFilter reads and validates the `freshness` query parameter,
-// writing a 400 and returning false when it is present but unrecognized.
-//
-// Rejecting rather than ignoring matters more for a filter than for a sort:
-// an ignored `?freshness=stail` returns the FULL list, which looks like a
-// legitimate answer to the question that was asked. (These routes are
-// hand-written chi handlers, so nothing validates the enum for us — and
-// oapi-codegen would not have either; it does not enforce query-param enums.)
-func parseFreshnessFilter(w http.ResponseWriter, r *http.Request) (string, bool) {
-	value := r.URL.Query().Get(freshnessQueryParam)
-	if value == "" {
-		return "", true
-	}
-	if value != services.FreshnessFilterStale {
-		writeErrorResponse(w, r, "validation_error",
-			"freshness must be "+services.FreshnessFilterStale, http.StatusBadRequest)
-		return "", false
-	}
-	return value, true
-}
 
 // freshnessForResource loads one resource's freshness for a detail response.
 func (s *Server) freshnessForResource(

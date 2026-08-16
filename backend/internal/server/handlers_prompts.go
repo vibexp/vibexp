@@ -178,19 +178,22 @@ func promptsUserID(ctx context.Context) (string, error) {
 func promptFiltersFromParams(
 	userID, teamID string, params promptsgen.ListPromptsParams,
 ) (services.PromptFilters, error) {
-	// Both rejections go through promptsValidationError: parseFreshnessFilter and
-	// the sort_by check BOTH reported "validation_error" here, so the error code
-	// is VALIDATION_FAILED and not the bad-request default. (The other three
-	// domains answer BAD_REQUEST for freshness because their own handlers did.)
+	// Both rejections answer the ordinary BAD_REQUEST. The handler these replaced
+	// routed them through writeErrorResponse's "validation_error" arm, so the
+	// conversion preserved VALIDATION_FAILED here while memories, artifacts and
+	// blueprints answered BAD_REQUEST for the same class of rejection -- the API
+	// gave two codes for one thing, by design-preservation rather than by
+	// choice. #800 decided the four domains converge on the apierrors defaults;
+	// see the decision record on epic #122.
 	freshness := optionalEnumValue(params.Freshness)
 	if freshness != "" && freshness != services.FreshnessFilterStale {
-		return services.PromptFilters{}, promptsValidationError(
+		return services.PromptFilters{}, apierrors.NewBadRequestError(
 			"freshness must be " + services.FreshnessFilterStale)
 	}
 
 	sortBy := optionalEnumValue(params.SortBy)
 	if sortBy != "" && !allowedPromptSortFields[sortBy] {
-		return services.PromptFilters{}, promptsValidationError("invalid sort_by value: " + sortBy)
+		return services.PromptFilters{}, apierrors.NewBadRequestError("invalid sort_by value: " + sortBy)
 	}
 
 	filters := services.PromptFilters{
@@ -226,16 +229,6 @@ func promptFiltersFromParams(
 	filters.Limit = pagination.Limit
 
 	return filters, nil
-}
-
-// promptsValidationError reproduces what writeErrorResponse's "validation_error"
-// arm produced: a 400 whose code is CodeValidationFailed rather than the
-// bad-request default. Keeping the code identical is what keeps the body
-// byte-identical for the sort_by rejection.
-func promptsValidationError(detail string) error {
-	apiErr := apierrors.NewBadRequestError(detail)
-	apiErr.Code = apierrors.CodeValidationFailed
-	return apiErr
 }
 
 // toGenPromptListEnvelope converts the service list response into the generated

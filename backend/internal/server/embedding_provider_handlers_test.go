@@ -144,9 +144,11 @@ func TestGetEmbeddingProvider_BadRequest(t *testing.T) {
 		path     string
 		expected int
 	}{
-		// A trailing slash with no id matches neither `/embedding-providers` nor
-		// `/embedding-providers/{id}`, so the router 404s before any auth middleware runs.
-		{"Empty provider ID", "/api/v1/550e8400-e29b-41d4-a716-446655440000/embedding-providers/", http.StatusNotFound},
+		// Since #800 a trailing slash is normalised away, so this is the
+		// COLLECTION route and answers 401 like any other authenticated path.
+		// Before that it matched neither `/embedding-providers` nor
+		// `/embedding-providers/{id}` and 404d before auth ran.
+		{"Collection with a trailing slash", "/api/v1/550e8400-e29b-41d4-a716-446655440000/embedding-providers/", http.StatusUnauthorized},
 		{"Invalid provider ID format", "/api/v1/550e8400-e29b-41d4-a716-446655440000/embedding-providers/invalid-id-format", http.StatusUnauthorized},
 	}
 
@@ -267,8 +269,10 @@ func TestDeleteEmbeddingProvider_BadRequest(t *testing.T) {
 		path     string
 		expected int
 	}{
-		// See TestGetEmbeddingProvider_BadRequest: a bare trailing slash matches no route.
-		{"Empty provider ID", "/api/v1/550e8400-e29b-41d4-a716-446655440000/embedding-providers/", http.StatusNotFound},
+		// See TestGetEmbeddingProvider_BadRequest. Since #800 the trailing slash
+		// is normalised away, so this is the COLLECTION route -- which has no
+		// DELETE, hence 405 rather than the previous pre-auth 404.
+		{"Collection with a trailing slash", "/api/v1/550e8400-e29b-41d4-a716-446655440000/embedding-providers/", http.StatusMethodNotAllowed},
 		{"Invalid provider ID", "/api/v1/550e8400-e29b-41d4-a716-446655440000/embedding-providers/invalid-id", http.StatusUnauthorized},
 	}
 

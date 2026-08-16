@@ -60,7 +60,7 @@ func (s *Server) handleCreateArtifact(w http.ResponseWriter, r *http.Request) {
 		s.metrics.RecordArtifactCreated(r.Context())
 	}
 
-	writeCreated(w, artifact, s.logger)
+	writeCreated(w, artifactWriteBody(artifact), s.logger)
 }
 
 func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +117,7 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 		projectName: decodedProjectID, slug: decodedSlug, description: "Updated artifact: " + artifact.Title,
 	}, r)
 
-	writeOK(w, artifact, s.logger)
+	writeOK(w, artifactWriteBody(artifact), s.logger)
 }
 
 // writeArtifactDeleteDenial writes a 403 for a denied delete and reports whether
@@ -360,7 +360,7 @@ func (s *Server) handleRestoreArtifactVersion(w http.ResponseWriter, r *http.Req
 		projectName: decodedProjectID, slug: decodedSlug, description: "Restored artifact: " + artifact.Title,
 	}, r)
 
-	writeOK(w, artifact, s.logger)
+	writeOK(w, artifactWriteBody(artifact), s.logger)
 }
 
 // parseVersionNumber parses the version_number URL param as a positive integer.
