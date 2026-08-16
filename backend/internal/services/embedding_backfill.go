@@ -58,25 +58,43 @@ type EmbeddingBackfillRequest struct {
 }
 
 // EmbeddingBackfillTypeResult is the per-entity-type outcome of a backfill run.
+//
+// Every counter here describes EVENT PUBLISHING only. Embeddings are generated
+// asynchronously downstream (event bus → embedding worker → dispatcher → provider),
+// so a clean result says the work was handed off, never that it landed (#755). Use
+// EmbeddingCoverageGetter / the coverage endpoint for what is actually embedded.
 type EmbeddingBackfillTypeResult struct {
 	EntityType string `json:"entity_type"`
 	// Total is the number of source entities seen for this type.
 	Total int `json:"total"`
-	// Published is the number of `.created` events successfully republished. It
-	// equals Total on a clean run and Total minus Failed otherwise. On a dry run it
-	// is 0 (nothing is published) while Total still reflects the entities seen.
+	// Published is the number of `.created` events successfully handed to the event
+	// publisher. It equals Total on a clean run and Total minus Failed otherwise. On
+	// a dry run it is 0 (nothing is published) while Total still reflects the
+	// entities seen. An entity counted here is NOT yet embedded: generation happens
+	// asynchronously and can still fail, or be lost with the in-memory job queue on
+	// a restart (#820), without changing this number.
 	Published int `json:"published"`
-	// Failed is the number of entities whose event publish errored (log-and-continue).
+	// Failed is the number of entities whose event PUBLISH errored
+	// (log-and-continue). It does not count entities that were published and then
+	// failed to embed — those are invisible here by construction.
 	Failed int `json:"failed"`
 }
 
 // EmbeddingBackfillResult aggregates a backfill run across all processed types.
+//
+// TotalPublished / TotalFailed are publish-side sums with exactly the semantics
+// documented on EmbeddingBackfillTypeResult: TotalFailed == 0 means "every event
+// was published", not "every entity was embedded" (#755).
 type EmbeddingBackfillResult struct {
-	DryRun         bool                          `json:"dry_run"`
-	Results        []EmbeddingBackfillTypeResult `json:"results"`
-	TotalSeen      int                           `json:"total_seen"`
-	TotalPublished int                           `json:"total_published"`
-	TotalFailed    int                           `json:"total_failed"`
+	DryRun  bool                          `json:"dry_run"`
+	Results []EmbeddingBackfillTypeResult `json:"results"`
+	// TotalSeen is the number of source entities the run enumerated.
+	TotalSeen int `json:"total_seen"`
+	// TotalPublished is the sum of per-type Published: events handed to the
+	// publisher, not embeddings written.
+	TotalPublished int `json:"total_published"`
+	// TotalFailed is the sum of per-type Failed: publish failures only.
+	TotalFailed int `json:"total_failed"`
 }
 
 // EmbeddingBackfiller regenerates embeddings for every embeddable
@@ -101,6 +119,11 @@ type EmbeddingBackfillService struct {
 	repo           repositories.EmbeddingBackfillRepository
 	publisher      events.EventPublisher
 	promptRenderer PromptBodyRenderer
+	// coverage, when set, is read once after a team-scoped run so the run's log
+	// ends with what is actually embedded rather than only what was published
+	// (#755). Optional: a nil coverage getter simply skips the snapshot, which
+	// keeps the constructor usable in tests that do not exercise it.
+	coverage EmbeddingCoverageGetter
 	// modelID keys the missing_only NOT EXISTS filter. Embedding models are now
 	// per-team (issue #79), so there is no single configured model: it is left
 	// empty, which makes missing_only re-embed every entity (no model_id matches an
@@ -112,17 +135,21 @@ type EmbeddingBackfillService struct {
 
 var _ EmbeddingBackfiller = (*EmbeddingBackfillService)(nil)
 
-// NewEmbeddingBackfillService creates a new EmbeddingBackfillService.
+// NewEmbeddingBackfillService creates a new EmbeddingBackfillService. coverage is
+// optional (may be nil): when supplied, a team-scoped run logs an embedding-coverage
+// snapshot once it finishes publishing.
 func NewEmbeddingBackfillService(
 	repo repositories.EmbeddingBackfillRepository,
 	publisher events.EventPublisher,
 	promptRenderer PromptBodyRenderer,
+	coverage EmbeddingCoverageGetter,
 	logger *slog.Logger,
 ) *EmbeddingBackfillService {
 	return &EmbeddingBackfillService{
 		repo:           repo,
 		publisher:      publisher,
 		promptRenderer: promptRenderer,
+		coverage:       coverage,
 		modelID:        "",
 		logger:         logger,
 	}
@@ -156,14 +183,62 @@ func (s *EmbeddingBackfillService) Backfill(
 		result.TotalFailed += typeResult.Failed
 	}
 
+	// Field names are unchanged so existing greps/alerts keep working; only the
+	// human-readable message moves, because "completed" reads as an end-to-end
+	// guarantee this run cannot make — total_failed counts publish failures, and
+	// generation has barely started by the time this line is written (#755).
 	s.logger.With(
 		"dry_run", result.DryRun,
 		"total_seen", result.TotalSeen,
 		"total_published", result.TotalPublished,
 		"total_failed", result.TotalFailed,
-	).Info("Embedding backfill completed")
+	).Info("Embedding backfill: events published (generation is async; counts are publishes, not embeddings)")
+
+	s.logCoverageSnapshot(ctx, req)
 
 	return result, nil
+}
+
+// logCoverageSnapshot logs the team's embedding coverage right after a run finishes
+// publishing, so an operator draining a backlog gets one line saying what actually
+// landed instead of only what was handed off (#755).
+//
+// It is deliberately a SNAPSHOT, not a completion assertion: generation is async, so
+// this is read while the just-published events are still draining and will normally
+// show a pending count. Its value is the trend across runs — a pending count that
+// does not move between two reprocesses is the publish→generate gap this issue
+// exists to surface.
+//
+// Skipped when no coverage getter is wired, on a dry run (nothing was published), or
+// for an all-teams run (coverage is per-team and there is no team to report on). A
+// coverage read failure is logged and swallowed: the backfill itself succeeded, and
+// failing it over a diagnostic would be a strictly worse outcome.
+func (s *EmbeddingBackfillService) logCoverageSnapshot(ctx context.Context, req EmbeddingBackfillRequest) {
+	if s.coverage == nil || req.DryRun || req.TeamID == "" {
+		return
+	}
+
+	coverage, err := s.coverage.GetCoverage(ctx, req.TeamID)
+	if err != nil {
+		s.logger.With(
+			"team_id", req.TeamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to read embedding coverage after backfill")
+		return
+	}
+
+	logger := s.logger.With(
+		"team_id", req.TeamID,
+		"has_active_provider", coverage.HasActiveProvider,
+	)
+	for _, item := range coverage.Coverage {
+		logger = logger.With(
+			item.EntityType+"_embedded", item.Embedded,
+			item.EntityType+"_total", item.Total,
+			item.EntityType+"_pending", item.Pending,
+		)
+	}
+	logger.Info("Embedding backfill: coverage after run (snapshot; generation is async)")
 }
 
 // backfillType pages through one entity type and republishes its `.created` events.

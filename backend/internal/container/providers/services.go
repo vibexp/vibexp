@@ -591,14 +591,17 @@ func ProvideAdminService(
 }
 
 // ProvideEmbeddingBackfillService creates a new EmbeddingBackfillService that
-// republishes `.created` events to regenerate embeddings after a model swap.
+// republishes `.created` events to regenerate embeddings after a model swap. The
+// coverage getter lets a team-scoped run end its log with what is actually embedded,
+// since the run's own counters only describe event publishing (#755).
 func ProvideEmbeddingBackfillService(
 	repo repositories.EmbeddingBackfillRepository,
 	publisher events.EventPublisher,
 	promptService services.PromptServiceInterface,
+	coverage services.EmbeddingCoverageGetter,
 	logger *slog.Logger,
 ) services.EmbeddingBackfiller {
-	return services.NewEmbeddingBackfillService(repo, publisher, promptService, logger)
+	return services.NewEmbeddingBackfillService(repo, publisher, promptService, coverage, logger)
 }
 
 // ProvideEmbeddingStatusService creates a new EmbeddingStatusService that derives

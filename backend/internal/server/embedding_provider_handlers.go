@@ -113,13 +113,24 @@ func (s *Server) enqueueTeamReembed(teamID string, wipe bool) {
 		defer s.reembedInFlight.Delete(teamID)
 		// MissingOnly mirrors the intent: after a wipe every entity is missing, so
 		// re-embed all; otherwise (create / reprocess) only fill the gaps.
-		if _, err := s.container.EmbeddingBackfillService().Backfill(
+		result, err := s.container.EmbeddingBackfillService().Backfill(
 			context.Background(),
 			services.EmbeddingBackfillRequest{All: true, TeamID: teamID, MissingOnly: !wipe},
-		); err != nil {
+		)
+		if err != nil {
 			logger.With("error", fmt.Sprintf("%+v", err)).
 				Error("Background team re-embed failed")
+			return
 		}
+		// The 202 response carries no counters, so this log line is the only place
+		// the reprocess/create path's outcome is attributable to the team that
+		// triggered it. The counts are PUBLISHES, not embeddings written — the
+		// service logs an embedding-coverage snapshot separately (#755).
+		logger.With(
+			"total_seen", result.TotalSeen,
+			"total_published", result.TotalPublished,
+			"total_failed", result.TotalFailed,
+		).Info("Background team re-embed published its events (generation is async)")
 	}()
 }
 

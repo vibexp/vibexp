@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
@@ -32,7 +33,28 @@ func newTestBackfillService(t *testing.T) (
 	publisher := eventmocks.NewMockEventPublisher(t)
 	renderer := svcmocks.NewMockPromptBodyRenderer(t)
 	logger := slog.New(slog.DiscardHandler)
-	return services.NewEmbeddingBackfillService(repo, publisher, renderer, logger), repo, publisher, renderer
+	// nil coverage getter: the coverage snapshot (#755) is opt-in, and only the
+	// tests below that exercise it wire one in.
+	svc := services.NewEmbeddingBackfillService(repo, publisher, renderer, nil, logger)
+	return svc, repo, publisher, renderer
+}
+
+// newLoggingBackfillService builds a service whose logs are captured, so a test can
+// assert on the run's terminal and coverage log lines (#755). coverage may be nil to
+// exercise the not-wired path.
+func newLoggingBackfillService(t *testing.T, coverage services.EmbeddingCoverageGetter) (
+	*services.EmbeddingBackfillService,
+	*repomocks.MockEmbeddingBackfillRepository,
+	*eventmocks.MockEventPublisher,
+	*bytes.Buffer,
+) {
+	repo := repomocks.NewMockEmbeddingBackfillRepository(t)
+	publisher := eventmocks.NewMockEventPublisher(t)
+	renderer := svcmocks.NewMockPromptBodyRenderer(t)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	svc := services.NewEmbeddingBackfillService(repo, publisher, renderer, coverage, logger)
+	return svc, repo, publisher, &logs
 }
 
 // passthroughRender makes the renderer echo whatever body it is given, so a test
@@ -377,4 +399,150 @@ func TestEmbeddingBackfill_PublishesBackfillOriginEvents(t *testing.T) {
 	require.NotNil(t, captured)
 	assert.True(t, events.IsBackfillOrigin(captured),
 		"republished events must be tagged backfill-origin so side-effect listeners skip them")
+}
+
+// --- publish-vs-embedded observability (#755) ---
+
+// coverageResponse builds a coverage payload with one entity type, so a test can
+// assert the exact numbers that reach the snapshot log line.
+func coverageResponse(entityType string, total, embedded int64) *models.EmbeddingCoverageResponse {
+	model := "test-model"
+	return &models.EmbeddingCoverageResponse{
+		HasActiveProvider: true,
+		ActiveModel:       &model,
+		Coverage: []models.EmbeddingCoverageItem{{
+			EntityType: entityType,
+			Total:      total,
+			Embedded:   embedded,
+			Pending:    total - embedded,
+		}},
+	}
+}
+
+// The terminal line must not read as an end-to-end guarantee: it says events were
+// published, and keeps its field names so existing greps/alerts still match.
+func TestEmbeddingBackfill_TerminalLogSaysPublishedNotCompleted(t *testing.T) {
+	svc, repo, publisher, logs := newLoggingBackfillService(t, nil)
+
+	repo.EXPECT().ListEntities(mock.Anything, "memory", "", "team-1", false, mock.Anything, 0).
+		Return([]models.BackfillEntity{backfillEntity("memory", "m1")}, nil).Once()
+	publisher.EXPECT().Publish(mock.Anything, mock.Anything).Return(nil).Once()
+
+	_, err := svc.Backfill(context.Background(), services.EmbeddingBackfillRequest{
+		EntityTypes: []string{"memory"},
+		TeamID:      "team-1",
+	})
+	require.NoError(t, err)
+
+	out := logs.String()
+	assert.Contains(t, out, "Embedding backfill: events published",
+		"the terminal message must name publishing, not completion")
+	assert.NotContains(t, out, "Embedding backfill completed",
+		"the old end-to-end-sounding message must be gone")
+	assert.Contains(t, out, "generation is async",
+		"the line must say generation has not happened yet")
+	// Field names are the compatibility surface and must survive the rewording.
+	assert.Contains(t, out, `"total_seen":1`)
+	assert.Contains(t, out, `"total_published":1`)
+	assert.Contains(t, out, `"total_failed":0`)
+}
+
+// A team-scoped run with a coverage getter wired logs what actually landed, so an
+// operator has one line reporting embedded/total/pending rather than only publishes.
+func TestEmbeddingBackfill_LogsCoverageSnapshotAfterTeamRun(t *testing.T) {
+	coverage := svcmocks.NewMockEmbeddingCoverageGetter(t)
+	coverage.EXPECT().GetCoverage(mock.Anything, "team-1").
+		Return(coverageResponse("memory", 10, 6), nil).Once()
+
+	svc, repo, publisher, logs := newLoggingBackfillService(t, coverage)
+	repo.EXPECT().ListEntities(mock.Anything, "memory", "", "team-1", true, mock.Anything, 0).
+		Return([]models.BackfillEntity{backfillEntity("memory", "m1")}, nil).Once()
+	publisher.EXPECT().Publish(mock.Anything, mock.Anything).Return(nil).Once()
+
+	_, err := svc.Backfill(context.Background(), services.EmbeddingBackfillRequest{
+		EntityTypes: []string{"memory"},
+		TeamID:      "team-1",
+		MissingOnly: true,
+	})
+	require.NoError(t, err)
+
+	out := logs.String()
+	assert.Contains(t, out, "Embedding backfill: coverage after run")
+	assert.Contains(t, out, "snapshot", "the line must say it is a snapshot, not a completion assertion")
+	assert.Contains(t, out, `"memory_total":10`)
+	assert.Contains(t, out, `"memory_embedded":6`)
+	assert.Contains(t, out, `"memory_pending":4`)
+}
+
+// The snapshot is skipped where it would be meaningless or wrong: no getter wired,
+// a dry run (nothing was published), and an all-teams run (coverage is per-team).
+func TestEmbeddingBackfill_CoverageSnapshotSkipped(t *testing.T) {
+	t.Run("no coverage getter wired", func(t *testing.T) {
+		svc, repo, publisher, logs := newLoggingBackfillService(t, nil)
+		repo.EXPECT().ListEntities(mock.Anything, "memory", "", "team-1", false, mock.Anything, 0).
+			Return([]models.BackfillEntity{backfillEntity("memory", "m1")}, nil).Once()
+		publisher.EXPECT().Publish(mock.Anything, mock.Anything).Return(nil).Once()
+
+		_, err := svc.Backfill(context.Background(), services.EmbeddingBackfillRequest{
+			EntityTypes: []string{"memory"},
+			TeamID:      "team-1",
+		})
+		require.NoError(t, err)
+		assert.NotContains(t, logs.String(), "coverage after run")
+	})
+
+	t.Run("dry run publishes nothing", func(t *testing.T) {
+		// The mock is strict: a GetCoverage call it was never told to expect fails
+		// the test, which is exactly the assertion.
+		coverage := svcmocks.NewMockEmbeddingCoverageGetter(t)
+		svc, repo, _, logs := newLoggingBackfillService(t, coverage)
+		repo.EXPECT().ListEntities(mock.Anything, "memory", "", "team-1", false, mock.Anything, 0).
+			Return([]models.BackfillEntity{backfillEntity("memory", "m1")}, nil).Once()
+
+		_, err := svc.Backfill(context.Background(), services.EmbeddingBackfillRequest{
+			EntityTypes: []string{"memory"},
+			TeamID:      "team-1",
+			DryRun:      true,
+		})
+		require.NoError(t, err)
+		assert.NotContains(t, logs.String(), "coverage after run")
+	})
+
+	t.Run("all-teams run has no team to report on", func(t *testing.T) {
+		coverage := svcmocks.NewMockEmbeddingCoverageGetter(t)
+		svc, repo, publisher, logs := newLoggingBackfillService(t, coverage)
+		repo.EXPECT().ListEntities(mock.Anything, "memory", "", "", false, mock.Anything, 0).
+			Return([]models.BackfillEntity{backfillEntity("memory", "m1")}, nil).Once()
+		publisher.EXPECT().Publish(mock.Anything, mock.Anything).Return(nil).Once()
+
+		_, err := svc.Backfill(context.Background(), services.EmbeddingBackfillRequest{
+			EntityTypes: []string{"memory"},
+		})
+		require.NoError(t, err)
+		assert.NotContains(t, logs.String(), "coverage after run")
+	})
+}
+
+// A coverage read failure is a diagnostic failure, not a run failure: the backfill
+// still succeeds and the problem is logged.
+func TestEmbeddingBackfill_CoverageReadFailureDoesNotFailTheRun(t *testing.T) {
+	coverage := svcmocks.NewMockEmbeddingCoverageGetter(t)
+	coverage.EXPECT().GetCoverage(mock.Anything, "team-1").
+		Return(nil, errors.New("coverage query exploded")).Once()
+
+	svc, repo, publisher, logs := newLoggingBackfillService(t, coverage)
+	repo.EXPECT().ListEntities(mock.Anything, "memory", "", "team-1", false, mock.Anything, 0).
+		Return([]models.BackfillEntity{backfillEntity("memory", "m1")}, nil).Once()
+	publisher.EXPECT().Publish(mock.Anything, mock.Anything).Return(nil).Once()
+
+	result, err := svc.Backfill(context.Background(), services.EmbeddingBackfillRequest{
+		EntityTypes: []string{"memory"},
+		TeamID:      "team-1",
+	})
+
+	require.NoError(t, err, "a diagnostic read must never fail the backfill")
+	assert.Equal(t, 1, result.TotalPublished)
+	out := logs.String()
+	assert.Contains(t, out, "Failed to read embedding coverage after backfill")
+	assert.Contains(t, out, `"level":"WARN"`)
 }
