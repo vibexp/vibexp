@@ -118,6 +118,7 @@ func TestAddAllTools_RegistersDiscoveryAndTeamScopedTools(t *testing.T) {
 	}
 
 	for _, want := range []string{
+		"vibexp_io_list_teams_and_projects",
 		"vibexp_io_list_teams",
 		"vibexp_io_get_user",
 		"vibexp_io_create_artifact",
@@ -135,6 +136,19 @@ func TestAddAllTools_RegistersDiscoveryAndTeamScopedTools(t *testing.T) {
 	} {
 		_, ok := toolNames[want]
 		assert.True(t, ok, "AddAllTools should register %s", want)
+	}
+
+	// The two superseded tools stay registered for one release (#814), and their
+	// descriptions must say so — that wording is the only signal an already-running
+	// agent gets to move to the merged tool.
+	for _, tool := range listResult.Tools {
+		switch tool.Name {
+		case "vibexp_io_list_teams", "vibexp_io_list_projects":
+			assert.Contains(t, tool.Description, "DEPRECATED",
+				"%s must announce its deprecation", tool.Name)
+			assert.Contains(t, tool.Description, "vibexp_io_list_teams_and_projects",
+				"%s must name its replacement", tool.Name)
+		}
 	}
 }
 

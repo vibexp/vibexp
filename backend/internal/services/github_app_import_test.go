@@ -117,6 +117,16 @@ func (m *MockProjectRepository) List(
 	return args.Get(0).([]models.Project), args.Int(1), args.Error(2)
 }
 
+// CountsByTeamIDs satisfies the interface for this hand-written double; the
+// GitHub App import path never counts projects, so no test sets an expectation
+// on it.
+func (m *MockProjectRepository) CountsByTeamIDs(
+	ctx context.Context, teamIDs []string,
+) (map[string]int, error) {
+	args := m.Called(ctx, teamIDs)
+	return args.Get(0).(map[string]int), args.Error(1)
+}
+
 // SearchProjects satisfies the interface for this hand-written double; the
 // GitHub App import path never searches, so no test sets an expectation on it.
 func (m *MockProjectRepository) SearchProjects(

@@ -70,8 +70,22 @@ func (m *MCPToolsManager) addUserTools(mcpServer *mcp.Server, userID string) {
 	})
 }
 
-// addTeamTools adds the team discovery tool (user-scoped; no team_id).
+// addTeamTools adds the workspace discovery tools (user-scoped; no team_id).
+//
+// vibexp_io_list_teams_and_projects is the one to use; vibexp_io_list_teams
+// stays registered as a deprecated alias for one release (#814) because removing
+// it outright breaks agents mid-session and the vibexp:prime / vibexp:onboard
+// skills on upgrade. Deleting it is a tracked follow-up.
 func (m *MCPToolsManager) addTeamTools(mcpServer *mcp.Server, userID string) {
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        "vibexp_io_list_teams_and_projects",
+		Description: listTeamsAndProjectsToolDescription,
+	}, func(
+		ctx context.Context, req *mcp.CallToolRequest, params *ListTeamsAndProjectsParams,
+	) (*mcp.CallToolResult, any, error) {
+		return m.server.listTeamsAndProjects(ctx, req, params, userID)
+	})
+
 	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name:        "vibexp_io_list_teams",
 		Description: listTeamsToolDescription,
@@ -260,11 +274,12 @@ func (m *MCPToolsManager) addBlueprintTools(mcpServer *mcp.Server, userID string
 	})
 }
 
-// addProjectTools adds project listing tools.
+// addProjectTools adds the deprecated project listing tool. Superseded by
+// vibexp_io_list_teams_and_projects (#814); kept for one release.
 func (m *MCPToolsManager) addProjectTools(mcpServer *mcp.Server, userID string) {
 	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name:        "vibexp_io_list_projects",
-		Description: "List projects with optional search and pagination",
+		Description: listProjectsToolDescription,
 	}, func(
 		ctx context.Context, req *mcp.CallToolRequest, params *ListProjectsParams,
 	) (*mcp.CallToolResult, any, error) {

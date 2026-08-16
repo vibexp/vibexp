@@ -393,3 +393,82 @@ func TestBuildPasses_ClampsTheLimitItBinds(t *testing.T) {
 			"pass %q must bind the clamped limit", pass.name)
 	}
 }
+
+// TestProjectRepository_CountsByTeamIDs covers the batched count that keeps the
+// discovery tool from re-introducing a per-team query fan-out (#814).
+func TestProjectRepository_CountsByTeamIDs(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("empty input short-circuits without querying", func(t *testing.T) {
+		repo, mock, mockDB := setupProjectSearchTest(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		counts, err := repo.CountsByTeamIDs(ctx, nil)
+
+		require.NoError(t, err)
+		assert.Empty(t, counts)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("groups counts by team in one query", func(t *testing.T) {
+		repo, mock, mockDB := setupProjectSearchTest(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		mock.ExpectQuery(`SELECT team_id, COUNT\(\*\) FROM projects WHERE team_id = ANY\(\$1\) GROUP BY team_id`).
+			WillReturnRows(sqlmock.NewRows([]string{"team_id", "count"}).
+				AddRow("team-1", 3).
+				AddRow("team-2", 7))
+
+		counts, err := repo.CountsByTeamIDs(ctx, []string{"team-1", "team-2", "team-3"})
+
+		require.NoError(t, err)
+		assert.Equal(t, 3, counts["team-1"])
+		assert.Equal(t, 7, counts["team-2"])
+		// A team with no projects is simply absent, and Go's zero value is the
+		// answer callers want — asserting it here so the contract is explicit.
+		assert.Equal(t, 0, counts["team-3"])
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("query error is propagated", func(t *testing.T) {
+		repo, mock, mockDB := setupProjectSearchTest(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		mock.ExpectQuery(`SELECT team_id, COUNT`).WillReturnError(sql.ErrConnDone)
+
+		counts, err := repo.CountsByTeamIDs(ctx, []string{"team-1"})
+
+		require.ErrorIs(t, err, sql.ErrConnDone)
+		assert.Nil(t, counts)
+	})
+
+	t.Run("scan error is propagated", func(t *testing.T) {
+		repo, mock, mockDB := setupProjectSearchTest(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		mock.ExpectQuery(`SELECT team_id, COUNT`).
+			WillReturnRows(sqlmock.NewRows([]string{"team_id", "count"}).AddRow("team-1", "not-a-number"))
+
+		counts, err := repo.CountsByTeamIDs(ctx, []string{"team-1"})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "scan project count")
+		assert.Nil(t, counts)
+	})
+}
