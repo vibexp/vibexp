@@ -911,3 +911,154 @@ func TestIntegrationFreshness_LastAccessedColumnsAreTimestamptz(t *testing.T) {
 		})
 	}
 }
+
+// The audit list resolves slug/project_id by joining the live resource row
+// (#789). Only real Postgres can prove the four resource-type-gated LEFT JOINs
+// pick the right table, that a deleted resource yields NULL rather than dropping
+// the row, and that the joins leave total_count and the page order alone.
+func TestIntegrationFreshnessAudit_ResolvesDeepLinkIdentifiers(t *testing.T) {
+	resetFreshnessTables(t)
+	userID := insertTestUser(t)
+	teamID := insertTestTeam(t, userID)
+	projectID := insertTestProject(t, userID, teamID)
+	repo := NewFreshnessAuditRepository(integrationDB)
+	ctx := context.Background()
+
+	promptID := insertTestPrompt(t, userID, teamID, projectID, "P", "body", "published")
+	artifactID := insertTestArtifact(t, userID, teamID, projectID, "A", "content", "active")
+	memoryID := insertTestMemory(t, userID, teamID, projectID, "some memory text")
+
+	blueprintID := uuid.New().String()
+	_, err := integrationDB.ExecContext(ctx,
+		"INSERT INTO blueprints (id, user_id, team_id, project_id, slug, title, content, path) "+
+			"VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+		blueprintID, userID, teamID, projectID,
+		"blueprint-"+blueprintID[:8], "B", "content", "CLAUDE.md")
+	require.NoError(t, err)
+
+	// One entry per resource type. Written in this order, and read back newest
+	// first, so the assertions below double as a page-order check.
+	for _, ref := range []struct{ resourceType, resourceID string }{
+		{"prompt", promptID},
+		{"artifact", artifactID},
+		{"blueprint", blueprintID},
+		{"memory", memoryID},
+	} {
+		require.NoError(t, repo.Create(ctx, &models.ResourceFreshnessAudit{
+			TeamID: teamID, ResourceType: ref.resourceType, ResourceID: ref.resourceID,
+			Action: models.FreshnessActionMarked, Reason: models.FreshnessReasonRuleRun,
+		}))
+	}
+
+	entries, total, err := repo.ListByTeam(ctx, teamID, 0, 0)
+	require.NoError(t, err)
+	require.Equal(t, 4, total)
+	require.Len(t, entries, 4)
+
+	byType := make(map[string]*models.ResourceFreshnessAudit, len(entries))
+	for _, e := range entries {
+		byType[e.ResourceType] = e
+	}
+
+	// Prompts, artifacts and blueprints each resolve their own slug — a join
+	// picking the wrong table would return another resource's slug, not nil.
+	for _, tc := range []struct{ resourceType, wantSlugPrefix string }{
+		{"prompt", "prompt-"},
+		{"artifact", "artifact-"},
+		{"blueprint", "blueprint-"},
+	} {
+		entry := byType[tc.resourceType]
+		require.NotNil(t, entry, tc.resourceType)
+		require.NotNil(t, entry.Slug, "%s must resolve a slug", tc.resourceType)
+		assert.True(t, strings.HasPrefix(*entry.Slug, tc.wantSlugPrefix),
+			"%s resolved slug %q, which belongs to another table", tc.resourceType, *entry.Slug)
+		require.NotNil(t, entry.ProjectID)
+		assert.Equal(t, projectID, *entry.ProjectID)
+	}
+
+	// Memories have no slug column and are deep-linked by id, so slug is nil by
+	// construction while project_id still resolves.
+	memEntry := byType["memory"]
+	require.NotNil(t, memEntry)
+	assert.Nil(t, memEntry.Slug, "memories have no slug column")
+	require.NotNil(t, memEntry.ProjectID)
+	assert.Equal(t, projectID, *memEntry.ProjectID)
+}
+
+// A resource deleted after its event was logged must still return its row, with
+// both identifiers NULL — the log is append-only and the row is the point.
+func TestIntegrationFreshnessAudit_DeletedResourceYieldsNullIdentifiers(t *testing.T) {
+	resetFreshnessTables(t)
+	userID := insertTestUser(t)
+	teamID := insertTestTeam(t, userID)
+	projectID := insertTestProject(t, userID, teamID)
+	repo := NewFreshnessAuditRepository(integrationDB)
+	ctx := context.Background()
+
+	doomedID := insertTestArtifact(t, userID, teamID, projectID, "Doomed", "content", "active")
+	survivorID := insertTestArtifact(t, userID, teamID, projectID, "Survivor", "content", "active")
+	for _, id := range []string{doomedID, survivorID} {
+		require.NoError(t, repo.Create(ctx, &models.ResourceFreshnessAudit{
+			TeamID: teamID, ResourceType: "artifact", ResourceID: id,
+			Action: models.FreshnessActionMarked, Reason: models.FreshnessReasonRuleRun,
+		}))
+	}
+
+	_, err := integrationDB.ExecContext(ctx, "DELETE FROM artifacts WHERE id = $1", doomedID)
+	require.NoError(t, err)
+
+	entries, total, err := repo.ListByTeam(ctx, teamID, 0, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 2, total, "a LEFT JOIN must not drop the orphaned entry from the count")
+	require.Len(t, entries, 2, "a LEFT JOIN must not drop the orphaned entry from the page")
+
+	byResource := make(map[string]*models.ResourceFreshnessAudit, len(entries))
+	for _, e := range entries {
+		byResource[e.ResourceID] = e
+	}
+	require.NotNil(t, byResource[doomedID])
+	assert.Nil(t, byResource[doomedID].Slug, "a deleted resource resolves no slug")
+	assert.Nil(t, byResource[doomedID].ProjectID, "a deleted resource resolves no project")
+	require.NotNil(t, byResource[survivorID])
+	require.NotNil(t, byResource[survivorID].Slug, "the surviving entry is unaffected")
+}
+
+// The joins run inside the paged query, so they must not disturb either the page
+// boundaries or the newest-first order across pages.
+func TestIntegrationFreshnessAudit_JoinsPreservePagingAndTotal(t *testing.T) {
+	resetFreshnessTables(t)
+	userID := insertTestUser(t)
+	teamID := insertTestTeam(t, userID)
+	projectID := insertTestProject(t, userID, teamID)
+	repo := NewFreshnessAuditRepository(integrationDB)
+	ctx := context.Background()
+
+	const n = 5
+	for i := 0; i < n; i++ {
+		id := insertTestArtifact(t, userID, teamID, projectID, "A", "content", "active")
+		require.NoError(t, repo.Create(ctx, &models.ResourceFreshnessAudit{
+			TeamID: teamID, ResourceType: "artifact", ResourceID: id,
+			Action: models.FreshnessActionMarked, Reason: models.FreshnessReasonRuleRun,
+		}))
+	}
+
+	first, total, err := repo.ListByTeam(ctx, teamID, 3, 0)
+	require.NoError(t, err)
+	assert.Equal(t, n, total, "the joins must not change total_count")
+	require.Len(t, first, 3)
+
+	second, total2, err := repo.ListByTeam(ctx, teamID, 3, 3)
+	require.NoError(t, err)
+	assert.Equal(t, n, total2)
+	require.Len(t, second, 2)
+
+	// No entry may appear on both pages, and the two pages together must cover
+	// every row exactly once.
+	seen := make(map[string]bool, n)
+	for _, e := range append(append([]*models.ResourceFreshnessAudit{}, first...), second...) {
+		require.False(t, seen[e.ID], "entry %s appeared on two pages", e.ID)
+		seen[e.ID] = true
+		require.NotNil(t, e.Slug, "every surviving artifact resolves its slug on both pages")
+	}
+	assert.Len(t, seen, n)
+}

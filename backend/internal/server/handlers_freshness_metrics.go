@@ -332,6 +332,19 @@ func toGenFreshnessAuditEntry(entry *models.ResourceFreshnessAudit) (freshnessge
 		ruleID = &parsed
 	}
 
+	// Both are read-time-resolved and nil for a resource that has since been
+	// deleted (and slug is always nil for memories), which the client renders as
+	// plain text rather than a link.
+	var projectID *openapi_types.UUID
+	if entry.ProjectID != nil {
+		parsed, perr := uuid.Parse(*entry.ProjectID)
+		if perr != nil {
+			return freshnessgen.FreshnessAuditEntry{}, fmt.Errorf(
+				"audit project_id %q is not a UUID: %w", *entry.ProjectID, perr)
+		}
+		projectID = &parsed
+	}
+
 	return freshnessgen.FreshnessAuditEntry{
 		Id:           id,
 		ResourceType: freshnessgen.FreshnessRuleResourceType(entry.ResourceType),
@@ -339,6 +352,8 @@ func toGenFreshnessAuditEntry(entry *models.ResourceFreshnessAudit) (freshnessge
 		RuleId:       ruleID,
 		Action:       freshnessgen.FreshnessAuditEntryAction(entry.Action),
 		Reason:       freshnessgen.FreshnessAuditEntryReason(entry.Reason),
+		Slug:         entry.Slug,
+		ProjectId:    projectID,
 		CreatedAt:    entry.CreatedAt,
 	}, nil
 }

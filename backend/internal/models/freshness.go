@@ -218,6 +218,15 @@ type ResourceFreshnessAudit struct {
 	Action       string    `json:"action"        db:"action"`
 	Reason       string    `json:"reason"        db:"reason"`
 	CreatedAt    time.Time `json:"created_at"    db:"created_at"`
+	// Slug and ProjectID are resolved at READ time by joining the live resource
+	// row; they are not columns on resource_freshness_audit and Create never
+	// populates them. Both are nil when the resource has since been deleted, and
+	// Slug is additionally always nil for memories, which have no slug column and
+	// are deep-linked by id. They are deliberately not snapshotted at write time:
+	// slugs and project ids are mutable, so a stored copy would rot on the next
+	// rename or move and yield a link that 404s (#789).
+	Slug      *string `json:"slug"       db:"slug"`
+	ProjectID *string `json:"project_id" db:"project_id"`
 }
 
 // FreshnessBucketCount is one row of a grouped count over resource_freshness:

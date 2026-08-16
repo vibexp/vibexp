@@ -206,7 +206,11 @@ func TestGetFreshnessByRuleMetrics_ReturnsRuleShapeAndCount(t *testing.T) {
 	assert.Equal(t, []any{"prompt", "memory"}, disabled["resource_types"])
 }
 
+const testFreshnessAuditProjectID = "cc0e8400-e29b-41d4-a716-446655440007"
+
 func sampleAuditEntry(ruleID *string, action, reason string) *models.ResourceFreshnessAudit {
+	slug := "my-artifact"
+	projectID := testFreshnessAuditProjectID
 	return &models.ResourceFreshnessAudit{
 		ID:           "aa0e8400-e29b-41d4-a716-446655440005",
 		TeamID:       testFreshnessTeamID,
@@ -215,6 +219,8 @@ func sampleAuditEntry(ruleID *string, action, reason string) *models.ResourceFre
 		RuleID:       ruleID,
 		Action:       action,
 		Reason:       reason,
+		Slug:         &slug,
+		ProjectID:    &projectID,
 		CreatedAt:    time.Now().UTC(),
 	}
 }
@@ -256,6 +262,64 @@ func TestListFreshnessAudit_ReturnsAPage(t *testing.T) {
 	assert.Equal(t, "cleared", cleared["action"])
 	assert.Equal(t, "accessed", cleared["reason"])
 	assert.Nil(t, cleared["rule_id"], "a reversal is not attributable to a rule")
+
+	// AssertConformsToSpec cannot catch an omitted optional field, so the
+	// deep-link identifiers need explicit value assertions (#789).
+	assert.Equal(t, "my-artifact", marked["slug"])
+	assert.Equal(t, testFreshnessAuditProjectID, marked["project_id"])
+}
+
+// A resource deleted after its event was logged resolves to no slug and no
+// project, and both keys must be absent rather than an empty string or a zero
+// UUID — either would make the client render a link that 404s.
+func TestListFreshnessAudit_DeletedResourceOmitsDeepLinkFields(t *testing.T) {
+	svc := servicesmocks.NewMockFreshnessServiceInterface(t)
+	entry := sampleAuditEntry(nil, models.FreshnessActionMarked, models.FreshnessReasonRuleRun)
+	entry.Slug = nil
+	entry.ProjectID = nil
+	svc.EXPECT().ListAudit(mock.Anything, testFreshnessTeamID, 1, 20).
+		Return(&models.FreshnessAuditPage{
+			Entries:    []*models.ResourceFreshnessAudit{entry},
+			TotalCount: 1,
+			Page:       1,
+			PerPage:    20,
+		}, nil)
+
+	resp := doFreshnessGet(t, svc, freshnessAuditPath)
+
+	entries, ok := resp["entries"].([]any)
+	require.True(t, ok)
+	require.Len(t, entries, 1)
+	row, ok := entries[0].(map[string]any)
+	require.True(t, ok)
+
+	_, hasSlug := row["slug"]
+	assert.False(t, hasSlug, "a deleted resource omits slug rather than sending an empty one")
+	_, hasProject := row["project_id"]
+	assert.False(t, hasProject, "a deleted resource omits project_id rather than sending a zero UUID")
+}
+
+// A project_id that is not a UUID is a converter bug, not a client error, and
+// must surface as a failure rather than being silently dropped from the payload.
+func TestListFreshnessAudit_InvalidProjectIDIsAnError(t *testing.T) {
+	svc := servicesmocks.NewMockFreshnessServiceInterface(t)
+	entry := sampleAuditEntry(nil, models.FreshnessActionMarked, models.FreshnessReasonRuleRun)
+	bad := "not-a-uuid"
+	entry.ProjectID = &bad
+	svc.EXPECT().ListAudit(mock.Anything, testFreshnessTeamID, 1, 20).
+		Return(&models.FreshnessAuditPage{
+			Entries:    []*models.ResourceFreshnessAudit{entry},
+			TotalCount: 1,
+			Page:       1,
+			PerPage:    20,
+		}, nil)
+
+	srv := createTestFreshnessServer(svc)
+	req := makeFreshnessRequest(http.MethodGet, freshnessAuditPath, "")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code, "body: %s", w.Body.String())
 }
 
 // Explicit paging must reach the service unchanged, and a page past the end
