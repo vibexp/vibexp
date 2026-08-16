@@ -293,10 +293,26 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 		stats.ActivitiesToday = 0
 	}
 
-	// Get activities this week
+	// Get activities this week.
+	//
+	// The anchor is `now() AT TIME ZONE 'UTC'` -- already a naive timestamp in
+	// UTC -- so DATE_TRUNC returns `timestamp without time zone` and compares
+	// against the naive column with no conversion on either side. CURRENT_DATE
+	// was today's date in the SESSION timezone, so on a server east of UTC the
+	// week could start a day late and exclude rows the today-count above still
+	// included: measured under Pacific/Auckland at 2026-08-16 20:00 UTC (Sunday
+	// UTC, Monday locally), one activity at 2026-08-16 05:00 gave
+	// activities_today = 1 and activities_this_week = 0 (#798).
+	//
+	// Do NOT write DATE_TRUNC('week', (now() AT TIME ZONE 'UTC')::date):
+	// date_trunc has no `date` overload, so the argument is promoted to
+	// TIMESTAMPTZ and the boundary becomes session-dependent again (verified
+	// with pg_typeof). It happens to give the right answer because the
+	// column's implicit conversion cancels it out, but it reintroduces exactly
+	// the naive-vs-aware comparison this issue removes.
 	err = r.db.QueryRowContext(
 		ctx,
-		"SELECT COUNT(*) FROM activities WHERE user_id = $1 AND created_at >= DATE_TRUNC('week', CURRENT_DATE)",
+		"SELECT COUNT(*) FROM activities WHERE user_id = $1 AND created_at >= DATE_TRUNC('week', now() AT TIME ZONE 'UTC')",
 		userID,
 	).Scan(&stats.ActivitiesThisWeek)
 	if err != nil {
@@ -326,7 +342,7 @@ func (r *activityRepository) queryTopActivityTypes(ctx context.Context, userID s
 	topActivityTypesQuery := `
 		SELECT activity_type, COUNT(*) as count
 		FROM activities
-		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+		WHERE user_id = $1 AND created_at >= (now() AT TIME ZONE 'UTC')::date - INTERVAL '30 days'
 		GROUP BY activity_type
 		ORDER BY count DESC
 		LIMIT 5`
@@ -358,7 +374,7 @@ func (r *activityRepository) queryTopEntityTypes(ctx context.Context, userID str
 	topEntityTypesQuery := `
 		SELECT entity_type, COUNT(*) as count
 		FROM activities
-		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+		WHERE user_id = $1 AND created_at >= (now() AT TIME ZONE 'UTC')::date - INTERVAL '30 days'
 		GROUP BY entity_type
 		ORDER BY count DESC
 		LIMIT 5`
@@ -451,11 +467,11 @@ func (r *activityRepository) queryActivitiesByDateWeek(
 	// the rule admin_dashboard.go documents; do not "fix" it to match its
 	// TIMESTAMPTZ neighbours (#773).
 	activitiesByDateQuery := `
-		SELECT DATE(created_at) as date, COUNT(*) as count
+		SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD') as date, COUNT(*) as count
 		FROM activities
-		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 days'
+		WHERE user_id = $1 AND created_at >= (now() AT TIME ZONE 'UTC')::date - INTERVAL '7 days'
 		GROUP BY DATE(created_at)
-		ORDER BY date DESC`
+		ORDER BY DATE(created_at) DESC`
 
 	rows, err := r.db.QueryContext(ctx, activitiesByDateQuery, userID)
 	if err != nil {

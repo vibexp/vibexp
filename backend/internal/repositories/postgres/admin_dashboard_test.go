@@ -177,12 +177,13 @@ func TestAdminGrowthQuery_NormalizesBothTimestampFamilies(t *testing.T) {
 		}
 	}()
 
-	// Aware branch: converted for bucketing, raw column in the predicate.
+	// Aware branch: converted for bucketing, raw column in the predicate, bounded
+	// by the shared $1/$2.
 	mock.ExpectQuery(
 		`date_trunc\('day', created_at AT TIME ZONE 'UTC'\) AS bucket FROM users `+
 			`WHERE created_at >= \$1 AND created_at < \$2`,
 	).
-		WithArgs(dashFrom, dashTo).
+		WithArgs(dashFrom, dashTo, dashFrom.UTC(), dashTo.UTC()).
 		WillReturnRows(sqlmock.NewRows([]string{"entity", "bucket", "count"}).
 			AddRow("users", dashFrom, 3))
 
@@ -190,8 +191,14 @@ func TestAdminGrowthQuery_NormalizesBothTimestampFamilies(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 
-	// Naive branch: NOT converted, and bounded with an explicit ::timestamp cast
-	// so the comparison is independent of the session timezone.
+	// Naive branch: NOT converted, and bounded by its OWN $3/$4 rather than the
+	// $1/$2 the aware branches use. The separate placeholder is the load-bearing
+	// part, not the ::timestamp cast: $1 also bounds five timestamptz columns in
+	// this statement, so Postgres infers it as timestamptz and casting it back
+	// happens in the SESSION timezone, dropping every naive row within the
+	// session's offset of the window edge. Measured under Pacific/Auckland
+	// before the split: an aware row and a naive row at the same instant, with
+	// the window starting at that instant, came back 1 and 0 (#798).
 	repo2, mock2, mockDB2 := newAdminRepoMock(t)
 	defer func() {
 		if closeErr := mockDB2.Close(); closeErr != nil {
@@ -200,9 +207,9 @@ func TestAdminGrowthQuery_NormalizesBothTimestampFamilies(t *testing.T) {
 	}()
 	mock2.ExpectQuery(
 		`SELECT 'memories', date_trunc\('day', created_at\) FROM memories `+
-			`WHERE created_at >= \$1::timestamp AND created_at < \$2::timestamp`,
+			`WHERE created_at >= \$3::timestamp AND created_at < \$4::timestamp`,
 	).
-		WithArgs(dashFrom, dashTo).
+		WithArgs(dashFrom, dashTo, dashFrom.UTC(), dashTo.UTC()).
 		WillReturnRows(sqlmock.NewRows([]string{"entity", "bucket", "count"}))
 
 	_, err = repo2.GetGrowthSeries(context.Background(), dashFrom, dashTo, "day")
