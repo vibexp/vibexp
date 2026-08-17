@@ -353,6 +353,11 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 		logger.Warn("SESSION_ENCRYPTION_KEY not set; session cookie auth disabled (stub/test mode)")
 	}
 
+	// Build the embedded Authorization Server first so both it and the API-surface
+	// token verifier share the same handle: when the API trusts the AS as its
+	// issuer, the verifier uses the AS's in-process keys (see newAPITokenVerifier).
+	oauthAS := newOAuthAuthorizationServer(cfg, db, c, logger)
+
 	s := &Server{
 		router:                r,
 		port:                  port,
@@ -365,9 +370,9 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 		tracer:                appTracer,
 		logger:                logger,
 		sessionManager:        sessMgr,
-		apiTokenVerifier:      newAPITokenVerifier(cfg, c, logger),
+		apiTokenVerifier:      newAPITokenVerifier(cfg, c, logger, oauthAS),
 		attachmentAuthorizers: setupAttachmentAuthorizers(c),
-		oauthAS:               newOAuthAuthorizationServer(cfg, db, c, logger),
+		oauthAS:               oauthAS,
 		spaFS:                 embeddedSPAFS(),
 	}
 
@@ -451,7 +456,9 @@ func setupAttachmentAuthorizers(c container.Container) *services.AttachmentAutho
 // newAPITokenVerifier builds the API-surface AuthKit JWT verifier. When
 // API_OAUTH_ISSUER is empty it returns nil and the auth middleware keeps
 // rejecting non-API-key bearer tokens, preserving pre-mobile behavior.
-func newAPITokenVerifier(cfg *config.Config, c container.Container, logger *slog.Logger) *authkit.Verifier {
+func newAPITokenVerifier(
+	cfg *config.Config, c container.Container, logger *slog.Logger, oauthAS *oauthserver.Service,
+) *authkit.Verifier {
 	if cfg.Auth.APIAuth.Issuer == "" {
 		return nil
 	}
@@ -461,6 +468,7 @@ func newAPITokenVerifier(cfg *config.Config, c container.Container, logger *slog
 		cfg.Auth.APIAuth.Issuer,
 		apiAudiencePolicy(cfg.Auth.APIAuth.Audiences, cfg.MCP.ResourceURI),
 		userResolverAdapter{users: c.UserRepository()},
+		apiVerifierKeySetOptions(cfg, oauthAS)...,
 	)
 	if err != nil {
 		logger.With(
@@ -471,6 +479,22 @@ func newAPITokenVerifier(cfg *config.Config, c container.Container, logger *slog
 	}
 	logger.Info("API OAuth bearer JWT authentication enabled")
 	return verifier
+}
+
+// apiVerifierKeySetOptions selects how the API-surface verifier obtains its
+// verification keys. When the embedded Authorization Server is enabled AND the
+// API issuer is that AS (the zero-config default wired by applyAPIOAuthDefaults),
+// verify its tokens against the AS's in-process signing keys instead of fetching
+// JWKS over HTTP from the public issuer URL — the same fix as the MCP resource
+// server, so a self-hosted native-CLI login works even when the container
+// publishes a host port different from the one it listens on. When the API issuer
+// is an external IdP (api_oauth.issuer set to a different value), the keys must
+// come from that IdP, so the default JWKS-over-HTTP path is kept.
+func apiVerifierKeySetOptions(cfg *config.Config, oauthAS *oauthserver.Service) []authkit.Option {
+	if oauthAS != nil && cfg.Auth.APIAuth.Issuer == cfg.Auth.OAuthAS.IssuerURL {
+		return []authkit.Option{authkit.WithKeySet(authkit.NewLocalKeySet(oauthAS.VerificationPublicKeys))}
+	}
+	return nil
 }
 
 // apiAudiencePolicy selects the audience policy for the API surface. A

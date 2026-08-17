@@ -2,6 +2,7 @@ package authkit
 
 import (
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -10,6 +11,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -131,6 +133,132 @@ func TestVerify_ValidToken(t *testing.T) {
 	assert.Equal(t, testSubject, info.Subject)
 	assert.Equal(t, []string{"openid", "mcp"}, info.Scopes)
 	assert.False(t, info.Expiration.IsZero())
+}
+
+// TestVerify_WithInProcessKeySet exercises WithKeySet(NewLocalKeySet(...)): the
+// embedded Authorization Server verifies its own tokens against in-process public
+// keys, with no HTTP JWKS fetch — so verification does not depend on the issuer
+// URL being reachable from within the process (the localhost port-mismatch case).
+func TestVerify_WithInProcessKeySet(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	// An issuer whose JWKS endpoint fails the test if it is ever hit: verification
+	// must use the in-process key set, never an HTTP fetch to
+	// <issuer>/oauth2/jwks.json.
+	jwksSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("JWKS was fetched over HTTP: %s", r.URL.Path)
+		http.Error(w, "in-process key set must not fetch JWKS", http.StatusInternalServerError)
+	}))
+	t.Cleanup(jwksSrv.Close)
+	issuer := jwksSrv.URL
+	getKeys := func(context.Context) ([]crypto.PublicKey, error) {
+		return []crypto.PublicKey{key.Public()}, nil
+	}
+	v, err := New(
+		context.Background(),
+		issuer,
+		RequireAudience(testResource),
+		stubResolver{id: testInternalID},
+		WithKeySet(NewLocalKeySet(getKeys)),
+	)
+	require.NoError(t, err)
+
+	sign := func(k *rsa.PrivateKey) string {
+		tok := jwt.NewWithClaims(jwt.SigningMethodRS256, validClaims(issuer))
+		tok.Header["kid"] = testKeyID
+		s, serr := tok.SignedString(k)
+		require.NoError(t, serr)
+		return s
+	}
+
+	// A token signed by the trusted key verifies in-process.
+	info, err := v.Verify(context.Background(), sign(key))
+	require.NoError(t, err)
+	require.NotNil(t, info)
+	assert.Equal(t, testInternalID, info.UserID)
+	assert.Equal(t, []string{"openid", "mcp"}, info.Scopes)
+
+	// A token signed by a different key is rejected (signature failure).
+	other, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	_, err = v.Verify(context.Background(), sign(other))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrInvalidToken))
+}
+
+// TestVerify_KeyRetrievalError verifies that a failure to obtain the in-process
+// keys (e.g. a transient DB error in KeyManager.PublicJWKS) surfaces as the
+// infrastructure error ErrKeyRetrieval — NOT ErrInvalidToken. Collapsing it into
+// ErrInvalidToken would emit a 401, telling clients their token is invalid
+// (RFC 6750 §3.1) and kicking every MCP client into a spurious re-auth loop on a
+// transient key-store blip.
+func TestVerify_KeyRetrievalError(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	const issuer = "http://localhost:8081"
+	dbErr := errors.New("dial tcp 127.0.0.1:5432: connect: connection refused")
+	getKeys := func(context.Context) ([]crypto.PublicKey, error) {
+		return nil, dbErr
+	}
+	v, err := New(
+		context.Background(),
+		issuer,
+		RequireAudience(testResource),
+		stubResolver{id: testInternalID},
+		WithKeySet(NewLocalKeySet(getKeys)),
+	)
+	require.NoError(t, err)
+
+	// A well-formed RS256 token (passes the alg pin, so verification reaches the
+	// key set where getKeys fails — proving the classification is about key
+	// retrieval, not a malformed/expired token).
+	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, validClaims(issuer))
+	tok.Header["kid"] = testKeyID
+	signed, err := tok.SignedString(key)
+	require.NoError(t, err)
+
+	_, err = v.Verify(context.Background(), signed)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrKeyRetrieval), "key-store failure must surface as ErrKeyRetrieval (→ 500)")
+	assert.False(t, errors.Is(err, ErrInvalidToken), "key-store failure must NOT be an auth failure (→ 401)")
+}
+
+// TestLocalKeySet_CachesKeys verifies the in-process key set caches keys instead
+// of fetching them on every verification: Verify reaches the key set before the
+// issuer/audience/subject checks, so an uncached getKeys would let any caller
+// sending an RS256-shaped JWT force a key-store read per request.
+func TestLocalKeySet_CachesKeys(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	var fetches int32
+	getKeys := func(context.Context) ([]crypto.PublicKey, error) {
+		atomic.AddInt32(&fetches, 1)
+		return []crypto.PublicKey{key.Public()}, nil
+	}
+	const issuer = "http://localhost:8081"
+	v, err := New(
+		context.Background(),
+		issuer,
+		RequireAudience(testResource),
+		stubResolver{id: testInternalID},
+		WithKeySet(NewLocalKeySet(getKeys)),
+	)
+	require.NoError(t, err)
+
+	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, validClaims(issuer))
+	tok.Header["kid"] = testKeyID
+	signed, err := tok.SignedString(key)
+	require.NoError(t, err)
+
+	for i := 0; i < 5; i++ {
+		_, verr := v.Verify(context.Background(), signed)
+		require.NoError(t, verr)
+	}
+	assert.Equal(t, int32(1), atomic.LoadInt32(&fetches),
+		"keys must be cached across verifications, not fetched per request")
 }
 
 func TestVerify_AudienceAsArray(t *testing.T) {

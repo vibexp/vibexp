@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/auth/authkit"
+	"github.com/vibexp/vibexp/internal/auth/oauthserver"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
@@ -424,13 +425,44 @@ func TestNewAPITokenVerifier_Activation(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	t.Run("no issuer: nil verifier", func(t *testing.T) {
-		v := newAPITokenVerifier(&config.Config{}, &teamsAPIKeyContainer{}, logger)
+		v := newAPITokenVerifier(&config.Config{}, &teamsAPIKeyContainer{}, logger, nil)
 		assert.Nil(t, v)
 	})
 
 	t.Run("issuer set: verifier constructed", func(t *testing.T) {
 		cfg := &config.Config{Auth: config.AuthConfig{APIAuth: config.APIOAuthConfig{Issuer: "https://issuer.example"}}}
-		v := newAPITokenVerifier(cfg, &teamsAPIKeyContainer{}, logger)
+		v := newAPITokenVerifier(cfg, &teamsAPIKeyContainer{}, logger, nil)
 		assert.NotNil(t, v)
+	})
+}
+
+// TestAPIVerifierKeySetOptions pins the /api/v1 key-anchor wiring: when the API
+// issuer is the embedded AS, verify against its in-process keys (same #791 fix as
+// MCP); when the AS is disabled, or the API issuer is a different (external) IdP,
+// keep the default HTTP JWKS path. (That the in-process key set avoids an HTTP
+// fetch is proven by authkit.TestVerify_WithInProcessKeySet.)
+func TestAPIVerifierKeySetOptions(t *testing.T) {
+	const asIssuer = "http://localhost:8081"
+
+	t.Run("AS disabled: default HTTP path", func(t *testing.T) {
+		cfg := &config.Config{Auth: config.AuthConfig{APIAuth: config.APIOAuthConfig{Issuer: asIssuer}}}
+		assert.Empty(t, apiVerifierKeySetOptions(cfg, nil))
+	})
+
+	t.Run("API issuer is the embedded AS: in-process keys", func(t *testing.T) {
+		cfg := &config.Config{Auth: config.AuthConfig{
+			OAuthAS: config.OAuthASConfig{IssuerURL: asIssuer},
+			APIAuth: config.APIOAuthConfig{Issuer: asIssuer},
+		}}
+		assert.Len(t, apiVerifierKeySetOptions(cfg, &oauthserver.Service{}), 1)
+	})
+
+	t.Run("external IdP issuer: default HTTP path even with AS enabled", func(t *testing.T) {
+		cfg := &config.Config{Auth: config.AuthConfig{
+			OAuthAS: config.OAuthASConfig{IssuerURL: asIssuer},
+			APIAuth: config.APIOAuthConfig{Issuer: "https://idp.example.com"},
+		}}
+		assert.Empty(t, apiVerifierKeySetOptions(cfg, &oauthserver.Service{}),
+			"an external IdP issuer must not be verified against the embedded AS's keys")
 	})
 }

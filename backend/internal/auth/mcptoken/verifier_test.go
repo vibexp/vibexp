@@ -2,6 +2,7 @@ package mcptoken
 
 import (
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -19,6 +20,7 @@ import (
 
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 
+	"github.com/vibexp/vibexp/internal/auth/authkit"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
@@ -277,6 +279,30 @@ func TestVerify_InfraErrorNotInvalidToken(t *testing.T) {
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, mcpauth.ErrInvalidToken),
 			"unknown subject is an auth failure → 401")
+	})
+
+	t.Run("key-retrieval infra error does not unwrap to ErrInvalidToken", func(t *testing.T) {
+		// In-process key set whose key fetch fails (e.g. KeyManager.PublicJWKS
+		// hitting a transient DB error). This must map to 500, not 401.
+		getKeys := func(context.Context) ([]crypto.PublicKey, error) {
+			return nil, errors.New("connection refused")
+		}
+		v, err := New(
+			context.Background(),
+			j.issuer(),
+			testResourceURI,
+			stubResolver{id: testInternalID},
+			authkit.WithKeySet(authkit.NewLocalKeySet(getKeys)),
+		)
+		require.NoError(t, err)
+		token := j.sign(t, validClaims(j.issuer()))
+
+		_, err = v.Verify(context.Background(), token, httptest.NewRequest(http.MethodGet, "/", nil))
+		require.Error(t, err)
+		assert.False(t, errors.Is(err, mcpauth.ErrInvalidToken),
+			"key-store infra errors must not unwrap to ErrInvalidToken (would yield 401, not 500)")
+		assert.NotContains(t, err.Error(), "connection refused",
+			"raw infra detail must not leak into the client-facing error")
 	})
 }
 

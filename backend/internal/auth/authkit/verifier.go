@@ -8,10 +8,12 @@ package authkit
 
 import (
 	"context"
+	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -32,6 +34,15 @@ var ErrInvalidToken = errors.New("authkit: invalid token")
 // Callers map it to a 500, never a 401. A genuinely unknown subject is an auth
 // failure and is reported as ErrInvalidToken instead.
 var ErrUserResolution = errors.New("authkit: user resolution failed")
+
+// ErrKeyRetrieval signals that obtaining the verification keys failed for an
+// infrastructure reason (e.g. a transient database error while an in-process key
+// set reads the Authorization Server's signing keys — see NewLocalKeySet). Like
+// ErrUserResolution it is NOT an authentication failure: callers map it to a
+// 500, never a 401. Collapsing it into ErrInvalidToken would tell the client its
+// token is invalid (RFC 6750 §3.1), pushing every MCP client into a spurious
+// re-auth loop on a transient key-store blip.
+var ErrKeyRetrieval = errors.New("authkit: verification key retrieval failed")
 
 // ErrUnknownSubject is the ErrInvalidToken sub-case for a cryptographically
 // valid token whose subject does not resolve to a provisioned user. It is
@@ -147,16 +158,41 @@ type TokenInfo struct {
 // Verifier validates AuthKit-issued access tokens for a single issuer and
 // audience policy.
 type Verifier struct {
-	keys     *oidc.RemoteKeySet
+	keys     oidc.KeySet
 	issuer   string
 	audience AudiencePolicy
 	resolver UserResolver
 }
 
-// New constructs a Verifier. It creates a caching JWKS key set pointed at the
-// issuer's JWKS endpoint (<issuer>/oauth2/jwks.json). issuer must be non-empty;
+// Option customizes a Verifier constructed by New.
+type Option func(*options)
+
+type options struct {
+	keySet oidc.KeySet
+}
+
+// WithKeySet overrides the default JWKS-over-HTTP key set with a caller-supplied
+// one. VibeXP's embedded Authorization Server uses this to verify its own tokens
+// with in-process public keys (see NewLocalKeySet) instead of an HTTP round-trip
+// to <issuer>/oauth2/jwks.json — that public issuer URL need not be reachable
+// from within the server (e.g. when the container publishes a host port that
+// differs from the one it listens on). The issuer string is still used for the
+// `iss` claim check.
+func WithKeySet(ks oidc.KeySet) Option {
+	return func(o *options) { o.keySet = ks }
+}
+
+// New constructs a Verifier. By default it creates a caching JWKS key set pointed
+// at the issuer's JWKS endpoint (<issuer>/oauth2/jwks.json); pass WithKeySet to
+// verify against an in-process key set instead. issuer must be non-empty;
 // audience and resolver must be non-nil.
-func New(ctx context.Context, issuer string, audience AudiencePolicy, resolver UserResolver) (*Verifier, error) {
+func New(
+	ctx context.Context,
+	issuer string,
+	audience AudiencePolicy,
+	resolver UserResolver,
+	opts ...Option,
+) (*Verifier, error) {
 	if issuer == "" {
 		return nil, fmt.Errorf("authkit: issuer is required")
 	}
@@ -167,12 +203,115 @@ func New(ctx context.Context, issuer string, audience AudiencePolicy, resolver U
 		return nil, fmt.Errorf("authkit: user resolver is required")
 	}
 
+	var cfg options
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	keys := cfg.keySet
+	if keys == nil {
+		keys = oidc.NewRemoteKeySet(ctx, jwksURL(issuer))
+	}
+
 	return &Verifier{
-		keys:     oidc.NewRemoteKeySet(ctx, jwksURL(issuer)),
+		keys:     keys,
 		issuer:   issuer,
 		audience: audience,
 		resolver: resolver,
 	}, nil
+}
+
+const (
+	// localKeySetTTL bounds how long the cached verification keys are served
+	// before a proactive re-fetch. It caps how long a just-pruned key stays
+	// accepted and is far under any access-token TTL.
+	localKeySetTTL = 60 * time.Second
+	// localKeySetRefreshBackoff rate-limits the reactive re-fetch triggered when a
+	// token fails to verify against the cached keys (typically a just-rotated
+	// signing key not yet fetched). It bounds key-store load: a flood of invalid
+	// tokens forces at most one re-fetch per backoff window.
+	localKeySetRefreshBackoff = 5 * time.Second
+)
+
+// NewLocalKeySet builds an oidc.KeySet that verifies RS256 JWTs against public
+// keys obtained in-process (no HTTP request), caching them the way
+// oidc.RemoteKeySet does. getKeys must return the verification public keys
+// currently trusted for the issuer — for the embedded Authorization Server that
+// is its active key plus any retired-but-not-pruned keys, so a token signed just
+// before a key rotation still verifies.
+//
+// The keys are cached for localKeySetTTL and re-fetched proactively after that;
+// a verification miss (e.g. a brand-new key from a rotation) triggers a
+// rate-limited reactive re-fetch, so a rotation is picked up within
+// localKeySetRefreshBackoff — WITHOUT a key-store round-trip on every request.
+// That matters because Verify reaches the key set before the issuer, audience,
+// and subject checks, so an uncached fetch would let any unauthenticated caller
+// sending an RS256-shaped JWT force a database read per request.
+func NewLocalKeySet(getKeys func(context.Context) ([]crypto.PublicKey, error)) oidc.KeySet {
+	return &localKeySet{getKeys: getKeys}
+}
+
+type localKeySet struct {
+	getKeys func(context.Context) ([]crypto.PublicKey, error)
+
+	mu        sync.Mutex
+	cached    []crypto.PublicKey
+	fetchedAt time.Time
+	loaded    bool
+}
+
+// load returns the cached keys, re-fetching from getKeys only when the cache is
+// empty or older than maxAge. The bool reports whether a fetch actually ran (so
+// callers can avoid retrying a verification against unchanged keys).
+func (l *localKeySet) load(ctx context.Context, maxAge time.Duration) ([]crypto.PublicKey, bool, error) {
+	l.mu.Lock()
+	if l.loaded && time.Since(l.fetchedAt) < maxAge {
+		keys := l.cached
+		l.mu.Unlock()
+		return keys, false, nil
+	}
+	l.mu.Unlock()
+
+	// Fetch outside the lock so a slow key store does not serialize verifications.
+	keys, err := l.getKeys(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	l.mu.Lock()
+	l.cached, l.fetchedAt, l.loaded = keys, time.Now(), true
+	l.mu.Unlock()
+	return keys, true, nil
+}
+
+func (l *localKeySet) VerifySignature(ctx context.Context, token string) ([]byte, error) {
+	keys, _, err := l.load(ctx, localKeySetTTL)
+	if err != nil {
+		return nil, l.retrievalError(ctx, err)
+	}
+	payload, verifyErr := (&oidc.StaticKeySet{PublicKeys: keys}).VerifySignature(ctx, token)
+	if verifyErr == nil {
+		return payload, nil
+	}
+	// The signature matched no cached key. A rotation may have added a signing key
+	// we have not fetched yet: re-fetch (rate-limited) and retry once. If nothing
+	// was re-fetched (cache still within the backoff window) the token is simply
+	// invalid — do not hit the key store again.
+	refreshed, refetched, err := l.load(ctx, localKeySetRefreshBackoff)
+	if err != nil {
+		return nil, l.retrievalError(ctx, err)
+	}
+	if !refetched {
+		return nil, verifyErr
+	}
+	return (&oidc.StaticKeySet{PublicKeys: refreshed}).VerifySignature(ctx, token)
+}
+
+// retrievalError logs the underlying key-store failure (with detail) and returns
+// the opaque ErrKeyRetrieval sentinel, so Verify keeps it out of ErrInvalidToken
+// and it surfaces as a 5xx rather than a 401.
+func (l *localKeySet) retrievalError(ctx context.Context, err error) error {
+	contextkeys.GetLoggerFromContext(ctx).
+		Error("AuthKit in-process key retrieval failed (infrastructure error)", "error", err)
+	return ErrKeyRetrieval
 }
 
 // jwksURL returns the JWKS endpoint for an issuer. VibeXP's embedded OAuth 2.1
@@ -185,9 +324,9 @@ func jwksURL(issuer string) string {
 
 // Verify validates the token signature and claims and resolves the subject to
 // an internal user. Authentication failures unwrap to ErrInvalidToken;
-// infrastructure failures during subject resolution unwrap to
-// ErrUserResolution. Error messages stay opaque — no claim or infrastructure
-// detail is included beyond the failure category.
+// infrastructure failures unwrap to ErrKeyRetrieval (obtaining the verification
+// keys) or ErrUserResolution (resolving the subject). Error messages stay opaque
+// — no claim or infrastructure detail is included beyond the failure category.
 func (v *Verifier) Verify(ctx context.Context, token string) (*TokenInfo, error) {
 	if err := assertSigningAlg(token); err != nil {
 		return nil, err
@@ -195,6 +334,12 @@ func (v *Verifier) Verify(ctx context.Context, token string) (*TokenInfo, error)
 
 	payload, err := v.keys.VerifySignature(ctx, token)
 	if err != nil {
+		// A failure to obtain the verification keys (e.g. an in-process key set
+		// hitting a transient DB error) is infrastructure, not a bad token: keep
+		// it as ErrKeyRetrieval (→ 500) rather than collapsing it into a 401.
+		if errors.Is(err, ErrKeyRetrieval) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("%w: signature verification failed", ErrInvalidToken)
 	}
 
