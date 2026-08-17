@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -142,10 +143,15 @@ func TestVerify_WithInProcessKeySet(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
-	// An issuer URL deliberately not backed by any HTTP server: if verification
-	// tried to fetch <issuer>/oauth2/jwks.json it would fail, proving the local
-	// key set is used.
-	const issuer = "http://localhost:8081"
+	// An issuer whose JWKS endpoint fails the test if it is ever hit: verification
+	// must use the in-process key set, never an HTTP fetch to
+	// <issuer>/oauth2/jwks.json.
+	jwksSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("JWKS was fetched over HTTP: %s", r.URL.Path)
+		http.Error(w, "in-process key set must not fetch JWKS", http.StatusInternalServerError)
+	}))
+	t.Cleanup(jwksSrv.Close)
+	issuer := jwksSrv.URL
 	getKeys := func(context.Context) ([]crypto.PublicKey, error) {
 		return []crypto.PublicKey{key.Public()}, nil
 	}
@@ -217,6 +223,42 @@ func TestVerify_KeyRetrievalError(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrKeyRetrieval), "key-store failure must surface as ErrKeyRetrieval (→ 500)")
 	assert.False(t, errors.Is(err, ErrInvalidToken), "key-store failure must NOT be an auth failure (→ 401)")
+}
+
+// TestLocalKeySet_CachesKeys verifies the in-process key set caches keys instead
+// of fetching them on every verification: Verify reaches the key set before the
+// issuer/audience/subject checks, so an uncached getKeys would let any caller
+// sending an RS256-shaped JWT force a key-store read per request.
+func TestLocalKeySet_CachesKeys(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	var fetches int32
+	getKeys := func(context.Context) ([]crypto.PublicKey, error) {
+		atomic.AddInt32(&fetches, 1)
+		return []crypto.PublicKey{key.Public()}, nil
+	}
+	const issuer = "http://localhost:8081"
+	v, err := New(
+		context.Background(),
+		issuer,
+		RequireAudience(testResource),
+		stubResolver{id: testInternalID},
+		WithKeySet(NewLocalKeySet(getKeys)),
+	)
+	require.NoError(t, err)
+
+	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, validClaims(issuer))
+	tok.Header["kid"] = testKeyID
+	signed, err := tok.SignedString(key)
+	require.NoError(t, err)
+
+	for i := 0; i < 5; i++ {
+		_, verr := v.Verify(context.Background(), signed)
+		require.NoError(t, verr)
+	}
+	assert.Equal(t, int32(1), atomic.LoadInt32(&fetches),
+		"keys must be cached across verifications, not fetched per request")
 }
 
 func TestVerify_AudienceAsArray(t *testing.T) {

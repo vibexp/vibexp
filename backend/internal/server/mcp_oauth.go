@@ -216,23 +216,34 @@ func (s *Server) newMCPTokenVerifier() (*mcptoken.Verifier, error) {
 		return nil, nil
 	}
 	resolver := mcpUserResolverAdapter{users: s.container.UserRepository()}
-	// The MCP resource server and the embedded Authorization Server run in the
-	// same process, so verify AS-issued tokens against the AS's in-process signing
-	// keys rather than fetching JWKS over HTTP from the public issuer URL — that
-	// URL need not be reachable from within the server (e.g. when the container
-	// publishes a host port different from the one it listens on). The MCP issuer
-	// is always this embedded AS.
-	var opts []authkit.Option
-	if s.oauthAS != nil {
-		opts = append(opts, authkit.WithKeySet(authkit.NewLocalKeySet(s.oauthAS.VerificationPublicKeys)))
-	}
 	return mcptoken.New(
 		context.Background(),
 		s.config.MCP.OAuthIssuer,
 		s.config.MCP.ResourceURI,
 		resolver,
-		opts...,
+		mcpVerifierKeySetOptions(s.oauthAS)...,
 	)
+}
+
+// mcpVerifierKeySetOptions selects how the MCP resource server obtains its token
+// verification keys.
+//
+// When the embedded Authorization Server is enabled it and the MCP resource
+// server run in the same process, and validateOAuthASConfig guarantees
+// mcp.oauth_issuer equals the AS issuer — so verify AS-issued tokens against the
+// AS's in-process signing keys instead of fetching JWKS over HTTP from the public
+// issuer URL, which need not be reachable from within the server (e.g. when the
+// container publishes a host port different from the one it listens on).
+//
+// When the AS is disabled, as is nil: mcp.oauth_issuer then points at an external
+// IdP and the default JWKS-over-HTTP path (authkit.New's RemoteKeySet) applies.
+// That is exactly why the nil check exists — dropping it would point external-IdP
+// deploys at the wrong trust anchor and 401 every MCP token.
+func mcpVerifierKeySetOptions(as *oauthserver.Service) []authkit.Option {
+	if as == nil {
+		return nil
+	}
+	return []authkit.Option{authkit.WithKeySet(authkit.NewLocalKeySet(as.VerificationPublicKeys))}
 }
 
 // mcpProtectedResourceMetadataHandler serves the RFC 9728 protected-resource

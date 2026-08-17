@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -219,31 +220,98 @@ func New(
 	}, nil
 }
 
+const (
+	// localKeySetTTL bounds how long the cached verification keys are served
+	// before a proactive re-fetch. It caps how long a just-pruned key stays
+	// accepted and is far under any access-token TTL.
+	localKeySetTTL = 60 * time.Second
+	// localKeySetRefreshBackoff rate-limits the reactive re-fetch triggered when a
+	// token fails to verify against the cached keys (typically a just-rotated
+	// signing key not yet fetched). It bounds key-store load: a flood of invalid
+	// tokens forces at most one re-fetch per backoff window.
+	localKeySetRefreshBackoff = 5 * time.Second
+)
+
 // NewLocalKeySet builds an oidc.KeySet that verifies RS256 JWTs against public
-// keys obtained in-process, with no HTTP request. getKeys must return the
-// verification public keys currently trusted for the issuer — for the embedded
-// Authorization Server that is its active key plus any retired-but-not-pruned
-// keys, so a token signed just before a key rotation still verifies. getKeys is
-// consulted on every verification, so rotations take effect immediately.
+// keys obtained in-process (no HTTP request), caching them the way
+// oidc.RemoteKeySet does. getKeys must return the verification public keys
+// currently trusted for the issuer — for the embedded Authorization Server that
+// is its active key plus any retired-but-not-pruned keys, so a token signed just
+// before a key rotation still verifies.
+//
+// The keys are cached for localKeySetTTL and re-fetched proactively after that;
+// a verification miss (e.g. a brand-new key from a rotation) triggers a
+// rate-limited reactive re-fetch, so a rotation is picked up within
+// localKeySetRefreshBackoff — WITHOUT a key-store round-trip on every request.
+// That matters because Verify reaches the key set before the issuer, audience,
+// and subject checks, so an uncached fetch would let any unauthenticated caller
+// sending an RS256-shaped JWT force a database read per request.
 func NewLocalKeySet(getKeys func(context.Context) ([]crypto.PublicKey, error)) oidc.KeySet {
 	return &localKeySet{getKeys: getKeys}
 }
 
 type localKeySet struct {
 	getKeys func(context.Context) ([]crypto.PublicKey, error)
+
+	mu        sync.Mutex
+	cached    []crypto.PublicKey
+	fetchedAt time.Time
+	loaded    bool
+}
+
+// load returns the cached keys, re-fetching from getKeys only when the cache is
+// empty or older than maxAge. The bool reports whether a fetch actually ran (so
+// callers can avoid retrying a verification against unchanged keys).
+func (l *localKeySet) load(ctx context.Context, maxAge time.Duration) ([]crypto.PublicKey, bool, error) {
+	l.mu.Lock()
+	if l.loaded && time.Since(l.fetchedAt) < maxAge {
+		keys := l.cached
+		l.mu.Unlock()
+		return keys, false, nil
+	}
+	l.mu.Unlock()
+
+	// Fetch outside the lock so a slow key store does not serialize verifications.
+	keys, err := l.getKeys(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	l.mu.Lock()
+	l.cached, l.fetchedAt, l.loaded = keys, time.Now(), true
+	l.mu.Unlock()
+	return keys, true, nil
 }
 
 func (l *localKeySet) VerifySignature(ctx context.Context, token string) ([]byte, error) {
-	keys, err := l.getKeys(ctx)
+	keys, _, err := l.load(ctx, localKeySetTTL)
 	if err != nil {
-		// A key-store failure is an infrastructure error, not a bad signature.
-		// Return ErrKeyRetrieval (logged here with detail, opaque to the caller)
-		// so Verify keeps it out of ErrInvalidToken and it surfaces as a 500.
-		contextkeys.GetLoggerFromContext(ctx).
-			Error("AuthKit in-process key retrieval failed (infrastructure error)", "error", err)
-		return nil, ErrKeyRetrieval
+		return nil, l.retrievalError(ctx, err)
 	}
-	return (&oidc.StaticKeySet{PublicKeys: keys}).VerifySignature(ctx, token)
+	payload, verifyErr := (&oidc.StaticKeySet{PublicKeys: keys}).VerifySignature(ctx, token)
+	if verifyErr == nil {
+		return payload, nil
+	}
+	// The signature matched no cached key. A rotation may have added a signing key
+	// we have not fetched yet: re-fetch (rate-limited) and retry once. If nothing
+	// was re-fetched (cache still within the backoff window) the token is simply
+	// invalid — do not hit the key store again.
+	refreshed, refetched, err := l.load(ctx, localKeySetRefreshBackoff)
+	if err != nil {
+		return nil, l.retrievalError(ctx, err)
+	}
+	if !refetched {
+		return nil, verifyErr
+	}
+	return (&oidc.StaticKeySet{PublicKeys: refreshed}).VerifySignature(ctx, token)
+}
+
+// retrievalError logs the underlying key-store failure (with detail) and returns
+// the opaque ErrKeyRetrieval sentinel, so Verify keeps it out of ErrInvalidToken
+// and it surfaces as a 5xx rather than a 401.
+func (l *localKeySet) retrievalError(ctx context.Context, err error) error {
+	contextkeys.GetLoggerFromContext(ctx).
+		Error("AuthKit in-process key retrieval failed (infrastructure error)", "error", err)
+	return ErrKeyRetrieval
 }
 
 // jwksURL returns the JWKS endpoint for an issuer. VibeXP's embedded OAuth 2.1

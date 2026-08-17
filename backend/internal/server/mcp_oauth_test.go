@@ -579,6 +579,20 @@ func TestAdvertiseChallengeScope(t *testing.T) {
 	})
 }
 
+// TestMCPVerifierKeySetOptions pins the key-anchor wiring: the MCP verifier uses
+// the embedded AS's in-process keys when the AS is enabled, and the default HTTP
+// JWKS path when it is not. Without this, deleting the WithKeySet wiring would
+// leave every other test green while #791 silently returns for self-hosters whose
+// published port differs from the container's internal one. (That the in-process
+// key set actually avoids an HTTP fetch is proven by
+// authkit.TestVerify_WithInProcessKeySet.)
+func TestMCPVerifierKeySetOptions(t *testing.T) {
+	assert.Empty(t, mcpVerifierKeySetOptions(nil),
+		"AS disabled → external IdP: keep the default HTTP JWKS path")
+	assert.Len(t, mcpVerifierKeySetOptions(&oauthserver.Service{}), 1,
+		"AS enabled → pin the verifier to its in-process keys")
+}
+
 // TestUnconfiguredMCPVerifier verifies the fallback verifier rejects every token
 // with an error that unwraps to ErrInvalidToken (so the middleware emits 401).
 func TestUnconfiguredMCPVerifier(t *testing.T) {
