@@ -222,9 +222,11 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   useEffect(() => {
     // Infinite loop guard: if more than 5 renders occur within 200ms, abort.
     const now = Date.now()
-    // First evaluation opens the window here, which is where the old
-    // render-phase `useRef(Date.now())` effectively opened it too — so the
-    // threshold behaviour is unchanged.
+    // First evaluation opens the window here. The old render-phase
+    // `useRef(Date.now())` opened it one commit earlier, so the threshold is
+    // identical whenever the mount commit lands inside the 200ms window — which
+    // it does in practice; only a mount that took longer than the window itself
+    // would differ, and then by a single run.
     renderTimestampRef.current ??= now
     if (now - renderTimestampRef.current < 200) {
       renderCountRef.current += 1

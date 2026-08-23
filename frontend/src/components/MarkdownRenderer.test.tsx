@@ -499,13 +499,14 @@ describe('MarkdownRenderer', () => {
   // The guard (VIBEXP-FRONTEND-JS-3) aborts the render effect after more than
   // five runs inside a 200ms window. Its anchor is seeded lazily on the first
   // evaluation rather than read during render, so these pin the threshold that
-  // change had to preserve. The clock is frozen: with `Date.now()` advancing on
-  // its own, "within 200ms" would be a race.
+  // change had to preserve. `shouldAdvanceTime: false` overrides the repo-wide
+  // default in vitest.config.ts to freeze the clock outright — against a
+  // self-advancing one, "within 200ms" would be a race.
   describe('rapid re-render guard', () => {
     const NOW = new Date('2026-06-20T12:00:00.000Z').getTime()
 
     beforeEach(() => {
-      vi.useFakeTimers()
+      vi.useFakeTimers({ shouldAdvanceTime: false })
       vi.setSystemTime(NOW)
     })
 

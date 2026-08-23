@@ -71,16 +71,16 @@ export default tseslint.config(
       ...jsxA11y.flatConfigs.recommended.rules, // Phase 1: Add A11y
       ...security.configs.recommended.rules,
 
-      // eslint-plugin-react-hooks v7 enables the React Compiler lint rules by
-      // default in `recommended`. Those rules (set-state-in-effect,
-      // immutability, globals, static-components, ...) demand compiler-grade
-      // purity from ordinary components and flag ~90 pre-existing patterns
-      // across the codebase. They are off until the code is deliberately
-      // migrated (#712); the classic rules (rules-of-hooks, exhaustive-deps)
-      // stay on and are what we actually rely on.
+      // eslint-plugin-react-hooks v7's `recommended` enables 16 rules,
+      // including the React Compiler family. This block is a SUBTRACTION from
+      // that set, not the whole story: only the four listed below are off —
+      // they demand compiler-grade purity from ordinary components and flagged
+      // ~90 pre-existing patterns at the #571 bump. Everything else in
+      // `recommended` is enabled and enforced, and #712 tracks migrating the
+      // remaining four off this list one at a time.
       //
-      // Two are NOT in this list and ARE enforced — both are real bug classes
-      // rather than compiler strictness, so keep them on:
+      // Two have already been migrated off it and are deliberately kept on,
+      // because they are real bug classes rather than compiler strictness:
       //   - `react-hooks/refs` (#713): reading or writing `ref.current` during
       //     render, which can tear or serve a value a memo cannot track.
       //   - `react-hooks/purity` (#714): impure calls such as `Date.now()`
