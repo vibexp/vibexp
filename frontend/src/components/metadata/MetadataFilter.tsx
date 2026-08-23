@@ -1,5 +1,5 @@
 import { ChevronsUpDown, Loader2, Plus, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -97,16 +97,15 @@ export function MetadataFilter({
 
   // The host owns activeKey, so seed the draft from whatever key it hands us
   // rather than from the click that requested it — otherwise re-opening on an
-  // existing chip would start with nothing ticked. A ref keeps `value` out of
-  // the dependencies so a re-seed happens only when the key actually changes,
-  // never on top of the user's in-progress toggles.
-  const valueRef = useRef(value)
-  valueRef.current = value
+  // existing chip would start with nothing ticked. An effect event reads the
+  // latest `value` without making it a dependency, so a re-seed happens only
+  // when the key actually changes, never on top of in-progress user toggles.
+  const seedDraftFromValue = useEffectEvent((key: string | null) => {
+    setDraftValues(key === null ? [] : (value[key] ?? []))
+  })
 
   useEffect(() => {
-    setDraftValues(
-      activeKey === null ? [] : (valueRef.current[activeKey] ?? [])
-    )
+    seedDraftFromValue(activeKey)
   }, [activeKey])
 
   const activeKeys = Object.keys(value)

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 /** A filter set: flat string values, so it maps 1:1 onto the query string. */
@@ -30,16 +30,22 @@ export type UrlFilters = Record<string, string | undefined>
  * Updates `replace:` the history entry rather than pushing, so typing in a
  * search box does not bury the previous page under one entry per keystroke.
  *
- * `defaults` is read through a ref, so passing an inline object literal is fine;
- * it is assumed constant for the life of the component.
+ * **The first `defaults` wins.** Callers pass an inline object literal (often
+ * `{ ...FILTER_DEFAULTS }`), so a fresh identity arrives on every render and the
+ * hook cannot treat it as reactive without recomputing `filters` — and a new
+ * `filters` identity on every render would re-fire every fetch effect that
+ * depends on it. It is therefore captured once, on mount, and assumed constant
+ * for the life of the component; a caller needing different defaults should
+ * remount (a `key`) rather than mutate the object it passes.
  */
 export function useUrlFilters<T extends UrlFilters>(defaults: T) {
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const defaultsRef = useRef(defaults)
-  useEffect(() => {
-    defaultsRef.current = defaults
-  }, [defaults])
+  // Captured in state rather than a ref: `filters` is derived during render, so
+  // the defaults it derives from have to be readable during render too, and a
+  // ref's `current` is neither readable there nor trackable as a memo
+  // dependency. State gives one stable object for the component's lifetime.
+  const [initialDefaults] = useState(defaults)
 
   // Key the memo off the serialized query string rather than the
   // `URLSearchParams` instance, which react-router replaces on every render, so
@@ -49,19 +55,18 @@ export function useUrlFilters<T extends UrlFilters>(defaults: T) {
   const filters = useMemo(() => {
     const params = new URLSearchParams(search)
     const resolved: UrlFilters = {}
-    for (const [key, fallback] of Object.entries(defaultsRef.current)) {
+    for (const [key, fallback] of Object.entries(initialDefaults)) {
       resolved[key] = params.get(key) ?? fallback
     }
     return resolved as T
-  }, [search])
+  }, [search, initialDefaults])
 
   const setFilters = useCallback(
     (next: Partial<T>) => {
-      const currentDefaults = defaultsRef.current
       const changesOtherThanPage = Object.keys(next).some(key => key !== 'page')
       const updates: UrlFilters = { ...next }
-      if (changesOtherThanPage && 'page' in currentDefaults) {
-        updates.page = currentDefaults.page
+      if (changesOtherThanPage && 'page' in initialDefaults) {
+        updates.page = initialDefaults.page
       }
 
       setSearchParams(
@@ -70,7 +75,7 @@ export function useUrlFilters<T extends UrlFilters>(defaults: T) {
           for (const [key, value] of Object.entries(updates)) {
             // Empty string, undefined, and "same as the default" all mean
             // "not applied", so none of them belong in the URL.
-            if (!value || value === currentDefaults[key]) {
+            if (!value || value === initialDefaults[key]) {
               params.delete(key)
             } else {
               params.set(key, value)
@@ -81,7 +86,7 @@ export function useUrlFilters<T extends UrlFilters>(defaults: T) {
         { replace: true }
       )
     },
-    [setSearchParams]
+    [setSearchParams, initialDefaults]
   )
 
   const resetFilters = useCallback(() => {
@@ -89,14 +94,14 @@ export function useUrlFilters<T extends UrlFilters>(defaults: T) {
       current => {
         const params = new URLSearchParams(current)
         // Clear only the keys this hook owns; unrelated params survive.
-        for (const key of Object.keys(defaultsRef.current)) {
+        for (const key of Object.keys(initialDefaults)) {
           params.delete(key)
         }
         return params
       },
       { replace: true }
     )
-  }, [setSearchParams])
+  }, [setSearchParams, initialDefaults])
 
   return { filters, setFilters, resetFilters }
 }

@@ -1,5 +1,5 @@
 import { marked } from 'marked'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { promptService } from '../services/promptService'
 
@@ -34,9 +34,19 @@ export function usePromptRenderer(): UsePromptRendererReturn {
   >({})
   const [isLoadingPlaceholders, setIsLoadingPlaceholders] = useState(false)
 
-  // Keep ref to current placeholder values for callbacks
+  // `renderPrompt` is a stable callback that needs the *latest* placeholder
+  // values at call time, so they are mirrored into a ref. The mirror is written
+  // from an effect rather than during render (react-hooks/refs): `renderPrompt`
+  // only ever runs from an event handler, which is strictly after commit, so it
+  // observes the same values a render-phase write would have given it.
+  //
+  // Not `useEffectEvent`: that would read the current render's values directly,
+  // but an effect event may only be called from an Effect or another Effect
+  // Event — never from a callback like this one.
   const placeholderValuesRef = useRef(placeholderValues)
-  placeholderValuesRef.current = placeholderValues
+  useEffect(() => {
+    placeholderValuesRef.current = placeholderValues
+  }, [placeholderValues])
 
   // Render markdown content locally (for basic markdown without backend processing)
   const renderMarkdown = useCallback(

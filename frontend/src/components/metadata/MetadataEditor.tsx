@@ -59,16 +59,33 @@ export function MetadataEditor({
   disabled = false,
   className,
 }: Readonly<MetadataEditorProps>) {
-  const idCounter = useRef(0)
+  // Row ids exist only to key the list and to address a row from a handler, so
+  // the initial ones are derived positionally — the counter below then hands out
+  // ids for rows added later. Seeding the initial rows from `nextId()` instead
+  // would read the counter ref during render (react-hooks/refs).
+  const [rows, setRows] = useState<Row[]>(() =>
+    splitMetadata(value).pairs.map((p, index) => ({
+      id: `metadata-row-${String(index)}`,
+      ...p,
+    }))
+  )
+
+  // Starts past the positional ids handed out above, so the two schemes can
+  // never collide. Only ever advanced from an effect or an event handler.
+  const idCounter = useRef(rows.length)
   const nextId = () => {
     idCounter.current += 1
     return `metadata-row-${String(idCounter.current)}`
   }
 
-  const [rows, setRows] = useState<Row[]>(() =>
-    splitMetadata(value).pairs.map(p => ({ id: nextId(), ...p }))
+  // Non-string entries of `value`, held aside so they survive a round-trip
+  // through the editor. State rather than a ref because `validation` below
+  // derives from it during render: as a ref it was invisible to the memo, which
+  // could therefore keep serving a validation computed against stale extras.
+  const [extras, setExtras] = useState<Record<string, unknown>>(
+    () => splitMetadata(value).extras
   )
-  const extrasRef = useRef<Record<string, unknown>>(splitMetadata(value).extras)
+
   // The last map we handed to onChange. When the host echoes it straight back
   // as `value` we skip the resync effect; a genuinely different `value` (a form
   // reset / async resource load) is an external change and re-seeds the rows.
@@ -76,8 +93,8 @@ export function MetadataEditor({
 
   useEffect(() => {
     if (value === lastEmittedRef.current) return
-    const { pairs, extras } = splitMetadata(value)
-    extrasRef.current = extras
+    const { pairs, extras: nextExtras } = splitMetadata(value)
+    setExtras(nextExtras)
     setRows(pairs.map(p => ({ id: nextId(), ...p })))
     lastEmittedRef.current = value
   }, [value])
@@ -88,7 +105,7 @@ export function MetadataEditor({
       key,
       value: v,
     }))
-    const next = recombineMetadata(pairs, extrasRef.current)
+    const next = recombineMetadata(pairs, extras)
     lastEmittedRef.current = next
     onChange(next)
   }
@@ -98,12 +115,12 @@ export function MetadataEditor({
       validateMetadataRows(
         rows.map(({ key, value: v }) => ({ key, value: v })),
         {
-          extrasKeys: Object.keys(extrasRef.current),
+          extrasKeys: Object.keys(extras),
           reservedKeys,
           requiredKeys,
         }
       ),
-    [rows, reservedKeys, requiredKeys]
+    [rows, extras, reservedKeys, requiredKeys]
   )
 
   const lastValidRef = useRef<boolean | null>(null)
