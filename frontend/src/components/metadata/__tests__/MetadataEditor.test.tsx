@@ -134,8 +134,8 @@ describe('MetadataEditor', () => {
   })
 
   // Rows carry two generations of id: the positional ones the initial state
-  // hands out, and the counter's. This is the sequence where both are live at
-  // once — a counter seeded anywhere at or below the last positional index
+  // hands out (0 … N-1), and the counter's. This is the sequence where both are
+  // live at once — `nextId` pre-increments, so a counter seeded at N-2 or below
   // re-issues an id belonging to an existing row, which gives React duplicate
   // keys and cross-wires the two rows' inputs.
   it('keeps row ids distinct when a pair is added to initially seeded rows', async () => {
