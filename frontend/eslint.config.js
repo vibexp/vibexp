@@ -76,8 +76,10 @@ export default tseslint.config(
       // that set, not the whole story: only the four listed below are off —
       // they demand compiler-grade purity from ordinary components and flagged
       // ~90 pre-existing patterns at the #571 bump. Everything else in
-      // `recommended` is enabled and enforced, and #712 tracks migrating the
-      // remaining four off this list one at a time.
+      // `recommended` stays enabled — as an error, except `exhaustive-deps`,
+      // `incompatible-library` and `unsupported-syntax`, which are `warn` and
+      // so do not gate (`lint` passes no `--max-warnings`). #712 tracks
+      // migrating the remaining four off this list one at a time.
       //
       // Two have already been migrated off it and are deliberately kept on,
       // because they are real bug classes rather than compiler strictness:

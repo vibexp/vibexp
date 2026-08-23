@@ -208,7 +208,13 @@ describe('VersionHistoryPage', () => {
       ],
       [
         'Last 30 days',
-        ['Just now', 'Two days ago', 'Ten days ago'],
+        [
+          'Just now',
+          'Two days ago',
+          'Just under seven days ago',
+          'Just over seven days ago',
+          'Ten days ago',
+        ],
         ['Ninety days ago'],
       ],
     ])('filters to %s', async (label, visible, hidden) => {
