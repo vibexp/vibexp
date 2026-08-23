@@ -382,7 +382,7 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, "us-east-1", cfg.Storage.S3Region)
 	assert.Equal(t, "my-access-key", cfg.Storage.S3AccessKey)
 	assert.Equal(t, "my-secret-key", cfg.Storage.S3SecretKey)
-	assert.True(t, cfg.Storage.S3PathStyle)
+	assert.Equal(t, EnvBool(true), cfg.Storage.S3PathStyle)
 	assert.Equal(t, "/var/lib/vibexp/attachments", cfg.Storage.FSRootDir)
 	assert.Equal(t, "my-project", cfg.GCP.ProjectID)
 	assert.Equal(t, "@my-project.iam.gserviceaccount.com", cfg.GCP.PubSubPushServiceAccountSuffix)

@@ -29,7 +29,7 @@ func ProvideObjectStore(cfg *config.Config, logger *slog.Logger) storage.ObjectS
 			Region:    s.S3Region,
 			AccessKey: s.S3AccessKey,
 			SecretKey: s.S3SecretKey,
-			PathStyle: s.S3PathStyle,
+			PathStyle: bool(s.S3PathStyle),
 		})
 		if err != nil {
 			logger.Warn("Failed to initialize S3 attachment store; attachments disabled",
