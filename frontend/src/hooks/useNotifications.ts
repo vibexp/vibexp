@@ -46,45 +46,52 @@ export function useNotifications(
   const offsetRef = useRef(0)
   const fetchingRef = useRef(false)
 
-  // Keep a stable ref to the latest params so fetch callbacks can always read
-  // the current values without being listed as deps on every downstream hook.
-  const paramsRef = useRef({ unread, limit })
-  paramsRef.current = { unread, limit }
+  // `unread` and `limit` are ordinary reactive values, so they are read straight
+  // from the closure and listed as dependencies. They used to be mirrored into a
+  // ref that was assigned during render — which kept this callback referentially
+  // frozen, but at the cost of a render-phase ref write (react-hooks/refs) and a
+  // fetch that could read a value the current render had not committed yet.
+  const fetchNotifications = useCallback(
+    async (reset: boolean) => {
+      if (fetchingRef.current) return
+      fetchingRef.current = true
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await notificationService.listNotifications({
+          unread,
+          limit,
+          offset: reset ? 0 : offsetRef.current,
+        })
+        setNotifications(prev =>
+          reset
+            ? response.notifications
+            : appendNotificationsDeduped(prev, response.notifications)
+        )
+        offsetRef.current = response.offset + response.count
+        // The API reports no global total; a full page means more may exist.
+        setHasMore(response.count === response.limit)
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : 'Failed to load notifications'
+        )
+      } finally {
+        setLoading(false)
+        fetchingRef.current = false
+      }
+    },
+    [unread, limit]
+  )
 
-  const fetchNotifications = useCallback(async (reset: boolean) => {
-    if (fetchingRef.current) return
-    fetchingRef.current = true
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await notificationService.listNotifications({
-        unread: paramsRef.current.unread,
-        limit: paramsRef.current.limit,
-        offset: reset ? 0 : offsetRef.current,
-      })
-      setNotifications(prev =>
-        reset
-          ? response.notifications
-          : appendNotificationsDeduped(prev, response.notifications)
-      )
-      offsetRef.current = response.offset + response.count
-      // The API reports no global total; a full page means more may exist.
-      setHasMore(response.count === response.limit)
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to load notifications'
-      )
-    } finally {
-      setLoading(false)
-      fetchingRef.current = false
-    }
-  }, [])
-
-  // Re-fetch from page 1 whenever filter params change
+  // Re-fetch from page 1 whenever filter params change — `fetchNotifications`
+  // is itself keyed on `unread`/`limit`, so depending on it fires on exactly the
+  // same changes the explicit `[unread, limit, ...]` list used to. (Pre-existing
+  // and unchanged here: `fetchingRef` makes a param change that lands mid-flight
+  // drop its refetch rather than queue it.)
   useEffect(() => {
     offsetRef.current = 0
     void fetchNotifications(true)
-  }, [unread, limit, fetchNotifications])
+  }, [fetchNotifications])
 
   const fetchMore = useCallback(() => {
     if (hasMore && !loading) {

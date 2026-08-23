@@ -1,5 +1,5 @@
 import { marked } from 'marked'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 
 import { promptService } from '../services/promptService'
 
@@ -34,9 +34,27 @@ export function usePromptRenderer(): UsePromptRendererReturn {
   >({})
   const [isLoadingPlaceholders, setIsLoadingPlaceholders] = useState(false)
 
-  // Keep ref to current placeholder values for callbacks
+  // `renderPrompt` is a stable callback that needs the *latest* placeholder
+  // values at call time, so they are mirrored into a ref rather than closed over
+  // (closing over them would change its identity, which PromptDetail's effects
+  // list as a dependency).
+  //
+  // The mirror is written from a LAYOUT effect, not during render
+  // (react-hooks/refs) and not from a passive one. `renderPrompt`'s callers are
+  // themselves effects — PromptDetail runs it from three `useEffect`s, one of
+  // them synchronously in the effect body — and passive effects flush
+  // child-fiber-first, so a passive mirror would only be ordered correctly by
+  // the accident of this hook being called above those effects on the same
+  // fiber. Layout effects run during commit, ahead of every passive effect in
+  // the tree, which makes "the mirror is current before any caller reads it"
+  // structural instead of a hook-ordering coincidence.
+  //
+  // Not `useEffectEvent`: an effect event may only be called from an Effect or
+  // another Effect Event, never from a callback like `renderPrompt`.
   const placeholderValuesRef = useRef(placeholderValues)
-  placeholderValuesRef.current = placeholderValues
+  useLayoutEffect(() => {
+    placeholderValuesRef.current = placeholderValues
+  }, [placeholderValues])
 
   // Render markdown content locally (for basic markdown without backend processing)
   const renderMarkdown = useCallback(

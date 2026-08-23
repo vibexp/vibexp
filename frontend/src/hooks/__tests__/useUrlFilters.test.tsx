@@ -210,6 +210,50 @@ it('returns a referentially stable filters object across re-renders', () => {
   expect(filtersIdentityChanges).toBe(1)
 })
 
+function DefaultsProbe({ defaults }: Readonly<{ defaults: Filters }>) {
+  // Mirrors how every caller invokes the hook: a fresh object literal per render.
+  hook = useUrlFilters<Filters>({ ...defaults })
+  const { search } = useLocation()
+  return <span data-testid="search">{search}</span>
+}
+
+it('captures the defaults from the first render and ignores later ones', () => {
+  const { rerender } = render(<DefaultsProbe defaults={DEFAULTS} />, {
+    wrapper: ({ children }: Readonly<{ children: ReactNode }>) => (
+      <MemoryRouter initialEntries={['/admin/users']}>{children}</MemoryRouter>
+    ),
+  })
+
+  expect(hook.filters.status).toBe('all')
+
+  rerender(<DefaultsProbe defaults={{ ...DEFAULTS, status: 'active' }} />)
+
+  expect(hook.filters.status).toBe('all')
+
+  // Not just on the memoized path: after a recompute the resolved defaults are
+  // still the first render's, so `filters` cannot silently change meaning when
+  // an unrelated param moves.
+  act(() => {
+    hook.setFilters({ search: 'ada' })
+  })
+  expect(hook.filters.status).toBe('all')
+
+  // And the capture is the same one the "a value equal to its default stays out
+  // of the URL" elision consults, so writing a filter agrees with reading it.
+  // Against the later defaults, 'active' would have been elided as a default
+  // and 'all' written as an override — exactly backwards.
+  act(() => {
+    hook.setFilters({ status: 'active' })
+  })
+  expect(param('status')).toBe('active')
+
+  act(() => {
+    hook.setFilters({ status: 'all' })
+  })
+  expect(param('status')).toBeNull()
+  expect(param('search')).toBe('ada')
+})
+
 it('replaces rather than pushes history, so typing does not fill the stack', () => {
   renderProbe()
 

@@ -115,6 +115,65 @@ describe('MetadataFilter', () => {
     expect(onChange).toHaveBeenCalledWith({ env: ['prod', 'staging'] })
   })
 
+  // The re-seed contract, pinned because both halves are easy to break while
+  // "fixing" the dependency array: seeding must key off `activeKey` ALONE, and
+  // must seed from `value` rather than from the click that selected the key.
+  // (It does NOT pin "reads the latest value": React installs the newest effect
+  // closure every render and consults deps only to decide whether to RUN it, so
+  // any implementation keyed on `[activeKey]` reads the latest value anyway.)
+  it('re-seeds the draft from the current value when activeKey changes', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <MetadataFilter {...baseProps({ onChange, activeKey: null })} />
+    )
+
+    await openPopover(user)
+
+    // The host commits a value and selects a key in the same update. The seeding
+    // effect runs on the activeKey change and must see the value that arrived
+    // with it, not the empty one from the previous commit.
+    rerender(
+      <MetadataFilter
+        {...baseProps({
+          onChange,
+          value: { env: ['prod', 'staging'] },
+          activeKey: 'env',
+          values: ['prod', 'staging'],
+        })}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Apply env filter' }))
+
+    expect(onChange).toHaveBeenCalledWith({ env: ['prod', 'staging'] })
+  })
+
+  it('does not re-seed over in-progress toggles when only value changes', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const props = {
+      onChange,
+      value: { env: ['prod'] },
+      activeKey: 'env',
+      values: ['prod', 'staging'],
+    }
+    const { rerender } = render(<MetadataFilter {...baseProps(props)} />)
+
+    await openPopover(user)
+    await user.click(await screen.findByText('staging')) // draft: prod + staging
+
+    // A re-render carrying a fresh `value` identity (the host rebuilding its
+    // filter object) must not restart the draft from the committed values.
+    rerender(
+      <MetadataFilter {...baseProps({ ...props, value: { env: ['prod'] } })} />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Apply env filter' }))
+
+    expect(onChange).toHaveBeenCalledWith({ env: ['prod', 'staging'] })
+  })
+
   it('renders one chip per committed key', () => {
     render(
       <MetadataFilter
