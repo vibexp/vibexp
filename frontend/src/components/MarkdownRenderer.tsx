@@ -106,11 +106,24 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
         // diagram. In 'strict' mode mermaid sanitizes internally and returns a
         // raw `<svg>` that our sanitize step preserves while still removing any
         // script / event-handler XSS vectors. Diagram interactivity is unused.
+        //
+        // For the same reason, diagram labels are kept in the SVG namespace
+        // DELIBERATELY (`htmlLabels: false`, see below): the sanitize profile
+        // below stays SVG-only and needs no widening.
         mermaid.initialize({
           startOnLoad: false,
           theme: 'default',
           securityLevel: 'strict',
           fontFamily: 'inherit',
+          // Emit labels as native SVG `<text>` instead of HTML inside a
+          // `<foreignObject>`, whose contents the SVG-only sanitize profile
+          // below strips — which blanked every flowchart, class and state
+          // diagram label (#744). This MUST be the top-level key: measured
+          // against mermaid 11.16.1, the narrower `flowchart: { htmlLabels:
+          // false }` fixes edge labels only and leaves node labels blank, and
+          // does nothing for class/state diagrams. Cost is that `<br/>` and
+          // inline markup in a label no longer render. Do not "clean this up".
+          htmlLabels: false,
         })
 
         // Generate unique ID
@@ -136,29 +149,35 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
     void renderDiagram()
   }, [code, onError])
 
-  if (error) {
-    return (
-      <div className="flex items-center p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
-        <AlertTriangle className="h-5 w-5 text-destructive mr-2 flex-shrink-0" />
-        <div className="text-sm text-destructive">
-          <strong>Mermaid Error:</strong> {error}
+  // The container MUST stay mounted in every state. It used to be returned only
+  // in the success branch, which deadlocked the component: the render effect
+  // resolves `elementRef` on its first run and bails out when it is null —
+  // before the `finally` that clears `isLoading` — so the ref could never
+  // become non-null and the diagram spun on "Rendering diagram…" forever
+  // (#744). The loading and error views now render *alongside* it.
+  return (
+    <>
+      {error !== null && (
+        <div className="flex items-center p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+          <AlertTriangle className="h-5 w-5 text-destructive mr-2 flex-shrink-0" />
+          <div className="text-sm text-destructive">
+            <strong>Mermaid Error:</strong> {error}
+          </div>
         </div>
-      </div>
-    )
-  }
+      )}
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8 bg-muted border border-border rounded-lg">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-        <span className="ml-2 text-sm text-muted-foreground">
-          Rendering diagram...
-        </span>
-      </div>
-    )
-  }
+      {isLoading && (
+        <div className="flex items-center justify-center p-8 bg-muted border border-border rounded-lg">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+          <span className="ml-2 text-sm text-muted-foreground">
+            Rendering diagram...
+          </span>
+        </div>
+      )}
 
-  return <div ref={elementRef} className="mermaid-container" />
+      <div ref={elementRef} className="mermaid-container" />
+    </>
+  )
 }
 
 function syntaxThemeClass(theme: 'light' | 'dark' | 'auto'): string {
@@ -246,22 +265,34 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         setMermaidDiagrams([]) // Reset mermaid diagrams
         const options = configureMarked()
 
-        let html = await marked(content, options)
-
-        // Process mermaid diagrams
+        // Extract mermaid diagrams from the RAW markdown, before marked runs.
+        //
+        // This must happen first: marked turns a ```mermaid fence into
+        // `<pre><code class="language-mermaid">` with its body HTML-escaped
+        // (`-->` becomes `--&gt;`), so a fence-matching regex applied to
+        // marked's OUTPUT can never match. Running it there meant no diagram
+        // ever rendered — every one silently degraded to a code block (#744).
+        let source = content
         if (enableMermaid) {
-          const mermaidRegex = /```(?:mermaid|mmd)\n([\s\S]*?)```/g
+          const mermaidRegex = /```(?:mermaid|mmd)\r?\n([\s\S]*?)```/g
           const diagrams: { id: string; code: string }[] = []
 
-          html = html.replace(mermaidRegex, (_match: string, code: string) => {
-            const randomStr = Math.random().toString(36).substring(2, 11)
-            const id = `mermaid-${String(Date.now())}-${randomStr}`
-            diagrams.push({ id, code: code.trim() })
-            return `<div data-mermaid-id="${id}"></div>`
-          })
+          source = source.replace(
+            mermaidRegex,
+            (_match: string, code: string) => {
+              const randomStr = Math.random().toString(36).substring(2, 11)
+              const id = `mermaid-${String(Date.now())}-${randomStr}`
+              diagrams.push({ id, code: code.trim() })
+              // Surrounding blank lines keep this a top-level HTML block, so
+              // marked emits it verbatim instead of wrapping it in a <p>.
+              return `\n\n<div data-mermaid-id="${id}"></div>\n\n`
+            }
+          )
 
           setMermaidDiagrams(diagrams)
         }
+
+        let html = await marked(source, options)
 
         // Apply syntax highlighting and add copy buttons to code blocks in the HTML string
         let copyButtonCounter = 0
