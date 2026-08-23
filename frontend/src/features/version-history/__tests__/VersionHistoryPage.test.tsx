@@ -133,4 +133,96 @@ describe('VersionHistoryPage', () => {
     await screen.findByText('Second edit')
     expect(screen.queryByLabelText('Restore version 3')).not.toBeInTheDocument()
   })
+
+  describe('date range filter', () => {
+    const NOW = new Date('2026-06-20T12:00:00.000Z').getTime()
+    const at = (msAgo: number) => new Date(NOW - msAgo).toISOString()
+    const HOUR = 60 * 60 * 1000
+    const DAY = 24 * HOUR
+
+    // One snapshot just inside each bound and one just outside, so a filter
+    // that used the wrong reference instant or a `>=`/`>` slip is visible.
+    function agedSource(): VersionHistorySource {
+      const aged = (n: number, summary: string, createdAt: string) => ({
+        ...snapshot(n, `content ${String(n)}`, summary),
+        created_at: createdAt,
+      })
+      return buildSource({
+        load: vi.fn().mockResolvedValue({
+          currentContent: 'live content',
+          currentUpdatedAt: at(0),
+          resourceName: 'My artifact',
+          versions: [
+            aged(4, 'Just now', at(HOUR)),
+            aged(3, 'Two days ago', at(2 * DAY)),
+            aged(2, 'Ten days ago', at(10 * DAY)),
+            aged(1, 'Ninety days ago', at(90 * DAY)),
+          ],
+        }),
+      })
+    }
+
+    const pickRange = async (
+      user: ReturnType<typeof userEvent.setup>,
+      label: string
+    ) => {
+      await user.click(screen.getByRole('button', { name: /All time/ }))
+      await user.click(await screen.findByRole('menuitem', { name: label }))
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      vi.setSystemTime(NOW)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('shows every entry under "All time"', async () => {
+      renderPage(agedSource())
+
+      expect(await screen.findByText('Just now')).toBeInTheDocument()
+      expect(screen.getByText('Ninety days ago')).toBeInTheDocument()
+    })
+
+    it.each([
+      ['Last 24 hours', ['Just now'], ['Two days ago', 'Ninety days ago']],
+      ['Last 7 days', ['Just now', 'Two days ago'], ['Ten days ago']],
+      [
+        'Last 30 days',
+        ['Just now', 'Two days ago', 'Ten days ago'],
+        ['Ninety days ago'],
+      ],
+    ])('filters to %s', async (label, visible, hidden) => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      renderPage(agedSource())
+      await screen.findByText('Just now')
+
+      await pickRange(user, label)
+
+      for (const summary of visible) {
+        expect(screen.getByText(summary)).toBeInTheDocument()
+      }
+      for (const summary of hidden) {
+        expect(screen.queryByText(summary)).not.toBeInTheDocument()
+      }
+    })
+
+    // The reference instant is re-stamped when the range is chosen, so a page
+    // left open does not keep measuring "last 24 hours" from when it mounted.
+    it('measures the window from when the range was picked, not from mount', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      renderPage(agedSource())
+      await screen.findByText('Just now')
+
+      // The page sits open long enough that the 1-hour-old entry ages out.
+      vi.setSystemTime(NOW + 2 * DAY)
+
+      await pickRange(user, 'Last 24 hours')
+
+      expect(screen.queryByText('Just now')).not.toBeInTheDocument()
+      expect(screen.queryByText('Two days ago')).not.toBeInTheDocument()
+    })
+  })
 })
