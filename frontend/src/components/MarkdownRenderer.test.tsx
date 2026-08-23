@@ -495,4 +495,85 @@ describe('MarkdownRenderer', () => {
       expect(out).not.toContain('onclick')
     })
   })
+
+  // The guard (VIBEXP-FRONTEND-JS-3) aborts the render effect after more than
+  // five runs inside a 200ms window. Its anchor is seeded lazily on the first
+  // evaluation rather than read during render, so these pin the threshold that
+  // change had to preserve. `shouldAdvanceTime: false` overrides the repo-wide
+  // default in vitest.config.ts to freeze the clock outright — against a
+  // self-advancing one, "within 200ms" would be a race.
+  describe('rapid re-render guard', () => {
+    const NOW = new Date('2026-06-20T12:00:00.000Z').getTime()
+
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: false })
+      vi.setSystemTime(NOW)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    const LOOP_MESSAGE =
+      'MarkdownRenderer: detected rapid re-render loop, aborting render'
+
+    it('aborts only after the sixth run inside the window', () => {
+      const consoleError = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
+
+      const { rerender } = render(<MarkdownRenderer content="run-1" />)
+      // Runs 2-5 stay under the limit; changing `content` is what re-runs the
+      // render effect.
+      for (const n of [2, 3, 4, 5]) {
+        rerender(<MarkdownRenderer content={`run-${String(n)}`} />)
+      }
+      expect(consoleError).not.toHaveBeenCalledWith(LOOP_MESSAGE)
+
+      rerender(<MarkdownRenderer content="run-6" />)
+      expect(consoleError).toHaveBeenCalledWith(LOOP_MESSAGE)
+
+      consoleError.mockRestore()
+    })
+
+    it('does not trip on re-renders spread beyond the window', () => {
+      const consoleError = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
+
+      const { rerender } = render(<MarkdownRenderer content="slow-1" />)
+      for (const n of [2, 3, 4, 5, 6, 7, 8]) {
+        // Each run lands outside the previous window, which re-anchors it and
+        // resets the counter.
+        vi.setSystemTime(NOW + n * 250)
+        rerender(<MarkdownRenderer content={`slow-${String(n)}`} />)
+      }
+
+      expect(consoleError).not.toHaveBeenCalledWith(LOOP_MESSAGE)
+      consoleError.mockRestore()
+    })
+
+    // The window slides: it is re-anchored by every run that lands outside it.
+    // Were the anchor left at its seed, `now - anchor` would only grow, the
+    // guard would take the reset branch forever, and a loop starting any time
+    // after mount would go undetected.
+    it('re-anchors the window, so a burst long after mount still trips', () => {
+      const consoleError = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
+
+      const { rerender } = render(<MarkdownRenderer content="calm-1" />)
+      vi.setSystemTime(NOW + 60_000)
+      rerender(<MarkdownRenderer content="calm-2" />)
+      expect(consoleError).not.toHaveBeenCalledWith(LOOP_MESSAGE)
+
+      // Clock frozen at the new anchor: a burst from here must be caught.
+      for (const n of [1, 2, 3, 4, 5, 6]) {
+        rerender(<MarkdownRenderer content={`burst-${String(n)}`} />)
+      }
+
+      expect(consoleError).toHaveBeenCalledWith(LOOP_MESSAGE)
+      consoleError.mockRestore()
+    })
+  })
 })

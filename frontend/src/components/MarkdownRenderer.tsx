@@ -193,7 +193,11 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
   // Guard against rapid re-render loops (VIBEXP-FRONTEND-JS-3)
   const renderCountRef = useRef(0)
-  const renderTimestampRef = useRef(Date.now())
+  // Anchors the 200ms window below. Seeded lazily on the guard's first
+  // evaluation rather than from `useRef(Date.now())`, which read the clock
+  // during render (react-hooks/purity) on every render only to discard every
+  // reading after the first. `null` means "no window open yet".
+  const renderTimestampRef = useRef<number | null>(null)
 
   // Configure marked renderer
   const configureMarked = useCallback(() => {
@@ -218,6 +222,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   useEffect(() => {
     // Infinite loop guard: if more than 5 renders occur within 200ms, abort.
     const now = Date.now()
+    // First evaluation opens the window here. The old render-phase
+    // `useRef(Date.now())` opened it one commit earlier, so the threshold is
+    // identical whenever the mount commit lands inside the 200ms window — which
+    // it does in practice; only a mount that took longer than the window itself
+    // would differ, and then by a single run.
+    renderTimestampRef.current ??= now
     if (now - renderTimestampRef.current < 200) {
       renderCountRef.current += 1
       if (renderCountRef.current > 5) {

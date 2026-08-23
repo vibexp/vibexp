@@ -49,6 +49,17 @@ export function VersionHistoryPage({
   const [search, setSearch] = useState('')
   const [authorFilter, setAuthorFilter] = useState<string | null>(null)
   const [dateRange, setDateRange] = useState<DateRange>('all')
+  // The instant the relative date filter measures ages against. Held in state
+  // instead of read during render (react-hooks/purity), where it also made the
+  // window silently drift: the memo captured whatever `Date.now()` returned the
+  // last time some *other* dependency changed. Re-stamped when the user picks a
+  // range, so "last 24 hours" always means 24 hours before that choice.
+  const [dateRangeAnchor, setDateRangeAnchor] = useState(() => Date.now())
+
+  const handleDateRange = useCallback((next: DateRange) => {
+    setDateRangeAnchor(Date.now())
+    setDateRange(next)
+  }, [])
   const [sortKey, setSortKey] = useState<SortKey>('version')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
@@ -90,7 +101,7 @@ export function VersionHistoryPage({
   }, [timeline])
 
   const visibleEntries = useMemo(() => {
-    const now = Date.now()
+    const now = dateRangeAnchor
     const term = search.trim().toLowerCase()
     const filtered = timeline.filter(entry => {
       if (authorFilter && entry.author?.id !== authorFilter) return false
@@ -118,7 +129,15 @@ export function VersionHistoryPage({
           : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [timeline, authorFilter, dateRange, search, sortKey, sortDir])
+  }, [
+    timeline,
+    authorFilter,
+    dateRange,
+    dateRangeAnchor,
+    search,
+    sortKey,
+    sortDir,
+  ])
 
   const toggleSort = useCallback(
     (key: SortKey) => {
@@ -241,7 +260,7 @@ export function VersionHistoryPage({
           authorFilter={authorFilter}
           onAuthorFilter={setAuthorFilter}
           dateRange={dateRange}
-          onDateRange={setDateRange}
+          onDateRange={handleDateRange}
           selectedCount={selected.length}
           onCompare={handleCompareSelected}
         />
