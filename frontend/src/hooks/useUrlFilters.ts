@@ -37,6 +37,11 @@ export type UrlFilters = Record<string, string | undefined>
  * depends on it. It is therefore captured once, on mount, and assumed constant
  * for the life of the component; a caller needing different defaults should
  * remount (a `key`) rather than mutate the object it passes.
+ *
+ * Note for the wrapper hooks (`useResourceListFilters`, `useAdminListFilters`):
+ * they consult their own live `defaults` prop alongside this hook's frozen copy.
+ * The two agree only because every caller passes a module-level constant, which
+ * is the contract above — keep it that way.
  */
 export function useUrlFilters<T extends UrlFilters>(defaults: T) {
   const [searchParams, setSearchParams] = useSearchParams()

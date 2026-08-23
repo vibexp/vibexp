@@ -116,8 +116,11 @@ describe('MetadataFilter', () => {
   })
 
   // The re-seed contract, pinned because both halves are easy to break while
-  // "fixing" the dependency array: seeding must key off `activeKey` ALONE, yet
-  // read the LATEST `value` when it fires.
+  // "fixing" the dependency array: seeding must key off `activeKey` ALONE, and
+  // must seed from `value` rather than from the click that selected the key.
+  // (It does NOT pin "reads the latest value": React installs the newest effect
+  // closure every render and consults deps only to decide whether to RUN it, so
+  // any implementation keyed on `[activeKey]` reads the latest value anyway.)
   it('re-seeds the draft from the current value when activeKey changes', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

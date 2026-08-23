@@ -132,4 +132,52 @@ describe('MetadataEditor', () => {
     expect(screen.getByDisplayValue('b')).toBeInTheDocument()
     expect(screen.queryByDisplayValue('a')).not.toBeInTheDocument()
   })
+
+  // Rows carry two generations of id: the positional ones the initial state
+  // hands out, and the counter's. This is the sequence where both are live at
+  // once — a counter seeded anywhere at or below the last positional index
+  // re-issues an id belonging to an existing row, which gives React duplicate
+  // keys and cross-wires the two rows' inputs.
+  it('keeps row ids distinct when a pair is added to initially seeded rows', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(
+      <MetadataEditor value={{ a: '1', b: '2', c: '3' }} onChange={onChange} />
+    )
+
+    await user.click(screen.getByTestId('metadata-add-pair'))
+    expect(screen.getAllByTestId('metadata-row')).toHaveLength(4)
+
+    // Typing into the appended row must not leak into any seeded row.
+    await user.type(screen.getByTestId('metadata-key-3'), 'd')
+    await user.type(screen.getByTestId('metadata-value-3'), '4')
+
+    expect(screen.getByTestId('metadata-key-0')).toHaveValue('a')
+    expect(screen.getByTestId('metadata-key-1')).toHaveValue('b')
+    expect(screen.getByTestId('metadata-key-2')).toHaveValue('c')
+    expect(lastEmitted(onChange)).toEqual({
+      a: '1',
+      b: '2',
+      c: '3',
+      d: '4',
+    })
+  })
+
+  it('preserves extras that arrive with an externally driven value', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <MetadataEditor value={{ a: '1', tags: ['x'] }} onChange={onChange} />
+    )
+    // A different extras payload arrives with the new value; editing afterwards
+    // has to recombine against the NEW extras, not the mount-time ones.
+    rerender(
+      <MetadataEditor value={{ b: '2', tags: ['y'] }} onChange={onChange} />
+    )
+
+    await user.clear(screen.getByTestId('metadata-value-0'))
+    await user.type(screen.getByTestId('metadata-value-0'), '9')
+
+    expect(lastEmitted(onChange)).toEqual({ b: '9', tags: ['y'] })
+  })
 })

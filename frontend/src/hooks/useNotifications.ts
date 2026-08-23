@@ -84,7 +84,10 @@ export function useNotifications(
   )
 
   // Re-fetch from page 1 whenever filter params change — `fetchNotifications`
-  // is itself keyed on `unread`/`limit`, so depending on it covers both.
+  // is itself keyed on `unread`/`limit`, so depending on it fires on exactly the
+  // same changes the explicit `[unread, limit, ...]` list used to. (Pre-existing
+  // and unchanged here: `fetchingRef` makes a param change that lands mid-flight
+  // drop its refetch rather than queue it.)
   useEffect(() => {
     offsetRef.current = 0
     void fetchNotifications(true)
