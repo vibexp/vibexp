@@ -123,6 +123,19 @@ approves the notes (Phase 3). Never bypass a failing gate — fix or stop.
       git cherry origin/main HEAD      # expect: no lines starting with '+'
       ```
 
+      **Exception — embargoed security fix.** `+` commits are allowed **only**
+      when every one of them belongs to an unpublished GitHub Security Advisory.
+      Before waiving this gate the maintainer must confirm, explicitly, that
+      (1) the draft advisory exists and (2) they are committing to forward-port
+      to `main` at publication time. Record the advisory (GHSA) id **and the
+      cherry-pick SHAs to forward-port** in the release-notes task — that record
+      is what makes the commitment auditable. Do **not** require the forward-port
+      PR to exist yet: a PR to `main` carrying the fix is itself public
+      disclosure, so it is opened in the publish step, not before. **Any `+`
+      commit not covered by that confirmation still stops the release** — the
+      waiver is per-commit, not a blanket skip. See "Security releases
+      (embargoed)" below.
+
    c. **The branch is the previous tag plus cherry-picks — nothing else.**
       Skim `git log --oneline "$PREV_TAG..HEAD"`; every commit should be a
       deliberate backport. An unexpected merge commit means someone merged
@@ -421,8 +434,96 @@ the new release adds surface the CLI should catch up to, and file issues in
 Track C ends with: the e2e verdict (passed / failed+link / skipped-with-reason)
 and the list of filed CLI issue URLs (or "no gaps").
 
+## Security releases (embargoed)
+
+A security fix is the one case where the `main`-first rule cannot hold: landing
+it on `main` **is** the disclosure we are avoiding. VibeXP is self-hosted, so
+between a public fix and a published image every operator on the affected version
+is exploitable using a diff anyone can read. So the fix is developed privately and
+the direction is inverted — release line first, `main` at publication time.
+
+Reports arrive through **private vulnerability reporting** (repository → Security
+tab). `SECURITY.md` at the repo root is the public half of this: reporting route,
+supported window, what a reporter should expect. Keep the two in step.
+
+### The flow, in order
+
+1. **Draft a Security Advisory** (Security tab → Advisories → New draft). This is
+   the working record; everything below hangs off it.
+2. **Develop the fix in the advisory's private fork.** GitHub creates one per
+   advisory; commits there are not public. Do not push the fix to a branch of
+   this repository — that is the disclosure.
+3. **Request a CVE** through the advisory if the issue warrants one. Do this
+   early: identifier assignment is not instant and the release notes want it.
+4. **Cut the patch release off `release/X.Y.x`** as usual (create the line branch
+   lazily from the tag if this is its first patch), cherry-picking the fix from
+   the private fork. Phase 0 gate (b) will show `+` commits — that is expected
+   here and is the one case its exception covers.
+
+   **This step ends the embargo in practice.** `release.yml` builds the image
+   from a tag in this public repository, so the fix is readable the moment the
+   cherry-pick is pushed. Have everything else ready first — advisory drafted,
+   notes written, CVE requested — then push, tag, and publish the GitHub Release
+   back-to-back so the window is only as long as the build. Do not push the
+   cherry-pick "to get CI going" and come back to it later.
+5. **Wait for the image.** The advisory stays unpublished until
+   `ghcr.io/vibexp/vibexp:X.Y.Z` is actually pullable, so an operator reading the
+   advisory can upgrade immediately rather than being told to wait.
+6. **Publish the advisory**, then **open and merge the forward-port PR to
+   `main`** — see below; this is not optional. The PR is opened only now, because
+   until step 4 it would have disclosed the fix and after step 4 it discloses
+   nothing new.
+
+### Non-negotiables
+
+- **The forward-port to `main` is mandatory, and happens at publication time.**
+  A fix that lives only on the release line is one the next minor silently
+  regresses — reintroducing a vulnerability you already shipped a patch for.
+  This is the entire reason the `main`-first rule exists, so the embargo
+  suspends its *timing*, never its outcome. The waiver at gate (b) is granted
+  against a **recorded commitment** (GHSA id + cherry-pick SHAs in the
+  release-notes task), not against an already-open PR — opening that PR early
+  would itself break the embargo. Close the loop the same day: an advisory
+  published with no forward-port merged is the exact failure this rule exists to
+  prevent, now with a public advisory pointing at it.
+- **Cherry-pick, never merge the release branch into `main`.** Same rule as any
+  backport (`git cherry-pick -x`), so the two lines stay auditable.
+- **Gate (a) still applies.** A patch may not touch `backend/openapi.yaml`,
+  `backend/paths/`, `backend/schemas/`, or `backend/migrations/`. A security fix
+  needing any of them **cannot** ship as an embargoed patch: a spec change
+  publishes both API clients off `main` only, and a migration on a side line forks
+  the schema lineage permanently. Such a fix ships as a **coordinated minor** —
+  merge to `main` and publish the release back-to-back, then publish the advisory
+  immediately, accepting a short public window. That is a deliberate maintainer
+  decision; do not work around gate (a) to avoid it.
+
+### Compensating checks (the private fork runs no CI)
+
+Nothing in `ci.yml` protects an advisory-fork branch — GitHub does not run
+Actions there. The maintainer runs the equivalent locally before tagging, and
+should not tag a release they could not verify:
+
+```bash
+make backend-check          # build, vet, golangci-lint, govulncheck, gosec
+make frontend-lint
+make frontend-type-check
+make frontend-test
+make frontend-build
+pre-commit run --all-files
+```
+
+Add `make e2e` when the fix touches an end-to-end path (auth, MCP, sharing,
+attachments). Once the cherry-pick lands on `release/X.Y.x` — a normal branch of
+this repository — CI runs on it as usual, so treat the local pass as the gate for
+the *fork* work and the branch CI as the gate for the release itself.
+
 ## Guardrails
 
+- **An embargoed security release is the ONLY reason to accept `+` commits at
+  Phase 0 gate (b)**, it is per-commit, and it requires the GHSA id plus the
+  cherry-pick SHAs to be recorded first. Never publish the advisory before the
+  image is in GHCR, and never leave the forward-port to `main` unmerged after
+  publication.
 - STOP (do not publish) if: working tree dirty / not synced, fast CI not green,
   the **E2E run fails**, the tag/release already exists, or the user has not
   approved the notes.
