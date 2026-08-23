@@ -697,7 +697,15 @@
           "type": "string"
         },
         "s3_path_style": {
-          "type": "boolean"
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
         },
         "fs_root_dir": {
           "type": "string"

@@ -131,16 +131,16 @@ services:
       # STORAGE_FS_ROOT_DIR: "/data/attachments"
       #
       # (b) MinIO (S3-compatible, runs alongside): enable the `minio` service
-      #     below, then uncomment these lines. Note s3_path_style is a literal
-      #     in the baked config.docker.yaml (env interpolation is string-only),
-      #     so MinIO ALSO needs a mounted config.yaml with `s3_path_style: true`
-      #     (see the full-config override below) — or use (a):
+      #     below, then uncomment these lines. MinIO requires path-style
+      #     addressing, which S3_PATH_STYLE turns on — no mounted config.yaml
+      #     needed:
       # STORAGE_BACKEND: "s3"
       # GCS_RESOURCE_ATTACHMENTS_BUCKET: "vibexp-attachments"
       # S3_ENDPOINT: "http://minio:9000"
       # S3_REGION: "us-east-1"
       # S3_ACCESS_KEY: "minioadmin"
       # S3_SECRET_KEY: "minioadmin"
+      # S3_PATH_STYLE: "true"
       #
       # (c) Google Cloud Storage: set GCS_RESOURCE_ATTACHMENTS_BUCKET (plus
       #     STORAGE_EMULATOR_HOST for a GCS emulator); leave STORAGE_BACKEND
@@ -166,7 +166,7 @@ services:
 
   # --- Optional: MinIO (S3-compatible store) for file attachments -----------
   # Uncomment BOTH services below AND the option (b) env vars on `app` above
-  # (plus a mounted config.yaml setting s3_path_style: true) to enable uploads.
+  # to enable uploads.
   # The minio/minio image ships the server only — the bucket is created by a
   # one-shot createbucket service using the separate minio/mc client image.
   # minio:

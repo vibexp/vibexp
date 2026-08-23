@@ -526,8 +526,9 @@ type StorageConfig struct {
 	S3AccessKey string `koanf:"s3_access_key"`
 	S3SecretKey string `koanf:"s3_secret_key"`
 	// S3PathStyle forces path-style addressing (endpoint/bucket/key), required
-	// by MinIO and most self-hosted S3-compatible stores.
-	S3PathStyle bool `koanf:"s3_path_style"`
+	// by MinIO and most self-hosted S3-compatible stores. EnvBool so the
+	// combined image can expose it as ${S3_PATH_STYLE} (#760).
+	S3PathStyle EnvBool `koanf:"s3_path_style"`
 	// FSRootDir is the root directory the filesystem backend stores objects
 	// under. Required when Backend is "filesystem".
 	FSRootDir string `koanf:"fs_root_dir"`

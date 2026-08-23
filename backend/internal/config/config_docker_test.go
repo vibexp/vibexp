@@ -280,6 +280,49 @@ func TestConfigDockerYAML_SchedulerInvalidEnvFailsFast(t *testing.T) {
 	require.ErrorContains(t, err, "scheduler.enabled")
 }
 
+// TestConfigDockerYAML_S3PathStyleDefault pins the baked default: an operator
+// who never sets S3_PATH_STYLE keeps AWS-style (virtual-host) addressing, so
+// opting the field in changes nothing for anyone already running.
+func TestConfigDockerYAML_S3PathStyleDefault(t *testing.T) {
+	setDockerRequiredEnv(t)
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
+	require.Equal(t, EnvBool(false), cfg.Storage.S3PathStyle)
+}
+
+// TestConfigDockerYAML_S3PathStyleEnvOverride is the headline acceptance
+// criterion (#760): a MinIO self-hoster flips path-style addressing with
+// `docker run -e` alone, instead of mounting a whole config.yaml for one bool.
+func TestConfigDockerYAML_S3PathStyleEnvOverride(t *testing.T) {
+	setDockerRequiredEnv(t)
+	t.Setenv("S3_PATH_STYLE", "true")
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
+	require.Equal(t, EnvBool(true), cfg.Storage.S3PathStyle,
+		"S3_PATH_STYLE=true must reach the config with no mounted config file")
+}
+
+// TestConfigDockerYAML_S3PathStyleInvalidEnvFailsFast pins the failure mode of
+// the weak decoding EnvBool relies on: an unrecognised value is a load error,
+// not a silently unflipped knob (which would strand a MinIO operator with
+// virtual-host addressing and no clue why).
+func TestConfigDockerYAML_S3PathStyleInvalidEnvFailsFast(t *testing.T) {
+	setDockerRequiredEnv(t)
+	t.Setenv("S3_PATH_STYLE", "yes-please")
+
+	cfg, err := Load(dockerConfigPath)
+
+	require.Error(t, err, "an undecodable S3_PATH_STYLE must fail startup")
+	require.Nil(t, cfg)
+	// Name the field, so this cannot pass because Load failed for some unrelated
+	// reason (a broken secret in setDockerRequiredEnv would do it).
+	require.ErrorContains(t, err, "storage.s3_path_style")
+}
+
 // TestConfigSchema_EnvPlaceholderTypesAreOptIn guards the decision that
 // EnvBool/EnvInt loosen the schema for exactly the fields that opt in. A blanket
 // mapper over every bool/int would make the schema accept a typo'd "tru" on any
@@ -303,10 +346,13 @@ func TestConfigSchema_EnvPlaceholderTypesAreOptIn(t *testing.T) {
 		"scheduler.enabled is EnvBool, so its schema must also accept a ${VAR} placeholder")
 	require.Len(t, doc.Defs["SchedulerConfig"].Properties["due_limit"].OneOf, 2,
 		"scheduler.due_limit is EnvInt, so its schema must also accept a ${VAR} placeholder")
+	require.Len(t, doc.Defs["StorageConfig"].Properties["s3_path_style"].OneOf, 2,
+		"storage.s3_path_style is EnvBool, so its schema must also accept a ${VAR} placeholder")
 
-	// Not opted in: plain bools keep the strict schema.
+	// Not opted in: plain bools keep the strict schema. dev_login_enabled stays
+	// here deliberately — it gates the dev-login bypass via IsLocalDevelopment(),
+	// so making it env-flippable would hand operators a production footgun (#760).
 	for _, tc := range []struct{ def, field string }{
-		{"StorageConfig", "s3_path_style"},
 		{"AuthConfig", "dev_login_enabled"},
 	} {
 		prop := doc.Defs[tc.def].Properties[tc.field]
