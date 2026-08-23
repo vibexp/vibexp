@@ -13,6 +13,13 @@ export default defineConfig({
       // stays mocked under Vitest.
       'lucide-react': path.resolve(__dirname, './tests/mocks/lucide-react.tsx'),
       marked: path.resolve(__dirname, './tests/mocks/marked.js'),
+      // NOTE (#744): stubbing mermaid means NO unit test ever exercises real
+      // mermaid output, so a rendering regression is invisible to this suite —
+      // a green run is zero evidence when changing mermaid config or bumping
+      // the dependency. The stub cannot simply be dropped: jsdom cannot drive
+      // mermaid at all (it fails on `CSSStyleSheet is not defined`). Real
+      // coverage lives in the Playwright spec
+      // `e2e/features/artifacts/mermaid-diagram.spec.ts`; verify changes there.
       mermaid: path.resolve(__dirname, './tests/mocks/mermaid.js'),
       // The generated API client is stubbed for tests; type-only imports are
       // erased — tests mock @/lib/apiClientGenerated for behaviour.

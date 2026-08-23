@@ -7,10 +7,19 @@ import { marked } from 'marked'
 import { MarkdownRenderer } from './MarkdownRenderer'
 
 // Mock all external dependencies
-vi.mock('mermaid', () => ({
-  initialize: vi.fn(),
-  render: vi.fn().mockResolvedValue({ svg: '<svg>mock mermaid diagram</svg>' }),
-}))
+// `MarkdownRenderer` does `import mermaid from 'mermaid'`, so the mock must
+// expose a DEFAULT export. Without one, Vitest throws on first property access
+// ('No "default" export is defined on the "mermaid" mock') — which stayed
+// invisible while no test ever mounted a diagram.
+vi.mock('mermaid', () => {
+  const mermaid = {
+    initialize: vi.fn(),
+    render: vi
+      .fn()
+      .mockResolvedValue({ svg: '<svg>mock mermaid diagram</svg>' }),
+  }
+  return { ...mermaid, default: mermaid }
+})
 
 // Capture the link override installed by configureMarked so tests can
 // invoke it directly and assert on its output.
@@ -456,6 +465,86 @@ describe('MarkdownRenderer', () => {
       await waitFor(() => {
         expect(document.querySelector('.markdown-renderer')).toBeInTheDocument()
       })
+    })
+  })
+
+  // Regression guard for the extraction ORDER (#744). Mermaid blocks must be
+  // pulled out of the RAW markdown, before marked runs: marked escapes a fence
+  // body (`-->` -> `--&gt;`) and wraps it in `<pre><code class="language-
+  // mermaid">`, so a fence regex applied to marked's output matches nothing and
+  // every diagram silently degrades to a code block. The mermaid module itself
+  // is stubbed here, so this asserts what CAN be asserted at this layer — the
+  // handoff — while real rendering is covered by
+  // `e2e/features/artifacts/mermaid-diagram.spec.ts`.
+  describe('mermaid extraction runs before marked', () => {
+    const FENCE = '```mermaid\nflowchart TD\n  A[Start] --> B[Stop]\n```'
+
+    it('hands marked a placeholder instead of the fence', async () => {
+      const markedMock = vi.mocked(marked)
+      markedMock.mockClear()
+
+      render(<MarkdownRenderer content={`# Title\n\n${FENCE}\n`} />)
+
+      await waitFor(() => {
+        expect(markedMock).toHaveBeenCalled()
+      })
+
+      const source = markedMock.mock.calls[0]?.[0]
+      expect(source).toMatch(/<div data-mermaid-id="mermaid-[^"]+"><\/div>/)
+      // The fence itself must be gone, or marked would render it as code.
+      expect(source).not.toContain('```mermaid')
+      expect(source).toContain('# Title')
+    })
+
+    // The diagram container used to be rendered ONLY in the success branch, so
+    // `elementRef` was null on the render effect's first (and only) run. The
+    // effect bails out on a null ref before the `finally` that clears
+    // `isLoading` — so the ref could never become non-null and the component
+    // spun on "Rendering diagram…" forever. Feeding the mocked `marked` back
+    // its own input puts the real placeholder into the DOM, which is what lets
+    // the mermaid root actually mount here.
+    it('mounts the diagram container instead of spinning forever', async () => {
+      const markedMock = vi.mocked(marked)
+      markedMock.mockClear()
+      markedMock.mockImplementationOnce((src: string) => Promise.resolve(src))
+
+      const { container } = render(<MarkdownRenderer content={FENCE} />)
+
+      // Positive gate FIRST: pre-fix the container is never mounted, so this
+      // waitFor is what actually fails. Asserting only that the spinner is
+      // absent would pass vacuously — before the mermaid root mounts, neither
+      // the spinner nor the container exists.
+      await waitFor(
+        () => {
+          expect(
+            container.querySelector('.mermaid-container')
+          ).toBeInTheDocument()
+        },
+        { timeout: 3000 }
+      )
+      await waitFor(
+        () => {
+          expect(
+            screen.queryByText('Rendering diagram...')
+          ).not.toBeInTheDocument()
+        },
+        { timeout: 3000 }
+      )
+    })
+
+    it('leaves the fence alone when mermaid is disabled', async () => {
+      const markedMock = vi.mocked(marked)
+      markedMock.mockClear()
+
+      render(<MarkdownRenderer content={FENCE} enableMermaid={false} />)
+
+      await waitFor(() => {
+        expect(markedMock).toHaveBeenCalled()
+      })
+
+      const source = markedMock.mock.calls[0]?.[0]
+      expect(source).toContain('```mermaid')
+      expect(source).not.toContain('data-mermaid-id')
     })
   })
 
