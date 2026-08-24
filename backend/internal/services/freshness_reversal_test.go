@@ -216,7 +216,7 @@ func TestMemoryService_UpdateClearsFreshness(t *testing.T) {
 		Return(existing, nil).Once()
 	repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
 
-	svc := NewMemoryService(repo, nil, allowAllAuthz{}, nil, discardLogger(), nil, nil, nil, clearer)
+	svc := NewMemoryService(repo, nil, allowAllAuthz{}, nil, discardLogger(), nil, nil, nil, clearer, nil)
 
 	text := "updated"
 	_, err := svc.UpdateMemory(reversalUserID, reversalTeamID, "memory-123",

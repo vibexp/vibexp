@@ -359,10 +359,11 @@ func ProvideMemoryService(
 	commentRepo repositories.CommentRepository,
 	relationRepo repositories.RelationRepository,
 	freshnessClearer services.FreshnessClearer,
+	freshnessRepo repositories.ResourceFreshnessRepository,
 ) services.MemoryServiceInterface {
 	return services.NewMemoryService(
 		repo, teamService, authzService, eventManager, logger, contentVersionSvc,
-		commentRepo, relationRepo, freshnessClearer,
+		commentRepo, relationRepo, freshnessClearer, freshnessRepo,
 	)
 }
 

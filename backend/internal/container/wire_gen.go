@@ -90,6 +90,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		CommentRepo:       commentRepository,
 		RelationRepo:      relationRepository,
 		FreshnessClearer:  clearer,
+		FreshnessRepo:     resourceFreshnessRepository,
 	}
 	promptServiceInterface := providers.ProvidePromptService(promptServiceDeps)
 	promptGalleryServiceInterface := providers.ProvidePromptGalleryService(promptGalleryRepository, eventManager, logger)
@@ -104,6 +105,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		CommentRepo:       commentRepository,
 		RelationRepo:      relationRepository,
 		FreshnessClearer:  clearer,
+		FreshnessRepo:     resourceFreshnessRepository,
 	}
 	artifactServiceInterface := providers.ProvideArtifactService(artifactServiceDeps)
 	attachmentRepository := providers.ProvideAttachmentRepository(db)
@@ -121,6 +123,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		CommentRepo:       commentRepository,
 		RelationRepo:      relationRepository,
 		FreshnessClearer:  clearer,
+		FreshnessRepo:     resourceFreshnessRepository,
 	}
 	blueprintServiceInterface := providers.ProvideBlueprintService(blueprintServiceDeps)
 	encryptionServiceInterface, err := providers.ProvideEncryptionService(cfg)
@@ -160,7 +163,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	a2AHTTPClientInterface := providers.ProvideA2AHTTPClient(agentAuthenticator, cfg)
 	streamProcessor := providers.ProvideA2AStreamProcessor(agentExecutionEventRepository, agentExecutionRepository, logger)
 	agentInvocationServiceInterface := providers.ProvideAgentInvocationService(agentRepository, agentExecutionRepository, agentExecutionEventRepository, a2AHTTPClientInterface, streamProcessor, logger)
-	memoryServiceInterface := providers.ProvideMemoryService(memoryRepository, teamServiceInterface, authorizationServiceInterface, eventManager, logger, contentVersionServiceInterface, commentRepository, relationRepository, clearer)
+	memoryServiceInterface := providers.ProvideMemoryService(memoryRepository, teamServiceInterface, authorizationServiceInterface, eventManager, logger, contentVersionServiceInterface, commentRepository, relationRepository, clearer, resourceFreshnessRepository)
 	embeddingServiceDeps := providers.EmbeddingServiceDeps{
 		Repo:              embeddingRepository,
 		PromptRepo:        promptRepository,
