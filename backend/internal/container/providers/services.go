@@ -533,6 +533,17 @@ func ProvideTeamSearchSettingsService(
 	return services.NewTeamSearchSettingsService(repo, authzService, cfg.Search, logger)
 }
 
+// ProvideTeamSettingsAuditService creates the write path for the team settings
+// audit log (epic #827). It takes no authorization service on purpose: entries
+// are written from inside an already-authorized cross-team copy, and the read
+// path (#832) is where a permission check belongs.
+func ProvideTeamSettingsAuditService(
+	repo repositories.TeamSettingsAuditRepository,
+	logger *slog.Logger,
+) services.TeamSettingsAuditServiceInterface {
+	return services.NewTeamSettingsAuditService(repo, logger)
+}
+
 // ProvideSearchSettingsResolver creates the per-team ranking resolver. The
 // recency-ranking configuration from the typed Config becomes the INSTANCE
 // DEFAULTS, returned for any team that has not stored an override of its own.

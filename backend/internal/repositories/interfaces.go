@@ -1784,6 +1784,28 @@ type FreshnessAuditRepository interface {
 	ListStaleResourcesMissingMark(ctx context.Context, teamID string) ([]models.FreshnessResourceRef, error)
 }
 
+// TeamSettingsAuditRepository appends to and reads a team's settings-copy log
+// (table `team_settings_audit`, epic #827). Like FreshnessAuditRepository the
+// log is append-only: there is deliberately no update and no delete, and rows
+// disappear only with their team.
+//
+// Reads are tenancy-scoped and carry no role predicate (authz decision D3);
+// who may read a team's audit is the calling service's decision, not this
+// layer's.
+type TeamSettingsAuditRepository interface {
+	// Append records one settings-copy event, populating ID, Detail and
+	// CreatedAt from the persisted row on return.
+	Append(ctx context.Context, entry *models.TeamSettingsAudit) error
+	// ListByTeam returns a team's audit entries newest first, together with the
+	// total entry count for pagination. Ordering breaks created_at ties on id so
+	// pagination is stable: `now()` is transaction-start time, so one copy
+	// action writing several entries stamps them all identically.
+	//
+	// A limit of zero or less means "no limit"; a negative offset is clamped to
+	// zero.
+	ListByTeam(ctx context.Context, teamID string, limit, offset int) ([]*models.TeamSettingsAudit, int, error)
+}
+
 // EmbeddingJobRepository is the durable, leased queue of outstanding embedding
 // work (issue #820). It is the system of record the dispatcher's in-memory
 // executors used to be: a job survives the process, and a worker that dies

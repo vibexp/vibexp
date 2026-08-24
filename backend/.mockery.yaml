@@ -69,6 +69,7 @@ packages:
       TeamEmailProviderServiceInterface:
       FreshnessServiceInterface:
       TeamSearchSettingsServiceInterface:
+      TeamSettingsAuditServiceInterface:
       TeamServiceInterface:
       TypeServiceInterface:
       UsageAndGrowthGetter:
@@ -138,6 +139,7 @@ packages:
       TeamMemberRepository:
       TeamRepository:
       TeamSearchSettingsRepository:
+      TeamSettingsAuditRepository:
       TypeRepository:
       UserPreferencesRepository:
       UserRepository:
