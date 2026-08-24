@@ -479,3 +479,35 @@ func TestEmbeddingQueueConfig_ZeroValueGetsWorkingDefaults(t *testing.T) {
 		RetryBackoff:  30 * time.Second,
 	}, explicit)
 }
+
+// TestEmbeddingDispatcher_QueuedJobsRespectProviderConcurrency is #820's
+// "provider concurrency caps still hold" criterion, asserted on the DURABLE
+// path specifically. The equivalent existing test drives the pre-#820 in-memory
+// route, so it cannot see a regression in the new one -- and the new one is
+// where it would happen, because the poller decides how many jobs to lease.
+func TestEmbeddingDispatcher_QueuedJobsRespectProviderConcurrency(t *testing.T) {
+	t.Parallel()
+
+	provider := &countingProvider{delay: 2 * time.Millisecond}
+	queue := newFakeQueue()
+	const jobs = 20
+	for i := 1; i <= jobs; i++ {
+		queue.offer(queuedJob(fmt.Sprintf("job-%d", i), fmt.Sprintf("p%d", i)))
+	}
+
+	// concurrency 1, deliberately below the 4 intake workers: the cap that has to
+	// win is the provider's, not the poller's claim budget.
+	resolver := &perTeamResolver{
+		providers:   map[string]EmbeddingProvider{"team-1": provider},
+		concurrency: map[string]int{"team-1": 1},
+	}
+	svc := newRecordingEmbeddingService(func(string) string { return "team-1" })
+
+	d := newQueuedDispatcher(resolver, svc, queue, EmbeddingRetryConfig{MaxRetries: 1})
+	defer d.Stop()
+
+	waitFor(t, func() bool { return svc.savedCount() == jobs },
+		"every queued job must embed -- a bounded queue must not drop the overflow")
+	assert.LessOrEqual(t, provider.tracker.max.Load(), int32(1),
+		"no more than the provider's configured concurrency may run at once")
+}

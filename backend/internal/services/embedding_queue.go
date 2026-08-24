@@ -143,6 +143,7 @@ func (d *EmbeddingDispatcher) pollQueue() {
 	ticker := time.NewTicker(d.queueCfg.PollInterval)
 	defer ticker.Stop()
 
+	d.retireExhausted()
 	d.drainQueue()
 	for {
 		select {
@@ -150,8 +151,30 @@ func (d *EmbeddingDispatcher) pollQueue() {
 			return
 		case <-d.wake:
 		case <-ticker.C:
+			// The poison-pill sweep rides the TIMER only, never the enqueue
+			// signal. Its UPDATE has to consider the whole outstanding set, and a
+			// backfill wakes this loop once per enqueue and once per completed
+			// job -- running it there would make a scan of the backlog scale with
+			// the backlog. Nothing is lost by the delay: an exhausted job is
+			// already excluded from Claim, so it is retired late, not missed.
+			d.retireExhausted()
 		}
 		d.drainQueue()
+	}
+}
+
+// retireExhausted runs the poison-pill sweep, reporting what it retired. Such a
+// job is one no retry can rescue -- typically an entity whose worker kept dying
+// -- and its entity stays unembedded, so the line is an ERROR, not a statistic.
+func (d *EmbeddingDispatcher) retireExhausted() {
+	n, err := d.queue.FailExhausted(context.Background(), d.queueCfg.MaxAttempts)
+	switch {
+	case err != nil:
+		d.queueLogger().With("error", fmt.Sprintf("%+v", err)).
+			Error("Failed to retire exhausted embedding jobs")
+	case n > 0:
+		d.queueLogger().With("retired", n).
+			Error("Embedding jobs exhausted their attempt bound; entities left unembedded")
 	}
 }
 
@@ -162,14 +185,6 @@ func (d *EmbeddingDispatcher) pollQueue() {
 // where a backlog waits.
 func (d *EmbeddingDispatcher) drainQueue() {
 	ctx := context.Background()
-
-	if n, err := d.queue.FailExhausted(ctx, d.queueCfg.MaxAttempts); err != nil {
-		d.queueLogger().With("error", fmt.Sprintf("%+v", err)).
-			Error("Failed to retire exhausted embedding jobs")
-	} else if n > 0 {
-		d.queueLogger().With("retired", n).
-			Error("Embedding jobs exhausted their attempt bound; entities left unembedded")
-	}
 
 	for {
 		select {
