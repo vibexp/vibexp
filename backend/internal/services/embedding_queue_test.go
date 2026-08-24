@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/pkg/events"
 )
@@ -510,4 +512,105 @@ func TestEmbeddingDispatcher_QueuedJobsRespectProviderConcurrency(t *testing.T) 
 		"every queued job must embed -- a bounded queue must not drop the overflow")
 	assert.LessOrEqual(t, provider.tracker.max.Load(), int32(1),
 		"no more than the provider's configured concurrency may run at once")
+}
+
+// oneShotQueue returns job on the first Claim and nothing afterwards, so a test
+// can drive exactly one pass of the poller through a mocked repository.
+func oneShotQueue(t *testing.T, job *models.EmbeddingJob) *repomocks.MockEmbeddingJobRepository {
+	t.Helper()
+	queue := repomocks.NewMockEmbeddingJobRepository(t)
+	queue.EXPECT().FailExhausted(mock.Anything, mock.Anything).Return(0, nil).Maybe()
+	var served bool
+	var mu sync.Mutex
+	queue.EXPECT().
+		Claim(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		RunAndReturn(func(context.Context, string, int, time.Duration, int) ([]*models.EmbeddingJob, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			if served {
+				return nil, nil
+			}
+			served = true
+			return []*models.EmbeddingJob{job}, nil
+		}).Maybe()
+	return queue
+}
+
+// newLoggingQueuedDispatcher builds a started, queue-backed dispatcher whose log
+// output the test can read.
+func newLoggingQueuedDispatcher(
+	queue repositories.EmbeddingJobRepository, provider EmbeddingProvider,
+) (*EmbeddingDispatcher, *syncBuffer) {
+	logs := &syncBuffer{}
+	logger := slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	resolver := &perTeamResolver{
+		providers:   map[string]EmbeddingProvider{"team-1": provider},
+		concurrency: map[string]int{"team-1": 2},
+	}
+	svc := newRecordingEmbeddingService(func(string) string { return "team-1" })
+	engine := NewEmbeddingGenerationProcessor(resolver, svc, logger)
+	d := NewEmbeddingDispatcher(engine, 4, EmbeddingRetryConfig{MaxRetries: 1}, logger,
+		WithDurableQueue(queue, EmbeddingQueueConfig{PollInterval: time.Hour}))
+	d.Start()
+	return d, logs
+}
+
+// An ack that matches no row is the coalescing case seen from the worker's side:
+// the entity was re-enqueued while this job ran, so the newer row must win. It is
+// expected, not an error, but it must be visible -- a silently-dropped ack is
+// indistinguishable from the loss this issue removes.
+func TestEmbeddingDispatcher_LogsAStaleClaimOnAck(t *testing.T) {
+	t.Parallel()
+
+	job := queuedJob("job-1", "p1")
+	queue := oneShotQueue(t, job)
+	queue.EXPECT().Ack(mock.Anything, "job-1", mock.Anything).Return(false, nil).Once()
+
+	d, logs := newLoggingQueuedDispatcher(queue, &countingProvider{})
+	defer d.Stop()
+
+	waitFor(t, func() bool { return strings.Contains(logs.String(), "claim no longer valid") },
+		"a stale claim must be reported, naming the job")
+	assert.Contains(t, logs.String(), `"job_id":"job-1"`)
+}
+
+// A settle that ERRORS is different: the row stays leased and will be reclaimed
+// when the lease expires, which is correct but is an operator-visible symptom of
+// a database problem.
+func TestEmbeddingDispatcher_LogsAFailedSettle(t *testing.T) {
+	t.Parallel()
+
+	job := queuedJob("job-2", "p2")
+	queue := oneShotQueue(t, job)
+	queue.EXPECT().Ack(mock.Anything, "job-2", mock.Anything).
+		Return(false, errors.New("connection reset")).Once()
+
+	d, logs := newLoggingQueuedDispatcher(queue, &countingProvider{})
+	defer d.Stop()
+
+	waitFor(t, func() bool { return strings.Contains(logs.String(), "stays leased") },
+		"a failed settle must say the job is still leased")
+	assert.Contains(t, logs.String(), "connection reset")
+}
+
+// Retiring poison pills must be reported at ERROR: each one is an entity that
+// will stay unembedded, and nothing downstream will ever mention it again.
+func TestEmbeddingDispatcher_ReportsRetiredPoisonPills(t *testing.T) {
+	t.Parallel()
+
+	queue := repomocks.NewMockEmbeddingJobRepository(t)
+	queue.EXPECT().FailExhausted(mock.Anything, mock.Anything).Return(3, nil).Once()
+	queue.EXPECT().FailExhausted(mock.Anything, mock.Anything).
+		Return(0, errors.New("sweep failed")).Maybe()
+	queue.EXPECT().Claim(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, nil).Maybe()
+
+	d, logs := newLoggingQueuedDispatcher(queue, &countingProvider{})
+	defer d.Stop()
+
+	waitFor(t, func() bool { return strings.Contains(logs.String(), "exhausted their attempt bound") },
+		"the sweep must report what it retired")
+	assert.Contains(t, logs.String(), `"retired":3`)
+	assert.Contains(t, logs.String(), `"level":"ERROR"`,
+		"an entity left permanently unembedded is not a statistic")
 }
