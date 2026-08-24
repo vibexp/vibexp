@@ -128,7 +128,7 @@ func TestMemoryService_Delete_RelationCascadeErrorIsSwallowed(t *testing.T) {
 	relationRepo.EXPECT().DeleteByResource(mock.Anything, resRBACTeamID, models.RelationResourceTypeMemory, memoryID).
 		Return(int64(0), errRelBoom).Once()
 
-	svc := NewMemoryService(repo, nil, authzForRole(t, models.TeamMemberRoleMember), nil, logger, nil, nil, relationRepo, nil)
+	svc := NewMemoryService(repo, nil, authzForRole(t, models.TeamMemberRoleMember), nil, logger, nil, nil, relationRepo, nil, nil)
 	require.NoError(t, svc.DeleteMemory(resRBACCaller, resRBACTeamID, memoryID))
 }
 

@@ -22,6 +22,7 @@ type ArtifactService struct {
 	commentRepo       repositories.CommentRepository
 	relationRepo      repositories.RelationRepository
 	freshnessClearer  FreshnessClearer
+	freshnessRepo     repositories.ResourceFreshnessRepository
 	logger            *slog.Logger
 }
 
@@ -39,6 +40,7 @@ type ArtifactServiceDeps struct {
 	CommentRepo       repositories.CommentRepository
 	RelationRepo      repositories.RelationRepository
 	FreshnessClearer  FreshnessClearer
+	FreshnessRepo     repositories.ResourceFreshnessRepository
 }
 
 func NewArtifactService(deps ArtifactServiceDeps) *ArtifactService {
@@ -51,6 +53,7 @@ func NewArtifactService(deps ArtifactServiceDeps) *ArtifactService {
 		commentRepo:       deps.CommentRepo,
 		relationRepo:      deps.RelationRepo,
 		freshnessClearer:  deps.FreshnessClearer,
+		freshnessRepo:     deps.FreshnessRepo,
 		logger:            deps.Logger,
 	}
 }
@@ -550,6 +553,7 @@ func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, teamID, proje
 
 	s.deleteArtifactComments(ctx, artifact.TeamID, artifact.ID)
 	s.deleteArtifactRelations(ctx, artifact.TeamID, artifact.ID)
+	s.deleteArtifactFreshness(ctx, artifact.TeamID, artifact.ID)
 
 	return nil
 }
@@ -588,6 +592,33 @@ func (s *ArtifactService) deleteArtifactRelations(ctx context.Context, teamID, a
 			"artifact_id", artifactID,
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to delete relations for deleted artifact")
+	}
+}
+
+// deleteArtifactFreshness clears an artifact's freshness state after it is
+// deleted. resource_freshness.resource_id carries no FK — one column cannot
+// reference four resource tables — so this cascade is the only thing that
+// removes the row; without it the state outlives its resource forever (#762).
+// Best-effort, like the comment and relation cascades above.
+//
+// It deliberately writes NO freshness audit entry. The audit log is read as
+// the history OF a resource, so an entry whose subject no longer exists cannot
+// be rendered and would surface in the analytics reads (#734) as activity. If
+// deletion ever needs to be visible it belongs in a resource-lifecycle log.
+//
+// The repository method is not team-scoped (resource ids are UUIDs and unique
+// across teams); teamID is carried only for the log line.
+func (s *ArtifactService) deleteArtifactFreshness(ctx context.Context, teamID, artifactID string) {
+	if s.freshnessRepo == nil {
+		return
+	}
+	if _, err := s.freshnessRepo.DeleteByResource(ctx, "artifact", artifactID); err != nil {
+		s.logger.With(
+			"service", "artifact",
+			"team_id", teamID,
+			"artifact_id", artifactID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to clear freshness state for deleted artifact")
 	}
 }
 

@@ -22,6 +22,7 @@ type MemoryService struct {
 	commentRepo       repositories.CommentRepository
 	relationRepo      repositories.RelationRepository
 	freshnessClearer  FreshnessClearer
+	freshnessRepo     repositories.ResourceFreshnessRepository
 	logger            *slog.Logger
 }
 
@@ -38,6 +39,7 @@ func NewMemoryService(
 	commentRepo repositories.CommentRepository,
 	relationRepo repositories.RelationRepository,
 	freshnessClearer FreshnessClearer,
+	freshnessRepo repositories.ResourceFreshnessRepository,
 ) *MemoryService {
 	return &MemoryService{
 		repo:              repo,
@@ -48,6 +50,7 @@ func NewMemoryService(
 		commentRepo:       commentRepo,
 		relationRepo:      relationRepo,
 		freshnessClearer:  freshnessClearer,
+		freshnessRepo:     freshnessRepo,
 		logger:            logger,
 	}
 }
@@ -339,6 +342,7 @@ func (s *MemoryService) DeleteMemory(userID, teamID, memoryID string) error {
 
 	s.deleteMemoryComments(ctx, teamID, memoryID)
 	s.deleteMemoryRelations(ctx, teamID, memoryID)
+	s.deleteMemoryFreshness(ctx, teamID, memoryID)
 
 	return nil
 }
@@ -376,5 +380,32 @@ func (s *MemoryService) deleteMemoryRelations(ctx context.Context, teamID, memor
 			"memory_id", memoryID,
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to delete relations for deleted memory")
+	}
+}
+
+// deleteMemoryFreshness clears a memory's freshness state after it is deleted.
+// resource_freshness.resource_id carries no FK — one column cannot reference
+// four resource tables — so this cascade is the only thing that removes the
+// row; without it the state outlives its resource forever (#762). Best-effort,
+// like the comment and relation cascades above.
+//
+// It deliberately writes NO freshness audit entry. The audit log is read as
+// the history OF a resource, so an entry whose subject no longer exists cannot
+// be rendered and would surface in the analytics reads (#734) as activity. If
+// deletion ever needs to be visible it belongs in a resource-lifecycle log.
+//
+// The repository method is not team-scoped (resource ids are UUIDs and unique
+// across teams); teamID is carried only for the log line.
+func (s *MemoryService) deleteMemoryFreshness(ctx context.Context, teamID, memoryID string) {
+	if s.freshnessRepo == nil {
+		return
+	}
+	if _, err := s.freshnessRepo.DeleteByResource(ctx, "memory", memoryID); err != nil {
+		s.logger.With(
+			"service", "memory",
+			"team_id", teamID,
+			"memory_id", memoryID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to clear freshness state for deleted memory")
 	}
 }

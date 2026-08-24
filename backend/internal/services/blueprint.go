@@ -133,6 +133,7 @@ type BlueprintService struct {
 	commentRepo       repositories.CommentRepository
 	relationRepo      repositories.RelationRepository
 	freshnessClearer  FreshnessClearer
+	freshnessRepo     repositories.ResourceFreshnessRepository
 	logger            *slog.Logger
 }
 
@@ -150,6 +151,7 @@ type BlueprintServiceDeps struct {
 	CommentRepo       repositories.CommentRepository
 	RelationRepo      repositories.RelationRepository
 	FreshnessClearer  FreshnessClearer
+	FreshnessRepo     repositories.ResourceFreshnessRepository
 }
 
 func NewBlueprintService(deps BlueprintServiceDeps) *BlueprintService {
@@ -162,6 +164,7 @@ func NewBlueprintService(deps BlueprintServiceDeps) *BlueprintService {
 		commentRepo:       deps.CommentRepo,
 		relationRepo:      deps.RelationRepo,
 		freshnessClearer:  deps.FreshnessClearer,
+		freshnessRepo:     deps.FreshnessRepo,
 		logger:            deps.Logger,
 	}
 }
@@ -708,6 +711,7 @@ func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, teamID, pro
 
 	s.deleteBlueprintComments(ctx, blueprint.TeamID, blueprint.ID)
 	s.deleteBlueprintRelations(ctx, blueprint.TeamID, blueprint.ID)
+	s.deleteBlueprintFreshness(ctx, blueprint.TeamID, blueprint.ID)
 
 	return nil
 }
@@ -745,6 +749,33 @@ func (s *BlueprintService) deleteBlueprintRelations(ctx context.Context, teamID,
 			"blueprint_id", blueprintID,
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to delete relations for deleted blueprint")
+	}
+}
+
+// deleteBlueprintFreshness clears a blueprint's freshness state after it is
+// deleted. resource_freshness.resource_id carries no FK — one column cannot
+// reference four resource tables — so this cascade is the only thing that
+// removes the row; without it the state outlives its resource forever (#762).
+// Best-effort, like the comment and relation cascades above.
+//
+// It deliberately writes NO freshness audit entry. The audit log is read as
+// the history OF a resource, so an entry whose subject no longer exists cannot
+// be rendered and would surface in the analytics reads (#734) as activity. If
+// deletion ever needs to be visible it belongs in a resource-lifecycle log.
+//
+// The repository method is not team-scoped (resource ids are UUIDs and unique
+// across teams); teamID is carried only for the log line.
+func (s *BlueprintService) deleteBlueprintFreshness(ctx context.Context, teamID, blueprintID string) {
+	if s.freshnessRepo == nil {
+		return
+	}
+	if _, err := s.freshnessRepo.DeleteByResource(ctx, "blueprint", blueprintID); err != nil {
+		s.logger.With(
+			"service", "blueprint",
+			"team_id", teamID,
+			"blueprint_id", blueprintID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to clear freshness state for deleted blueprint")
 	}
 }
 
