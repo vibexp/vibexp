@@ -1568,7 +1568,7 @@ type ScheduleRepository interface {
 	// agree on what is due regardless of app-server clock skew.
 	//
 	// A schedule that ran less than interval_seconds ago is held back even when
-	// next_run_at says it is due -- the interval floor (#767), which stops a
+	// next_run_at says it is due -- the run-spacing floor (#767), which stops a
 	// caller that resets next_run_at on every write from running a schedule far
 	// more often than its interval. A schedule that has never run
 	// (last_run_at IS NULL) is exempt, so a newly provisioned one still fires on

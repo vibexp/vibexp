@@ -59,7 +59,11 @@ func (r *ScheduleRepository) Upsert(ctx context.Context, s *models.Schedule) err
 // regardless of app-server clock skew.
 //
 // A schedule is also held back until at least interval_seconds have passed
-// since its last run -- the interval floor (#767). next_run_at alone cannot be
+// since its last run -- the RUN-SPACING floor (#767). Not to be confused with
+// the storage floor on interval_seconds itself (CHECK >= 3600, migration 012):
+// same column, different guarantee. That CHECK is also why this expression can
+// never be zero or negative, so the spacing floor cannot silently become a
+// no-op. next_run_at alone cannot be
 // trusted as a rate limit: Upsert resets it to now() on every write, so a
 // feature that syncs its schedule from a settings save (FreshnessService does)
 // lets an admin keep one team permanently due just by saving repeatedly. tick
@@ -79,6 +83,14 @@ func (r *ScheduleRepository) Upsert(ctx context.Context, s *models.Schedule) err
 // that a genuine configuration change made shortly after a run waits out the
 // remainder of the interval, which is the cadence the interval already asks
 // for.
+//
+// The floor keys on last_run_at, so it does not disturb the two paths that
+// deliberately leave a schedule due: a failed MarkRun and a lock claimed by
+// another replica (see Scheduler.runDue) both leave last_run_at untouched, so
+// a row that qualified still qualifies on the next tick. Under normal
+// operation the floor is redundant -- MarkRun sets last_run_at = now() and
+// next_run_at = now() + interval together, so the two agree exactly. It bites
+// only when something moves next_run_at backwards on its own.
 func (r *ScheduleRepository) ListDue(
 	ctx context.Context, limit int,
 ) ([]*models.Schedule, error) {

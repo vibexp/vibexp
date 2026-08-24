@@ -372,7 +372,8 @@ func (s *FreshnessService) syncSchedule(ctx context.Context, teamID string) {
 	// nothing.
 	//
 	// Repeating that reset cannot make the job run faster than its interval:
-	// ListDue floors due-ness at last_run_at + interval_seconds (#767), so
+	// ListDue applies a run-spacing floor at last_run_at + interval_seconds
+	// (#767), so
 	// saving settings in a loop no longer keeps the team permanently due on the
 	// serial run loop. The floor is the engine's, and it is the single
 	// definition of "too soon" -- do not add a second one here.

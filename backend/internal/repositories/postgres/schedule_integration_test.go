@@ -278,8 +278,10 @@ func setLastRunAt(t *testing.T, scheduleID string, offset time.Duration) {
 	require.NoError(t, err)
 }
 
-// The interval floor (#767): a schedule that ran less than interval_seconds
-// ago is not due, even though Upsert has reset next_run_at to now().
+// The run-spacing floor (#767): a schedule that ran less than interval_seconds
+// ago is not due, even though Upsert has reset next_run_at to now(). Distinct
+// from TestIntegrationSchedule_IntervalFloorCheck above, which covers the
+// storage CHECK on interval_seconds itself.
 func TestIntegrationSchedule_ListDueFloorsRecentlyRunSchedule(t *testing.T) {
 	resetIntegrationTables(t)
 	teamID := seedScheduleTeam(t)
