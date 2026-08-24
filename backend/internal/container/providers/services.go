@@ -156,12 +156,17 @@ func ProvideAttachmentService(
 	return services.NewAttachmentService(repo, store, logger)
 }
 
-// ProvideTypeService creates a new TypeService
+// ProvideTypeService creates a new TypeService. The authorization and audit
+// services are for the cross-team copy alone (#829): it is the one operation
+// whose second team never passes through teamValidationMiddleware, and the one
+// that must leave an audit trail.
 func ProvideTypeService(
 	repo repositories.TypeRepository,
+	authorizer services.AuthorizationServiceInterface,
+	audit services.TeamSettingsAuditServiceInterface,
 	logger *slog.Logger,
 ) services.TypeServiceInterface {
-	return services.NewTypeService(repo, logger)
+	return services.NewTypeService(repo, authorizer, audit, logger)
 }
 
 // ProvideBlueprintService creates a new BlueprintService. Wire fills the deps

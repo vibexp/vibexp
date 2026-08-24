@@ -31,6 +31,8 @@ func (permissiveProviderAuthz) Can(_ context.Context, _, _ string, _ authz.Permi
 	return nil
 }
 
+func (permissiveProviderAuthz) IsMember(_ context.Context, _, _ string) error { return nil }
+
 func (permissiveProviderAuthz) CanActOnResource(
 	_ context.Context, _, _, _ string, _, _ authz.Permission,
 ) error {
@@ -47,6 +49,10 @@ func (permissiveProviderAuthz) Authorize(
 type denyingProviderAuthz struct{}
 
 func (denyingProviderAuthz) Can(_ context.Context, _, _ string, _ authz.Permission) error {
+	return ErrPermissionDenied
+}
+
+func (denyingProviderAuthz) IsMember(_ context.Context, _, _ string) error {
 	return ErrPermissionDenied
 }
 

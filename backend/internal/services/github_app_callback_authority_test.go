@@ -26,6 +26,8 @@ func (denyAllAuthz) Can(_ context.Context, _, _ string, perm authz.Permission) e
 	return ErrPermissionDenied
 }
 
+func (denyAllAuthz) IsMember(_ context.Context, _, _ string) error { return ErrPermissionDenied }
+
 func (denyAllAuthz) CanActOnResource(
 	_ context.Context, _, _, _ string, _, _ authz.Permission,
 ) error {

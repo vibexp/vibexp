@@ -8372,6 +8372,64 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Types
+  /api/v1/{team_id}/settings/types/copy:
+    post:
+      summary: Copy another team's custom types into this team
+      description: |
+        Merges the custom types of `source_team_id` into the team named by `{team_id}`. The caller must be a member of BOTH teams — the same bar the destination's own create path sets — and the destination is checked first, so a caller who belongs to neither learns nothing about either.
+        The copy is a snapshot: the destination fully owns the resulting rows and may edit or delete them with no effect on the source. Global system defaults are excluded (every team already has them), and a slug the destination already uses is reported as skipped rather than failing the whole copy.
+      operationId: copyTypesFromTeam
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Destination team identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopyTypesRequest'
+      responses:
+        '200':
+          description: Copy completed (possibly with everything skipped)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopyTypesResponse'
+        '400':
+          description: Missing body, malformed source_team_id, or source equal to destination
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: |
+            Caller is not a member of the destination team or of the source team. The two are deliberately indistinguishable, so the response never reveals whether the source team exists.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to copy types
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Types
   /api/v1/admin/stats:
     get:
       summary: Get instance statistics
@@ -19892,6 +19950,63 @@ components:
       required:
         - types
         - total_count
+    CopyTypesRequest:
+      type: object
+      description: |
+        Request body for copying another team's custom types into this one. The destination is the `{team_id}` path parameter; only the source is carried here.
+      properties:
+        source_team_id:
+          type: string
+          format: uuid
+          description: |
+            Team to copy the custom types from. The caller must belong to it, and it must differ from the destination team.
+          example: 770e8400-e29b-41d4-a716-446655440002
+      required:
+        - source_team_id
+    SkippedType:
+      type: object
+      description: |
+        A source type that was not copied because the destination already has a type with the same slug for that resource. A skip is a normal outcome, never an error.
+      properties:
+        resource_type:
+          type: string
+          description: Resource the skipped type applies to
+          example: artifacts
+        slug:
+          type: string
+          description: Slug that already exists in the destination team
+          example: bug-report
+      required:
+        - resource_type
+        - slug
+    CopyTypesResponse:
+      type: object
+      description: |
+        Outcome of copying a team's custom types. The copy is a merge: types whose slug is free in the destination are added, the rest are reported as skipped. System defaults are never part of the source set — every team already has them.
+      properties:
+        added:
+          type: array
+          description: Types created in the destination team
+          items:
+            $ref: '#/components/schemas/Type'
+        skipped:
+          type: array
+          description: Source types left untouched because their slug is already taken
+          items:
+            $ref: '#/components/schemas/SkippedType'
+        added_count:
+          type: integer
+          description: Number of types created in the destination team
+          example: 3
+        skipped_count:
+          type: integer
+          description: Number of source types skipped
+          example: 1
+      required:
+        - added
+        - skipped
+        - added_count
+        - skipped_count
     Comment:
       type: object
       description: A team-visible comment on a resource.

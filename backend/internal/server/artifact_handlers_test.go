@@ -637,6 +637,14 @@ func (permissiveTypeService) ValidateType(context.Context, string, string, strin
 	return true, nil
 }
 
+// CopyFromTeam is unreachable from the artifact handlers; it exists to satisfy
+// the interface.
+func (permissiveTypeService) CopyFromTeam(
+	context.Context, services.CopyTypesParams,
+) (*services.CopyTypesResult, error) {
+	return nil, nil
+}
+
 func (m *MockArtifactContainer) AuthService() services.AuthServiceInterface {
 	return m.AuthServiceMock
 }

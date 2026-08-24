@@ -25,7 +25,9 @@ func newTypeService(t *testing.T) (*TypeService, *repomocks.MockTypeRepository) 
 	t.Helper()
 	repo := repomocks.NewMockTypeRepository(t)
 	logger := slog.New(slog.DiscardHandler)
-	return NewTypeService(repo, logger), repo
+	// The single-team operations reach for neither dependency; the copy tests in
+	// type_copy_test.go build their own service with explicit doubles.
+	return NewTypeService(repo, allowAllAuthz{}, &recordingAuditService{}, logger), repo
 }
 
 func TestTypeService_List_UnsupportedResourceType(t *testing.T) {

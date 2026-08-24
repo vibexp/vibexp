@@ -83,3 +83,71 @@ TypeListResponse:
   required:
     - types
     - total_count
+
+CopyTypesRequest:
+  type: object
+  description: >
+    Request body for copying another team's custom types into this one. The
+    destination is the `{team_id}` path parameter; only the source is carried
+    here.
+  properties:
+    source_team_id:
+      type: string
+      format: uuid
+      description: >
+        Team to copy the custom types from. The caller must belong to it, and it
+        must differ from the destination team.
+      example: "770e8400-e29b-41d4-a716-446655440002"
+  required:
+    - source_team_id
+
+SkippedType:
+  type: object
+  description: >
+    A source type that was not copied because the destination already has a type
+    with the same slug for that resource. A skip is a normal outcome, never an
+    error.
+  properties:
+    resource_type:
+      type: string
+      description: Resource the skipped type applies to
+      example: "artifacts"
+    slug:
+      type: string
+      description: Slug that already exists in the destination team
+      example: "bug-report"
+  required:
+    - resource_type
+    - slug
+
+CopyTypesResponse:
+  type: object
+  description: >
+    Outcome of copying a team's custom types. The copy is a merge: types whose
+    slug is free in the destination are added, the rest are reported as skipped.
+    System defaults are never part of the source set — every team already has
+    them.
+  properties:
+    added:
+      type: array
+      description: Types created in the destination team
+      items:
+        $ref: '#/Type'
+    skipped:
+      type: array
+      description: Source types left untouched because their slug is already taken
+      items:
+        $ref: '#/SkippedType'
+    added_count:
+      type: integer
+      description: Number of types created in the destination team
+      example: 3
+    skipped_count:
+      type: integer
+      description: Number of source types skipped
+      example: 1
+  required:
+    - added
+    - skipped
+    - added_count
+    - skipped_count

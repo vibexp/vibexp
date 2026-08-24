@@ -22,6 +22,27 @@ const (
 	CookieAuthScopes cookieAuthContextKey = "CookieAuth.Scopes"
 )
 
+// CopyTypesRequest Request body for copying another team's custom types into this one. The destination is the `{team_id}` path parameter; only the source is carried here.
+type CopyTypesRequest struct {
+	// SourceTeamId Team to copy the custom types from. The caller must belong to it, and it must differ from the destination team.
+	SourceTeamId openapi_types.UUID `json:"source_team_id"`
+}
+
+// CopyTypesResponse Outcome of copying a team's custom types. The copy is a merge: types whose slug is free in the destination are added, the rest are reported as skipped. System defaults are never part of the source set — every team already has them.
+type CopyTypesResponse struct {
+	// Added Types created in the destination team
+	Added []Type `json:"added"`
+
+	// AddedCount Number of types created in the destination team
+	AddedCount int `json:"added_count"`
+
+	// Skipped Source types left untouched because their slug is already taken
+	Skipped []SkippedType `json:"skipped"`
+
+	// SkippedCount Number of source types skipped
+	SkippedCount int `json:"skipped_count"`
+}
+
 // CreateTypeRequest Request body for creating a team-owned custom type
 type CreateTypeRequest struct {
 	// Name Human-readable display name
@@ -62,6 +83,15 @@ type ErrorResponse struct {
 
 	// ValidationErrors Field-level validation errors (present for validation failures)
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
+}
+
+// SkippedType A source type that was not copied because the destination already has a type with the same slug for that resource. A skip is a normal outcome, never an error.
+type SkippedType struct {
+	// ResourceType Resource the skipped type applies to
+	ResourceType string `json:"resource_type"`
+
+	// Slug Slug that already exists in the destination team
+	Slug string `json:"slug"`
 }
 
 // Type A resource category. System defaults are global and read-only (is_system true, no team_id); custom types belong to a team. Uniqueness is on (team_id, resource_type, slug).
@@ -130,11 +160,17 @@ type ListTypesParams struct {
 	ResourceType string `form:"resource_type" json:"resource_type"`
 }
 
+// CopyTypesFromTeamJSONRequestBody defines body for CopyTypesFromTeam for application/json ContentType.
+type CopyTypesFromTeamJSONRequestBody = CopyTypesRequest
+
 // CreateTypeJSONRequestBody defines body for CreateType for application/json ContentType.
 type CreateTypeJSONRequestBody = CreateTypeRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Copy another team's custom types into this team
+	// (POST /api/v1/{team_id}/settings/types/copy)
+	CopyTypesFromTeam(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
 	// List types for a resource
 	// (GET /api/v1/{team_id}/types)
 	ListTypes(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, params ListTypesParams)
@@ -149,6 +185,12 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// Copy another team's custom types into this team
+// (POST /api/v1/{team_id}/settings/types/copy)
+func (_ Unimplemented) CopyTypesFromTeam(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // List types for a resource
 // (GET /api/v1/{team_id}/types)
@@ -176,6 +218,40 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// CopyTypesFromTeam operation middleware
+func (siw *ServerInterfaceWrapper) CopyTypesFromTeam(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CopyTypesFromTeam(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListTypes operation middleware
 func (siw *ServerInterfaceWrapper) ListTypes(w http.ResponseWriter, r *http.Request) {
@@ -418,6 +494,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/{team_id}/settings/types/copy", wrapper.CopyTypesFromTeam)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/{team_id}/types", wrapper.ListTypes)
 	})
 	r.Group(func(r chi.Router) {
@@ -428,6 +507,85 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 
 	return r
+}
+
+type CopyTypesFromTeamRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Body   *CopyTypesFromTeamJSONRequestBody
+}
+
+type CopyTypesFromTeamResponseObject interface {
+	VisitCopyTypesFromTeamResponse(w http.ResponseWriter) error
+}
+
+type CopyTypesFromTeam200JSONResponse CopyTypesResponse
+
+func (response CopyTypesFromTeam200JSONResponse) VisitCopyTypesFromTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyTypesFromTeam400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CopyTypesFromTeam400ApplicationProblemPlusJSONResponse) VisitCopyTypesFromTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyTypesFromTeam401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CopyTypesFromTeam401ApplicationProblemPlusJSONResponse) VisitCopyTypesFromTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyTypesFromTeam403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CopyTypesFromTeam403ApplicationProblemPlusJSONResponse) VisitCopyTypesFromTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyTypesFromTeam500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CopyTypesFromTeam500ApplicationProblemPlusJSONResponse) VisitCopyTypesFromTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type ListTypesRequestObject struct {
@@ -691,6 +849,9 @@ func (response DeleteType500ApplicationProblemPlusJSONResponse) VisitDeleteTypeR
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// Copy another team's custom types into this team
+	// (POST /api/v1/{team_id}/settings/types/copy)
+	CopyTypesFromTeam(ctx context.Context, request CopyTypesFromTeamRequestObject) (CopyTypesFromTeamResponseObject, error)
 	// List types for a resource
 	// (GET /api/v1/{team_id}/types)
 	ListTypes(ctx context.Context, request ListTypesRequestObject) (ListTypesResponseObject, error)
@@ -729,6 +890,39 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// CopyTypesFromTeam operation middleware
+func (sh *strictHandler) CopyTypesFromTeam(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request CopyTypesFromTeamRequestObject
+
+	request.TeamId = teamId
+
+	var body CopyTypesFromTeamJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CopyTypesFromTeam(ctx, request.(CopyTypesFromTeamRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CopyTypesFromTeam")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CopyTypesFromTeamResponseObject); ok {
+		if err := validResponse.VisitCopyTypesFromTeamResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // ListTypes operation middleware
