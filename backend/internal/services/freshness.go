@@ -370,6 +370,13 @@ func (s *FreshnessService) syncSchedule(ctx context.Context, teamID string) {
 	// effect within a tick instead of up to a day later, and re-evaluating is
 	// idempotent by construction, so the extra run costs a query and writes
 	// nothing.
+	//
+	// Repeating that reset cannot make the job run faster than its interval:
+	// ListDue applies a run-spacing floor at last_run_at + interval_seconds
+	// (#767), so
+	// saving settings in a loop no longer keeps the team permanently due on the
+	// serial run loop. The floor is the engine's, and it is the single
+	// definition of "too soon" -- do not add a second one here.
 	if err := s.schedules.Upsert(ctx, &models.Schedule{
 		TeamID:          teamID,
 		JobType:         models.JobTypeFreshnessEvaluate,

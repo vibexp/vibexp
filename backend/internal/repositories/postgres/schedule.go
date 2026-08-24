@@ -57,6 +57,40 @@ func (r *ScheduleRepository) Upsert(ctx context.Context, s *models.Schedule) err
 // (now()), most overdue first (id as deterministic tiebreaker), capped at
 // limit. Due-ness uses the database clock so all replicas agree on what is due
 // regardless of app-server clock skew.
+//
+// A schedule is also held back until at least interval_seconds have passed
+// since its last run -- the RUN-SPACING floor (#767). Not to be confused with
+// the storage floor on interval_seconds itself (CHECK >= 3600, migration 012):
+// same column, different guarantee. That CHECK is also why this expression can
+// never be zero or negative, so the spacing floor cannot silently become a
+// no-op. next_run_at alone cannot be
+// trusted as a rate limit: Upsert resets it to now() on every write, so a
+// feature that syncs its schedule from a settings save (FreshnessService does)
+// lets an admin keep one team permanently due just by saving repeatedly. tick
+// runs due schedules SERIALLY, so that team would evaluate on every tick
+// instead of on its own interval -- up to 1440x the intended cadence -- and
+// delay every other team's jobs behind it.
+//
+// The floor lives here, in SQL, for three reasons: the comparison stays on the
+// database clock rather than mixing in an app-server time.Now(); a held-back
+// row is never fetched, so it cannot consume the caller's limit budget; and no
+// writer can bypass it, including a future job that stamps next_run_at itself
+// or a direct SQL write. It is derived from each schedule's own
+// interval_seconds, so it needs no new configuration knob.
+//
+// last_run_at IS NULL means the schedule has never run, which is exempt: a
+// newly provisioned schedule must still fire on the next tick. The cost is
+// that a genuine configuration change made shortly after a run waits out the
+// remainder of the interval, which is the cadence the interval already asks
+// for.
+//
+// The floor keys on last_run_at, so it does not disturb the two paths that
+// deliberately leave a schedule due: a failed MarkRun and a lock claimed by
+// another replica (see Scheduler.runDue) both leave last_run_at untouched, so
+// a row that qualified still qualifies on the next tick. Under normal
+// operation the floor is redundant -- MarkRun sets last_run_at = now() and
+// next_run_at = now() + interval together, so the two agree exactly. It bites
+// only when something moves next_run_at backwards on its own.
 func (r *ScheduleRepository) ListDue(
 	ctx context.Context, limit int,
 ) ([]*models.Schedule, error) {
@@ -64,6 +98,10 @@ func (r *ScheduleRepository) ListDue(
 		SELECT ` + scheduleColumns + `
 		FROM schedules
 		WHERE next_run_at <= now()
+		  AND (
+		        last_run_at IS NULL
+		     OR last_run_at <= now() - make_interval(secs => interval_seconds)
+		      )
 		ORDER BY next_run_at ASC, id ASC
 		LIMIT $1
 	`
