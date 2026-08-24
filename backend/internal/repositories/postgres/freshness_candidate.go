@@ -87,18 +87,28 @@ func NewFreshnessCandidateRepository(db *database.DB) repositories.FreshnessCand
 //
 // No index backs the staleness predicate, and that is a recorded decision
 // rather than an oversight. Measured on PG17, 245k prompts across 10 teams
-// (200k in the largest), ~1% of a team's rows stale, all buffers cached:
+// (200k in the largest), ~1% of a team's rows stale, all buffers cached.
+// Sampled on `prompts`, but the finding is table-independent: the dominant
+// cost is the random-uuid `ORDER BY id` every one of the four shares, and the
+// GREATEST expression is unsargable in all of them (in `memories` doubly so --
+// its updated_at is naive, so the expression wraps it in AT TIME ZONE).
 //
 //	full drain of the largest team   ~5.9k buffers / ~97ms   (one pass)
 //	ONE LIMIT-500 batch              ~55k buffers / ~45ms
 //
-// A batch costs ~9x a full sequential scan of the whole table, and draining a
-// team (~5 batches) ~47x. The cause is NOT the missing index: `id` is a random
-// uuid, so `ORDER BY id` walks the heap in random physical order (~1.0
-// buffer/row) where a team-ordered scan is near-sequential (~0.05). The
-// planner picks that walk because it estimates ~66k matching rows when 2.3k
-// match -- a 29x overestimate it cannot fix, since the GREATEST expression
-// varies with the rule's medium set and so carries no statistics.
+// Read those as I/O, not wall clock: the batch is FASTER in elapsed time
+// because it stops as soon as 500 rows match, while doing ~9x the buffer
+// accesses of scanning the entire table once. Draining a team walks the whole
+// id space across its batches, so ~246k accesses, ~42x the full scan. Every
+// buffer above was a cache hit, which is why 45ms hides it; on a cold cache
+// the access count is what would be felt.
+//
+// The cause is NOT the missing index: `id` is a random uuid, so `ORDER BY id`
+// walks the heap in random physical order (~1.0 buffer/row) where a
+// team-ordered scan is near-sequential (~0.05). The planner picks that walk
+// because it estimates ~66k matching rows when 2.3k match -- a 29x
+// overestimate it cannot fix, since the GREATEST expression varies with the
+// rule's medium set and so carries no statistics.
 //
 // The three candidate fixes were measured and rejected:
 //
