@@ -651,3 +651,102 @@ func TestFreshnessService_UpdateRule_SyncsSchedule(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, freshnessTestRuleID, rule.ID)
 }
+
+// ---------------------------------------------------------------------------
+// ReconcileSchedules (#768)
+// ---------------------------------------------------------------------------
+
+// The sweep provisions every team the repository reports, through the SAME
+// path a user write uses: settings read, then upsert. Asserting the settings
+// read is what pins that — a second, hand-rolled provisioning path that
+// hardcoded the default interval would satisfy "a row exists" but drift from
+// syncSchedule the moment a team stores its own interval.
+func TestFreshnessService_ReconcileSchedules_ProvisionsMissingTeams(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+	deps.rules.EXPECT().
+		ListTeamIDsMissingSchedule(mock.Anything, models.JobTypeFreshnessEvaluate).
+		Return([]string{"team-a", "team-b"}, nil).Once()
+
+	deps.settings.EXPECT().Get(mock.Anything, "team-a").Return(nil, nil).Once()
+	deps.settings.EXPECT().Get(mock.Anything, "team-b").
+		Return(&models.TeamFreshnessSettings{IntervalSeconds: 7200}, nil).Once()
+
+	upserted := map[string]int{}
+	deps.schedules.EXPECT().
+		Upsert(mock.Anything, mock.MatchedBy(func(s *models.Schedule) bool {
+			// NextRunAt stays zero so the repository stamps now() and the
+			// freshly provisioned team is due on the next tick.
+			return s.JobType == models.JobTypeFreshnessEvaluate && s.NextRunAt.IsZero()
+		})).
+		Run(func(_ context.Context, s *models.Schedule) { upserted[s.TeamID] = s.IntervalSeconds }).
+		Return(nil).Twice()
+
+	require.NoError(t, svc.ReconcileSchedules(context.Background()))
+	assert.Equal(t, map[string]int{
+		"team-a": models.DefaultFreshnessIntervalSeconds,
+		"team-b": 7200,
+	}, upserted, "each team is provisioned with its own effective interval")
+}
+
+// The healthy steady state costs exactly one query: nothing missing means
+// nothing read and nothing written.
+func TestFreshnessService_ReconcileSchedules_NoopWhenNothingMissing(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+	deps.rules.EXPECT().
+		ListTeamIDsMissingSchedule(mock.Anything, models.JobTypeFreshnessEvaluate).
+		Return([]string{}, nil).Once()
+
+	// The t-bound mocks fail the test if Get or Upsert were called at all.
+	require.NoError(t, svc.ReconcileSchedules(context.Background()))
+}
+
+// One bad team must not stop the sweep — otherwise a single team wedged by a
+// transient error keeps every team behind it unevaluated indefinitely, which
+// is the failure mode this whole issue is about.
+func TestFreshnessService_ReconcileSchedules_OneBadTeamDoesNotAbortTheSweep(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+	deps.rules.EXPECT().
+		ListTeamIDsMissingSchedule(mock.Anything, models.JobTypeFreshnessEvaluate).
+		Return([]string{"team-a", "team-b", "team-c"}, nil).Once()
+
+	// team-a fails resolving its interval, team-b fails its upsert, team-c
+	// must still be provisioned.
+	deps.settings.EXPECT().Get(mock.Anything, "team-a").Return(nil, errors.New("boom")).Once()
+	deps.settings.EXPECT().Get(mock.Anything, "team-b").Return(nil, nil).Once()
+	deps.settings.EXPECT().Get(mock.Anything, "team-c").Return(nil, nil).Once()
+	deps.schedules.EXPECT().
+		Upsert(mock.Anything, mock.MatchedBy(func(s *models.Schedule) bool { return s.TeamID == "team-b" })).
+		Return(errors.New("boom")).Once()
+	deps.schedules.EXPECT().
+		Upsert(mock.Anything, mock.MatchedBy(func(s *models.Schedule) bool { return s.TeamID == "team-c" })).
+		Return(nil).Once()
+
+	assert.NoError(t, svc.ReconcileSchedules(context.Background()),
+		"per-team failures are logged, not returned")
+}
+
+// Failing to LIST is different: there is no sweep at all, so the scheduler
+// should hear about it.
+func TestFreshnessService_ReconcileSchedules_ReturnsListError(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+	deps.rules.EXPECT().
+		ListTeamIDsMissingSchedule(mock.Anything, models.JobTypeFreshnessEvaluate).
+		Return(nil, errors.New("boom")).Once()
+
+	assert.Error(t, svc.ReconcileSchedules(context.Background()))
+}
+
+// A cancelled context stops the sweep rather than burning through the
+// remaining teams with identical failures during shutdown.
+func TestFreshnessService_ReconcileSchedules_StopsOnCancelledContext(t *testing.T) {
+	svc, deps := newFreshnessService(t)
+	deps.rules.EXPECT().
+		ListTeamIDsMissingSchedule(mock.Anything, models.JobTypeFreshnessEvaluate).
+		Return([]string{"team-a", "team-b"}, nil).Once()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// The t-bound mocks fail the test if any team were provisioned.
+	assert.ErrorIs(t, svc.ReconcileSchedules(ctx), context.Canceled)
+}

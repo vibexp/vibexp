@@ -35,6 +35,7 @@ type PromptService struct {
 	commentRepo       repositories.CommentRepository
 	relationRepo      repositories.RelationRepository
 	freshnessClearer  FreshnessClearer
+	freshnessRepo     repositories.ResourceFreshnessRepository
 	logger            *slog.Logger
 }
 
@@ -55,6 +56,7 @@ type PromptServiceDeps struct {
 	CommentRepo       repositories.CommentRepository
 	RelationRepo      repositories.RelationRepository
 	FreshnessClearer  FreshnessClearer
+	FreshnessRepo     repositories.ResourceFreshnessRepository
 }
 
 func NewPromptService(deps PromptServiceDeps) *PromptService {
@@ -70,6 +72,7 @@ func NewPromptService(deps PromptServiceDeps) *PromptService {
 		commentRepo:       deps.CommentRepo,
 		relationRepo:      deps.RelationRepo,
 		freshnessClearer:  deps.FreshnessClearer,
+		freshnessRepo:     deps.FreshnessRepo,
 		logger:            deps.Logger,
 	}
 }
@@ -632,6 +635,7 @@ func (s *PromptService) deleteFetchedPrompt(
 
 	s.deletePromptComments(ctx, teamID, promptID)
 	s.deletePromptRelations(ctx, teamID, promptID)
+	s.deletePromptFreshness(ctx, teamID, promptID)
 
 	s.logger.With(
 		"prompt_id", promptID,
@@ -675,6 +679,33 @@ func (s *PromptService) deletePromptRelations(ctx context.Context, teamID, promp
 			"prompt_id", promptID,
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to delete relations for deleted prompt")
+	}
+}
+
+// deletePromptFreshness clears a prompt's freshness state after it is deleted.
+// resource_freshness.resource_id carries no FK — one column cannot reference
+// four resource tables — so this cascade is the only thing that removes the
+// row; without it the state outlives its resource forever (#762). Best-effort,
+// like the comment and relation cascades above.
+//
+// It deliberately writes NO freshness audit entry. The audit log is read as
+// the history OF a resource, so an entry whose subject no longer exists cannot
+// be rendered and would surface in the analytics reads (#734) as activity. If
+// deletion ever needs to be visible it belongs in a resource-lifecycle log.
+//
+// The repository method is not team-scoped (resource ids are UUIDs and unique
+// across teams); teamID is carried only for the log line.
+func (s *PromptService) deletePromptFreshness(ctx context.Context, teamID, promptID string) {
+	if s.freshnessRepo == nil {
+		return
+	}
+	if _, err := s.freshnessRepo.DeleteByResource(ctx, "prompt", promptID); err != nil {
+		s.logger.With(
+			"service", "prompt",
+			"team_id", teamID,
+			"prompt_id", promptID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to clear freshness state for deleted prompt")
 	}
 }
 
