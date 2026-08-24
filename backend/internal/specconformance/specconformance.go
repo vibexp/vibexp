@@ -5,6 +5,15 @@
 // response so the coverage ledger in internal/server can enforce shrink-only
 // burn-down.
 //
+// It also exposes the spec as data, so a test can pin a hand-maintained Go
+// value set to the documented one instead of trusting a comment:
+// RequiredArrayFields (required response arrays), ArrayItemEnum (the enum on an
+// array property's items) and ComponentEnum (a standalone string enum schema).
+// The last two exist because nothing else compares those halves — oapi-codegen
+// does not validate an enum at bind time — so the Go side is the only
+// enforcement point and the spec is only documentation until a test says
+// otherwise (#224, #774).
+//
 // It lives in its own package (not internal/testutils, which imports
 // internal/server) so that internal/server tests can import it without an
 // import cycle.
