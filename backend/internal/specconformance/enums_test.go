@@ -1,6 +1,8 @@
 package specconformance
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,10 +11,30 @@ import (
 
 // TestComponentEnumReadsSpecEnum proves ComponentEnum reads a standalone string
 // enum out of the spec, in spec order.
+//
+// It deliberately does NOT hardcode the enum's values. Which values
+// FreshnessMetricsRange holds is already pinned — to the Go allowlist that
+// enforces them — by TestSpecEnumsMatchServiceAllowlists in internal/services,
+// and a second copy here would turn a correct coordinated change (a window
+// added to both the spec and the map) into a failure in an unrelated package,
+// with a message about ComponentEnum rather than about ranges. What is left for
+// this test is what only it can see: that the values resolve at all, and that
+// they come back in SPEC order rather than sorted or map order. The spec
+// declares the windows shortest-first, so spec order is ascending by the
+// numeric prefix — lexical sorting would give 14d, 180d, 30d, …, and a map
+// would give no stable order at all.
 func TestComponentEnumReadsSpecEnum(t *testing.T) {
 	got, err := ComponentEnum("FreshnessMetricsRange")
 	require.NoError(t, err)
-	assert.Equal(t, []string{"7d", "14d", "30d", "60d", "90d", "180d"}, got)
+	require.Greater(t, len(got), 1, "the enum must have several values for order to mean anything")
+
+	days := make([]int, 0, len(got))
+	for _, v := range got {
+		n, err := strconv.Atoi(strings.TrimSuffix(v, "d"))
+		require.NoError(t, err, "every FreshnessMetricsRange value is <n>d; got %q", v)
+		days = append(days, n)
+	}
+	assert.IsIncreasing(t, days, "ComponentEnum must preserve spec order, not sort or reorder: %v", got)
 }
 
 // TestComponentEnumFailsLoudly pins the failure modes. Each of these must

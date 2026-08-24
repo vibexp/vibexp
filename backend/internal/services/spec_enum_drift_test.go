@@ -16,9 +16,12 @@ import (
 // (#774).
 //
 // These pairings need a gate because nothing else provides one: oapi-codegen
-// does not validate a query parameter's enum — it binds the raw string — so the
-// Go allowlist is the sole enforcement point and the spec enum is only
-// documentation. They drift in both directions: a value added to the spec alone
+// validates neither a query parameter's enum nor a request-body one at bind
+// time — it binds the raw string — and there is no spec-driven request
+// validator in front of the handlers. (FreshnessMetricsRange arrives as a query
+// parameter; the two rule enums arrive as request-body arrays.) So the Go
+// allowlist is the sole enforcement point in every case and the spec enum is
+// only documentation. They drift in both directions: a value added to the spec alone
 // is documented but always 400s; a value removed from the spec alone keeps
 // working undocumented. Both API clients are generated from the spec, so the
 // side that is wrong is the side clients are built against.
@@ -79,8 +82,9 @@ func TestSpecEnumsMatchServiceAllowlists(t *testing.T) {
 
 			assert.ElementsMatch(t, documented, tc.goValue,
 				"the %s enum in backend/schemas has drifted from %s. "+
-					"Nothing else enforces this pairing — oapi-codegen binds the raw query string "+
-					"without validating its enum — so update both together (#774).", tc.schema, tc.goName)
+					"Nothing else enforces this pairing — oapi-codegen binds the raw value "+
+					"without validating its enum, and no spec-driven request validator runs "+
+					"in front of the handlers — so update both together (#774).", tc.schema, tc.goName)
 		})
 	}
 }

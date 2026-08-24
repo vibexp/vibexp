@@ -50,10 +50,12 @@ func ArrayItemEnum(schema, property string) ([]string, error) {
 // 400s, and a value removed from the spec alone keeps working undocumented
 // (#774).
 //
-// Every failure mode (unknown schema, a schema that declares no enum, a
-// non-scalar enum entry) returns an error rather than an empty slice, so a
-// renamed or deleted schema fails loudly instead of making the caller's
-// assertion vacuous by comparing against nothing.
+// It never returns an empty slice with a nil error, so a renamed or deleted
+// schema fails loudly instead of making the caller's assertion vacuous by
+// comparing against nothing. The two reachable failures — unknown schema, and a
+// schema that declares no enum — are pinned by TestComponentEnumFailsLoudly;
+// the nil/unresolved-proxy and non-scalar-entry branches in scalarEnum are
+// defensive, since no schema in this spec can produce them.
 //
 // Access is guarded by validateMu because resolving schema proxies mutates the
 // shared *v3.Document (see RequiredArrayFields).
