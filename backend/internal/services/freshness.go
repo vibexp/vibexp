@@ -23,7 +23,8 @@ var ErrInvalidFreshnessSettings = errors.New("invalid freshness settings")
 // freshnessRuleResourceTypes and freshnessRuleMediums are the value sets the
 // API accepts. They are validated here rather than by database CHECK
 // constraints (see migration 013) so widening either is not a migration; they
-// must stay in step with the enums in schemas/freshness.yaml.
+// must stay in step with the enums in schemas/freshness.yaml, which
+// TestSpecEnumsMatchServiceAllowlists enforces (#774).
 //
 // Note mediums deliberately excludes "api": accesses from generic API clients
 // are recorded, but are not offered as rule criteria.

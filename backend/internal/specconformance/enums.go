@@ -34,17 +34,64 @@ func ArrayItemEnum(schema, property string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return scalarEnum(items, schema, property)
+	return scalarEnum(items, fmt.Sprintf("schema %q property %q", schema, property))
 }
 
-// componentProperty resolves a named property of a named component schema.
-func componentProperty(model *v3.Document, schema, property string) (*base.SchemaProxy, error) {
+// ComponentEnum returns the enum values declared by a named component schema
+// itself, in spec order — e.g. ComponentEnum("FreshnessMetricsRange").
+//
+// It is the sibling of ArrayItemEnum for the case where the schema IS the enum:
+// a standalone string enum used as a query parameter or a field type. Those are
+// mirrored by hand on the Go side as a validation allowlist keyed on the same
+// strings, and oapi-codegen does not validate a query parameter's enum — it
+// binds the raw string — so the Go allowlist is the sole enforcement point and
+// the spec is only documentation. Without a test comparing the two they drift
+// in both directions: a value added to the spec alone is documented but always
+// 400s, and a value removed from the spec alone keeps working undocumented
+// (#774).
+//
+// It never returns an empty slice with a nil error, so a renamed or deleted
+// schema fails loudly instead of making the caller's assertion vacuous by
+// comparing against nothing. The two reachable failures — unknown schema, and a
+// schema that declares no enum — are pinned by TestComponentEnumFailsLoudly;
+// the nil/unresolved-proxy and non-scalar-entry branches in scalarEnum are
+// defensive, since no schema in this spec can produce them.
+//
+// Access is guarded by validateMu because resolving schema proxies mutates the
+// shared *v3.Document (see RequiredArrayFields).
+func ComponentEnum(schema string) ([]string, error) {
+	s, err := load()
+	if err != nil {
+		return nil, err
+	}
+
+	validateMu.Lock()
+	defer validateMu.Unlock()
+
+	proxy, err := componentSchema(s.model, schema)
+	if err != nil {
+		return nil, err
+	}
+	return scalarEnum(proxy, fmt.Sprintf("component schema %q", schema))
+}
+
+// componentSchema resolves a named component schema.
+func componentSchema(model *v3.Document, schema string) (*base.SchemaProxy, error) {
 	if model.Components == nil || model.Components.Schemas == nil {
 		return nil, fmt.Errorf("spec has no component schemas")
 	}
 	proxy, ok := model.Components.Schemas.Get(schema)
 	if !ok || proxy == nil {
 		return nil, fmt.Errorf("component schema %q not found in spec", schema)
+	}
+	return proxy, nil
+}
+
+// componentProperty resolves a named property of a named component schema.
+func componentProperty(model *v3.Document, schema, property string) (*base.SchemaProxy, error) {
+	proxy, err := componentSchema(model, schema)
+	if err != nil {
+		return nil, err
 	}
 	sch := proxy.Schema()
 	if sch == nil || sch.Properties == nil {
@@ -77,22 +124,25 @@ func arrayItemsSchema(model *v3.Document, schema, property string) (*base.Schema
 }
 
 // scalarEnum extracts the scalar enum values from the schema behind proxy.
-func scalarEnum(proxy *base.SchemaProxy, schema, property string) ([]string, error) {
+// subject names what was being read (e.g. `component schema "X"`) and is used
+// verbatim in every error, so a caller's failure says which spec location was
+// wrong rather than just that something was empty.
+func scalarEnum(proxy *base.SchemaProxy, subject string) ([]string, error) {
 	if proxy == nil {
-		return nil, fmt.Errorf("schema %q property %q: nil items schema", schema, property)
+		return nil, fmt.Errorf("%s: nil schema", subject)
 	}
-	items := proxy.Schema()
-	if items == nil {
-		return nil, fmt.Errorf("schema %q property %q: items schema did not resolve", schema, property)
+	sch := proxy.Schema()
+	if sch == nil {
+		return nil, fmt.Errorf("%s: schema did not resolve", subject)
 	}
-	if len(items.Enum) == 0 {
-		return nil, fmt.Errorf("schema %q property %q declares no items enum", schema, property)
+	if len(sch.Enum) == 0 {
+		return nil, fmt.Errorf("%s declares no enum", subject)
 	}
 
-	out := make([]string, 0, len(items.Enum))
-	for i, node := range items.Enum {
+	out := make([]string, 0, len(sch.Enum))
+	for i, node := range sch.Enum {
 		if node == nil || node.Value == "" {
-			return nil, fmt.Errorf("schema %q property %q: enum entry %d is not a scalar value", schema, property, i)
+			return nil, fmt.Errorf("%s: enum entry %d is not a scalar value", subject, i)
 		}
 		out = append(out, node.Value)
 	}

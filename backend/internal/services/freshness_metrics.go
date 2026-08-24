@@ -13,7 +13,11 @@ import (
 
 // freshnessMetricsRanges are the reporting windows the over-time metric
 // accepts, mirroring the other analytics endpoints so one range selector drives
-// every chart. Kept in step with the FreshnessMetricsRange enum in the spec.
+// every chart. It is the SOLE enforcement point — oapi-codegen binds the raw
+// `range` query string without validating its enum — so it must stay in step
+// with the FreshnessMetricsRange enum in schemas/freshness.yaml.
+// TestSpecEnumsMatchServiceAllowlists enforces that (#774); change both
+// together.
 var freshnessMetricsRanges = map[string]int{
 	"7d":   7,
 	"14d":  14,
