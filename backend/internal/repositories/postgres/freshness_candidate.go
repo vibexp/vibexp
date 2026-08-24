@@ -82,6 +82,59 @@ func NewFreshnessCandidateRepository(db *database.DB) repositories.FreshnessCand
 //
 // The comparison is strict (`<`), so a resource whose last touch is EXACTLY
 // the threshold ago is not yet stale -- "more than N days" as written.
+//
+// # Scan bound: measured, and deliberately not indexed (#766)
+//
+// No index backs the staleness predicate, and that is a recorded decision
+// rather than an oversight. Measured on PG17, 245k prompts across 10 teams
+// (200k in the largest), ~1% of a team's rows stale, all buffers cached.
+// Sampled on `prompts`, but the finding is table-independent: the dominant
+// cost is the random-uuid `ORDER BY id` every one of the four shares, and the
+// GREATEST expression is unsargable in all of them (in `memories` doubly so --
+// its updated_at is naive, so the expression wraps it in AT TIME ZONE).
+//
+//	full drain of the largest team   ~5.9k buffers / ~97ms   (one pass)
+//	ONE LIMIT-500 batch              ~55k buffers / ~45ms
+//
+// Read those as I/O, not wall clock: the batch is FASTER in elapsed time
+// because it stops as soon as 500 rows match, while doing ~9x the buffer
+// accesses of scanning the entire table once. Draining a team walks the whole
+// id space across its batches, so ~246k accesses, ~42x the full scan. Every
+// buffer above was a cache hit, which is why 45ms hides it; on a cold cache
+// the access count is what would be felt.
+//
+// The cause is NOT the missing index: `id` is a random uuid, so `ORDER BY id`
+// walks the heap in random physical order (~1.0 buffer/row) where a
+// team-ordered scan is near-sequential (~0.05). The planner picks that walk
+// because it estimates ~66k matching rows when 2.3k match -- a 29x
+// overestimate it cannot fix, since the GREATEST expression varies with the
+// rule's medium set and so carries no statistics.
+//
+// The three candidate fixes were measured and rejected:
+//
+//   - composite (team_id, id): -18% on the largest team, and not chosen at all
+//     for small teams (the existing single-column team_id index already serves
+//     them: 128 buffers / 2.4ms). Four indexes' write cost for that is a bad
+//     trade.
+//   - denormalized last_touched_at + (team_id, last_touched_at): -96% and the
+//     only sargable option, but WRONG. It can only materialize the any-medium
+//     GREATEST, and a medium-scoped rule needs a smaller one: measured, a
+//     web-only rule's true answer was 16220 rows where the any-medium column
+//     reported 2316. Correctness would need one column per medium subset (15),
+//     plus a write-path change that belongs to #730.
+//   - `COALESCE(updated_at,'epoch') < threshold` as a sargable pre-filter (it
+//     is implied by the GREATEST test, so it never drops a stale row): useless
+//     in practice and structurally so -- 96.9% of rows passed it, because a
+//     knowledge base is read far more than written, so an old updated_at is
+//     the common case rather than the selective one.
+//
+// Accepted because the cost is small in absolute terms and well placed: the
+// pass runs at most once a day per team, serialized under the scheduler's
+// advisory lock, off the request path, and batched per resource type.
+//
+// Revisit when a SINGLE team exceeds ~1M resources of one type, or if this
+// query ever moves onto a request path. The fix at that point is the batching,
+// not an index -- see #862.
 func (r *FreshnessCandidateRepository) ListStaleCandidates(
 	ctx context.Context, query models.FreshnessCandidateQuery,
 ) ([]models.FreshnessCandidate, error) {
