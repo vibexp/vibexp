@@ -1566,6 +1566,13 @@ type ScheduleRepository interface {
 	// clock (now()), ordered by next_run_at ascending (most overdue first),
 	// capped at limit. Due-ness is computed by the database so all replicas
 	// agree on what is due regardless of app-server clock skew.
+	//
+	// A schedule that ran less than interval_seconds ago is held back even when
+	// next_run_at says it is due -- the run-spacing floor (#767), which stops a
+	// caller that resets next_run_at on every write from running a schedule far
+	// more often than its interval. A schedule that has never run
+	// (last_run_at IS NULL) is exempt, so a newly provisioned one still fires on
+	// the next tick.
 	ListDue(ctx context.Context, limit int) ([]*models.Schedule, error)
 	// MarkRun records a run of the schedule with the given id against the
 	// database clock: sets last_run_at = now() and atomically advances
@@ -1688,6 +1695,17 @@ type FreshnessRuleRepository interface {
 	// Callers must also run ResourceFreshnessRepository.RemoveRule so no
 	// freshness state keeps referencing the deleted rule.
 	Delete(ctx context.Context, teamID, ruleID string) (bool, error)
+	// ListTeamIDsMissingSchedule returns the id of every team that has at
+	// least one freshness rule but NO `schedules` row for jobType — the
+	// unevaluated state a failed best-effort provisioning leaves behind
+	// (#768). It is the input to the reconciliation sweep, so it deliberately
+	// reports only MISSING rows: a team whose schedule already exists is never
+	// returned and therefore never re-armed (re-arming every team at once is
+	// #767's failure mode instance-wide). Enabled and disabled rules count
+	// alike, matching FreshnessService.syncSchedule's "any rule" condition.
+	//
+	// Never nil; an empty slice is the healthy steady state.
+	ListTeamIDsMissingSchedule(ctx context.Context, jobType string) ([]string, error)
 }
 
 // TeamFreshnessSettingsRepository persists the per-team freshness settings
