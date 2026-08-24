@@ -11,14 +11,6 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// emptyJSONObject is what Append substitutes for an absent Detail.
-//
-// The column is `jsonb NOT NULL DEFAULT '{}'`, and a nil json.RawMessage binds
-// as SQL NULL rather than falling back to the default, so an entry written
-// without a detail would be rejected by the NOT NULL. Substituting here keeps
-// every stored row a readable object and spares #832's reader a NULL case.
-var emptyJSONObject = json.RawMessage(`{}`)
-
 // teamSettingsAuditColumns is the canonical column list for team_settings_audit
 // projections; scanTeamSettingsAuditDest reads them in this order.
 //
@@ -47,9 +39,14 @@ func NewTeamSettingsAuditRepository(db *database.DB) repositories.TeamSettingsAu
 func (r *TeamSettingsAuditRepository) Append(
 	ctx context.Context, entry *models.TeamSettingsAudit,
 ) error {
+	// An absent Detail is substituted with an empty OBJECT rather than left
+	// nil. The column is `jsonb NOT NULL DEFAULT '{}'`, and a nil
+	// json.RawMessage binds as SQL NULL rather than falling back to that
+	// default, so the INSERT would be rejected outright. Substituting keeps
+	// every stored row a readable object and spares #832's reader a NULL case.
 	detail := entry.Detail
 	if len(detail) == 0 {
-		detail = emptyJSONObject
+		detail = json.RawMessage(`{}`)
 	}
 
 	query := `
