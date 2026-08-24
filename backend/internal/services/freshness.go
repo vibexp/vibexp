@@ -117,6 +117,13 @@ type FreshnessServiceInterface interface {
 	ListResourceFreshness(
 		ctx context.Context, teamID, resourceType string, resourceIDs []string,
 	) (map[string]*models.ResourceFreshnessState, error)
+
+	// ReconcileSchedules provisions a `freshness_evaluate` schedule for every
+	// team that has rules but no schedule row (#768). It is NOT an API
+	// operation: the scheduler's reconcile loop is the only caller, so it
+	// takes no userID and authorizes nothing, like the evaluator the same loop
+	// drives. It satisfies scheduler.Reconciler.
+	ReconcileSchedules(ctx context.Context) error
 }
 
 // FreshnessService implements FreshnessServiceInterface.
@@ -334,12 +341,14 @@ func (s *FreshnessService) ResetSettings(ctx context.Context, userID, teamID str
 // and is the user-visible outcome; failing it because the schedule could not
 // be touched would report a successful rule change as an error.
 //
-// The drift is repaired by the next rule or settings write, and NOT by
-// anything else: a team whose very first rule failed to provision a schedule
-// is not evaluated at all until someone writes again. There is no runtime
-// repair path for it yet -- see #768. A one-off seeding migration used to
-// cover the analogous case of rules created before this write path existed,
-// but it was dropped in the 013_consolidated squash: on that chain
+// The drift is repaired either by the next rule or settings write, or -- when
+// the row is MISSING entirely rather than merely out of date -- by
+// ReconcileSchedules, the periodic sweep the scheduler drives (#768). That
+// sweep is what stops a failure on a team's very FIRST rule from being
+// permanent: before it existed such a team was never evaluated until someone
+// happened to write again, which might be never. A one-off seeding migration
+// used to cover the analogous case of rules created before this write path
+// existed, but it was dropped in the 013_consolidated squash: on that chain
 // `freshness_rules` is created empty in the same migration, so it could never
 // have matched a row.
 func (s *FreshnessService) syncSchedule(ctx context.Context, teamID string) {
@@ -358,32 +367,98 @@ func (s *FreshnessService) syncSchedule(ctx context.Context, teamID string) {
 		return
 	}
 
+	if err := s.provisionSchedule(ctx, teamID); err != nil {
+		log.Error("Failed to provision freshness evaluation schedule", "error", err)
+	}
+}
+
+// provisionSchedule resolves the team's evaluation interval and writes its
+// `freshness_evaluate` schedule row. It is the SINGLE provisioning path:
+// syncSchedule (the user-write side) and ReconcileSchedules (the repair side)
+// both go through it, so the two can never drift into subtly different
+// versions of "what a freshness schedule looks like". It returns the error
+// rather than logging it, because its two callers report failure differently.
+//
+// NextRunAt is left zero, which the repository stamps with the database clock
+// -- so the team becomes due on the next tick. That is deliberate on every
+// write, not just the first: a rule the admin just changed takes effect within
+// a tick instead of up to a day later, and re-evaluating is idempotent by
+// construction, so the extra run costs a query and writes nothing.
+//
+// Repeating that reset cannot make the job run faster than its interval:
+// ListDue applies a run-spacing floor at last_run_at + interval_seconds
+// (#767), so saving settings in a loop no longer keeps the team permanently
+// due on the serial run loop. The floor is the engine's, and it is the single
+// definition of "too soon" -- do not add a second one here.
+func (s *FreshnessService) provisionSchedule(ctx context.Context, teamID string) error {
 	interval, err := s.effectiveIntervalSeconds(ctx, teamID)
 	if err != nil {
-		log.Error("Failed to resolve freshness interval while syncing schedule", "error", err)
-		return
+		return fmt.Errorf("resolve freshness interval: %w", err)
 	}
 
-	// NextRunAt is left zero, which the repository stamps with the database
-	// clock -- so the team becomes due on the next tick. That is deliberate on
-	// every write, not just the first: a rule the admin just changed takes
-	// effect within a tick instead of up to a day later, and re-evaluating is
-	// idempotent by construction, so the extra run costs a query and writes
-	// nothing.
-	//
-	// Repeating that reset cannot make the job run faster than its interval:
-	// ListDue applies a run-spacing floor at last_run_at + interval_seconds
-	// (#767), so
-	// saving settings in a loop no longer keeps the team permanently due on the
-	// serial run loop. The floor is the engine's, and it is the single
-	// definition of "too soon" -- do not add a second one here.
 	if err := s.schedules.Upsert(ctx, &models.Schedule{
 		TeamID:          teamID,
 		JobType:         models.JobTypeFreshnessEvaluate,
 		IntervalSeconds: interval,
 	}); err != nil {
-		log.Error("Failed to upsert freshness evaluation schedule", "error", err)
+		return fmt.Errorf("upsert freshness evaluation schedule: %w", err)
 	}
+	return nil
+}
+
+// ReconcileSchedules provisions a `freshness_evaluate` schedule for every team
+// that has freshness rules but no schedule row, healing the one drift
+// syncSchedule's best-effort contract cannot heal on its own: a failure while
+// a team creates its VERY FIRST rule leaves rules with no schedule, and
+// nothing evaluates that team until somebody happens to write again -- which
+// may be never (#768). The same end state is reachable by a manual DELETE, a
+// partial restore, or any future bug in the write path, so this is a standing
+// repair rather than a one-off backfill (the migration that used to cover the
+// historical case is gone; see syncSchedule).
+//
+// It is scoped STRICTLY to missing rows. A team whose schedule already exists
+// is not returned by the query and is not touched, so the sweep can never
+// reset a healthy row's next_run_at -- doing that instance-wide is #767's
+// monopolisation bug applied to every team at once. Broadening this to
+// "reconcile every team's interval too" would reintroduce it, and must not be
+// done without moving the re-arm decision out of Upsert first.
+//
+// One team's failure never aborts the sweep: a bad team is logged and the rest
+// still get their schedules. Only failing to LIST the teams is returned, since
+// then there is no sweep to speak of.
+//
+// System-invoked (the scheduler's reconcile loop), so there is no user to
+// authorize: it takes no userID and performs no permission check, exactly as
+// the freshness evaluator the scheduler drives does. It writes nothing a
+// team's own rules do not already entitle it to.
+func (s *FreshnessService) ReconcileSchedules(ctx context.Context) error {
+	teamIDs, err := s.rules.ListTeamIDsMissingSchedule(ctx, models.JobTypeFreshnessEvaluate)
+	if err != nil {
+		return fmt.Errorf("FreshnessService.ReconcileSchedules: %w", err)
+	}
+	if len(teamIDs) == 0 {
+		return nil
+	}
+
+	s.logger.Info("Reconciling missing freshness evaluation schedules",
+		"job_type", models.JobTypeFreshnessEvaluate, "team_count", len(teamIDs))
+
+	for _, teamID := range teamIDs {
+		// A cancelled context makes every remaining Upsert fail identically,
+		// so keep-going would become a fast loop of identical log lines
+		// during shutdown. Stop instead; the next sweep picks the rest up.
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("FreshnessService.ReconcileSchedules: %w", err)
+		}
+		if err := s.provisionSchedule(ctx, teamID); err != nil {
+			s.logger.Error("Failed to reconcile freshness evaluation schedule",
+				"team_id", teamID, "job_type", models.JobTypeFreshnessEvaluate, "error", err)
+			continue
+		}
+		s.logger.Info("Reconciled missing freshness evaluation schedule",
+			"team_id", teamID, "job_type", models.JobTypeFreshnessEvaluate)
+	}
+	return nil
 }
 
 // effectiveIntervalSeconds returns the team's evaluation interval, falling

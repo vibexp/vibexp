@@ -167,6 +167,55 @@ func (r *FreshnessRuleRepository) Delete(ctx context.Context, teamID, ruleID str
 	return affected > 0, nil
 }
 
+// ListTeamIDsMissingSchedule returns the teams that have freshness rules but
+// no schedule row for jobType.
+//
+// It is ONE anti-join, not a per-team loop: both sides are already indexed for
+// it (`idx_freshness_rules_team_enabled` on freshness_rules(team_id, enabled)
+// and the schedules (team_id, job_type) unique key), so on a healthy instance
+// it returns zero rows for the cost of a single cheap query -- which is what
+// makes running it on a timer affordable.
+//
+// The LEFT JOIN ... IS NULL shape is deliberate over `NOT EXISTS`/`NOT IN`
+// only in that it reads as the anti-join it is; the planner treats it the
+// same. What matters is the direction: freshness_rules drives, so a schedule
+// row with no rules (impossible today, but harmless) is not reported.
+func (r *FreshnessRuleRepository) ListTeamIDsMissingSchedule(
+	ctx context.Context, jobType string,
+) ([]string, error) {
+	query := `
+		SELECT DISTINCT fr.team_id
+		FROM freshness_rules fr
+		LEFT JOIN schedules s
+		  ON s.team_id = fr.team_id AND s.job_type = $1
+		WHERE s.team_id IS NULL
+		ORDER BY fr.team_id ASC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, jobType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list teams missing schedule: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close missing-schedule team rows", "error", closeErr)
+		}
+	}()
+
+	teamIDs := make([]string, 0)
+	for rows.Next() {
+		var teamID string
+		if err := rows.Scan(&teamID); err != nil {
+			return nil, fmt.Errorf("failed to scan team missing schedule: %w", err)
+		}
+		teamIDs = append(teamIDs, teamID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate teams missing schedule: %w", err)
+	}
+	return teamIDs, nil
+}
+
 // freshnessMediums normalizes a nil Mediums to an empty slice. The column is
 // NOT NULL and an empty array carries the meaning "any medium", so a nil slice
 // must persist as `{}` rather than NULL -- the two would otherwise be

@@ -240,7 +240,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	freshnessCandidateRepository := providers.ProvideFreshnessCandidateRepository(db)
 	evaluator := providers.ProvideFreshnessEvaluator(freshnessRuleRepository, freshnessCandidateRepository, resourceFreshnessRepository, freshnessAuditRepository, logger)
 	schedulerRegistry := providers.ProvideSchedulerRegistry(evaluator)
-	scheduler := providers.ProvideScheduler(cfg, scheduleRepository, db, schedulerRegistry, logger)
+	scheduler := providers.ProvideScheduler(cfg, scheduleRepository, db, schedulerRegistry, freshnessServiceInterface, logger)
 	emailSender := providers.ProvideEmailSender(cfg)
 	embeddingProcessor := providers.ProvideEmbeddingProcessor(embeddingProviderServiceInterface, embeddingServiceInterface, cfg, logger)
 	eventListenerDeps := providers.EventListenerDeps{
