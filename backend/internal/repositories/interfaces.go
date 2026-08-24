@@ -1695,6 +1695,17 @@ type FreshnessRuleRepository interface {
 	// Callers must also run ResourceFreshnessRepository.RemoveRule so no
 	// freshness state keeps referencing the deleted rule.
 	Delete(ctx context.Context, teamID, ruleID string) (bool, error)
+	// ListTeamIDsMissingSchedule returns the id of every team that has at
+	// least one freshness rule but NO `schedules` row for jobType — the
+	// unevaluated state a failed best-effort provisioning leaves behind
+	// (#768). It is the input to the reconciliation sweep, so it deliberately
+	// reports only MISSING rows: a team whose schedule already exists is never
+	// returned and therefore never re-armed (re-arming every team at once is
+	// #767's failure mode instance-wide). Enabled and disabled rules count
+	// alike, matching FreshnessService.syncSchedule's "any rule" condition.
+	//
+	// Never nil; an empty slice is the healthy steady state.
+	ListTeamIDsMissingSchedule(ctx context.Context, jobType string) ([]string, error)
 }
 
 // TeamFreshnessSettingsRepository persists the per-team freshness settings

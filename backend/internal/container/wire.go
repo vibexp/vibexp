@@ -162,6 +162,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(notificationsvc.NotificationServiceInterface), new(*notificationsvc.NotificationService)),
 	providers.ProvideDigestRunner,
 	providers.ProvideSchedulerRegistry,
+	providers.ProvideSchedulerReconcilers,
 	providers.ProvideScheduler,
 )
 

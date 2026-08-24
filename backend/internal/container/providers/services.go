@@ -818,19 +818,31 @@ func ProvideSchedulerRegistry(freshnessEvaluator *freshness.Evaluator) *schedule
 	return registry
 }
 
+// ProvideSchedulerReconcilers collects every job that can repair its own
+// `schedules` rows (#768), the same way ProvideSchedulerRegistry collects every
+// job handler: the feature-specific knowledge stops here, so ProvideScheduler
+// below stays feature-agnostic and the engine never learns what freshness is.
+// A second job with the same shape is one more argument and one more element.
+func ProvideSchedulerReconcilers(
+	freshnessService services.FreshnessServiceInterface,
+) []scheduler.Reconciler {
+	return []scheduler.Reconciler{freshnessService}
+}
+
 // ProvideScheduler creates the in-process scheduler engine. It is started and
 // stopped with the container (see WireContainer.Close); cfg.Scheduler.Enabled
-// gates whether the loop runs at all.
+// gates whether the run loop AND the reconcile sweep run at all.
 func ProvideScheduler(
 	cfg *config.Config,
 	repo repositories.ScheduleRepository,
 	db *database.DB,
 	registry *scheduler.Registry,
+	reconcilers []scheduler.Reconciler,
 	logger *slog.Logger,
 ) *scheduler.Scheduler {
 	return scheduler.New(repo, db, registry, scheduler.Config{
 		TickInterval: cfg.Scheduler.TickInterval,
 		JobTimeout:   cfg.Scheduler.JobTimeout,
 		DueLimit:     int(cfg.Scheduler.DueLimit),
-	}, logger)
+	}, logger, reconcilers...)
 }
