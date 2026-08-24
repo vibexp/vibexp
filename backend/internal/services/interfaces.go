@@ -189,6 +189,46 @@ type TypeServiceInterface interface {
 	// ValidateType reports whether (resourceType, slug) is a type visible to the
 	// team — a global default or one of the team's custom types.
 	ValidateType(ctx context.Context, teamID, resourceType, slug string) (bool, error)
+	// CopyFromTeam merges another team's custom types into params.TeamID and
+	// returns what was added and what was skipped (epic #827).
+	//
+	// It authorizes both teams through AuthorizeCrossTeamCopy, destination
+	// first, and is the only TypeService operation that does — the rest rely on
+	// the tenancy middleware, which never sees the source team. Global system
+	// defaults are excluded from the source set, a slug the destination already
+	// uses is skipped rather than failing the copy, and the whole action writes
+	// exactly one team-settings audit entry.
+	//
+	// It returns ErrCopySourceRequired or ErrCopySourceIsDestination for a bad
+	// source, and an ErrPermissionDenied-wrapped error — identical for either
+	// team — when the caller is not a member of both.
+	CopyFromTeam(ctx context.Context, params CopyTypesParams) (*CopyTypesResult, error)
+}
+
+// CopyTypesParams carries the inputs for a cross-team custom-types copy.
+// TeamID is the DESTINATION; SourceTeamID is where the types come from.
+type CopyTypesParams struct {
+	TeamID       string
+	SourceTeamID string
+	UserID       string
+}
+
+// SkippedType names a source type the copy left alone because the destination
+// already has that slug for the resource.
+type SkippedType struct {
+	ResourceType string
+	Slug         string
+}
+
+// CopyTypesResult reports the outcome of a cross-team custom-types copy. Both
+// slices are always non-nil, so a caller can serialize them as JSON arrays
+// without a nil check.
+type CopyTypesResult struct {
+	// Added holds the rows created in the destination team — the destination's
+	// own ids and timestamps, not the source's.
+	Added []models.Type
+	// Skipped holds the source types whose slug was already taken.
+	Skipped []SkippedType
 }
 
 // CreateTypeParams carries the inputs for creating a team-owned custom type.

@@ -106,6 +106,8 @@ func (r *recordingAuthz) Can(_ context.Context, _, _ string, p authz.Permission)
 	return nil
 }
 
+func (r *recordingAuthz) IsMember(_ context.Context, _, _ string) error { return nil }
+
 func (r *recordingAuthz) CanActOnResource(
 	_ context.Context, _, _, _ string, _, _ authz.Permission,
 ) error {

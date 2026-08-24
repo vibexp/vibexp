@@ -127,6 +127,75 @@ api-v1-team_id-types:
     tags:
       - Types
 
+api-v1-team_id-settings-types-copy:
+  post:
+    summary: Copy another team's custom types into this team
+    description: >
+      Merges the custom types of `source_team_id` into the team named by
+      `{team_id}`. The caller must be a member of BOTH teams — the same bar the
+      destination's own create path sets — and the destination is checked first,
+      so a caller who belongs to neither learns nothing about either.
+
+      The copy is a snapshot: the destination fully owns the resulting rows and
+      may edit or delete them with no effect on the source. Global system
+      defaults are excluded (every team already has them), and a slug the
+      destination already uses is reported as skipped rather than failing the
+      whole copy.
+    operationId: copyTypesFromTeam
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Destination team identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CopyTypesRequest'
+    responses:
+      '200':
+        description: Copy completed (possibly with everything skipped)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/CopyTypesResponse'
+      '400':
+        description: Missing body, malformed source_team_id, or source equal to destination
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >
+          Caller is not a member of the destination team or of the source team.
+          The two are deliberately indistinguishable, so the response never
+          reveals whether the source team exists.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to copy types
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Types
+
 api-v1-team_id-types-id:
   delete:
     summary: Delete a custom type

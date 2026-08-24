@@ -19,6 +19,8 @@ type allowAllAuthz struct{}
 
 func (allowAllAuthz) Can(_ context.Context, _, _ string, _ authz.Permission) error { return nil }
 
+func (allowAllAuthz) IsMember(_ context.Context, _, _ string) error { return nil }
+
 func (allowAllAuthz) CanActOnResource(
 	_ context.Context, _, _, _ string, _, _ authz.Permission,
 ) error {

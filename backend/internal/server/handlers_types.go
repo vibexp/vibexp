@@ -19,6 +19,11 @@ import (
 const (
 	typesMsgListFailed   = "Failed to list types"
 	typesMsgCreateFailed = "Failed to create type"
+	typesMsgCopyFailed   = "Failed to copy types"
+	// typesMsgCopyForbidden is the ONE message a denied copy ever returns,
+	// whichever team the caller was refused on. Naming the team would tell a
+	// caller who belongs to neither whether the source team exists (#829).
+	typesMsgCopyForbidden = "You must be a member of both the source and the destination team"
 )
 
 // typesStrictServer implements typesgen.StrictServerInterface (#1846): the
@@ -144,6 +149,71 @@ func (t *typesStrictServer) DeleteType(
 	}
 
 	return typesgen.DeleteType204Response{}, nil
+}
+
+// CopyTypesFromTeam handles POST /api/v1/{team_id}/settings/types/copy
+func (t *typesStrictServer) CopyTypesFromTeam(
+	ctx context.Context, request typesgen.CopyTypesFromTeamRequestObject,
+) (typesgen.CopyTypesFromTeamResponseObject, error) {
+	teamID := request.TeamId.String()
+	userID := ctx.Value(contextKeyUserID).(string)
+
+	if request.Body == nil {
+		return nil, apierrors.NewBadRequestError("request body is required")
+	}
+
+	result, err := t.s.container.TypeService().CopyFromTeam(ctx, services.CopyTypesParams{
+		TeamID:       teamID,
+		SourceTeamID: request.Body.SourceTeamId.String(),
+		UserID:       userID,
+	})
+	if err != nil {
+		if errors.Is(err, services.ErrCopySourceRequired) ||
+			errors.Is(err, services.ErrCopySourceIsDestination) {
+			return nil, apierrors.NewBadRequestError(err.Error())
+		}
+		if errors.Is(err, services.ErrPermissionDenied) {
+			return nil, apierrors.NewForbiddenError(typesMsgCopyForbidden)
+		}
+		t.s.logger.With(
+			"handler", "CopyTypesFromTeam",
+			"team_id", teamID,
+			"error", err.Error(),
+		).Error(typesMsgCopyFailed)
+		return nil, apierrors.NewInternalError(typesMsgCopyFailed)
+	}
+
+	added, convErr := toGenTypes(result.Added)
+	if convErr != nil {
+		t.s.logger.With(
+			"handler", "CopyTypesFromTeam",
+			"team_id", teamID,
+			"error", convErr.Error(),
+		).Error("Failed to convert copied types to spec types")
+		return nil, apierrors.NewInternalError(typesMsgCopyFailed)
+	}
+
+	return typesgen.CopyTypesFromTeam200JSONResponse(typesgen.CopyTypesResponse{
+		Added:        added,
+		AddedCount:   len(added),
+		Skipped:      toGenSkippedTypes(result.Skipped),
+		SkippedCount: len(result.Skipped),
+	}), nil
+}
+
+// toGenSkippedTypes converts the skipped entries, always returning a non-nil
+// slice so the required array serializes as [] rather than null (issue #125 —
+// generated strict-server types cannot use the models.JSONArray shim, so the
+// guarantee lives at the construction site).
+func toGenSkippedTypes(items []services.SkippedType) []typesgen.SkippedType {
+	out := make([]typesgen.SkippedType, 0, len(items))
+	for _, item := range items {
+		out = append(out, typesgen.SkippedType{
+			ResourceType: item.ResourceType,
+			Slug:         item.Slug,
+		})
+	}
+	return out
 }
 
 // isTypeValidationError reports whether err is one of the TypeService input

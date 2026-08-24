@@ -112,7 +112,9 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	objectStore := providers.ProvideObjectStore(cfg, logger)
 	attachmentServiceInterface := providers.ProvideAttachmentService(attachmentRepository, objectStore, logger)
 	typeRepository := providers.ProvideTypeRepository(db)
-	typeServiceInterface := providers.ProvideTypeService(typeRepository, logger)
+	teamSettingsAuditRepository := providers.ProvideTeamSettingsAuditRepository(db)
+	teamSettingsAuditServiceInterface := providers.ProvideTeamSettingsAuditService(teamSettingsAuditRepository, logger)
+	typeServiceInterface := providers.ProvideTypeService(typeRepository, authorizationServiceInterface, teamSettingsAuditServiceInterface, logger)
 	blueprintServiceDeps := services.BlueprintServiceDeps{
 		Repo:              blueprintRepository,
 		TeamService:       teamServiceInterface,

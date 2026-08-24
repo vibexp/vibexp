@@ -705,6 +705,12 @@ components:
       $ref: "./schemas/types.yaml#/CreateTypeRequest"
     TypeListResponse:
       $ref: "./schemas/types.yaml#/TypeListResponse"
+    CopyTypesRequest:
+      $ref: "./schemas/types.yaml#/CopyTypesRequest"
+    SkippedType:
+      $ref: "./schemas/types.yaml#/SkippedType"
+    CopyTypesResponse:
+      $ref: "./schemas/types.yaml#/CopyTypesResponse"
 
     # Import resource comment schemas
     Comment:
@@ -1136,6 +1142,8 @@ paths:
     $ref: "./paths/types.yaml#/api-v1-team_id-types"
   /api/v1/{team_id}/types/{id}:
     $ref: "./paths/types.yaml#/api-v1-team_id-types-id"
+  /api/v1/{team_id}/settings/types/copy:
+    $ref: "./paths/types.yaml#/api-v1-team_id-settings-types-copy"
   /api/v1/admin/stats:
     $ref: "./paths/admin.yaml#/api-v1-admin-stats"
   /api/v1/admin/users:

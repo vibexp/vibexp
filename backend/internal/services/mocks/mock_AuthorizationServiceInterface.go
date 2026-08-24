@@ -184,6 +184,54 @@ func (_c *MockAuthorizationServiceInterface_CanActOnResource_Call) RunAndReturn(
 	return _c
 }
 
+// IsMember provides a mock function with given fields: ctx, userID, teamID
+func (_m *MockAuthorizationServiceInterface) IsMember(ctx context.Context, userID string, teamID string) error {
+	ret := _m.Called(ctx, userID, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IsMember")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, userID, teamID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAuthorizationServiceInterface_IsMember_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsMember'
+type MockAuthorizationServiceInterface_IsMember_Call struct {
+	*mock.Call
+}
+
+// IsMember is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - teamID string
+func (_e *MockAuthorizationServiceInterface_Expecter) IsMember(ctx interface{}, userID interface{}, teamID interface{}) *MockAuthorizationServiceInterface_IsMember_Call {
+	return &MockAuthorizationServiceInterface_IsMember_Call{Call: _e.mock.On("IsMember", ctx, userID, teamID)}
+}
+
+func (_c *MockAuthorizationServiceInterface_IsMember_Call) Run(run func(ctx context.Context, userID string, teamID string)) *MockAuthorizationServiceInterface_IsMember_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockAuthorizationServiceInterface_IsMember_Call) Return(_a0 error) *MockAuthorizationServiceInterface_IsMember_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAuthorizationServiceInterface_IsMember_Call) RunAndReturn(run func(context.Context, string, string) error) *MockAuthorizationServiceInterface_IsMember_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockAuthorizationServiceInterface creates a new instance of MockAuthorizationServiceInterface. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockAuthorizationServiceInterface(t interface {

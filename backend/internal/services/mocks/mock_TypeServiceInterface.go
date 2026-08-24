@@ -24,6 +24,65 @@ func (_m *MockTypeServiceInterface) EXPECT() *MockTypeServiceInterface_Expecter 
 	return &MockTypeServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// CopyFromTeam provides a mock function with given fields: ctx, params
+func (_m *MockTypeServiceInterface) CopyFromTeam(ctx context.Context, params services.CopyTypesParams) (*services.CopyTypesResult, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CopyFromTeam")
+	}
+
+	var r0 *services.CopyTypesResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, services.CopyTypesParams) (*services.CopyTypesResult, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, services.CopyTypesParams) *services.CopyTypesResult); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*services.CopyTypesResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, services.CopyTypesParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTypeServiceInterface_CopyFromTeam_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CopyFromTeam'
+type MockTypeServiceInterface_CopyFromTeam_Call struct {
+	*mock.Call
+}
+
+// CopyFromTeam is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params services.CopyTypesParams
+func (_e *MockTypeServiceInterface_Expecter) CopyFromTeam(ctx interface{}, params interface{}) *MockTypeServiceInterface_CopyFromTeam_Call {
+	return &MockTypeServiceInterface_CopyFromTeam_Call{Call: _e.mock.On("CopyFromTeam", ctx, params)}
+}
+
+func (_c *MockTypeServiceInterface_CopyFromTeam_Call) Run(run func(ctx context.Context, params services.CopyTypesParams)) *MockTypeServiceInterface_CopyFromTeam_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(services.CopyTypesParams))
+	})
+	return _c
+}
+
+func (_c *MockTypeServiceInterface_CopyFromTeam_Call) Return(_a0 *services.CopyTypesResult, _a1 error) *MockTypeServiceInterface_CopyFromTeam_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTypeServiceInterface_CopyFromTeam_Call) RunAndReturn(run func(context.Context, services.CopyTypesParams) (*services.CopyTypesResult, error)) *MockTypeServiceInterface_CopyFromTeam_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateCustom provides a mock function with given fields: ctx, params
 func (_m *MockTypeServiceInterface) CreateCustom(ctx context.Context, params services.CreateTypeParams) (*models.Type, error) {
 	ret := _m.Called(ctx, params)

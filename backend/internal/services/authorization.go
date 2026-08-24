@@ -25,6 +25,19 @@ type AuthorizationServiceInterface interface {
 	// role lookup happens once per request rather than twice.
 	Authorize(ctx context.Context, userID, teamID string, perm authz.Permission) (models.TeamMemberRole, error)
 
+	// IsMember reports whether the user belongs to the team at all, in any
+	// role, returning nil when they do and an ErrPermissionDenied-wrapped error
+	// when they do not.
+	//
+	// It is deliberately NOT a permission: membership carries no role dimension
+	// and so is not a cell in the authz matrix, and adding a constant for it
+	// would widen the published team `permissions` array. Use it only where the
+	// operation itself authorizes on membership alone AND no tenancy middleware
+	// already covers the team — today that is the SOURCE team of a cross-team
+	// custom-types copy (#829), which appears in a request body rather than in
+	// the URL and is therefore never seen by teamValidationMiddleware.
+	IsMember(ctx context.Context, userID, teamID string) error
+
 	// CanActOnResource is the own-vs-any variant of Can, for actions whose
 	// policy depends on whether the caller created the resource (deletes, feed
 	// moderation). It checks ownPerm when the caller owns the resource and
@@ -82,6 +95,14 @@ func (s *AuthorizationService) Authorize(
 	}
 
 	return role, nil
+}
+
+// IsMember resolves the user's role purely to establish that they have one.
+// The role itself is discarded: every role is a member, so the matrix has
+// nothing to add.
+func (s *AuthorizationService) IsMember(ctx context.Context, userID, teamID string) error {
+	_, err := s.roleOf(ctx, userID, teamID)
+	return err
 }
 
 // CanActOnResource checks ownPerm when userID created the resource and anyPerm
