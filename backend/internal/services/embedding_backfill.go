@@ -71,8 +71,10 @@ type EmbeddingBackfillTypeResult struct {
 	// publisher. It equals Total on a clean run and Total minus Failed otherwise. On
 	// a dry run it is 0 (nothing is published) while Total still reflects the
 	// entities seen. An entity counted here is NOT yet embedded: generation happens
-	// asynchronously and can still fail, or be lost with the in-memory job queue on
-	// a restart (#820), without changing this number.
+	// asynchronously and can still fail without changing this number. Since #820
+	// it is no longer LOST on a restart -- once the dispatcher accepts the event
+	// the work is a durable row -- but "published" still means handed to the bus,
+	// not embedded.
 	Published int `json:"published"`
 	// Failed is the number of entities whose event PUBLISH errored
 	// (log-and-continue). It does not count entities that were published and then
@@ -85,6 +87,12 @@ type EmbeddingBackfillTypeResult struct {
 // TotalPublished / TotalFailed are publish-side sums with exactly the semantics
 // documented on EmbeddingBackfillTypeResult: TotalFailed == 0 means "every event
 // was published", not "every entity was embedded" (#755).
+//
+// #820 asked whether durability should make this "durably enqueued". It should
+// NOT, and the name stays: the durable write happens when the DISPATCHER accepts
+// the event, one hop further on than this counter, and the bus in between still
+// buffers in memory. Renaming would promise a guarantee this number cannot make
+// and would break every operator grep on the existing log field for nothing.
 type EmbeddingBackfillResult struct {
 	DryRun  bool                          `json:"dry_run"`
 	Results []EmbeddingBackfillTypeResult `json:"results"`

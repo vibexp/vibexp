@@ -23,10 +23,28 @@ const (
 type EventSystemDeps struct {
 	EventManager *events.EventManager
 
-	// embeddingProcessor is retained so shutdown can drain a concurrency-managed
-	// processor (e.g. the EmbeddingDispatcher, #142) after the bus has stopped
-	// producing new events. See ShutdownListeners.
+	// embeddingProcessor is retained so startup can launch, and shutdown can
+	// drain, a concurrency-managed processor (e.g. the EmbeddingDispatcher,
+	// #142). See StartListeners / ShutdownListeners.
 	embeddingProcessor events.EmbeddingProcessor
+}
+
+// StartListeners launches listeners that own background loops which must not
+// run at construction time. The embedding dispatcher's durable-queue poller
+// (#820) is one: it queries the database on its very first sweep, so starting it
+// from a provider would make merely BUILDING a container hit the database --
+// which every test that assembles one with a placeholder *database.DB would then
+// have to survive. Call it once the database is migrated and ready, exactly like
+// the scheduler's Start.
+//
+// It is safe to call when nothing needs it, and safe to call on a nil receiver.
+func (d *EventSystemDeps) StartListeners() {
+	if d == nil {
+		return
+	}
+	if s, ok := d.embeddingProcessor.(interface{ Start() }); ok {
+		s.Start()
+	}
 }
 
 // ShutdownListeners best-effort drains listeners that own worker goroutines

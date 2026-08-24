@@ -67,6 +67,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideMemoryRepository,
 	providers.ProvideEmbeddingRepository,
 	providers.ProvideEmbeddingBackfillRepository,
+	providers.ProvideEmbeddingJobRepository,
 	providers.ProvideSearchRepository,
 	providers.ProvideBackofficeRepository,
 	providers.ProvideAdminRepository,

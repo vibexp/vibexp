@@ -40,6 +40,7 @@ type Config struct {
 	RateLimit  RateLimitConfig  `koanf:"rate_limit"`
 	Retention  RetentionConfig  `koanf:"retention"`
 	Scheduler  SchedulerConfig  `koanf:"scheduler"`
+	Embedding  EmbeddingConfig  `koanf:"embedding"`
 	A2A        A2AConfig        `koanf:"a2a"`
 	Deployment DeploymentConfig `koanf:"deployment"`
 
@@ -581,6 +582,41 @@ type SchedulerConfig struct {
 	DueLimit EnvInt `koanf:"due_limit"`
 }
 
+// EmbeddingConfig holds the embedding pipeline's knobs.
+type EmbeddingConfig struct {
+	// Queue tunes the durable embedding job queue (issue #820).
+	Queue EmbeddingQueueConfig `koanf:"queue"`
+}
+
+// EmbeddingQueueConfig tunes the durable, leased embedding job queue that backs
+// the dispatcher (issue #820). Durability itself is NOT a knob: the queue is
+// always the system of record, because a queue whose enqueue is optional is not
+// a durable queue. These knobs only tune how it is drained.
+type EmbeddingQueueConfig struct {
+	// LeaseDuration is how long a claimed job is held before another worker may
+	// reclaim it. It must comfortably exceed the worst-case time one job spends
+	// in a worker (the wait for a free provider slot plus the 2-minute per-job
+	// timeout): a lease that expires under a job still running costs a duplicate
+	// embed, which is wasted work rather than wrong data.
+	LeaseDuration time.Duration `koanf:"lease_duration"`
+	// MaxAttempts bounds how many times one job may be CLAIMED before it is
+	// retired as a poison pill. Counting claims rather than failures is what
+	// bounds a job whose worker dies before it can record a failure.
+	// EnvInt so the combined image can expose it as ${EMBEDDING_QUEUE_MAX_ATTEMPTS}.
+	MaxAttempts EnvInt `koanf:"max_attempts"`
+	// BatchSize caps how many jobs one claim leases.
+	// EnvInt so the combined image can expose it as ${EMBEDDING_QUEUE_BATCH_SIZE}.
+	BatchSize EnvInt `koanf:"batch_size"`
+	// PollInterval is how often the queue is swept for work no enqueue
+	// announced: jobs orphaned by a dead process, and jobs backing off after a
+	// retryable failure. An enqueue wakes the poller directly, so this is not
+	// the latency of the common path.
+	PollInterval time.Duration `koanf:"poll_interval"`
+	// RetryBackoff holds a job back after a retryable failure, so a job that
+	// fails fast does not consume a claim slot on every poll.
+	RetryBackoff time.Duration `koanf:"retry_backoff"`
+}
+
 // A2AConfig holds Agent-to-Agent client settings.
 type A2AConfig struct {
 	// DefaultTimeout bounds a single synchronous (message/send) request.
@@ -1027,6 +1063,34 @@ func validateSchedulerConfig(cfg *Config) error {
 	return nil
 }
 
+// validateEmbeddingQueueConfig enforces that the durable embedding queue's
+// drain knobs are usable. poll_interval is the load-bearing one for the same
+// reason scheduler.tick_interval is: it feeds time.NewTicker, which panics on a
+// non-positive duration, so a mounted config with `poll_interval: "0s"` would
+// crash the process at startup rather than report a configuration error. The
+// rest fail closed together -- a lease_duration of 0 makes every claim instantly
+// reclaimable (so every job runs repeatedly), a batch_size of 0 claims nothing,
+// and a max_attempts of 0 retires every job as a poison pill on its first claim.
+func validateEmbeddingQueueConfig(cfg *Config) error {
+	q := cfg.Embedding.Queue
+	if q.LeaseDuration <= 0 {
+		return fmt.Errorf("embedding.queue.lease_duration must be positive, got %v", q.LeaseDuration)
+	}
+	if q.PollInterval <= 0 {
+		return fmt.Errorf("embedding.queue.poll_interval must be positive, got %v", q.PollInterval)
+	}
+	if q.RetryBackoff < 0 {
+		return fmt.Errorf("embedding.queue.retry_backoff must not be negative, got %v", q.RetryBackoff)
+	}
+	if q.MaxAttempts < 1 {
+		return fmt.Errorf("embedding.queue.max_attempts must be >= 1, got %d", q.MaxAttempts)
+	}
+	if q.BatchSize < 1 {
+		return fmt.Errorf("embedding.queue.batch_size must be >= 1, got %d", q.BatchSize)
+	}
+	return nil
+}
+
 // validateRateLimits enforces that every per-IP rate limit is positive; a
 // non-positive value would reject every request to the guarded route group.
 func validateRateLimits(cfg *Config) error {
@@ -1067,6 +1131,7 @@ func validateAll(cfg *Config) error {
 		validateInstanceAdmins,
 		validateOAuthASConfig,
 		validateSchedulerConfig,
+		validateEmbeddingQueueConfig,
 		func(c *Config) error { return validateTrustedProxies(c.Server.TrustedProxies) },
 		func(c *Config) error { return validateOutboundAllowedCIDRs(c.Security.OutboundAllowedCIDRs) },
 	}
@@ -1133,6 +1198,11 @@ func defaults() map[string]any {
 		"scheduler.tick_interval":             "1m",
 		"scheduler.job_timeout":               "10m",
 		"scheduler.due_limit":                 100,
+		"embedding.queue.lease_duration":      "30m",
+		"embedding.queue.max_attempts":        5,
+		"embedding.queue.batch_size":          20,
+		"embedding.queue.poll_interval":       "30s",
+		"embedding.queue.retry_backoff":       "2m",
 		"a2a.default_timeout":                 "5m",
 		"a2a.stream_timeout":                  "2h",
 		"event_bus.worker_count":              20,

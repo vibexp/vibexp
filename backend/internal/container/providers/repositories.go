@@ -158,6 +158,12 @@ func ProvideEmbeddingRepository(db *database.DB) repositories.EmbeddingRepositor
 	return postgres.NewEmbeddingRepository(db)
 }
 
+// ProvideEmbeddingJobRepository creates a new EmbeddingJobRepository, the
+// durable, leased queue of outstanding embedding work (issue #820).
+func ProvideEmbeddingJobRepository(db *database.DB) repositories.EmbeddingJobRepository {
+	return postgres.NewEmbeddingJobRepository(db)
+}
+
 // ProvideSearchRepository creates a new SearchRepository
 func ProvideSearchRepository(db *database.DB) repositories.SearchRepository {
 	return postgres.NewSearchRepository(db)

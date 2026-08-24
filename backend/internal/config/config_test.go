@@ -1191,3 +1191,113 @@ func TestLoad_OutboundAllowedCIDRs(t *testing.T) {
 		assert.Len(t, cfg.Security.ParsedOutboundAllowedCIDRs(), 2)
 	})
 }
+
+// --- durable embedding queue (#820) ---------------------------------------
+
+// TestValidateEmbeddingQueueConfig covers every knob the durable embedding
+// queue's drain loop depends on. poll_interval is the load-bearing one for the
+// same reason scheduler.tick_interval is (time.NewTicker panics on a
+// non-positive duration); the others each have a distinct silent failure mode,
+// which is why they are validated rather than clamped.
+func TestValidateEmbeddingQueueConfig(t *testing.T) {
+	base := func() *Config {
+		return &Config{Embedding: EmbeddingConfig{Queue: EmbeddingQueueConfig{
+			LeaseDuration: 30 * time.Minute,
+			MaxAttempts:   5,
+			BatchSize:     20,
+			PollInterval:  30 * time.Second,
+			RetryBackoff:  2 * time.Minute,
+		}}}
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr string
+	}{
+		{"code defaults are valid", func(*Config) {}, ""},
+		// A zero lease is instantly expired, so every claim is immediately
+		// reclaimable and every job runs over and over.
+		{"zero lease", func(c *Config) { c.Embedding.Queue.LeaseDuration = 0 }, "embedding.queue.lease_duration"},
+		{"negative lease", func(c *Config) { c.Embedding.Queue.LeaseDuration = -time.Minute }, "embedding.queue.lease_duration"},
+		{"zero poll interval", func(c *Config) { c.Embedding.Queue.PollInterval = 0 }, "embedding.queue.poll_interval"},
+		{"negative poll interval", func(c *Config) { c.Embedding.Queue.PollInterval = -time.Second }, "embedding.queue.poll_interval"},
+		// Zero max attempts retires every job as a poison pill on its first claim.
+		{"zero max attempts", func(c *Config) { c.Embedding.Queue.MaxAttempts = 0 }, "embedding.queue.max_attempts"},
+		{"one attempt is valid", func(c *Config) { c.Embedding.Queue.MaxAttempts = 1 }, ""},
+		// A zero batch claims nothing, so the queue silently stops draining.
+		{"zero batch size", func(c *Config) { c.Embedding.Queue.BatchSize = 0 }, "embedding.queue.batch_size"},
+		{"negative batch size", func(c *Config) { c.Embedding.Queue.BatchSize = -5 }, "embedding.queue.batch_size"},
+		// No backoff is a legitimate choice (retry as soon as claimable again).
+		{"zero retry backoff is valid", func(c *Config) { c.Embedding.Queue.RetryBackoff = 0 }, ""},
+		{"negative retry backoff", func(c *Config) { c.Embedding.Queue.RetryBackoff = -time.Second }, "embedding.queue.retry_backoff"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := base()
+			tt.mutate(cfg)
+			err := validateEmbeddingQueueConfig(cfg)
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr, "error must name the offending config key")
+		})
+	}
+}
+
+// TestLoad_InvalidEmbeddingQueuePollInterval proves validateEmbeddingQueueConfig
+// is REGISTERED in validateAll. Without this the table above passes even when
+// the validator is never called, and a mounted config.yaml with
+// poll_interval: "0s" would sail through to panic in time.NewTicker -- the
+// wiring is the load-bearing half.
+func TestLoad_InvalidEmbeddingQueuePollInterval(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+`
+embedding:
+  queue:
+    poll_interval: "0s"
+`)
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "embedding.queue.poll_interval")
+}
+
+// TestLoad_EmbeddingQueueDefaults pins that omitting the section entirely still
+// yields a working queue: the whole section is optional, and an operator who
+// never heard of it must not end up with a dispatcher that claims nothing.
+func TestLoad_EmbeddingQueueDefaults(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML)
+
+	require.NoError(t, err)
+	assert.Equal(t, 30*time.Minute, cfg.Embedding.Queue.LeaseDuration)
+	assert.Equal(t, EnvInt(5), cfg.Embedding.Queue.MaxAttempts)
+	assert.Equal(t, EnvInt(20), cfg.Embedding.Queue.BatchSize)
+	assert.Equal(t, 30*time.Second, cfg.Embedding.Queue.PollInterval)
+	assert.Equal(t, 2*time.Minute, cfg.Embedding.Queue.RetryBackoff)
+}
+
+// A mounted config.yaml must be able to override each knob with a LITERAL value,
+// not only through a ${VAR} placeholder: that file is the documented alternative
+// to env configuration, and retyping a field to EnvInt is exactly the change
+// that leaves the literal path untested (#752).
+func TestLoad_EmbeddingQueueLiteralOverrides(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+`
+embedding:
+  queue:
+    lease_duration: "10m"
+    max_attempts: 2
+    batch_size: 7
+    poll_interval: "5s"
+    retry_backoff: "1m"
+`)
+
+	require.NoError(t, err)
+	assert.Equal(t, 10*time.Minute, cfg.Embedding.Queue.LeaseDuration)
+	assert.Equal(t, EnvInt(2), cfg.Embedding.Queue.MaxAttempts)
+	assert.Equal(t, EnvInt(7), cfg.Embedding.Queue.BatchSize)
+	assert.Equal(t, 5*time.Second, cfg.Embedding.Queue.PollInterval)
+	assert.Equal(t, time.Minute, cfg.Embedding.Queue.RetryBackoff)
+}
