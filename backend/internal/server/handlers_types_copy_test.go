@@ -162,6 +162,23 @@ func TestCopyTypesFromTeam_BadSourceIsBadRequest(t *testing.T) {
 	}
 }
 
+// TestCopyTypesFromTeam_MissingSourceTeamID pins the gap oapi-codegen leaves:
+// it enforces neither `required` nor additionalProperties on a request body, so
+// `{}` binds source_team_id as the ZERO uuid instead of failing. Without the
+// handler's uuid.Nil guard this reaches the service and answers 403 — the
+// status the spec reserves for a team the caller is not in, which would imply
+// the all-zero team exists.
+func TestCopyTypesFromTeam_MissingSourceTeamID(t *testing.T) {
+	// No EXPECT: reaching the service at all is the bug.
+	srv := createTestTypesServer(servicesmocks.NewMockTypeServiceInterface(t))
+	req := makeTypesRequest("POST", testTypesCopyPath, `{}`)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	assertTypesProblem(t, w, http.StatusBadRequest, apierrors.CodeBadRequest)
+}
+
 func TestCopyTypesFromTeam_MalformedSourceTeamID(t *testing.T) {
 	// No service call: the generated binder rejects a non-UUID body field.
 	srv := createTestTypesServer(servicesmocks.NewMockTypeServiceInterface(t))

@@ -161,6 +161,15 @@ func (t *typesStrictServer) CopyTypesFromTeam(
 	if request.Body == nil {
 		return nil, apierrors.NewBadRequestError("request body is required")
 	}
+	// oapi-codegen enforces neither `required` nor additionalProperties on a
+	// request body, so `{}` binds source_team_id as the ZERO uuid rather than
+	// failing. Left alone it would reach the service, fail the membership check
+	// against a team that cannot exist, and answer 403 — where the spec
+	// documents 400 for a missing source, and a 403 would imply the all-zero
+	// team is merely one the caller is not in.
+	if request.Body.SourceTeamId == uuid.Nil {
+		return nil, apierrors.NewBadRequestError(services.ErrCopySourceRequired.Error())
+	}
 
 	result, err := t.s.container.TypeService().CopyFromTeam(ctx, services.CopyTypesParams{
 		TeamID:       teamID,

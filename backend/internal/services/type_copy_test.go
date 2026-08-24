@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -275,6 +276,6 @@ func TestCopyableResourceTypes_CoversEveryCustomisableResource(t *testing.T) {
 		"a resource that adopts custom types must be copied too — derive, never hardcode")
 	assert.Contains(t, got, "artifacts")
 	// Fixed order, so one copy of the same two teams always reports the same
-	// result and writes the same audit detail.
-	assert.IsIncreasing(t, append([]string{""}, got...))
+	// result and writes the same audit detail — map iteration order would not.
+	assert.True(t, sort.StringsAreSorted(got), "got %v", got)
 }
