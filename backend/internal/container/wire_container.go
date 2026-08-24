@@ -477,6 +477,13 @@ func (c *WireContainer) EventManager() events.EventPublisher {
 	return nil
 }
 
+// StartEventListeners launches the event listeners whose background loops are
+// deliberately not started at construction (the embedding dispatcher's durable
+// queue poller, #820), now that the database is migrated and ready.
+func (c *WireContainer) StartEventListeners() {
+	c.eventSystemDeps.StartListeners()
+}
+
 // Close cleans up resources
 func (c *WireContainer) Close() error {
 	// Stop event manager

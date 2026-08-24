@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
+	"github.com/google/uuid"
 
+	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
@@ -55,18 +57,45 @@ type EmbeddingRetryConfig struct {
 //     drop was the core defect this issue fixes).
 //
 // Every generate job is bracketed by a submitted line and exactly one terminal line
-// (#755). The pair is what makes a loss between the two — the in-memory queue is not
-// durable, so a restart discards whatever it still holds (#820) — diffable from the
-// logs alone: an entity with a submitted line and no terminal line is work that was
+// (#755). The pair is what makes a loss between the two diffable from the logs
+// alone: an entity with a submitted line and no terminal line is work that was
 // accepted and never finished.
+//
+// With a durable queue wired (#820) the two executors stop being the BACKLOG and
+// become only the concurrency limiters. Every accepted event is written to
+// embedding_jobs before ProcessEvent returns; a poller then leases rows out of
+// that table and runs them through the same two stages. A restart no longer
+// discards queued work: the rows are still there, and a lease left behind by a
+// dead process expires and is reclaimed.
 type EmbeddingDispatcher struct {
 	engine *EmbeddingGenerationProcessor
 	retry  EmbeddingRetryConfig
 	logger *slog.Logger
 
 	intake *boundedExecutor
+	// intakeWorkers is how many jobs may be in flight at once, which is also the
+	// cap the queue poller claims against: an intake worker stays occupied for its
+	// job's whole lifetime (it blocks on the generate stage), so claiming beyond
+	// this would only lease rows nothing can run.
+	intakeWorkers int
 
 	stats dispatcherStats
+
+	// queue, when non-nil, is the durable system of record for outstanding work
+	// (#820). Nil keeps the pre-#820 behaviour: ProcessEvent routes straight onto
+	// the in-memory executors, which is what the executor-level unit tests drive.
+	queue    repositories.EmbeddingJobRepository
+	queueCfg EmbeddingQueueConfig
+	// workerID identifies this process's claims. It is regenerated per dispatcher,
+	// so a restarted process never matches its predecessor's claimed_by and cannot
+	// ack a job it did not run.
+	workerID  string
+	wake      chan struct{}
+	stopCh    chan struct{}
+	startOnce sync.Once
+	stopOnce  sync.Once
+	pollerWG  sync.WaitGroup
+	inFlight  atomic.Int64
 
 	mu    sync.Mutex
 	execs map[string]*providerExecutor
@@ -126,11 +155,14 @@ var (
 // NewEmbeddingDispatcher builds a dispatcher around a generation engine.
 // resolveWorkers bounds concurrent provider/team resolution (the DB stage); the
 // per-provider generate concurrency comes from each resolved provider.
+// Pass WithDurableQueue to make it durable (#820); without it the backlog is
+// in-memory only and a restart discards it.
 func NewEmbeddingDispatcher(
 	engine *EmbeddingGenerationProcessor,
 	resolveWorkers int,
 	retry EmbeddingRetryConfig,
 	logger *slog.Logger,
+	opts ...EmbeddingDispatcherOption,
 ) *EmbeddingDispatcher {
 	if resolveWorkers < 1 {
 		resolveWorkers = 1
@@ -142,13 +174,41 @@ func NewEmbeddingDispatcher(
 		retry.BaseBackoff = 200 * time.Millisecond
 	}
 	d := &EmbeddingDispatcher{
-		engine: engine,
-		retry:  retry,
-		logger: logger,
-		execs:  make(map[string]*providerExecutor),
+		engine:        engine,
+		retry:         retry,
+		logger:        logger,
+		intakeWorkers: resolveWorkers,
+		workerID:      uuid.NewString(),
+		wake:          make(chan struct{}, 1),
+		stopCh:        make(chan struct{}),
+		execs:         make(map[string]*providerExecutor),
+	}
+	for _, opt := range opts {
+		opt(d)
 	}
 	d.intake = newBoundedExecutor(resolveWorkers)
+	if d.queue != nil {
+		d.queueCfg = d.queueCfg.withDefaults()
+	}
 	return d
+}
+
+// Start launches the durable queue's poller (#820). It is separate from
+// construction on purpose: the poller's first sweep is the restart-recovery
+// path, so it queries the database immediately, and a container assembled with a
+// placeholder database (as every handler test does) must not be made to survive
+// that. Callers start it once the database is migrated and ready, exactly like
+// the scheduler.
+//
+// It is a no-op without a durable queue, and idempotent.
+func (d *EmbeddingDispatcher) Start() {
+	if d.queue == nil {
+		return
+	}
+	d.startOnce.Do(func() {
+		d.pollerWG.Add(1)
+		go d.pollQueue()
+	})
 }
 
 // ManagesOwnConcurrency reports that generation runs on this dispatcher's own
@@ -156,14 +216,26 @@ func NewEmbeddingDispatcher(
 // inline instead of through the shared worker pool.
 func (d *EmbeddingDispatcher) ManagesOwnConcurrency() bool { return true }
 
-// ProcessEvent enqueues the event for asynchronous, concurrency-bounded
-// embedding. It performs no I/O and never blocks, so it is safe to call on the
-// bus dispatch goroutine. It returns an error only if the dispatcher is stopped.
-func (d *EmbeddingDispatcher) ProcessEvent(_ context.Context, event events.Event) error {
-	if !d.intake.submit(func() { d.resolveAndRoute(event) }) {
-		return fmt.Errorf("embedding dispatcher is stopped")
+// ProcessEvent accepts the event for asynchronous, concurrency-bounded embedding.
+//
+// With a durable queue wired it writes ONE row to embedding_jobs and returns; the
+// poller picks it up. That single insert is the price of durability and it is
+// paid deliberately on the caller's goroutine: enqueueing in the background first
+// would reopen exactly the window this issue closes, because a crash between
+// "accepted" and "persisted" is indistinguishable from the in-memory loss #755
+// investigated. Extraction of the event's text is pure, so an event with nothing
+// to embed costs no database call at all.
+//
+// Without a queue it keeps the pre-#820 behaviour: no I/O, straight onto the
+// in-memory intake executor.
+func (d *EmbeddingDispatcher) ProcessEvent(ctx context.Context, event events.Event) error {
+	if d.queue == nil {
+		if !d.intake.submit(func() { d.resolveAndRoute(event) }) {
+			return fmt.Errorf("embedding dispatcher is stopped")
+		}
+		return nil
 	}
-	return nil
+	return d.enqueueDurably(ctx, event)
 }
 
 // resolveAndRoute resolves the event's team + provider and routes the generate
@@ -191,7 +263,13 @@ func (d *EmbeddingDispatcher) resolveAndRoute(event events.Event) {
 	d.submitGenerate(input, teamID, resolved)
 }
 
-// submitGenerate enqueues an entity's generate job onto its provider's executor,
+// submitGenerate is the fire-and-forget form used by the pre-#820 in-memory path:
+// it hands the job to the provider executor and returns without waiting.
+func (d *EmbeddingDispatcher) submitGenerate(input embeddingInput, teamID string, resolved *ResolvedEmbeddingProvider) {
+	d.runGenerate(input, teamID, resolved, false)
+}
+
+// runGenerate enqueues an entity's generate job onto its provider's executor,
 // creating that executor (sized to concurrency) on first use. If the provider's
 // concurrency has changed since the executor was built, the old one is retired in
 // the background — it drains what it already holds — and a new one is created at
@@ -199,7 +277,16 @@ func (d *EmbeddingDispatcher) resolveAndRoute(event events.Event) {
 // restart. The get-or-create and the submit happen under one lock so a concurrent
 // concurrency change can never close the executor between the two and drop the
 // job.
-func (d *EmbeddingDispatcher) submitGenerate(input embeddingInput, teamID string, resolved *ResolvedEmbeddingProvider) {
+//
+// When wait is set the caller blocks until the job reaches its terminal state and
+// gets that outcome back. That is what the durable path needs: the row's lease is
+// only meaningful while somebody is actually working it, and the ack has to
+// happen after the outcome is known. It also keeps the provider executor's own
+// in-memory queue shallow (at most one job per intake worker), so the durable
+// table — not a Go slice — is where a backlog accumulates.
+func (d *EmbeddingDispatcher) runGenerate(
+	input embeddingInput, teamID string, resolved *ResolvedEmbeddingProvider, wait bool,
+) generateOutcome {
 	concurrency := resolved.Concurrency
 	if concurrency < 1 {
 		concurrency = 1
@@ -214,6 +301,9 @@ func (d *EmbeddingDispatcher) submitGenerate(input embeddingInput, teamID string
 	d.stats.submitted.Add(1)
 	d.entityLogger(input, teamID).Info("Embedding job submitted")
 
+	var outcome generateOutcome
+	done := make(chan struct{})
+
 	d.mu.Lock()
 	pe := d.execs[teamID]
 	if pe == nil || pe.concurrency != concurrency {
@@ -223,7 +313,10 @@ func (d *EmbeddingDispatcher) submitGenerate(input embeddingInput, teamID string
 		pe = &providerExecutor{concurrency: concurrency, exec: newBoundedExecutor(concurrency)}
 		d.execs[teamID] = pe
 	}
-	ok := pe.exec.submit(func() { d.generate(input, teamID, resolved) })
+	ok := pe.exec.submit(func() {
+		defer close(done)
+		outcome = d.generate(input, teamID, resolved)
+	})
 	d.mu.Unlock()
 
 	if !ok {
@@ -234,7 +327,17 @@ func (d *EmbeddingDispatcher) submitGenerate(input embeddingInput, teamID string
 		// will never be generated — so the ledger stays balanced.
 		d.stats.failed.Add(1)
 		d.entityLogger(input, teamID).Error("Embedding job not enqueued; entity left unembedded")
+		return generateOutcome{
+			err:       fmt.Errorf("provider executor rejected the job"),
+			retryable: true,
+		}
 	}
+
+	if !wait {
+		return generateOutcome{}
+	}
+	<-done
+	return outcome
 }
 
 // entityLogger builds the dispatcher's standard structured logger for one entity,
@@ -257,7 +360,11 @@ func (d *EmbeddingDispatcher) entityLogger(input embeddingInput, teamID string) 
 // account for every submitted job, and a clean first-attempt success is otherwise
 // logged only by the processor, one layer down. The context is dispatcher-owned,
 // not the event's, since the event context may be cancelled well before this runs.
-func (d *EmbeddingDispatcher) generate(input embeddingInput, teamID string, resolved *ResolvedEmbeddingProvider) {
+// It returns the terminal outcome so the durable path (#820) can ack, release or
+// fail the queue row accordingly; the in-memory path ignores it.
+func (d *EmbeddingDispatcher) generate(
+	input embeddingInput, teamID string, resolved *ResolvedEmbeddingProvider,
+) generateOutcome {
 	ctx, cancel := context.WithTimeout(context.Background(), embeddingJobTimeout)
 	defer cancel()
 
@@ -279,7 +386,7 @@ func (d *EmbeddingDispatcher) generate(input embeddingInput, teamID string, reso
 			d.entityLogger(input, teamID).
 				With("attempts", attempts).
 				Info("Embedding job completed")
-			return
+			return generateOutcome{}
 		}
 
 		// A provider that rejected the request itself (4xx other than 408/429) will
@@ -304,6 +411,17 @@ func (d *EmbeddingDispatcher) generate(input embeddingInput, teamID string, reso
 		"retryable", retryable,
 		"error", fmt.Sprintf("%+v", lastErr),
 	).Error(terminalFailureMessage(retryable))
+
+	return generateOutcome{err: lastErr, retryable: retryable}
+}
+
+// generateOutcome is one generate job's terminal result. A zero value means
+// success. retryable distinguishes "the provider rejected this request and will
+// reject an identical retry" (#756) from an exhausted-retries blip, which is what
+// decides whether a durable job is failed terminally or released to be retried.
+type generateOutcome struct {
+	err       error
+	retryable bool
 }
 
 // isPermanentProviderError reports whether err is a provider rejection that an
@@ -324,10 +442,18 @@ func terminalFailureMessage(retryable bool) string {
 	return "Embedding generation rejected by provider (not retryable); entity left unembedded"
 }
 
-// Stop drains and stops all workers: the resolve stage first (so no new generate
-// jobs are routed), then every per-provider generate executor. It is best-effort
-// graceful shutdown and is idempotent.
+// Stop drains and stops all workers: the queue poller first (so nothing new is
+// claimed), then the resolve stage (so no new generate jobs are routed), then
+// every per-provider generate executor. It is best-effort graceful shutdown and
+// is idempotent.
+//
+// Anything still leased when the process goes away is NOT lost with a durable
+// queue wired: its lease simply expires and the next poller — this process's or
+// its successor's — reclaims it.
 func (d *EmbeddingDispatcher) Stop() {
+	d.stopOnce.Do(func() { close(d.stopCh) })
+	d.pollerWG.Wait()
+
 	d.intake.close()
 
 	d.mu.Lock()

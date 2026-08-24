@@ -73,6 +73,12 @@ func runServer(cmd *cobra.Command, args []string) {
 	// stopped (draining any in-flight job) by closeContainer on shutdown.
 	startScheduler(ctx, srv.Container().Scheduler(), cfg, logger)
 
+	// Start the event listeners that own background loops -- the embedding
+	// dispatcher's durable queue poller (#820), whose first sweep resumes work a
+	// previous process left outstanding. Same reason as the scheduler: it must
+	// not run until the DB is migrated. closeContainer drains it on shutdown.
+	srv.Container().StartEventListeners()
+
 	startServer(ctx, srv, logger)
 }
 

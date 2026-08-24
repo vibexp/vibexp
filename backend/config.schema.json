@@ -160,6 +160,9 @@
         "scheduler": {
           "$ref": "#/$defs/SchedulerConfig"
         },
+        "embedding": {
+          "$ref": "#/$defs/EmbeddingConfig"
+        },
         "a2a": {
           "$ref": "#/$defs/A2AConfig"
         },
@@ -264,6 +267,55 @@
         },
         "sendgrid": {
           "$ref": "#/$defs/SendGridConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EmbeddingConfig": {
+      "properties": {
+        "queue": {
+          "$ref": "#/$defs/EmbeddingQueueConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EmbeddingQueueConfig": {
+      "properties": {
+        "lease_duration": {
+          "type": "string",
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
+        },
+        "max_attempts": {
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
+        },
+        "batch_size": {
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
+        },
+        "poll_interval": {
+          "type": "string",
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
+        },
+        "retry_backoff": {
+          "type": "string",
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
         }
       },
       "additionalProperties": false,

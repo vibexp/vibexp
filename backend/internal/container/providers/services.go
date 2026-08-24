@@ -412,9 +412,15 @@ func ProvideQueryEmbedder(
 // fan-out per provider (sized by each provider's concurrency) and keep generation
 // off the bus's shared, unbounded worker pool (#142). Retry and resolve-stage
 // sizing reuse the event_bus.* knobs so operators tune one set of values.
+//
+// The durable queue (#820) is wired unconditionally: it is the system of record
+// for outstanding work, so an accepted event is persisted before ProcessEvent
+// returns and a restart resumes rather than discarding its backlog. Only the
+// drain knobs are configurable (embedding.queue.*), never durability itself.
 func ProvideEmbeddingProcessor(
 	providerSvc services.EmbeddingProviderServiceInterface,
 	embeddingService services.EmbeddingServiceInterface,
+	jobRepo repositories.EmbeddingJobRepository,
 	cfg *config.Config,
 	logger *slog.Logger,
 ) events.EmbeddingProcessor {
@@ -428,6 +434,13 @@ func ProvideEmbeddingProcessor(
 			Jitter:      cfg.EventBus.RetryJitter,
 		},
 		logger,
+		services.WithDurableQueue(jobRepo, services.EmbeddingQueueConfig{
+			LeaseDuration: cfg.Embedding.Queue.LeaseDuration,
+			MaxAttempts:   int(cfg.Embedding.Queue.MaxAttempts),
+			BatchSize:     int(cfg.Embedding.Queue.BatchSize),
+			PollInterval:  cfg.Embedding.Queue.PollInterval,
+			RetryBackoff:  cfg.Embedding.Queue.RetryBackoff,
+		}),
 	)
 }
 

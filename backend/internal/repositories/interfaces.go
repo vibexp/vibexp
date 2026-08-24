@@ -1783,3 +1783,64 @@ type FreshnessAuditRepository interface {
 	// entry at all" be answered here rather than inferred from an absence.
 	ListStaleResourcesMissingMark(ctx context.Context, teamID string) ([]models.FreshnessResourceRef, error)
 }
+
+// EmbeddingJobRepository is the durable, leased queue of outstanding embedding
+// work (issue #820). It is the system of record the dispatcher's in-memory
+// executors used to be: a job survives the process, and a worker that dies
+// mid-flight leaves an expired lease rather than a lost entity.
+//
+// The lifecycle is Enqueue -> Claim -> (Ack | Release | Fail). Claim treats an
+// expired lease as claimable, so restart recovery is the ordinary claim query
+// rather than a boot-time sweep, and attempts is incremented at claim time so a
+// job whose worker keeps dying is still bounded.
+type EmbeddingJobRepository interface {
+	// Enqueue durably records one unit of embedding work and returns the stored
+	// row. A re-enqueue of an entity that already has an OUTSTANDING job
+	// (pending or claimed) coalesces onto that row and refreshes its payload,
+	// so the newest content wins instead of the same entity queueing twice.
+	//
+	// Coalescing onto a CLAIMED row deliberately clears claimed_by and returns
+	// the job to pending: the in-flight worker is embedding stale text, and
+	// because Ack/Release/Fail all match on claimed_by, that worker's terminal
+	// write finds no row and the refreshed job is simply run again. Re-embedding
+	// is idempotent (delete-then-insert per entity), so the duplicate run is
+	// wasted work, never wrong data.
+	Enqueue(ctx context.Context, job *models.EmbeddingJob) error
+	// Claim leases up to limit claimable jobs for workerID, oldest first, and
+	// returns them in their claimed state. A job is claimable when it is pending
+	// or its lease has expired, its available_at has passed, and it is still
+	// under maxAttempts. Claiming increments attempts and sets the lease to
+	// expire lease from the DATABASE clock, so replicas agree without app-clock
+	// skew.
+	//
+	// Concurrent claimers never receive the same job: the row selection is
+	// FOR UPDATE SKIP LOCKED, which is also what stops two workers serializing
+	// behind each other.
+	Claim(
+		ctx context.Context, workerID string, limit int, lease time.Duration, maxAttempts int,
+	) ([]*models.EmbeddingJob, error)
+	// Ack marks a claimed job done. It matches on claimed_by, so a worker whose
+	// job was re-enqueued (or whose lease was stolen after expiring) acks
+	// nothing and the job stays outstanding. It reports whether a row matched.
+	Ack(ctx context.Context, id, workerID string) (bool, error)
+	// Release returns a claimed job to pending after a retryable failure,
+	// recording lastErr and holding it back for backoff before it may be
+	// claimed again -- without which a job that fails fast would be re-claimed
+	// on every poll. It matches on claimed_by like Ack and reports whether a row
+	// matched.
+	Release(ctx context.Context, id, workerID, lastErr string, backoff time.Duration) (bool, error)
+	// Fail marks a claimed job terminally failed, for an error an identical
+	// retry cannot fix. It matches on claimed_by like Ack and reports whether a
+	// row matched.
+	Fail(ctx context.Context, id, workerID, lastErr string) (bool, error)
+	// FailExhausted terminally fails every outstanding job that has used up
+	// maxAttempts and is not currently under a live lease -- the poison-pill
+	// guard. Without it such a job would be skipped by Claim (which filters on
+	// the attempt bound) and sit outstanding forever, blocking the entity's
+	// coalescing index. It returns how many rows it retired.
+	FailExhausted(ctx context.Context, maxAttempts int) (int64, error)
+	// CountByState returns the number of jobs in each state, sparse: a state
+	// with no rows is absent. It exists for operator-facing reporting and for
+	// tests that must assert the queue is drained.
+	CountByState(ctx context.Context) (map[string]int64, error)
+}

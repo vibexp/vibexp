@@ -388,6 +388,9 @@ func (b *BaseMockContainer) Database() *database.DB {
 	return nil
 }
 
+// StartEventListeners is a no-op: a mock container owns no background loops.
+func (b *BaseMockContainer) StartEventListeners() {}
+
 // Cleanup resources
 func (b *BaseMockContainer) Close() error {
 	return nil

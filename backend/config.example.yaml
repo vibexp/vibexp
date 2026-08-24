@@ -323,6 +323,33 @@ scheduler:
   # Caps how many due schedules one tick claims.
   due_limit: 100
 
+# Embedding pipeline.
+embedding:
+  # The durable, leased embedding job queue (issue #820). Durability is not a
+  # knob: every accepted event is written to embedding_jobs before it is
+  # acknowledged, so a restart resumes rather than discarding its backlog. These
+  # values only tune how that queue is drained.
+  queue:
+    # How long a claimed job is held before another worker may reclaim it. Must
+    # comfortably exceed the worst case time one job spends in a worker (the wait
+    # for a free provider slot plus the 2-minute per-job timeout): a lease that
+    # expires under a running job costs a duplicate embed, which is wasted work
+    # rather than wrong data.
+    lease_duration: "30m"
+    # How many times one job may be CLAIMED before it is retired as a poison
+    # pill. Claims are counted, not failures, so a job that kills its worker
+    # still converges on this bound.
+    max_attempts: 5
+    # Caps how many jobs one claim leases.
+    batch_size: 20
+    # How often the queue is swept for work no enqueue announced: jobs orphaned
+    # by a dead process, and jobs backing off after a retryable failure. An
+    # enqueue wakes the poller directly, so this is not the common-path latency.
+    poll_interval: "30s"
+    # Holds a job back after a retryable failure so it does not consume a claim
+    # slot on every poll.
+    retry_backoff: "2m"
+
 # Agent-to-Agent client settings.
 a2a:
   # Timeout for a single synchronous (message/send) request.

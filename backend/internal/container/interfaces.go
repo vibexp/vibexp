@@ -114,6 +114,12 @@ type Container interface {
 	// Legacy method for database access (TODO: Remove once all handlers use repositories)
 	Database() *database.DB
 
+	// StartEventListeners launches event listeners that own background loops
+	// deliberately not started at construction time (the embedding dispatcher's
+	// durable-queue poller, #820). Call it once the database is migrated and
+	// ready; Close drains them again.
+	StartEventListeners()
+
 	// Cleanup resources
 	Close() error
 }

@@ -9,14 +9,14 @@ import "sync"
 // concurrently, no matter how many are submitted at once.
 //
 // submit never blocks (the queue is unbounded), so a burst is absorbed in memory
-// rather than dropped or fanned out onto unbounded goroutines. The trade-off is
-// bounded goroutines for an unbounded in-memory backlog; a durable, spillable job
-// queue is deferred to #820.
+// rather than dropped or fanned out onto unbounded goroutines.
 //
-// The backlog is NOT durable: a restart, a crash, or a Stop() that outlives its
-// drain discards every job still queued, silently as far as this type is concerned.
-// #755 added the dispatcher's submitted/terminal log pair so such a loss is at least
-// visible (submitted line, no terminal line) until #820 makes it impossible.
+// This type is still NOT durable, and deliberately so: since #820 it is no longer
+// where a backlog accumulates. The dispatcher's system of record is the
+// embedding_jobs table, and it claims work only up to the number of workers that
+// can run it, so what this queue holds at any moment is a handful of in-flight
+// jobs whose durable rows are still leased. A process that dies with jobs in here
+// loses nothing -- their leases expire and the next poller reclaims them.
 type boundedExecutor struct {
 	mu     sync.Mutex
 	cond   *sync.Cond

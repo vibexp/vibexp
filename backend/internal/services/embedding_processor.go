@@ -145,26 +145,50 @@ func (p *EmbeddingGenerationProcessor) ProcessEvent(ctx context.Context, event e
 func (p *EmbeddingGenerationProcessor) resolveJob(
 	ctx context.Context, event events.Event,
 ) (embeddingInput, string, *ResolvedEmbeddingProvider, error) {
+	input, ok := embeddableInput(event)
+	if !ok {
+		return embeddingInput{}, "", nil, nil // not embeddable, or nothing to embed
+	}
+	teamID, resolved, err := p.resolveInput(ctx, input)
+	return input, teamID, resolved, err
+}
+
+// embeddableInput extracts the embedding input from an event and reports whether
+// there is anything to embed at all. It is deliberately PURE -- no I/O -- so the
+// durable queue (#820) can decide whether an event is worth persisting while
+// still on the bus dispatch goroutine, before any database call that a crash
+// could lose.
+func embeddableInput(event events.Event) (embeddingInput, bool) {
 	input, ok := extractEmbeddingInput(event)
 	if !ok {
-		return embeddingInput{}, "", nil, nil // event type is not embeddable
+		return embeddingInput{}, false // event type is not embeddable
 	}
 	if input.entityID == "" || input.userID == "" || input.embedText() == "" {
-		return embeddingInput{}, "", nil, nil // nothing to embed
+		return embeddingInput{}, false // nothing to embed
 	}
+	return input, true
+}
 
+// resolveInput is the I/O half of resolveJob: it resolves an already-extracted
+// input's team and active provider. It is split out so a job replayed from the
+// durable queue -- which has the input but no longer has the originating event --
+// resolves through exactly the same code as a live one.
+//
+// Like resolveJob it returns a nil provider with no error for "the team has no
+// provider configured", which is a no-op rather than a failure.
+func (p *EmbeddingGenerationProcessor) resolveInput(
+	ctx context.Context, input embeddingInput,
+) (string, *ResolvedEmbeddingProvider, error) {
 	teamID, err := p.embeddingService.ResolveEntityTeam(ctx, input.userID, input.entityType, input.entityID)
 	if err != nil {
-		// Return the extracted input alongside the error so a caller can name the
-		// entity in a terminal log rather than dropping it anonymously.
-		return input, "", nil, fmt.Errorf(
+		return "", nil, fmt.Errorf(
 			"failed to resolve team for %s %s: %w", input.entityType, input.entityID, err,
 		)
 	}
 
 	resolved, err := p.resolver.ResolveActiveProvider(ctx, teamID)
 	if err != nil {
-		return input, teamID, nil, fmt.Errorf("failed to resolve embedding provider: %w", err)
+		return teamID, nil, fmt.Errorf("failed to resolve embedding provider: %w", err)
 	}
 	if resolved == nil {
 		p.logger.With(
@@ -174,10 +198,10 @@ func (p *EmbeddingGenerationProcessor) resolveJob(
 			"entity_id", input.entityID,
 			"team_id", teamID,
 		).Debug("No active embedding provider configured for team; skipping embedding generation")
-		return embeddingInput{}, teamID, nil, nil
+		return teamID, nil, nil
 	}
 
-	return input, teamID, resolved, nil
+	return teamID, resolved, nil
 }
 
 // generateAndSave chunks the input, embeds it with the team's resolved provider,
