@@ -53,38 +53,53 @@ type Scheduler struct {
 	registry *Registry
 	logger   *slog.Logger
 	cfg      Config
+	// reconcilers repair missing schedule rows on a slow timer; see
+	// reconcile.go. Empty is valid and disables the reconcile loop entirely.
+	reconcilers []Reconciler
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
 // New creates a Scheduler. Call Start to launch the run loop.
+//
+// reconcilers is variadic and may be empty: the run loop does not depend on
+// it, and a Scheduler constructed with none simply never sweeps.
 func New(
 	repo repositories.ScheduleRepository,
 	db *database.DB,
 	registry *Registry,
 	cfg Config,
 	logger *slog.Logger,
+	reconcilers ...Reconciler,
 ) *Scheduler {
 	return &Scheduler{
-		repo:     repo,
-		db:       db,
-		registry: registry,
-		cfg:      cfg,
-		logger:   logger,
+		repo:        repo,
+		db:          db,
+		registry:    registry,
+		cfg:         cfg,
+		logger:      logger,
+		reconcilers: reconcilers,
 	}
 }
 
-// Start launches the run loop in the background. The first tick runs
-// immediately so due schedules are not delayed by a full interval after boot.
+// Start launches the run loop in the background, plus the reconcile loop when
+// any Reconciler is registered. The first tick and the first sweep both run
+// immediately, so neither due schedules nor a repairable instance wait out a
+// full interval after boot.
 func (s *Scheduler) Start(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 	s.wg.Add(1)
 	go s.run(ctx)
+
+	if len(s.reconcilers) > 0 {
+		s.wg.Add(1)
+		go s.runReconcile(ctx)
+	}
 }
 
-// Close stops the run loop and waits for an in-flight handler to finish
+// Close stops both loops and waits for an in-flight handler or sweep to finish
 // rather than interrupting it mid-write. Close without Start is a no-op.
 func (s *Scheduler) Close() {
 	if s.cancel == nil {
