@@ -12,8 +12,39 @@ e2e/journeys/
 ├── upgrade-subscription.journey.spec.ts     # Full Stripe lifecycle (gated)
 ├── team-collaboration.journey.spec.ts       # Team collaboration workflow
 ├── resource-freshness.journey.spec.ts       # Freshness loop (gated on the docker stack)
+├── cross-team-settings-copy.journey.spec.ts # Copying settings between two teams
 └── README.md                                # This file
 ```
+
+## Cross-team settings copy (`cross-team-settings-copy.journey.spec.ts`)
+
+The ship gate for epic #827: one owner, two teams, and each of the three copy
+surfaces driven through its settings-page dialog — a model provider, an
+embedding provider, and the custom artifact types.
+
+Two of its assertions are the reason this is an e2e at all:
+
+- **The credential never leaves the server.** Every `/api/v1/` response body the
+  run observes is recorded — the browser's via a context `response` listener,
+  and the spec's own `page.request` calls explicitly, since those bypass the
+  page's network stack and would otherwise sit outside the search — and the
+  seeded key is searched for across all of them. That is a claim about a whole
+  session, not about one handler, so no unit test can make it. It is paired with
+  a check that the recorder saw a substantial amount of traffic, including a
+  payload carrying `has_api_key`; without that a run recording nothing would
+  pass just as happily.
+- **The audit trail records the copy**, with the actor and the source team, which
+  spans three services, a migration and a page.
+
+It is deterministic without controlling time: the destination team starts empty,
+so the embedding copy's server-side activation verdict is necessarily
+`becomes_active`, and its warning dialog is asserted rather than probed for. The
+type-slug collision is seeded before the copy rather than discovered.
+
+Names that a locator matches on are scoped per **attempt**, not per file:
+`describe.serial` re-runs `beforeAll` on a retry, and a file-scoped team name
+would leave the source-team picker offering two identical options on the second
+attempt — a red ship gate caused by the harness rather than the feature.
 
 ## Resource freshness (`resource-freshness.journey.spec.ts`)
 
