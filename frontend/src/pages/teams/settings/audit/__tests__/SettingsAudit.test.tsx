@@ -203,6 +203,33 @@ describe('SettingsAudit content', () => {
     ).not.toBeInTheDocument()
   })
 
+  // Reachable, not defensive padding: `recordCopy` writes the audit row
+  // unconditionally, so a copy where every type already existed lands with an
+  // empty `added_slugs`. "0 types:" would read as a bug.
+  it('says so when a custom_types copy added nothing', async () => {
+    mocked.getAudit.mockResolvedValue(
+      page([
+        entry({
+          surface: 'custom_types',
+          source_resource_id: null,
+          created_resource_id: null,
+          detail: {
+            added_ids: [],
+            added_slugs: [],
+            skipped_slugs: ['bug-report'],
+          },
+        }),
+      ])
+    )
+
+    render(<SettingsAudit team={ownerTeam} />)
+
+    const row = await screen.findByTestId('settings-audit-row')
+    expect(
+      within(row).getByText('No new types — every one already existed')
+    ).toBeInTheDocument()
+  })
+
   // Epic #827 grows the surface enum server-side, and the frontend's copy of it
   // is bumped by hand — so a build can meet a surface it has no label for. A
   // blank What cell in the compensating control would read as "nothing
