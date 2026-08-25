@@ -188,7 +188,7 @@ describe('copy from another team (#833)', () => {
     await user.click(await screen.findByText('Other Team'))
   }
 
-  it('hides the entry point without the permission the server requires', async () => {
+  it('hides the entry point without resource.create, the membership proxy the gate uses', async () => {
     const noPermTeam = {
       id: 'team-1',
       name: 'Test Team',
@@ -239,6 +239,84 @@ describe('copy from another team (#833)', () => {
     expect(added).toHaveLength(1)
     expect(added[0]).toHaveTextContent('Design doc')
     expect(mockedService.getTypes).toHaveBeenCalledWith('team-2', 'artifacts')
+  })
+
+  it('cannot confirm until the preview has loaded', async () => {
+    const user = userEvent.setup()
+    let releaseSource: (types: Type[]) => void = () => undefined
+    mockedService.getTypes.mockImplementation((teamId: string) =>
+      teamId === 'team-2'
+        ? new Promise<Type[]>(resolve => {
+            releaseSource = resolve
+          })
+        : Promise.resolve([systemType, customType])
+    )
+
+    render(<Customization team={urlTeam} />)
+    await openCopyDialog(user)
+
+    // Source picked, preview still in flight — confirming here would copy blind.
+    expect(
+      await screen.findByTestId('confirm-copy-from-team-button')
+    ).toBeDisabled()
+
+    releaseSource([sourceCustomType])
+
+    await waitFor(() => {
+      expect(screen.getByTestId('confirm-copy-from-team-button')).toBeEnabled()
+    })
+  })
+
+  it('keeps the preview of the latest source when an earlier fetch lands last', async () => {
+    const user = userEvent.setup()
+    const thirdTeam = {
+      id: 'team-3',
+      name: 'Third Team',
+      permissions: ['resource.create'],
+    } as unknown as Team
+    mockUseTeam.mockReturnValue({
+      currentTeam: urlTeam,
+      teams: [urlTeam, otherTeam, thirdTeam],
+      isLoading: false,
+      setCurrentTeam: vi.fn(),
+      refreshTeams: vi.fn(),
+    })
+
+    const slowFirst: Type[] = [
+      { ...sourceCustomType, id: 't-slow-a', slug: 'slow-a', name: 'Slow A' },
+      { ...sourceCustomType, id: 't-slow-b', slug: 'slow-b', name: 'Slow B' },
+    ]
+    let releaseFirst: (types: Type[]) => void = () => undefined
+    mockedService.getTypes.mockImplementation((teamId: string) => {
+      if (teamId === 'team-2') {
+        return new Promise<Type[]>(resolve => {
+          releaseFirst = resolve
+        })
+      }
+      if (teamId === 'team-3') {
+        return Promise.resolve([sourceCustomType])
+      }
+      return Promise.resolve([systemType, customType])
+    })
+
+    render(<Customization team={urlTeam} />)
+    await openCopyDialog(user)
+
+    // Switch to the third team; its (fast) preview resolves first.
+    await user.click(await screen.findByTestId('source-team-picker'))
+    await user.click(await screen.findByText('Third Team'))
+    await waitFor(() => {
+      expect(screen.getAllByTestId('copy-preview-add')).toHaveLength(1)
+    })
+
+    // The abandoned first request now lands — it must not overwrite the preview.
+    releaseFirst(slowFirst)
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('copy-preview-add')).toHaveLength(1)
+    })
+    expect(screen.getByTestId('copy-preview')).toHaveTextContent('Design doc')
+    expect(screen.getByTestId('copy-preview')).not.toHaveTextContent('Slow A')
   })
 
   it('copies from the chosen team and reloads the destination list', async () => {

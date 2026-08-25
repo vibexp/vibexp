@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -38,6 +38,12 @@ interface CopyFromTeamDialogProps {
   onSourceChange?: (sourceTeam: Team | null) => void
   /** Rendered between the picker and the footer once a source is chosen. */
   preview?: ReactNode
+  /**
+   * Holds the confirm button disabled beyond "no source picked" — the page
+   * sets it while the preview is still loading or failed to load, so a copy is
+   * never confirmed without the user having seen what it will do.
+   */
+  confirmDisabled?: boolean
   /** See {@link SourceTeamPicker}'s `canCopyFrom`. */
   canCopyFrom?: (team: Team) => boolean
   confirmLabel?: string
@@ -63,6 +69,7 @@ export function CopyFromTeamDialog({
   onConfirm,
   onSourceChange,
   preview,
+  confirmDisabled = false,
   canCopyFrom,
   confirmLabel = 'Copy',
   submittingLabel = 'Copying…',
@@ -70,13 +77,23 @@ export function CopyFromTeamDialog({
   const [sourceTeam, setSourceTeam] = useState<Team | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  // Reset on OPEN, not on close: the page may close the dialog itself after a
-  // successful copy, and resetting from `open`'s falsy edge alone would then
-  // depend on the page's callback identity inside the effect.
+  // Effect event so the reset can notify the page without `onSourceChange`'s
+  // identity becoming a dependency — an inline arrow at the call site would
+  // otherwise re-run this on every parent render and clear a live selection.
+  const notifySourceCleared = useEffectEvent(() => {
+    onSourceChange?.(null)
+  })
+
+  // Reset on CLOSE, not on open: `DialogContent` is unmounted while closed, so
+  // resetting on the open edge would let one commit paint the previous
+  // selection — stale team name, stale preview, enabled Copy — before the
+  // passive effect ran. The page may also close the dialog itself after a
+  // successful copy, so this covers that path too.
   useEffect(() => {
-    if (open) {
+    if (!open) {
       setSourceTeam(null)
       setPickerOpen(false)
+      notifySourceCleared()
     }
   }, [open])
 
@@ -126,7 +143,7 @@ export function CopyFromTeamDialog({
           <Button
             type="button"
             data-testid="confirm-copy-from-team-button"
-            disabled={submitting || !sourceTeam}
+            disabled={submitting || !sourceTeam || confirmDisabled}
             onClick={() => {
               if (sourceTeam) void onConfirm(sourceTeam)
             }}

@@ -87,6 +87,29 @@ describe('TypeService', () => {
     expect(result).toEqual(mockType)
   })
 
+  it('copyTypesFromTeam posts the source team to the settings copy path', async () => {
+    // Note the prefix: the copy endpoint lives under /settings/, unlike the
+    // read/write /types paths above.
+    const response = {
+      added: [mockType],
+      skipped: [{ resource_type: 'artifacts', slug: 'bug-report' }],
+      added_count: 1,
+      skipped_count: 1,
+    }
+    mockGeneratedClient.POST.mockReturnValue(success(response))
+
+    const result = await typeService.copyTypesFromTeam(teamId, 'team-2')
+
+    expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+      '/api/v1/{team_id}/settings/types/copy',
+      {
+        params: { path: { team_id: teamId } },
+        body: { source_team_id: 'team-2' },
+      }
+    )
+    expect(result).toEqual(response)
+  })
+
   it('deleteType deletes by type id on the team-scoped path', async () => {
     mockGeneratedClient.DELETE.mockReturnValue(
       Promise.resolve({ data: undefined, response: noContentResponse })

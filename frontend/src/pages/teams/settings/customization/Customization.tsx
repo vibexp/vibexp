@@ -84,6 +84,11 @@ function buildColumns(onDelete: (type: Type) => void): ColumnDef<Type>[] {
  * split is derived the way the server derives it — system defaults are never
  * part of the source set, and a source slug the destination already uses is
  * skipped rather than failing the copy (#829).
+ *
+ * Scope note: the server copies every entry of `copyableResourceTypes()`
+ * (`internal/services/type.go`), which today is `artifacts` alone — the same
+ * single resource this page lists. Widening that map without widening the
+ * preview's source query would make the preview under-report what the copy did.
  */
 function buildCopyPreview(
   sourceTypes: Type[],
@@ -106,12 +111,25 @@ function buildCopyPreview(
 
 function CopyPreviewSummary({
   loading,
+  failed,
   preview,
-}: Readonly<{ loading: boolean; preview: CopyPreview | null }>) {
+}: Readonly<{
+  loading: boolean
+  failed: boolean
+  preview: CopyPreview | null
+}>) {
   if (loading) {
     return (
       <p className="text-muted-foreground text-sm" data-testid="copy-preview">
         Checking what this will add…
+      </p>
+    )
+  }
+  if (failed) {
+    return (
+      <p className="text-destructive text-sm" data-testid="copy-preview">
+        Couldn&apos;t read that team&apos;s artifact types, so there is nothing
+        to preview. Pick the team again to retry.
       </p>
     )
   }
@@ -174,6 +192,7 @@ export function Customization({ team }: Readonly<{ team: Team }>) {
   const [copyOpen, setCopyOpen] = useState(false)
   const [copying, setCopying] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewFailed, setPreviewFailed] = useState(false)
   const [preview, setPreview] = useState<CopyPreview | null>(null)
   // Bumped on every source change so a slow response for a previously selected
   // team cannot overwrite the preview of the current one.
@@ -228,6 +247,7 @@ export function Customization({ team }: Readonly<{ team: Team }>) {
   const handleSourceChange = async (sourceTeam: Team | null) => {
     const seq = ++previewSeq.current
     setPreview(null)
+    setPreviewFailed(false)
     if (!sourceTeam) {
       setPreviewLoading(false)
       return
@@ -242,6 +262,7 @@ export function Customization({ team }: Readonly<{ team: Team }>) {
       setPreview(buildCopyPreview(sourceTypes, types))
     } catch (error) {
       if (seq !== previewSeq.current) return
+      setPreviewFailed(true)
       handleError(error, "Failed to load the other team's artifact types")
     } finally {
       if (seq === previewSeq.current) setPreviewLoading(false)
@@ -401,8 +422,15 @@ export function Customization({ team }: Readonly<{ team: Team }>) {
           void handleSourceChange(sourceTeam)
         }}
         preview={
-          <CopyPreviewSummary loading={previewLoading} preview={preview} />
+          <CopyPreviewSummary
+            loading={previewLoading}
+            failed={previewFailed}
+            preview={preview}
+          />
         }
+        // The copy is only confirmable once the user has actually seen what it
+        // will do — #833 requires the preview *before* confirming.
+        confirmDisabled={previewLoading || !preview}
         confirmLabel="Copy types"
       />
 

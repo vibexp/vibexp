@@ -135,6 +135,34 @@ it('clears the selection when reopened, so a stale source is never confirmed', a
   })
 })
 
+it('clears the selection on close, telling the page to drop its preview', async () => {
+  const user = userEvent.setup()
+  const onSourceChange = vi.fn()
+  const props = {
+    onOpenChange: vi.fn(),
+    team: destination,
+    title: 'Copy artifact types',
+    description: 'x',
+    submitting: false,
+    onConfirm: vi.fn(),
+    onSourceChange,
+    preview: <p>stale preview</p>,
+  }
+  const { rerender } = render(<CopyFromTeamDialog open {...props} />)
+
+  await user.click(await screen.findByTestId('source-team-picker'))
+  await user.click(await screen.findByText('Alpha Team'))
+  expect(onSourceChange).toHaveBeenLastCalledWith(alpha)
+
+  // Closing must reset on the CLOSE edge: resetting on the open edge instead
+  // would leave one commit painting the stale team, preview and enabled Copy.
+  rerender(<CopyFromTeamDialog open={false} {...props} />)
+
+  await waitFor(() => {
+    expect(onSourceChange).toHaveBeenLastCalledWith(null)
+  })
+})
+
 it('locks the dialog down while the page is submitting', async () => {
   renderDialog({ submitting: true })
 
