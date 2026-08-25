@@ -1118,8 +1118,9 @@ func (s *Server) setupCommentsRoutes(r chi.Router) {
 
 // setupTeamSettingsRoutes mounts the generated TeamSettings strict-server
 // handler under a team-validated group (epic #487), mirroring
-// setupRelationsRoutes. The tenancy middleware is what makes GET readable by any
-// team member; the two writes authorize further inside the service.
+// setupRelationsRoutes. The tenancy middleware is what makes the SEARCH
+// settings GET readable by any team member; the two writes and the settings
+// audit read (#832) authorize team.settings.update further inside the service.
 func (s *Server) setupTeamSettingsRoutes(r chi.Router) {
 	strict := teamsettingsgen.NewStrictHandlerWithOptions(
 		&teamSettingsStrictServer{s: s},
