@@ -59,7 +59,6 @@ const (
 	msgInvalidRequestBody        = "Invalid request body"
 	msgDecodeRequestBodyFailed   = "Failed to decode request body"
 	msgInvalidProjectIDFormat    = "Invalid project_id format"
-	msgProviderIDRequired        = "Provider ID is required"
 	msgProviderIDRequiredInPath  = "Provider ID is required in the URL path"
 	msgInvalidBodyWellFormedJSON = "Invalid request body. Please ensure the JSON is well-formed."
 )
@@ -777,42 +776,35 @@ func (s *Server) setupSettingsRoutes(r chi.Router) {
 			r.Delete("/{id}", s.handleDeleteAPIKey)
 		})
 	})
-	// Model providers are scoped to a team (issue #110). Both the settings and
-	// bare route groups validate team membership from the {team_id} path segment.
-	r.Route("/api/v1/{team_id}/settings/model-providers", func(r chi.Router) {
-		r.Use(s.teamValidationMiddleware())
-		s.setupModelProvidersRoutes(r)
-	})
-	r.Route("/api/v1/{team_id}/model-providers", func(r chi.Router) {
-		r.Use(s.teamValidationMiddleware())
-		s.setupModelProvidersRoutes(r)
-	})
-	s.setupModelProvidersCopyRoutes(r)
+	// Model providers are scoped to a team (issue #110); both the bare and the
+	// settings mount validate team membership from the {team_id} path segment.
+	s.setupModelProvidersRoutes(r)
 	r.Route("/api/v1/preferences", s.setupPreferencesRoutes)
 }
 
-// setupModelProvidersCopyRoutes mounts the cross-team copy (#830, epic #827).
+// setupModelProvidersRoutes mounts the model-provider domain (issue #110,
+// converted to a strict server in #837) under a team-validated group: the
+// twelve generated CRUD/validate operations across the bare and settings
+// prefixes, plus the cross-team copy (#830, epic #827).
 //
-// It sits OUTSIDE setupModelProvidersRoutes on purpose. That function is
-// mounted under both the bare and the settings prefix, so a route added there
-// goes live at two URLs — and the copy is documented at the settings one alone,
-// which the route drift gate would then fail. It also cannot go inside either
-// r.Route group: the generated handler registers ABSOLUTE paths, which a
-// prefix subrouter would turn into
-// /api/v1/{team_id}/settings/model-providers/api/v1/... . Registering it at
-// full length on its own group is what both constraints leave, and chi's radix
-// trie resolves the static /copy segment alongside the sibling mount.
-func (s *Server) setupModelProvidersCopyRoutes(r chi.Router) {
+// Every route is registered at FULL LENGTH on one group rather than under two
+// `r.Route("/api/v1/{team_id}/...")` prefix subrouters, because the generated
+// handler registers ABSOLUTE paths — a prefix subrouter would turn them into
+// /api/v1/{team_id}/settings/model-providers/api/v1/... and the route drift
+// gate would report every documented operation as unserved. chi's radix trie
+// resolves the static /copy and /validate segments alongside the /{id} routes
+// (issue #182).
+func (s *Server) setupModelProvidersRoutes(r chi.Router) {
 	r.Group(func(gr chi.Router) {
 		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
-		s.mountModelProvidersCopyHandler(gr)
+		s.mountModelProvidersHandlers(gr)
 	})
 }
 
-// mountModelProvidersCopyHandler registers the generated route on an
-// already-scoped router. Split out of setupModelProvidersCopyRoutes so tests
-// can exercise the real route tree without the tenancy middleware.
-func (s *Server) mountModelProvidersCopyHandler(r chi.Router) {
+// mountModelProvidersHandlers registers the domain's generated routes on an
+// already-scoped router. Split out of setupModelProvidersRoutes so tests can
+// exercise the real route tree without the tenancy middleware.
+func (s *Server) mountModelProvidersHandlers(r chi.Router) {
 	strict := modelprovidersgen.NewStrictHandlerWithOptions(
 		&modelProvidersStrictServer{s: s},
 		nil,
@@ -879,15 +871,6 @@ func (s *Server) mountEmbeddingProvidersHandlers(r chi.Router) {
 	// The static "/embeddings" segment sits beside the "/{id}" routes; chi
 	// matches the literal path first (issue #182).
 	r.Delete(settings+"/embeddings", s.handleClearEmbeddings)
-}
-
-func (s *Server) setupModelProvidersRoutes(r chi.Router) {
-	r.Post("/", s.handleCreateModelProvider)
-	r.Get("/", s.handleListModelProviders)
-	r.Get("/{id}", s.handleGetModelProvider)
-	r.Put("/{id}", s.handleUpdateModelProvider)
-	r.Delete("/{id}", s.handleDeleteModelProvider)
-	r.Post("/validate", s.handleValidateModelProvider)
 }
 
 // setupResourceRoutes is now split between JWT-only and flexible auth groups

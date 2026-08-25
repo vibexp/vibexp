@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
-	"github.com/vibexp/vibexp/internal/models"
 	modelprovidersgen "github.com/vibexp/vibexp/internal/server/gen/modelproviders"
 	"github.com/vibexp/vibexp/internal/services"
 )
@@ -27,11 +26,12 @@ const (
 
 // modelProvidersStrictServer implements modelprovidersgen.StrictServerInterface.
 //
-// It currently serves the cross-team copy alone. The twelve CRUD/validate
-// operations of this domain remain hand-written chi handlers in
-// model_provider_handlers.go — converting them is a separate job (epic #122) —
-// but a NEW endpoint ships strict-server-typed, so the copy's response body is
-// checked against openapi.yaml by the compiler rather than by hand.
+// This file holds the cross-team copy (#830), which shipped strict-server-typed
+// because a NEW endpoint has to; the twelve CRUD/validate operations that make
+// up the rest of the interface live in model_provider_strict_handlers.go, where
+// #837 converted them off their hand-written chi handlers. Every response body
+// in the domain is now checked against openapi.yaml by the compiler rather than
+// by hand.
 type modelProvidersStrictServer struct {
 	s *Server
 }
@@ -81,7 +81,7 @@ func (m *modelProvidersStrictServer) CopyModelProviderFromTeam(
 	}
 
 	return modelprovidersgen.CopyModelProviderFromTeam200JSONResponse(
-		toGenModelProviderResponse(provider),
+		toGenModelProviderResponse(modelProviderResponseFromRow(provider)),
 	), nil
 }
 
@@ -141,50 +141,25 @@ func validateCopyModelProviderOverrides(body *modelprovidersgen.CopyModelProvide
 	return nil
 }
 
-// toGenModelProviderResponse converts a persisted row to the generated
-// response type. has_api_key is the only signal the key leaves in a payload;
-// the ciphertext itself has no field to land in, which is the property the
-// generated type buys us over hand-marshaling.
-func toGenModelProviderResponse(provider *models.ModelProvider) modelprovidersgen.ModelProviderResponse {
-	response := modelprovidersgen.ModelProviderResponse{
-		Id:            provider.ID,
-		UserId:        provider.UserID,
-		Name:          provider.Name,
-		ProviderType:  provider.ProviderType,
-		Model:         provider.Model,
-		IsDefault:     provider.IsDefault,
-		BaseUrl:       provider.BaseURL,
-		Configuration: provider.Configuration,
-		CreatedAt:     provider.CreatedAt,
-		UpdatedAt:     provider.UpdatedAt,
-		Version:       provider.Version,
-		HasApiKey:     provider.APIKeyEncrypted != nil && *provider.APIKeyEncrypted != "",
-	}
-
-	// team_id is a uuid in the spec but a *string on the row. A value that does
-	// not parse is dropped rather than failing the copy: the row is already
-	// written, the field is optional, and the alternative is a 500 for a
-	// provider the caller successfully created.
-	if provider.TeamID != nil {
-		if teamUUID, err := uuid.Parse(*provider.TeamID); err == nil {
-			response.TeamId = &teamUUID
-		}
-	}
-
-	return response
-}
-
 // modelProvidersBindErrorHandler translates parameter- and body-binding
 // failures from the generated wrapper into RFC 9457 problem details.
+//
+// A body that fails to decode keeps the exact message the hand-written decoders
+// used (#837), so clients that matched on it are unaffected by the conversion —
+// and the generated decoder's own wording ("can't decode JSON body: unexpected
+// EOF", "invalid UUID length: 10") stays out of the API.
 func (s *Server) modelProvidersBindErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
-	msg := err.Error()
-
 	var invalidParam *modelprovidersgen.InvalidParamFormatError
-	if errors.As(err, &invalidParam) && invalidParam.ParamName == "team_id" {
-		msg = "team_id must be a valid UUID"
+	if errors.As(err, &invalidParam) {
+		if invalidParam.ParamName == "team_id" {
+			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError("team_id must be a valid UUID"))
+			return
+		}
+		apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(err.Error()))
+		return
 	}
 
-	apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(msg))
+	apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(msgInvalidBodyWellFormedJSON))
 }
 
 // modelProvidersResponseErrorHandler writes errors returned by the strict
