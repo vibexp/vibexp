@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/PageHeader'
 import { SettingSection } from '@/components/settings/SettingsGrid'
+import { usePermissions } from '@/hooks/usePermissions'
 import { teamSettingsCardsFor } from '@/pages/teams/settings/team-settings-cards'
 import type { Team } from '@/services/teamService'
 
@@ -17,7 +18,13 @@ import type { Team } from '@/services/teamService'
  * is expected at this point in epic #536, not a defect.
  */
 export function TeamSettings({ team }: Readonly<{ team: Team }>) {
-  const items = teamSettingsCardsFor(team.id)
+  // The team is the one `TeamScopeLayout` resolved from the URL, so the
+  // permissions must be read off *it*. The ambient team is a different team on
+  // a cold deep-link, which would gate this hub on the wrong team's role.
+  const { can } = usePermissions(team)
+  const items = teamSettingsCardsFor(team.id).filter(
+    item => !item.permission || can(item.permission)
+  )
 
   return (
     <div className="space-y-8">

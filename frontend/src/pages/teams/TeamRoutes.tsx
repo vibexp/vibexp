@@ -5,6 +5,7 @@ import { ProjectDetails } from '@/pages/teams/projects/ProjectDetails'
 import { ProjectEdit } from '@/pages/teams/projects/ProjectEdit'
 import { ProjectMigrate } from '@/pages/teams/projects/ProjectMigrate'
 import { Projects } from '@/pages/teams/projects/Projects'
+import { SettingsAudit } from '@/pages/teams/settings/audit/SettingsAudit'
 import { Customization } from '@/pages/teams/settings/customization/Customization'
 import { EmailProvider } from '@/pages/teams/settings/email-provider/EmailProvider'
 import { EmbeddingProviders } from '@/pages/teams/settings/embedding-providers/EmbeddingProviders'
@@ -84,6 +85,10 @@ export function TeamRoutes({
         path="settings/integrations/github"
         element={<GitHubIntegration team={team} />}
       />
+      {/* The cross-team copy audit log (#836, epic #827). Owner/admin only —
+          the page gates itself on the URL team's `team.settings.update`, since
+          a card hidden on the hub is still reachable by deep link. */}
+      <Route path="settings/audit" element={<SettingsAudit team={team} />} />
       <Route path="*" element={<TeamNotFound />} />
     </Routes>
   )

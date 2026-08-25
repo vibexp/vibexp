@@ -1,7 +1,7 @@
 import { teamSettingsCardsFor } from '../team-settings-cards'
 
 describe('teamSettingsCardsFor', () => {
-  it('lists every team-scoped configuration page (#540, #541, #506, #736)', () => {
+  it('lists every team-scoped configuration page (#540, #541, #506, #736, #836)', () => {
     expect(teamSettingsCardsFor('team-a').map(c => c.title)).toEqual([
       'Search Settings',
       'Resource Freshness',
@@ -10,6 +10,7 @@ describe('teamSettingsCardsFor', () => {
       'Email Provider',
       'GitHub Integration',
       'Artifact Types',
+      'Audit',
     ])
   })
 
@@ -22,7 +23,20 @@ describe('teamSettingsCardsFor', () => {
       '/teams/team-a/settings/email-provider',
       '/teams/team-a/settings/integrations/github',
       '/teams/team-a/settings/customization',
+      '/teams/team-a/settings/audit',
     ])
+  })
+
+  it('marks the audit card owner/admin-only, and leaves every other card open', () => {
+    // The audit log is the compensating control for cross-team copy (#827) and
+    // its endpoint is gated on `team.settings.update` (#832). A card without a
+    // `permission` is shown to every member — that is the default, so a new
+    // gated card must opt in explicitly.
+    const cards = teamSettingsCardsFor('team-a')
+    const gated = cards.filter(c => c.permission)
+
+    expect(gated.map(c => c.title)).toEqual(['Audit'])
+    expect(gated[0].permission).toBe('team.settings.update')
   })
 
   it('scopes every card href to the given team id', () => {
