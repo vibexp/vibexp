@@ -7,6 +7,8 @@ import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 export type Type = components['schemas']['Type']
 export type CreateTypeRequest = components['schemas']['CreateTypeRequest']
 export type TypeListResponse = components['schemas']['TypeListResponse']
+export type CopyTypesResponse = components['schemas']['CopyTypesResponse']
+export type SkippedType = components['schemas']['SkippedType']
 
 // typeService talks to the resource-type-agnostic /types endpoints (#1846).
 // Every call is team-scoped (teamId first), mirroring artifactService.
@@ -28,6 +30,25 @@ class TypeService {
       generatedClient.POST('/api/v1/{team_id}/types', {
         params: { path: { team_id: teamId } },
         body: data,
+      })
+    )
+  }
+
+  /**
+   * Merges `sourceTeamId`'s custom types into `teamId` (#829).
+   *
+   * The copy is a merge, not a replace: a slug the destination already uses
+   * comes back under `skipped` rather than failing the call, so a partially
+   * overlapping source is a normal 200 and not an error to handle.
+   */
+  async copyTypesFromTeam(
+    teamId: string,
+    sourceTeamId: string
+  ): Promise<CopyTypesResponse> {
+    return unwrap(
+      generatedClient.POST('/api/v1/{team_id}/settings/types/copy', {
+        params: { path: { team_id: teamId } },
+        body: { source_team_id: sourceTeamId },
       })
     )
   }

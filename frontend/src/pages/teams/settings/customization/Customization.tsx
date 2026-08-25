@@ -1,16 +1,19 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Plus, Shapes, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { Copy, Plus, Shapes, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { DataTable } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/PageHeader'
+import { CopyFromTeamDialog } from '@/components/settings/CopyFromTeamDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import { toast } from '@/lib/toast'
 import type { Team } from '@/services/teamService'
 import type { CreateTypeRequest, Type } from '@/services/typeService'
@@ -19,6 +22,11 @@ import { typeService } from '@/services/typeService'
 import { CreateTypeDialog, type CreateTypeFormValues } from './CreateTypeDialog'
 
 const ARTIFACTS_RESOURCE = 'artifacts'
+
+interface CopyPreview {
+  willAdd: Type[]
+  alreadyExists: Type[]
+}
 
 function buildColumns(onDelete: (type: Type) => void): ColumnDef<Type>[] {
   return [
@@ -72,6 +80,95 @@ function buildColumns(onDelete: (type: Type) => void): ColumnDef<Type>[] {
 }
 
 /**
+ * Client-side dry run of the copy: the endpoint has no preview mode, so the
+ * split is derived the way the server derives it — system defaults are never
+ * part of the source set, and a source slug the destination already uses is
+ * skipped rather than failing the copy (#829).
+ *
+ * Scope note: the server copies every entry of `copyableResourceTypes()`
+ * (`internal/services/type.go`), which today is `artifacts` alone — the same
+ * single resource this page lists. Widening that map without widening the
+ * preview's source query would make the preview under-report what the copy did.
+ */
+function buildCopyPreview(
+  sourceTypes: Type[],
+  destinationTypes: Type[]
+): CopyPreview {
+  const taken = new Set(
+    destinationTypes.map(t => `${t.resource_type}:${t.slug}`)
+  )
+  const preview: CopyPreview = { willAdd: [], alreadyExists: [] }
+  for (const type of sourceTypes) {
+    if (type.is_system) continue
+    if (taken.has(`${type.resource_type}:${type.slug}`)) {
+      preview.alreadyExists.push(type)
+    } else {
+      preview.willAdd.push(type)
+    }
+  }
+  return preview
+}
+
+function CopyPreviewSummary({
+  loading,
+  failed,
+  preview,
+}: Readonly<{
+  loading: boolean
+  failed: boolean
+  preview: CopyPreview | null
+}>) {
+  if (loading) {
+    return (
+      <p className="text-muted-foreground text-sm" data-testid="copy-preview">
+        Checking what this will add…
+      </p>
+    )
+  }
+  if (failed) {
+    return (
+      <p className="text-destructive text-sm" data-testid="copy-preview">
+        Couldn&apos;t read that team&apos;s artifact types, so there is nothing
+        to preview. Pick the team again to retry.
+      </p>
+    )
+  }
+  if (!preview) return null
+
+  const { willAdd, alreadyExists } = preview
+  return (
+    <div className="space-y-2 text-sm" data-testid="copy-preview">
+      <p>
+        <span className="font-medium">{willAdd.length}</span> type
+        {willAdd.length === 1 ? '' : 's'} will be added
+        {alreadyExists.length > 0 && (
+          <>
+            , <span className="font-medium">{alreadyExists.length}</span>{' '}
+            already exist{alreadyExists.length === 1 ? 's' : ''} here and will
+            be skipped
+          </>
+        )}
+        .
+      </p>
+      {willAdd.length > 0 && (
+        <ul className="text-muted-foreground list-disc space-y-0.5 pl-5">
+          {willAdd.map(type => (
+            <li key={type.id} data-testid="copy-preview-add">
+              {type.name}
+            </li>
+          ))}
+        </ul>
+      )}
+      {willAdd.length === 0 && (
+        <p className="text-muted-foreground">
+          Nothing new to copy from this team.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
  * `team` is the team `TeamScopeLayout` resolved from the URL (#584). Do not
  * reach for `useTeam()` here: on a cold deep-link the ambient team is still the
  * previously persisted one when this page's first effect runs, so it would
@@ -79,6 +176,12 @@ function buildColumns(onDelete: (type: Type) => void): ColumnDef<Type>[] {
  */
 export function Customization({ team }: Readonly<{ team: Team }>) {
   const { handleError } = useErrorHandler()
+  // The team came in as a prop, so the permissions must be read off it — the
+  // ambient team's would be the wrong team's on a cold deep-link.
+  const { can } = usePermissions(team)
+  // `teams` is the membership-filtered list of the user's teams, not the
+  // URL-scoped team, so reading it here is safe (unlike `currentTeam`).
+  const { teams } = useTeam()
 
   const [types, setTypes] = useState<Type[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -86,6 +189,14 @@ export function Customization({ team }: Readonly<{ team: Team }>) {
   const [isCreating, setIsCreating] = useState(false)
   const [typeToDelete, setTypeToDelete] = useState<Type | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [copyOpen, setCopyOpen] = useState(false)
+  const [copying, setCopying] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewFailed, setPreviewFailed] = useState(false)
+  const [preview, setPreview] = useState<CopyPreview | null>(null)
+  // Bumped on every source change so a slow response for a previously selected
+  // team cannot overwrite the preview of the current one.
+  const previewSeq = useRef(0)
 
   const teamId = team.id
 
@@ -133,6 +244,52 @@ export function Customization({ team }: Readonly<{ team: Team }>) {
     }
   }
 
+  const handleSourceChange = async (sourceTeam: Team | null) => {
+    const seq = ++previewSeq.current
+    setPreview(null)
+    setPreviewFailed(false)
+    if (!sourceTeam) {
+      setPreviewLoading(false)
+      return
+    }
+    try {
+      setPreviewLoading(true)
+      const sourceTypes = await typeService.getTypes(
+        sourceTeam.id,
+        ARTIFACTS_RESOURCE
+      )
+      if (seq !== previewSeq.current) return
+      setPreview(buildCopyPreview(sourceTypes, types))
+    } catch (error) {
+      if (seq !== previewSeq.current) return
+      setPreviewFailed(true)
+      handleError(error, "Failed to load the other team's artifact types")
+    } finally {
+      if (seq === previewSeq.current) setPreviewLoading(false)
+    }
+  }
+
+  const handleCopy = async (sourceTeam: Team) => {
+    try {
+      setCopying(true)
+      const result = await typeService.copyTypesFromTeam(teamId, sourceTeam.id)
+      toast.success(
+        `Copied ${String(result.added_count)} artifact type${
+          result.added_count === 1 ? '' : 's'
+        } from ${sourceTeam.name}` +
+          (result.skipped_count > 0
+            ? ` (${String(result.skipped_count)} already existed)`
+            : '')
+      )
+      setCopyOpen(false)
+      await loadTypes()
+    } catch (error) {
+      handleError(error, 'Failed to copy artifact types')
+    } finally {
+      setCopying(false)
+    }
+  }
+
   const handleDelete = async () => {
     if (!typeToDelete) return
     try {
@@ -149,6 +306,15 @@ export function Customization({ team }: Readonly<{ team: Team }>) {
   }
 
   const columns = buildColumns(setTypeToDelete)
+
+  // The endpoint authorizes the copy on membership of both teams alone (#829):
+  // it has no cell in the authz matrix, and `resource.create` is the published
+  // permission every role holds, so gating on it mirrors the server exactly
+  // rather than hiding the action from members who may in fact perform it.
+  // Never gate on `team.role` — the matrix lives on the server.
+  // With no other team to copy from there is nothing to offer.
+  const canCopy =
+    can('resource.create') && teams.some(other => other.id !== teamId)
 
   const renderTypes = () => {
     if (types.length === 0) {
@@ -188,6 +354,20 @@ export function Customization({ team }: Readonly<{ team: Team }>) {
       <PageHeader
         title="Customization"
         description="Tailor VibeXP to how your team works."
+        actions={
+          canCopy ? (
+            <Button
+              variant="outline"
+              data-testid="copy-types-button"
+              onClick={() => {
+                setCopyOpen(true)
+              }}
+            >
+              <Copy className="mr-2 size-4" />
+              Copy from another team…
+            </Button>
+          ) : undefined
+        }
       />
 
       <section className="space-y-4">
@@ -228,6 +408,30 @@ export function Customization({ team }: Readonly<{ team: Team }>) {
         onOpenChange={setCreateOpen}
         submitting={isCreating}
         onSubmit={handleCreate}
+      />
+
+      <CopyFromTeamDialog
+        open={copyOpen}
+        onOpenChange={setCopyOpen}
+        team={team}
+        title="Copy artifact types"
+        description="Bring another team's custom artifact types into this one. The copy is a snapshot — editing them here won't affect the other team."
+        submitting={copying}
+        onConfirm={handleCopy}
+        onSourceChange={sourceTeam => {
+          void handleSourceChange(sourceTeam)
+        }}
+        preview={
+          <CopyPreviewSummary
+            loading={previewLoading}
+            failed={previewFailed}
+            preview={preview}
+          />
+        }
+        // The copy is only confirmable once the user has actually seen what it
+        // will do — #833 requires the preview *before* confirming.
+        confirmDisabled={previewLoading || !preview}
+        confirmLabel="Copy types"
       />
 
       <ConfirmDialog
