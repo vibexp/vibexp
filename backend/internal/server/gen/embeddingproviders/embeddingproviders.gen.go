@@ -166,7 +166,9 @@ type EmbeddingProviderCopyActivation struct {
 	// EmbeddingsWiped True when the enqueued re-embed DELETED the team's stored vectors before regenerating them. Only ever true alongside `reprocess_enqueued`, and only when the copy became active with a different model from the one it displaced.
 	EmbeddingsWiped bool `json:"embeddings_wiped"`
 
-	// ReprocessEnqueued True when the request's `reprocess` flag caused a background re-embed to be enqueued for the destination team.
+	// ReprocessEnqueued True when the request's `reprocess` flag actually started a background re-embed for the destination team.
+	//
+	// It reports what happened, not what was asked for: a re-embed already in flight for the team makes this false (the running one covers the work), and so does a failed wipe, which abandons the run rather than regenerating on top of stale vectors.
 	ReprocessEnqueued bool `json:"reprocess_enqueued"`
 }
 

@@ -51,15 +51,20 @@ func (e *embeddingProvidersStrictServer) CopyEmbeddingProviderFromTeam(
 	}
 
 	activation := result.Activation
-	reprocess := request.Body.Reprocess != nil && *request.Body.Reprocess
 	// WIPE only when the team's embedding model actually moved. Deleting a team's
 	// vectors is the one destructive act in this epic, so it is spent exactly
 	// where it buys something: vectors produced by a different model are not
 	// comparable to new queries, whereas a copy that changed only credentials or
 	// the endpoint leaves every stored vector valid. Anything else fills gaps.
 	wipe := activation.BecomesActive && activation.ModelChanged
-	if reprocess {
-		e.s.enqueueTeamReembed(teamID, wipe)
+
+	// Report what HAPPENED, not what was asked for: enqueueTeamReembed drops a
+	// duplicate while a re-embed is already in flight for the team, and abandons
+	// the run if the wipe itself fails. Echoing the request flag would claim a
+	// deletion that never took place.
+	enqueued := false
+	if request.Body.Reprocess != nil && *request.Body.Reprocess {
+		enqueued = e.s.enqueueTeamReembed(teamID, wipe)
 	}
 
 	e.s.logger.With(
@@ -70,7 +75,7 @@ func (e *embeddingProvidersStrictServer) CopyEmbeddingProviderFromTeam(
 		"provider_id", result.Provider.ID,
 		"becomes_active", activation.BecomesActive,
 		"model_changed", activation.ModelChanged,
-		"reprocess_enqueued", reprocess,
+		"reprocess_enqueued", enqueued,
 	).Info("Embedding provider copied from another team")
 
 	return embeddingprovidersgen.CopyEmbeddingProviderFromTeam200JSONResponse(
@@ -83,8 +88,8 @@ func (e *embeddingProvidersStrictServer) CopyEmbeddingProviderFromTeam(
 				BecomesActive:              activation.BecomesActive,
 				DisplacedModel:             activation.DisplacedModel,
 				DisplacedEmbeddedResources: activation.DisplacedEmbeddedResources,
-				ReprocessEnqueued:          reprocess,
-				EmbeddingsWiped:            reprocess && wipe,
+				ReprocessEnqueued:          enqueued,
+				EmbeddingsWiped:            enqueued && wipe,
 			},
 		},
 	), nil

@@ -297,11 +297,22 @@ func TestCopyEmbeddingProviderFromTeam_ReprocessWipesOnlyWhenTheModelMoved(t *te
 						return 7, nil
 					})
 			}
-			// The regeneration itself runs on a goroutine the handler does not
-			// join, so it is allowed rather than required.
-			container.embeddingBackfillService.EXPECT().
-				Backfill(mock.Anything, mock.Anything).
-				Return(&services.EmbeddingBackfillResult{}, nil).Maybe()
+			// The regeneration runs on a goroutine the handler does not join, so
+			// the test joins it below — letting it outlive the test would have it
+			// call the mock (and t) after cleanup, which panics.
+			backfilled := make(chan bool, 1)
+			if tc.wantQueued {
+				container.embeddingBackfillService.EXPECT().
+					Backfill(mock.Anything, mock.MatchedBy(func(r services.EmbeddingBackfillRequest) bool {
+						return r.TeamID == testEmbedCopyDestTeamID
+					})).
+					RunAndReturn(func(_ context.Context, r services.EmbeddingBackfillRequest) (
+						*services.EmbeddingBackfillResult, error,
+					) {
+						backfilled <- r.MissingOnly
+						return &services.EmbeddingBackfillResult{}, nil
+					})
+			}
 
 			body := embedCopyRequestBody()
 			if tc.reprocess {
@@ -321,12 +332,53 @@ func TestCopyEmbeddingProviderFromTeam_ReprocessWipesOnlyWhenTheModelMoved(t *te
 			if tc.wantWiped {
 				select {
 				case <-wiped:
-				case <-time.After(2 * time.Second):
+				case <-time.After(5 * time.Second):
 					t.Fatal("expected the team's embeddings to be wiped before re-embedding")
+				}
+			}
+			if tc.wantQueued {
+				select {
+				case missingOnly := <-backfilled:
+					// After a wipe every entity is missing, so re-embed all;
+					// otherwise fill the gaps and leave the valid vectors alone.
+					assert.Equal(t, !tc.wantWiped, missingOnly)
+				case <-time.After(5 * time.Second):
+					t.Fatal("expected a background re-embed to be enqueued")
 				}
 			}
 		})
 	}
+}
+
+// TestCopyEmbeddingProviderFromTeam_ADroppedEnqueueIsReportedHonestly: a wipe
+// that fails abandons the run, so the response must not claim the team's vectors
+// were deleted. Echoing the request flag back would report a deletion that never
+// happened — and the whole point of this payload is that a client can trust it.
+func TestCopyEmbeddingProviderFromTeam_ADroppedEnqueueIsReportedHonestly(t *testing.T) {
+	displaced := "text-embedding-3-small"
+
+	container := newMockEmbeddingProviderContainer(t)
+	container.embeddingProviderService.EXPECT().
+		CopyFromTeam(mock.Anything, mock.Anything).
+		Return(embedCopyResult(services.CopyEmbeddingProviderActivation{
+			BecomesActive: true, DisplacedModel: &displaced, ModelChanged: true,
+		}), nil)
+	container.embeddingRepository.EXPECT().
+		DeleteByTeam(mock.Anything, testEmbedCopyDestTeamID).
+		Return(0, errors.New("embeddings table unavailable"))
+	// No Backfill expectation is declared, and the mock is strict: regenerating
+	// on top of vectors that were NOT wiped would leave two models mixed in one
+	// index, and would fail this test.
+
+	srv := createTestEmbeddingProviderServer(container)
+	w := httptest.NewRecorder()
+	srv.router.ServeHTTP(w, makeEmbedCopyRequest(
+		strings.TrimSuffix(embedCopyRequestBody(), "}")+`,"reprocess":true}`))
+
+	// The copy itself succeeded — only the optional re-embed did not.
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"reprocess_enqueued":false`)
+	assert.Contains(t, w.Body.String(), `"embeddings_wiped":false`)
 }
 
 // TestCopyEmbeddingProviderFromTeam_RejectsMissingSourceIdentifiers pins the

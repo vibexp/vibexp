@@ -85,7 +85,14 @@ func (s *Server) reembedTeamIfProviderIdentityChanged(
 // only entities still missing an embedding are (re)generated. A per-team in-flight
 // guard drops overlapping calls so a rapid provider change or a repeated reprocess
 // click never stacks duplicate bursts for the same team.
-func (s *Server) enqueueTeamReembed(teamID string, wipe bool) {
+//
+// It reports whether THIS call actually started a regeneration. Two things make
+// that different from "was asked to": the in-flight guard drops a duplicate, and
+// a failed wipe abandons the run rather than regenerating on top of stale
+// vectors. Callers that merely fire-and-forget ignore the result; the cross-team
+// copy (#831) reports it on the wire, and reporting a wipe that never happened
+// would be worse than not reporting one at all.
+func (s *Server) enqueueTeamReembed(teamID string, wipe bool) bool {
 	logger := s.logger.With(
 		"service", serverLogServiceName,
 		"component", "embedding-reembed",
@@ -94,7 +101,7 @@ func (s *Server) enqueueTeamReembed(teamID string, wipe bool) {
 
 	if _, inFlight := s.reembedInFlight.LoadOrStore(teamID, struct{}{}); inFlight {
 		logger.Info("Team re-embed already in flight; skipping duplicate enqueue")
-		return
+		return false
 	}
 
 	if wipe {
@@ -103,7 +110,7 @@ func (s *Server) enqueueTeamReembed(teamID string, wipe bool) {
 			s.reembedInFlight.Delete(teamID)
 			logger.With("error", fmt.Sprintf("%+v", err)).
 				Error("Failed to wipe team embeddings before re-embed")
-			return
+			return false
 		}
 		logger.With("deleted", deleted).
 			Info("Wiped team embeddings; re-embedding in background")
@@ -132,6 +139,8 @@ func (s *Server) enqueueTeamReembed(teamID string, wipe bool) {
 			"total_failed", result.TotalFailed,
 		).Info("Background team re-embed published its events (generation is async)")
 	}()
+
+	return true
 }
 
 func (s *Server) logEmbeddingProviderError(

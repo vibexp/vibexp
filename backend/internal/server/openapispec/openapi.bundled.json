@@ -24905,7 +24905,7 @@
           },
           "reprocess_enqueued": {
             "type": "boolean",
-            "description": "True when the request's `reprocess` flag caused a background re-embed to be enqueued for the destination team.\n",
+            "description": "True when the request's `reprocess` flag actually started a background re-embed for the destination team.\n\nIt reports what happened, not what was asked for: a re-embed already in flight for the team makes this false (the running one covers the work), and so does a failed wipe, which abandons the run rather than regenerating on top of stale vectors.\n",
             "example": false
           },
           "embeddings_wiped": {
