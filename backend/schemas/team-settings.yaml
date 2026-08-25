@@ -171,6 +171,20 @@ UpdateTeamSearchSettingsRequest:
 # SET NULL) and the source team may be gone (the column has no foreign key by
 # design, so the id survives the team).
 
+TeamSettingsAuditSurface:
+  type: string
+  description: >
+    A settings surface that can be copied between teams. A standalone component
+    rather than an inline property enum so TestSpecEnumsMatchServiceAllowlists
+    can pin it to models.SettingsAuditSurfaces — epic #827 grows this set, and a
+    RESPONSE enum that drifts from the Go allowlist ships a value both generated
+    clients have no union member for.
+  enum:
+    - embedding_provider
+    - model_provider
+    - custom_types
+  example: model_provider
+
 TeamSettingsAuditEntry:
   type: object
   description: >
@@ -193,13 +207,8 @@ TeamSettingsAuditEntry:
       format: uuid
       description: Identifier of the audit entry.
     surface:
-      type: string
-      enum:
-        - embedding_provider
-        - model_provider
-        - custom_types
+      $ref: '../openapi.yaml#/components/schemas/TeamSettingsAuditSurface'
       description: Which settings surface was copied.
-      example: model_provider
     actor_user_id:
       type: string
       format: uuid

@@ -247,6 +247,10 @@ func TestListTeamSettingsAudit_ForbiddenWhenRoleLacksPermission(t *testing.T) {
 	w, _ := doAuditGet(t, svc, teamSettingsAuditPath)
 
 	assert.Equal(t, http.StatusForbidden, w.Code, "body: %s", w.Body.String())
+	// The message must not describe a WRITE: this is a read, and a member who
+	// listed the audit log should not be told they cannot change settings.
+	assert.Contains(t, w.Body.String(), "manage this team's settings")
+	assert.NotContains(t, w.Body.String(), "change this team's settings")
 }
 
 func TestListTeamSettingsAudit_RejectsOutOfRangePaging(t *testing.T) {

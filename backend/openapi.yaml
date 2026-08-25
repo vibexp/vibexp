@@ -812,6 +812,8 @@ components:
       $ref: "./schemas/team-settings.yaml#/TeamSearchSettingsValues"
     UpdateTeamSearchSettingsRequest:
       $ref: "./schemas/team-settings.yaml#/UpdateTeamSearchSettingsRequest"
+    TeamSettingsAuditSurface:
+      $ref: "./schemas/team-settings.yaml#/TeamSettingsAuditSurface"
     TeamSettingsAuditEntry:
       $ref: "./schemas/team-settings.yaml#/TeamSettingsAuditEntry"
     TeamSettingsAuditListResponse:

@@ -199,7 +199,7 @@ func (s *TeamSettingsAuditService) ListAudit(
 	}
 
 	return &models.TeamSettingsAuditPage{
-		Entries:    s.resolveNames(ctx, entries),
+		Entries:    s.resolveNames(ctx, teamID, entries),
 		TotalCount: total,
 		Page:       page,
 		PerPage:    limit,
@@ -215,7 +215,7 @@ func (s *TeamSettingsAuditService) ListAudit(
 // to make it legible, and a team investigating what arrived in their settings
 // is worse served by an error page than by a page of ids.
 func (s *TeamSettingsAuditService) resolveNames(
-	ctx context.Context, entries []*models.TeamSettingsAudit,
+	ctx context.Context, teamID string, entries []*models.TeamSettingsAudit,
 ) []*models.TeamSettingsAuditEntryView {
 	actorIDs := make([]string, 0, len(entries))
 	teamIDs := make([]string, 0, len(entries))
@@ -228,12 +228,14 @@ func (s *TeamSettingsAuditService) resolveNames(
 
 	actorNames, err := s.users.GetNamesByIDs(ctx, actorIDs)
 	if err != nil {
-		s.logger.Warn("Failed to resolve settings audit actor names", "error", err)
+		s.logger.Warn("Failed to resolve settings audit actor names",
+			"team_id", teamID, "error", err)
 		actorNames = nil
 	}
 	teamNames, err := s.teams.GetNamesByIDs(ctx, teamIDs)
 	if err != nil {
-		s.logger.Warn("Failed to resolve settings audit source team names", "error", err)
+		s.logger.Warn("Failed to resolve settings audit source team names",
+			"team_id", teamID, "error", err)
 		teamNames = nil
 	}
 

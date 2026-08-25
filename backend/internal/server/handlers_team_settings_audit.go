@@ -132,7 +132,7 @@ func toGenTeamSettingsAuditEntry(
 
 	return teamsettingsgen.TeamSettingsAuditEntry{
 		Id:                id,
-		Surface:           teamsettingsgen.TeamSettingsAuditEntrySurface(entry.Surface),
+		Surface:           teamsettingsgen.TeamSettingsAuditSurface(entry.Surface),
 		ActorUserId:       actorID,
 		ActorName:         view.ActorName,
 		SourceTeamId:      sourceTeamID,

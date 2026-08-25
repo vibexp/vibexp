@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
@@ -69,6 +70,11 @@ func TestSpecEnumsMatchServiceAllowlists(t *testing.T) {
 			schema:  "FreshnessRuleMedium",
 			goName:  "freshnessRuleMediums (internal/services/freshness.go)",
 			goValue: freshnessRuleMediums,
+		},
+		{
+			schema:  "TeamSettingsAuditSurface",
+			goName:  "models.SettingsAuditSurfaces (internal/models/team_settings_audit.go)",
+			goValue: models.SettingsAuditSurfaces,
 		},
 	}
 

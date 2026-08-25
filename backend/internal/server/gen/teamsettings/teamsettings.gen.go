@@ -40,15 +40,15 @@ func (e TeamSearchSettingsSource) Valid() bool {
 	}
 }
 
-// Defines values for TeamSettingsAuditEntrySurface.
+// Defines values for TeamSettingsAuditSurface.
 const (
-	CustomTypes       TeamSettingsAuditEntrySurface = "custom_types"
-	EmbeddingProvider TeamSettingsAuditEntrySurface = "embedding_provider"
-	ModelProvider     TeamSettingsAuditEntrySurface = "model_provider"
+	CustomTypes       TeamSettingsAuditSurface = "custom_types"
+	EmbeddingProvider TeamSettingsAuditSurface = "embedding_provider"
+	ModelProvider     TeamSettingsAuditSurface = "model_provider"
 )
 
-// Valid indicates whether the value is a known member of the TeamSettingsAuditEntrySurface enum.
-func (e TeamSettingsAuditEntrySurface) Valid() bool {
+// Valid indicates whether the value is a known member of the TeamSettingsAuditSurface enum.
+func (e TeamSettingsAuditSurface) Valid() bool {
 	switch e {
 	case CustomTypes:
 		return true
@@ -169,12 +169,9 @@ type TeamSettingsAuditEntry struct {
 	// SourceTeamName The source team's name, resolved server-side. `null` when that team has since been deleted — the id above is then the only remaining handle on it, and is deliberately still present rather than blanked.
 	SourceTeamName *string `json:"source_team_name"`
 
-	// Surface Which settings surface was copied.
-	Surface TeamSettingsAuditEntrySurface `json:"surface"`
+	// Surface A settings surface that can be copied between teams. A standalone component rather than an inline property enum so TestSpecEnumsMatchServiceAllowlists can pin it to models.SettingsAuditSurfaces — epic #827 grows this set, and a RESPONSE enum that drifts from the Go allowlist ships a value both generated clients have no union member for.
+	Surface TeamSettingsAuditSurface `json:"surface"`
 }
-
-// TeamSettingsAuditEntrySurface Which settings surface was copied.
-type TeamSettingsAuditEntrySurface string
 
 // TeamSettingsAuditListResponse A page of the team's settings audit log, newest first.
 type TeamSettingsAuditListResponse struct {
@@ -193,6 +190,9 @@ type TeamSettingsAuditListResponse struct {
 	// TotalPages Total number of pages
 	TotalPages int `json:"total_pages"`
 }
+
+// TeamSettingsAuditSurface A settings surface that can be copied between teams. A standalone component rather than an inline property enum so TestSpecEnumsMatchServiceAllowlists can pin it to models.SettingsAuditSurfaces — epic #827 grows this set, and a RESPONSE enum that drifts from the Go allowlist ships a value both generated clients have no union member for.
+type TeamSettingsAuditSurface string
 
 // UpdateTeamSearchSettingsRequest A complete replacement ranking profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `rank_candidate_cap` is deliberately absent — it is instance-owned.
 type UpdateTeamSearchSettingsRequest struct {

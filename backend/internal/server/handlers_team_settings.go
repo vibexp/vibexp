@@ -22,7 +22,13 @@ const teamSettingsMsgInternalError = "Internal server error"
 // teamSettingsMsgForbidden is what a caller without team.settings.update is told.
 // Team settings change ranking for everyone in the team, so they are owner/admin
 // surface (epic #487).
-const teamSettingsMsgForbidden = "You do not have permission to change this team's settings."
+//
+// "manage" rather than "change" because team.settings.update now also gates a
+// READ — the settings audit log (#832) — and telling a member they may not
+// change something they only tried to list sends them looking for a write they
+// never attempted. The word has to cover both, since teamSettingsError maps
+// every ErrPermissionDenied on this tag through here.
+const teamSettingsMsgForbidden = "You do not have permission to manage this team's settings."
 
 // teamSettingsStrictServer implements teamsettingsgen.StrictServerInterface
 // (epic #487): the per-team search ranking settings singleton at

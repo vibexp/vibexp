@@ -21665,6 +21665,15 @@ components:
           minimum: 0
           maximum: 36500
           example: 90
+    TeamSettingsAuditSurface:
+      type: string
+      description: |
+        A settings surface that can be copied between teams. A standalone component rather than an inline property enum so TestSpecEnumsMatchServiceAllowlists can pin it to models.SettingsAuditSurfaces — epic #827 grows this set, and a RESPONSE enum that drifts from the Go allowlist ships a value both generated clients have no union member for.
+      enum:
+        - embedding_provider
+        - model_provider
+        - custom_types
+      example: model_provider
     TeamSettingsAuditEntry:
       type: object
       description: |
@@ -21686,13 +21695,8 @@ components:
           format: uuid
           description: Identifier of the audit entry.
         surface:
-          type: string
-          enum:
-            - embedding_provider
-            - model_provider
-            - custom_types
+          $ref: '#/components/schemas/TeamSettingsAuditSurface'
           description: Which settings surface was copied.
-          example: model_provider
         actor_user_id:
           type: string
           format: uuid
