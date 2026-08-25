@@ -52,3 +52,27 @@ type TeamSettingsAudit struct {
 	Detail            json.RawMessage `json:"detail"              db:"detail"`
 	CreatedAt         time.Time       `json:"created_at"          db:"created_at"`
 }
+
+// TeamSettingsAuditEntryView is one stored entry plus the two display names the
+// read path (#832) resolves live.
+//
+// It wraps the stored row rather than widening it because the two names are not
+// persisted state: everything else on the entry is a snapshot taken at write
+// time, and putting a looked-up value on the same struct would invite a caller
+// to believe the audit table holds it. Both names are nil when the referenced
+// row no longer exists — a deleted actor or a deleted source team — which is
+// the normal, non-error case the log is designed to survive.
+type TeamSettingsAuditEntryView struct {
+	Entry          *TeamSettingsAudit
+	ActorName      *string
+	SourceTeamName *string
+}
+
+// TeamSettingsAuditPage is one page of the settings audit log plus the total
+// row count, mirroring FreshnessAuditPage.
+type TeamSettingsAuditPage struct {
+	Entries    []*TeamSettingsAuditEntryView
+	TotalCount int
+	Page       int
+	PerPage    int
+}

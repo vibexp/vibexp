@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -33,6 +34,27 @@ func (e TeamSearchSettingsSource) Valid() bool {
 	case Instance:
 		return true
 	case Team:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TeamSettingsAuditEntrySurface.
+const (
+	CustomTypes       TeamSettingsAuditEntrySurface = "custom_types"
+	EmbeddingProvider TeamSettingsAuditEntrySurface = "embedding_provider"
+	ModelProvider     TeamSettingsAuditEntrySurface = "model_provider"
+)
+
+// Valid indicates whether the value is a known member of the TeamSettingsAuditEntrySurface enum.
+func (e TeamSettingsAuditEntrySurface) Valid() bool {
+	switch e {
+	case CustomTypes:
+		return true
+	case EmbeddingProvider:
+		return true
+	case ModelProvider:
 		return true
 	default:
 		return false
@@ -118,6 +140,60 @@ type TeamSearchSettingsValues struct {
 	RecencyRankingEnabled bool `json:"recency_ranking_enabled"`
 }
 
+// TeamSettingsAuditEntry One recorded settings copy into this team: which surface arrived, who brought it, and where it came from.
+type TeamSettingsAuditEntry struct {
+	// ActorName The actor's display name (their email when the name is blank), resolved server-side so a client need not fan out per row. `null` when `actor_user_id` is null or no longer resolves to a user.
+	ActorName *string `json:"actor_name"`
+
+	// ActorUserId Who performed the copy. `null` once that account is deleted — the entry outlives the actor on purpose, so that deletion cannot erase the record of what the account did.
+	ActorUserId *openapi_types.UUID `json:"actor_user_id"`
+
+	// CreatedAt When the copy was recorded.
+	CreatedAt time.Time `json:"created_at"`
+
+	// CreatedResourceId The resource created in this team. `null` for a `custom_types` copy, for the same reason as `source_resource_id`.
+	CreatedResourceId *openapi_types.UUID `json:"created_resource_id"`
+
+	// Detail Surface-specific facts snapshotted at write time — resource names, and for a provider copy whether it carried a credential and whether it became the team's active provider. Always an object, never null.
+	Detail map[string]interface{} `json:"detail"`
+
+	// Id Identifier of the audit entry.
+	Id openapi_types.UUID `json:"id"`
+
+	// SourceResourceId The resource that was copied. `null` for a `custom_types` copy, where one action copies a whole set and the individual ids live in `detail`.
+	SourceResourceId *openapi_types.UUID `json:"source_resource_id"`
+
+	// SourceTeamId The team the configuration was copied FROM.
+	SourceTeamId *openapi_types.UUID `json:"source_team_id"`
+
+	// SourceTeamName The source team's name, resolved server-side. `null` when that team has since been deleted — the id above is then the only remaining handle on it, and is deliberately still present rather than blanked.
+	SourceTeamName *string `json:"source_team_name"`
+
+	// Surface Which settings surface was copied.
+	Surface TeamSettingsAuditEntrySurface `json:"surface"`
+}
+
+// TeamSettingsAuditEntrySurface Which settings surface was copied.
+type TeamSettingsAuditEntrySurface string
+
+// TeamSettingsAuditListResponse A page of the team's settings audit log, newest first.
+type TeamSettingsAuditListResponse struct {
+	// Entries Serializes as `[]` when the page is empty, never `null`.
+	Entries []TeamSettingsAuditEntry `json:"entries"`
+
+	// Page Current page number (1-based)
+	Page int `json:"page"`
+
+	// PerPage Number of entries per page
+	PerPage int `json:"per_page"`
+
+	// TotalCount Total entries in the team's log, ignoring pagination.
+	TotalCount int `json:"total_count"`
+
+	// TotalPages Total number of pages
+	TotalPages int `json:"total_pages"`
+}
+
 // UpdateTeamSearchSettingsRequest A complete replacement ranking profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `rank_candidate_cap` is deliberately absent — it is instance-owned.
 type UpdateTeamSearchSettingsRequest struct {
 	RankHalfLifeDays      float64 `json:"rank_half_life_days"`
@@ -154,11 +230,23 @@ type bearerAuthContextKey string
 // cookieAuthContextKey is the context key for CookieAuth security scheme
 type cookieAuthContextKey string
 
+// ListTeamSettingsAuditParams defines parameters for ListTeamSettingsAudit.
+type ListTeamSettingsAuditParams struct {
+	// Page Page number (1-based). The upper bound is not a storage limit — it keeps page * limit inside the range the offset arithmetic can represent, so an absurd page is rejected rather than silently wrapping around to the first one.
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// Limit Entries per page
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // UpdateTeamSearchSettingsJSONRequestBody defines body for UpdateTeamSearchSettings for application/json ContentType.
 type UpdateTeamSearchSettingsJSONRequestBody = UpdateTeamSearchSettingsRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// List the team's settings audit log
+	// (GET /api/v1/{team_id}/settings/audit)
+	ListTeamSettingsAudit(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, params ListTeamSettingsAuditParams)
 	// Reset the team's search ranking settings to the instance defaults
 	// (DELETE /api/v1/{team_id}/settings/search)
 	ResetTeamSearchSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
@@ -173,6 +261,12 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// List the team's settings audit log
+// (GET /api/v1/{team_id}/settings/audit)
+func (_ Unimplemented) ListTeamSettingsAudit(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, params ListTeamSettingsAuditParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // Reset the team's search ranking settings to the instance defaults
 // (DELETE /api/v1/{team_id}/settings/search)
@@ -200,6 +294,69 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListTeamSettingsAudit operation middleware
+func (siw *ServerInterfaceWrapper) ListTeamSettingsAudit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTeamSettingsAuditParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTeamSettingsAudit(w, r, teamId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ResetTeamSearchSettings operation middleware
 func (siw *ServerInterfaceWrapper) ResetTeamSearchSettings(w http.ResponseWriter, r *http.Request) {
@@ -417,6 +574,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/{team_id}/settings/audit", wrapper.ListTeamSettingsAudit)
+	})
+	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/{team_id}/settings/search", wrapper.ResetTeamSearchSettings)
 	})
 	r.Group(func(r chi.Router) {
@@ -427,6 +587,85 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 
 	return r
+}
+
+type ListTeamSettingsAuditRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Params ListTeamSettingsAuditParams
+}
+
+type ListTeamSettingsAuditResponseObject interface {
+	VisitListTeamSettingsAuditResponse(w http.ResponseWriter) error
+}
+
+type ListTeamSettingsAudit200JSONResponse TeamSettingsAuditListResponse
+
+func (response ListTeamSettingsAudit200JSONResponse) VisitListTeamSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTeamSettingsAudit400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListTeamSettingsAudit400ApplicationProblemPlusJSONResponse) VisitListTeamSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTeamSettingsAudit401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListTeamSettingsAudit401ApplicationProblemPlusJSONResponse) VisitListTeamSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTeamSettingsAudit403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListTeamSettingsAudit403ApplicationProblemPlusJSONResponse) VisitListTeamSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTeamSettingsAudit500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListTeamSettingsAudit500ApplicationProblemPlusJSONResponse) VisitListTeamSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type ResetTeamSearchSettingsRequestObject struct {
@@ -660,6 +899,9 @@ func (response UpdateTeamSearchSettings500ApplicationProblemPlusJSONResponse) Vi
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// List the team's settings audit log
+	// (GET /api/v1/{team_id}/settings/audit)
+	ListTeamSettingsAudit(ctx context.Context, request ListTeamSettingsAuditRequestObject) (ListTeamSettingsAuditResponseObject, error)
 	// Reset the team's search ranking settings to the instance defaults
 	// (DELETE /api/v1/{team_id}/settings/search)
 	ResetTeamSearchSettings(ctx context.Context, request ResetTeamSearchSettingsRequestObject) (ResetTeamSearchSettingsResponseObject, error)
@@ -698,6 +940,33 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ListTeamSettingsAudit operation middleware
+func (sh *strictHandler) ListTeamSettingsAudit(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, params ListTeamSettingsAuditParams) {
+	var request ListTeamSettingsAuditRequestObject
+
+	request.TeamId = teamId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTeamSettingsAudit(ctx, request.(ListTeamSettingsAuditRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTeamSettingsAudit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListTeamSettingsAuditResponseObject); ok {
+		if err := validResponse.VisitListTeamSettingsAuditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // ResetTeamSearchSettings operation middleware

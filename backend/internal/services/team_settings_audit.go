@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"slices"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -41,16 +42,16 @@ type TeamSettingsAuditRecord struct {
 	Detail            map[string]interface{}
 }
 
-// TeamSettingsAuditServiceInterface is the write path for the team settings
-// audit log (epic #827, decision 8).
+// TeamSettingsAuditServiceInterface is the team settings audit log (epic #827,
+// decision 8): an unauthorized write path and an authorized read path.
 //
-// It carries no permission check of its own, and that is deliberate: an entry
-// is written as part of an already-authorized copy, which has checked
+// Record carries no permission check of its own, and that is deliberate: an
+// entry is written as part of an already-authorized copy, which has checked
 // authz.TeamUpdate on BOTH the source and the destination team. Re-checking
-// here would only be able to re-derive that answer, while making the audit
+// there would only be able to re-derive that answer, while making the audit
 // write fail for an actor who was allowed to perform the copy — an audit the
-// authorized path can silently skip is worse than no audit. The read path
-// (#832) is where a permission check belongs.
+// authorized path can silently skip is worse than no audit. ListAudit is where
+// the permission check belongs, and it makes one.
 type TeamSettingsAuditServiceInterface interface {
 	// Record appends one settings-copy event and returns the stored entry.
 	//
@@ -61,11 +62,28 @@ type TeamSettingsAuditServiceInterface interface {
 	// credential's use into a different set of members, so a copy whose audit
 	// did not land must not report success.
 	Record(ctx context.Context, record TeamSettingsAuditRecord) (*models.TeamSettingsAudit, error)
+
+	// ListAudit returns one page of the team's settings audit log, newest
+	// first, with the actor and source-team display names resolved.
+	//
+	// Requires authz.TeamSettingsUpdate — the same owner/admin gate as the
+	// other team settings surfaces, and deliberately NOT the any-member read
+	// the neighbouring freshness audit allows: this log names who brought a
+	// credential-bearing configuration in and from where, which is exactly the
+	// question the epic's compensating control exists to answer for the team's
+	// owners. Returns ErrPermissionDenied when the caller's role does not
+	// grant it.
+	ListAudit(
+		ctx context.Context, userID, teamID string, page, limit int,
+	) (*models.TeamSettingsAuditPage, error)
 }
 
 // TeamSettingsAuditService implements TeamSettingsAuditServiceInterface.
 type TeamSettingsAuditService struct {
 	repo   repositories.TeamSettingsAuditRepository
+	authz  AuthorizationServiceInterface
+	users  repositories.UserRepository
+	teams  repositories.TeamRepository
 	logger *slog.Logger
 }
 
@@ -74,9 +92,18 @@ var _ TeamSettingsAuditServiceInterface = (*TeamSettingsAuditService)(nil)
 // NewTeamSettingsAuditService creates a new TeamSettingsAuditService.
 func NewTeamSettingsAuditService(
 	repo repositories.TeamSettingsAuditRepository,
+	authzService AuthorizationServiceInterface,
+	users repositories.UserRepository,
+	teams repositories.TeamRepository,
 	logger *slog.Logger,
 ) *TeamSettingsAuditService {
-	return &TeamSettingsAuditService{repo: repo, logger: logger}
+	return &TeamSettingsAuditService{
+		repo:   repo,
+		authz:  authzService,
+		users:  users,
+		teams:  teams,
+		logger: logger,
+	}
 }
 
 // Record appends one settings-copy event.
@@ -145,4 +172,105 @@ func optionalID(id string) *string {
 		return nil
 	}
 	return &id
+}
+
+// defaultSettingsAuditPageSize matches the spec's default for the `limit` query
+// parameter.
+const defaultSettingsAuditPageSize = 20
+
+// ListAudit returns one page of the team's settings audit log, newest first.
+func (s *TeamSettingsAuditService) ListAudit(
+	ctx context.Context, userID, teamID string, page, limit int,
+) (*models.TeamSettingsAuditPage, error) {
+	if err := s.authz.Can(ctx, userID, teamID, authz.TeamSettingsUpdate); err != nil {
+		return nil, err
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = defaultSettingsAuditPageSize
+	}
+
+	entries, total, err := s.repo.ListByTeam(ctx, teamID, limit, (page-1)*limit)
+	if err != nil {
+		return nil, fmt.Errorf("TeamSettingsAuditService.ListAudit: %w", err)
+	}
+
+	return &models.TeamSettingsAuditPage{
+		Entries:    s.resolveNames(ctx, entries),
+		TotalCount: total,
+		Page:       page,
+		PerPage:    limit,
+	}, nil
+}
+
+// resolveNames attaches the actor and source-team display names to a page of
+// entries with two batched lookups, so rendering a page costs two queries
+// rather than two per row.
+//
+// A failed lookup is logged and DEGRADED to no names rather than failing the
+// read: the ids on every entry are the audit record, the names are only there
+// to make it legible, and a team investigating what arrived in their settings
+// is worse served by an error page than by a page of ids.
+func (s *TeamSettingsAuditService) resolveNames(
+	ctx context.Context, entries []*models.TeamSettingsAudit,
+) []*models.TeamSettingsAuditEntryView {
+	actorIDs := make([]string, 0, len(entries))
+	teamIDs := make([]string, 0, len(entries))
+	seenActors := make(map[string]struct{}, len(entries))
+	seenTeams := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		collectID(entry.ActorUserID, seenActors, &actorIDs)
+		collectID(entry.SourceTeamID, seenTeams, &teamIDs)
+	}
+
+	actorNames, err := s.users.GetNamesByIDs(ctx, actorIDs)
+	if err != nil {
+		s.logger.Warn("Failed to resolve settings audit actor names", "error", err)
+		actorNames = nil
+	}
+	teamNames, err := s.teams.GetNamesByIDs(ctx, teamIDs)
+	if err != nil {
+		s.logger.Warn("Failed to resolve settings audit source team names", "error", err)
+		teamNames = nil
+	}
+
+	views := make([]*models.TeamSettingsAuditEntryView, 0, len(entries))
+	for _, entry := range entries {
+		views = append(views, &models.TeamSettingsAuditEntryView{
+			Entry:          entry,
+			ActorName:      lookupName(actorNames, entry.ActorUserID),
+			SourceTeamName: lookupName(teamNames, entry.SourceTeamID),
+		})
+	}
+	return views
+}
+
+// collectID appends a non-nil, not-yet-seen id to ids, so one lookup covers a
+// page in which the same actor or source team appears on many rows.
+func collectID(id *string, seen map[string]struct{}, ids *[]string) {
+	if id == nil || *id == "" {
+		return
+	}
+	if _, ok := seen[*id]; ok {
+		return
+	}
+	seen[*id] = struct{}{}
+	*ids = append(*ids, *id)
+}
+
+// lookupName resolves one id against a name map. It returns nil for a nil id
+// and for an id the map does not carry — the referenced row has been deleted,
+// which for this log is an expected outcome and not an error.
+func lookupName(names map[string]string, id *string) *string {
+	if id == nil || names == nil {
+		return nil
+	}
+	name, ok := names[*id]
+	if !ok {
+		return nil
+	}
+	return &name
 }

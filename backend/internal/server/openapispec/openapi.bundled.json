@@ -16481,6 +16481,114 @@
         ]
       }
     },
+    "/api/v1/{team_id}/settings/audit": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team identifier",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "List the team's settings audit log",
+        "description": "Every configuration copied into this team from another team, newest first and paginated, with the actor and source-team names resolved server-side. Requires the team.settings.update permission (owner or admin). The list is empty, never null, past the last page.\n",
+        "operationId": "listTeamSettingsAudit",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number (1-based). The upper bound is not a storage limit — it keeps page * limit inside the range the offset arithmetic can represent, so an absurd page is rejected rather than silently wrapping around to the first one.\n",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Entries per page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit log retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamSettingsAuditListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team_id or query parameter",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller's role does not grant team.settings.update",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to list the team's settings audit log",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "TeamSettings"
+        ]
+      }
+    },
     "/api/v1/{team_id}/freshness/rules": {
       "parameters": [
         {
@@ -31399,6 +31507,130 @@
             "minimum": 0,
             "maximum": 36500,
             "example": 90
+          }
+        }
+      },
+      "TeamSettingsAuditEntry": {
+        "type": "object",
+        "description": "One recorded settings copy into this team: which surface arrived, who brought it, and where it came from.\n",
+        "required": [
+          "id",
+          "surface",
+          "actor_user_id",
+          "actor_name",
+          "source_team_id",
+          "source_team_name",
+          "source_resource_id",
+          "created_resource_id",
+          "detail",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of the audit entry."
+          },
+          "surface": {
+            "type": "string",
+            "enum": [
+              "embedding_provider",
+              "model_provider",
+              "custom_types"
+            ],
+            "description": "Which settings surface was copied.",
+            "example": "model_provider"
+          },
+          "actor_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Who performed the copy. `null` once that account is deleted — the entry outlives the actor on purpose, so that deletion cannot erase the record of what the account did.\n"
+          },
+          "actor_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "The actor's display name (their email when the name is blank), resolved server-side so a client need not fan out per row. `null` when `actor_user_id` is null or no longer resolves to a user.\n",
+            "example": "Ada Lovelace"
+          },
+          "source_team_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The team the configuration was copied FROM."
+          },
+          "source_team_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "The source team's name, resolved server-side. `null` when that team has since been deleted — the id above is then the only remaining handle on it, and is deliberately still present rather than blanked.\n",
+            "example": "Platform Team"
+          },
+          "source_resource_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The resource that was copied. `null` for a `custom_types` copy, where one action copies a whole set and the individual ids live in `detail`.\n"
+          },
+          "created_resource_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The resource created in this team. `null` for a `custom_types` copy, for the same reason as `source_resource_id`.\n"
+          },
+          "detail": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Surface-specific facts snapshotted at write time — resource names, and for a provider copy whether it carried a credential and whether it became the team's active provider. Always an object, never null.\n",
+            "example": {
+              "source_name": "OpenAI (Platform)",
+              "created_name": "OpenAI (Platform)",
+              "has_api_key": true
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the copy was recorded."
+          }
+        }
+      },
+      "TeamSettingsAuditListResponse": {
+        "type": "object",
+        "description": "A page of the team's settings audit log, newest first.",
+        "required": [
+          "entries",
+          "total_count",
+          "page",
+          "per_page",
+          "total_pages"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "description": "Serializes as `[]` when the page is empty, never `null`.",
+            "items": {
+              "$ref": "#/components/schemas/TeamSettingsAuditEntry"
+            }
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Total entries in the team's log, ignoring pagination.",
+            "example": 42
+          },
+          "page": {
+            "type": "integer",
+            "description": "Current page number (1-based)",
+            "example": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of entries per page",
+            "example": 20
+          },
+          "total_pages": {
+            "type": "integer",
+            "description": "Total number of pages",
+            "example": 3
           }
         }
       },

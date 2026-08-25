@@ -256,6 +256,11 @@ func (b *BaseMockContainer) TeamSearchSettingsService() services.TeamSearchSetti
 	return nil
 }
 
+// TeamSettingsAuditService returns nil; suites that exercise it install their own.
+func (b *BaseMockContainer) TeamSettingsAuditService() services.TeamSettingsAuditServiceInterface {
+	return nil
+}
+
 // FreshnessService returns nil; suites that exercise it install their own.
 func (b *BaseMockContainer) FreshnessService() services.FreshnessServiceInterface {
 	return nil

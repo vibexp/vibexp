@@ -354,6 +354,65 @@ func (_c *MockTeamRepository_GetByOwnerID_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
+// GetNamesByIDs provides a mock function with given fields: ctx, ids
+func (_m *MockTeamRepository) GetNamesByIDs(ctx context.Context, ids []string) (map[string]string, error) {
+	ret := _m.Called(ctx, ids)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetNamesByIDs")
+	}
+
+	var r0 map[string]string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) (map[string]string, error)); ok {
+		return rf(ctx, ids)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) map[string]string); ok {
+		r0 = rf(ctx, ids)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]string)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, ids)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTeamRepository_GetNamesByIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetNamesByIDs'
+type MockTeamRepository_GetNamesByIDs_Call struct {
+	*mock.Call
+}
+
+// GetNamesByIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ids []string
+func (_e *MockTeamRepository_Expecter) GetNamesByIDs(ctx interface{}, ids interface{}) *MockTeamRepository_GetNamesByIDs_Call {
+	return &MockTeamRepository_GetNamesByIDs_Call{Call: _e.mock.On("GetNamesByIDs", ctx, ids)}
+}
+
+func (_c *MockTeamRepository_GetNamesByIDs_Call) Run(run func(ctx context.Context, ids []string)) *MockTeamRepository_GetNamesByIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockTeamRepository_GetNamesByIDs_Call) Return(_a0 map[string]string, _a1 error) *MockTeamRepository_GetNamesByIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTeamRepository_GetNamesByIDs_Call) RunAndReturn(run func(context.Context, []string) (map[string]string, error)) *MockTeamRepository_GetNamesByIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetTeamFeedCreationMetrics provides a mock function with given fields: ctx, teamID, since
 func (_m *MockTeamRepository) GetTeamFeedCreationMetrics(ctx context.Context, teamID string, since time.Time) ([]models.TeamFeedCreationCount, error) {
 	ret := _m.Called(ctx, teamID, since)

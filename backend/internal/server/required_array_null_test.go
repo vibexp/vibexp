@@ -177,6 +177,7 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"FreshnessByRuleMetricsData":       "generated strict-server type (internal/server/gen/freshness); handler builds counts via make(...,0) — handlers_freshness_metrics.go GetFreshnessByRuleMetrics",
 	"FreshnessRuleImpact":              "generated strict-server type (internal/server/gen/freshness); handler builds resource_types via make(...,0) — handlers_freshness_metrics.go toGenFreshnessRuleImpact",
 	"FreshnessAuditListResponse":       "generated strict-server type (internal/server/gen/freshness); handler builds entries via make(...,0) — handlers_freshness_metrics.go ListFreshnessAudit",
+	"TeamSettingsAuditListResponse":    "generated strict-server type (internal/server/gen/teamsettings); handler builds entries via make(...,0) — handlers_team_settings_audit.go ListTeamSettingsAudit",
 	"MemoryListResponse":               "generated strict-server type (internal/server/gen/memories); handler builds memories via make(...,0) — handlers_memories.go toGenMemoryListResponse",
 	"ArtifactListResponse":             "generated strict-server type (internal/server/gen/artifacts); handler builds artifacts via make(...,0) — handlers_artifacts.go toGenArtifactListResponse",
 	"BlueprintListResponse":            "generated strict-server type (internal/server/gen/blueprints); handler builds blueprints via make(...,0) — handlers_blueprints.go toGenBlueprintListResponse",

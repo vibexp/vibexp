@@ -18,7 +18,14 @@ import (
 func newTeamSettingsAuditService(t *testing.T) (*TeamSettingsAuditService, *mocks.MockTeamSettingsAuditRepository) {
 	t.Helper()
 	repo := mocks.NewMockTeamSettingsAuditRepository(t)
-	return NewTeamSettingsAuditService(repo, slog.Default()), repo
+	// The write path takes no authorization service and resolves no names, so
+	// the three read-path collaborators are supplied but never reached; a call
+	// to any of them from Record would fail the mock's own expectations.
+	return NewTeamSettingsAuditService(
+		repo, allowAllAuthz{},
+		mocks.NewMockUserRepository(t), mocks.NewMockTeamRepository(t),
+		slog.Default(),
+	), repo
 }
 
 func TestTeamSettingsAuditService_Record_ProviderCopy(t *testing.T) {

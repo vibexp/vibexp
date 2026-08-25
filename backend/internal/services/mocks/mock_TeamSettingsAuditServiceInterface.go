@@ -24,6 +24,68 @@ func (_m *MockTeamSettingsAuditServiceInterface) EXPECT() *MockTeamSettingsAudit
 	return &MockTeamSettingsAuditServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// ListAudit provides a mock function with given fields: ctx, userID, teamID, page, limit
+func (_m *MockTeamSettingsAuditServiceInterface) ListAudit(ctx context.Context, userID string, teamID string, page int, limit int) (*models.TeamSettingsAuditPage, error) {
+	ret := _m.Called(ctx, userID, teamID, page, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAudit")
+	}
+
+	var r0 *models.TeamSettingsAuditPage
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int, int) (*models.TeamSettingsAuditPage, error)); ok {
+		return rf(ctx, userID, teamID, page, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int, int) *models.TeamSettingsAuditPage); ok {
+		r0 = rf(ctx, userID, teamID, page, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.TeamSettingsAuditPage)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int, int) error); ok {
+		r1 = rf(ctx, userID, teamID, page, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTeamSettingsAuditServiceInterface_ListAudit_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAudit'
+type MockTeamSettingsAuditServiceInterface_ListAudit_Call struct {
+	*mock.Call
+}
+
+// ListAudit is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - teamID string
+//   - page int
+//   - limit int
+func (_e *MockTeamSettingsAuditServiceInterface_Expecter) ListAudit(ctx interface{}, userID interface{}, teamID interface{}, page interface{}, limit interface{}) *MockTeamSettingsAuditServiceInterface_ListAudit_Call {
+	return &MockTeamSettingsAuditServiceInterface_ListAudit_Call{Call: _e.mock.On("ListAudit", ctx, userID, teamID, page, limit)}
+}
+
+func (_c *MockTeamSettingsAuditServiceInterface_ListAudit_Call) Run(run func(ctx context.Context, userID string, teamID string, page int, limit int)) *MockTeamSettingsAuditServiceInterface_ListAudit_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int), args[4].(int))
+	})
+	return _c
+}
+
+func (_c *MockTeamSettingsAuditServiceInterface_ListAudit_Call) Return(_a0 *models.TeamSettingsAuditPage, _a1 error) *MockTeamSettingsAuditServiceInterface_ListAudit_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTeamSettingsAuditServiceInterface_ListAudit_Call) RunAndReturn(run func(context.Context, string, string, int, int) (*models.TeamSettingsAuditPage, error)) *MockTeamSettingsAuditServiceInterface_ListAudit_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Record provides a mock function with given fields: ctx, record
 func (_m *MockTeamSettingsAuditServiceInterface) Record(ctx context.Context, record services.TeamSettingsAuditRecord) (*models.TeamSettingsAudit, error) {
 	ret := _m.Called(ctx, record)

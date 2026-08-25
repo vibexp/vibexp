@@ -68,6 +68,67 @@ func (r *TeamRepository) GetByID(ctx context.Context, teamID string) (*models.Te
 	return &team, nil
 }
 
+// GetNamesByIDs returns a map of teamID → team name for the given set of IDs.
+// Unknown IDs are silently omitted from the result map — that absence IS the
+// answer for the settings audit log (#832), whose source_team_id column has no
+// foreign key precisely so an entry outlives the team it names.
+//
+// Deliberately NOT membership-filtered: the caller is reading teams that were
+// named as the SOURCE of a copy into a team they already have permission on,
+// and they need not be a member of that source team to see where the
+// configuration came from. Repositories here are tenancy-only (decision D3);
+// the permission check is the calling service's.
+func (r *TeamRepository) GetNamesByIDs(ctx context.Context, ids []string) (map[string]string, error) {
+	if len(ids) == 0 {
+		return map[string]string{}, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(
+		`SELECT id, name FROM teams WHERE id IN (%s)`,
+		strings.Join(placeholders, ", "),
+	)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("get team names by ids: %w", err)
+	}
+
+	result, scanErr := scanTeamNameRows(rows, len(ids))
+	if closeErr := rows.Close(); closeErr != nil && scanErr == nil {
+		return nil, fmt.Errorf("close team name rows: %w", closeErr)
+	}
+	if scanErr != nil {
+		return nil, scanErr
+	}
+	return result, nil
+}
+
+func scanTeamNameRows(rows interface {
+	Next() bool
+	Scan(...interface{}) error
+	Err() error
+}, capacity int) (map[string]string, error) {
+	result := make(map[string]string, capacity)
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, fmt.Errorf("scan team name row: %w", err)
+		}
+		result[id] = name
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate team name rows: %w", err)
+	}
+	return result, nil
+}
+
 // GetByOwnerID retrieves the first team owned by a user
 func (r *TeamRepository) GetByOwnerID(ctx context.Context, ownerID string) (*models.Team, error) {
 	query := `

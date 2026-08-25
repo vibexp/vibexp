@@ -154,3 +154,93 @@ api-v1-team_id-settings-search:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
     tags:
       - TeamSettings
+
+# The read side of the settings audit log (issue #832, epic #827).
+#
+# Unlike the search-settings singleton above, and unlike the neighbouring
+# freshness audit, this read is NOT open to any member: it names who copied a
+# credential-bearing configuration in from where, so it is gated on
+# team.settings.update — the same owner/admin gate as the other team settings
+# writes — and that check lives in the service, not in this document.
+#
+# The operationId deliberately does not end in `Settings`: the settings-alias
+# gates (TestSettingsAliasPathItemsMatchCanonical,
+# TestEverySettingsSuffixedPathIsRegistered) key on that suffix, and this path
+# has no canonical non-/settings/ twin to be aliased to.
+api-v1-team_id-settings-audit:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team identifier
+      schema:
+        type: string
+        format: uuid
+
+  get:
+    summary: List the team's settings audit log
+    description: >
+      Every configuration copied into this team from another team, newest first
+      and paginated, with the actor and source-team names resolved server-side.
+      Requires the team.settings.update permission (owner or admin). The list is
+      empty, never null, past the last page.
+    operationId: listTeamSettingsAudit
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: page
+        in: query
+        required: false
+        description: >
+          Page number (1-based). The upper bound is not a storage limit — it
+          keeps page * limit inside the range the offset arithmetic can
+          represent, so an absurd page is rejected rather than silently
+          wrapping around to the first one.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+          default: 1
+      - name: limit
+        in: query
+        required: false
+        description: Entries per page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Audit log retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamSettingsAuditListResponse'
+      '400':
+        description: Invalid team_id or query parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller's role does not grant team.settings.update
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to list the team's settings audit log
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - TeamSettings
