@@ -203,6 +203,26 @@ describe('SettingsAudit content', () => {
     ).not.toBeInTheDocument()
   })
 
+  // Epic #827 grows the surface enum server-side, and the frontend's copy of it
+  // is bumped by hand — so a build can meet a surface it has no label for. A
+  // blank What cell in the compensating control would read as "nothing
+  // happened", which is the one thing this page must never say.
+  it('falls back to the raw surface when the server sends an unmapped one', async () => {
+    mocked.getAudit.mockResolvedValue(
+      page([
+        entry({
+          surface: 'something_new' as TeamSettingsAuditEntry['surface'],
+        }),
+      ])
+    )
+
+    render(<SettingsAudit team={ownerTeam} />)
+
+    const row = await screen.findByTestId('settings-audit-row')
+    expect(within(row).getByText('something_new')).toBeInTheDocument()
+    expect(within(row).getByText('OpenAI (Platform)')).toBeInTheDocument()
+  })
+
   // The source team carries no foreign key by design, so it can be deleted out
   // from under an entry. The row must still read as a record of what happened.
   it('still renders a row whose source team has been deleted', async () => {

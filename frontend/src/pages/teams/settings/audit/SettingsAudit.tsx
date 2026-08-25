@@ -32,6 +32,18 @@ const SURFACE_LABELS: Record<TeamSettingsAuditSurface, string> = {
   custom_types: 'Artifact types',
 }
 
+/**
+ * Epic #827 grows the surface enum, and the frontend's copy of it is the one
+ * link in the API change flow that is bumped by hand — so the server can emit a
+ * surface this build has no label for. Falling back to the raw value keeps the
+ * What column readable instead of blank, which matters more here than anywhere:
+ * a silently empty cell in the epic's compensating control reads as "nothing
+ * happened". Same guard as `FreshnessAudit`'s `typeLabel`.
+ */
+function surfaceLabel(surface: TeamSettingsAuditSurface): string {
+  return SURFACE_LABELS[surface] || surface
+}
+
 type Detail = TeamSettingsAuditEntry['detail']
 
 function detailString(detail: Detail, key: string): string | null {
@@ -110,7 +122,7 @@ function AuditRow({ entry }: Readonly<{ entry: TeamSettingsAuditEntry }>) {
       </TableCell>
       <TableCell className="text-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{SURFACE_LABELS[entry.surface]}</span>
+          <span className="font-medium">{surfaceLabel(entry.surface)}</span>
           <span>{describeResource(entry)}</span>
           {carriedCredential && (
             <Badge variant="secondary" data-testid="carried-credential">
