@@ -40,6 +40,13 @@ type EmbeddingProviderService struct {
 	// API keys and redirect all of a team's embedding traffic, so editing them is
 	// an owner/admin action rather than a member one (#464).
 	authz AuthorizationServiceInterface
+	// audit records the cross-team copy (#831). Only CopyFromTeam writes an audit
+	// row: the other mutations stay within one team and are covered elsewhere.
+	audit TeamSettingsAuditServiceInterface
+	// coverageRepo counts how many of a team's resources are embedded under a
+	// given model, so a copy can report what its activation displaces (#831).
+	// Same counter EmbeddingStatusService reports coverage from.
+	coverageRepo repositories.EmbeddingBackfillRepository
 }
 
 // Ensure EmbeddingProviderService implements EmbeddingProviderServiceInterface
@@ -50,12 +57,16 @@ func NewEmbeddingProviderService(
 	enc EncryptionServiceInterface,
 	cfg *config.Config,
 	authz AuthorizationServiceInterface,
+	audit TeamSettingsAuditServiceInterface,
+	coverageRepo repositories.EmbeddingBackfillRepository,
 ) *EmbeddingProviderService {
 	return &EmbeddingProviderService{
-		repo:  repo,
-		enc:   enc,
-		guard: ssrfGuardForConfig(cfg),
-		authz: authz,
+		repo:         repo,
+		enc:          enc,
+		guard:        ssrfGuardForConfig(cfg),
+		authz:        authz,
+		audit:        audit,
+		coverageRepo: coverageRepo,
 	}
 }
 

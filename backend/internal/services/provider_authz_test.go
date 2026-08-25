@@ -29,7 +29,7 @@ func deniedEmbeddingService(t *testing.T) *EmbeddingProviderService {
 	// not reach it, and mockery fails the test if it does.
 	return NewEmbeddingProviderService(
 		mocks.NewMockEmbeddingProviderRepository(t), enc,
-		localDevProviderConfig(), denyingProviderAuthz{},
+		localDevProviderConfig(), denyingProviderAuthz{}, nil, nil,
 	)
 }
 
@@ -132,7 +132,7 @@ func TestProviderService_NilAuthzFailsClosed(t *testing.T) {
 	require.NoError(t, err)
 
 	eps := NewEmbeddingProviderService(
-		mocks.NewMockEmbeddingProviderRepository(t), enc, localDevProviderConfig(), nil,
+		mocks.NewMockEmbeddingProviderRepository(t), enc, localDevProviderConfig(), nil, nil, nil,
 	)
 	_, embErr := eps.CreateEmbeddingProvider(
 		context.Background(), testProviderTeamID, testProviderUserID,
@@ -176,7 +176,7 @@ func TestResolveActiveProvider_StoredProviderIsGuarded(t *testing.T) {
 	svc := NewEmbeddingProviderService(
 		repo, enc,
 		&config.Config{Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"}},
-		permissiveProviderAuthz{},
+		permissiveProviderAuthz{}, nil, nil,
 	)
 
 	resolved, err := svc.ResolveActiveProvider(context.Background(), testProviderTeamID)

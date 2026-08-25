@@ -24,6 +24,65 @@ func (_m *MockEmbeddingProviderServiceInterface) EXPECT() *MockEmbeddingProvider
 	return &MockEmbeddingProviderServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// CopyFromTeam provides a mock function with given fields: ctx, params
+func (_m *MockEmbeddingProviderServiceInterface) CopyFromTeam(ctx context.Context, params services.CopyEmbeddingProviderParams) (*services.CopyEmbeddingProviderResult, error) {
+	ret := _m.Called(ctx, params)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CopyFromTeam")
+	}
+
+	var r0 *services.CopyEmbeddingProviderResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, services.CopyEmbeddingProviderParams) (*services.CopyEmbeddingProviderResult, error)); ok {
+		return rf(ctx, params)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, services.CopyEmbeddingProviderParams) *services.CopyEmbeddingProviderResult); ok {
+		r0 = rf(ctx, params)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*services.CopyEmbeddingProviderResult)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, services.CopyEmbeddingProviderParams) error); ok {
+		r1 = rf(ctx, params)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockEmbeddingProviderServiceInterface_CopyFromTeam_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CopyFromTeam'
+type MockEmbeddingProviderServiceInterface_CopyFromTeam_Call struct {
+	*mock.Call
+}
+
+// CopyFromTeam is a helper method to define mock.On call
+//   - ctx context.Context
+//   - params services.CopyEmbeddingProviderParams
+func (_e *MockEmbeddingProviderServiceInterface_Expecter) CopyFromTeam(ctx interface{}, params interface{}) *MockEmbeddingProviderServiceInterface_CopyFromTeam_Call {
+	return &MockEmbeddingProviderServiceInterface_CopyFromTeam_Call{Call: _e.mock.On("CopyFromTeam", ctx, params)}
+}
+
+func (_c *MockEmbeddingProviderServiceInterface_CopyFromTeam_Call) Run(run func(ctx context.Context, params services.CopyEmbeddingProviderParams)) *MockEmbeddingProviderServiceInterface_CopyFromTeam_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(services.CopyEmbeddingProviderParams))
+	})
+	return _c
+}
+
+func (_c *MockEmbeddingProviderServiceInterface_CopyFromTeam_Call) Return(_a0 *services.CopyEmbeddingProviderResult, _a1 error) *MockEmbeddingProviderServiceInterface_CopyFromTeam_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockEmbeddingProviderServiceInterface_CopyFromTeam_Call) RunAndReturn(run func(context.Context, services.CopyEmbeddingProviderParams) (*services.CopyEmbeddingProviderResult, error)) *MockEmbeddingProviderServiceInterface_CopyFromTeam_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateEmbeddingProvider provides a mock function with given fields: ctx, teamID, userID, req
 func (_m *MockEmbeddingProviderServiceInterface) CreateEmbeddingProvider(ctx context.Context, teamID string, userID string, req models.CreateEmbeddingProviderRequest) (*models.EmbeddingProvider, error) {
 	ret := _m.Called(ctx, teamID, userID, req)

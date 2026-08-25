@@ -183,8 +183,10 @@ func ProvideEmbeddingProviderService(
 	enc services.EncryptionServiceInterface,
 	cfg *config.Config,
 	authzSvc services.AuthorizationServiceInterface,
+	audit services.TeamSettingsAuditServiceInterface,
+	coverageRepo repositories.EmbeddingBackfillRepository,
 ) services.EmbeddingProviderServiceInterface {
-	return services.NewEmbeddingProviderService(repo, enc, cfg, authzSvc)
+	return services.NewEmbeddingProviderService(repo, enc, cfg, authzSvc, audit, coverageRepo)
 }
 
 // ProvideModelProviderService creates a new ModelProviderService. Secret

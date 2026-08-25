@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/vibexp/vibexp/internal/authz"
 )
@@ -87,4 +89,82 @@ func AuthorizeCrossTeamCopy(
 		return err
 	}
 	return nil
+}
+
+// --- Copy naming (shared by the provider copy endpoints) ---------------------
+
+// copyNameSuffix is appended to a source provider's name when the destination
+// team already holds it: " (copy)", then " (copy 2)", " (copy 3)", …
+const copyNameSuffix = "copy"
+
+// copyNameMaxAttempts bounds the disambiguation loop. The candidates come from
+// a snapshot of the destination's names, so the loop is finite by construction;
+// the bound only stops a pathological team (hundreds of literal "X (copy N)"
+// rows) from spinning, and failing loudly beats inventing "X (copy 741)".
+const copyNameMaxAttempts = 100
+
+// providerNameMaxLen mirrors model_providers.name and embedding_providers.name —
+// both varchar(255). A suffix pushing past it would be truncated by Postgres
+// into a name that no longer matches what the collision check cleared, so the
+// BASE is trimmed instead and the suffix always survives intact.
+//
+// Postgres counts varchar(n) in CHARACTERS, not bytes, so the trimming below
+// works in runes: measuring in bytes would both over-trim a non-ASCII name and,
+// worse, cut mid-rune into invalid UTF-8 that Postgres rejects outright.
+const providerNameMaxLen = 255
+
+// ErrCopyNameExhausted reports that neither the source name nor any of the
+// generated variants of it is free in the destination team. Each surface wraps
+// it in its own already-exists sentinel so the handler keeps mapping to 409.
+var ErrCopyNameExhausted = errors.New("no free name for the copy")
+
+// resolveCopyName decides what a copied provider is called, given a snapshot of
+// the destination team's existing names.
+//
+// A caller-supplied override wins outright and is used verbatim — the caller has
+// seen the destination's providers and made a choice, so silently renaming it
+// would be worse than the 409 a collision earns. Only a name INHERITED from the
+// source is disambiguated, because the caller never chose it.
+//
+// Pure over its inputs so the numbering and the varchar trimming are testable
+// without a repository, and shared so the two provider surfaces cannot drift.
+func resolveCopyName(override *string, sourceName string, existing []string) (string, error) {
+	if override != nil {
+		return *override, nil
+	}
+
+	taken := make(map[string]struct{}, len(existing))
+	for _, name := range existing {
+		taken[name] = struct{}{}
+	}
+
+	if _, clash := taken[sourceName]; !clash {
+		return sourceName, nil
+	}
+
+	for attempt := 1; attempt <= copyNameMaxAttempts; attempt++ {
+		candidate := copyNameCandidate(sourceName, attempt)
+		if _, clash := taken[candidate]; !clash {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("%w: %s (and %d generated variants of it)",
+		ErrCopyNameExhausted, sourceName, copyNameMaxAttempts)
+}
+
+// copyNameCandidate builds the nth disambiguated name: attempt 1 is
+// "<base> (copy)", attempt 2 "<base> (copy 2)", and so on — the numbering a
+// reader expects, where the unnumbered form IS the first copy.
+func copyNameCandidate(base string, attempt int) string {
+	suffix := " (" + copyNameSuffix + ")"
+	if attempt > 1 {
+		suffix = " (" + copyNameSuffix + " " + strconv.Itoa(attempt) + ")"
+	}
+
+	runes := []rune(base)
+	if overflow := len(runes) + len([]rune(suffix)) - providerNameMaxLen; overflow > 0 {
+		base = strings.TrimRight(string(runes[:max(len(runes)-overflow, 0)]), " ")
+	}
+	return base + suffix
 }

@@ -40,3 +40,6 @@ output-options:
     - updateEmbeddingProviderSettings
     - deleteEmbeddingProviderSettings
     - validateEmbeddingProviderSettings
+    # The cross-team copy (#831, epic #827) is a settings-only operation with no
+    # bare-mount twin, so it appears once.
+    - copyEmbeddingProviderFromTeam

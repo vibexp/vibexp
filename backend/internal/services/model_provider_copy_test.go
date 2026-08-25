@@ -275,12 +275,12 @@ func TestModelProviderService_CopyFromTeam_SuffixKeepsTheNameWithinTheColumn(t *
 		name     string
 		longName string
 	}{
-		{"ascii", strings.Repeat("a", modelProviderNameMaxLen)},
+		{"ascii", strings.Repeat("a", providerNameMaxLen)},
 		// varchar(255) counts CHARACTERS, so a name of 255 multi-byte runes is
 		// exactly at the limit even though it is 1020 bytes. Trimming by byte
 		// length would over-trim it and could cut mid-rune into invalid UTF-8,
 		// which Postgres rejects outright.
-		{"multi-byte", strings.Repeat("日", modelProviderNameMaxLen)},
+		{"multi-byte", strings.Repeat("日", providerNameMaxLen)},
 	}
 
 	for _, tc := range tests {
@@ -301,7 +301,7 @@ func TestModelProviderService_CopyFromTeam_SuffixKeepsTheNameWithinTheColumn(t *
 
 			// Postgres would truncate a longer name into one the collision check
 			// never cleared, so the BASE is trimmed and the suffix survives whole.
-			assert.LessOrEqual(t, utf8.RuneCountInString(copied.Name), modelProviderNameMaxLen)
+			assert.LessOrEqual(t, utf8.RuneCountInString(copied.Name), providerNameMaxLen)
 			assert.True(t, utf8.ValidString(copied.Name), "trimming must not split a rune: %q", copied.Name)
 			assert.True(t, strings.HasSuffix(copied.Name, " (copy)"), "got %q", copied.Name)
 		})

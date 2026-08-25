@@ -31,7 +31,7 @@ func prodEmbeddingService(t *testing.T) *EmbeddingProviderService {
 	return NewEmbeddingProviderService(
 		mocks.NewMockEmbeddingProviderRepository(t), enc,
 		&config.Config{Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"}},
-		permissiveProviderAuthz{},
+		permissiveProviderAuthz{}, nil, nil,
 	)
 }
 
@@ -178,7 +178,7 @@ func TestValidateProvider_LocalDevelopmentStillPermitsLoopback(t *testing.T) {
 	require.NoError(t, err)
 	svc := NewEmbeddingProviderService(
 		mocks.NewMockEmbeddingProviderRepository(t), enc,
-		localDevProviderConfig(), permissiveProviderAuthz{},
+		localDevProviderConfig(), permissiveProviderAuthz{}, nil, nil,
 	)
 
 	resp, err := svc.ValidateEmbeddingProvider(
@@ -212,7 +212,7 @@ func TestValidateProvider_OperatorAllowlistPermitsDeclaredRange(t *testing.T) {
 	enc, err := NewEncryptionService(testEncryptionKey)
 	require.NoError(t, err)
 	svc := NewEmbeddingProviderService(
-		mocks.NewMockEmbeddingProviderRepository(t), enc, cfg, permissiveProviderAuthz{},
+		mocks.NewMockEmbeddingProviderRepository(t), enc, cfg, permissiveProviderAuthz{}, nil, nil,
 	)
 
 	resp, err := svc.ValidateEmbeddingProvider(
@@ -264,7 +264,7 @@ func TestResolveActiveProvider_OperatorAllowlistReachesRuntimeClient(t *testing.
 				OutboundAllowedCIDRs: config.EnvStringSlice{"127.0.0.0/8"},
 			},
 		},
-		permissiveProviderAuthz{},
+		permissiveProviderAuthz{}, nil, nil,
 	)
 
 	resolved, err := svc.ResolveActiveProvider(context.Background(), testProviderTeamID)
@@ -291,7 +291,7 @@ func TestValidateProvider_OperatorAllowlistIsNarrow(t *testing.T) {
 	enc, err := NewEncryptionService(testEncryptionKey)
 	require.NoError(t, err)
 	svc := NewEmbeddingProviderService(
-		mocks.NewMockEmbeddingProviderRepository(t), enc, cfg, permissiveProviderAuthz{},
+		mocks.NewMockEmbeddingProviderRepository(t), enc, cfg, permissiveProviderAuthz{}, nil, nil,
 	)
 
 	for _, tt := range blockedDestinations {

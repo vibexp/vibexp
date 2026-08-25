@@ -421,6 +421,65 @@ func (_c *MockEmbeddingProviderRepository_List_Call) RunAndReturn(run func(conte
 	return _c
 }
 
+// ListNames provides a mock function with given fields: ctx, teamID
+func (_m *MockEmbeddingProviderRepository) ListNames(ctx context.Context, teamID string) ([]string, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListNames")
+	}
+
+	var r0 []string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]string, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []string); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockEmbeddingProviderRepository_ListNames_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListNames'
+type MockEmbeddingProviderRepository_ListNames_Call struct {
+	*mock.Call
+}
+
+// ListNames is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+func (_e *MockEmbeddingProviderRepository_Expecter) ListNames(ctx interface{}, teamID interface{}) *MockEmbeddingProviderRepository_ListNames_Call {
+	return &MockEmbeddingProviderRepository_ListNames_Call{Call: _e.mock.On("ListNames", ctx, teamID)}
+}
+
+func (_c *MockEmbeddingProviderRepository_ListNames_Call) Run(run func(ctx context.Context, teamID string)) *MockEmbeddingProviderRepository_ListNames_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockEmbeddingProviderRepository_ListNames_Call) Return(_a0 []string, _a1 error) *MockEmbeddingProviderRepository_ListNames_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockEmbeddingProviderRepository_ListNames_Call) RunAndReturn(run func(context.Context, string) ([]string, error)) *MockEmbeddingProviderRepository_ListNames_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SetDefault provides a mock function with given fields: ctx, teamID, providerID
 func (_m *MockEmbeddingProviderRepository) SetDefault(ctx context.Context, teamID string, providerID string) error {
 	ret := _m.Called(ctx, teamID, providerID)
