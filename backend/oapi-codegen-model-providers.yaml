@@ -2,15 +2,21 @@
 # more spec-first strict-server package under internal/server/gen.
 #
 # DEPARTURE FROM THE include-tags CONVENTION, for the same reason as
-# oapi-codegen-embedding-providers.yaml: `include-tags: [Model Providers]` is
-# the whole tag, and the twelve CRUD/validate operations are still on their
-# hand-written chi handlers. Pulling them in would put them on this package's
-# StrictServerInterface and force rewriting all of them at once. The operations
-# are therefore selected explicitly by id, and a later conversion appends its
-# ids here rather than switching the selector.
+# oapi-codegen-embedding-providers.yaml: the selector stays a list of operation
+# ids so a conversion can proceed a slice at a time. #830 seeded it with the
+# cross-team copy alone (a NEW endpoint has to ship strict-server-typed,
+# CLAUDE.md / epic #122) while the twelve CRUD/validate operations stayed on
+# hand-written chi handlers; #837 appended those twelve, so the set is now the
+# whole `Model Providers` tag.
 #
-# Right now that set is the cross-team copy (#830, epic #827), which ships
-# strict-server-typed because a NEW endpoint has to (CLAUDE.md, epic #122).
+# It is still spelled as ids rather than `include-tags: [Model Providers]`,
+# because the list is the explicit record of what this package serves: a new
+# operation added to the tag joins the generated StrictServerInterface only when
+# someone lists it here, rather than silently breaking the build on the next
+# unrelated spec edit.
+#
+# The ids are copied from backend/paths/model-providers.yaml, NOT inferred from
+# the paths — a misspelled id generates an EMPTY package with no error.
 #
 # Regenerate with: make backend-generate-openapi-server
 # CI fails the PR if this output is stale relative to the spec.
@@ -23,3 +29,17 @@ generate:
 output-options:
   include-operation-ids:
     - copyModelProviderFromTeam
+    # Bare mount: /api/v1/{team_id}/model-providers
+    - createModelProvider
+    - listModelProviders
+    - getModelProvider
+    - updateModelProvider
+    - deleteModelProvider
+    - validateModelProvider
+    # Settings alias mount: /api/v1/{team_id}/settings/model-providers
+    - createModelProviderSettings
+    - listModelProvidersSettings
+    - getModelProviderSettings
+    - updateModelProviderSettings
+    - deleteModelProviderSettings
+    - validateModelProviderSettings

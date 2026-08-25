@@ -42,7 +42,7 @@ func createTestModelProviderCopyServer(container *MockModelProviderContainer) *S
 		config:    &config.Config{},
 		router:    r,
 	}
-	srv.mountModelProvidersCopyHandler(r)
+	srv.mountModelProvidersHandlers(r)
 	return srv
 }
 

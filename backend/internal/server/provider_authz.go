@@ -15,19 +15,16 @@ import (
 // they are owner/admin surface (#464).
 const providerPermissionMessage = "You do not have permission to manage this team's provider settings."
 
-// writeIfPermissionDenied maps a services.ErrPermissionDenied to 403 and reports
-// whether it handled the error. Provider handlers call it before their own
+// writeIfPermissionDeniedWithMessage maps a services.ErrPermissionDenied to 403
+// and reports whether it handled the error. Handlers call it before their own
 // error mapping so an authorization failure is never reported as a generic
 // "create failed" 500 — the caller needs to know it is a role problem, and the
 // operator needs the distinction in logs.
-func writeIfPermissionDenied(w http.ResponseWriter, r *http.Request, err error) bool {
-	return writeIfPermissionDeniedWithMessage(w, r, err, providerPermissionMessage)
-}
-
-// writeIfPermissionDeniedWithMessage is writeIfPermissionDenied for surfaces
-// whose 403 needs to name something other than provider settings. The message
-// is the only thing that varies — the mapping and the "check this first" rule
-// are identical, so they stay in one place.
+//
+// The chi-side provider wrapper that defaulted the message to
+// providerPermissionMessage went with the model-provider conversion (#837); the
+// strict-server path expresses the same rule as providerPermissionError, which
+// returns the error instead of writing it.
 func writeIfPermissionDeniedWithMessage(
 	w http.ResponseWriter, r *http.Request, err error, message string,
 ) bool {

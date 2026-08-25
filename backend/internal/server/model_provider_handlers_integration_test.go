@@ -41,6 +41,11 @@ func newMockModelProviderContainer(t *testing.T) *MockModelProviderContainer {
 	}
 }
 
+// testModelProviderTeamID is a real UUID because the generated wrapper binds
+// team_id as `format: uuid` and rejects anything else with a 400 before the
+// handler runs — the chi handlers this replaced took the segment verbatim.
+const testModelProviderTeamID = "11111111-2222-4333-8444-555555555555"
+
 func createTestModelProviderServer(container *MockModelProviderContainer) *Server {
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
@@ -55,10 +60,12 @@ func createTestModelProviderServer(container *MockModelProviderContainer) *Serve
 		router:    r,
 	}
 
-	// Register routes via the production setup under both prefixes (bare and
-	// settings) so tests exercise the same route tree the server mounts.
-	r.Route("/api/v1/{team_id}/model-providers", srv.setupModelProvidersRoutes)
-	r.Route("/api/v1/{team_id}/settings/model-providers", srv.setupModelProvidersRoutes)
+	// Register routes via the production mount so tests exercise the same route
+	// tree the server serves — the twelve generated CRUD/validate operations
+	// across both prefixes (bare and settings) plus the cross-team copy. The
+	// tenancy middleware is deliberately omitted: these tests drive the handlers
+	// directly, and team access is covered by the middleware's own tests.
+	srv.mountModelProvidersHandlers(r)
 
 	return srv
 }
@@ -130,12 +137,12 @@ func TestHandleCreateModelProvider_SpecConformance(t *testing.T) {
 			}
 
 			mockContainer.modelProviderService.
-				On("CreateModelProvider", mock.Anything, "team-123", "user-123", reqBody).
+				On("CreateModelProvider", mock.Anything, testModelProviderTeamID, "user-123", reqBody).
 				Return(sampleModelProvider(), nil)
 
 			srv := createTestModelProviderServer(mockContainer)
 			req := makeAuthenticatedModelProviderRequest(
-				"POST", "/api/v1/team-123/"+prefix, reqBody, "user-123",
+				"POST", "/api/v1/"+testModelProviderTeamID+"/"+prefix, reqBody, "user-123",
 			)
 			w := httptest.NewRecorder()
 
@@ -163,12 +170,12 @@ func TestHandleListModelProviders_SpecConformance(t *testing.T) {
 			mockContainer := newMockModelProviderContainer(t)
 
 			mockContainer.modelProviderService.
-				On("GetModelProvidersByTeamID", mock.Anything, "team-123").
+				On("GetModelProvidersByTeamID", mock.Anything, testModelProviderTeamID).
 				Return([]models.ModelProviderResponse{*sampleModelProviderResponse()}, nil)
 
 			srv := createTestModelProviderServer(mockContainer)
 			req := makeAuthenticatedModelProviderRequest(
-				"GET", "/api/v1/team-123/"+prefix, nil, "user-123",
+				"GET", "/api/v1/"+testModelProviderTeamID+"/"+prefix, nil, "user-123",
 			)
 			w := httptest.NewRecorder()
 
@@ -194,12 +201,12 @@ func TestHandleGetModelProvider_SpecConformance(t *testing.T) {
 			mockContainer := newMockModelProviderContainer(t)
 
 			mockContainer.modelProviderService.
-				On("GetModelProvider", mock.Anything, "team-123", "provider-1").
+				On("GetModelProvider", mock.Anything, testModelProviderTeamID, "provider-1").
 				Return(sampleModelProviderResponse(), nil)
 
 			srv := createTestModelProviderServer(mockContainer)
 			req := makeAuthenticatedModelProviderRequest(
-				"GET", "/api/v1/team-123/"+prefix+"/provider-1", nil, "user-123",
+				"GET", "/api/v1/"+testModelProviderTeamID+"/"+prefix+"/provider-1", nil, "user-123",
 			)
 			w := httptest.NewRecorder()
 
@@ -225,12 +232,12 @@ func TestHandleUpdateModelProvider_SpecConformance(t *testing.T) {
 			updated.Name = newName
 
 			mockContainer.modelProviderService.
-				On("UpdateModelProvider", mock.Anything, "team-123", mock.Anything, "provider-1", reqBody).
+				On("UpdateModelProvider", mock.Anything, testModelProviderTeamID, mock.Anything, "provider-1", reqBody).
 				Return(updated, nil)
 
 			srv := createTestModelProviderServer(mockContainer)
 			req := makeAuthenticatedModelProviderRequest(
-				"PUT", "/api/v1/team-123/"+prefix+"/provider-1", reqBody, "user-123",
+				"PUT", "/api/v1/"+testModelProviderTeamID+"/"+prefix+"/provider-1", reqBody, "user-123",
 			)
 			w := httptest.NewRecorder()
 
@@ -256,12 +263,12 @@ func TestHandleDeleteModelProvider_SpecConformance(t *testing.T) {
 			mockContainer := newMockModelProviderContainer(t)
 
 			mockContainer.modelProviderService.
-				On("DeleteModelProvider", mock.Anything, "team-123", mock.Anything, "provider-1").
+				On("DeleteModelProvider", mock.Anything, testModelProviderTeamID, mock.Anything, "provider-1").
 				Return(nil)
 
 			srv := createTestModelProviderServer(mockContainer)
 			req := makeAuthenticatedModelProviderRequest(
-				"DELETE", "/api/v1/team-123/"+prefix+"/provider-1", nil, "user-123",
+				"DELETE", "/api/v1/"+testModelProviderTeamID+"/"+prefix+"/provider-1", nil, "user-123",
 			)
 			w := httptest.NewRecorder()
 
@@ -301,7 +308,7 @@ func TestHandleValidateModelProvider_SpecConformance(t *testing.T) {
 
 			srv := createTestModelProviderServer(mockContainer)
 			req := makeAuthenticatedModelProviderRequest(
-				"POST", "/api/v1/team-123/"+prefix+"/validate", reqBody, "user-123",
+				"POST", "/api/v1/"+testModelProviderTeamID+"/"+prefix+"/validate", reqBody, "user-123",
 			)
 			w := httptest.NewRecorder()
 
@@ -325,11 +332,11 @@ func TestHandleValidateModelProvider_SpecConformance(t *testing.T) {
 func TestHandleListModelProviders_ServiceError(t *testing.T) {
 	mockContainer := newMockModelProviderContainer(t)
 	mockContainer.modelProviderService.
-		On("GetModelProvidersByTeamID", mock.Anything, "team-123").
+		On("GetModelProvidersByTeamID", mock.Anything, testModelProviderTeamID).
 		Return(([]models.ModelProviderResponse)(nil), errors.New("database error"))
 
 	srv := createTestModelProviderServer(mockContainer)
-	req := makeAuthenticatedModelProviderRequest("GET", "/api/v1/team-123/model-providers", nil, "user-123")
+	req := makeAuthenticatedModelProviderRequest("GET", "/api/v1/"+testModelProviderTeamID+"/model-providers", nil, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -342,11 +349,11 @@ func TestHandleListModelProviders_ServiceError(t *testing.T) {
 func TestHandleGetModelProvider_NotFound(t *testing.T) {
 	mockContainer := newMockModelProviderContainer(t)
 	mockContainer.modelProviderService.
-		On("GetModelProvider", mock.Anything, "team-123", "missing").
+		On("GetModelProvider", mock.Anything, testModelProviderTeamID, "missing").
 		Return((*models.ModelProviderResponse)(nil), services.ErrModelProviderNotFound)
 
 	srv := createTestModelProviderServer(mockContainer)
-	req := makeAuthenticatedModelProviderRequest("GET", "/api/v1/team-123/model-providers/missing", nil, "user-123")
+	req := makeAuthenticatedModelProviderRequest("GET", "/api/v1/"+testModelProviderTeamID+"/model-providers/missing", nil, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -367,11 +374,11 @@ func TestHandleCreateModelProvider_AlreadyExists(t *testing.T) {
 		BaseURL:      &baseURL,
 	}
 	mockContainer.modelProviderService.
-		On("CreateModelProvider", mock.Anything, "team-123", "user-123", reqBody).
+		On("CreateModelProvider", mock.Anything, testModelProviderTeamID, "user-123", reqBody).
 		Return((*models.ModelProvider)(nil), services.ErrModelProviderAlreadyExists)
 
 	srv := createTestModelProviderServer(mockContainer)
-	req := makeAuthenticatedModelProviderRequest("POST", "/api/v1/team-123/model-providers", reqBody, "user-123")
+	req := makeAuthenticatedModelProviderRequest("POST", "/api/v1/"+testModelProviderTeamID+"/model-providers", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -396,7 +403,7 @@ func TestHandleCreateModelProvider_ValidationError(t *testing.T) {
 			mockContainer := newMockModelProviderContainer(t)
 			srv := createTestModelProviderServer(mockContainer)
 			req := makeAuthenticatedModelProviderRequest(
-				"POST", "/api/v1/team-123/model-providers", tt.reqBody, "user-123",
+				"POST", "/api/v1/"+testModelProviderTeamID+"/model-providers", tt.reqBody, "user-123",
 			)
 			w := httptest.NewRecorder()
 
@@ -414,11 +421,11 @@ func TestHandleUpdateModelProvider_NotFound(t *testing.T) {
 	newName := "Renamed"
 	reqBody := models.UpdateModelProviderRequest{Name: &newName}
 	mockContainer.modelProviderService.
-		On("UpdateModelProvider", mock.Anything, "team-123", mock.Anything, "missing", reqBody).
+		On("UpdateModelProvider", mock.Anything, testModelProviderTeamID, mock.Anything, "missing", reqBody).
 		Return((*models.ModelProvider)(nil), services.ErrModelProviderNotFound)
 
 	srv := createTestModelProviderServer(mockContainer)
-	req := makeAuthenticatedModelProviderRequest("PUT", "/api/v1/team-123/model-providers/missing", reqBody, "user-123")
+	req := makeAuthenticatedModelProviderRequest("PUT", "/api/v1/"+testModelProviderTeamID+"/model-providers/missing", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -431,11 +438,13 @@ func TestHandleUpdateModelProvider_NotFound(t *testing.T) {
 func TestHandleDeleteModelProvider_LastProvider(t *testing.T) {
 	mockContainer := newMockModelProviderContainer(t)
 	mockContainer.modelProviderService.
-		On("DeleteModelProvider", mock.Anything, "team-123", mock.Anything, "provider-1").
+		On("DeleteModelProvider", mock.Anything, testModelProviderTeamID, mock.Anything, "provider-1").
 		Return(services.ErrLastModelProviderDelete)
 
 	srv := createTestModelProviderServer(mockContainer)
-	req := makeAuthenticatedModelProviderRequest("DELETE", "/api/v1/team-123/model-providers/provider-1", nil, "user-123")
+	req := makeAuthenticatedModelProviderRequest(
+		"DELETE", "/api/v1/"+testModelProviderTeamID+"/model-providers/provider-1", nil, "user-123",
+	)
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -466,7 +475,7 @@ func TestHandleValidateModelProvider_Invalid(t *testing.T) {
 		Return(expected, nil)
 
 	srv := createTestModelProviderServer(mockContainer)
-	req := makeAuthenticatedModelProviderRequest("POST", "/api/v1/team-123/model-providers/validate", reqBody, "user-123")
+	req := makeAuthenticatedModelProviderRequest("POST", "/api/v1/"+testModelProviderTeamID+"/model-providers/validate", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -494,7 +503,7 @@ func TestHandleValidateModelProvider_ValidationError(t *testing.T) {
 			mockContainer := newMockModelProviderContainer(t)
 			srv := createTestModelProviderServer(mockContainer)
 			req := makeAuthenticatedModelProviderRequest(
-				"POST", "/api/v1/team-123/model-providers/validate", tt.reqBody, "user-123",
+				"POST", "/api/v1/"+testModelProviderTeamID+"/model-providers/validate", tt.reqBody, "user-123",
 			)
 			w := httptest.NewRecorder()
 
@@ -519,7 +528,7 @@ func TestHandleValidateModelProvider_ServiceError(t *testing.T) {
 		Return((*models.ValidateModelProviderResponse)(nil), errors.New("internal error"))
 
 	srv := createTestModelProviderServer(mockContainer)
-	req := makeAuthenticatedModelProviderRequest("POST", "/api/v1/team-123/model-providers/validate", reqBody, "user-123")
+	req := makeAuthenticatedModelProviderRequest("POST", "/api/v1/"+testModelProviderTeamID+"/model-providers/validate", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)

@@ -49,6 +49,19 @@ type CopyModelProviderRequest struct {
 	SourceTeamId openapi_types.UUID `json:"source_team_id"`
 }
 
+// CreateModelProviderRequest defines model for CreateModelProviderRequest.
+type CreateModelProviderRequest struct {
+	ApiKey        *string                 `json:"api_key,omitempty"`
+	BaseUrl       *string                 `json:"base_url,omitempty"`
+	Configuration *map[string]interface{} `json:"configuration,omitempty"`
+	IsDefault     *bool                   `json:"is_default,omitempty"`
+
+	// Model Chat/completion model to use.
+	Model        string `json:"model"`
+	Name         string `json:"name"`
+	ProviderType string `json:"provider_type"`
+}
+
 // ErrorResponse RFC 9457 Problem Details for HTTP APIs
 type ErrorResponse struct {
 	// Code Application-specific error code
@@ -124,6 +137,42 @@ type ModelProviderResponse struct {
 	Version int64 `json:"version"`
 }
 
+// ModelProviderResponseList defines model for ModelProviderResponseList.
+type ModelProviderResponseList = []ModelProviderResponse
+
+// UpdateModelProviderRequest defines model for UpdateModelProviderRequest.
+type UpdateModelProviderRequest struct {
+	ApiKey        *string                 `json:"api_key,omitempty"`
+	BaseUrl       *string                 `json:"base_url,omitempty"`
+	Configuration *map[string]interface{} `json:"configuration,omitempty"`
+	IsDefault     *bool                   `json:"is_default,omitempty"`
+	Model         *string                 `json:"model,omitempty"`
+	Name          *string                 `json:"name,omitempty"`
+	ProviderType  *string                 `json:"provider_type,omitempty"`
+}
+
+// ValidateModelProviderRequest defines model for ValidateModelProviderRequest.
+type ValidateModelProviderRequest struct {
+	ApiKey        *string                 `json:"api_key,omitempty"`
+	BaseUrl       string                  `json:"base_url"`
+	Configuration *map[string]interface{} `json:"configuration,omitempty"`
+
+	// Model Chat/completion model to probe for reachability and auth.
+	Model        string `json:"model"`
+	ProviderType string `json:"provider_type"`
+}
+
+// ValidateModelProviderResponse defines model for ValidateModelProviderResponse.
+type ValidateModelProviderResponse struct {
+	Details *struct {
+		ErrorDetails   *string `json:"error_details,omitempty"`
+		ResponseTimeMs *int    `json:"response_time_ms,omitempty"`
+		StatusCode     *int    `json:"status_code,omitempty"`
+	} `json:"details,omitempty"`
+	IsValid bool   `json:"is_valid"`
+	Message string `json:"message"`
+}
+
 // ValidationError Field-level validation error details
 type ValidationError struct {
 	// Code Validation error code
@@ -151,23 +200,149 @@ type bearerAuthContextKey string
 // cookieAuthContextKey is the context key for CookieAuth security scheme
 type cookieAuthContextKey string
 
+// CreateModelProviderJSONRequestBody defines body for CreateModelProvider for application/json ContentType.
+type CreateModelProviderJSONRequestBody = CreateModelProviderRequest
+
+// ValidateModelProviderJSONRequestBody defines body for ValidateModelProvider for application/json ContentType.
+type ValidateModelProviderJSONRequestBody = ValidateModelProviderRequest
+
+// UpdateModelProviderJSONRequestBody defines body for UpdateModelProvider for application/json ContentType.
+type UpdateModelProviderJSONRequestBody = UpdateModelProviderRequest
+
+// CreateModelProviderSettingsJSONRequestBody defines body for CreateModelProviderSettings for application/json ContentType.
+type CreateModelProviderSettingsJSONRequestBody = CreateModelProviderRequest
+
 // CopyModelProviderFromTeamJSONRequestBody defines body for CopyModelProviderFromTeam for application/json ContentType.
 type CopyModelProviderFromTeamJSONRequestBody = CopyModelProviderRequest
 
+// ValidateModelProviderSettingsJSONRequestBody defines body for ValidateModelProviderSettings for application/json ContentType.
+type ValidateModelProviderSettingsJSONRequestBody = ValidateModelProviderRequest
+
+// UpdateModelProviderSettingsJSONRequestBody defines body for UpdateModelProviderSettings for application/json ContentType.
+type UpdateModelProviderSettingsJSONRequestBody = UpdateModelProviderRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// List model providers
+	// (GET /api/v1/{team_id}/model-providers)
+	ListModelProviders(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Create model provider
+	// (POST /api/v1/{team_id}/model-providers)
+	CreateModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Validate model provider configuration
+	// (POST /api/v1/{team_id}/model-providers/validate)
+	ValidateModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Delete model provider
+	// (DELETE /api/v1/{team_id}/model-providers/{id})
+	DeleteModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string)
+	// Get model provider
+	// (GET /api/v1/{team_id}/model-providers/{id})
+	GetModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string)
+	// Update model provider
+	// (PUT /api/v1/{team_id}/model-providers/{id})
+	UpdateModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string)
+	// List model providers
+	// (GET /api/v1/{team_id}/settings/model-providers)
+	ListModelProvidersSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Create model provider
+	// (POST /api/v1/{team_id}/settings/model-providers)
+	CreateModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
 	// Copy a model provider from another team into this team
 	// (POST /api/v1/{team_id}/settings/model-providers/copy)
 	CopyModelProviderFromTeam(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Validate model provider configuration
+	// (POST /api/v1/{team_id}/settings/model-providers/validate)
+	ValidateModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Delete model provider
+	// (DELETE /api/v1/{team_id}/settings/model-providers/{id})
+	DeleteModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string)
+	// Get model provider
+	// (GET /api/v1/{team_id}/settings/model-providers/{id})
+	GetModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string)
+	// Update model provider
+	// (PUT /api/v1/{team_id}/settings/model-providers/{id})
+	UpdateModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
 
+// List model providers
+// (GET /api/v1/{team_id}/model-providers)
+func (_ Unimplemented) ListModelProviders(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create model provider
+// (POST /api/v1/{team_id}/model-providers)
+func (_ Unimplemented) CreateModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Validate model provider configuration
+// (POST /api/v1/{team_id}/model-providers/validate)
+func (_ Unimplemented) ValidateModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete model provider
+// (DELETE /api/v1/{team_id}/model-providers/{id})
+func (_ Unimplemented) DeleteModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get model provider
+// (GET /api/v1/{team_id}/model-providers/{id})
+func (_ Unimplemented) GetModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update model provider
+// (PUT /api/v1/{team_id}/model-providers/{id})
+func (_ Unimplemented) UpdateModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List model providers
+// (GET /api/v1/{team_id}/settings/model-providers)
+func (_ Unimplemented) ListModelProvidersSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create model provider
+// (POST /api/v1/{team_id}/settings/model-providers)
+func (_ Unimplemented) CreateModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Copy a model provider from another team into this team
 // (POST /api/v1/{team_id}/settings/model-providers/copy)
 func (_ Unimplemented) CopyModelProviderFromTeam(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Validate model provider configuration
+// (POST /api/v1/{team_id}/settings/model-providers/validate)
+func (_ Unimplemented) ValidateModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete model provider
+// (DELETE /api/v1/{team_id}/settings/model-providers/{id})
+func (_ Unimplemented) DeleteModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get model provider
+// (GET /api/v1/{team_id}/settings/model-providers/{id})
+func (_ Unimplemented) GetModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update model provider
+// (PUT /api/v1/{team_id}/settings/model-providers/{id})
+func (_ Unimplemented) UpdateModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -179,6 +354,305 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListModelProviders operation middleware
+func (siw *ServerInterfaceWrapper) ListModelProviders(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListModelProviders(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateModelProvider operation middleware
+func (siw *ServerInterfaceWrapper) CreateModelProvider(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateModelProvider(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ValidateModelProvider operation middleware
+func (siw *ServerInterfaceWrapper) ValidateModelProvider(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ValidateModelProvider(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteModelProvider operation middleware
+func (siw *ServerInterfaceWrapper) DeleteModelProvider(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteModelProvider(w, r, teamId, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetModelProvider operation middleware
+func (siw *ServerInterfaceWrapper) GetModelProvider(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetModelProvider(w, r, teamId, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateModelProvider operation middleware
+func (siw *ServerInterfaceWrapper) UpdateModelProvider(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateModelProvider(w, r, teamId, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListModelProvidersSettings operation middleware
+func (siw *ServerInterfaceWrapper) ListModelProvidersSettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListModelProvidersSettings(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateModelProviderSettings operation middleware
+func (siw *ServerInterfaceWrapper) CreateModelProviderSettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateModelProviderSettings(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // CopyModelProviderFromTeam operation middleware
 func (siw *ServerInterfaceWrapper) CopyModelProviderFromTeam(w http.ResponseWriter, r *http.Request) {
@@ -205,6 +679,169 @@ func (siw *ServerInterfaceWrapper) CopyModelProviderFromTeam(w http.ResponseWrit
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CopyModelProviderFromTeam(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ValidateModelProviderSettings operation middleware
+func (siw *ServerInterfaceWrapper) ValidateModelProviderSettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ValidateModelProviderSettings(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteModelProviderSettings operation middleware
+func (siw *ServerInterfaceWrapper) DeleteModelProviderSettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteModelProviderSettings(w, r, teamId, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetModelProviderSettings operation middleware
+func (siw *ServerInterfaceWrapper) GetModelProviderSettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetModelProviderSettings(w, r, teamId, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateModelProviderSettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateModelProviderSettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateModelProviderSettings(w, r, teamId, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -328,10 +965,657 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/{team_id}/model-providers", wrapper.ListModelProviders)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/{team_id}/model-providers", wrapper.CreateModelProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/{team_id}/model-providers/validate", wrapper.ValidateModelProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/{team_id}/model-providers/{id}", wrapper.DeleteModelProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/{team_id}/model-providers/{id}", wrapper.GetModelProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/{team_id}/model-providers/{id}", wrapper.UpdateModelProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/{team_id}/settings/model-providers", wrapper.ListModelProvidersSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/{team_id}/settings/model-providers", wrapper.CreateModelProviderSettings)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/{team_id}/settings/model-providers/copy", wrapper.CopyModelProviderFromTeam)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/{team_id}/settings/model-providers/validate", wrapper.ValidateModelProviderSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/{team_id}/settings/model-providers/{id}", wrapper.DeleteModelProviderSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/{team_id}/settings/model-providers/{id}", wrapper.GetModelProviderSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/{team_id}/settings/model-providers/{id}", wrapper.UpdateModelProviderSettings)
 	})
 
 	return r
+}
+
+type ListModelProvidersRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+}
+
+type ListModelProvidersResponseObject interface {
+	VisitListModelProvidersResponse(w http.ResponseWriter) error
+}
+
+type ListModelProviders200JSONResponse ModelProviderResponseList
+
+func (response ListModelProviders200JSONResponse) VisitListModelProvidersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListModelProviders401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListModelProviders401ApplicationProblemPlusJSONResponse) VisitListModelProvidersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListModelProviders500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListModelProviders500ApplicationProblemPlusJSONResponse) VisitListModelProvidersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateModelProviderRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Body   *CreateModelProviderJSONRequestBody
+}
+
+type CreateModelProviderResponseObject interface {
+	VisitCreateModelProviderResponse(w http.ResponseWriter) error
+}
+
+type CreateModelProvider200JSONResponse ModelProviderResponse
+
+func (response CreateModelProvider200JSONResponse) VisitCreateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateModelProvider400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateModelProvider400ApplicationProblemPlusJSONResponse) VisitCreateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateModelProvider401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateModelProvider401ApplicationProblemPlusJSONResponse) VisitCreateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateModelProvider403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateModelProvider403ApplicationProblemPlusJSONResponse) VisitCreateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateModelProvider409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateModelProvider409ApplicationProblemPlusJSONResponse) VisitCreateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateModelProvider500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateModelProvider500ApplicationProblemPlusJSONResponse) VisitCreateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ValidateModelProviderRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Body   *ValidateModelProviderJSONRequestBody
+}
+
+type ValidateModelProviderResponseObject interface {
+	VisitValidateModelProviderResponse(w http.ResponseWriter) error
+}
+
+type ValidateModelProvider200JSONResponse ValidateModelProviderResponse
+
+func (response ValidateModelProvider200JSONResponse) VisitValidateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ValidateModelProvider400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ValidateModelProvider400ApplicationProblemPlusJSONResponse) VisitValidateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ValidateModelProvider401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ValidateModelProvider401ApplicationProblemPlusJSONResponse) VisitValidateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ValidateModelProvider403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ValidateModelProvider403ApplicationProblemPlusJSONResponse) VisitValidateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ValidateModelProvider500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ValidateModelProvider500ApplicationProblemPlusJSONResponse) VisitValidateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteModelProviderRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Id     string             `json:"id"`
+}
+
+type DeleteModelProviderResponseObject interface {
+	VisitDeleteModelProviderResponse(w http.ResponseWriter) error
+}
+
+type DeleteModelProvider204Response struct {
+}
+
+func (response DeleteModelProvider204Response) VisitDeleteModelProviderResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteModelProvider400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteModelProvider400ApplicationProblemPlusJSONResponse) VisitDeleteModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteModelProvider401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteModelProvider401ApplicationProblemPlusJSONResponse) VisitDeleteModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteModelProvider403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteModelProvider403ApplicationProblemPlusJSONResponse) VisitDeleteModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteModelProvider404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteModelProvider404ApplicationProblemPlusJSONResponse) VisitDeleteModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteModelProvider500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteModelProvider500ApplicationProblemPlusJSONResponse) VisitDeleteModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetModelProviderRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Id     string             `json:"id"`
+}
+
+type GetModelProviderResponseObject interface {
+	VisitGetModelProviderResponse(w http.ResponseWriter) error
+}
+
+type GetModelProvider200JSONResponse ModelProviderResponse
+
+func (response GetModelProvider200JSONResponse) VisitGetModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetModelProvider401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetModelProvider401ApplicationProblemPlusJSONResponse) VisitGetModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetModelProvider404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetModelProvider404ApplicationProblemPlusJSONResponse) VisitGetModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetModelProvider500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetModelProvider500ApplicationProblemPlusJSONResponse) VisitGetModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateModelProviderRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Id     string             `json:"id"`
+	Body   *UpdateModelProviderJSONRequestBody
+}
+
+type UpdateModelProviderResponseObject interface {
+	VisitUpdateModelProviderResponse(w http.ResponseWriter) error
+}
+
+type UpdateModelProvider200JSONResponse ModelProviderResponse
+
+func (response UpdateModelProvider200JSONResponse) VisitUpdateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateModelProvider400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateModelProvider400ApplicationProblemPlusJSONResponse) VisitUpdateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateModelProvider401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateModelProvider401ApplicationProblemPlusJSONResponse) VisitUpdateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateModelProvider403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateModelProvider403ApplicationProblemPlusJSONResponse) VisitUpdateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateModelProvider404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateModelProvider404ApplicationProblemPlusJSONResponse) VisitUpdateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateModelProvider500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateModelProvider500ApplicationProblemPlusJSONResponse) VisitUpdateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListModelProvidersSettingsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+}
+
+type ListModelProvidersSettingsResponseObject interface {
+	VisitListModelProvidersSettingsResponse(w http.ResponseWriter) error
+}
+
+type ListModelProvidersSettings200JSONResponse ModelProviderResponseList
+
+func (response ListModelProvidersSettings200JSONResponse) VisitListModelProvidersSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListModelProvidersSettings401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListModelProvidersSettings401ApplicationProblemPlusJSONResponse) VisitListModelProvidersSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListModelProvidersSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListModelProvidersSettings500ApplicationProblemPlusJSONResponse) VisitListModelProvidersSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateModelProviderSettingsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Body   *CreateModelProviderSettingsJSONRequestBody
+}
+
+type CreateModelProviderSettingsResponseObject interface {
+	VisitCreateModelProviderSettingsResponse(w http.ResponseWriter) error
+}
+
+type CreateModelProviderSettings200JSONResponse ModelProviderResponse
+
+func (response CreateModelProviderSettings200JSONResponse) VisitCreateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateModelProviderSettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateModelProviderSettings400ApplicationProblemPlusJSONResponse) VisitCreateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateModelProviderSettings401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateModelProviderSettings401ApplicationProblemPlusJSONResponse) VisitCreateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateModelProviderSettings403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateModelProviderSettings403ApplicationProblemPlusJSONResponse) VisitCreateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateModelProviderSettings409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateModelProviderSettings409ApplicationProblemPlusJSONResponse) VisitCreateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateModelProviderSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateModelProviderSettings500ApplicationProblemPlusJSONResponse) VisitCreateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type CopyModelProviderFromTeamRequestObject struct {
@@ -441,11 +1725,372 @@ func (response CopyModelProviderFromTeam500ApplicationProblemPlusJSONResponse) V
 	return err
 }
 
+type ValidateModelProviderSettingsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Body   *ValidateModelProviderSettingsJSONRequestBody
+}
+
+type ValidateModelProviderSettingsResponseObject interface {
+	VisitValidateModelProviderSettingsResponse(w http.ResponseWriter) error
+}
+
+type ValidateModelProviderSettings200JSONResponse ValidateModelProviderResponse
+
+func (response ValidateModelProviderSettings200JSONResponse) VisitValidateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ValidateModelProviderSettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ValidateModelProviderSettings400ApplicationProblemPlusJSONResponse) VisitValidateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ValidateModelProviderSettings401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ValidateModelProviderSettings401ApplicationProblemPlusJSONResponse) VisitValidateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ValidateModelProviderSettings403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ValidateModelProviderSettings403ApplicationProblemPlusJSONResponse) VisitValidateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ValidateModelProviderSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ValidateModelProviderSettings500ApplicationProblemPlusJSONResponse) VisitValidateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteModelProviderSettingsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Id     string             `json:"id"`
+}
+
+type DeleteModelProviderSettingsResponseObject interface {
+	VisitDeleteModelProviderSettingsResponse(w http.ResponseWriter) error
+}
+
+type DeleteModelProviderSettings204Response struct {
+}
+
+func (response DeleteModelProviderSettings204Response) VisitDeleteModelProviderSettingsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteModelProviderSettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteModelProviderSettings400ApplicationProblemPlusJSONResponse) VisitDeleteModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteModelProviderSettings401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteModelProviderSettings401ApplicationProblemPlusJSONResponse) VisitDeleteModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteModelProviderSettings403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteModelProviderSettings403ApplicationProblemPlusJSONResponse) VisitDeleteModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteModelProviderSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteModelProviderSettings404ApplicationProblemPlusJSONResponse) VisitDeleteModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteModelProviderSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteModelProviderSettings500ApplicationProblemPlusJSONResponse) VisitDeleteModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetModelProviderSettingsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Id     string             `json:"id"`
+}
+
+type GetModelProviderSettingsResponseObject interface {
+	VisitGetModelProviderSettingsResponse(w http.ResponseWriter) error
+}
+
+type GetModelProviderSettings200JSONResponse ModelProviderResponse
+
+func (response GetModelProviderSettings200JSONResponse) VisitGetModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetModelProviderSettings401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetModelProviderSettings401ApplicationProblemPlusJSONResponse) VisitGetModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetModelProviderSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetModelProviderSettings404ApplicationProblemPlusJSONResponse) VisitGetModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetModelProviderSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetModelProviderSettings500ApplicationProblemPlusJSONResponse) VisitGetModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateModelProviderSettingsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Id     string             `json:"id"`
+	Body   *UpdateModelProviderSettingsJSONRequestBody
+}
+
+type UpdateModelProviderSettingsResponseObject interface {
+	VisitUpdateModelProviderSettingsResponse(w http.ResponseWriter) error
+}
+
+type UpdateModelProviderSettings200JSONResponse ModelProviderResponse
+
+func (response UpdateModelProviderSettings200JSONResponse) VisitUpdateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateModelProviderSettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateModelProviderSettings400ApplicationProblemPlusJSONResponse) VisitUpdateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateModelProviderSettings401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateModelProviderSettings401ApplicationProblemPlusJSONResponse) VisitUpdateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateModelProviderSettings403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateModelProviderSettings403ApplicationProblemPlusJSONResponse) VisitUpdateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateModelProviderSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateModelProviderSettings404ApplicationProblemPlusJSONResponse) VisitUpdateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateModelProviderSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateModelProviderSettings500ApplicationProblemPlusJSONResponse) VisitUpdateModelProviderSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// List model providers
+	// (GET /api/v1/{team_id}/model-providers)
+	ListModelProviders(ctx context.Context, request ListModelProvidersRequestObject) (ListModelProvidersResponseObject, error)
+	// Create model provider
+	// (POST /api/v1/{team_id}/model-providers)
+	CreateModelProvider(ctx context.Context, request CreateModelProviderRequestObject) (CreateModelProviderResponseObject, error)
+	// Validate model provider configuration
+	// (POST /api/v1/{team_id}/model-providers/validate)
+	ValidateModelProvider(ctx context.Context, request ValidateModelProviderRequestObject) (ValidateModelProviderResponseObject, error)
+	// Delete model provider
+	// (DELETE /api/v1/{team_id}/model-providers/{id})
+	DeleteModelProvider(ctx context.Context, request DeleteModelProviderRequestObject) (DeleteModelProviderResponseObject, error)
+	// Get model provider
+	// (GET /api/v1/{team_id}/model-providers/{id})
+	GetModelProvider(ctx context.Context, request GetModelProviderRequestObject) (GetModelProviderResponseObject, error)
+	// Update model provider
+	// (PUT /api/v1/{team_id}/model-providers/{id})
+	UpdateModelProvider(ctx context.Context, request UpdateModelProviderRequestObject) (UpdateModelProviderResponseObject, error)
+	// List model providers
+	// (GET /api/v1/{team_id}/settings/model-providers)
+	ListModelProvidersSettings(ctx context.Context, request ListModelProvidersSettingsRequestObject) (ListModelProvidersSettingsResponseObject, error)
+	// Create model provider
+	// (POST /api/v1/{team_id}/settings/model-providers)
+	CreateModelProviderSettings(ctx context.Context, request CreateModelProviderSettingsRequestObject) (CreateModelProviderSettingsResponseObject, error)
 	// Copy a model provider from another team into this team
 	// (POST /api/v1/{team_id}/settings/model-providers/copy)
 	CopyModelProviderFromTeam(ctx context.Context, request CopyModelProviderFromTeamRequestObject) (CopyModelProviderFromTeamResponseObject, error)
+	// Validate model provider configuration
+	// (POST /api/v1/{team_id}/settings/model-providers/validate)
+	ValidateModelProviderSettings(ctx context.Context, request ValidateModelProviderSettingsRequestObject) (ValidateModelProviderSettingsResponseObject, error)
+	// Delete model provider
+	// (DELETE /api/v1/{team_id}/settings/model-providers/{id})
+	DeleteModelProviderSettings(ctx context.Context, request DeleteModelProviderSettingsRequestObject) (DeleteModelProviderSettingsResponseObject, error)
+	// Get model provider
+	// (GET /api/v1/{team_id}/settings/model-providers/{id})
+	GetModelProviderSettings(ctx context.Context, request GetModelProviderSettingsRequestObject) (GetModelProviderSettingsResponseObject, error)
+	// Update model provider
+	// (PUT /api/v1/{team_id}/settings/model-providers/{id})
+	UpdateModelProviderSettings(ctx context.Context, request UpdateModelProviderSettingsRequestObject) (UpdateModelProviderSettingsResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -477,6 +2122,245 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// ListModelProviders operation middleware
+func (sh *strictHandler) ListModelProviders(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request ListModelProvidersRequestObject
+
+	request.TeamId = teamId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListModelProviders(ctx, request.(ListModelProvidersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListModelProviders")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListModelProvidersResponseObject); ok {
+		if err := validResponse.VisitListModelProvidersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateModelProvider operation middleware
+func (sh *strictHandler) CreateModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request CreateModelProviderRequestObject
+
+	request.TeamId = teamId
+
+	var body CreateModelProviderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateModelProvider(ctx, request.(CreateModelProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateModelProvider")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateModelProviderResponseObject); ok {
+		if err := validResponse.VisitCreateModelProviderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ValidateModelProvider operation middleware
+func (sh *strictHandler) ValidateModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request ValidateModelProviderRequestObject
+
+	request.TeamId = teamId
+
+	var body ValidateModelProviderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ValidateModelProvider(ctx, request.(ValidateModelProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ValidateModelProvider")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ValidateModelProviderResponseObject); ok {
+		if err := validResponse.VisitValidateModelProviderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteModelProvider operation middleware
+func (sh *strictHandler) DeleteModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
+	var request DeleteModelProviderRequestObject
+
+	request.TeamId = teamId
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteModelProvider(ctx, request.(DeleteModelProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteModelProvider")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteModelProviderResponseObject); ok {
+		if err := validResponse.VisitDeleteModelProviderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetModelProvider operation middleware
+func (sh *strictHandler) GetModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
+	var request GetModelProviderRequestObject
+
+	request.TeamId = teamId
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetModelProvider(ctx, request.(GetModelProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetModelProvider")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetModelProviderResponseObject); ok {
+		if err := validResponse.VisitGetModelProviderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateModelProvider operation middleware
+func (sh *strictHandler) UpdateModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
+	var request UpdateModelProviderRequestObject
+
+	request.TeamId = teamId
+	request.Id = id
+
+	var body UpdateModelProviderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateModelProvider(ctx, request.(UpdateModelProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateModelProvider")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateModelProviderResponseObject); ok {
+		if err := validResponse.VisitUpdateModelProviderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListModelProvidersSettings operation middleware
+func (sh *strictHandler) ListModelProvidersSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request ListModelProvidersSettingsRequestObject
+
+	request.TeamId = teamId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListModelProvidersSettings(ctx, request.(ListModelProvidersSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListModelProvidersSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListModelProvidersSettingsResponseObject); ok {
+		if err := validResponse.VisitListModelProvidersSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateModelProviderSettings operation middleware
+func (sh *strictHandler) CreateModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request CreateModelProviderSettingsRequestObject
+
+	request.TeamId = teamId
+
+	var body CreateModelProviderSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateModelProviderSettings(ctx, request.(CreateModelProviderSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateModelProviderSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateModelProviderSettingsResponseObject); ok {
+		if err := validResponse.VisitCreateModelProviderSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // CopyModelProviderFromTeam operation middleware
 func (sh *strictHandler) CopyModelProviderFromTeam(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
 	var request CopyModelProviderFromTeamRequestObject
@@ -503,6 +2387,127 @@ func (sh *strictHandler) CopyModelProviderFromTeam(w http.ResponseWriter, r *htt
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CopyModelProviderFromTeamResponseObject); ok {
 		if err := validResponse.VisitCopyModelProviderFromTeamResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ValidateModelProviderSettings operation middleware
+func (sh *strictHandler) ValidateModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request ValidateModelProviderSettingsRequestObject
+
+	request.TeamId = teamId
+
+	var body ValidateModelProviderSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ValidateModelProviderSettings(ctx, request.(ValidateModelProviderSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ValidateModelProviderSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ValidateModelProviderSettingsResponseObject); ok {
+		if err := validResponse.VisitValidateModelProviderSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteModelProviderSettings operation middleware
+func (sh *strictHandler) DeleteModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
+	var request DeleteModelProviderSettingsRequestObject
+
+	request.TeamId = teamId
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteModelProviderSettings(ctx, request.(DeleteModelProviderSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteModelProviderSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteModelProviderSettingsResponseObject); ok {
+		if err := validResponse.VisitDeleteModelProviderSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetModelProviderSettings operation middleware
+func (sh *strictHandler) GetModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
+	var request GetModelProviderSettingsRequestObject
+
+	request.TeamId = teamId
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetModelProviderSettings(ctx, request.(GetModelProviderSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetModelProviderSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetModelProviderSettingsResponseObject); ok {
+		if err := validResponse.VisitGetModelProviderSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateModelProviderSettings operation middleware
+func (sh *strictHandler) UpdateModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
+	var request UpdateModelProviderSettingsRequestObject
+
+	request.TeamId = teamId
+	request.Id = id
+
+	var body UpdateModelProviderSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateModelProviderSettings(ctx, request.(UpdateModelProviderSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateModelProviderSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateModelProviderSettingsResponseObject); ok {
+		if err := validResponse.VisitUpdateModelProviderSettingsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
