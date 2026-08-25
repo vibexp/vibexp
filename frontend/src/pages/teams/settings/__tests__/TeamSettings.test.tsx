@@ -1,20 +1,31 @@
 import { render, screen } from '@testing-library/react'
-import { Shapes, SlidersHorizontal } from 'lucide-react'
+import { History, Shapes, SlidersHorizontal } from 'lucide-react'
 import { MemoryRouter } from 'react-router'
 
-import type { SettingItem } from '@/components/settings/SettingsGrid'
 import type { Team } from '@/services/teamService'
+
+import type { TeamSettingsCard } from '../team-settings-cards'
 
 // Drives the card list per test. The real builder returns [] until #540/#541
 // relocate pages here, so mocking it is the only way to execute the grid path
 // the acceptance criteria describe ("renders the hub using the shared grid").
-const cards: { items: SettingItem[] } = { items: [] }
+const cards: { items: TeamSettingsCard[] } = { items: [] }
 vi.mock('@/pages/teams/settings/team-settings-cards', () => ({
   teamSettingsCardsFor: (teamId: string) =>
     cards.items.map(item => ({
       ...item,
       href: item.href.replace(':id', teamId),
     })),
+}))
+
+// `usePermissions` is deliberately NOT mocked — the hub's card filter is
+// exercised through the real hook against each fixture's `permissions` array.
+// The hook reads `useTeam` and `useAuth`, so both contexts need stubbing.
+vi.mock('@/contexts/TeamContext', () => ({
+  useTeam: () => ({ currentTeam: null, teams: [] }),
+}))
+vi.mock('@/contexts/useAuth', () => ({
+  useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
 import { TeamSettings } from '../TeamSettings'
@@ -31,10 +42,10 @@ const team: Team = {
   updated_at: '2024-01-01T00:00:00Z',
 }
 
-function renderHub() {
+function renderHub(hubTeam: Team = team) {
   return render(
     <MemoryRouter>
-      <TeamSettings team={team} />
+      <TeamSettings team={hubTeam} />
     </MemoryRouter>
   )
 }
@@ -109,5 +120,43 @@ describe('TeamSettings', () => {
     expect(
       screen.getByText('Choose how search results are ranked.')
     ).toBeInTheDocument()
+  })
+
+  // #836: the Audit card is owner/admin-only, matching the endpoint's own
+  // `team.settings.update` gate. The filter keys on the team passed IN, not the
+  // ambient one, so a member deep-linking to a team they own still sees it.
+  describe('permission-gated cards (#836)', () => {
+    const gatedCards: TeamSettingsCard[] = [
+      {
+        title: 'Search Settings',
+        description: 'Choose how search results are ranked.',
+        icon: SlidersHorizontal,
+        href: '/teams/:id/settings/search',
+      },
+      {
+        title: 'Audit',
+        description: 'See what configuration was copied in, and by whom.',
+        icon: History,
+        href: '/teams/:id/settings/audit',
+        permission: 'team.settings.update',
+      },
+    ]
+
+    it('hides a card the team does not grant the permission for', () => {
+      cards.items = gatedCards
+
+      renderHub({ ...team, permissions: [] })
+
+      expect(screen.getByText('Search Settings')).toBeInTheDocument()
+      expect(screen.queryByText('Audit')).not.toBeInTheDocument()
+    })
+
+    it('shows it once the team grants that permission', () => {
+      cards.items = gatedCards
+
+      renderHub({ ...team, permissions: ['team.settings.update'] })
+
+      expect(screen.getByText('Audit')).toBeInTheDocument()
+    })
   })
 })

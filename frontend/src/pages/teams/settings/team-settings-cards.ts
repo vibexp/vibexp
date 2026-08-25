@@ -1,7 +1,28 @@
-import { Bot, Cpu, Mail, Shapes, SlidersHorizontal, Timer } from 'lucide-react'
+import {
+  Bot,
+  Cpu,
+  History,
+  Mail,
+  Shapes,
+  SlidersHorizontal,
+  Timer,
+} from 'lucide-react'
 
 import { GitHubIcon } from '@/components/icons/GitHubIcon'
 import type { SettingItem } from '@/components/settings/SettingsGrid'
+import type { TeamPermission } from '@/hooks/usePermissions'
+
+/**
+ * A hub card, plus the permission the card's page requires.
+ *
+ * `SettingItem` itself stays permission-free: it is shared with the personal
+ * settings hub (#537), which has no team to gate against. Cards without a
+ * `permission` are shown to every member, which is every card the relocation
+ * (#540) brought over — their pages fail closed on their own writes.
+ */
+export interface TeamSettingsCard extends SettingItem {
+  permission?: TeamPermission
+}
 
 /**
  * The cards shown on the team settings hub, for one team (#539, populated #540).
@@ -17,7 +38,7 @@ import type { SettingItem } from '@/components/settings/SettingsGrid'
  *
  * #543 removes the corresponding cards from the personal hub.
  */
-export function teamSettingsCardsFor(teamId: string): SettingItem[] {
+export function teamSettingsCardsFor(teamId: string): TeamSettingsCard[] {
   const base = `/teams/${teamId}/settings`
   return [
     {
@@ -63,6 +84,18 @@ export function teamSettingsCardsFor(teamId: string): SettingItem[] {
       description: 'Create and manage custom categories for your artifacts.',
       icon: Shapes,
       href: `${base}/customization`,
+    },
+    {
+      // The compensating control for cross-team copy (epic #827): configuration
+      // can arrive from outside the team, so its owners need to see what came
+      // in and who brought it. Owner/admin only, matching the endpoint's own
+      // `team.settings.update` gate (#832) — the hub hides the card, and the
+      // page repeats the check for anyone deep-linking straight to it.
+      title: 'Audit',
+      description: 'See what configuration was copied in, and by whom.',
+      icon: History,
+      href: `${base}/audit`,
+      permission: 'team.settings.update',
     },
   ]
 }
