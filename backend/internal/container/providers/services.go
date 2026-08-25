@@ -541,15 +541,20 @@ func ProvideTeamSearchSettingsService(
 	return services.NewTeamSearchSettingsService(repo, authzService, cfg.Search, logger)
 }
 
-// ProvideTeamSettingsAuditService creates the write path for the team settings
-// audit log (epic #827). It takes no authorization service on purpose: entries
-// are written from inside an already-authorized cross-team copy, and the read
-// path (#832) is where a permission check belongs.
+// ProvideTeamSettingsAuditService creates the team settings audit log service
+// (epic #827). The authorization service is used by the READ path only (#832,
+// authz.TeamSettingsUpdate): entries are WRITTEN from inside an
+// already-authorized cross-team copy, which re-checking could only re-derive.
+// The two name repositories back the read path's batched actor and source-team
+// display-name resolution.
 func ProvideTeamSettingsAuditService(
 	repo repositories.TeamSettingsAuditRepository,
+	authzService services.AuthorizationServiceInterface,
+	users repositories.UserRepository,
+	teams repositories.TeamRepository,
 	logger *slog.Logger,
 ) services.TeamSettingsAuditServiceInterface {
-	return services.NewTeamSettingsAuditService(repo, logger)
+	return services.NewTeamSettingsAuditService(repo, authzService, users, teams, logger)
 }
 
 // ProvideSearchSettingsResolver creates the per-team ranking resolver. The

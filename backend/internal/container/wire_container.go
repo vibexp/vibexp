@@ -84,6 +84,7 @@ type WireContainer struct {
 	teamEmailProviderService  services.TeamEmailProviderServiceInterface
 	emailSenderResolver       services.EmailSenderResolver
 	teamSearchSettingsService services.TeamSearchSettingsServiceInterface
+	teamSettingsAuditService  services.TeamSettingsAuditServiceInterface
 	freshnessService          services.FreshnessServiceInterface
 	metadataCatalogService    services.MetadataCatalogServiceInterface
 	environmentService        *services.EnvironmentService
@@ -366,6 +367,11 @@ func (c *WireContainer) EmailSenderResolver() services.EmailSenderResolver {
 
 func (c *WireContainer) TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface {
 	return c.teamSearchSettingsService
+}
+
+// TeamSettingsAuditService returns the team settings copy audit log service.
+func (c *WireContainer) TeamSettingsAuditService() services.TeamSettingsAuditServiceInterface {
+	return c.teamSettingsAuditService
 }
 
 // FreshnessService returns the freshness rules + settings service.

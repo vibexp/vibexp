@@ -38,6 +38,15 @@ func (r *recordingAuditService) Record(
 	return &models.TeamSettingsAudit{TeamID: record.TeamID, Surface: record.Surface}, nil
 }
 
+// ListAudit satisfies the read half of the interface. Every user of this double
+// is a COPY test exercising the write path, so a call here means a copy service
+// grew a read it should not have — fail loudly rather than return an empty page.
+func (r *recordingAuditService) ListAudit(
+	_ context.Context, _, _ string, _, _ int,
+) (*models.TeamSettingsAuditPage, error) {
+	panic("recordingAuditService: unexpected ListAudit call from a copy service")
+}
+
 // denyTeamsAuthz denies membership for the named teams and allows every other,
 // so a test can refuse exactly one side of a copy.
 type denyTeamsAuthz struct {

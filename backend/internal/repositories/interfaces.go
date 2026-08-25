@@ -357,6 +357,10 @@ type TeamRepository interface {
 	GetByID(ctx context.Context, teamID string) (*models.Team, error)
 	GetByOwnerID(ctx context.Context, ownerID string) (*models.Team, error)
 	GetByOwnerAndSlug(ctx context.Context, ownerID, slug string) (*models.Team, error)
+	// GetNamesByIDs returns a map of teamID → team name for the given IDs.
+	// Unknown IDs are silently omitted, which is how a caller learns a team has
+	// been deleted. Not membership-filtered — see the implementation's doc.
+	GetNamesByIDs(ctx context.Context, ids []string) (map[string]string, error)
 	Update(ctx context.Context, team *models.Team) error
 	// TransferOwnership moves team ownership from fromUserID to toUserID,
 	// updating teams.owner_id and both team_members.role rows in ONE

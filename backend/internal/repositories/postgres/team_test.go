@@ -1169,3 +1169,97 @@ func TestTeamRepository_SearchTeams(t *testing.T) {
 		assert.Nil(t, results)
 	})
 }
+
+// TestTeamRepository_GetNamesByIDs pins the batched source-team name lookup the
+// settings audit read path (#832) uses. sqlmock pins the SQL shape and the
+// argument list; that unknown ids are simply absent from the map — the deleted
+// source team the audit log is designed to outlive — is proved here and again
+// against real Postgres in TestIntegrationTeam_GetNamesByIDs.
+func TestTeamRepository_GetNamesByIDs(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("empty ids short-circuits without querying", func(t *testing.T) {
+		repo, mock, mockDB := setupTeamTest(t)
+		defer closeMockDB(t, mockDB)
+
+		got, err := repo.GetNamesByIDs(ctx, nil)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{}, got)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("returns id to name map", func(t *testing.T) {
+		repo, mock, mockDB := setupTeamTest(t)
+		defer closeMockDB(t, mockDB)
+
+		mock.ExpectQuery(`SELECT id, name FROM teams WHERE id IN \(\$1, \$2\)`).
+			WithArgs("team-1", "team-2").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).
+				AddRow("team-1", "Platform").AddRow("team-2", "Research"))
+
+		got, err := repo.GetNamesByIDs(ctx, []string{"team-1", "team-2"})
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"team-1": "Platform", "team-2": "Research"}, got)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("an id with no row is omitted rather than erroring", func(t *testing.T) {
+		repo, mock, mockDB := setupTeamTest(t)
+		defer closeMockDB(t, mockDB)
+
+		mock.ExpectQuery(`SELECT id, name FROM teams WHERE id IN \(\$1, \$2\)`).
+			WithArgs("team-1", "deleted-team").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).
+				AddRow("team-1", "Platform"))
+
+		got, err := repo.GetNamesByIDs(ctx, []string{"team-1", "deleted-team"})
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"team-1": "Platform"}, got)
+		assert.NotContains(t, got, "deleted-team")
+	})
+
+	t.Run("query error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := setupTeamTest(t)
+		defer closeMockDB(t, mockDB)
+
+		mock.ExpectQuery(`SELECT id, name FROM teams WHERE id IN \(\$1\)`).
+			WithArgs("team-1").
+			WillReturnError(sql.ErrConnDone)
+
+		got, err := repo.GetNamesByIDs(ctx, []string{"team-1"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "get team names by ids")
+		assert.Nil(t, got)
+	})
+
+	t.Run("scan error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := setupTeamTest(t)
+		defer closeMockDB(t, mockDB)
+
+		mock.ExpectQuery(`SELECT id, name FROM teams WHERE id IN \(\$1\)`).
+			WithArgs("team-1").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "extra"}).
+				AddRow("team-1", "Platform", "unexpected"))
+
+		got, err := repo.GetNamesByIDs(ctx, []string{"team-1"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "scan team name row")
+		assert.Nil(t, got)
+	})
+
+	t.Run("row iteration error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := setupTeamTest(t)
+		defer closeMockDB(t, mockDB)
+
+		mock.ExpectQuery(`SELECT id, name FROM teams WHERE id IN \(\$1\)`).
+			WithArgs("team-1").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).
+				AddRow("team-1", "Platform").
+				RowError(0, sql.ErrConnDone))
+
+		got, err := repo.GetNamesByIDs(ctx, []string{"team-1"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "iterate team name rows")
+		assert.Nil(t, got)
+	})
+}
