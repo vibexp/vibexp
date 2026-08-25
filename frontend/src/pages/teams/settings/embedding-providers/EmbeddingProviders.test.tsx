@@ -435,6 +435,44 @@ describe('copy from another team (#835)', () => {
     expect(screen.getByTestId('confirm-copy-from-team-button')).toBeDisabled()
   })
 
+  it('says so, and stays unconfirmable, when the source team has no providers', async () => {
+    const user = userEvent.setup()
+    service.getEmbeddingProviders.mockImplementation((id: string) =>
+      Promise.resolve(id === 'team-2' ? [] : [provider])
+    )
+    renderPage()
+    await screen.findByText('OpenAI')
+
+    await user.click(screen.getByTestId('copy-embedding-provider-button'))
+    await user.click(await screen.findByTestId('source-team-picker'))
+    await user.click(await screen.findByText('Platform Team'))
+
+    expect(await screen.findByTestId('copy-preview')).toHaveTextContent(
+      'no embedding providers to copy'
+    )
+    expect(screen.getByTestId('confirm-copy-from-team-button')).toBeDisabled()
+  })
+
+  it('surfaces a retryable message when the source team’s providers fail to load', async () => {
+    const user = userEvent.setup()
+    service.getEmbeddingProviders.mockImplementation((id: string) =>
+      id === 'team-2'
+        ? Promise.reject(new Error('boom'))
+        : Promise.resolve([provider])
+    )
+    renderPage()
+    await screen.findByText('OpenAI')
+
+    await user.click(screen.getByTestId('copy-embedding-provider-button'))
+    await user.click(await screen.findByTestId('source-team-picker'))
+    await user.click(await screen.findByText('Platform Team'))
+
+    expect(await screen.findByTestId('copy-preview')).toHaveTextContent(
+      'Pick the team again to retry'
+    )
+    expect(screen.getByTestId('confirm-copy-from-team-button')).toBeDisabled()
+  })
+
   it('pre-fills every non-secret field, never probes the provider, and posts the copy', async () => {
     const user = userEvent.setup()
     renderPage()

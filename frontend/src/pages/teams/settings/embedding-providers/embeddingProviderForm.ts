@@ -2,6 +2,12 @@ import { z } from 'zod'
 
 import type { EmbeddingProviderResponse } from '@/services/embeddingProviderService'
 
+// Server-side defaults for a provider's chunk sizing. The create/edit paths do
+// not expose these fields and never send them, so the form only needs values
+// that satisfy the schema; the copy path overwrites both from the source row.
+export const DEFAULT_CHUNK_SIZE = 1000
+export const DEFAULT_CHUNK_OVERLAP = 200
+
 export const schema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(255),
   provider_type: z.string().min(1, 'Provider type is required'),

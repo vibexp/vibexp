@@ -44,6 +44,8 @@ import type {
   EmbeddingProviderFormValues,
 } from '@/pages/teams/settings/embedding-providers/embeddingProviderForm'
 import {
+  DEFAULT_CHUNK_OVERLAP,
+  DEFAULT_CHUNK_SIZE,
   identityChanged,
   reembedWillTrigger,
   schema,
@@ -344,8 +346,8 @@ export function EmbeddingProviderDialog({
       query_prefix: '',
       document_prefix: '',
       is_default: false,
-      chunk_size: 1000,
-      chunk_overlap: 200,
+      chunk_size: DEFAULT_CHUNK_SIZE,
+      chunk_overlap: DEFAULT_CHUNK_OVERLAP,
       reprocess: false,
     },
   })
@@ -371,8 +373,15 @@ export function EmbeddingProviderDialog({
         query_prefix: prefill.query_prefix ?? '',
         document_prefix: prefill.document_prefix ?? '',
         is_default: copySource ? false : prefill.is_default,
-        chunk_size: prefill.chunk_size,
-        chunk_overlap: prefill.chunk_overlap,
+        // Chunk sizing is a COPY-path field: only there is it rendered (so a
+        // schema violation surfaces as a FormMessage) and only there is it sent.
+        // Seeding it from the row on the edit path would let an out-of-range
+        // stored value fail validation with no field on screen to show the
+        // error — a submit that silently does nothing. Defaults instead.
+        chunk_size: copySource ? prefill.chunk_size : DEFAULT_CHUNK_SIZE,
+        chunk_overlap: copySource
+          ? prefill.chunk_overlap
+          : DEFAULT_CHUNK_OVERLAP,
         reprocess: false,
       })
     }
