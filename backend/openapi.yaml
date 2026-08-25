@@ -265,6 +265,12 @@ components:
       $ref: "./schemas/embedding-providers.yaml#/EmbeddingCoverageResponse"
     ClearEmbeddingsResponse:
       $ref: "./schemas/embedding-providers.yaml#/ClearEmbeddingsResponse"
+    CopyEmbeddingProviderRequest:
+      $ref: "./schemas/embedding-providers.yaml#/CopyEmbeddingProviderRequest"
+    EmbeddingProviderCopyActivation:
+      $ref: "./schemas/embedding-providers.yaml#/EmbeddingProviderCopyActivation"
+    CopyEmbeddingProviderResponse:
+      $ref: "./schemas/embedding-providers.yaml#/CopyEmbeddingProviderResponse"
 
     # Import model provider schemas
     ModelProvider:
@@ -1226,6 +1232,8 @@ paths:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-validate"
   /api/v1/{team_id}/settings/embedding-providers/embeddings:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-embeddings"
+  /api/v1/{team_id}/settings/embedding-providers/copy:
+    $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-copy"
   /api/v1/{team_id}/integrations/github/app:
     $ref: "./paths/github-app-config.yaml#/api-v1-github-app"
   /api/v1/{team_id}/integrations/github/app/validate:

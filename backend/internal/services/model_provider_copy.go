@@ -5,34 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
-
-// copyNameSuffix is appended to a source provider's name when the destination
-// team already holds it: " (copy)", then " (copy 2)", " (copy 3)", …
-const copyNameSuffix = "copy"
-
-// copyNameMaxAttempts bounds the disambiguation loop. The candidates come from
-// a snapshot of the destination's names, so the loop is finite by construction;
-// the bound only stops a pathological team (hundreds of literal "X (copy N)"
-// rows) from spinning, and failing loudly beats inventing "X (copy 741)".
-const copyNameMaxAttempts = 100
-
-// modelProviderNameMaxLen mirrors model_providers.name — varchar(255). A
-// suffix pushing past it would be truncated by Postgres into a name that no
-// longer matches what the collision check cleared, so the BASE is trimmed
-// instead and the suffix always survives intact.
-//
-// Postgres counts varchar(n) in CHARACTERS, not bytes, so the trimming below
-// works in runes: measuring in bytes would both over-trim a non-ASCII name and,
-// worse, cut mid-rune into invalid UTF-8 that Postgres rejects outright.
-const modelProviderNameMaxLen = 255
 
 // CopyFromTeam copies one provider out of another team into this one (#830,
 // epic #827).
@@ -123,60 +101,30 @@ func (mps *ModelProviderService) CopyFromTeam(
 	return provider, nil
 }
 
-// resolveCopyName decides what the copy is called.
-//
-// A caller-supplied name wins outright and is used verbatim — the caller has
-// seen the destination's providers and made a choice, so silently renaming it
-// would be worse than the 409 a collision earns. Only a name INHERITED from the
-// source is disambiguated, because the caller never chose it.
+// resolveCopyName decides what the copy is called, delegating the naming rule
+// itself to the shared resolveCopyName in cross_team_copy.go so the two provider
+// surfaces number and trim identically.
 func (mps *ModelProviderService) resolveCopyName(
 	ctx context.Context, params CopyModelProviderParams, sourceName string,
 ) (string, error) {
-	if params.Name != nil {
-		return *params.Name, nil
-	}
-
-	existing, err := mps.repo.ListNames(ctx, params.TeamID)
-	if err != nil {
-		return "", fmt.Errorf("failed to list the destination team's provider names: %w", err)
-	}
-
-	taken := make(map[string]struct{}, len(existing))
-	for _, name := range existing {
-		taken[name] = struct{}{}
-	}
-
-	if _, clash := taken[sourceName]; !clash {
-		return sourceName, nil
-	}
-
-	for attempt := 1; attempt <= copyNameMaxAttempts; attempt++ {
-		candidate := copyNameCandidate(sourceName, attempt)
-		if _, clash := taken[candidate]; !clash {
-			return candidate, nil
+	var existing []string
+	if params.Name == nil {
+		var err error
+		existing, err = mps.repo.ListNames(ctx, params.TeamID)
+		if err != nil {
+			return "", fmt.Errorf("failed to list the destination team's provider names: %w", err)
 		}
 	}
 
-	return "", fmt.Errorf(
-		"%w: %s (and %d generated variants of it)",
-		ErrModelProviderAlreadyExists, sourceName, copyNameMaxAttempts,
-	)
-}
-
-// copyNameCandidate builds the nth disambiguated name: attempt 1 is
-// "<base> (copy)", attempt 2 "<base> (copy 2)", and so on — the numbering a
-// reader expects, where the unnumbered form IS the first copy.
-func copyNameCandidate(base string, attempt int) string {
-	suffix := " (" + copyNameSuffix + ")"
-	if attempt > 1 {
-		suffix = " (" + copyNameSuffix + " " + strconv.Itoa(attempt) + ")"
+	name, err := resolveCopyName(params.Name, sourceName, existing)
+	if err != nil {
+		if errors.Is(err, ErrCopyNameExhausted) {
+			return "", fmt.Errorf("%w: %s (and %d generated variants of it)",
+				ErrModelProviderAlreadyExists, sourceName, copyNameMaxAttempts)
+		}
+		return "", err
 	}
-
-	runes := []rune(base)
-	if overflow := len(runes) + len([]rune(suffix)) - modelProviderNameMaxLen; overflow > 0 {
-		base = strings.TrimRight(string(runes[:max(len(runes)-overflow, 0)]), " ")
-	}
-	return base + suffix
+	return name, nil
 }
 
 // recordCopy writes the single audit row for this copy. Unlike the custom-types

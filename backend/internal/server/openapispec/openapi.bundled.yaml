@@ -11803,6 +11803,99 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Settings
+  /api/v1/{team_id}/settings/embedding-providers/copy:
+    post:
+      summary: Copy an embedding provider from another team
+      description: |
+        Copies one embedding provider out of another team into this one (#831,
+        epic #827). The destination is `{team_id}`; the source is named in the
+        body.
+
+        The stored API key moves as CIPHERTEXT: the source row's encrypted key is
+        written straight to the new row and is never decrypted, never held in
+        plaintext, and never appears in a request or response body. That is the
+        reason this is a server-side operation at all — keys are write-only over
+        the API, so a client copying a provider by hand cannot bring one with it.
+
+        Authorization requires permission to manage provider settings in BOTH
+        teams. The destination is evaluated first and either denial answers the
+        same 403, so the response never reveals whether the source team exists.
+
+        The copy is always written `is_default: false`, and its chunk sizing,
+        concurrency and instruction prefixes carry over from the source unless
+        overridden. It can nonetheless become the team's ACTIVE provider: the
+        active provider is "the default-flagged one, else the most recently
+        updated one", so a non-default copy takes over whenever the destination
+        has no default set. That verdict — and the model it displaces, with the
+        number of resources still embedded under it — is reported in
+        `activation`, because nothing else in the system reports it: mixing
+        embedding models produces no error, only worse search results.
+
+        Note the `version` caveat on `EmbeddingProvider`: like the create
+        response, this one reports 0 for a row that persists at 1.
+      operationId: copyEmbeddingProviderFromTeam
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Destination team identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopyEmbeddingProviderRequest'
+      responses:
+        '200':
+          description: Provider copied into the destination team
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopyEmbeddingProviderResponse'
+        '400':
+          description: Missing or malformed body, missing/malformed `source_team_id` or `source_provider_id`, source equal to destination (`BAD_REQUEST`), or an override sent empty or over-long (`PROVIDER_VALIDATION_FAILED` with `validation_errors`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller cannot manage provider settings in the destination team or in the source team (`FORBIDDEN`). The two are deliberately indistinguishable, so the response never reveals whether the source team exists.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No such provider in the source team (`PROVIDER_NOT_FOUND`). Only reachable once the caller is authorized on both teams, so it leaks nothing.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The destination team already holds the requested name (`PROVIDER_ALREADY_EXISTS`). Only reachable for a caller-supplied `name`; an inherited one is disambiguated instead.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Copy failed (`INTERNAL_ERROR`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Embedding Providers
   /api/v1/{team_id}/integrations/github/app:
     parameters:
       - name: team_id
@@ -16283,6 +16376,156 @@ components:
           example: 157
       required:
         - deleted_count
+    CopyEmbeddingProviderRequest:
+      type: object
+      description: |
+        Request body for copying one embedding provider out of another team into this one (#831, epic #827). The destination is the `{team_id}` path parameter; only the source is carried here.
+
+        The API key is deliberately absent. Responses expose `has_api_key` and never the key itself, so a client cannot carry the credential across — the server re-reads the source row's stored ciphertext and writes it to the copy untouched, without ever decrypting it.
+
+        Every property other than the two source identifiers and `reprocess` is an OPTIONAL override of the value the source row already holds: omit one to copy the source value verbatim, or send it to change the copy without touching the source. An override that IS sent must be non-empty, the same bar the create path sets.
+
+        The copy is always written non-default. It can still become the team's ACTIVE embedding provider — see `EmbeddingProviderCopyActivation` on the response.
+      properties:
+        source_team_id:
+          type: string
+          format: uuid
+          description: |
+            Team to copy the provider from. The caller needs permission to manage provider settings in it, and it must differ from the destination team.
+          example: 770e8400-e29b-41d4-a716-446655440002
+        source_provider_id:
+          type: string
+          format: uuid
+          description: Provider to copy, as it exists in the source team.
+          example: 550e8400-e29b-41d4-a716-446655440000
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: |
+            Name for the copy. Sent, it is used verbatim, and a name the destination already holds fails the copy with 409. Omitted, the source name is used, disambiguated as "<name> (copy)", "<name> (copy 2)", … when the destination already holds it.
+          example: mxbai-embed-large (staging)
+        provider_type:
+          type: string
+          minLength: 1
+          description: Overrides the source provider's type.
+          example: openai_compatible
+        model:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: |
+            Overrides the source provider's embedding model. It must return the fixed vector width VibeXP stores (1024); this endpoint does not probe it, so validate the model first if you override it.
+          example: text-embedding-3-small
+        base_url:
+          type: string
+          format: uri
+          nullable: true
+          description: |
+            Overrides the source provider's base URL. Send null or an empty string to store no base URL on the copy.
+          example: https://api.openai.com/v1
+        chunk_size:
+          type: integer
+          minimum: 1
+          description: Overrides the source provider's chunk size.
+          example: 1000
+        chunk_overlap:
+          type: integer
+          minimum: 0
+          description: Overrides the source provider's chunk overlap.
+          example: 200
+        concurrency:
+          type: integer
+          minimum: 1
+          description: Overrides the source provider's embedding request concurrency.
+          example: 1
+        query_prefix:
+          type: string
+          maxLength: 256
+          nullable: true
+          description: |
+            Overrides the source provider's query instruction prefix. Send null or an empty string to store no prefix on the copy.
+          example: 'Represent this sentence for searching relevant passages: '
+        document_prefix:
+          type: string
+          maxLength: 256
+          nullable: true
+          description: |
+            Overrides the source provider's document instruction prefix. Send null or an empty string to store no prefix on the copy.
+          example: 'passage: '
+        configuration:
+          type: object
+          additionalProperties: true
+          description: Overrides the source provider's stored configuration object.
+          example:
+            timeout: 30
+        reprocess:
+          type: boolean
+          default: false
+          description: |
+            Opt in to re-embedding the destination team's content after the copy.
+
+            Omitted or false, nothing is enqueued and the response's `activation.reprocess_enqueued` is false. Sent true, a background re-embed is enqueued for the destination team, and the response reports whether the team's existing vectors were WIPED first: they are, and only are, when the copy becomes the effective active provider AND its model differs from the model it displaces — the case where the stored vectors can no longer be compared against new queries. Any other case fills gaps only, leaving stored vectors intact.
+          example: true
+      required:
+        - source_team_id
+        - source_provider_id
+    EmbeddingProviderCopyActivation:
+      type: object
+      description: |
+        What the copy did to the destination team's SEARCH behaviour (#831).
+
+        A copy is always written `is_default: false`, but that is not the same as inert. The active provider is resolved as "the default-flagged one, else the most recently updated one", so a non-default copy silently becomes the team's active provider whenever the destination has no default set — and every resource already embedded with the previous model stops being comparable to new queries, with no error anywhere. This object reports that verdict so a client can warn before, or explain after.
+      properties:
+        becomes_active:
+          type: boolean
+          description: |
+            True when the copy is now the team's effective active embedding provider — the one that will generate every new document and query embedding.
+          example: true
+        displaced_model:
+          type: string
+          nullable: true
+          description: |
+            The embedding model that WAS active in the destination team before this copy, when the copy displaced it. Null when the copy did not become active, or when the team had no provider at all.
+
+            It may equal the copy's own model: copying a provider that only differs in credentials or base URL displaces nothing meaningful, and the stored vectors stay valid.
+          example: mxbai-embed-large
+        displaced_embedded_resources:
+          type: integer
+          format: int64
+          description: |
+            How many of the destination team's resources are embedded with `displaced_model`. These are the vectors that stop matching new queries unless the team re-embeds. 0 when nothing was displaced.
+          example: 412
+        reprocess_enqueued:
+          type: boolean
+          description: |
+            True when the request's `reprocess` flag actually started a background re-embed for the destination team.
+
+            It reports what happened, not what was asked for: a re-embed already in flight for the team makes this false (the running one covers the work), and so does a failed wipe, which abandons the run rather than regenerating on top of stale vectors.
+          example: false
+        embeddings_wiped:
+          type: boolean
+          description: |
+            True when the enqueued re-embed DELETED the team's stored vectors before regenerating them. Only ever true alongside `reprocess_enqueued`, and only when the copy became active with a different model from the one it displaced.
+          example: false
+      required:
+        - becomes_active
+        - displaced_model
+        - displaced_embedded_resources
+        - reprocess_enqueued
+        - embeddings_wiped
+    CopyEmbeddingProviderResponse:
+      type: object
+      description: |
+        The provider row created by a cross-team copy, plus the activation verdict that says what it did to the destination team's search (#831).
+      properties:
+        provider:
+          $ref: '#/components/schemas/EmbeddingProviderResponse'
+        activation:
+          $ref: '#/components/schemas/EmbeddingProviderCopyActivation'
+      required:
+        - provider
+        - activation
     ModelProvider:
       type: object
       properties:

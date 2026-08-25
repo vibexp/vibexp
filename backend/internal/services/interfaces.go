@@ -262,6 +262,74 @@ type EmbeddingProviderServiceInterface interface {
 	// team has none configured so embedding silently no-ops. See
 	// ActiveEmbeddingProviderResolver.
 	ResolveActiveProvider(ctx context.Context, teamID string) (*ResolvedEmbeddingProvider, error)
+	// CopyFromTeam copies one provider out of another team into this one (#831,
+	// epic #827), moving the stored API key as ciphertext and never decrypting
+	// it. Authorized with authz.TeamUpdate on BOTH teams, destination first.
+	//
+	// The copy is always written non-default, which is NOT the same as inert —
+	// see CopyEmbeddingProviderActivation for the verdict it returns.
+	CopyFromTeam(ctx context.Context, params CopyEmbeddingProviderParams,
+	) (*CopyEmbeddingProviderResult, error)
+}
+
+// CopyEmbeddingProviderParams is the input to
+// EmbeddingProviderServiceInterface.CopyFromTeam (#831, epic #827).
+//
+// TeamID is the DESTINATION — the team named in the URL — and SourceTeamID the
+// team the provider is read from. Every pointer field is an optional override of
+// the source row's value; nil means "copy the source's".
+type CopyEmbeddingProviderParams struct {
+	TeamID           string
+	SourceTeamID     string
+	SourceProviderID string
+	UserID           string
+
+	Name           *string
+	ProviderType   *string
+	Model          *string
+	BaseURL        *string
+	ChunkSize      *int
+	ChunkOverlap   *int
+	Concurrency    *int
+	QueryPrefix    *string
+	DocumentPrefix *string
+	Configuration  *map[string]interface{}
+}
+
+// CopyEmbeddingProviderActivation reports what a copy did to the destination
+// team's search (#831).
+//
+// A copy is always written is_default = false, but the active provider is
+// resolved as "the default-flagged one, else the most recently updated one"
+// (EmbeddingProviderRepository.GetActiveProvider), so a non-default copy becomes
+// active the moment the destination team has no default set. Mixing embedding
+// models across one vector index raises no error — it just degrades search — so
+// this verdict is the only signal that anything happened.
+type CopyEmbeddingProviderActivation struct {
+	// BecomesActive is true when the copy is now the provider the embedding
+	// pipeline will use for this team.
+	BecomesActive bool
+	// DisplacedModel is the model that was active before the copy, when the copy
+	// displaced it. Nil when the copy did not become active, or the team had no
+	// provider at all. It may equal the copy's own model.
+	DisplacedModel *string
+	// DisplacedEmbeddedResources is how many of the team's resources hold an
+	// embedding under DisplacedModel — the vectors that stop matching new queries
+	// until the team re-embeds.
+	DisplacedEmbeddedResources int64
+	// ModelChanged reports whether the copy actually moved the team to a
+	// different embedding model. It is what decides whether a re-embed must WIPE
+	// the stored vectors (incomparable) or merely fill gaps, and is deliberately
+	// not part of the API payload: the caller reads the two fields it is derived
+	// from.
+	ModelChanged bool
+}
+
+// CopyEmbeddingProviderResult is what CopyFromTeam returns: the row it created
+// plus the activation verdict.
+type CopyEmbeddingProviderResult struct {
+	Provider   *models.EmbeddingProvider
+	Activation CopyEmbeddingProviderActivation
 }
 
 // ModelProviderServiceInterface defines the interface for model provider

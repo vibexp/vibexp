@@ -21,6 +21,65 @@ const (
 	CookieAuthScopes cookieAuthContextKey = "CookieAuth.Scopes"
 )
 
+// CopyEmbeddingProviderRequest Request body for copying one embedding provider out of another team into this one (#831, epic #827). The destination is the `{team_id}` path parameter; only the source is carried here.
+//
+// The API key is deliberately absent. Responses expose `has_api_key` and never the key itself, so a client cannot carry the credential across — the server re-reads the source row's stored ciphertext and writes it to the copy untouched, without ever decrypting it.
+//
+// Every property other than the two source identifiers and `reprocess` is an OPTIONAL override of the value the source row already holds: omit one to copy the source value verbatim, or send it to change the copy without touching the source. An override that IS sent must be non-empty, the same bar the create path sets.
+//
+// The copy is always written non-default. It can still become the team's ACTIVE embedding provider — see `EmbeddingProviderCopyActivation` on the response.
+type CopyEmbeddingProviderRequest struct {
+	// BaseUrl Overrides the source provider's base URL. Send null or an empty string to store no base URL on the copy.
+	BaseUrl *string `json:"base_url,omitempty"`
+
+	// ChunkOverlap Overrides the source provider's chunk overlap.
+	ChunkOverlap *int `json:"chunk_overlap,omitempty"`
+
+	// ChunkSize Overrides the source provider's chunk size.
+	ChunkSize *int `json:"chunk_size,omitempty"`
+
+	// Concurrency Overrides the source provider's embedding request concurrency.
+	Concurrency *int `json:"concurrency,omitempty"`
+
+	// Configuration Overrides the source provider's stored configuration object.
+	Configuration *map[string]interface{} `json:"configuration,omitempty"`
+
+	// DocumentPrefix Overrides the source provider's document instruction prefix. Send null or an empty string to store no prefix on the copy.
+	DocumentPrefix *string `json:"document_prefix,omitempty"`
+
+	// Model Overrides the source provider's embedding model. It must return the fixed vector width VibeXP stores (1024); this endpoint does not probe it, so validate the model first if you override it.
+	Model *string `json:"model,omitempty"`
+
+	// Name Name for the copy. Sent, it is used verbatim, and a name the destination already holds fails the copy with 409. Omitted, the source name is used, disambiguated as "<name> (copy)", "<name> (copy 2)", … when the destination already holds it.
+	Name *string `json:"name,omitempty"`
+
+	// ProviderType Overrides the source provider's type.
+	ProviderType *string `json:"provider_type,omitempty"`
+
+	// QueryPrefix Overrides the source provider's query instruction prefix. Send null or an empty string to store no prefix on the copy.
+	QueryPrefix *string `json:"query_prefix,omitempty"`
+
+	// Reprocess Opt in to re-embedding the destination team's content after the copy.
+	//
+	// Omitted or false, nothing is enqueued and the response's `activation.reprocess_enqueued` is false. Sent true, a background re-embed is enqueued for the destination team, and the response reports whether the team's existing vectors were WIPED first: they are, and only are, when the copy becomes the effective active provider AND its model differs from the model it displaces — the case where the stored vectors can no longer be compared against new queries. Any other case fills gaps only, leaving stored vectors intact.
+	Reprocess *bool `json:"reprocess,omitempty"`
+
+	// SourceProviderId Provider to copy, as it exists in the source team.
+	SourceProviderId openapi_types.UUID `json:"source_provider_id"`
+
+	// SourceTeamId Team to copy the provider from. The caller needs permission to manage provider settings in it, and it must differ from the destination team.
+	SourceTeamId openapi_types.UUID `json:"source_team_id"`
+}
+
+// CopyEmbeddingProviderResponse The provider row created by a cross-team copy, plus the activation verdict that says what it did to the destination team's search (#831).
+type CopyEmbeddingProviderResponse struct {
+	// Activation What the copy did to the destination team's SEARCH behaviour (#831).
+	//
+	// A copy is always written `is_default: false`, but that is not the same as inert. The active provider is resolved as "the default-flagged one, else the most recently updated one", so a non-default copy silently becomes the team's active provider whenever the destination has no default set — and every resource already embedded with the previous model stops being comparable to new queries, with no error anywhere. This object reports that verdict so a client can warn before, or explain after.
+	Activation EmbeddingProviderCopyActivation `json:"activation"`
+	Provider   EmbeddingProviderResponse       `json:"provider"`
+}
+
 // CreateEmbeddingProviderRequest defines model for CreateEmbeddingProviderRequest.
 type CreateEmbeddingProviderRequest struct {
 	ApiKey  *string `json:"api_key,omitempty"`
@@ -88,6 +147,30 @@ type EmbeddingProvider struct {
 
 // EmbeddingProviderArrayResponse defines model for EmbeddingProviderArrayResponse.
 type EmbeddingProviderArrayResponse = []EmbeddingProviderResponse
+
+// EmbeddingProviderCopyActivation What the copy did to the destination team's SEARCH behaviour (#831).
+//
+// A copy is always written `is_default: false`, but that is not the same as inert. The active provider is resolved as "the default-flagged one, else the most recently updated one", so a non-default copy silently becomes the team's active provider whenever the destination has no default set — and every resource already embedded with the previous model stops being comparable to new queries, with no error anywhere. This object reports that verdict so a client can warn before, or explain after.
+type EmbeddingProviderCopyActivation struct {
+	// BecomesActive True when the copy is now the team's effective active embedding provider — the one that will generate every new document and query embedding.
+	BecomesActive bool `json:"becomes_active"`
+
+	// DisplacedEmbeddedResources How many of the destination team's resources are embedded with `displaced_model`. These are the vectors that stop matching new queries unless the team re-embeds. 0 when nothing was displaced.
+	DisplacedEmbeddedResources int64 `json:"displaced_embedded_resources"`
+
+	// DisplacedModel The embedding model that WAS active in the destination team before this copy, when the copy displaced it. Null when the copy did not become active, or when the team had no provider at all.
+	//
+	// It may equal the copy's own model: copying a provider that only differs in credentials or base URL displaces nothing meaningful, and the stored vectors stay valid.
+	DisplacedModel *string `json:"displaced_model"`
+
+	// EmbeddingsWiped True when the enqueued re-embed DELETED the team's stored vectors before regenerating them. Only ever true alongside `reprocess_enqueued`, and only when the copy became active with a different model from the one it displaced.
+	EmbeddingsWiped bool `json:"embeddings_wiped"`
+
+	// ReprocessEnqueued True when the request's `reprocess` flag actually started a background re-embed for the destination team.
+	//
+	// It reports what happened, not what was asked for: a re-embed already in flight for the team makes this false (the running one covers the work), and so does a failed wipe, which abandons the run rather than regenerating on top of stale vectors.
+	ReprocessEnqueued bool `json:"reprocess_enqueued"`
+}
 
 // EmbeddingProviderResponse defines model for EmbeddingProviderResponse.
 type EmbeddingProviderResponse struct {
@@ -240,6 +323,9 @@ type UpdateEmbeddingProviderJSONRequestBody = UpdateEmbeddingProviderRequest
 // CreateEmbeddingProviderSettingsJSONRequestBody defines body for CreateEmbeddingProviderSettings for application/json ContentType.
 type CreateEmbeddingProviderSettingsJSONRequestBody = CreateEmbeddingProviderRequest
 
+// CopyEmbeddingProviderFromTeamJSONRequestBody defines body for CopyEmbeddingProviderFromTeam for application/json ContentType.
+type CopyEmbeddingProviderFromTeamJSONRequestBody = CopyEmbeddingProviderRequest
+
 // ValidateEmbeddingProviderSettingsJSONRequestBody defines body for ValidateEmbeddingProviderSettings for application/json ContentType.
 type ValidateEmbeddingProviderSettingsJSONRequestBody = ValidateEmbeddingProviderRequest
 
@@ -272,6 +358,9 @@ type ServerInterface interface {
 	// Create embedding provider
 	// (POST /api/v1/{team_id}/settings/embedding-providers)
 	CreateEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Copy an embedding provider from another team
+	// (POST /api/v1/{team_id}/settings/embedding-providers/copy)
+	CopyEmbeddingProviderFromTeam(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
 	// Validate embedding provider configuration
 	// (POST /api/v1/{team_id}/settings/embedding-providers/validate)
 	ValidateEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
@@ -335,6 +424,12 @@ func (_ Unimplemented) ListEmbeddingProvidersSettings(w http.ResponseWriter, r *
 // Create embedding provider
 // (POST /api/v1/{team_id}/settings/embedding-providers)
 func (_ Unimplemented) CreateEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Copy an embedding provider from another team
+// (POST /api/v1/{team_id}/settings/embedding-providers/copy)
+func (_ Unimplemented) CopyEmbeddingProviderFromTeam(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -670,6 +765,40 @@ func (siw *ServerInterfaceWrapper) CreateEmbeddingProviderSettings(w http.Respon
 	handler.ServeHTTP(w, r)
 }
 
+// CopyEmbeddingProviderFromTeam operation middleware
+func (siw *ServerInterfaceWrapper) CopyEmbeddingProviderFromTeam(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CopyEmbeddingProviderFromTeam(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ValidateEmbeddingProviderSettings operation middleware
 func (siw *ServerInterfaceWrapper) ValidateEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request) {
 
@@ -969,6 +1098,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/{team_id}/settings/embedding-providers", wrapper.CreateEmbeddingProviderSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/{team_id}/settings/embedding-providers/copy", wrapper.CopyEmbeddingProviderFromTeam)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/{team_id}/settings/embedding-providers/validate", wrapper.ValidateEmbeddingProviderSettings)
@@ -1597,6 +1729,113 @@ func (response CreateEmbeddingProviderSettings500ApplicationProblemPlusJSONRespo
 	return err
 }
 
+type CopyEmbeddingProviderFromTeamRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Body   *CopyEmbeddingProviderFromTeamJSONRequestBody
+}
+
+type CopyEmbeddingProviderFromTeamResponseObject interface {
+	VisitCopyEmbeddingProviderFromTeamResponse(w http.ResponseWriter) error
+}
+
+type CopyEmbeddingProviderFromTeam200JSONResponse CopyEmbeddingProviderResponse
+
+func (response CopyEmbeddingProviderFromTeam200JSONResponse) VisitCopyEmbeddingProviderFromTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyEmbeddingProviderFromTeam400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CopyEmbeddingProviderFromTeam400ApplicationProblemPlusJSONResponse) VisitCopyEmbeddingProviderFromTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyEmbeddingProviderFromTeam401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CopyEmbeddingProviderFromTeam401ApplicationProblemPlusJSONResponse) VisitCopyEmbeddingProviderFromTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyEmbeddingProviderFromTeam403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CopyEmbeddingProviderFromTeam403ApplicationProblemPlusJSONResponse) VisitCopyEmbeddingProviderFromTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyEmbeddingProviderFromTeam404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CopyEmbeddingProviderFromTeam404ApplicationProblemPlusJSONResponse) VisitCopyEmbeddingProviderFromTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyEmbeddingProviderFromTeam409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CopyEmbeddingProviderFromTeam409ApplicationProblemPlusJSONResponse) VisitCopyEmbeddingProviderFromTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CopyEmbeddingProviderFromTeam500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CopyEmbeddingProviderFromTeam500ApplicationProblemPlusJSONResponse) VisitCopyEmbeddingProviderFromTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ValidateEmbeddingProviderSettingsRequestObject struct {
 	TeamId openapi_types.UUID `json:"team_id"`
 	Body   *ValidateEmbeddingProviderSettingsJSONRequestBody
@@ -1948,6 +2187,9 @@ type StrictServerInterface interface {
 	// Create embedding provider
 	// (POST /api/v1/{team_id}/settings/embedding-providers)
 	CreateEmbeddingProviderSettings(ctx context.Context, request CreateEmbeddingProviderSettingsRequestObject) (CreateEmbeddingProviderSettingsResponseObject, error)
+	// Copy an embedding provider from another team
+	// (POST /api/v1/{team_id}/settings/embedding-providers/copy)
+	CopyEmbeddingProviderFromTeam(ctx context.Context, request CopyEmbeddingProviderFromTeamRequestObject) (CopyEmbeddingProviderFromTeamResponseObject, error)
 	// Validate embedding provider configuration
 	// (POST /api/v1/{team_id}/settings/embedding-providers/validate)
 	ValidateEmbeddingProviderSettings(ctx context.Context, request ValidateEmbeddingProviderSettingsRequestObject) (ValidateEmbeddingProviderSettingsResponseObject, error)
@@ -2223,6 +2465,39 @@ func (sh *strictHandler) CreateEmbeddingProviderSettings(w http.ResponseWriter, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateEmbeddingProviderSettingsResponseObject); ok {
 		if err := validResponse.VisitCreateEmbeddingProviderSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CopyEmbeddingProviderFromTeam operation middleware
+func (sh *strictHandler) CopyEmbeddingProviderFromTeam(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request CopyEmbeddingProviderFromTeamRequestObject
+
+	request.TeamId = teamId
+
+	var body CopyEmbeddingProviderFromTeamJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CopyEmbeddingProviderFromTeam(ctx, request.(CopyEmbeddingProviderFromTeamRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CopyEmbeddingProviderFromTeam")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CopyEmbeddingProviderFromTeamResponseObject); ok {
+		if err := validResponse.VisitCopyEmbeddingProviderFromTeamResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

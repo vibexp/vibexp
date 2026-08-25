@@ -132,7 +132,8 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	if err != nil {
 		return nil, err
 	}
-	embeddingProviderServiceInterface := providers.ProvideEmbeddingProviderService(embeddingProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface)
+	embeddingBackfillRepository := providers.ProvideEmbeddingBackfillRepository(db)
+	embeddingProviderServiceInterface := providers.ProvideEmbeddingProviderService(embeddingProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, teamSettingsAuditServiceInterface, embeddingBackfillRepository)
 	modelProviderServiceInterface := providers.ProvideModelProviderService(modelProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, teamSettingsAuditServiceInterface)
 	gitHubAppClientResolver := providers.ProvideGitHubAppClientResolver(gitHubAppConfigRepository, encryptionServiceInterface, logger)
 	gitHubAppConfigServiceInterface := providers.ProvideGitHubAppConfigService(gitHubAppConfigRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, gitHubAppClientResolver)
@@ -192,7 +193,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	usageAndGrowthGetter := providers.ProvideBackofficeService(backofficeRepository)
 	adminRepository := providers.ProvideAdminRepository(db)
 	adminServiceInterface := providers.ProvideAdminService(adminRepository, userRepository, eventManager)
-	embeddingBackfillRepository := providers.ProvideEmbeddingBackfillRepository(db)
 	embeddingCoverageGetter := providers.ProvideEmbeddingStatusService(embeddingProviderRepository, embeddingBackfillRepository, logger)
 	embeddingBackfiller := providers.ProvideEmbeddingBackfillService(embeddingBackfillRepository, eventManager, promptServiceInterface, embeddingCoverageGetter, logger)
 	userPreferencesServiceInterface := providers.ProvideUserPreferencesService(userPreferencesRepository)

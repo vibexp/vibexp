@@ -580,6 +580,13 @@ type EmbeddingProviderRepository interface {
 	SetDefault(ctx context.Context, teamID, providerID string) error
 	UnsetAllDefaults(ctx context.Context, teamID string) error
 	Count(ctx context.Context, teamID string) (int, error)
+	// ListNames returns every provider name held by the team.
+	//
+	// Deliberately unpaginated, unlike List: its caller is the cross-team copy
+	// (#831), which resolves a name collision by picking the first free
+	// "<name> (copy N)" and therefore needs the WHOLE set. The model-provider
+	// repository carries the same method for the same reason (#830).
+	ListNames(ctx context.Context, teamID string) ([]string, error)
 }
 
 // EmbeddingProviderFilters represents filters for embedding provider queries

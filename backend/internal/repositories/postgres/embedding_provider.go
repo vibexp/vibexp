@@ -389,3 +389,33 @@ func (r *EmbeddingProviderRepository) Count(ctx context.Context, teamID string) 
 
 	return count, nil
 }
+
+// ListNames returns every provider name in the team, unpaginated. See the
+// interface doc for why the cross-team copy cannot reuse List for this.
+func (r *EmbeddingProviderRepository) ListNames(ctx context.Context, teamID string) ([]string, error) {
+	query := `SELECT name FROM embedding_providers WHERE team_id = $1`
+
+	rows, err := r.db.QueryContext(ctx, query, teamID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list embedding provider names: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close rows", "error", closeErr)
+		}
+	}()
+
+	names := make([]string, 0)
+	for rows.Next() {
+		var name string
+		if scanErr := rows.Scan(&name); scanErr != nil {
+			return nil, fmt.Errorf("failed to scan embedding provider name: %w", scanErr)
+		}
+		names = append(names, name)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("failed to iterate embedding provider names: %w", rowsErr)
+	}
+
+	return names, nil
+}

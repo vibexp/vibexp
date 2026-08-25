@@ -25,7 +25,7 @@ func createTestEmbeddingProviderService(repo repositories.EmbeddingProviderRepos
 	if err != nil {
 		panic(err)
 	}
-	return NewEmbeddingProviderService(repo, enc, localDevProviderConfig(), permissiveProviderAuthz{})
+	return NewEmbeddingProviderService(repo, enc, localDevProviderConfig(), permissiveProviderAuthz{}, nil, nil)
 }
 
 func createTestCreateEmbeddingProviderRequest() models.CreateEmbeddingProviderRequest {
@@ -85,7 +85,7 @@ func TestNewEmbeddingProviderService(t *testing.T) {
 	mockRepo := mocks.NewMockEmbeddingProviderRepository(t)
 	enc, err := NewEncryptionService(testEncryptionKey)
 	require.NoError(t, err)
-	service := NewEmbeddingProviderService(mockRepo, enc, localDevProviderConfig(), permissiveProviderAuthz{})
+	service := NewEmbeddingProviderService(mockRepo, enc, localDevProviderConfig(), permissiveProviderAuthz{}, nil, nil)
 
 	assert.NotNil(t, service)
 	assert.Equal(t, mockRepo, service.repo)

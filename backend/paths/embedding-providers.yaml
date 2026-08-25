@@ -938,3 +938,110 @@ api-v1-settings-embedding-providers-embeddings:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
     tags:
       - Settings
+api-v1-settings-embedding-providers-copy:
+  post:
+    summary: Copy an embedding provider from another team
+    description: |
+      Copies one embedding provider out of another team into this one (#831,
+      epic #827). The destination is `{team_id}`; the source is named in the
+      body.
+
+      The stored API key moves as CIPHERTEXT: the source row's encrypted key is
+      written straight to the new row and is never decrypted, never held in
+      plaintext, and never appears in a request or response body. That is the
+      reason this is a server-side operation at all — keys are write-only over
+      the API, so a client copying a provider by hand cannot bring one with it.
+
+      Authorization requires permission to manage provider settings in BOTH
+      teams. The destination is evaluated first and either denial answers the
+      same 403, so the response never reveals whether the source team exists.
+
+      The copy is always written `is_default: false`, and its chunk sizing,
+      concurrency and instruction prefixes carry over from the source unless
+      overridden. It can nonetheless become the team's ACTIVE provider: the
+      active provider is "the default-flagged one, else the most recently
+      updated one", so a non-default copy takes over whenever the destination
+      has no default set. That verdict — and the model it displaces, with the
+      number of resources still embedded under it — is reported in
+      `activation`, because nothing else in the system reports it: mixing
+      embedding models produces no error, only worse search results.
+
+      Note the `version` caveat on `EmbeddingProvider`: like the create
+      response, this one reports 0 for a row that persists at 1.
+    operationId: copyEmbeddingProviderFromTeam
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Destination team identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CopyEmbeddingProviderRequest'
+    responses:
+      '200':
+        description: Provider copied into the destination team
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/CopyEmbeddingProviderResponse'
+      '400':
+        description: >-
+          Missing or malformed body, missing/malformed `source_team_id` or
+          `source_provider_id`, source equal to destination (`BAD_REQUEST`), or
+          an override sent empty or over-long (`PROVIDER_VALIDATION_FAILED`
+          with `validation_errors`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Caller cannot manage provider settings in the destination team or in
+          the source team (`FORBIDDEN`). The two are deliberately
+          indistinguishable, so the response never reveals whether the source
+          team exists.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: >-
+          No such provider in the source team (`PROVIDER_NOT_FOUND`). Only
+          reachable once the caller is authorized on both teams, so it leaks
+          nothing.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: >-
+          The destination team already holds the requested name
+          (`PROVIDER_ALREADY_EXISTS`). Only reachable for a caller-supplied
+          `name`; an inherited one is disambiguated instead.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Copy failed (`INTERNAL_ERROR`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Embedding Providers
