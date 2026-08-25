@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
+	modelprovidersgen "github.com/vibexp/vibexp/internal/server/gen/modelproviders"
 )
 
 // renderJSONMap marshals v and decodes it back as a generic map, so two values
@@ -64,6 +65,102 @@ func TestToGenModelProviderResponse_RendersTheSameWireBody(t *testing.T) {
 	got := renderJSONMap(t, toGenModelProviderResponse(src))
 
 	assert.Equal(t, want, got)
+}
+
+// The REQUEST converters need the same treatment as the response one, and the
+// _SpecConformance fixtures do not give it: their bodies leave `configuration`
+// unset, so a converter that dropped it would reach the service with a nil map
+// and every one of those exact-match mock expectations would still be satisfied.
+// Verified by mutation — before these tests, deleting `Configuration` from all
+// three converters left the whole package green, which would silently reset a
+// provider's tuning (temperature, max_tokens) on every create and update.
+
+func TestCreateModelProviderRequestFromGen_CarriesEveryField(t *testing.T) {
+	name, providerType, model := "OpenAI GPT-4o", "openai_compatible", "gpt-4o-mini"
+	baseURL, apiKey, isDefault := "https://api.openai.com/v1", "sk-test-key", true
+	configuration := map[string]interface{}{"temperature": 0.7, "max_tokens": float64(1024)}
+
+	got := createModelProviderRequestFromGen(&modelprovidersgen.CreateModelProviderRequest{
+		Name:          name,
+		ProviderType:  providerType,
+		Model:         model,
+		IsDefault:     &isDefault,
+		BaseUrl:       &baseURL,
+		ApiKey:        &apiKey,
+		Configuration: &configuration,
+	})
+
+	assert.Equal(t, models.CreateModelProviderRequest{
+		Name:          name,
+		ProviderType:  providerType,
+		Model:         model,
+		IsDefault:     &isDefault,
+		BaseURL:       &baseURL,
+		APIKey:        &apiKey,
+		Configuration: configuration,
+	}, got)
+}
+
+func TestUpdateModelProviderRequestFromGen_CarriesEveryField(t *testing.T) {
+	name, providerType, model := "Renamed", "openai_compatible", "gpt-4o"
+	baseURL, apiKey, isDefault := "https://api.openai.com/v1", "sk-rotated", false
+	configuration := map[string]interface{}{"temperature": 0.2}
+
+	got := updateModelProviderRequestFromGen(&modelprovidersgen.UpdateModelProviderRequest{
+		Name:          &name,
+		ProviderType:  &providerType,
+		Model:         &model,
+		IsDefault:     &isDefault,
+		BaseUrl:       &baseURL,
+		ApiKey:        &apiKey,
+		Configuration: &configuration,
+	})
+
+	assert.Equal(t, models.UpdateModelProviderRequest{
+		Name:          &name,
+		ProviderType:  &providerType,
+		Model:         &model,
+		IsDefault:     &isDefault,
+		BaseURL:       &baseURL,
+		APIKey:        &apiKey,
+		Configuration: configuration,
+	}, got)
+}
+
+func TestValidateModelProviderRequestFromGen_CarriesEveryField(t *testing.T) {
+	apiKey := "sk-probe"
+	configuration := map[string]interface{}{"timeout_ms": float64(5000)}
+
+	got := validateModelProviderRequestFromGen(&modelprovidersgen.ValidateModelProviderRequest{
+		ProviderType:  "openai_compatible",
+		Model:         "gpt-4o-mini",
+		BaseUrl:       "https://api.openai.com/v1",
+		ApiKey:        &apiKey,
+		Configuration: &configuration,
+	})
+
+	assert.Equal(t, models.ValidateModelProviderRequest{
+		ProviderType:  "openai_compatible",
+		Model:         "gpt-4o-mini",
+		BaseURL:       "https://api.openai.com/v1",
+		APIKey:        &apiKey,
+		Configuration: configuration,
+	}, got)
+}
+
+// TestModelProviderRequestFromGen_OmittedConfigurationStaysNil pins the other
+// half: `derefConfiguration` must not turn an omitted `configuration` into an
+// empty map, which the service would persist over the stored value.
+func TestModelProviderRequestFromGen_OmittedConfigurationStaysNil(t *testing.T) {
+	assert.Nil(t, createModelProviderRequestFromGen(
+		&modelprovidersgen.CreateModelProviderRequest{Name: "n", ProviderType: "t", Model: "m"},
+	).Configuration)
+	assert.Nil(t, updateModelProviderRequestFromGen(
+		&modelprovidersgen.UpdateModelProviderRequest{},
+	).Configuration)
+	assert.Nil(t, validateModelProviderRequestFromGen(
+		&modelprovidersgen.ValidateModelProviderRequest{ProviderType: "t", Model: "m", BaseUrl: "u"},
+	).Configuration)
 }
 
 // TestToGenModelProviderResponse_NeverCarriesKeyMaterial pins the property the
