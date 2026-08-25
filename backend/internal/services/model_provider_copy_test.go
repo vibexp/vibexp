@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -270,24 +271,41 @@ func TestModelProviderService_CopyFromTeam_ClientNameWinsOverTheGeneratedOne(t *
 }
 
 func TestModelProviderService_CopyFromTeam_SuffixKeepsTheNameWithinTheColumn(t *testing.T) {
-	svc, repo := newCopyProviderService(t, permissiveProviderAuthz{}, &recordingAuditService{})
+	tests := []struct {
+		name     string
+		longName string
+	}{
+		{"ascii", strings.Repeat("a", modelProviderNameMaxLen)},
+		// varchar(255) counts CHARACTERS, so a name of 255 multi-byte runes is
+		// exactly at the limit even though it is 1020 bytes. Trimming by byte
+		// length would over-trim it and could cut mid-rune into invalid UTF-8,
+		// which Postgres rejects outright.
+		{"multi-byte", strings.Repeat("日", modelProviderNameMaxLen)},
+	}
 
-	longName := strings.Repeat("a", modelProviderNameMaxLen)
-	source := sourceProviderRow()
-	source.Name = longName
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, repo := newCopyProviderService(t, permissiveProviderAuthz{}, &recordingAuditService{})
 
-	repo.EXPECT().GetByID(mock.Anything, testCopyProviderSourceTeamID, testCopyProviderID).
-		Return(source, nil)
-	repo.EXPECT().ListNames(mock.Anything, testProviderTeamID).Return([]string{longName}, nil)
-	repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
+			source := sourceProviderRow()
+			source.Name = tc.longName
 
-	copied, err := svc.CopyFromTeam(context.Background(), copyProviderParams())
-	require.NoError(t, err)
+			repo.EXPECT().GetByID(mock.Anything, testCopyProviderSourceTeamID, testCopyProviderID).
+				Return(source, nil)
+			repo.EXPECT().ListNames(mock.Anything, testProviderTeamID).
+				Return([]string{tc.longName}, nil)
+			repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
 
-	// Postgres would truncate a longer name into one the collision check never
-	// cleared, so the BASE is trimmed and the suffix survives whole.
-	assert.LessOrEqual(t, len(copied.Name), modelProviderNameMaxLen)
-	assert.True(t, strings.HasSuffix(copied.Name, " (copy)"), "got %q", copied.Name)
+			copied, err := svc.CopyFromTeam(context.Background(), copyProviderParams())
+			require.NoError(t, err)
+
+			// Postgres would truncate a longer name into one the collision check
+			// never cleared, so the BASE is trimmed and the suffix survives whole.
+			assert.LessOrEqual(t, utf8.RuneCountInString(copied.Name), modelProviderNameMaxLen)
+			assert.True(t, utf8.ValidString(copied.Name), "trimming must not split a rune: %q", copied.Name)
+			assert.True(t, strings.HasSuffix(copied.Name, " (copy)"), "got %q", copied.Name)
+		})
+	}
 }
 
 func TestModelProviderService_CopyFromTeam_ClientNameCollisionIsAlreadyExists(t *testing.T) {

@@ -178,9 +178,11 @@ func problemShape(body string) map[string]any {
 	if err := json.Unmarshal([]byte(body), &decoded); err != nil {
 		return map[string]any{"unparsable": body}
 	}
+	// request_id and timestamp legitimately vary per request. `instance` does
+	// NOT: it is the request path, identical for both calls here, so it stays
+	// in the comparison rather than being excused.
 	delete(decoded, "request_id")
 	delete(decoded, "timestamp")
-	delete(decoded, "instance")
 	return decoded
 }
 

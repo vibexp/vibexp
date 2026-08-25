@@ -28,6 +28,10 @@ const copyNameMaxAttempts = 100
 // suffix pushing past it would be truncated by Postgres into a name that no
 // longer matches what the collision check cleared, so the BASE is trimmed
 // instead and the suffix always survives intact.
+//
+// Postgres counts varchar(n) in CHARACTERS, not bytes, so the trimming below
+// works in runes: measuring in bytes would both over-trim a non-ASCII name and,
+// worse, cut mid-rune into invalid UTF-8 that Postgres rejects outright.
 const modelProviderNameMaxLen = 255
 
 // CopyFromTeam copies one provider out of another team into this one (#830,
@@ -168,8 +172,9 @@ func copyNameCandidate(base string, attempt int) string {
 		suffix = " (" + copyNameSuffix + " " + strconv.Itoa(attempt) + ")"
 	}
 
-	if overflow := len(base) + len(suffix) - modelProviderNameMaxLen; overflow > 0 {
-		base = strings.TrimRight(base[:max(len(base)-overflow, 0)], " ")
+	runes := []rune(base)
+	if overflow := len(runes) + len([]rune(suffix)) - modelProviderNameMaxLen; overflow > 0 {
+		base = strings.TrimRight(string(runes[:max(len(runes)-overflow, 0)]), " ")
 	}
 	return base + suffix
 }
