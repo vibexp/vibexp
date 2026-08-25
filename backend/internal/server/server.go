@@ -36,6 +36,7 @@ import (
 	freshnessgen "github.com/vibexp/vibexp/internal/server/gen/freshness"
 	memoriesgen "github.com/vibexp/vibexp/internal/server/gen/memories"
 	metadatagen "github.com/vibexp/vibexp/internal/server/gen/metadata"
+	modelprovidersgen "github.com/vibexp/vibexp/internal/server/gen/modelproviders"
 	promptsgen "github.com/vibexp/vibexp/internal/server/gen/prompts"
 	relationsgen "github.com/vibexp/vibexp/internal/server/gen/relations"
 	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
@@ -786,7 +787,44 @@ func (s *Server) setupSettingsRoutes(r chi.Router) {
 		r.Use(s.teamValidationMiddleware())
 		s.setupModelProvidersRoutes(r)
 	})
+	s.setupModelProvidersCopyRoutes(r)
 	r.Route("/api/v1/preferences", s.setupPreferencesRoutes)
+}
+
+// setupModelProvidersCopyRoutes mounts the cross-team copy (#830, epic #827).
+//
+// It sits OUTSIDE setupModelProvidersRoutes on purpose. That function is
+// mounted under both the bare and the settings prefix, so a route added there
+// goes live at two URLs — and the copy is documented at the settings one alone,
+// which the route drift gate would then fail. It also cannot go inside either
+// r.Route group: the generated handler registers ABSOLUTE paths, which a
+// prefix subrouter would turn into
+// /api/v1/{team_id}/settings/model-providers/api/v1/... . Registering it at
+// full length on its own group is what both constraints leave, and chi's radix
+// trie resolves the static /copy segment alongside the sibling mount.
+func (s *Server) setupModelProvidersCopyRoutes(r chi.Router) {
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
+		s.mountModelProvidersCopyHandler(gr)
+	})
+}
+
+// mountModelProvidersCopyHandler registers the generated route on an
+// already-scoped router. Split out of setupModelProvidersCopyRoutes so tests
+// can exercise the real route tree without the tenancy middleware.
+func (s *Server) mountModelProvidersCopyHandler(r chi.Router) {
+	strict := modelprovidersgen.NewStrictHandlerWithOptions(
+		&modelProvidersStrictServer{s: s},
+		nil,
+		modelprovidersgen.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  s.modelProvidersBindErrorHandler,
+			ResponseErrorHandlerFunc: s.modelProvidersResponseErrorHandler,
+		},
+	)
+	modelprovidersgen.HandlerWithOptions(strict, modelprovidersgen.ChiServerOptions{
+		BaseRouter:       r,
+		ErrorHandlerFunc: s.modelProvidersBindErrorHandler,
+	})
 }
 
 func (s *Server) setupPreferencesRoutes(r chi.Router) {

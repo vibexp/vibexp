@@ -21,7 +21,9 @@ func createTestModelProviderService(repo repositories.ModelProviderRepository) *
 	if err != nil {
 		panic(err)
 	}
-	return NewModelProviderService(repo, enc, localDevProviderConfig(), permissiveProviderAuthz{})
+	return NewModelProviderService(
+		repo, enc, localDevProviderConfig(), permissiveProviderAuthz{}, &recordingAuditService{},
+	)
 }
 
 // TestModelProviderService_EncryptDecryptRoundTrip verifies the service round-trips

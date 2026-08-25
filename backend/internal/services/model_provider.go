@@ -20,6 +20,10 @@ type ModelProviderService struct {
 	// authz gates the mutating provider operations; provider rows hold encrypted
 	// API keys and choose where the team's model traffic goes (#464).
 	authz AuthorizationServiceInterface
+	// audit records the compensating trail for a cross-team copy (#828/#830):
+	// a credential arriving from another team is the one provider mutation the
+	// destination's own members did not author.
+	audit TeamSettingsAuditServiceInterface
 }
 
 // Ensure ModelProviderService implements ModelProviderServiceInterface
@@ -30,12 +34,14 @@ func NewModelProviderService(
 	enc EncryptionServiceInterface,
 	cfg *config.Config,
 	authz AuthorizationServiceInterface,
+	audit TeamSettingsAuditServiceInterface,
 ) *ModelProviderService {
 	return &ModelProviderService{
 		repo:  repo,
 		enc:   enc,
 		guard: ssrfGuardForConfig(cfg),
 		authz: authz,
+		audit: audit,
 	}
 }
 

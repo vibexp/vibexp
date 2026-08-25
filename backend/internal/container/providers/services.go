@@ -195,8 +195,9 @@ func ProvideModelProviderService(
 	enc services.EncryptionServiceInterface,
 	cfg *config.Config,
 	authzSvc services.AuthorizationServiceInterface,
+	audit services.TeamSettingsAuditServiceInterface,
 ) services.ModelProviderServiceInterface {
-	return services.NewModelProviderService(repo, enc, cfg, authzSvc)
+	return services.NewModelProviderService(repo, enc, cfg, authzSvc, audit)
 }
 
 // ProvideGitHubAppConfigService creates a new GitHubAppConfigService. The

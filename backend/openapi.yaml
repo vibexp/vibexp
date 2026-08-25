@@ -279,6 +279,8 @@ components:
       $ref: "./schemas/model-providers.yaml#/ModelProviderListResponse"
     ModelProviderResponseList:
       $ref: "./schemas/model-providers.yaml#/ModelProviderResponseList"
+    CopyModelProviderRequest:
+      $ref: "./schemas/model-providers.yaml#/CopyModelProviderRequest"
     ValidateModelProviderRequest:
       $ref: "./schemas/model-providers.yaml#/ValidateModelProviderRequest"
     ValidateModelProviderResponse:
@@ -1256,6 +1258,8 @@ paths:
     $ref: "./paths/model-providers.yaml#/api-v1-settings-model-providers-id"
   /api/v1/{team_id}/settings/model-providers/validate:
     $ref: "./paths/model-providers.yaml#/api-v1-settings-model-providers-validate"
+  /api/v1/{team_id}/settings/model-providers/copy:
+    $ref: "./paths/model-providers.yaml#/api-v1-settings-model-providers-copy"
   /api/v1/{team_id}/projects:
     $ref: "./paths/projects.yaml#/api-v1-team_id-projects"
   /api/v1/{team_id}/projects/{slug}:

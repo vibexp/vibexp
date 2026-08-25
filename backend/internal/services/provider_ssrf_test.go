@@ -42,7 +42,7 @@ func prodModelService(t *testing.T) *ModelProviderService {
 	return NewModelProviderService(
 		mocks.NewMockModelProviderRepository(t), enc,
 		&config.Config{Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"}},
-		permissiveProviderAuthz{},
+		permissiveProviderAuthz{}, &recordingAuditService{},
 	)
 }
 

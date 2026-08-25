@@ -1,0 +1,25 @@
+# oapi-codegen configuration for the Model Providers domain (epic #122), one
+# more spec-first strict-server package under internal/server/gen.
+#
+# DEPARTURE FROM THE include-tags CONVENTION, for the same reason as
+# oapi-codegen-embedding-providers.yaml: `include-tags: [Model Providers]` is
+# the whole tag, and the twelve CRUD/validate operations are still on their
+# hand-written chi handlers. Pulling them in would put them on this package's
+# StrictServerInterface and force rewriting all of them at once. The operations
+# are therefore selected explicitly by id, and a later conversion appends its
+# ids here rather than switching the selector.
+#
+# Right now that set is the cross-team copy (#830, epic #827), which ships
+# strict-server-typed because a NEW endpoint has to (CLAUDE.md, epic #122).
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: modelprovidersgen
+output: internal/server/gen/modelproviders/modelproviders.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-operation-ids:
+    - copyModelProviderFromTeam

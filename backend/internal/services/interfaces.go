@@ -314,6 +314,40 @@ type ModelProviderServiceInterface interface {
 	ValidateModelProvider(ctx context.Context, teamID, userID string,
 		req models.ValidateModelProviderRequest,
 	) (*models.ValidateModelProviderResponse, error)
+	// CopyFromTeam copies one provider out of another team into this one,
+	// credential included (#830, epic #827). The stored ciphertext is moved
+	// across without being decrypted, and exactly one team-settings audit entry
+	// is written.
+	//
+	// It returns ErrCopySourceRequired or ErrCopySourceIsDestination for a bad
+	// source, an ErrPermissionDenied-wrapped error — identical for either team —
+	// when the caller cannot manage provider settings in both,
+	// ErrModelProviderNotFound when the source team has no such provider, and
+	// ErrModelProviderAlreadyExists when a caller-supplied name is taken.
+	CopyFromTeam(ctx context.Context, params CopyModelProviderParams,
+	) (*models.ModelProvider, error)
+}
+
+// CopyModelProviderParams carries the inputs for a cross-team model-provider
+// copy. TeamID is the DESTINATION; SourceTeamID/SourceProviderID identify the
+// row being copied.
+//
+// Every field from Name down is an OPTIONAL override of the source row's value:
+// nil copies the source verbatim. NameGenerated is not a field — an omitted
+// Name is what licenses the service to disambiguate with a "(copy N)" suffix,
+// whereas a supplied one is used verbatim and collides as
+// ErrModelProviderAlreadyExists.
+type CopyModelProviderParams struct {
+	TeamID           string
+	SourceTeamID     string
+	SourceProviderID string
+	UserID           string
+
+	Name          *string
+	ProviderType  *string
+	Model         *string
+	BaseURL       *string
+	Configuration *map[string]interface{}
 }
 
 // TeamEmailProviderServiceInterface defines the operations on a team's own
