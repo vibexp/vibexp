@@ -13395,6 +13395,80 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Model Providers
+  /api/v1/{team_id}/settings/model-providers/copy:
+    post:
+      summary: Copy a model provider from another team into this team
+      description: |-
+        Copies the provider named by `source_provider_id` out of `source_team_id` and into the team named by `{team_id}`, credential included. The caller must be able to manage provider settings in BOTH teams — the same bar the destination's own create path sets — and the destination is checked first, so a caller entitled to neither learns nothing about either.
+
+        The copy carries the source row's ENCRYPTED API key across without ever decrypting it, which is the only way the credential can move: it is write-only over the API, and responses report `has_api_key` alone. A source provider stored without a key copies fine and reports `has_api_key: false`.
+
+        The copy is a snapshot. The destination fully owns the resulting row and may edit or delete it with no effect on the source. It always lands non-default (`is_default: false`) regardless of the source, so it can never displace the destination team's existing default.
+
+        Note the `version` caveat on `ModelProvider`: like the create response, this one reports 0 for a row that persists at 1.
+      operationId: copyModelProviderFromTeam
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Destination team identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopyModelProviderRequest'
+      responses:
+        '200':
+          description: Provider copied into the destination team
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelProviderResponse'
+        '400':
+          description: Missing or malformed body, missing/malformed `source_team_id` or `source_provider_id`, source equal to destination (`BAD_REQUEST`), or an override sent empty (`MODEL_PROVIDER_VALIDATION_FAILED` with `validation_errors`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller cannot manage provider settings in the destination team or in the source team (`FORBIDDEN`). The two are deliberately indistinguishable, so the response never reveals whether the source team exists.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No such provider in the source team (`MODEL_PROVIDER_NOT_FOUND`). Only reachable once the caller is authorized on both teams, so it leaks nothing.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The chosen name is already taken in the destination team (`MODEL_PROVIDER_ALREADY_EXISTS`). Normally that means a caller-supplied `name`, since an omitted one is disambiguated first — but a disambiguated name can still land here if another writer claims it in between, or if every generated variant is already taken.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to copy the model provider (`INTERNAL_ERROR`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Model Providers
   /api/v1/{team_id}/projects:
     post:
       summary: Create new project
@@ -16359,6 +16433,58 @@ components:
       type: array
       items:
         $ref: '#/components/schemas/ModelProviderResponse'
+    CopyModelProviderRequest:
+      type: object
+      description: |
+        Request body for copying one model provider out of another team into this one. The destination is the `{team_id}` path parameter; only the source is carried here.
+
+        The API key is deliberately absent. Responses expose `has_api_key` and never the key itself, so a client cannot carry the credential across — the server re-reads the source row's stored ciphertext and writes it to the copy untouched, without ever decrypting it.
+
+        Every property other than the two source identifiers is an OPTIONAL override of the value the source row already holds: omit one to copy the source value verbatim, or send it to change the copy without touching the source. An override that IS sent must be non-empty, the same bar the create path sets.
+      properties:
+        source_team_id:
+          type: string
+          format: uuid
+          description: |
+            Team to copy the provider from. The caller needs permission to manage provider settings in it, and it must differ from the destination team.
+          example: 770e8400-e29b-41d4-a716-446655440002
+        source_provider_id:
+          type: string
+          format: uuid
+          description: Provider to copy, as it exists in the source team.
+          example: 550e8400-e29b-41d4-a716-446655440000
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: |
+            Name for the copy. Sent, it is used verbatim, and a name the destination already holds fails the copy with 409. Omitted, the source name is used, disambiguated as "<name> (copy)", "<name> (copy 2)", … when the destination already holds it.
+          example: OpenAI GPT-4o (staging)
+        provider_type:
+          type: string
+          minLength: 1
+          description: Overrides the source provider's type.
+          example: openai_compatible
+        model:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Overrides the source provider's chat/completion model.
+          example: gpt-4o-mini
+        base_url:
+          type: string
+          format: uri
+          nullable: true
+          description: |
+            Overrides the source provider's base URL. Send null or an empty string to store no base URL at all.
+          example: https://api.openai.com/v1
+        configuration:
+          type: object
+          additionalProperties: true
+          description: Overrides the source provider's configuration wholesale.
+      required:
+        - source_team_id
+        - source_provider_id
     ValidateModelProviderRequest:
       type: object
       properties:

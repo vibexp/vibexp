@@ -600,6 +600,16 @@ type ModelProviderRepository interface {
 	SetDefault(ctx context.Context, teamID, providerID string) error
 	UnsetAllDefaults(ctx context.Context, teamID string) error
 	Count(ctx context.Context, teamID string) (int, error)
+	// ListNames returns every provider name held by the team.
+	//
+	// Deliberately unpaginated, unlike List: its caller is the cross-team copy
+	// (#830), which resolves a name collision by picking the first free
+	// "<name> (copy N)" and therefore needs the WHOLE set. Going through List
+	// would mean either a magic large Limit or a Count-then-List pair, and
+	// List's contract is that a non-positive Limit emits LIMIT 0 — an empty
+	// page reads as "no collisions" and would silently hand back a name the
+	// destination already holds.
+	ListNames(ctx context.Context, teamID string) ([]string, error)
 }
 
 // ModelProviderFilters represents filters for model provider queries

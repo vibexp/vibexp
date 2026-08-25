@@ -39,7 +39,7 @@ func deniedModelService(t *testing.T) *ModelProviderService {
 	require.NoError(t, err)
 	return NewModelProviderService(
 		mocks.NewMockModelProviderRepository(t), enc,
-		localDevProviderConfig(), denyingProviderAuthz{},
+		localDevProviderConfig(), denyingProviderAuthz{}, &recordingAuditService{},
 	)
 }
 
@@ -142,6 +142,7 @@ func TestProviderService_NilAuthzFailsClosed(t *testing.T) {
 
 	mps := NewModelProviderService(
 		mocks.NewMockModelProviderRepository(t), enc, localDevProviderConfig(), nil,
+		&recordingAuditService{},
 	)
 	_, modErr := mps.CreateModelProvider(
 		context.Background(), testProviderTeamID, testProviderUserID,

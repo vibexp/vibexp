@@ -285,3 +285,64 @@ func TestModelProviderRepository_Count_Error(t *testing.T) {
 	require.Error(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestModelProviderRepository_ListNames(t *testing.T) {
+	repo, mock, mockDB := setupModelProviderTest(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	ctx := contextWithLogger()
+
+	rows := sqlmock.NewRows([]string{"name"}).
+		AddRow("OpenAI GPT-4o").
+		AddRow("OpenAI GPT-4o (copy)")
+	mock.ExpectQuery(`SELECT name FROM model_providers WHERE team_id = \$1`).
+		WithArgs("team-1").
+		WillReturnRows(rows)
+
+	names, err := repo.ListNames(ctx, "team-1")
+	require.NoError(t, err)
+	// Unpaginated on purpose: the copy's collision check needs every name, and
+	// a partial page would read as "no collision" (see the interface doc).
+	assert.Equal(t, []string{"OpenAI GPT-4o", "OpenAI GPT-4o (copy)"}, names)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestModelProviderRepository_ListNames_Empty(t *testing.T) {
+	repo, mock, mockDB := setupModelProviderTest(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`SELECT name FROM model_providers WHERE team_id = \$1`).
+		WithArgs("team-empty").
+		WillReturnRows(sqlmock.NewRows([]string{"name"}))
+
+	names, err := repo.ListNames(contextWithLogger(), "team-empty")
+	require.NoError(t, err)
+	assert.Empty(t, names)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestModelProviderRepository_ListNames_Error(t *testing.T) {
+	repo, mock, mockDB := setupModelProviderTest(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`SELECT name FROM model_providers WHERE team_id = \$1`).
+		WithArgs("team-1").
+		WillReturnError(errors.New("connection refused"))
+
+	_, err := repo.ListNames(contextWithLogger(), "team-1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to list model provider names")
+	require.NoError(t, mock.ExpectationsWereMet())
+}

@@ -133,7 +133,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		return nil, err
 	}
 	embeddingProviderServiceInterface := providers.ProvideEmbeddingProviderService(embeddingProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface)
-	modelProviderServiceInterface := providers.ProvideModelProviderService(modelProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface)
+	modelProviderServiceInterface := providers.ProvideModelProviderService(modelProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, teamSettingsAuditServiceInterface)
 	gitHubAppClientResolver := providers.ProvideGitHubAppClientResolver(gitHubAppConfigRepository, encryptionServiceInterface, logger)
 	gitHubAppConfigServiceInterface := providers.ProvideGitHubAppConfigService(gitHubAppConfigRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, gitHubAppClientResolver)
 	teamEmailProviderRepository := providers.ProvideTeamEmailProviderRepository(db)

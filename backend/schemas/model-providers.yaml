@@ -163,6 +163,74 @@ ModelProviderListResponse:
     - per_page
     - total_pages
 
+CopyModelProviderRequest:
+  type: object
+  description: >
+    Request body for copying one model provider out of another team into this
+    one. The destination is the `{team_id}` path parameter; only the source is
+    carried here.
+
+
+    The API key is deliberately absent. Responses expose `has_api_key` and never
+    the key itself, so a client cannot carry the credential across — the server
+    re-reads the source row's stored ciphertext and writes it to the copy
+    untouched, without ever decrypting it.
+
+
+    Every property other than the two source identifiers is an OPTIONAL override
+    of the value the source row already holds: omit one to copy the source value
+    verbatim, or send it to change the copy without touching the source. An
+    override that IS sent must be non-empty, the same bar the create path sets.
+  properties:
+    source_team_id:
+      type: string
+      format: uuid
+      description: >
+        Team to copy the provider from. The caller needs permission to manage
+        provider settings in it, and it must differ from the destination team.
+      example: "770e8400-e29b-41d4-a716-446655440002"
+    source_provider_id:
+      type: string
+      format: uuid
+      description: Provider to copy, as it exists in the source team.
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: >
+        Name for the copy. Sent, it is used verbatim, and a name the destination
+        already holds fails the copy with 409. Omitted, the source name is used,
+        disambiguated as "<name> (copy)", "<name> (copy 2)", … when the
+        destination already holds it.
+      example: "OpenAI GPT-4o (staging)"
+    provider_type:
+      type: string
+      minLength: 1
+      description: Overrides the source provider's type.
+      example: "openai_compatible"
+    model:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: Overrides the source provider's chat/completion model.
+      example: "gpt-4o-mini"
+    base_url:
+      type: string
+      format: uri
+      nullable: true
+      description: >
+        Overrides the source provider's base URL. Send null or an empty string
+        to store no base URL at all.
+      example: "https://api.openai.com/v1"
+    configuration:
+      type: object
+      additionalProperties: true
+      description: Overrides the source provider's configuration wholesale.
+  required:
+    - source_team_id
+    - source_provider_id
+
 ValidateModelProviderRequest:
   type: object
   properties:
