@@ -759,9 +759,11 @@ api-v1-settings-model-providers-copy:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '409':
         description: >-
-          A caller-supplied `name` is already taken in the destination team
-          (`MODEL_PROVIDER_ALREADY_EXISTS`). An omitted name is disambiguated
-          instead and never reaches this.
+          The chosen name is already taken in the destination team
+          (`MODEL_PROVIDER_ALREADY_EXISTS`). Normally that means a
+          caller-supplied `name`, since an omitted one is disambiguated first —
+          but a disambiguated name can still land here if another writer claims
+          it in between, or if every generated variant is already taken.
         content:
           application/problem+json:
             schema:
