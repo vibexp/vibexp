@@ -65,7 +65,7 @@
     "@radix-ui/react-tabs": "~1.1.21",
     "@radix-ui/react-tooltip": "~1.2.16",
     "@tailwindcss/typography": "~0.5.20",
-    "@tanstack/react-table": "~8.21.3",
+    "@tanstack/react-table": "~9.1.2",
     "@types/prismjs": "~1.26.5",
     "@vibexp/api-client": "^0.66.0",
     "@vibexp/design-system": "^0.1.0",
