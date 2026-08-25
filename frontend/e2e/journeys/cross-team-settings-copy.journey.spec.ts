@@ -97,6 +97,14 @@ let sourceEmbeddingProviderId: string
 const observedBodies: string[] = []
 
 /**
+ * Reading a response body is asynchronous, so a body can still be in flight when
+ * the search runs — and a body that has not landed yet is a body the search
+ * cannot fail on. Every read is tracked here and awaited before the assertion,
+ * so "we found no key" can never mean "we had not finished looking".
+ */
+const bodyReads: Promise<void>[] = []
+
+/**
  * Record the browser's own API traffic.
  *
  * Bound to the CONTEXT rather than a page so it covers anything the app opens,
@@ -108,14 +116,16 @@ const observedBodies: string[] = []
 function recordApiResponses(context: BrowserContext): void {
   context.on('response', response => {
     if (!response.url().includes('/api/v1/')) return
-    void response
-      .text()
-      .then(body => {
-        observedBodies.push(body)
-      })
-      .catch(() => {
-        /* body unavailable — nothing to inspect */
-      })
+    bodyReads.push(
+      response
+        .text()
+        .then(body => {
+          observedBodies.push(body)
+        })
+        .catch(() => {
+          /* body unavailable — nothing to inspect */
+        })
+    )
   })
 }
 
@@ -334,9 +344,12 @@ test.describe.serial('Cross-team settings copy journey', () => {
     await pinTeam(memberPage, destTeamId)
   })
 
+  // Optional chaining is not defensive noise: a `beforeAll` that fails partway
+  // leaves the later contexts unassigned, and an unguarded `close()` would then
+  // throw a TypeError that REPLACES the real setup failure in the report.
   test.afterAll(async () => {
-    await memberCtx.close()
-    await ownerCtx.close()
+    await memberCtx?.close()
+    await ownerCtx?.close()
   })
 
   test('the owner copies a model provider into the second team', async () => {
@@ -481,6 +494,10 @@ test.describe.serial('Cross-team settings copy journey', () => {
   })
 
   test('no response body in the run ever carried the API key', async () => {
+    // Settle every body still being read, so the search below runs against all
+    // of the traffic rather than whatever happened to have arrived.
+    await Promise.allSettled(bodyReads)
+
     // The positive companion: without it this passes just as happily on a run
     // that recorded nothing at all. Both halves of the traffic must be present
     // — the browser's (which is where `has_api_key` is rendered from) and this
