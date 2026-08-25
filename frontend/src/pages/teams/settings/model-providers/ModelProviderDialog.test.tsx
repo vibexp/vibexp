@@ -166,6 +166,118 @@ describe('ModelProviderDialog', () => {
     expect(mockedValidate).not.toHaveBeenCalled()
   })
 
+  // -------------------------------------------------------------------------
+  // #834 — copy mode
+  // -------------------------------------------------------------------------
+
+  const copySource = {
+    provider: { ...existingProvider, name: 'Shared OpenAI' },
+    sourceTeamName: 'Platform Team',
+  }
+
+  const renderCopyDialog = (
+    overrides: Partial<typeof copySource> = {},
+    onSubmit = vi.fn().mockResolvedValue(undefined)
+  ) => {
+    render(
+      <ModelProviderDialog
+        teamId="team-1"
+        open
+        onOpenChange={vi.fn()}
+        submitting={false}
+        copySource={{ ...copySource, ...overrides }}
+        onSubmit={onSubmit}
+      />
+    )
+    return onSubmit
+  }
+
+  it('prefills name, type, model and base URL from the source provider', () => {
+    renderCopyDialog()
+
+    expect(screen.getByPlaceholderText('e.g., OpenAI GPT-4o')).toHaveValue(
+      'Shared OpenAI'
+    )
+    expect(screen.getByPlaceholderText('e.g., gpt-4o-mini')).toHaveValue(
+      'gpt-4o-mini'
+    )
+    expect(
+      screen.getByPlaceholderText('https://api.openai.com/v1')
+    ).toHaveValue('https://api.openai.com/v1')
+    expect(screen.getByRole('combobox')).toHaveTextContent('OpenAI-compatible')
+  })
+
+  it('renders the API key as non-editable, naming the source team', () => {
+    renderCopyDialog()
+
+    const field = screen.getByTestId('copy-api-key-field')
+    expect(field).toBeDisabled()
+    expect(field).toHaveAttribute('readonly')
+    expect(field).toHaveValue('Will be copied from Platform Team')
+    // The create path's key input must be gone, not merely hidden.
+    expect(screen.queryByPlaceholderText('Enter API key')).toBeNull()
+  })
+
+  it('states before confirming that the source key becomes usable here', () => {
+    renderCopyDialog()
+
+    expect(screen.getByTestId('copy-credential-warning')).toHaveTextContent(
+      /Platform Team's API key will be copied across and every member of this team will be able to use it/
+    )
+  })
+
+  it('does NOT run the validation probe on the copy path', async () => {
+    const user = userEvent.setup()
+    const onSubmit = renderCopyDialog()
+
+    await user.click(screen.getByRole('button', { name: 'Copy provider' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Shared OpenAI',
+          provider_type: 'openai_compatible',
+          model: 'gpt-4o-mini',
+          base_url: 'https://api.openai.com/v1',
+        })
+      )
+    })
+    // The whole point of the exception: the SPA holds no key, so the probe
+    // could only fail with an auth error and block a valid copy.
+    expect(mockedValidate).not.toHaveBeenCalled()
+  })
+
+  it('still probes on the create path (the copy exception is not over-broad)', async () => {
+    const user = userEvent.setup()
+    mockedValidate.mockResolvedValue({ is_valid: true, message: 'ok' })
+    const onSubmit = renderDialog()
+
+    await fillValidForm(user)
+    await user.click(screen.getByRole('button', { name: 'Add provider' }))
+
+    await waitFor(() => {
+      expect(mockedValidate).toHaveBeenCalledTimes(1)
+    })
+    expect(onSubmit).toHaveBeenCalled()
+  })
+
+  it('hides the default checkbox — a copy always lands non-default', () => {
+    renderCopyDialog()
+    expect(screen.queryByText('Use as default')).toBeNull()
+  })
+
+  it('says so when the source provider has no key stored', () => {
+    renderCopyDialog({
+      provider: { ...existingProvider, has_api_key: false },
+    })
+
+    expect(
+      screen.getByText(
+        'That provider has no key stored, so the copy will not have one either.'
+      )
+    ).toBeInTheDocument()
+  })
+
   it('validates when the model changes on edit', async () => {
     const user = userEvent.setup()
     mockedValidate.mockResolvedValue({ is_valid: true, message: 'ok' })
