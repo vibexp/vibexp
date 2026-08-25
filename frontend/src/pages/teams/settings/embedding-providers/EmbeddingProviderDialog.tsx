@@ -2,7 +2,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { type Control, useForm, type UseFormReturn } from 'react-hook-form'
-import { z } from 'zod'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
@@ -35,6 +34,20 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/lib/toast'
+import {
+  CopiedApiKeyField,
+  CopyOnlyFields,
+} from '@/pages/teams/settings/embedding-providers/EmbeddingProviderCopyFields'
+import type {
+  CopySource,
+  CopySubmitValues,
+  EmbeddingProviderFormValues,
+} from '@/pages/teams/settings/embedding-providers/embeddingProviderForm'
+import {
+  identityChanged,
+  reembedWillTrigger,
+  schema,
+} from '@/pages/teams/settings/embedding-providers/embeddingProviderForm'
 import type {
   CreateEmbeddingProviderRequest,
   EmbeddingProviderResponse,
@@ -44,55 +57,6 @@ import {
   EMBEDDING_VECTOR_DIMENSIONS,
   embeddingProviderService,
 } from '@/services/embeddingProviderService'
-
-const schema = z.object({
-  name: z.string().trim().min(1, 'Name is required').max(255),
-  provider_type: z.string().min(1, 'Provider type is required'),
-  model: z.string().trim().min(1, 'Model is required').max(255),
-  base_url: z.url('Must be a valid URL').trim(),
-  api_key: z.string().optional(),
-  concurrency: z
-    .number()
-    .int('Must be a whole number')
-    .min(1, 'Must be at least 1'),
-  // Prefixes are NOT trimmed — asymmetric models expect a trailing space (e.g.
-  // "query: "), which trimming would strip. Capped at 256 to match the backend.
-  query_prefix: z.string().max(256, 'Must be at most 256 characters'),
-  document_prefix: z.string().max(256, 'Must be at most 256 characters'),
-  is_default: z.boolean(),
-})
-
-export type EmbeddingProviderFormValues = z.infer<typeof schema>
-
-// identityChanged is true when an edit changes the model, base URL, or provider
-// type — the fields that make existing embeddings incomparable. It gates the
-// validate-on-save probe. Module-level (pure) to keep the dialog under the
-// max-lines-per-function cap.
-function identityChanged(
-  values: EmbeddingProviderFormValues,
-  provider?: EmbeddingProviderResponse
-) {
-  return (
-    !!provider &&
-    (values.model.trim() !== provider.model ||
-      values.base_url.trim() !== (provider.base_url ?? '') ||
-      values.provider_type !== provider.provider_type)
-  )
-}
-
-// reembedWillTrigger is true when an edit will wipe + re-index this team's
-// embeddings: an identity change OR a document_prefix change (it alters the text
-// every document is embedded with). A query_prefix change does NOT re-index — it
-// affects only the query side — so it is intentionally excluded.
-function reembedWillTrigger(
-  values: EmbeddingProviderFormValues,
-  provider?: EmbeddingProviderResponse
-) {
-  return (
-    identityChanged(values, provider) ||
-    (!!provider && values.document_prefix !== (provider.document_prefix ?? ''))
-  )
-}
 
 // Concurrency is the one numeric field, so it needs value/onChange coercion
 // (an <input type="number"> yields strings, but the schema wants a number).
@@ -225,6 +189,103 @@ function PrefixFields({
   )
 }
 
+// The API key input for the create/edit paths. Extracted so the dialog
+// component stays under the max-lines-per-function cap.
+function ApiKeyField({
+  control,
+  isEdit,
+}: Readonly<{
+  control: Control<EmbeddingProviderFormValues>
+  isEdit: boolean
+}>) {
+  return (
+    <FormField
+      control={control}
+      name="api_key"
+      render={({ field }) => (
+        <FormItem className="sm:col-span-2">
+          <FormLabel>API key</FormLabel>
+          <FormControl>
+            <Input
+              {...field}
+              type="password"
+              placeholder={
+                isEdit ? 'Leave blank to keep current key' : 'Enter API key'
+              }
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+}
+
+// The "use as default" checkbox for the create/edit paths. Extracted for the
+// same reason as ApiKeyField.
+function DefaultProviderField({
+  control,
+}: Readonly<{ control: Control<EmbeddingProviderFormValues> }>) {
+  return (
+    <FormField
+      control={control}
+      name="is_default"
+      render={({ field }) => (
+        <FormItem className="flex flex-row items-start gap-2 space-y-0 sm:col-span-2">
+          <FormControl>
+            <Checkbox
+              checked={field.value}
+              onCheckedChange={value => {
+                field.onChange(value === true)
+              }}
+              className="mt-0.5"
+            />
+          </FormControl>
+          <div className="space-y-0.5 leading-none">
+            <FormLabel>Use as default</FormLabel>
+            <FormDescription>
+              Embedding requests without an explicit provider will use this one.
+            </FormDescription>
+          </div>
+        </FormItem>
+      )}
+    />
+  )
+}
+
+// Title + description for all three modes. Extracted so the dialog component
+// stays under the max-lines-per-function cap.
+function ProviderDialogHeader({
+  provider,
+  copySource,
+}: Readonly<{
+  provider?: EmbeddingProviderResponse
+  copySource?: CopySource
+}>) {
+  let title = 'Add embedding provider'
+  if (copySource) title = 'Copy embedding provider'
+  else if (provider) title = 'Edit provider'
+
+  return (
+    <DialogHeader>
+      <DialogTitle>{title}</DialogTitle>
+      <DialogDescription>
+        {copySource ? (
+          <>
+            Pre-filled from{' '}
+            <span className="font-medium">{copySource.provider.name}</span> in{' '}
+            <span className="font-medium">{copySource.sourceTeamName}</span>.
+            Adjust anything you want to differ here — the copy is a snapshot and
+            changing it won&apos;t affect the other team.
+          </>
+        ) : (
+          'Embedding providers convert text into vectors for semantic search.'
+        )}
+      </DialogDescription>
+    </DialogHeader>
+  )
+}
+
 interface Props {
   teamId: string
   /**
@@ -238,10 +299,21 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   provider?: EmbeddingProviderResponse
+  /**
+   * Set to put the dialog in copy mode: the form is pre-filled from the source
+   * team's provider, the API key is not enterable (the server carries the
+   * source row's ciphertext across), and the validate-on-save probe is skipped
+   * — with no key in the SPA's hands it could only fail with an auth error.
+   * Mutually exclusive with `provider`, which is the edit path.
+   */
+  copySource?: CopySource
   submitting: boolean
-  onSubmit: (
+  /** The create/edit submit. Not called — and not needed — in copy mode. */
+  onSubmit?: (
     data: CreateEmbeddingProviderRequest | UpdateEmbeddingProviderRequest
   ) => Promise<void>
+  /** Called instead of `onSubmit` in copy mode. */
+  onCopySubmit?: (data: CopySubmitValues) => Promise<void>
 }
 
 export function EmbeddingProviderDialog({
@@ -250,12 +322,15 @@ export function EmbeddingProviderDialog({
   open,
   onOpenChange,
   provider,
+  copySource,
   submitting,
   onSubmit,
+  onCopySubmit,
 }: Readonly<Props>) {
   const [validating, setValidating] = useState(false)
   const [pendingValues, setPendingValues] =
     useState<EmbeddingProviderFormValues | null>(null)
+  const isCopy = !!copySource
 
   const form = useForm<EmbeddingProviderFormValues>({
     resolver: zodResolver(schema),
@@ -269,6 +344,9 @@ export function EmbeddingProviderDialog({
       query_prefix: '',
       document_prefix: '',
       is_default: false,
+      chunk_size: 1000,
+      chunk_overlap: 200,
+      reprocess: false,
     },
   })
 
@@ -277,25 +355,55 @@ export function EmbeddingProviderDialog({
       form.reset()
       return
     }
-    if (provider) {
+    // Copy mode pre-fills from the SOURCE team's provider; every non-secret
+    // field stays an editable override of what the server would otherwise carry
+    // across. `is_default` is forced false because the copy always lands
+    // non-default server-side, so it can never displace this team's default.
+    const prefill = copySource?.provider ?? provider
+    if (prefill) {
       form.reset({
-        name: provider.name,
-        provider_type: provider.provider_type,
-        model: provider.model,
-        base_url: provider.base_url ?? '',
+        name: prefill.name,
+        provider_type: prefill.provider_type,
+        model: prefill.model,
+        base_url: prefill.base_url ?? '',
         api_key: '',
-        concurrency: provider.concurrency,
-        query_prefix: provider.query_prefix ?? '',
-        document_prefix: provider.document_prefix ?? '',
-        is_default: provider.is_default,
+        concurrency: prefill.concurrency,
+        query_prefix: prefill.query_prefix ?? '',
+        document_prefix: prefill.document_prefix ?? '',
+        is_default: copySource ? false : prefill.is_default,
+        chunk_size: prefill.chunk_size,
+        chunk_overlap: prefill.chunk_overlap,
+        reprocess: false,
       })
     }
-  }, [open, provider, form])
+  }, [open, provider, copySource, form])
 
   const proceed = async (values: EmbeddingProviderFormValues) => {
     const baseUrl = values.base_url.trim()
     const apiKey = values.api_key?.trim() ?? ''
     const model = values.model.trim()
+
+    // The copy path never probes and never posts a key: the credential stays
+    // server-side as ciphertext, so `validateEmbeddingProvider` could only ever
+    // fail with an auth error and block a perfectly valid copy. Gated on the
+    // dialog's MODE rather than on "the key field is empty" — an empty key is
+    // also a legitimate create-path error state, and conflating the two would
+    // suppress a real validation failure there.
+    if (isCopy) {
+      await onCopySubmit?.({
+        name: values.name.trim(),
+        provider_type: values.provider_type,
+        model,
+        base_url: baseUrl,
+        chunk_size: values.chunk_size,
+        chunk_overlap: values.chunk_overlap,
+        concurrency: values.concurrency,
+        query_prefix: values.query_prefix,
+        document_prefix: values.document_prefix,
+        reprocess: values.reprocess,
+      })
+      return
+    }
 
     // Validate-on-save: probe the provider so it is accepted only if it returns
     // the fixed 1024-dimensional vectors VibeXP stores. Always validate on create
@@ -328,7 +436,7 @@ export function EmbeddingProviderDialog({
       }
     }
 
-    await onSubmit({
+    await onSubmit?.({
       name: values.name.trim(),
       provider_type: values.provider_type,
       model,
@@ -354,20 +462,14 @@ export function EmbeddingProviderDialog({
   })
 
   const busy = submitting || validating
-  const submitLabel = provider ? 'Save changes' : 'Add provider'
+  const editLabel = provider ? 'Save changes' : 'Add provider'
+  const submitLabel = isCopy ? 'Copy provider' : editLabel
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {provider ? 'Edit provider' : 'Add embedding provider'}
-            </DialogTitle>
-            <DialogDescription>
-              Embedding providers convert text into vectors for semantic search.
-            </DialogDescription>
-          </DialogHeader>
+          <ProviderDialogHeader provider={provider} copySource={copySource} />
           <Form {...form}>
             <form
               onSubmit={event => {
@@ -464,52 +566,21 @@ export function EmbeddingProviderDialog({
                   </FormItem>
                 )}
               />
+              {isCopy && <CopyOnlyFields form={form} />}
               <PrefixFields form={form} />
-              <FormField
-                control={form.control}
-                name="api_key"
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-2">
-                    <FormLabel>API key</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="password"
-                        placeholder={
-                          provider
-                            ? 'Leave blank to keep current key'
-                            : 'Enter API key'
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="is_default"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start gap-2 space-y-0 sm:col-span-2">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={value => {
-                          field.onChange(value === true)
-                        }}
-                        className="mt-0.5"
-                      />
-                    </FormControl>
-                    <div className="space-y-0.5 leading-none">
-                      <FormLabel>Use as default</FormLabel>
-                      <FormDescription>
-                        Embedding requests without an explicit provider will use
-                        this one.
-                      </FormDescription>
-                    </div>
-                  </FormItem>
-                )}
-              />
+              {copySource ? (
+                <CopiedApiKeyField
+                  sourceTeamName={copySource.sourceTeamName}
+                  hasApiKey={copySource.provider.has_api_key}
+                />
+              ) : (
+                <ApiKeyField control={form.control} isEdit={!!provider} />
+              )}
+              {/* A copy always lands non-default server-side, so offering the
+                  checkbox here would be a control that silently does nothing.
+                  What a copy CAN still do to search is reported by the server
+                  afterwards, as an activation verdict the page warns on. */}
+              {!isCopy && <DefaultProviderField control={form.control} />}
               <DialogFooter className="sm:col-span-2">
                 <Button
                   type="button"

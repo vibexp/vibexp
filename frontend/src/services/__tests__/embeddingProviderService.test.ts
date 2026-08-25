@@ -1,5 +1,7 @@
 import { ApiError } from '../../types/errors'
 import type {
+  CopyEmbeddingProviderRequest,
+  CopyEmbeddingProviderResponse,
   CreateEmbeddingProviderRequest,
   EmbeddingProviderResponse,
   UpdateEmbeddingProviderRequest,
@@ -397,6 +399,62 @@ describe('EmbeddingProviderService', () => {
       await expect(
         embeddingProviderService.clearEmbeddings(teamId)
       ).rejects.toThrow('Failed to clear embeddings')
+    })
+  })
+
+  // The copy endpoint (#831) is the one create-shaped call that returns an
+  // envelope rather than the bare provider, and the only one carrying the
+  // server's activation verdict. Both are pinned here — a page test that mocks
+  // the service proves nothing about the path template or the body keys.
+  describe('copyEmbeddingProviderFromTeam', () => {
+    const request: CopyEmbeddingProviderRequest = {
+      source_team_id: 'team-2',
+      source_provider_id: 'provider-9',
+      name: 'Shared mxbai',
+      model: 'mxbai-embed-large',
+      chunk_size: 512,
+      chunk_overlap: 64,
+      reprocess: true,
+    }
+
+    it('posts the source identifiers and overrides, and returns provider + activation', async () => {
+      const response: CopyEmbeddingProviderResponse = {
+        provider: { ...provider, id: 'provider-copy' },
+        activation: {
+          becomes_active: true,
+          displaced_model: 'text-embedding-3-small',
+          displaced_embedded_resources: 412,
+          reprocess_enqueued: true,
+          embeddings_wiped: true,
+        },
+      }
+      mockGeneratedClient.POST.mockReturnValue(success(response))
+
+      const result =
+        await embeddingProviderService.copyEmbeddingProviderFromTeam(
+          teamId,
+          request
+        )
+
+      expect(mockGeneratedClient.POST).toHaveBeenCalledWith(`${base}/copy`, {
+        params: { path: { team_id: teamId } },
+        body: request,
+      })
+      // No api_key ever leaves the SPA on this path — the server moves the
+      // source row's ciphertext without decrypting it.
+      expect(request).not.toHaveProperty('api_key')
+      expect(result.activation.becomes_active).toBe(true)
+      expect(result.provider.id).toBe('provider-copy')
+    })
+
+    it('throws ApiError when the destination already holds the name', async () => {
+      mockGeneratedClient.POST.mockReturnValue(
+        problem(409, 'Provider name already exists', 'PROVIDER_NAME_CONFLICT')
+      )
+
+      await expect(
+        embeddingProviderService.copyEmbeddingProviderFromTeam(teamId, request)
+      ).rejects.toThrow(ApiError)
     })
   })
 })

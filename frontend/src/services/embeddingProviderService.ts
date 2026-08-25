@@ -27,6 +27,12 @@ export type EmbeddingCoverageItem =
   components['schemas']['EmbeddingCoverageItem']
 export type ClearEmbeddingsResponse =
   components['schemas']['ClearEmbeddingsResponse']
+export type CopyEmbeddingProviderRequest =
+  components['schemas']['CopyEmbeddingProviderRequest']
+export type CopyEmbeddingProviderResponse =
+  components['schemas']['CopyEmbeddingProviderResponse']
+export type EmbeddingProviderCopyActivation =
+  components['schemas']['EmbeddingProviderCopyActivation']
 
 // EMBEDDING_VECTOR_DIMENSIONS is the fixed vector width VibeXP stores (locked to
 // the vector(1024) column). It is displayed read-only; a provider is accepted
@@ -95,6 +101,34 @@ class EmbeddingProviderService {
       generatedClient.DELETE(
         '/api/v1/{team_id}/settings/embedding-providers/{id}',
         { params: { path: { team_id: teamId, id } } }
+      )
+    )
+  }
+
+  /**
+   * Copies one embedding provider out of another team into `teamId`,
+   * credential included (#831).
+   *
+   * The API key is deliberately absent from the request: it is write-only over
+   * the API, so the server re-reads the source row's ciphertext and writes it
+   * to the copy without ever decrypting it. Everything beyond the two source
+   * identifiers and `reprocess` is an optional override of the source value.
+   *
+   * Unlike the other create-shaped calls this returns an envelope, not the bare
+   * provider: `activation` is the server's verdict on what the copy did to the
+   * destination team's SEARCH — a copy always lands non-default, but the active
+   * provider resolves to "the default one, else the most recently updated one",
+   * so it can still take over by recency alone. Callers must surface that
+   * verdict rather than re-deriving it from `is_default`.
+   */
+  async copyEmbeddingProviderFromTeam(
+    teamId: string,
+    request: CopyEmbeddingProviderRequest
+  ): Promise<CopyEmbeddingProviderResponse> {
+    return unwrap(
+      generatedClient.POST(
+        '/api/v1/{team_id}/settings/embedding-providers/copy',
+        { params: { path: { team_id: teamId } }, body: request }
       )
     )
   }

@@ -1,36 +1,25 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import {
-  AlertCircle,
-  Cpu,
-  Loader2,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Trash2,
-} from 'lucide-react'
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react'
+import { Copy, Cpu, Pencil, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/PageHeader'
 import { ListTable } from '@/components/patterns/list-page'
 import { StatusBadge } from '@/components/StatusBadge'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import { toast } from '@/lib/toast'
+import { CopyEmbeddingProviderFlow } from '@/pages/teams/settings/embedding-providers/CopyEmbeddingProviderFlow'
+import { canCopyEmbeddingProviderFrom } from '@/pages/teams/settings/embedding-providers/copyPermissions'
+import { CoverageSection } from '@/pages/teams/settings/embedding-providers/EmbeddingCoverageSection'
 import { EmbeddingProviderDialog } from '@/pages/teams/settings/embedding-providers/EmbeddingProviderDialog'
 import type {
   CreateEmbeddingProviderRequest,
-  EmbeddingCoverageItem,
   EmbeddingCoverageResponse,
   EmbeddingProviderResponse,
   UpdateEmbeddingProviderRequest,
@@ -47,25 +36,6 @@ function formatDate(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-const ENTITY_TYPE_LABELS: Record<EmbeddingCoverageItem['entity_type'], string> =
-  {
-    prompt: 'Prompts',
-    artifact: 'Artifacts',
-    memory: 'Memories',
-    blueprint: 'Blueprints',
-    feed_item: 'Feed items',
-  }
-
-function entityTypeLabel(type: EmbeddingCoverageItem['entity_type']) {
-  return ENTITY_TYPE_LABELS[type]
-}
-
-// Percentage guarded against a zero denominator so N=0 renders 0%, never NaN.
-function percent(embedded: number, total: number) {
-  if (total <= 0) return 0
-  return Math.round((embedded / total) * 100)
 }
 
 function buildProviderColumns(
@@ -155,176 +125,71 @@ function buildProviderColumns(
   ]
 }
 
-interface StatCardProps {
-  label: string
-  value: string
-  hint?: string
-}
-
-function StatCard({ label, value, hint }: Readonly<StatCardProps>) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-muted-foreground text-sm font-medium">
-          {label}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-semibold">{value}</p>
-        {hint && <p className="text-muted-foreground mt-1 text-xs">{hint}</p>}
-      </CardContent>
-    </Card>
-  )
-}
-
-function EmbeddingCoverageCards({
-  coverage,
-}: Readonly<{
-  coverage: EmbeddingCoverageResponse
-}>) {
-  const totals = coverage.coverage.reduce(
-    (acc, item) => ({
-      total: acc.total + item.total,
-      embedded: acc.embedded + item.embedded,
-      pending: acc.pending + item.pending,
-    }),
-    { total: 0, embedded: 0, pending: 0 }
-  )
-  const overallPercent = percent(totals.embedded, totals.total)
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-        <StatCard
-          label="Embedded"
-          value={totals.embedded.toLocaleString()}
-          hint={`of ${totals.total.toLocaleString()} items`}
-        />
-        <StatCard
-          label="Pending"
-          value={totals.pending.toLocaleString()}
-          hint="waiting for an embedding"
-        />
-        <StatCard label="% embedded" value={`${String(overallPercent)}%`} />
-      </div>
-
-      <div>
-        <h3 className="text-muted-foreground mb-2 text-sm font-medium">
-          By type
-        </h3>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-          {coverage.coverage.map(item => (
-            <StatCard
-              key={item.entity_type}
-              label={entityTypeLabel(item.entity_type)}
-              value={`${String(item.embedded_percent)}%`}
-              hint={`${item.embedded.toLocaleString()} / ${item.total.toLocaleString()} · ${item.pending.toLocaleString()} pending`}
-            />
-          ))}
-        </div>
-      </div>
-
-      <p className="text-muted-foreground text-xs">
-        Pending is the number of items still waiting for an embedding. If it
-        isn&rsquo;t going down over time, embedding may be stuck &mdash; use
-        &ldquo;Reprocess pending&rdquo; to re-drive it.
-      </p>
-    </div>
-  )
-}
-
-interface CoverageSectionProps {
-  coverage: EmbeddingCoverageResponse | null
-  coverageLoading: boolean
-  coverageError: string | null
-  canReprocess: boolean
-  reprocessing: boolean
-  onReprocess: () => void
-  canClear: boolean
-  clearing: boolean
-  onClear: () => void
-}
-
-// Coverage summary plus its two maintenance actions (reprocess missing, clear
-// all). Extracted from EmbeddingProviders so the page component stays within the
-// max-lines-per-function budget.
-function CoverageSection({
-  coverage,
-  coverageLoading,
-  coverageError,
-  canReprocess,
-  reprocessing,
-  onReprocess,
-  canClear,
+// The page's two destructive confirmations (delete a provider, clear every
+// embedding). Extracted so the page component stays under the
+// max-lines-per-function cap.
+function DestructiveConfirmDialogs({
+  toDelete,
+  deleting,
+  onCancelDelete,
+  onConfirmDelete,
+  clearOpen,
   clearing,
-  onClear,
-}: Readonly<CoverageSectionProps>) {
-  // Loading / error pre-empt the cards; null when there is no coverage yet.
-  let coverageContent: ReactNode = null
-  if (coverageLoading) {
-    coverageContent = (
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-24 w-full" />
-        ))}
-      </div>
-    )
-  } else if (coverageError) {
-    coverageContent = (
-      <Alert variant="destructive">
-        <AlertCircle className="size-4" />
-        <AlertTitle>Couldn&rsquo;t load embedding coverage</AlertTitle>
-        <AlertDescription>{coverageError}</AlertDescription>
-      </Alert>
-    )
-  } else if (coverage) {
-    coverageContent = <EmbeddingCoverageCards coverage={coverage} />
-  }
-
+  onClearOpenChange,
+  onConfirmClear,
+}: Readonly<{
+  toDelete: EmbeddingProviderResponse | null
+  deleting: boolean
+  onCancelDelete: () => void
+  onConfirmDelete: () => Promise<void>
+  clearOpen: boolean
+  clearing: boolean
+  onClearOpenChange: (open: boolean) => void
+  onConfirmClear: () => Promise<void>
+}>) {
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold">Embedding coverage</h2>
-          <p className="text-muted-foreground text-sm">
-            {coverage?.has_active_provider && coverage.active_model
-              ? `Measured against ${coverage.active_model}.`
-              : 'Embedding status across your content.'}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!canReprocess || reprocessing}
-            onClick={onReprocess}
-          >
-            {reprocessing ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 size-4" />
-            )}
-            Reprocess pending
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-destructive hover:text-destructive"
-            disabled={!canClear || clearing}
-            onClick={onClear}
-          >
-            {clearing ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <Trash2 className="mr-2 size-4" />
-            )}
-            Clear all embeddings
-          </Button>
-        </div>
-      </div>
+    <>
+      <ConfirmDialog
+        open={!!toDelete}
+        onOpenChange={open => {
+          if (!open) onCancelDelete()
+        }}
+        title="Delete provider?"
+        description={
+          <>
+            This will permanently delete{' '}
+            <span className="font-medium">
+              {toDelete?.name ?? 'this provider'}
+            </span>
+            {'. Anything using it for embeddings will stop working.'}
+          </>
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleting}
+        onConfirm={onConfirmDelete}
+      />
 
-      {coverageContent}
-    </div>
+      <ConfirmDialog
+        open={clearOpen}
+        onOpenChange={open => {
+          if (!clearing) onClearOpenChange(open)
+        }}
+        title="Clear all embeddings?"
+        description={
+          <>
+            This permanently deletes{' '}
+            <span className="font-medium">every stored embedding</span> for this
+            team. Semantic search will return nothing until you re-embed with
+            &ldquo;Reprocess pending&rdquo;. This can&rsquo;t be undone.
+          </>
+        }
+        confirmLabel="Clear all"
+        variant="destructive"
+        loading={clearing}
+        onConfirm={onConfirmClear}
+      />
+    </>
   )
 }
 
@@ -339,8 +204,15 @@ function CoverageSection({
  */
 export function EmbeddingProviders({ team }: Readonly<{ team: Team }>) {
   const { handleError } = useErrorHandler()
+  // Permissions must be read off the team prop, not the ambient one — on a cold
+  // deep-link they would be a different team's (#584).
+  const { can } = usePermissions(team)
+  // `teams` is the membership-filtered list of the user's teams rather than the
+  // URL-scoped team, so it carries no cold-deep-link staleness.
+  const { teams } = useTeam()
   const teamId = team.id
 
+  const [copyOpen, setCopyOpen] = useState(false)
   const [providers, setProviders] = useState<EmbeddingProviderResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -514,6 +386,28 @@ export function EmbeddingProviders({ team }: Readonly<{ team: Team }>) {
     []
   )
 
+  const canCopy =
+    can('team.update') &&
+    teams.some(
+      other => other.id !== teamId && canCopyEmbeddingProviderFrom(other)
+    )
+
+  // Both call sites can be on screen at once (the header action is always
+  // rendered, the empty-state one whenever the list is empty), so they carry
+  // distinct test ids rather than a duplicated one.
+  const copyButton = (testId: string) => (
+    <Button
+      variant="outline"
+      data-testid={testId}
+      onClick={() => {
+        setCopyOpen(true)
+      }}
+    >
+      <Copy className="mr-2 size-4" />
+      Copy from…
+    </Button>
+  )
+
   const providersContent =
     providers.length === 0 ? (
       <EmptyState
@@ -521,15 +415,18 @@ export function EmbeddingProviders({ team }: Readonly<{ team: Team }>) {
         title="No embedding providers yet"
         description="Add your first provider to start generating vector embeddings."
         actions={
-          <Button
-            onClick={() => {
-              setEditing(undefined)
-              setDialogOpen(true)
-            }}
-          >
-            <Plus className="mr-2 size-4" />
-            Add provider
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button
+              onClick={() => {
+                setEditing(undefined)
+                setDialogOpen(true)
+              }}
+            >
+              <Plus className="mr-2 size-4" />
+              Add provider
+            </Button>
+            {canCopy && copyButton('copy-embedding-provider-button-empty')}
+          </div>
         }
       />
     ) : (
@@ -546,15 +443,18 @@ export function EmbeddingProviders({ team }: Readonly<{ team: Team }>) {
         title="Embedding Providers"
         description="Configure providers used for vector embeddings and semantic search."
         actions={
-          <Button
-            onClick={() => {
-              setEditing(undefined)
-              setDialogOpen(true)
-            }}
-          >
-            <Plus className="mr-2 size-4" />
-            Add provider
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {canCopy && copyButton('copy-embedding-provider-button')}
+            <Button
+              onClick={() => {
+                setEditing(undefined)
+                setDialogOpen(true)
+              }}
+            >
+              <Plus className="mr-2 size-4" />
+              Add provider
+            </Button>
+          </div>
         }
       />
 
@@ -601,45 +501,27 @@ export function EmbeddingProviders({ team }: Readonly<{ team: Team }>) {
         onSubmit={handleSubmit}
       />
 
-      <ConfirmDialog
-        open={!!toDelete}
-        onOpenChange={open => {
-          if (!open) setToDelete(null)
+      <CopyEmbeddingProviderFlow
+        team={team}
+        open={copyOpen}
+        onOpenChange={setCopyOpen}
+        onCopied={async () => {
+          await loadProviders()
+          await loadCoverage()
         }}
-        title="Delete provider?"
-        description={
-          <>
-            This will permanently delete{' '}
-            <span className="font-medium">
-              {toDelete?.name ?? 'this provider'}
-            </span>
-            {'. Anything using it for embeddings will stop working.'}
-          </>
-        }
-        confirmLabel="Delete"
-        variant="destructive"
-        loading={deleting}
-        onConfirm={handleDelete}
       />
 
-      <ConfirmDialog
-        open={clearOpen}
-        onOpenChange={open => {
-          if (!clearing) setClearOpen(open)
+      <DestructiveConfirmDialogs
+        toDelete={toDelete}
+        deleting={deleting}
+        onCancelDelete={() => {
+          setToDelete(null)
         }}
-        title="Clear all embeddings?"
-        description={
-          <>
-            This permanently deletes{' '}
-            <span className="font-medium">every stored embedding</span> for this
-            team. Semantic search will return nothing until you re-embed with
-            &ldquo;Reprocess pending&rdquo;. This can&rsquo;t be undone.
-          </>
-        }
-        confirmLabel="Clear all"
-        variant="destructive"
-        loading={clearing}
-        onConfirm={handleClearEmbeddings}
+        onConfirmDelete={handleDelete}
+        clearOpen={clearOpen}
+        clearing={clearing}
+        onClearOpenChange={setClearOpen}
+        onConfirmClear={handleClearEmbeddings}
       />
     </div>
   )
