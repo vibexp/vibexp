@@ -170,15 +170,19 @@ UpdateTeamSearchSettingsRequest:
 # nullable: the actor may have deleted their account (the column is ON DELETE
 # SET NULL) and the source team may be gone (the column has no foreign key by
 # design, so the id survives the team).
+#
+# TeamSettingsAuditSurface is a STANDALONE component rather than an inline
+# property enum so TestSpecEnumsMatchServiceAllowlists can pin it to
+# models.SettingsAuditSurfaces — that gate reads component enums only. Epic #827
+# grows this set, and unlike the request-side mirrors the gate leaves unpinned,
+# this is a RESPONSE enum: drift ships a value neither generated client has a
+# union member for, and no conformance assertion would notice. Keep the
+# rationale here, in a comment — `description` is published API surface that
+# both clients regenerate from on merge, so it belongs to the consumer.
 
 TeamSettingsAuditSurface:
   type: string
-  description: >
-    A settings surface that can be copied between teams. A standalone component
-    rather than an inline property enum so TestSpecEnumsMatchServiceAllowlists
-    can pin it to models.SettingsAuditSurfaces — epic #827 grows this set, and a
-    RESPONSE enum that drifts from the Go allowlist ships a value both generated
-    clients have no union member for.
+  description: Which settings surface was copied between teams.
   enum:
     - embedding_provider
     - model_provider
@@ -208,7 +212,6 @@ TeamSettingsAuditEntry:
       description: Identifier of the audit entry.
     surface:
       $ref: '../openapi.yaml#/components/schemas/TeamSettingsAuditSurface'
-      description: Which settings surface was copied.
     actor_user_id:
       type: string
       format: uuid

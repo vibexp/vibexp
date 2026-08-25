@@ -73,6 +73,11 @@ type TeamSettingsAuditServiceInterface interface {
 	// question the epic's compensating control exists to answer for the team's
 	// owners. Returns ErrPermissionDenied when the caller's role does not
 	// grant it.
+	//
+	// page and limit are clamped UP to their minimums only (1 and the spec's
+	// default of 20). Enforcing the maximums is the caller's, because rejecting
+	// an out-of-range request is a 400 the HTTP layer owns — the handler does
+	// it in settingsAuditPaging.
 	ListAudit(
 		ctx context.Context, userID, teamID string, page, limit int,
 	) (*models.TeamSettingsAuditPage, error)

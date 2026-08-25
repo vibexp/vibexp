@@ -169,7 +169,7 @@ type TeamSettingsAuditEntry struct {
 	// SourceTeamName The source team's name, resolved server-side. `null` when that team has since been deleted — the id above is then the only remaining handle on it, and is deliberately still present rather than blanked.
 	SourceTeamName *string `json:"source_team_name"`
 
-	// Surface A settings surface that can be copied between teams. A standalone component rather than an inline property enum so TestSpecEnumsMatchServiceAllowlists can pin it to models.SettingsAuditSurfaces — epic #827 grows this set, and a RESPONSE enum that drifts from the Go allowlist ships a value both generated clients have no union member for.
+	// Surface Which settings surface was copied between teams.
 	Surface TeamSettingsAuditSurface `json:"surface"`
 }
 
@@ -191,7 +191,7 @@ type TeamSettingsAuditListResponse struct {
 	TotalPages int `json:"total_pages"`
 }
 
-// TeamSettingsAuditSurface A settings surface that can be copied between teams. A standalone component rather than an inline property enum so TestSpecEnumsMatchServiceAllowlists can pin it to models.SettingsAuditSurfaces — epic #827 grows this set, and a RESPONSE enum that drifts from the Go allowlist ships a value both generated clients have no union member for.
+// TeamSettingsAuditSurface Which settings surface was copied between teams.
 type TeamSettingsAuditSurface string
 
 // UpdateTeamSearchSettingsRequest A complete replacement ranking profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `rank_candidate_cap` is deliberately absent — it is instance-owned.
