@@ -148,6 +148,18 @@
   font-size: 0.875rem;
 }
 
+/* Scroll container MarkdownRenderer wraps every rendered table in (#884).
+   `width: 100%` above does not cap an auto-layout table, so a wide one used to
+   escape its card and paint over the metadata sidebar; the wrapper confines the
+   overflow to its own horizontal scrollbar. Narrow tables are unaffected — the
+   table still fills the wrapper at 100%. Styled here rather than with a utility
+   class on the element because rules in this file are unlayered and outrank
+   Tailwind utilities (#666). */
+.v2-root .prose .markdown-table-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .v2-root .prose :where(th) {
   background-color: var(--muted);
   font-weight: 600;

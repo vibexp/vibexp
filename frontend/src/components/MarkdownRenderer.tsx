@@ -343,6 +343,26 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           }
         )
 
+        // Wrap every table in a horizontally scrollable container (#884).
+        // `width: 100%` on a `<table>` does not cap an auto-layout table — it
+        // still grows to its min-content width, escaping the card and painting
+        // over the metadata sidebar. The wrapper is added here rather than via
+        // a CSS-only `display: block` on the table, which would drop table
+        // layout semantics and the element's accessibility role.
+        //
+        // The opening tag is matched with a regex rather than a literal
+        // `replaceAll('<table>')`: marked emits a bare `<table>` today, but a
+        // literal match would silently no-op (leaving the bug back) if a future
+        // marked ever emits attributes. GFM has no nested tables, so pairing
+        // each opening tag with the next `</table>` needs no parser.
+        html = html
+          .replace(
+            /<table(\s[^>]*)?>/g,
+            (_match: string, attrs?: string) =>
+              `<div class="markdown-table-wrapper"><table${attrs ?? ''}>`
+          )
+          .replaceAll('</table>', '</table></div>')
+
         setRenderedContent(
           DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel'] })
         )

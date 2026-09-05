@@ -665,4 +665,109 @@ describe('MarkdownRenderer', () => {
       consoleError.mockRestore()
     })
   })
+
+  // Regression guard for #884. A wide markdown table used to escape its card
+  // and paint over the resource detail sidebar: `.v2-root .prose :where(table)`
+  // sets `width: 100%`, which does NOT cap an auto-layout table — it still
+  // grows to its min-content width. The fix wraps every rendered table in a
+  // `.markdown-table-wrapper` scroll container during the same post-processing
+  // pass that rewrites code blocks. `marked` is stubbed in this file, so these
+  // assert the post-processing pass itself (the part that broke) by feeding it
+  // the markup marked really emits.
+  describe('table scroll wrapper (#884)', () => {
+    const TABLE =
+      '<table><thead><tr><th>a</th><th>b</th></tr></thead>' +
+      '<tbody><tr><td>1</td><td>2</td></tr></tbody></table>'
+
+    it('wraps a rendered table in a scroll container that survives sanitization', async () => {
+      mockMarked.mockResolvedValue(TABLE)
+
+      const { container } = render(<MarkdownRenderer content="| a | b |" />)
+
+      await waitFor(() => {
+        expect(container.querySelector('table')).toBeInTheDocument()
+      })
+
+      const table = container.querySelector('table')
+      // DOMPurify keeps `div` and `class` by default, so no ADD_ATTR change is
+      // needed — asserted here rather than assumed.
+      expect(table?.parentElement).toHaveClass('markdown-table-wrapper')
+      expect(
+        container.querySelectorAll('.markdown-table-wrapper')
+      ).toHaveLength(1)
+    })
+
+    it('wraps a table that carries attributes', async () => {
+      // marked emits a bare `<table>` today. A literal string replacement would
+      // silently no-op — reinstating the bug with a green suite — if a future
+      // marked ever emitted attributes, so the opening tag is matched by regex.
+      mockMarked.mockResolvedValue(
+        '<table class="x" data-y="z"><tbody><tr><td>1</td></tr></tbody></table>'
+      )
+
+      const { container } = render(<MarkdownRenderer content="| a |" />)
+
+      await waitFor(() => {
+        expect(container.querySelector('table')).toBeInTheDocument()
+      })
+
+      const table = container.querySelector('table')
+      expect(table?.parentElement).toHaveClass('markdown-table-wrapper')
+      // The original attributes must survive the rewrite.
+      expect(table).toHaveClass('x')
+      expect(table?.getAttribute('data-y')).toBe('z')
+    })
+
+    it('gives each of several tables its own wrapper', async () => {
+      mockMarked.mockResolvedValue(`${TABLE}<p>between</p>${TABLE}`)
+
+      const { container } = render(<MarkdownRenderer content="two tables" />)
+
+      await waitFor(() => {
+        expect(container.querySelectorAll('table')).toHaveLength(2)
+      })
+
+      expect(
+        container.querySelectorAll('.markdown-table-wrapper')
+      ).toHaveLength(2)
+      container.querySelectorAll('table').forEach(table => {
+        expect(table.parentElement).toHaveClass('markdown-table-wrapper')
+      })
+    })
+
+    it('adds no wrapper to a document without a table', async () => {
+      mockMarked.mockResolvedValue('<p>plain paragraph</p>')
+
+      const { container } = render(<MarkdownRenderer content="plain" />)
+
+      await waitFor(() => {
+        expect(screen.getByText('plain paragraph')).toBeInTheDocument()
+      })
+
+      expect(
+        container.querySelector('.markdown-table-wrapper')
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not wrap table markup shown inside a fenced code block', async () => {
+      // marked escapes a fence body, so `<table>` inside one arrives as
+      // `&lt;table&gt;` and must stay literal text.
+      mockMarked.mockResolvedValue(
+        '<pre><code class="language-text">&lt;table&gt;&lt;/table&gt;</code></pre>'
+      )
+
+      const { container } = render(
+        <MarkdownRenderer content="fenced code block" />
+      )
+
+      await waitFor(() => {
+        expect(container.querySelector('pre')).toBeInTheDocument()
+      })
+
+      expect(
+        container.querySelector('.markdown-table-wrapper')
+      ).not.toBeInTheDocument()
+      expect(container.querySelector('table')).not.toBeInTheDocument()
+    })
+  })
 })
