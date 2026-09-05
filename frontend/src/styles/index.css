@@ -148,6 +148,32 @@
   font-size: 0.875rem;
 }
 
+/* Scroll container MarkdownRenderer wraps every rendered table in (#884).
+   `width: 100%` above does not cap an auto-layout table, so a wide one used to
+   escape its card and paint over the metadata sidebar; the wrapper confines the
+   overflow to its own horizontal scrollbar. Narrow tables are unaffected — the
+   table still fills the wrapper at 100%. Kept here beside the other `prose`
+   table rules so a table's layout is described in one place.
+
+   The vertical rhythm MOVES from the table to the wrapper. `overflow-x: auto`
+   makes the wrapper a block formatting context, which stops the table's own
+   1.5rem margins collapsing OUT of it — they would stack against an adjacent
+   paragraph's 1rem instead, growing the gap around EVERY markdown table from
+   24px to 40px. A BFC only blocks collapsing between a box and its in-flow
+   CHILDREN, so the wrapper's own margins still collapse with its siblings
+   exactly as the table's used to. */
+.v2-root .prose .markdown-table-wrapper {
+  max-width: 100%;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+}
+
+.v2-root .prose .markdown-table-wrapper :where(table) {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
 .v2-root .prose :where(th) {
   background-color: var(--muted);
   font-weight: 600;

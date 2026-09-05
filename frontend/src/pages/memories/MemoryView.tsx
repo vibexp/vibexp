@@ -267,7 +267,7 @@ export function MemoryView() {
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+        <div className="min-w-0 lg:col-span-2">
           <Card>
             <CardContent className="pt-6">
               <MarkdownRenderer content={memory.text} syntaxTheme="auto" />

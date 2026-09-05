@@ -343,6 +343,38 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           }
         )
 
+        // Wrap every table in a horizontally scrollable container (#884).
+        // `width: 100%` on a `<table>` does not cap an auto-layout table — it
+        // still grows to its min-content width, escaping the card and painting
+        // over the metadata sidebar. The wrapper is added here rather than via
+        // a CSS-only `display: block` on the table, which would drop table
+        // layout semantics and the element's accessibility role.
+        //
+        // The opening tag is matched with a regex rather than a literal
+        // `replaceAll('<table>')`: marked emits a bare `<table>` today, but a
+        // literal match would silently no-op (leaving the bug back) if a future
+        // marked ever emits attributes. Nothing is being paired here — these
+        // are two uniform substitutions, and table tags are balanced, so the
+        // inserted `div`s come out balanced too (including around the nested
+        // raw-HTML tables marked passes straight through). No parser needed.
+        //
+        // `tabindex="0"` is what makes the scroll container reachable by
+        // keyboard: scrolling it is the ONLY way to see a wide table's
+        // off-screen columns, so without it the content this wrapper exists to
+        // rescue is unreachable without a mouse (WCAG 2.1.1, axe
+        // `scrollable-region-focusable`). Chrome focuses childless scrollers on
+        // its own since 127, but that is neither universal nor guaranteed. The
+        // labelled `region` gives the resulting tab stop a name instead of
+        // announcing as an anonymous group. All three attributes are on
+        // DOMPurify's default allow-list, so `ADD_ATTR` is unchanged.
+        html = html
+          .replace(
+            /<table(\s[^>]*)?>/g,
+            (_match: string, attrs?: string) =>
+              `<div class="markdown-table-wrapper" tabindex="0" role="region" aria-label="Table"><table${attrs ?? ''}>`
+          )
+          .replaceAll('</table>', '</table></div>')
+
         setRenderedContent(
           DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel'] })
         )
