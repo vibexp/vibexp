@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import type { StorageKey } from '../constants/storageKeys'
 import { storage } from '../utils/storage'
 
 /**
  * React hook for using localStorage with React state
+ *
+ * Values are JSON-serialized on write and parsed on read (via the shared
+ * `storage` client), so booleans, numbers and objects round-trip intact.
  *
  * @param key - The localStorage key to use (prefer constants from STORAGE_KEYS)
  * @param initialValue - The initial value if no value is stored
@@ -15,33 +18,37 @@ import { storage } from '../utils/storage'
  * import { useLocalStorage } from '@/hooks/useLocalStorage'
  * import { STORAGE_KEYS } from '@/constants/storageKeys'
  *
- * const [theme, setTheme] = useLocalStorage(STORAGE_KEYS.THEME, 'light')
+ * const [collapsed, setCollapsed] = useLocalStorage(STORAGE_KEYS.NAV_COLLAPSED, false)
  * ```
  */
 export function useLocalStorage<T>(key: StorageKey, initialValue: T) {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
-      const item = storage.get(key)
-
-      return (item as T | null) ?? initialValue
+      return storage.getJSON<T>(key) ?? initialValue
     } catch (error) {
       console.error(`Error reading storage key "${key}":`, error)
       return initialValue
     }
   })
 
-  const setValue = (value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore =
-        typeof value === 'function'
-          ? (value as (val: T) => T)(storedValue)
-          : value
-      setStoredValue(valueToStore)
-      storage.set(key, valueToStore)
-    } catch (error) {
-      console.error(`Error setting storage key "${key}":`, error)
-    }
-  }
+  // Stable identity (like useState's setter) so consumers can list it in
+  // effect/memo dependencies without re-running on every render. Functional
+  // updates resolve against the latest state, not a stale closure.
+  const setValue = useCallback(
+    (value: T | ((val: T) => T)) => {
+      setStoredValue(prev => {
+        const next =
+          typeof value === 'function' ? (value as (val: T) => T)(prev) : value
+        try {
+          storage.set(key, next)
+        } catch (error) {
+          console.error(`Error setting storage key "${key}":`, error)
+        }
+        return next
+      })
+    },
+    [key]
+  )
 
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {

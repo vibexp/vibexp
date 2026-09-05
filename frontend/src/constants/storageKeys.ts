@@ -62,6 +62,19 @@ export const STORAGE_KEYS = {
    */
   INVITATION_JUST_ACCEPTED: 'vx_invitation_just_accepted',
 
+  // App shell (#886)
+  /**
+   * `true` when the user folded the desktop navigation to its icon rail.
+   * Remembered per browser so the shell reopens the way it was left.
+   */
+  NAV_COLLAPSED: 'vx_nav_collapsed',
+  /**
+   * `true` when the user folded the reading-page details column to its icon
+   * rail. Independent of the navigation state; desktop only (below `lg` the
+   * details live in a sheet that always starts closed).
+   */
+  DETAILS_COLLAPSED: 'vx_details_collapsed',
+
   // Analytics
   /** Referrer URL for page tracking - session scoped */
   ANALYTICS_REFERRER: 'vx_analytics_referrer',
@@ -105,6 +118,8 @@ export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
 export const LOCAL_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([
   STORAGE_KEYS.CURRENT_TEAM_ID,
   STORAGE_KEYS.CURRENT_PROJECT_ID,
+  STORAGE_KEYS.NAV_COLLAPSED,
+  STORAGE_KEYS.DETAILS_COLLAPSED,
 ])
 
 export const SESSION_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([

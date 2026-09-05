@@ -5,17 +5,20 @@ import { useNavigate, useParams } from 'react-router'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { type VersionHistoryMeta } from '@/components/metadata/MetadataPanel'
-import { PageHeader } from '@/components/PageHeader'
+import { type ReadingAction } from '@/components/patterns/reading-page'
+import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics, usePromptRenderer } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { PromptContentCard } from '@/pages/prompts/PromptContentCard'
-import { PromptDetailSidebar } from '@/pages/prompts/PromptDetailSidebar'
+import {
+  PromptMetadata,
+  promptUsedBySection,
+} from '@/pages/prompts/PromptDetailSidebar'
 import type {
   Prompt,
   PromptDependenciesResponse,
@@ -236,34 +239,28 @@ export function PromptDetail() {
     }
   }
 
+  const backAction: ReadingAction = {
+    id: 'back',
+    label: 'Back',
+    icon: ArrowLeft,
+    onClick: () => {
+      void navigate('/prompts')
+    },
+  }
+
   if (loading) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Loading prompt…" />
+      <ResourceReadingPage title="Loading prompt…">
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
-      </div>
+      </ResourceReadingPage>
     )
   }
 
   if (!prompt) {
     return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Prompt not found"
-          actions={
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate('/prompts')
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-          }
-        />
+      <ResourceReadingPage title="Prompt not found" actions={[backAction]}>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Prompt not found</AlertTitle>
@@ -271,15 +268,41 @@ export function PromptDetail() {
             The prompt could not be loaded. It may have been deleted.
           </AlertDescription>
         </Alert>
-      </div>
+      </ResourceReadingPage>
     )
   }
 
   const versionHistory = buildPromptVersionHistory(prompt, versions)
 
+  const actions: ReadingAction[] = [
+    backAction,
+    {
+      id: 'edit',
+      label: 'Edit',
+      icon: Pencil,
+      testId: 'edit-prompt-button',
+      onClick: () => {
+        // Editor still lives in v1 until Slice 5b
+        void navigate(`/prompts/${prompt.slug}/edit`)
+      },
+    },
+  ]
+  if (canDeleteResource(prompt.user_id)) {
+    actions.push({
+      id: 'delete',
+      label: 'Delete',
+      icon: Trash2,
+      tone: 'destructive',
+      testId: 'delete-prompt-button',
+      onClick: () => {
+        setDeleteOpen(true)
+      },
+    })
+  }
+
   return (
-    <div className="space-y-6">
-      <PageHeader
+    <>
+      <ResourceReadingPage
         title={prompt.name}
         description={
           <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -300,71 +323,33 @@ export function PromptDetail() {
             </span>
           </div>
         }
-        actions={
-          <>
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate('/prompts')
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-            <Button
-              variant="outline"
-              data-testid="edit-prompt-button"
-              onClick={() => {
-                // Editor still lives in v1 until Slice 5b
-                void navigate(`/prompts/${prompt.slug}/edit`)
-              }}
-            >
-              <Pencil className="mr-2 size-4" />
-              Edit
-            </Button>
-            {canDeleteResource(prompt.user_id) && (
-              <Button
-                variant="destructive"
-                data-testid="delete-prompt-button"
-                onClick={() => {
-                  setDeleteOpen(true)
-                }}
-              >
-                <Trash2 className="mr-2 size-4" />
-                Delete
-              </Button>
-            )}
-          </>
+        actions={actions}
+        resource={
+          currentTeam
+            ? { kind: 'prompt', id: prompt.id, teamId: currentTeam.id }
+            : undefined
         }
-      />
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <PromptContentCard
-            prompt={prompt}
-            tab={tab}
-            onTabChange={setTab}
-            renderedBody={renderedBody}
-            renderError={renderError}
-            isRendering={isRendering}
-            isLoadingPlaceholders={isLoadingPlaceholders}
-            allPlaceholders={allPlaceholders}
-            placeholderValues={placeholderValues}
-            updatePlaceholderValue={updatePlaceholderValue}
-            onCopy={() => {
-              void handleCopyRendered()
-            }}
-          />
-        </div>
-
-        <PromptDetailSidebar
+        metadata={
+          <PromptMetadata prompt={prompt} versionHistory={versionHistory} />
+        }
+        extraSections={promptUsedBySection(dependencies, loadingDependencies)}
+      >
+        <PromptContentCard
           prompt={prompt}
-          teamId={currentTeam?.id}
-          dependencies={dependencies}
-          loadingDependencies={loadingDependencies}
-          versionHistory={versionHistory}
+          tab={tab}
+          onTabChange={setTab}
+          renderedBody={renderedBody}
+          renderError={renderError}
+          isRendering={isRendering}
+          isLoadingPlaceholders={isLoadingPlaceholders}
+          allPlaceholders={allPlaceholders}
+          placeholderValues={placeholderValues}
+          updatePlaceholderValue={updatePlaceholderValue}
+          onCopy={() => {
+            void handleCopyRendered()
+          }}
         />
-      </div>
+      </ResourceReadingPage>
 
       <ConfirmDialog
         open={deleteOpen}
@@ -382,6 +367,6 @@ export function PromptDetail() {
         loading={deleting}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   )
 }

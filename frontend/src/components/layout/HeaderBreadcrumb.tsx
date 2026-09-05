@@ -31,8 +31,9 @@ function currentPageLabel(pathname: string): string | null {
 
 /**
  * Topbar breadcrumb mirroring the DS docs ("VibeXP DS / Overview"): a muted
- * root crumb, a divider, and the current page in foreground weight. Hidden on
- * the smallest screens where the mobile hamburger already provides context.
+ * root crumb, a divider, and the current page in foreground weight. On the
+ * smallest screens the root crumb yields to the page label, which truncates
+ * rather than wrapping (#886).
  */
 export function HeaderBreadcrumb() {
   const { pathname } = useLocation()
@@ -41,15 +42,17 @@ export function HeaderBreadcrumb() {
   return (
     <nav
       aria-label="Breadcrumb"
-      className="text-muted-foreground hidden items-center gap-2 text-sm sm:flex"
+      className="text-muted-foreground flex min-w-0 items-center gap-2 text-sm"
     >
-      <span>VibeXP</span>
+      <span className="hidden sm:inline">VibeXP</span>
       {label && (
         <>
-          <span aria-hidden className="opacity-50">
+          <span aria-hidden className="hidden opacity-50 sm:inline">
             /
           </span>
-          <span className="text-foreground font-semibold">{label}</span>
+          <span className="text-foreground truncate font-semibold">
+            {label}
+          </span>
         </>
       )}
     </nav>

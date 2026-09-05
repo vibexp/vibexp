@@ -2,7 +2,11 @@ import { ChevronRight } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router'
 
 import { NAV_GROUPS, type NavItem } from '@/components/layout/nav-items'
+import { ProjectSwitcher } from '@/components/layout/ProjectSwitcher'
+import { SearchModal } from '@/components/layout/SearchModal'
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
+import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import {
   Collapsible,
   CollapsibleContent,
@@ -71,6 +75,11 @@ function MobileGroup({ item, pathname }: Readonly<MobileGroupProps>) {
   )
 }
 
+/**
+ * The mobile navigation drawer (#886). Besides the nav it hosts what the
+ * mobile header gives up for space: the team and project switchers at the
+ * top, search and the theme toggle in the footer.
+ */
 export function MobileSidebar() {
   const { pathname } = useLocation()
 
@@ -82,8 +91,15 @@ export function MobileSidebar() {
             tight for the mobile sheet). */}
         <SidebarBrand showText className="pt-5" />
       </SheetClose>
+      <div
+        className="flex items-center gap-2 px-3.5 pb-3 [&>*]:min-w-0 [&>*]:flex-1"
+        data-testid="drawer-switchers"
+      >
+        <TeamSwitcher />
+        <ProjectSwitcher />
+      </div>
       <ScrollArea className="flex-1">
-        <nav className="flex flex-col gap-0.5 px-3.5 pb-2 pt-5">
+        <nav className="flex flex-col gap-0.5 px-3.5 pb-2 pt-3">
           {NAV_GROUPS.map(group => (
             <div key={group.label} className="mt-[18px] first:mt-0">
               <div className="text-muted-foreground px-2.5 pb-[7px] text-xs font-bold tracking-wider uppercase">
@@ -134,6 +150,13 @@ export function MobileSidebar() {
           ))}
         </nav>
       </ScrollArea>
+      <div
+        className="flex items-center gap-1 border-t px-3.5 py-2"
+        data-testid="drawer-footer"
+      >
+        <SearchModal />
+        <ThemeToggle />
+      </div>
     </div>
   )
 }

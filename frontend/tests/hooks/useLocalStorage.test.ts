@@ -5,6 +5,7 @@ import { renderHook, act } from '@testing-library/react'
 vi.mock('../../src/utils/storage', () => ({
   storage: {
     get: vi.fn(),
+    getJSON: vi.fn(),
     set: vi.fn(),
     remove: vi.fn(),
     clear: vi.fn(),
@@ -29,8 +30,9 @@ vi.mock('../../src/utils/storage', () => ({
 import { useLocalStorage } from '../../src/hooks/useLocalStorage'
 import { storage, STORAGE_KEYS } from '../../src/utils/storage'
 
-// Get the mocked functions
-const mockGet = storage.get as Mock
+// Get the mocked functions. The hook reads through `getJSON` (#886: values
+// round-trip as JSON so booleans survive) and writes through `set`.
+const mockGet = storage.getJSON as Mock
 const mockSet = storage.set as Mock
 const mockClear = storage.clear as Mock
 
