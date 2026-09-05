@@ -2,6 +2,7 @@ import { ChevronRight } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router'
 
 import { NAV_GROUPS, type NavItem } from '@/components/layout/nav-items'
+import { useShell } from '@/components/layout/ShellContext'
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
 import {
   Collapsible,
@@ -18,25 +19,34 @@ import {
 import { cn } from '@/lib/utils'
 
 /**
- * Responsive sidebar.
+ * Responsive, collapsible sidebar (#886).
  *
- * - `< md` (< 768px): hidden. Header renders a mobile `Sheet` hamburger.
+ * - `< md` (< 768px): hidden. Header renders a mobile drawer.
  * - `md`–`lg` (768–1024px): 60px icon rail. Labels hidden, tooltips on
  *   hover. Collapsible groups flatten to a single icon-link that
  *   navigates to the parent's href.
- * - `lg+` (≥ 1024px): 256px expanded. Labels, collapsible children,
- *   chevrons as before.
+ * - `lg+` (≥ 1024px): 264px expanded with labels, collapsible children and
+ *   chevrons — unless the user folded it from the header, in which case it
+ *   stays in the icon-rail form at every size.
+ *
+ * `expanded` below means "the lg+ expanded form is allowed"; every `lg:`
+ * class that widens the rail is gated on it so a folded sidebar renders
+ * exactly like the md rail.
  */
-const rowClass = (active: boolean) =>
+const rowClass = (active: boolean, expanded: boolean) =>
   cn(
     'flex items-center gap-[9px] rounded-md py-[7px] text-sm font-normal transition-colors',
-    'justify-center px-0 lg:justify-start lg:px-2.5',
+    'justify-center px-0',
+    expanded && 'lg:justify-start lg:px-2.5',
     active
       ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
       : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
   )
 
-function RailLinkWithTooltip({ item }: Readonly<{ item: NavItem }>) {
+function RailLinkWithTooltip({
+  item,
+  expanded,
+}: Readonly<{ item: NavItem; expanded: boolean }>) {
   const Icon = item.icon
   return (
     <Tooltip>
@@ -48,16 +58,18 @@ function RailLinkWithTooltip({ item }: Readonly<{ item: NavItem }>) {
           <NavLink
             to={item.href}
             end={item.href === '/'}
-            className={({ isActive }) => rowClass(isActive)}
+            className={({ isActive }) => rowClass(isActive, expanded)}
           >
             <Icon className="size-[15px] shrink-0 opacity-85" aria-hidden />
-            <span className="hidden lg:inline">{item.label}</span>
+            <span className={expanded ? 'hidden lg:inline' : 'hidden'}>
+              {item.label}
+            </span>
           </NavLink>
         </span>
       </TooltipTrigger>
-      {/* Only surface the tooltip at the rail breakpoint where labels
-          are hidden. Above `lg` the tooltip would repeat the label text. */}
-      <TooltipContent side="right" className="lg:hidden">
+      {/* Only surface the tooltip where labels are hidden. In the expanded
+          desktop form the tooltip would repeat the label text. */}
+      <TooltipContent side="right" className={expanded ? 'lg:hidden' : ''}>
         {item.label}
       </TooltipContent>
     </Tooltip>
@@ -67,9 +79,11 @@ function RailLinkWithTooltip({ item }: Readonly<{ item: NavItem }>) {
 function RailGroupLink({
   item,
   pathname,
+  expanded,
 }: Readonly<{
   item: NavItem
   pathname: string
+  expanded: boolean
 }>) {
   const Icon = item.icon
   const isActive =
@@ -83,7 +97,8 @@ function RailGroupLink({
           <NavLink
             to={item.href}
             className={cn(
-              'flex items-center justify-center gap-2 rounded-md px-0 py-2 text-sm transition-colors lg:hidden',
+              'flex items-center justify-center gap-2 rounded-md px-0 py-2 text-sm transition-colors',
+              expanded && 'lg:hidden',
               isActive
                 ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                 : 'hover:bg-sidebar-accent/50'
@@ -116,7 +131,7 @@ function ExpandedGroup({
     <Collapsible defaultOpen={isGroupOpen} className="hidden lg:block">
       <CollapsibleTrigger
         className={cn(
-          rowClass(isGroupOpen),
+          rowClass(isGroupOpen, true),
           'w-full cursor-pointer justify-between'
         )}
       >
@@ -150,32 +165,58 @@ function ExpandedGroup({
 
 export function Sidebar() {
   const { pathname } = useLocation()
+  const { navExpanded: expanded } = useShell()
 
   return (
     <TooltipProvider delayDuration={0}>
       <aside
+        data-testid="app-sidebar"
+        data-state={expanded ? 'expanded' : 'collapsed'}
         className={cn(
-          'bg-sidebar text-sidebar-foreground hidden shrink-0 border-r md:flex md:flex-col',
-          'w-[60px] lg:w-[264px]'
+          'bg-sidebar text-sidebar-foreground hidden shrink-0 border-r transition-[width] duration-200 md:flex md:flex-col',
+          'w-[60px]',
+          expanded && 'lg:w-[264px]'
         )}
       >
-        <SidebarBrand />
+        <SidebarBrand expanded={expanded} />
         <ScrollArea className="flex-1">
-          <nav className="flex flex-col gap-0.5 px-2 pb-2 pt-5 lg:px-3.5">
+          <nav
+            className={cn(
+              'flex flex-col gap-0.5 px-2 pb-2 pt-5',
+              expanded && 'lg:px-3.5'
+            )}
+          >
             {NAV_GROUPS.map(group => (
               <div key={group.label} className="mt-[18px] first:mt-0">
-                <div className="text-muted-foreground hidden px-2.5 pb-[7px] text-xs font-bold tracking-wider uppercase lg:block">
+                <div
+                  className={cn(
+                    'text-muted-foreground hidden px-2.5 pb-[7px] text-xs font-bold tracking-wider uppercase',
+                    expanded && 'lg:block'
+                  )}
+                >
                   {group.label}
                 </div>
                 {group.items.map(item => {
                   const hasChildren = !!item.children?.length
                   if (!hasChildren) {
-                    return <RailLinkWithTooltip key={item.href} item={item} />
+                    return (
+                      <RailLinkWithTooltip
+                        key={item.href}
+                        item={item}
+                        expanded={expanded}
+                      />
+                    )
                   }
                   return (
                     <div key={item.href}>
-                      <ExpandedGroup item={item} pathname={pathname} />
-                      <RailGroupLink item={item} pathname={pathname} />
+                      {expanded && (
+                        <ExpandedGroup item={item} pathname={pathname} />
+                      )}
+                      <RailGroupLink
+                        item={item}
+                        pathname={pathname}
+                        expanded={expanded}
+                      />
                     </div>
                   )
                 })}

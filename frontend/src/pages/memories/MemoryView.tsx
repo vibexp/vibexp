@@ -10,20 +10,19 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
-import { AccessActivityPanel } from '@/components/access-activity/AccessActivityPanel'
-import { CommentsPanel } from '@/components/comments/CommentsPanel'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { CopyButton } from '@/components/CopyButton'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { MetadataPanel, MetaRow } from '@/components/metadata/MetadataPanel'
 import { AdditionalDataCard } from '@/components/MetadataCard'
-import { PageHeader } from '@/components/PageHeader'
-import { RelationsPanel } from '@/components/relations/RelationsPanel'
+import {
+  type ReadingAction,
+  useCopyAction,
+} from '@/components/patterns/reading-page'
+import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
@@ -68,6 +67,16 @@ export function MemoryView() {
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  const backAction: ReadingAction = {
+    id: 'back',
+    label: 'Back',
+    icon: ArrowLeft,
+    onClick: () => {
+      void navigate('/memories')
+    },
+  }
+  const copyAction = useCopyAction(memory?.text ?? '')
 
   const fetchProject = useCallback(
     async (teamId: string, projectId: string) => {
@@ -160,32 +169,17 @@ export function MemoryView() {
 
   if (isLoadingTeam || loading) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Loading memory…" />
+      <ResourceReadingPage title="Loading memory…">
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
-      </div>
+      </ResourceReadingPage>
     )
   }
 
   if (error || !memory) {
     return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Memory not found"
-          actions={
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate('/memories')
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-          }
-        />
+      <ResourceReadingPage title="Memory not found" actions={[backAction]}>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Memory not found</AlertTitle>
@@ -193,13 +187,12 @@ export function MemoryView() {
             {error ?? 'The memory could not be found.'}
           </AlertDescription>
         </Alert>
-      </div>
+      </ResourceReadingPage>
     )
   }
 
   const tags = extractTags(memory.metadata)
   const extras = extractExtras(memory.metadata)
-
   // Snapshots capture the *prior* text and version numbers are monotonic (never
   // reused, oldest pruned past the retention cap), so the live memory's version is
   // one past the highest retained snapshot number. `versions.length` is the number
@@ -220,139 +213,103 @@ export function MemoryView() {
         }
       : undefined
 
+  const actions: ReadingAction[] = [
+    backAction,
+    copyAction,
+    {
+      id: 'edit',
+      label: 'Edit',
+      icon: Pencil,
+      testId: 'edit-memory-button',
+      onClick: () => {
+        void navigate(`/memories/${memory.id}/edit`)
+      },
+    },
+  ]
+  if (canDeleteResource(memory.user_id)) {
+    actions.push({
+      id: 'delete',
+      label: 'Delete',
+      icon: Trash2,
+      tone: 'destructive',
+      testId: 'delete-memory-button',
+      onClick: () => {
+        setDeleteOpen(true)
+      },
+    })
+  }
+
+  const hasMetadata =
+    tags.length > 0 || Object.keys(extras).length > 0 || project !== null
+
   return (
-    <div className="space-y-6">
-      <PageHeader
+    <>
+      <ResourceReadingPage
         title={`Memory #${memory.id}`}
         description="View memory details."
-        actions={
-          <>
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate('/memories')
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-            <CopyButton
-              value={memory.text}
-              label="Copy content"
-              size="default"
-              variant="outline"
-            />
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate(`/memories/${memory.id}/edit`)
-              }}
-            >
-              <Pencil className="mr-2 size-4" />
-              Edit
-            </Button>
-            {canDeleteResource(memory.user_id) && (
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setDeleteOpen(true)
-                }}
-              >
-                <Trash2 className="mr-2 size-4" />
-                Delete
-              </Button>
-            )}
-          </>
+        actions={actions}
+        resource={
+          currentTeam
+            ? { kind: 'memory', id: memory.id, teamId: currentTeam.id }
+            : undefined
         }
-      />
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="min-w-0 lg:col-span-2">
-          <Card>
-            <CardContent className="pt-6">
-              <MarkdownRenderer content={memory.text} syntaxTheme="auto" />
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-4">
-          <MetadataPanel
-            createdAt={memory.created_at}
-            updatedAt={memory.updated_at}
-            versionHistory={versionHistory}
-          >
-            <MetaRow label="Status">
-              <StatusBadge tone={memoryStatusTone(memory.status)}>
-                {MEMORY_STATUS_LABEL[memory.status]}
-              </StatusBadge>
-            </MetaRow>
-            {project && (
-              <MetaRow label="Project">
-                <Link
-                  to={`/teams/${currentTeam?.id ?? ''}/projects/${encodeURIComponent(project.slug)}/edit`}
-                  className="flex items-center gap-1 hover:underline"
-                >
-                  <FolderOpen className="size-3" />
-                  {project.name}
-                </Link>
+        attachments={false}
+        metadata={
+          <div className="space-y-4">
+            <MetadataPanel
+              createdAt={memory.created_at}
+              updatedAt={memory.updated_at}
+              versionHistory={versionHistory}
+            >
+              <MetaRow label="Status">
+                <StatusBadge tone={memoryStatusTone(memory.status)}>
+                  {MEMORY_STATUS_LABEL[memory.status]}
+                </StatusBadge>
               </MetaRow>
+              {project && (
+                <MetaRow label="Project">
+                  <Link
+                    to={`/teams/${currentTeam?.id ?? ''}/projects/${encodeURIComponent(project.slug)}/edit`}
+                    className="flex items-center gap-1 hover:underline"
+                  >
+                    <FolderOpen className="size-3" />
+                    {project.name}
+                  </Link>
+                </MetaRow>
+              )}
+            </MetadataPanel>
+
+            {tags.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Tags</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tags.map(tag => (
+                      <Badge key={tag} variant="secondary" className="gap-1">
+                        <TagIcon className="size-3" />
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
-          </MetadataPanel>
 
-          {tags.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Tags</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-1.5">
-                  {tags.map(tag => (
-                    <Badge key={tag} variant="secondary" className="gap-1">
-                      <TagIcon className="size-3" />
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+            <AdditionalDataCard data={extras} />
 
-          <AdditionalDataCard data={extras} />
-
-          {tags.length === 0 &&
-            Object.keys(extras).length === 0 &&
-            !project && (
+            {!hasMetadata && (
               <div className="text-muted-foreground flex items-center gap-2 p-3 text-xs">
                 <HardDrive className="size-4" />
                 No metadata.
               </div>
             )}
-
-          {currentTeam && (
-            <AccessActivityPanel
-              teamId={currentTeam.id}
-              resourceType="memory"
-              resourceId={memory.id}
-            />
-          )}
-
-          {currentTeam && (
-            <CommentsPanel
-              teamId={currentTeam.id}
-              resourceType="memory"
-              resourceId={memory.id}
-            />
-          )}
-
-          {currentTeam && (
-            <RelationsPanel
-              teamId={currentTeam.id}
-              resourceType="memory"
-              resourceId={memory.id}
-            />
-          )}
-        </div>
-      </div>
+          </div>
+        }
+      >
+        <MarkdownRenderer content={memory.text} syntaxTheme="auto" />
+      </ResourceReadingPage>
 
       <ConfirmDialog
         open={deleteOpen}
@@ -364,6 +321,6 @@ export function MemoryView() {
         loading={deleting}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   )
 }

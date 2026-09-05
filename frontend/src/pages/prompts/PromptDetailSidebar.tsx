@@ -1,13 +1,12 @@
-import { AccessActivityPanel } from '@/components/access-activity/AccessActivityPanel'
-import { ResourceAttachments } from '@/components/attachments/ResourceAttachments'
-import { CommentsPanel } from '@/components/comments/CommentsPanel'
+import { Link2 } from 'lucide-react'
+
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import {
   MetadataPanel,
   MetaRow,
   type VersionHistoryMeta,
 } from '@/components/metadata/MetadataPanel'
-import { RelationsPanel } from '@/components/relations/RelationsPanel'
+import type { ReadingSection } from '@/components/patterns/reading-page'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type {
@@ -15,21 +14,20 @@ import type {
   PromptDependenciesResponse,
 } from '@/services/promptService'
 
-interface Props {
+interface PromptMetadataProps {
   prompt: Prompt
-  teamId: string | undefined
-  dependencies: PromptDependenciesResponse | null
-  loadingDependencies: boolean
   versionHistory?: VersionHistoryMeta
 }
 
-export function PromptDetailSidebar({
+/**
+ * The prompt's Metadata section: description and labels cards, then the
+ * shared `MetadataPanel`. The standard panels (attachments, activity,
+ * comments, relations) come from `ResourceReadingPage`, not from here.
+ */
+export function PromptMetadata({
   prompt,
-  teamId,
-  dependencies,
-  loadingDependencies,
   versionHistory,
-}: Readonly<Props>) {
+}: Readonly<PromptMetadataProps>) {
   return (
     <div className="space-y-4">
       {prompt.description && (
@@ -71,46 +69,31 @@ export function PromptDetailSidebar({
           {prompt.mcp_expose ? 'Exposed' : 'Not exposed'}
         </MetaRow>
       </MetadataPanel>
+    </div>
+  )
+}
 
-      {teamId && (
-        <ResourceAttachments
-          teamId={teamId}
-          ownerType="prompt"
-          ownerId={prompt.id}
-        />
-      )}
-
-      {teamId && (
-        <AccessActivityPanel
-          teamId={teamId}
-          resourceType="prompt"
-          resourceId={prompt.id}
-        />
-      )}
-
-      {teamId && (
-        <CommentsPanel
-          teamId={teamId}
-          resourceType="prompt"
-          resourceId={prompt.id}
-        />
-      )}
-
-      {teamId && (
-        <RelationsPanel
-          teamId={teamId}
-          resourceType="prompt"
-          resourceId={prompt.id}
-        />
-      )}
-
-      {dependencies && dependencies.used_by.length > 0 && (
+/**
+ * The prompt-only "Used by" section (prompts that reference this one),
+ * appended after the standard sections. Empty when nothing uses the prompt.
+ */
+export function promptUsedBySection(
+  dependencies: PromptDependenciesResponse | null,
+  loading: boolean
+): ReadingSection[] {
+  if (!dependencies || dependencies.used_by.length === 0) return []
+  return [
+    {
+      id: 'used-by',
+      label: 'Used by',
+      icon: Link2,
+      content: (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Used by</CardTitle>
           </CardHeader>
           <CardContent>
-            {loadingDependencies ? (
+            {loading ? (
               <LoadingSpinner size="sm" />
             ) : (
               <ul className="space-y-1">
@@ -123,7 +106,7 @@ export function PromptDetailSidebar({
             )}
           </CardContent>
         </Card>
-      )}
-    </div>
-  )
+      ),
+    },
+  ]
 }

@@ -2,11 +2,7 @@ import { AlertCircle, ArrowLeft, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
-import { AccessActivityPanel } from '@/components/access-activity/AccessActivityPanel'
-import { ResourceAttachments } from '@/components/attachments/ResourceAttachments'
-import { CommentsPanel } from '@/components/comments/CommentsPanel'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { CopyButton } from '@/components/CopyButton'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import {
@@ -15,13 +11,14 @@ import {
   MetaSlugRow,
 } from '@/components/metadata/MetadataPanel'
 import { AdditionalDataCard } from '@/components/MetadataCard'
-import { PageHeader } from '@/components/PageHeader'
-import { RelationsPanel } from '@/components/relations/RelationsPanel'
+import {
+  type ReadingAction,
+  useCopyAction,
+} from '@/components/patterns/reading-page'
+import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -55,6 +52,16 @@ export function BlueprintView() {
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  const backAction: ReadingAction = {
+    id: 'back',
+    label: 'Back',
+    icon: ArrowLeft,
+    onClick: () => {
+      void navigate('/blueprints')
+    },
+  }
+  const copyAction = useCopyAction(blueprint?.content ?? '')
 
   useEffect(() => {
     // Guard against stale responses: if params/team change mid-flight, a slower
@@ -139,19 +146,17 @@ export function BlueprintView() {
 
   if (isLoadingTeam || loading) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Loading blueprint…" />
+      <ResourceReadingPage title="Loading blueprint…">
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
-      </div>
+      </ResourceReadingPage>
     )
   }
 
   if (error || !blueprint) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Blueprint not found" />
+      <ResourceReadingPage title="Blueprint not found" actions={[backAction]}>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Blueprint not found</AlertTitle>
@@ -159,16 +164,7 @@ export function BlueprintView() {
             {error ?? 'The blueprint could not be found.'}
           </AlertDescription>
         </Alert>
-        <Button
-          variant="outline"
-          onClick={() => {
-            void navigate('/blueprints')
-          }}
-        >
-          <ArrowLeft className="mr-2 size-4" />
-          Back
-        </Button>
-      </div>
+      </ResourceReadingPage>
     )
   }
 
@@ -193,158 +189,108 @@ export function BlueprintView() {
         }
       : undefined
 
+  const actions: ReadingAction[] = [
+    backAction,
+    copyAction,
+    {
+      id: 'edit',
+      label: 'Edit',
+      icon: Pencil,
+      testId: 'edit-blueprint-button',
+      onClick: () => {
+        void navigate(`${base}/edit`)
+      },
+    },
+  ]
+  if (canDeleteResource(blueprint.user_id)) {
+    actions.push({
+      id: 'delete',
+      label: 'Delete',
+      icon: Trash2,
+      tone: 'destructive',
+      testId: 'delete-blueprint-button',
+      onClick: () => {
+        setDeleteOpen(true)
+      },
+    })
+  }
+
   return (
-    <div className="space-y-6">
-      <PageHeader
+    <>
+      <ResourceReadingPage
         title={blueprint.title}
         description={blueprint.description}
-        actions={
-          <>
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate('/blueprints')
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-            <CopyButton
-              value={blueprint.content}
-              label="Copy content"
-              size="default"
-              variant="outline"
-            />
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate(`${base}/edit`)
-              }}
-            >
-              <Pencil className="mr-2 size-4" />
-              Edit
-            </Button>
-            {canDeleteResource(blueprint.user_id) && (
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setDeleteOpen(true)
-                }}
-              >
-                <Trash2 className="mr-2 size-4" />
-                Delete
-              </Button>
-            )}
-          </>
+        actions={actions}
+        resource={
+          currentTeam
+            ? { kind: 'blueprint', id: blueprint.id, teamId: currentTeam.id }
+            : undefined
         }
-      />
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="min-w-0 lg:col-span-2">
-          <Card>
-            <CardContent className="pt-6">
-              <MarkdownRenderer
-                content={blueprint.content}
-                syntaxTheme="auto"
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-4">
-          <MetadataPanel
-            createdAt={blueprint.created_at}
-            updatedAt={blueprint.updated_at}
-            versionHistory={versionHistory}
-          >
-            <MetaRow label="Type">
-              <Badge variant="secondary">{TYPE_LABEL[blueprint.type]}</Badge>
-            </MetaRow>
-            <MetaRow label="Status">
-              <StatusBadge
-                tone={blueprint.status === 'active' ? 'success' : 'neutral'}
-              >
-                <span className="size-1.5 rounded-full bg-current" />
-                {blueprint.status}
-              </StatusBadge>
-            </MetaRow>
-            <MetaSlugRow value={blueprint.slug} />
-            <MetaRow label="Path">
-              <code
-                className="text-foreground/90 min-w-0 truncate font-mono text-xs"
-                title={blueprint.path}
-              >
-                {blueprint.path}
-              </code>
-            </MetaRow>
-            {blueprint.source && (
-              <>
-                {blueprint.source.repo && (
-                  <MetaRow label="Source">
-                    <a
-                      href={blueprint.source.repo}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-primary min-w-0 truncate text-sm hover:underline"
-                      title={blueprint.source.repo}
-                    >
-                      {blueprint.source.repo.replace(/^https?:\/\//, '')}
-                    </a>
-                  </MetaRow>
-                )}
-                {blueprint.source.commit_sha && (
-                  <MetaRow label="Commit">
-                    <code className="text-muted-foreground font-mono text-xs">
-                      {blueprint.source.commit_sha.slice(0, 7)}
-                    </code>
-                  </MetaRow>
-                )}
-                {blueprint.source.imported_at && (
-                  <MetaRow label="Imported">
-                    <span className="text-muted-foreground text-sm">
-                      {formatDate(blueprint.source.imported_at)}
-                    </span>
-                  </MetaRow>
-                )}
-              </>
-            )}
-          </MetadataPanel>
-
-          <AdditionalDataCard data={blueprint.metadata ?? {}} />
-
-          {currentTeam && (
-            <ResourceAttachments
-              teamId={currentTeam.id}
-              ownerType="blueprint"
-              ownerId={blueprint.id}
-            />
-          )}
-
-          {currentTeam && (
-            <AccessActivityPanel
-              teamId={currentTeam.id}
-              resourceType="blueprint"
-              resourceId={blueprint.id}
-            />
-          )}
-
-          {currentTeam && (
-            <CommentsPanel
-              teamId={currentTeam.id}
-              resourceType="blueprint"
-              resourceId={blueprint.id}
-            />
-          )}
-
-          {currentTeam && (
-            <RelationsPanel
-              teamId={currentTeam.id}
-              resourceType="blueprint"
-              resourceId={blueprint.id}
-            />
-          )}
-        </div>
-      </div>
+        metadata={
+          <div className="space-y-4">
+            <MetadataPanel
+              createdAt={blueprint.created_at}
+              updatedAt={blueprint.updated_at}
+              versionHistory={versionHistory}
+            >
+              <MetaRow label="Type">
+                <Badge variant="secondary">{TYPE_LABEL[blueprint.type]}</Badge>
+              </MetaRow>
+              <MetaRow label="Status">
+                <StatusBadge
+                  tone={blueprint.status === 'active' ? 'success' : 'neutral'}
+                >
+                  <span className="size-1.5 rounded-full bg-current" />
+                  {blueprint.status}
+                </StatusBadge>
+              </MetaRow>
+              <MetaSlugRow value={blueprint.slug} />
+              <MetaRow label="Path">
+                <code
+                  className="text-foreground/90 min-w-0 truncate font-mono text-xs"
+                  title={blueprint.path}
+                >
+                  {blueprint.path}
+                </code>
+              </MetaRow>
+              {blueprint.source && (
+                <>
+                  {blueprint.source.repo && (
+                    <MetaRow label="Source">
+                      <a
+                        href={blueprint.source.repo}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary min-w-0 truncate text-sm hover:underline"
+                        title={blueprint.source.repo}
+                      >
+                        {blueprint.source.repo.replace(/^https?:\/\//, '')}
+                      </a>
+                    </MetaRow>
+                  )}
+                  {blueprint.source.commit_sha && (
+                    <MetaRow label="Commit">
+                      <code className="text-muted-foreground font-mono text-xs">
+                        {blueprint.source.commit_sha.slice(0, 7)}
+                      </code>
+                    </MetaRow>
+                  )}
+                  {blueprint.source.imported_at && (
+                    <MetaRow label="Imported">
+                      <span className="text-muted-foreground text-sm">
+                        {formatDate(blueprint.source.imported_at)}
+                      </span>
+                    </MetaRow>
+                  )}
+                </>
+              )}
+            </MetadataPanel>
+            <AdditionalDataCard data={blueprint.metadata ?? {}} />
+          </div>
+        }
+      >
+        <MarkdownRenderer content={blueprint.content} syntaxTheme="auto" />
+      </ResourceReadingPage>
 
       <ConfirmDialog
         open={deleteOpen}
@@ -356,6 +302,6 @@ export function BlueprintView() {
         loading={deleting}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   )
 }

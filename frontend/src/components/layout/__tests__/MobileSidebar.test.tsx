@@ -13,6 +13,21 @@ vi.mock('@/components/ui/scroll-area', () => ({
   ),
 }))
 
+// The drawer hosts the header widgets the mobile top bar gives up (#886).
+// They need Team/Project/Theme providers, which are out of scope here.
+vi.mock('@/components/layout/TeamSwitcher', () => ({
+  TeamSwitcher: () => <div data-testid="team-switcher" />,
+}))
+vi.mock('@/components/layout/ProjectSwitcher', () => ({
+  ProjectSwitcher: () => <div data-testid="project-switcher" />,
+}))
+vi.mock('@/components/layout/SearchModal', () => ({
+  SearchModal: () => <button type="button">Search</button>,
+}))
+vi.mock('@/components/layout/ThemeToggle', () => ({
+  ThemeToggle: () => <button type="button">Toggle theme</button>,
+}))
+
 // Spy recording every click that would close the Sheet via SheetClose.
 const mockSheetClose = vi.hoisted(() => vi.fn())
 

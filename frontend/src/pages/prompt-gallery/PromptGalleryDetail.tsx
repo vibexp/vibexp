@@ -1,14 +1,17 @@
-import { AlertCircle, ArrowLeft, FileText, Wand2 } from 'lucide-react'
+import { AlertCircle, ArrowLeft, FileText, Tags, Wand2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
-import { CopyButton } from '@/components/CopyButton'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
-import { PageHeader } from '@/components/PageHeader'
+import {
+  type ReadingAction,
+  ReadingPage,
+  type ReadingSection,
+  useCopyAction,
+} from '@/components/patterns/reading-page'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAlertContext } from '@/contexts/AlertContext'
 import type { PromptGalleryTemplate } from '@/services/promptGalleryService'
@@ -21,6 +24,9 @@ export function PromptGalleryDetail() {
   const { showAlert } = useAlertContext()
   const [prompt, setPrompt] = useState<PromptGalleryTemplate | null>(null)
   const [loading, setLoading] = useState(true)
+  const copyAction = useCopyAction(prompt?.content ?? '', {
+    testId: 'copy-button',
+  })
 
   useEffect(() => {
     const fetchPrompt = async () => {
@@ -72,34 +78,26 @@ export function PromptGalleryDetail() {
     }
   }
 
+  const backAction: ReadingAction = {
+    id: 'back',
+    label: 'Back',
+    icon: ArrowLeft,
+    onClick: handleBack,
+  }
+
   if (loading) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Loading prompt…" />
+      <ReadingPage title="Loading prompt…">
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
-      </div>
+      </ReadingPage>
     )
   }
 
   if (!prompt) {
     return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Prompt not found"
-          actions={
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate('/prompt-gallery')
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-          }
-        />
+      <ReadingPage title="Prompt not found" actions={[backAction]}>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Prompt not found</AlertTitle>
@@ -108,83 +106,74 @@ export function PromptGalleryDetail() {
             removed.
           </AlertDescription>
         </Alert>
-      </div>
+      </ReadingPage>
     )
   }
 
+  const actions: ReadingAction[] = [
+    backAction,
+    copyAction,
+    {
+      id: 'use',
+      label: 'Use this prompt',
+      icon: Wand2,
+      emphasis: 'primary',
+      onClick: () => {
+        void handleUsePrompt()
+      },
+    },
+  ]
+
+  const sections: ReadingSection[] = [
+    {
+      id: 'category',
+      label: 'Category',
+      icon: FileText,
+      content: (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Category</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Badge variant="secondary" className="gap-1">
+              <FileText className="size-3" />
+              {prompt.category}
+            </Badge>
+          </CardContent>
+        </Card>
+      ),
+    },
+    {
+      id: 'tags',
+      label: 'Tags',
+      icon: Tags,
+      content: prompt.tags && prompt.tags.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Tags</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-1.5">
+              {prompt.tags.map(tag => (
+                <Badge key={tag} variant="outline">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ),
+    },
+  ]
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={prompt.title}
-        description={prompt.description}
-        actions={
-          <>
-            <Button variant="outline" onClick={handleBack}>
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-            <CopyButton
-              value={prompt.content}
-              label="Copy content"
-              size="default"
-              variant="outline"
-              testId="copy-button"
-            />
-            <Button
-              onClick={() => {
-                void handleUsePrompt()
-              }}
-            >
-              <Wand2 className="mr-2 size-4" />
-              Use this prompt
-            </Button>
-          </>
-        }
-      />
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="min-w-0 lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Content</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MarkdownRenderer content={prompt.content} syntaxTheme="auto" />
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Category</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Badge variant="secondary" className="gap-1">
-                <FileText className="size-3" />
-                {prompt.category}
-              </Badge>
-            </CardContent>
-          </Card>
-
-          {prompt.tags && prompt.tags.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Tags</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-1.5">
-                  {prompt.tags.map(tag => (
-                    <Badge key={tag} variant="outline">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
-    </div>
+    <ReadingPage
+      title={prompt.title}
+      description={prompt.description}
+      actions={actions}
+      sections={sections}
+    >
+      <MarkdownRenderer content={prompt.content} syntaxTheme="auto" />
+    </ReadingPage>
   )
 }

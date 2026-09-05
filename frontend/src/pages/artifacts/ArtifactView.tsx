@@ -2,11 +2,7 @@ import { AlertCircle, ArrowLeft, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
-import { AccessActivityPanel } from '@/components/access-activity/AccessActivityPanel'
-import { ResourceAttachments } from '@/components/attachments/ResourceAttachments'
-import { CommentsPanel } from '@/components/comments/CommentsPanel'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { CopyButton } from '@/components/CopyButton'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import {
@@ -15,13 +11,14 @@ import {
   MetaSlugRow,
 } from '@/components/metadata/MetadataPanel'
 import { AdditionalDataCard } from '@/components/MetadataCard'
-import { PageHeader } from '@/components/PageHeader'
-import { RelationsPanel } from '@/components/relations/RelationsPanel'
+import {
+  type ReadingAction,
+  useCopyAction,
+} from '@/components/patterns/reading-page'
+import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -56,6 +53,16 @@ export function ArtifactView() {
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  const backAction: ReadingAction = {
+    id: 'back',
+    label: 'Back',
+    icon: ArrowLeft,
+    onClick: () => {
+      void navigate('/artifacts')
+    },
+  }
+  const copyAction = useCopyAction(artifact?.content ?? '')
 
   useEffect(() => {
     // Guard against stale responses: if params/team change mid-flight, a slower
@@ -144,19 +151,17 @@ export function ArtifactView() {
 
   if (isLoadingTeam || loading) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Loading artifact…" />
+      <ResourceReadingPage title="Loading artifact…">
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
-      </div>
+      </ResourceReadingPage>
     )
   }
 
   if (error || !artifact) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Artifact not found" />
+      <ResourceReadingPage title="Artifact not found" actions={[backAction]}>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Artifact not found</AlertTitle>
@@ -164,16 +169,7 @@ export function ArtifactView() {
             {error ?? 'The artifact could not be found.'}
           </AlertDescription>
         </Alert>
-        <Button
-          variant="outline"
-          onClick={() => {
-            void navigate('/artifacts')
-          }}
-        >
-          <ArrowLeft className="mr-2 size-4" />
-          Back
-        </Button>
-      </div>
+      </ResourceReadingPage>
     )
   }
 
@@ -198,118 +194,66 @@ export function ArtifactView() {
         }
       : undefined
 
+  const actions: ReadingAction[] = [
+    backAction,
+    copyAction,
+    {
+      id: 'edit',
+      label: 'Edit',
+      icon: Pencil,
+      testId: 'edit-artifact-button',
+      onClick: () => {
+        void navigate(`${base}/edit`)
+      },
+    },
+  ]
+  if (canDeleteResource(artifact.user_id)) {
+    actions.push({
+      id: 'delete',
+      label: 'Delete',
+      icon: Trash2,
+      tone: 'destructive',
+      testId: 'delete-artifact-button',
+      onClick: () => {
+        setDeleteOpen(true)
+      },
+    })
+  }
+
   return (
-    <div className="space-y-6">
-      <PageHeader
+    <>
+      <ResourceReadingPage
         title={artifact.title}
         description={artifact.description}
-        actions={
-          <>
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate('/artifacts')
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-            <CopyButton
-              value={artifact.content ?? ''}
-              label="Copy content"
-              size="default"
-              variant="outline"
-            />
-            <Button
-              variant="outline"
-              data-testid="edit-artifact-button"
-              onClick={() => {
-                void navigate(`${base}/edit`)
-              }}
-            >
-              <Pencil className="mr-2 size-4" />
-              Edit
-            </Button>
-            {canDeleteResource(artifact.user_id) && (
-              <Button
-                variant="destructive"
-                data-testid="delete-artifact-button"
-                onClick={() => {
-                  setDeleteOpen(true)
-                }}
-              >
-                <Trash2 className="mr-2 size-4" />
-                Delete
-              </Button>
-            )}
-          </>
+        actions={actions}
+        resource={
+          currentTeam
+            ? { kind: 'artifact', id: artifact.id, teamId: currentTeam.id }
+            : undefined
         }
-      />
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="min-w-0 lg:col-span-2">
-          <Card>
-            <CardContent className="pt-6">
-              <MarkdownRenderer
-                content={artifact.content ?? ''}
-                syntaxTheme="auto"
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-4">
-          <MetadataPanel
-            createdAt={artifact.created_at}
-            updatedAt={artifact.updated_at}
-            versionHistory={versionHistory}
-          >
-            <MetaRow label="Type">
-              <Badge variant="secondary">{TYPE_LABEL[artifact.type]}</Badge>
-            </MetaRow>
-            <MetaRow label="Status">
-              <StatusBadge tone={artifactStatusTone(artifact.status)}>
-                {ARTIFACT_STATUS_LABEL[artifact.status]}
-              </StatusBadge>
-            </MetaRow>
-            <MetaSlugRow value={artifact.slug} />
-          </MetadataPanel>
-
-          <AdditionalDataCard data={artifact.metadata ?? {}} />
-
-          {currentTeam && (
-            <ResourceAttachments
-              teamId={currentTeam.id}
-              ownerType="artifact"
-              ownerId={artifact.id}
-            />
-          )}
-
-          {currentTeam && (
-            <AccessActivityPanel
-              teamId={currentTeam.id}
-              resourceType="artifact"
-              resourceId={artifact.id}
-            />
-          )}
-
-          {currentTeam && (
-            <CommentsPanel
-              teamId={currentTeam.id}
-              resourceType="artifact"
-              resourceId={artifact.id}
-            />
-          )}
-
-          {currentTeam && (
-            <RelationsPanel
-              teamId={currentTeam.id}
-              resourceType="artifact"
-              resourceId={artifact.id}
-            />
-          )}
-        </div>
-      </div>
+        metadata={
+          <div className="space-y-4">
+            <MetadataPanel
+              createdAt={artifact.created_at}
+              updatedAt={artifact.updated_at}
+              versionHistory={versionHistory}
+            >
+              <MetaRow label="Type">
+                <Badge variant="secondary">{TYPE_LABEL[artifact.type]}</Badge>
+              </MetaRow>
+              <MetaRow label="Status">
+                <StatusBadge tone={artifactStatusTone(artifact.status)}>
+                  {ARTIFACT_STATUS_LABEL[artifact.status]}
+                </StatusBadge>
+              </MetaRow>
+              <MetaSlugRow value={artifact.slug} />
+            </MetadataPanel>
+            <AdditionalDataCard data={artifact.metadata ?? {}} />
+          </div>
+        }
+      >
+        <MarkdownRenderer content={artifact.content ?? ''} syntaxTheme="auto" />
+      </ResourceReadingPage>
 
       <ConfirmDialog
         open={deleteOpen}
@@ -321,6 +265,6 @@ export function ArtifactView() {
         loading={deleting}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   )
 }
