@@ -697,6 +697,26 @@ describe('MarkdownRenderer', () => {
       ).toHaveLength(1)
     })
 
+    it('makes the scroll container a named, keyboard-reachable region', async () => {
+      // Scrolling the wrapper is the only way to reach a wide table's
+      // off-screen columns, so it must be a tab stop with a name — otherwise
+      // the content the wrapper exists to rescue is unreachable by keyboard
+      // (WCAG 2.1.1). `tabindex`, `role` and `aria-label` are on DOMPurify's
+      // default allow-list; asserted here rather than assumed.
+      mockMarked.mockResolvedValue(TABLE)
+
+      const { container } = render(<MarkdownRenderer content="| a | b |" />)
+
+      await waitFor(() => {
+        expect(container.querySelector('table')).toBeInTheDocument()
+      })
+
+      const wrapper = container.querySelector('.markdown-table-wrapper')
+      expect(wrapper).toHaveAttribute('tabindex', '0')
+      expect(wrapper).toHaveAttribute('role', 'region')
+      expect(wrapper).toHaveAttribute('aria-label', 'Table')
+    })
+
     it('wraps a table that carries attributes', async () => {
       // marked emits a bare `<table>` today. A literal string replacement would
       // silently no-op — reinstating the bug with a green suite — if a future

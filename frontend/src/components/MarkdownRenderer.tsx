@@ -355,11 +355,21 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         // literal match would silently no-op (leaving the bug back) if a future
         // marked ever emits attributes. GFM has no nested tables, so pairing
         // each opening tag with the next `</table>` needs no parser.
+        //
+        // `tabindex="0"` is what makes the scroll container reachable by
+        // keyboard: scrolling it is the ONLY way to see a wide table's
+        // off-screen columns, so without it the content this wrapper exists to
+        // rescue is unreachable without a mouse (WCAG 2.1.1, axe
+        // `scrollable-region-focusable`). Chrome focuses childless scrollers on
+        // its own since 127, but that is neither universal nor guaranteed. The
+        // labelled `region` gives the resulting tab stop a name instead of
+        // announcing as an anonymous group. All three attributes are on
+        // DOMPurify's default allow-list, so `ADD_ATTR` is unchanged.
         html = html
           .replace(
             /<table(\s[^>]*)?>/g,
             (_match: string, attrs?: string) =>
-              `<div class="markdown-table-wrapper"><table${attrs ?? ''}>`
+              `<div class="markdown-table-wrapper" tabindex="0" role="region" aria-label="Table"><table${attrs ?? ''}>`
           )
           .replaceAll('</table>', '</table></div>')
 
