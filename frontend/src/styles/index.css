@@ -152,12 +152,25 @@
    `width: 100%` above does not cap an auto-layout table, so a wide one used to
    escape its card and paint over the metadata sidebar; the wrapper confines the
    overflow to its own horizontal scrollbar. Narrow tables are unaffected — the
-   table still fills the wrapper at 100%. Styled here rather than with a utility
-   class on the element because rules in this file are unlayered and outrank
-   Tailwind utilities (#666). */
+   table still fills the wrapper at 100%. Kept here beside the other `prose`
+   table rules so a table's layout is described in one place.
+
+   The vertical rhythm MOVES from the table to the wrapper. `overflow-x: auto`
+   makes the wrapper a block formatting context, so the table's own 1.5rem
+   margins can no longer collapse with an adjacent paragraph's 1rem — they would
+   stack instead, growing the gap around EVERY markdown table from 24px to 40px.
+   The wrapper is an ordinary block, so its margins collapse as the table's used
+   to. */
 .v2-root .prose .markdown-table-wrapper {
   max-width: 100%;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
   overflow-x: auto;
+}
+
+.v2-root .prose .markdown-table-wrapper :where(table) {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .v2-root .prose :where(th) {
