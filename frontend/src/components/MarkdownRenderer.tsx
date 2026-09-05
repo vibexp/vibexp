@@ -353,8 +353,10 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         // The opening tag is matched with a regex rather than a literal
         // `replaceAll('<table>')`: marked emits a bare `<table>` today, but a
         // literal match would silently no-op (leaving the bug back) if a future
-        // marked ever emits attributes. GFM has no nested tables, so pairing
-        // each opening tag with the next `</table>` needs no parser.
+        // marked ever emits attributes. Nothing is being paired here — these
+        // are two uniform substitutions, and table tags are balanced, so the
+        // inserted `div`s come out balanced too (including around the nested
+        // raw-HTML tables marked passes straight through). No parser needed.
         //
         // `tabindex="0"` is what makes the scroll container reachable by
         // keyboard: scrolling it is the ONLY way to see a wide table's
