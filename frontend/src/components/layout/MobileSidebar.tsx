@@ -91,8 +91,10 @@ export function MobileSidebar() {
             tight for the mobile sheet). */}
         <SidebarBrand showText className="pt-5" />
       </SheetClose>
+      {/* Stacked, not side by side: each switcher keeps its own trigger width
+          (up to 220px), and two of them do not fit a 288px drawer. */}
       <div
-        className="flex items-center gap-2 px-3.5 pb-3 [&>*]:min-w-0 [&>*]:flex-1"
+        className="flex flex-col items-start gap-2 px-3.5 pb-3"
         data-testid="drawer-switchers"
       >
         <TeamSwitcher />
