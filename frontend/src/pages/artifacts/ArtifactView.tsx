@@ -232,7 +232,7 @@ export function ArtifactView() {
             : undefined
         }
         metadata={
-          <div className="space-y-4">
+          <div className="space-y-5">
             <MetadataPanel
               createdAt={artifact.created_at}
               updatedAt={artifact.updated_at}

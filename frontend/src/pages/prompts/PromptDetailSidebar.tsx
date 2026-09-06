@@ -8,7 +8,12 @@ import {
 } from '@/components/metadata/MetadataPanel'
 import type { ReadingSection } from '@/components/patterns/reading-page'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Panel,
+  PanelBody,
+  PanelHeader,
+  PanelTitle,
+} from '@/components/ui/panel'
 import type {
   Prompt,
   PromptDependenciesResponse,
@@ -29,26 +34,26 @@ export function PromptMetadata({
   versionHistory,
 }: Readonly<PromptMetadataProps>) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {prompt.description && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Description</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Description</PanelTitle>
+          </PanelHeader>
+          <PanelBody className="pb-4">
             <p className="text-muted-foreground text-sm">
               {prompt.description}
             </p>
-          </CardContent>
-        </Card>
+          </PanelBody>
+        </Panel>
       )}
 
       {prompt.labels && prompt.labels.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Labels</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Labels</PanelTitle>
+          </PanelHeader>
+          <PanelBody className="pb-4">
             <div className="flex flex-wrap gap-1.5">
               {prompt.labels.map(label => (
                 <Badge key={label} variant="outline">
@@ -56,8 +61,8 @@ export function PromptMetadata({
                 </Badge>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </PanelBody>
+        </Panel>
       )}
 
       <MetadataPanel
@@ -88,11 +93,11 @@ export function promptUsedBySection(
       label: 'Used by',
       icon: Link2,
       content: (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Used by</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Used by</PanelTitle>
+          </PanelHeader>
+          <PanelBody className="pb-4">
             {loading ? (
               <LoadingSpinner size="sm" />
             ) : (
@@ -104,8 +109,8 @@ export function promptUsedBySection(
                 ))}
               </ul>
             )}
-          </CardContent>
-        </Card>
+          </PanelBody>
+        </Panel>
       ),
     },
   ]

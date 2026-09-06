@@ -12,6 +12,11 @@ const buttonVariants = cva(
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
         destructive:
           'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        // Outlined counterpart of `destructive`, so a destructive action can
+        // sit in a row of outlined actions without being the only filled one
+        // (the reading page's action grid and rail, #890).
+        'destructive-outline':
+          'border border-destructive bg-background text-destructive hover:bg-destructive/10',
         outline:
           'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
         secondary:

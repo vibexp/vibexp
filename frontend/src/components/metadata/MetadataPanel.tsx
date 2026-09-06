@@ -11,18 +11,24 @@ import { type ComponentType, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
 import { RelativeTime } from '@/components/RelativeTime'
-import { Card } from '@/components/ui/card'
-import { PanelTitle } from '@/components/ui/panel-title'
+import {
+  Panel,
+  PanelHeader,
+  PanelRow,
+  PanelTitle,
+  usePanelInset,
+} from '@/components/ui/panel'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
-import { cn } from '@/lib/utils'
 
 /* A right-rail metadata panel built entirely on the shared design system:
-   shadcn Card, lucide icons, and semantic token utilities (bg-secondary,
-   text-muted-foreground, border, …) — no hardcoded colours, so it flips with
-   `.dark` for free. Rows are a hairline-divided list: key on the left, value on
-   the right. Created / Updated relative-time rows are rendered automatically;
-   pass any leading rows (Type, Status, Slug, …) as `MetaRow` / `MetaSlugRow`
-   children. Reusable across every resource detail view. */
+   the `ui/panel` primitives (so it is a card on a page and flat inside the
+   reading page's details column, #890), lucide icons, and semantic token
+   utilities (bg-secondary, text-muted-foreground, border, …) — no hardcoded
+   colours, so it flips with `.dark` for free. Rows are a hairline-divided
+   list: key on the left, value on the right. Created / Updated relative-time
+   rows are rendered automatically; pass any leading rows (Type, Status, Slug,
+   …) as `MetaRow` / `MetaSlugRow` children. Reusable across every resource
+   detail view. */
 
 type IconType = ComponentType<{ className?: string }>
 
@@ -37,17 +43,12 @@ export function MetaRow({
   className?: string
 }>) {
   return (
-    <li
-      className={cn(
-        'flex min-h-12 items-center justify-between gap-4 px-5 py-2.5',
-        className
-      )}
-    >
-      <span className="shrink-0 text-sm text-muted-foreground">{label}</span>
-      <span className="flex min-w-0 items-center justify-end gap-2 text-right text-sm font-medium">
+    <PanelRow as="li" className={className}>
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="flex min-w-0 items-center justify-end gap-2 text-right font-medium">
         {children}
       </span>
-    </li>
+    </PanelRow>
   )
 }
 
@@ -72,8 +73,8 @@ export function MetaSlugRow({
   const action = `Copy ${label.toLowerCase()}`
 
   return (
-    <li className="flex min-h-12 items-center justify-between gap-4 px-5 py-2.5">
-      <span className="shrink-0 text-sm text-muted-foreground">{label}</span>
+    <PanelRow as="li">
+      <span className="text-muted-foreground shrink-0">{label}</span>
       <button
         type="button"
         onClick={() => {
@@ -91,7 +92,7 @@ export function MetaSlugRow({
           className="size-3 shrink-0 text-muted-foreground"
         />
       </button>
-    </li>
+    </PanelRow>
   )
 }
 
@@ -187,12 +188,13 @@ function VersionHistoryLink({
   count,
   label = 'View version history',
 }: Readonly<Pick<VersionHistoryMeta, 'to' | 'count' | 'label'>>) {
+  const inset = usePanelInset()
   return (
     <Link
       to={to}
       data-testid="metadata-version-history-link"
       aria-label={`${label}, ${String(count)} ${count === 1 ? 'version' : 'versions'}`}
-      className="flex items-center gap-2 border-t border-border px-5 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+      className={`${inset} flex items-center gap-2 border-t border-border py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent`}
     >
       <History
         aria-hidden="true"
@@ -236,14 +238,13 @@ export function MetadataPanel({
     (createdAt === undefined || updatedMs !== createdMs)
 
   return (
-    <Card
-      className={cn('overflow-hidden', className)}
-      data-testid="metadata-panel"
-    >
-      <div className="flex items-center gap-2.5 px-5 pb-4 pt-5">
-        <Info className="size-4 shrink-0 text-muted-foreground" />
-        <PanelTitle>{title}</PanelTitle>
-      </div>
+    <Panel className={className} data-testid="metadata-panel">
+      <PanelHeader>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Info className="size-4 shrink-0 text-muted-foreground" />
+          <PanelTitle>{title}</PanelTitle>
+        </div>
+      </PanelHeader>
       <ul className="divide-y divide-border border-t border-border">
         {children}
         {createdAt && (
@@ -266,6 +267,6 @@ export function MetadataPanel({
           label={versionHistory.label}
         />
       )}
-    </Card>
+    </Panel>
   )
 }

@@ -2,6 +2,10 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import type { UseCommentsResult } from '@/hooks/useComments'
+import {
+  expectNoCardChrome,
+  FlatSurface,
+} from '@/lib/testing/panelPresentation'
 import type { Comment } from '@/services/commentService'
 import type { TeamMember } from '@/services/teamService'
 
@@ -246,6 +250,46 @@ describe('CommentsPanel', () => {
 
     await waitFor(() => {
       expect(removeComment).toHaveBeenCalledWith('a')
+    })
+  })
+
+  // Inside the reading page's details column the panel drops its card box and
+  // its header action becomes the compact chip (#890).
+  describe('flat presentation', () => {
+    it('paints no card chrome and uses the chip action', () => {
+      mockState = makeState({
+        comments: [makeComment({ id: 'a' })],
+        totalCount: 8,
+      })
+      render(
+        <FlatSurface>
+          <CommentsPanel
+            teamId="team-1"
+            resourceType="artifact"
+            resourceId="res-1"
+          />
+        </FlatSurface>
+      )
+      const panel = screen.getByTestId('comments-panel')
+      expectNoCardChrome(panel)
+      expect(panel.className).toBe('')
+      // The chip is what leaves room for the title at the 320px column width.
+      const add = screen.getByTestId('comment-add-button')
+      expect(add).toHaveClass('text-xs')
+      expect(add).not.toHaveClass('h-9')
+      expect(screen.getByRole('heading', { name: 'Comments' })).toHaveClass(
+        'text-sm'
+      )
+    })
+
+    it('keeps the card box everywhere else', () => {
+      mockState = makeState()
+      renderPanel()
+      expect(screen.getByTestId('comments-panel')).toHaveClass(
+        'rounded-lg',
+        'border',
+        'shadow-sm'
+      )
     })
   })
 })

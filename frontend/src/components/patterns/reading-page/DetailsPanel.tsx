@@ -1,3 +1,4 @@
+import { PanelPresentationProvider } from '@/components/ui/panel'
 import { Separator } from '@/components/ui/separator'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -21,6 +22,12 @@ interface DetailsColumnProps {
  * The open details panel: the action grid, then every section stacked with
  * a `data-section` anchor the rail scrolls to. Rendered in the desktop
  * column and inside the tablet/phone sheet alike.
+ *
+ * The column is itself a bordered, padded surface, so it declares its sections
+ * `flat` (#890): every widget built on the `ui/panel` primitives drops its card
+ * border, shadow, radius, background and 20px gutter here, and keeps them
+ * everywhere else. The presentation travels by context rather than by a prop,
+ * so `ResourceReadingPage` and any resource type added later need no changes.
  */
 export function DetailsColumn({
   actions,
@@ -29,28 +36,30 @@ export function DetailsColumn({
   className,
 }: Readonly<DetailsColumnProps>) {
   return (
-    <div
-      className={cn('flex flex-col gap-4 p-4', className)}
-      data-testid="details-column"
-    >
-      {showActions && actions.length > 0 && (
-        <ReadingActions
-          actions={actions}
-          layout="grid"
-          className="border-b pb-4"
-        />
-      )}
-      {sections.map(section => (
-        <section
-          key={section.id}
-          data-section={section.id}
-          aria-label={section.label}
-          className="scroll-mt-4"
-        >
-          {section.content}
-        </section>
-      ))}
-    </div>
+    <PanelPresentationProvider value="flat">
+      <div
+        className={cn('flex flex-col gap-5 p-5', className)}
+        data-testid="details-column"
+      >
+        {showActions && actions.length > 0 && (
+          <ReadingActions
+            actions={actions}
+            layout="grid"
+            className="border-b pb-5"
+          />
+        )}
+        {sections.map(section => (
+          <section
+            key={section.id}
+            data-section={section.id}
+            aria-label={section.label}
+            className="scroll-mt-5"
+          >
+            {section.content}
+          </section>
+        ))}
+      </div>
+    </PanelPresentationProvider>
   )
 }
 

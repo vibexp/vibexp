@@ -3,6 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { type ReactElement } from 'react'
 import { MemoryRouter } from 'react-router'
 
+import {
+  expectNoCardChrome,
+  FlatSurface,
+} from '@/lib/testing/panelPresentation'
+
 import { MetadataPanel, MetaRow, MetaSlugRow } from '../MetadataPanel'
 
 // MetadataPanel renders RelativeTime (Radix Tooltip), whose popper relies on
@@ -331,5 +336,56 @@ describe('MetadataPanel version history', () => {
       />
     )
     expect(screen.getByText('Updated')).toBeInTheDocument()
+  })
+})
+
+describe('MetadataPanel flat presentation', () => {
+  it('paints no card chrome inside the details column', () => {
+    render(
+      <MemoryRouter>
+        <FlatSurface>
+          <MetadataPanel createdAt={CREATED} updatedAt={UPDATED}>
+            <MetaRow label="Type">general</MetaRow>
+          </MetadataPanel>
+        </FlatSurface>
+      </MemoryRouter>
+    )
+    const panel = screen.getByTestId('metadata-panel')
+    expectNoCardChrome(panel)
+    expect(panel.className).toBe('')
+    expect(screen.getByRole('heading', { name: 'Metadata' })).toHaveClass(
+      'text-sm'
+    )
+  })
+
+  it('drops the row gutter so the column padding is the only inset', () => {
+    render(
+      <MemoryRouter>
+        <FlatSurface>
+          <MetadataPanel createdAt={CREATED}>
+            <MetaRow label="Type">general</MetaRow>
+          </MetadataPanel>
+        </FlatSurface>
+      </MemoryRouter>
+    )
+    const row = screen.getByText('Type').closest('li')
+    expect(row).toHaveClass('text-[13px]')
+    expect(row).not.toHaveClass('px-5')
+  })
+
+  it('keeps the card box everywhere else', () => {
+    render(
+      <MemoryRouter>
+        <MetadataPanel createdAt={CREATED}>
+          <MetaRow label="Type">general</MetaRow>
+        </MetadataPanel>
+      </MemoryRouter>
+    )
+    expect(screen.getByTestId('metadata-panel')).toHaveClass(
+      'rounded-lg',
+      'border',
+      'shadow-sm'
+    )
+    expect(screen.getByText('Type').closest('li')).toHaveClass('px-5')
   })
 })

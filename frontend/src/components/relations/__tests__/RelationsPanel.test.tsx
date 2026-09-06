@@ -3,6 +3,10 @@ import { MemoryRouter } from 'react-router'
 
 import { RelationsPanel } from '@/components/relations/RelationsPanel'
 import type { UseRelationsResult } from '@/hooks/useRelations'
+import {
+  expectNoCardChrome,
+  FlatSurface,
+} from '@/lib/testing/panelPresentation'
 import type { RelatedResource } from '@/services/relationService'
 
 let mockState: UseRelationsResult
@@ -190,5 +194,40 @@ test('a failed dismiss surfaces an alert', async () => {
   fireEvent.click(screen.getByTestId('relation-dismiss'))
   await waitFor(() => {
     expect(showError).toHaveBeenCalled()
+  })
+})
+
+describe('flat presentation', () => {
+  it('paints no card chrome and uses the chip action', () => {
+    grantedPerms.add('resource.create')
+    render(
+      <FlatSurface>
+        <MemoryRouter>
+          <RelationsPanel
+            teamId="team-1"
+            resourceType="artifact"
+            resourceId="a1"
+          />
+        </MemoryRouter>
+      </FlatSurface>
+    )
+    const panel = screen.getByTestId('relations-panel')
+    expectNoCardChrome(panel)
+    expect(panel.className).toBe('')
+    const add = screen.getByTestId('relation-add-button')
+    expect(add).toHaveClass('text-xs')
+    expect(add).not.toHaveClass('h-9')
+    expect(screen.getByRole('heading', { name: 'Relations' })).toHaveClass(
+      'text-sm'
+    )
+  })
+
+  it('keeps the card box everywhere else', () => {
+    renderPanel()
+    expect(screen.getByTestId('relations-panel')).toHaveClass(
+      'rounded-lg',
+      'border',
+      'shadow-sm'
+    )
   })
 })

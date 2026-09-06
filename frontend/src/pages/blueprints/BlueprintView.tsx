@@ -227,7 +227,7 @@ export function BlueprintView() {
             : undefined
         }
         metadata={
-          <div className="space-y-4">
+          <div className="space-y-5">
             <MetadataPanel
               createdAt={blueprint.created_at}
               updatedAt={blueprint.updated_at}

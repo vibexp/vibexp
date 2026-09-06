@@ -13,7 +13,14 @@ import { useRef, useState } from 'react'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { PanelTitle } from '@/components/ui/panel-title'
+import {
+  Panel,
+  PanelAction,
+  PanelBody,
+  PanelHeader,
+  PanelTitle,
+  usePanelInset,
+} from '@/components/ui/panel'
 import type { Attachment } from '@/services/attachmentService'
 import { formatFileSize } from '@/utils/formatFileSize'
 
@@ -81,6 +88,9 @@ function fileMeta(contentType: string): {
  *
  * Upload/delete/download actions are supplied as props so any resource
  * (artifact today; memory/blueprint later) can reuse it via its own service.
+ *
+ * Built on the `ui/panel` primitives, so it is a card wherever it is dropped on
+ * a page and flat inside the reading page's details column (#890).
  */
 export function AttachmentCard({
   attachments,
@@ -94,6 +104,7 @@ export function AttachmentCard({
   maxTotalSize = DEFAULT_MAX_TOTAL_SIZE,
   allowedExtensions = DEFAULT_ALLOWED_EXTENSIONS,
 }: Readonly<AttachmentCardProps>) {
+  const inset = usePanelInset()
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -151,7 +162,7 @@ export function AttachmentCard({
   const renderAttachmentList = () => {
     if (attachments.length === 0) {
       return (
-        <p className="text-muted-foreground px-5 py-4 text-sm">
+        <p className={`${inset} text-muted-foreground py-4 text-sm`}>
           No attachments yet.
         </p>
       )
@@ -168,7 +179,7 @@ export function AttachmentCard({
           return (
             <li
               key={attachment.id}
-              className="group/item hover:bg-muted/55 flex items-center gap-3 px-5 py-3 transition-colors"
+              className={`${inset} group/item hover:bg-muted/55 flex items-center gap-3 py-3 transition-colors`}
               data-testid="attachment-item"
             >
               <div className="bg-muted text-muted-foreground grid size-[38px] shrink-0 place-items-center rounded-md">
@@ -226,31 +237,21 @@ export function AttachmentCard({
   }
 
   return (
-    <div
-      className="bg-card text-card-foreground overflow-hidden rounded-lg border shadow-sm"
-      data-testid="attachment-card"
-    >
-      {/* Header: paperclip + title (left), Add file button (right) */}
-      <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-4">
+    <Panel data-testid="attachment-card">
+      {/* Header: paperclip + title (left), Add file chip (right) */}
+      <PanelHeader>
         <div className="flex min-w-0 items-center gap-2.5">
           <Paperclip className="text-muted-foreground size-[17px] shrink-0" />
           <PanelTitle>{title}</PanelTitle>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
+        <PanelAction
           disabled={disabled || busy || atCapacity}
           onClick={() => inputRef.current?.click()}
           data-testid="attachment-add-button"
         >
-          {busy ? (
-            <LoadingSpinner size="sm" />
-          ) : (
-            <Plus className="mr-1 size-3.5" />
-          )}
+          {busy ? <LoadingSpinner size="sm" /> : <Plus className="size-3.5" />}
           Add file
-        </Button>
+        </PanelAction>
         <input
           ref={inputRef}
           type="file"
@@ -261,10 +262,10 @@ export function AttachmentCard({
             void handleFiles(e.target.files)
           }}
         />
-      </div>
+      </PanelHeader>
 
       {/* Quota meter */}
-      <div className="px-5 pb-4">
+      <PanelBody className="pb-4">
         <div className="mb-[7px] flex items-baseline justify-between text-xs">
           <span className="text-muted-foreground tabular-nums">
             {formatFileSize(usedBytes)} of {formatFileSize(maxTotalSize)} used
@@ -277,16 +278,16 @@ export function AttachmentCard({
             style={{ width: `${String(usedPercent)}%` }}
           />
         </div>
-      </div>
+      </PanelBody>
 
       <div className="bg-border h-px" />
 
       {error && (
-        <div className="px-5 pt-3">
+        <PanelBody className="pt-3">
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
-        </div>
+        </PanelBody>
       )}
 
       {loading ? (
@@ -296,6 +297,6 @@ export function AttachmentCard({
       ) : (
         renderAttachmentList()
       )}
-    </div>
+    </Panel>
   )
 }

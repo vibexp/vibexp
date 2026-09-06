@@ -14,7 +14,13 @@ import {
 } from 'recharts'
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { PanelTitle } from '@/components/ui/panel-title'
+import {
+  Panel,
+  PanelBody,
+  PanelHeader,
+  PanelTitle,
+  usePanelPresentation,
+} from '@/components/ui/panel'
 import {
   Select,
   SelectContent,
@@ -339,6 +345,7 @@ export function TimeSeriesBarChart({
   }
 
   const compact = size === 'compact'
+  const flat = usePanelPresentation() === 'flat'
 
   // Only the interactive strip legend can hide series; the breakdown and none
   // variants always render every series.
@@ -383,6 +390,157 @@ export function TimeSeriesBarChart({
     compact,
   })
 
+  const header = (
+    <>
+      <div>
+        <PanelTitle>{title}</PanelTitle>
+        <div
+          className={cn(
+            'text-muted-foreground flex items-center gap-1.5',
+            compact ? 'mt-[3px] text-xs' : 'mt-1 text-sm'
+          )}
+        >
+          <span>{totalLabel}:</span>
+          {loading ? (
+            <Skeleton className="h-4 w-10" />
+          ) : (
+            <span
+              className={
+                compact
+                  ? 'text-foreground font-semibold tabular-nums'
+                  : 'font-medium'
+              }
+            >
+              {total}
+            </span>
+          )}
+        </div>
+      </div>
+      {!hideRangeControl && (
+        <Select value={range} onValueChange={onRangeChange}>
+          <SelectTrigger
+            className={cn(
+              flat && 'h-auto w-auto gap-1 rounded-md px-2 py-1 text-xs',
+              !flat &&
+                (compact
+                  ? 'h-[30px] w-auto gap-1.5 px-2.5 text-xs'
+                  : 'w-[160px]')
+            )}
+            aria-label="Select time range"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TIME_SERIES_RANGE_OPTIONS.map(option => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </>
+  )
+
+  const body = (
+    <>
+      {chartStateContent ?? (
+        <>
+          <div className={compact ? 'h-[110px] w-full' : 'h-[180px] w-full'}>
+            <ChartCanvas
+              chartType={chartType}
+              chartData={chartData}
+              visibleSeries={visibleSeries}
+              compact={compact}
+              stacked={stacked}
+            />
+          </div>
+
+          {/* Compact charts hide the axes, so surface first/last date ticks. */}
+          {compact && (
+            <div className="text-muted-foreground mt-2 flex justify-between text-xs tabular-nums">
+              <span>{chartData[0].label}</span>
+              <span>{chartData.at(-1)?.label}</span>
+            </div>
+          )}
+
+          {legend === 'strip' && (
+            <div className="mt-3 flex flex-wrap gap-3">
+              {series.map(s => {
+                const isHidden = hiddenKeys.has(s.key)
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => {
+                      toggleSeries(s.key)
+                    }}
+                    aria-pressed={!isHidden}
+                    className={cn(
+                      'flex items-center gap-1.5 text-xs transition-opacity',
+                      isHidden && 'opacity-40'
+                    )}
+                  >
+                    <span
+                      className="h-2.5 w-2.5 rounded-[2px]"
+                      style={{ backgroundColor: s.fill }}
+                    />
+                    <span>{s.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {legend === 'breakdown' && (
+            <ul className="border-border mt-4 border-t">
+              {breakdown.map(s => (
+                <li
+                  key={s.key}
+                  className="border-border flex items-center gap-2.5 border-b py-2 last:border-b-0"
+                >
+                  <span
+                    aria-hidden
+                    className="size-[9px] shrink-0 rounded-[2px]"
+                    style={{ background: s.fill }}
+                  />
+                  <span className="flex-1 text-sm">{s.label}</span>
+                  <span
+                    aria-hidden
+                    className="bg-secondary h-[5px] w-[84px] overflow-hidden rounded-full"
+                  >
+                    <span
+                      className="block h-full rounded-full"
+                      style={{
+                        width: `${s.pct.toFixed(1)}%`,
+                        background: s.fill,
+                      }}
+                    />
+                  </span>
+                  <span className="w-7 text-right text-sm font-semibold tabular-nums">
+                    {s.count}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </>
+  )
+
+  // The details column already is a bordered, padded surface, so the chart
+  // drops its own card chrome and gutter there (#890); everywhere else — every
+  // dashboard and admin page — it keeps the card it has always been.
+  if (flat) {
+    return (
+      <Panel data-testid="timeseries-bar-chart">
+        <PanelHeader className="items-start">{header}</PanelHeader>
+        <PanelBody>{body}</PanelBody>
+      </Panel>
+    )
+  }
+
   return (
     <Card
       className={compact ? 'overflow-hidden' : undefined}
@@ -394,133 +552,10 @@ export function TimeSeriesBarChart({
           compact && 'p-5 pb-0'
         )}
       >
-        <div>
-          <PanelTitle>{title}</PanelTitle>
-          <div
-            className={cn(
-              'text-muted-foreground flex items-center gap-1.5',
-              compact ? 'mt-[3px] text-xs' : 'mt-1 text-sm'
-            )}
-          >
-            <span>{totalLabel}:</span>
-            {loading ? (
-              <Skeleton className="h-4 w-10" />
-            ) : (
-              <span
-                className={
-                  compact
-                    ? 'text-foreground font-semibold tabular-nums'
-                    : 'font-medium'
-                }
-              >
-                {total}
-              </span>
-            )}
-          </div>
-        </div>
-        {!hideRangeControl && (
-          <Select value={range} onValueChange={onRangeChange}>
-            <SelectTrigger
-              className={
-                compact ? 'h-[30px] w-auto gap-1.5 px-2.5 text-xs' : 'w-[160px]'
-              }
-              aria-label="Select time range"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TIME_SERIES_RANGE_OPTIONS.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        {header}
       </CardHeader>
       <CardContent className={compact ? 'p-5 pt-4' : undefined}>
-        {chartStateContent ?? (
-          <>
-            <div className={compact ? 'h-[110px] w-full' : 'h-[180px] w-full'}>
-              <ChartCanvas
-                chartType={chartType}
-                chartData={chartData}
-                visibleSeries={visibleSeries}
-                compact={compact}
-                stacked={stacked}
-              />
-            </div>
-
-            {/* Compact charts hide the axes, so surface first/last date ticks. */}
-            {compact && (
-              <div className="text-muted-foreground mt-2 flex justify-between text-xs tabular-nums">
-                <span>{chartData[0].label}</span>
-                <span>{chartData.at(-1)?.label}</span>
-              </div>
-            )}
-
-            {legend === 'strip' && (
-              <div className="mt-3 flex flex-wrap gap-3">
-                {series.map(s => {
-                  const isHidden = hiddenKeys.has(s.key)
-                  return (
-                    <button
-                      key={s.key}
-                      type="button"
-                      onClick={() => {
-                        toggleSeries(s.key)
-                      }}
-                      aria-pressed={!isHidden}
-                      className={cn(
-                        'flex items-center gap-1.5 text-xs transition-opacity',
-                        isHidden && 'opacity-40'
-                      )}
-                    >
-                      <span
-                        className="h-2.5 w-2.5 rounded-[2px]"
-                        style={{ backgroundColor: s.fill }}
-                      />
-                      <span>{s.label}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-
-            {legend === 'breakdown' && (
-              <ul className="border-border mt-4 border-t">
-                {breakdown.map(s => (
-                  <li
-                    key={s.key}
-                    className="border-border flex items-center gap-2.5 border-b py-2 last:border-b-0"
-                  >
-                    <span
-                      aria-hidden
-                      className="size-[9px] shrink-0 rounded-[2px]"
-                      style={{ background: s.fill }}
-                    />
-                    <span className="flex-1 text-sm">{s.label}</span>
-                    <span
-                      aria-hidden
-                      className="bg-secondary h-[5px] w-[84px] overflow-hidden rounded-full"
-                    >
-                      <span
-                        className="block h-full rounded-full"
-                        style={{
-                          width: `${s.pct.toFixed(1)}%`,
-                          background: s.fill,
-                        }}
-                      />
-                    </span>
-                    <span className="w-7 text-right text-sm font-semibold tabular-nums">
-                      {s.count}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
+        {body}
       </CardContent>
     </Card>
   )

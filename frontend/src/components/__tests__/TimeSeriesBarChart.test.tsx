@@ -14,6 +14,11 @@ vi.mock('recharts', async () => {
 })
 
 import {
+  expectNoCardChrome,
+  FlatSurface,
+} from '@/lib/testing/panelPresentation'
+
+import {
   parseLocalDate,
   TimeSeriesBarChart,
   type TimeSeriesBarChartProps,
@@ -208,5 +213,32 @@ describe('parseLocalDate', () => {
     expect(date.getMonth()).toBe(4) // May, zero-indexed
     expect(date.getDate()).toBe(1)
     expect(date.getHours()).toBe(0)
+  })
+
+  // The details column supplies the surface; every dashboard and admin page
+  // keeps the card the chart has always been (#890).
+  describe('flat presentation', () => {
+    it('paints no card chrome inside the details column', () => {
+      render(
+        <FlatSurface>
+          <TimeSeriesBarChart {...buildProps({ size: 'compact' })} />
+        </FlatSurface>
+      )
+      const chart = screen.getByTestId('timeseries-bar-chart')
+      expectNoCardChrome(chart)
+      expect(chart.className).toBe('')
+      expect(
+        screen.getByRole('heading', { name: 'Resources created' })
+      ).toHaveClass('text-sm')
+    })
+
+    it('keeps the card box on a dashboard', () => {
+      render(<TimeSeriesBarChart {...buildProps()} />)
+      expect(screen.getByTestId('timeseries-bar-chart')).toHaveClass(
+        'rounded-lg',
+        'border',
+        'shadow-sm'
+      )
+    })
   })
 })
