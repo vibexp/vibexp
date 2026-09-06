@@ -59,7 +59,7 @@ describe('Layout', () => {
     // centering wrapper would pin the rail to the row instead of the viewport.
     const row = screen.getByTestId('reading-row')
     for (const cls of Array.from(row.classList)) {
-      expect(cls).not.toMatch(/^(overflow|transform|filter|blur)-/)
+      expect(cls).not.toMatch(/^(overflow|transform|filter|blur)(-|$)/)
     }
   })
 })

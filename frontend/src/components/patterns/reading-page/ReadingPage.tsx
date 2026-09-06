@@ -92,11 +92,12 @@ export function ReadingPage({
     setDetailsSheetOpen,
   } = useShell()
 
-  // The details rail only exists at lg+; below that the details are a sheet.
-  // When it is there, the article and the rail are centered together by the
-  // shell's reading row and the article must NOT center itself; when it is
-  // not, the article IS the whole row, so its own auto margins are the
-  // centering (#888).
+  // Whether the sticky details rail is rendered — it only exists at lg+;
+  // below that the details are a sheet. Single source of truth for both the
+  // <aside> below and the article's centering: when the rail is there, the
+  // shell's reading row centers article + rail together and the article must
+  // NOT center itself; when it is not, the article IS the whole row, so its
+  // own auto margins are the centering (#888).
   const railRendered = hasDetails && isDesktop
 
   const asideRef = useRef<HTMLElement>(null)
@@ -170,7 +171,7 @@ export function ReadingPage({
         </article>
       </div>
 
-      {hasDetails && isDesktop && (
+      {railRendered && (
         <aside
           ref={asideRef}
           aria-label="Details"
