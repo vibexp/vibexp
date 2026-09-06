@@ -47,7 +47,7 @@ vi.mock('@/components/ui/sheet', async () => {
         // react-router's NavLink uses) gets stringified into garbage classes.
         // Replicating that here is what keeps the drawer links honest now that
         // the NavLink is slotted DIRECTLY (#891): the classes must come from a
-        // plain string built with `useMatch`, never from NavLink's function
+        // plain string built with `useNavLinkActive`, never from NavLink's function
         // form. It also lands `data-testid="sheet-close"` on the `<a>` itself,
         // which is the structural invariant the fix restores.
         const child = ReactActual.Children.only(children)

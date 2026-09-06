@@ -94,9 +94,11 @@ describe('Sidebar', () => {
 
   // ---------------------------------------------------------------------------
   // Active state moved from NavLink's function `className` to
-  // `useNavLinkActive`, so the highlight has to be shown to be unchanged —
-  // including the `end` semantics that make `/` exact-match only, and the
-  // trailing-slash case where `useMatch` would have diverged from `NavLink`.
+  // `useNavLinkActive`, so the highlight has to be shown to be unchanged,
+  // including the `end` semantics that make `/` exact-match only. (The
+  // trailing-slash divergence that ruled out `useMatch` needs an `end: true`
+  // item to show up; the guard for it lives in `AdminSidebar.test.tsx`, whose
+  // Dashboard row is the only one that sets `end`.)
   // ---------------------------------------------------------------------------
   describe('active-route highlighting parity', () => {
     // `classList.contains` and not a substring check: the INACTIVE class list
@@ -147,9 +149,9 @@ describe('Sidebar', () => {
       expect(isHighlighted(link)).toBe(true)
     })
 
-    // `/prompts/` is the trailing-slash guard: `matchPath` would match it for
-    // an `end: true` pattern where `NavLink` does not, so the styling and
-    // `aria-current` must be shown to agree.
+    // `RailGroupLink` derives `isActive` from `pathname` inline rather than
+    // through the hook, so these cases pin the group link's own matching —
+    // exact, trailing-slash and descendant.
     it.each(['/prompts', '/prompts/', '/prompts/some-prompt-slug'])(
       'highlights the collapsed Prompts group link on %s',
       path => {
