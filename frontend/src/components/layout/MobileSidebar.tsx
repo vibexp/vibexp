@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react'
-import { NavLink, useLocation, useMatch } from 'react-router'
+import { NavLink, useLocation } from 'react-router'
 
 import { NAV_GROUPS, type NavItem } from '@/components/layout/nav-items'
 import { ProjectSwitcher } from '@/components/layout/ProjectSwitcher'
@@ -7,6 +7,7 @@ import { SearchModal } from '@/components/layout/SearchModal'
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
 import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { useNavLinkActive } from '@/components/layout/useNavLinkActive'
 import {
   Collapsible,
   CollapsibleContent,
@@ -26,14 +27,14 @@ import { cn } from '@/lib/utils'
  * rails so it cannot be copied forward.
  *
  * Slot also string-joins `className`, which stringifies `NavLink`'s function
- * form into garbage classes — hence `useMatch`, the primitive `NavLink` uses
- * internally, so the string form highlights identically. These have to be
+ * form into garbage classes — hence `useNavLinkActive`, which mirrors NavLink's
+ * own `isActive` so the string form highlights identically. These have to be
  * components rather than inline JSX because the links are rendered from a
  * `.map()`, where a hook may not be called.
  */
 function DrawerLeafLink({ item }: Readonly<{ item: NavItem }>) {
   const end = item.href === '/'
-  const active = !!useMatch({ path: item.href, end })
+  const active = useNavLinkActive(item.href, end)
   return (
     <SheetClose asChild>
       <NavLink
@@ -56,8 +57,8 @@ function DrawerLeafLink({ item }: Readonly<{ item: NavItem }>) {
 /** Child row of a collapsible group. See `DrawerLeafLink` for the shape. */
 function DrawerChildLink({
   child,
-}: Readonly<{ child: { label: string; href: string } }>) {
-  const active = !!useMatch({ path: child.href, end: false })
+}: Readonly<{ child: NonNullable<NavItem['children']>[number] }>) {
+  const active = useNavLinkActive(child.href)
   return (
     <SheetClose asChild>
       <NavLink

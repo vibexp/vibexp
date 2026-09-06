@@ -1,6 +1,7 @@
-import { NavLink, useMatch } from 'react-router'
+import { NavLink } from 'react-router'
 
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
+import { useNavLinkActive } from '@/components/layout/useNavLinkActive'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { SheetClose } from '@/components/ui/sheet'
 import {
@@ -37,15 +38,13 @@ const rowClass = (active: boolean) =>
   )
 
 /**
- * `NavLink`'s own `isActive`, computed outside it so the rows can pass a plain
- * string `className` (see the trigger note in `RailNavRow`). `useMatch` is the
- * primitive `NavLink` uses internally — but note `matchPath` defaults `end` to
- * **true** for an absent key while `NavLink` defaults it to **false**, so the
- * coercion below is load-bearing: without it `/admin/users/<id>` would stop
- * highlighting Users.
+ * Rows pass a plain string `className` (see the trigger note in `RailNavRow`),
+ * so `isActive` is computed outside the `NavLink`. Note the `?? false`: only
+ * the Dashboard item declares `end`, and an item without it must keep matching
+ * its descendants — `/admin/users/<id>` still highlights Users.
  */
 const useIsActive = (item: AdminNavItem) =>
-  !!useMatch({ path: item.href, end: item.end ?? false })
+  useNavLinkActive(item.href, item.end ?? false)
 
 /** Rail row: centred icon below `lg`, icon + label at `lg+`, tooltip only where the label is hidden. */
 function RailNavRow({ item }: Readonly<{ item: AdminNavItem }>) {

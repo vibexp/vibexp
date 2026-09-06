@@ -14,8 +14,6 @@ import { ADMIN_EMAIL } from '../admin/admin-emails'
  * measure a box at all). The assertions below are geometric on purpose.
  */
 
-/** Rail width in px; a correctly placed `side="right"` tooltip starts past it. */
-const RAIL_WIDTH = 60
 /** Vertical centring tolerance between the tooltip and the item it labels. */
 const CENTRE_TOLERANCE = 8
 
@@ -55,20 +53,31 @@ async function boxOf(locator: Locator, what: string): Promise<Box> {
 }
 
 /**
- * Waits for the bubble to be positioned clear of the rail, then measures it.
- * Polling rather than a single read is what keeps this a real assertion: the
- * popper places itself in a post-layout effect, and against the #891 bug the
- * poll simply never converges (the bubble sits at the viewport origin).
+ * Waits for the bubble to sit past the hovered item's right edge, then
+ * measures it.
+ *
+ * The threshold is derived from the item, NOT a constant: the rail is 60px but
+ * its `nav` has `px-2`, so the `<a>` ends at x = 52 and a correctly placed
+ * `side="right"` bubble starts at 52 + `sideOffset` (4) = 56. A literal
+ * `x >= 60` is unreachable even with the fix working — the first CI run failed
+ * exactly there, and #891's own acceptance criterion carries the same wrong
+ * number. Against the bug the anchor is the viewport origin, so `tooltip.x` is
+ * ~4 and this still discriminates cleanly.
+ *
+ * Polling rather than a single read because the popper positions itself in a
+ * post-layout effect.
  */
 async function settledTooltipBox(
   tooltip: Locator,
+  item: Box,
   label: string
 ): Promise<Box> {
+  const itemRight = item.x + item.width
   await expect
     .poll(async () => (await tooltip.boundingBox())?.x ?? -1, {
-      message: `${label}: tooltip never cleared the ${RAIL_WIDTH}px rail — it is anchored on the viewport origin, not on the hovered item`,
+      message: `${label}: tooltip never moved past the item's right edge (${itemRight}) — it is anchored on the viewport origin, not on the hovered item`,
     })
-    .toBeGreaterThanOrEqual(RAIL_WIDTH)
+    .toBeGreaterThanOrEqual(itemRight)
   return boxOf(tooltip, `${label} tooltip`)
 }
 
@@ -112,12 +121,9 @@ test.describe('Collapsed sidebar tooltips (#891)', () => {
       const tooltip = page.getByRole('tooltip').filter({ hasText: item.label })
       await expect(tooltip).toBeVisible()
 
-      const tooltipBox = await settledTooltipBox(tooltip, item.label)
-      assertCentredOnItem(
-        tooltipBox,
-        await boxOf(link, `${item.label} link`),
-        item.label
-      )
+      const linkBox = await boxOf(link, `${item.label} link`)
+      const tooltipBox = await settledTooltipBox(tooltip, linkBox, item.label)
+      assertCentredOnItem(tooltipBox, linkBox, item.label)
       tooltipTops.push(tooltipBox.y)
 
       // Move away so the next hover re-opens rather than reusing this bubble.
@@ -153,9 +159,10 @@ test.describe('Collapsed sidebar tooltips (#891)', () => {
     const tooltip = page.getByRole('tooltip').filter({ hasText: 'Teams' })
     await expect(tooltip).toBeVisible()
 
+    const linkBox = await boxOf(link, 'admin Teams link')
     assertCentredOnItem(
-      await settledTooltipBox(tooltip, 'admin Teams'),
-      await boxOf(link, 'admin Teams link'),
+      await settledTooltipBox(tooltip, linkBox, 'admin Teams'),
+      linkBox,
       'admin Teams'
     )
   })

@@ -108,16 +108,35 @@ describe('AdminSidebar', () => {
       ).toBe(true)
     })
 
-    it('does NOT highlight Dashboard on a child section (end: true)', () => {
-      renderRail('/admin/users')
-      expect(
-        isHighlighted(screen.getByRole('link', { name: /^dashboard$/i }))
-      ).toBe(false)
-    })
+    it.each(['/admin/users', '/admin/'])(
+      'does NOT highlight Dashboard on %s (end: true)',
+      path => {
+        renderRail(path)
+        expect(
+          isHighlighted(screen.getByRole('link', { name: /^dashboard$/i }))
+        ).toBe(false)
+      }
+    )
 
-    // `matchPath` defaults `end` to TRUE for an absent key while `NavLink`
-    // defaults it to FALSE — without the explicit coercion, a detail page would
-    // silently stop highlighting its section.
+    // `/admin/` is why this does not use `useMatch`: `matchPath` compiles an
+    // `end: true` pattern with a trailing `\/*$` and WOULD match it, while
+    // NavLink's own check is strict equality and does not — leaving the row
+    // styled active with no `aria-current`.
+    it.each(['/admin', '/admin/', '/admin/users', '/admin/users/user-42'])(
+      'keeps the highlight and aria-current in agreement on %s',
+      path => {
+        const { container } = renderRail(path)
+        for (const link of container.querySelectorAll('a[href^="/admin"]')) {
+          expect(
+            isHighlighted(link),
+            `${link.getAttribute('href')} on ${path}`
+          ).toBe(link.hasAttribute('aria-current'))
+        }
+      }
+    )
+
+    // Only Dashboard declares `end`, so the `?? false` is load-bearing:
+    // without it a detail page would stop highlighting its section.
     it.each(['/admin/users', '/admin/users/user-42'])(
       'highlights Users on %s (descendant match)',
       path => {

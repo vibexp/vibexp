@@ -1,9 +1,10 @@
 import { ChevronRight } from 'lucide-react'
-import { NavLink, useLocation, useMatch } from 'react-router'
+import { NavLink, useLocation } from 'react-router'
 
 import { NAV_GROUPS, type NavItem } from '@/components/layout/nav-items'
 import { useShell } from '@/components/layout/ShellContext'
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
+import { useNavLinkActive } from '@/components/layout/useNavLinkActive'
 import {
   Collapsible,
   CollapsibleContent,
@@ -49,11 +50,11 @@ function RailLinkWithTooltip({
 }: Readonly<{ item: NavItem; expanded: boolean }>) {
   const Icon = item.icon
   const end = item.href === '/'
-  // `useMatch` is the primitive NavLink uses internally for `isActive`, so the
-  // highlight is identical -- but computing it here lets the NavLink take a
-  // plain STRING `className`, which is what makes it safe to slot directly into
-  // `TooltipTrigger asChild` (see the note on the trigger below).
-  const active = !!useMatch({ path: item.href, end })
+  // Computed outside the NavLink so it can take a plain STRING `className`,
+  // which is what makes it safe to slot directly into `TooltipTrigger asChild`
+  // (see the note on the trigger below). The hook mirrors NavLink's own
+  // `isActive`, so the highlight is identical.
+  const active = useNavLinkActive(item.href, end)
   return (
     <Tooltip>
       {/* The slotted child IS the popper's anchor: Radix renders the trigger as

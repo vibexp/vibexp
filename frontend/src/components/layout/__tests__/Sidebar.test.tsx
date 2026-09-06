@@ -76,12 +76,27 @@ describe('Sidebar', () => {
       expect(link).toHaveAttribute('aria-describedby', tooltip.id)
       expect(link).toHaveAttribute('data-state', 'delayed-open')
     })
+
+    it('renders the tooltip in a portal, outside the sidebar subtree', async () => {
+      const user = userEvent.setup()
+      const { container } = renderRail()
+
+      await user.hover(screen.getByRole('link', { name: /^blueprints$/i }))
+      const tooltip = await screen.findByRole('tooltip')
+
+      // `TooltipContent` is portalled so no `overflow` ancestor can clip it —
+      // the rail sits inside a `ScrollArea`. `findByRole` searches the whole
+      // document and passes either way, so assert the containment directly or
+      // dropping the Portal is silent.
+      expect(container.contains(tooltip)).toBe(false)
+    })
   })
 
   // ---------------------------------------------------------------------------
-  // Active state moved from NavLink's function `className` to `useMatch`, so
-  // the highlight has to be shown to be unchanged — including the `end`
-  // semantics that make `/` exact-match only.
+  // Active state moved from NavLink's function `className` to
+  // `useNavLinkActive`, so the highlight has to be shown to be unchanged —
+  // including the `end` semantics that make `/` exact-match only, and the
+  // trailing-slash case where `useMatch` would have diverged from `NavLink`.
   // ---------------------------------------------------------------------------
   describe('active-route highlighting parity', () => {
     // `classList.contains` and not a substring check: the INACTIVE class list
@@ -97,7 +112,23 @@ describe('Sidebar', () => {
       expect(link).toHaveAttribute('aria-current', 'page')
     })
 
-    it.each(['/prompts', '/blueprints'])(
+    // The whole point of mirroring NavLink's computation rather than reusing
+    // `useMatch`: the class and the ARIA state come from two sources now, so
+    // they have to be shown never to disagree.
+    it.each(['/', '/prompts', '/prompts/', '/blueprints/x', '/settings'])(
+      'keeps the highlight and aria-current in agreement on %s',
+      path => {
+        const { container } = renderRail(path)
+        for (const link of container.querySelectorAll('a')) {
+          expect(
+            isHighlighted(link),
+            `${link.getAttribute('href')} on ${path}`
+          ).toBe(link.hasAttribute('aria-current'))
+        }
+      }
+    )
+
+    it.each(['/prompts', '/blueprints', '/blueprints/'])(
       'does NOT highlight Dashboard on %s (end-match on /)',
       path => {
         renderRail(path)
@@ -116,7 +147,10 @@ describe('Sidebar', () => {
       expect(isHighlighted(link)).toBe(true)
     })
 
-    it.each(['/prompts', '/prompts/some-prompt-slug'])(
+    // `/prompts/` is the trailing-slash guard: `matchPath` would match it for
+    // an `end: true` pattern where `NavLink` does not, so the styling and
+    // `aria-current` must be shown to agree.
+    it.each(['/prompts', '/prompts/', '/prompts/some-prompt-slug'])(
       'highlights the collapsed Prompts group link on %s',
       path => {
         const { container } = renderRail(path)
