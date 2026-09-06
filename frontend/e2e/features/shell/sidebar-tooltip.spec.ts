@@ -1,4 +1,4 @@
-import type { Locator } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 import { expect, test, devLogin } from '../../fixtures/auth'
 import { ADMIN_EMAIL } from '../admin/admin-emails'
@@ -26,18 +26,53 @@ interface Box {
   height: number
 }
 
+/**
+ * Measuring an entering tooltip is a race: `TooltipContent` opens with
+ * `slide-in-from-left-2` + `zoom-in-95`, so an immediate `boundingBox()` reads
+ * a mid-flight position — on CI this measured x = 49.8 / 52.5 / 54.1 across
+ * three attempts for a bubble whose resting x is 64. Collapse the durations to
+ * zero instead of sleeping. `animation-duration: 0s` (not `animation: none`)
+ * because Radix's `Presence` unmounts on `animationend`, which a zero-duration
+ * animation still fires.
+ */
+async function neutraliseAnimations(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const inject = () => {
+      const style = document.createElement('style')
+      style.textContent =
+        '*, *::before, *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition-duration: 0s !important; }'
+      document.head.appendChild(style)
+    }
+    if (document.head) inject()
+    else document.addEventListener('DOMContentLoaded', inject)
+  })
+}
+
 async function boxOf(locator: Locator, what: string): Promise<Box> {
   const box = await locator.boundingBox()
   expect(box, `${what} has no layout box`).not.toBeNull()
   return box as Box
 }
 
-function assertBesideItem(tooltip: Box, item: Box, label: string): void {
-  expect(
-    tooltip.x,
-    `${label}: tooltip starts at x=${tooltip.x}, i.e. over the rail/logo instead of beside the item`
-  ).toBeGreaterThanOrEqual(RAIL_WIDTH)
+/**
+ * Waits for the bubble to be positioned clear of the rail, then measures it.
+ * Polling rather than a single read is what keeps this a real assertion: the
+ * popper places itself in a post-layout effect, and against the #891 bug the
+ * poll simply never converges (the bubble sits at the viewport origin).
+ */
+async function settledTooltipBox(
+  tooltip: Locator,
+  label: string
+): Promise<Box> {
+  await expect
+    .poll(async () => (await tooltip.boundingBox())?.x ?? -1, {
+      message: `${label}: tooltip never cleared the ${RAIL_WIDTH}px rail — it is anchored on the viewport origin, not on the hovered item`,
+    })
+    .toBeGreaterThanOrEqual(RAIL_WIDTH)
+  return boxOf(tooltip, `${label} tooltip`)
+}
 
+function assertCentredOnItem(tooltip: Box, item: Box, label: string): void {
   const tooltipCentreY = tooltip.y + tooltip.height / 2
   const itemCentreY = item.y + item.height / 2
   expect(
@@ -50,6 +85,7 @@ test.describe('Collapsed sidebar tooltips (#891)', () => {
   test('the main rail labels the hovered item, not the logo', async ({
     page,
   }) => {
+    await neutraliseAnimations(page)
     await devLogin(page)
 
     const sidebar = page.getByTestId('app-sidebar')
@@ -76,9 +112,12 @@ test.describe('Collapsed sidebar tooltips (#891)', () => {
       const tooltip = page.getByRole('tooltip').filter({ hasText: item.label })
       await expect(tooltip).toBeVisible()
 
-      const tooltipBox = await boxOf(tooltip, `${item.label} tooltip`)
-      const linkBox = await boxOf(link, `${item.label} link`)
-      assertBesideItem(tooltipBox, linkBox, item.label)
+      const tooltipBox = await settledTooltipBox(tooltip, item.label)
+      assertCentredOnItem(
+        tooltipBox,
+        await boxOf(link, `${item.label} link`),
+        item.label
+      )
       tooltipTops.push(tooltipBox.y)
 
       // Move away so the next hover re-opens rather than reusing this bubble.
@@ -101,6 +140,7 @@ test.describe('Collapsed sidebar tooltips (#891)', () => {
     // The admin rail is 60px only below `lg` (1024px); at `lg+` it is expanded
     // and the tooltip is deliberately suppressed.
     await page.setViewportSize({ width: 900, height: 900 })
+    await neutraliseAnimations(page)
     await devLogin(page, ADMIN_EMAIL, 'Admin E2E')
 
     await page.goto('/admin')
@@ -113,8 +153,8 @@ test.describe('Collapsed sidebar tooltips (#891)', () => {
     const tooltip = page.getByRole('tooltip').filter({ hasText: 'Teams' })
     await expect(tooltip).toBeVisible()
 
-    assertBesideItem(
-      await boxOf(tooltip, 'admin Teams tooltip'),
+    assertCentredOnItem(
+      await settledTooltipBox(tooltip, 'admin Teams'),
       await boxOf(link, 'admin Teams link'),
       'admin Teams'
     )
