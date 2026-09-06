@@ -125,6 +125,7 @@ describe('PanelAction', () => {
     // Still the shared outline button, one size smaller — not a second
     // hand-rolled button that would drift from the variant.
     expect(action).toHaveClass('border-input', 'bg-background')
+    expect(action).toHaveClass('[&_svg]:size-3.5')
   })
 
   it('clicks and disables in both presentations', async () => {

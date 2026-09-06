@@ -230,6 +230,17 @@ describe('parseLocalDate', () => {
       expect(
         screen.getByRole('heading', { name: 'Resources created' })
       ).toHaveClass('text-sm')
+      // The range control is the same chip as the panel header actions
+      // sitting beside it in the column — including the 14px glyph, which a
+      // hand-rolled copy of the geometry silently left at 16px.
+      const range = screen.getByLabelText('Select time range')
+      expect(range).toHaveClass(
+        'text-xs',
+        'rounded-md',
+        'px-2',
+        'py-1',
+        '[&_svg]:size-3.5'
+      )
     })
 
     it('keeps the card box on a dashboard', () => {

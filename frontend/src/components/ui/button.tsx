@@ -4,6 +4,17 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
+/**
+ * Geometry of the compact chip affordance in the reading page's details
+ * column (#890): the panel header actions ("Add file", "Add comment", …) and
+ * the Access-activity range selector. Exported because the range control is a
+ * `SelectTrigger`, which cannot take the `chip` button size wholesale — the
+ * button base's `justify-center` fights the trigger's `justify-between` — so
+ * this is the one place the numbers live.
+ */
+export const CHIP_GEOMETRY =
+  'h-auto gap-1 rounded-md px-2 py-1 text-xs [&_svg]:size-3.5'
+
 const buttonVariants = cva(
   'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
@@ -37,7 +48,7 @@ const buttonVariants = cva(
         // enough to sit beside a section title at the 320px column width
         // (#890). A size rather than a second button, so it inherits the
         // outline variant's border/hover/focus/disabled styling.
-        chip: 'h-auto gap-1 rounded-md px-2 py-1 text-xs [&_svg]:size-3.5',
+        chip: CHIP_GEOMETRY,
         // Document actions in the reading page's action grid and phone chips,
         // at the design's 13px / 7px 10px (#890).
         action: 'h-auto rounded-md px-2.5 py-[7px] text-[13px]',

@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts'
 
+import { CHIP_GEOMETRY } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
   Panel,
@@ -420,7 +421,8 @@ export function TimeSeriesBarChart({
         <Select value={range} onValueChange={onRangeChange}>
           <SelectTrigger
             className={cn(
-              flat && 'h-auto w-auto gap-1 rounded-md px-2 py-1 text-xs',
+              // Same chip as the panel header actions beside it (#890).
+              flat && [CHIP_GEOMETRY, 'w-auto'],
               !flat &&
                 (compact
                   ? 'h-[30px] w-auto gap-1.5 px-2.5 text-xs'
