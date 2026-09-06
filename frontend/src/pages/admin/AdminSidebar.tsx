@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router'
+import { NavLink, useMatch } from 'react-router'
 
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -36,31 +36,41 @@ const rowClass = (active: boolean) =>
       : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
   )
 
+/**
+ * `NavLink`'s own `isActive`, computed outside it so the rows can pass a plain
+ * string `className` (see the trigger note in `RailNavRow`). `useMatch` is the
+ * primitive `NavLink` uses internally — but note `matchPath` defaults `end` to
+ * **true** for an absent key while `NavLink` defaults it to **false**, so the
+ * coercion below is load-bearing: without it `/admin/users/<id>` would stop
+ * highlighting Users.
+ */
+const useIsActive = (item: AdminNavItem) =>
+  !!useMatch({ path: item.href, end: item.end ?? false })
+
 /** Rail row: centred icon below `lg`, icon + label at `lg+`, tooltip only where the label is hidden. */
 function RailNavRow({ item }: Readonly<{ item: AdminNavItem }>) {
   const Icon = item.icon
+  const active = useIsActive(item)
   return (
     <Tooltip>
-      {/* Wrap NavLink in a span so Radix's Slot merge cannot clobber NavLink's
-          function `className` prop — Slot merges classNames and only accepts
-          strings, silently stringifying the function. Same guard as the main
+      {/* The slotted child IS the popper's anchor (Radix renders the trigger as
+          `PopperPrimitive.Anchor asChild`), so it must have a real box: a
+          `display: contents` wrapper measures 0x0 at (0,0) and parks every
+          tooltip in the top-left corner (#891). Slot also string-joins
+          `className`, hence the string form above. Same shape as the main
           sidebar. */}
       <TooltipTrigger asChild>
-        <span className="contents">
-          <NavLink
-            to={item.href}
-            end={item.end}
-            className={({ isActive }) =>
-              cn(
-                rowClass(isActive),
-                'justify-center px-0 lg:justify-start lg:px-2.5'
-              )
-            }
-          >
-            <Icon className="size-[15px] shrink-0 opacity-85" aria-hidden />
-            <span className="hidden lg:inline">{item.label}</span>
-          </NavLink>
-        </span>
+        <NavLink
+          to={item.href}
+          end={item.end}
+          className={cn(
+            rowClass(active),
+            'justify-center px-0 lg:justify-start lg:px-2.5'
+          )}
+        >
+          <Icon className="size-[15px] shrink-0 opacity-85" aria-hidden />
+          <span className="hidden lg:inline">{item.label}</span>
+        </NavLink>
       </TooltipTrigger>
       {/* Above `lg` the label is visible, so the tooltip would only repeat it. */}
       <TooltipContent side="right" className="lg:hidden">
@@ -77,18 +87,19 @@ function RailNavRow({ item }: Readonly<{ item: AdminNavItem }>) {
  */
 function DrawerNavRow({ item }: Readonly<{ item: AdminNavItem }>) {
   const Icon = item.icon
+  const active = useIsActive(item)
   return (
+    // Slotted directly for the same reason as the rail row. `SheetClose` only
+    // needs click bubbling, which a real `<a>` provides.
     <SheetClose asChild>
-      <span className="contents">
-        <NavLink
-          to={item.href}
-          end={item.end}
-          className={({ isActive }) => cn(rowClass(isActive), 'px-2.5')}
-        >
-          <Icon className="size-[15px] shrink-0 opacity-85" aria-hidden />
-          <span>{item.label}</span>
-        </NavLink>
-      </span>
+      <NavLink
+        to={item.href}
+        end={item.end}
+        className={cn(rowClass(active), 'px-2.5')}
+      >
+        <Icon className="size-[15px] shrink-0 opacity-85" aria-hidden />
+        <span>{item.label}</span>
+      </NavLink>
     </SheetClose>
   )
 }

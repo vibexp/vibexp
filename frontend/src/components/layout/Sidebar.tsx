@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react'
-import { NavLink, useLocation } from 'react-router'
+import { NavLink, useLocation, useMatch } from 'react-router'
 
 import { NAV_GROUPS, type NavItem } from '@/components/layout/nav-items'
 import { useShell } from '@/components/layout/ShellContext'
@@ -48,24 +48,31 @@ function RailLinkWithTooltip({
   expanded,
 }: Readonly<{ item: NavItem; expanded: boolean }>) {
   const Icon = item.icon
+  const end = item.href === '/'
+  // `useMatch` is the primitive NavLink uses internally for `isActive`, so the
+  // highlight is identical -- but computing it here lets the NavLink take a
+  // plain STRING `className`, which is what makes it safe to slot directly into
+  // `TooltipTrigger asChild` (see the note on the trigger below).
+  const active = !!useMatch({ path: item.href, end })
   return (
     <Tooltip>
-      {/* Wrap NavLink in a span so Radix's Slot merge doesn't clobber
-          NavLink's function `className` prop (it merges classNames and
-          only accepts strings, which silently stringifies the function). */}
+      {/* The slotted child IS the popper's anchor: Radix renders the trigger as
+          `PopperPrimitive.Anchor asChild`. It must therefore have a real box --
+          a `display: contents` wrapper generates no principal box, so
+          `getBoundingClientRect()` is 0x0 at (0,0) and every tooltip lands on
+          the logo in the top-left corner (#891). Slot also string-joins
+          `className`, so NavLink's function form must not be used here. */}
       <TooltipTrigger asChild>
-        <span className="contents">
-          <NavLink
-            to={item.href}
-            end={item.href === '/'}
-            className={({ isActive }) => rowClass(isActive, expanded)}
-          >
-            <Icon className="size-[15px] shrink-0 opacity-85" aria-hidden />
-            <span className={expanded ? 'hidden lg:inline' : 'hidden'}>
-              {item.label}
-            </span>
-          </NavLink>
-        </span>
+        <NavLink
+          to={item.href}
+          end={end}
+          className={rowClass(active, expanded)}
+        >
+          <Icon className="size-[15px] shrink-0 opacity-85" aria-hidden />
+          <span className={expanded ? 'hidden lg:inline' : 'hidden'}>
+            {item.label}
+          </span>
+        </NavLink>
       </TooltipTrigger>
       {/* Only surface the tooltip where labels are hidden. In the expanded
           desktop form the tooltip would repeat the label text. */}
@@ -92,21 +99,22 @@ function RailGroupLink({
     (item.children ?? []).some(c => pathname.startsWith(c.href))
   return (
     <Tooltip>
+      {/* Slotted directly, for the same reason as `RailLinkWithTooltip`: the
+          trigger is the popper's anchor and needs a real box. `isActive` is
+          already a boolean here, so the className is already a string. */}
       <TooltipTrigger asChild>
-        <span className="contents">
-          <NavLink
-            to={item.href}
-            className={cn(
-              'flex items-center justify-center gap-2 rounded-md px-0 py-2 text-sm transition-colors',
-              expanded && 'lg:hidden',
-              isActive
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'hover:bg-sidebar-accent/50'
-            )}
-          >
-            <Icon className="size-[15px] shrink-0 opacity-85" aria-hidden />
-          </NavLink>
-        </span>
+        <NavLink
+          to={item.href}
+          className={cn(
+            'flex items-center justify-center gap-2 rounded-md px-0 py-2 text-sm transition-colors',
+            expanded && 'lg:hidden',
+            isActive
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'hover:bg-sidebar-accent/50'
+          )}
+        >
+          <Icon className="size-[15px] shrink-0 opacity-85" aria-hidden />
+        </NavLink>
       </TooltipTrigger>
       <TooltipContent side="right">{item.label}</TooltipContent>
     </Tooltip>
