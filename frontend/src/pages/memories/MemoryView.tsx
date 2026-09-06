@@ -23,7 +23,12 @@ import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadin
 import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Panel,
+  PanelBody,
+  PanelHeader,
+  PanelTitle,
+} from '@/components/ui/panel'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -255,7 +260,7 @@ export function MemoryView() {
         }
         attachments={false}
         metadata={
-          <div className="space-y-4">
+          <div className="space-y-5">
             <MetadataPanel
               createdAt={memory.created_at}
               updatedAt={memory.updated_at}
@@ -280,11 +285,11 @@ export function MemoryView() {
             </MetadataPanel>
 
             {tags.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Tags</CardTitle>
-                </CardHeader>
-                <CardContent>
+              <Panel>
+                <PanelHeader>
+                  <PanelTitle>Tags</PanelTitle>
+                </PanelHeader>
+                <PanelBody className="pb-4">
                   <div className="flex flex-wrap gap-1.5">
                     {tags.map(tag => (
                       <Badge key={tag} variant="secondary" className="gap-1">
@@ -293,8 +298,8 @@ export function MemoryView() {
                       </Badge>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
+                </PanelBody>
+              </Panel>
             )}
 
             <AdditionalDataCard data={extras} />

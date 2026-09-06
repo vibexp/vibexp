@@ -12,7 +12,12 @@ import {
 } from '@/components/patterns/reading-page'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Panel,
+  PanelBody,
+  PanelHeader,
+  PanelTitle,
+} from '@/components/ui/panel'
 import { useAlertContext } from '@/contexts/AlertContext'
 import type { PromptGalleryTemplate } from '@/services/promptGalleryService'
 import { promptGalleryService } from '@/services/promptGalleryService'
@@ -130,17 +135,17 @@ export function PromptGalleryDetail() {
       label: 'Category',
       icon: FileText,
       content: (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Category</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Category</PanelTitle>
+          </PanelHeader>
+          <PanelBody className="pb-4">
             <Badge variant="secondary" className="gap-1">
               <FileText className="size-3" />
               {prompt.category}
             </Badge>
-          </CardContent>
-        </Card>
+          </PanelBody>
+        </Panel>
       ),
     },
     {
@@ -148,11 +153,11 @@ export function PromptGalleryDetail() {
       label: 'Tags',
       icon: Tags,
       content: prompt.tags && prompt.tags.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Tags</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Tags</PanelTitle>
+          </PanelHeader>
+          <PanelBody className="pb-4">
             <div className="flex flex-wrap gap-1.5">
               {prompt.tags.map(tag => (
                 <Badge key={tag} variant="outline">
@@ -160,8 +165,8 @@ export function PromptGalleryDetail() {
                 </Badge>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </PanelBody>
+        </Panel>
       ),
     },
   ]

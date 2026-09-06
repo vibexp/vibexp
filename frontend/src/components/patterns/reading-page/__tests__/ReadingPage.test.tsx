@@ -4,6 +4,7 @@ import { ArrowLeft, Info, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { ShellProvider, useShell } from '@/components/layout/ShellContext'
+import { Panel, usePanelPresentation } from '@/components/ui/panel'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import { mockViewportWidth } from '@/lib/testing/matchMedia'
 import { storage } from '@/utils/storage'
@@ -112,9 +113,10 @@ describe('ReadingPage', () => {
     expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
   })
 
-  // The shell's reading row centers article + details rail as one group, so
-  // the article must not center itself inside the space left over beside the
-  // rail — that piles every leftover pixel on one side (#888).
+  // The details column is pinned to the right edge of the content area, so the
+  // article centers itself in whatever is left beside it — unconditionally, in
+  // every rail state (#890). Making it conditional (#888/#889) is what pushed
+  // the article against the row's left edge next to a floating column.
   describe('centering contract', () => {
     function article() {
       const el = screen.getByTestId('reading-page').querySelector('article')
@@ -122,7 +124,7 @@ describe('ReadingPage', () => {
       return el!
     }
 
-    it('keeps the measure but not the auto margins with the details open', () => {
+    it('centers itself beside the open details column', () => {
       renderPage(
         <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
           body
@@ -132,11 +134,10 @@ describe('ReadingPage', () => {
         'data-state',
         'open'
       )
-      expect(article()).toHaveClass('max-w-[72ch]', 'w-full')
-      expect(article()).not.toHaveClass('mx-auto')
+      expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
     })
 
-    it('keeps the measure but not the auto margins with the rail collapsed', () => {
+    it('centers itself beside the collapsed rail', () => {
       storage.set(STORAGE_KEYS.DETAILS_COLLAPSED, true)
       renderPage(
         <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
@@ -147,13 +148,10 @@ describe('ReadingPage', () => {
         'data-state',
         'collapsed'
       )
-      expect(article()).toHaveClass('max-w-[72ch]', 'w-full')
-      expect(article()).not.toHaveClass('mx-auto')
+      expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
     })
 
-    // No rail means the article IS the row, so its own auto margins are what
-    // centers it — dropping them there would push it against the nav.
-    it('centers itself when there is no details rail to balance', () => {
+    it('centers itself when there is no details rail at all', () => {
       renderPage(<ReadingPage title="Doc">body</ReadingPage>)
       expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
       expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
@@ -168,6 +166,137 @@ describe('ReadingPage', () => {
       )
       expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
       expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
+    })
+
+    // The column and the rail are the same <aside>, so the flush-right
+    // guarantee is that nothing sits between it and the end of the row.
+    it('puts the details column last in the row, with nothing after it', () => {
+      renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      const aside = screen.getByTestId('reading-details')
+      expect(aside.nextElementSibling).toBeNull()
+      expect(aside).toHaveClass('shrink-0')
+    })
+  })
+
+  // The column is itself a bordered, padded surface, so its widgets render
+  // flat: no second border, shadow, radius or background inside it (#890).
+  describe('flat panel presentation', () => {
+    function PresentationProbe() {
+      return <span data-testid="presentation">{usePanelPresentation()}</span>
+    }
+
+    const PROBE_SECTIONS: ReadingSection[] = [
+      {
+        id: 'metadata',
+        label: 'Metadata',
+        icon: Info,
+        content: (
+          <Panel data-testid="probe-panel">
+            <PresentationProbe />
+          </Panel>
+        ),
+      },
+    ]
+
+    it('renders its sections flat in the desktop column', () => {
+      renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={PROBE_SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      expect(screen.getByTestId('presentation')).toHaveTextContent('flat')
+      const panel = screen.getByTestId('probe-panel')
+      expect(panel).not.toHaveClass('rounded-lg', 'border', 'shadow-sm')
+      expect(panel.className).toBe('')
+    })
+
+    it('renders its sections flat inside the sheet too', async () => {
+      const user = userEvent.setup()
+      viewport.setWidth(900)
+      renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={PROBE_SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      await user.click(screen.getByRole('button', { name: 'open sheet' }))
+      expect(await screen.findByTestId('presentation')).toHaveTextContent(
+        'flat'
+      )
+    })
+
+    // Card is the default everywhere else, so a widget dropped on a dashboard
+    // is unaffected by any of this.
+    it('leaves panels outside the column as cards', () => {
+      render(<Panel data-testid="loose-panel" />)
+      expect(screen.getByTestId('loose-panel')).toHaveClass(
+        'rounded-lg',
+        'border',
+        'shadow-sm'
+      )
+    })
+  })
+
+  // The design's document actions are 13px with 7px/10px padding, not the
+  // generic `sm` button (#890).
+  it('sizes the action grid to the design scale', () => {
+    renderPage(
+      <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+        body
+      </ReadingPage>
+    )
+    const edit = within(screen.getByTestId('details-column')).getByTestId(
+      'edit-button'
+    )
+    expect(edit).toHaveClass('text-[13px]', 'px-2.5', 'py-[7px]')
+    expect(edit).not.toHaveClass('h-9')
+  })
+
+  // Delete is the fourth outlined action in the grid, not the one solid red
+  // button — and an outlined destructive on the rail (#890).
+  describe('destructive action styling', () => {
+    it('renders Delete outlined in the action grid', () => {
+      renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      const del = within(screen.getByTestId('details-column')).getByTestId(
+        'delete-button'
+      )
+      expect(del).toHaveClass('border-destructive', 'text-destructive')
+      expect(del).not.toHaveClass('bg-destructive')
+    })
+
+    it('renders Delete in the destructive colour on the folded rail', () => {
+      storage.set(STORAGE_KEYS.DETAILS_COLLAPSED, true)
+      renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      const del = within(screen.getByTestId('details-rail')).getByTestId(
+        'delete-button'
+      )
+      expect(del).toHaveClass('text-destructive')
+      expect(del).not.toHaveClass('bg-destructive')
+    })
+
+    it('renders Delete outlined as a phone chip', () => {
+      viewport.setWidth(600)
+      renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      const del = within(
+        screen.getByTestId('reading-actions-chips')
+      ).getByTestId('delete-button')
+      expect(del).toHaveClass('border-destructive', 'text-destructive')
+      expect(del).not.toHaveClass('bg-destructive')
     })
   })
 

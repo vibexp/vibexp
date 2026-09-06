@@ -54,13 +54,10 @@ export interface ReadingPageProps {
  * - `lg+`: article column with a fixed 72ch measure + a sticky details
  *   column that folds to a 48px icon rail. Rail icons reopen the column and
  *   scroll to their section.
- * - Horizontal centering belongs to the shell's reading row, which centers
- *   article + details rail as one group, so the article drops its own
- *   `mx-auto` whenever the rail is rendered: centering it inside its own
- *   flex child would center it in the space *left over* beside the rail,
- *   piling all the slack on one side (#888). With no rail (no details, or
- *   below lg where they are a sheet) the article IS the row, and its auto
- *   margins are what centers it.
+ * - The details column is pinned to the right edge of the content area (the
+ *   shell's reading row is full width) and the article centers itself with
+ *   `mx-auto` in whatever is left beside it — the design's model, and the
+ *   reason the article's auto margins are unconditional (#890).
  * - `md–lg`: the details open as a right-side sheet from the header toggle.
  * - `< md`: actions render as chips under the title; the details open as a
  *   bottom sheet.
@@ -93,11 +90,7 @@ export function ReadingPage({
   } = useShell()
 
   // Whether the sticky details rail is rendered — it only exists at lg+;
-  // below that the details are a sheet. Single source of truth for both the
-  // <aside> below and the article's centering: when the rail is there, the
-  // shell's reading row centers article + rail together and the article must
-  // NOT center itself; when it is not, the article IS the whole row, so its
-  // own auto margins are the centering (#888).
+  // below that the details are a sheet.
   const railRendered = hasDetails && isDesktop
 
   const asideRef = useRef<HTMLElement>(null)
@@ -147,8 +140,7 @@ export function ReadingPage({
       >
         <article
           className={cn(
-            'w-full px-4 py-6 md:px-8 lg:px-12 lg:py-10',
-            !railRendered && 'mx-auto',
+            'mx-auto w-full px-4 py-6 md:px-8 lg:px-12 lg:py-10',
             READING_MEASURE
           )}
         >

@@ -3,12 +3,19 @@ import { useState } from 'react'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
-import { PanelTitle } from '@/components/ui/panel-title'
+import {
+  Panel,
+  PanelAction,
+  PanelHeader,
+  PanelTitle,
+  usePanelInset,
+} from '@/components/ui/panel'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/useAuth'
 import { useAlerts } from '@/hooks'
 import { useComments } from '@/hooks/useComments'
 import { usePermissions } from '@/hooks/usePermissions'
+import { cn } from '@/lib/utils'
 import type { Comment, CommentResourceType } from '@/services/commentService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -32,6 +39,9 @@ interface CommentsPanelProps {
  * comments" popup once there are more than 5. Both surfaces share one
  * `useComments` instance, so they stay in sync. Server authorizes every write;
  * the UI gating here is convenience only.
+ *
+ * Built on the `ui/panel` primitives, so it is a card wherever it is dropped on
+ * a page and flat inside the reading page's details column (#890).
  */
 export function CommentsPanel({
   teamId,
@@ -42,6 +52,7 @@ export function CommentsPanel({
   const { can, canDeleteResource } = usePermissions()
   const { showError } = useAlerts()
   const state = useComments(teamId, resourceType, resourceId)
+  const inset = usePanelInset()
 
   const [composing, setComposing] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -72,7 +83,10 @@ export function CommentsPanel({
   const renderBody = () => {
     if (state.loading) {
       return (
-        <div className="space-y-4 px-5 py-4" data-testid="comments-loading">
+        <div
+          className={cn(inset, 'space-y-4 py-4')}
+          data-testid="comments-loading"
+        >
           {[0, 1, 2].map(i => (
             <div key={i} className="flex gap-3">
               <Skeleton className="size-8 shrink-0 rounded-full" />
@@ -88,7 +102,12 @@ export function CommentsPanel({
     }
     if (state.error) {
       return (
-        <div className="flex flex-col items-center gap-2 px-5 py-6 text-center">
+        <div
+          className={cn(
+            inset,
+            'flex flex-col items-center gap-2 py-6 text-center'
+          )}
+        >
           <p className="text-muted-foreground text-sm">
             Couldn&apos;t load comments.
           </p>
@@ -105,14 +124,19 @@ export function CommentsPanel({
     }
     if (state.comments.length === 0) {
       return (
-        <p className="text-muted-foreground px-5 py-6 text-center text-sm">
+        <p
+          className={cn(
+            inset,
+            'text-muted-foreground py-6 text-center text-sm'
+          )}
+        >
           No comments yet.
           {canComment && ' Be the first to leave one.'}
         </p>
       )
     }
     return (
-      <div className="divide-border divide-y px-5">
+      <div className={cn(inset, 'divide-border divide-y')}>
         {visible.map(comment => (
           <CommentRow
             key={comment.id}
@@ -133,35 +157,29 @@ export function CommentsPanel({
   }
 
   return (
-    <div
-      className="bg-card text-card-foreground overflow-hidden rounded-lg border shadow-sm"
-      data-testid="comments-panel"
-    >
-      {/* Header: icon + title (left), Add comment button (right) */}
-      <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-4">
+    <Panel data-testid="comments-panel">
+      {/* Header: icon + title (left), Add comment chip (right) */}
+      <PanelHeader>
         <div className="flex min-w-0 items-center gap-2.5">
           <MessageSquare className="text-muted-foreground size-[17px] shrink-0" />
           <PanelTitle>Comments</PanelTitle>
         </div>
         {canComment && !composing && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
+          <PanelAction
             onClick={() => {
               setComposing(true)
             }}
             data-testid="comment-add-button"
           >
-            <Plus className="mr-1 size-3.5" />
+            <Plus className="size-3.5" />
             Add comment
-          </Button>
+          </PanelAction>
         )}
-      </div>
+      </PanelHeader>
 
       {/* Inline compose at the top of the list */}
       {canComment && composing && (
-        <div className="px-5 pb-4">
+        <div className={cn(inset, 'pb-4')}>
           <CommentComposer
             focusOnMount
             onSubmit={state.addComment}
@@ -186,7 +204,10 @@ export function CommentsPanel({
           onClick={() => {
             setDialogOpen(true)
           }}
-          className="text-foreground hover:bg-accent border-border flex w-full items-center gap-2 border-t px-5 py-3 text-sm font-medium transition-colors"
+          className={cn(
+            inset,
+            'text-foreground hover:bg-accent border-border flex w-full items-center gap-2 border-t py-3 text-sm font-medium transition-colors'
+          )}
           data-testid="comments-see-all"
         >
           {'See all comments'}
@@ -229,6 +250,6 @@ export function CommentsPanel({
         loading={deleting}
         onConfirm={handleConfirmDelete}
       />
-    </div>
+    </Panel>
   )
 }

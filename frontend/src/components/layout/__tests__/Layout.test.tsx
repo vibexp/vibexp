@@ -31,7 +31,7 @@ describe('Layout', () => {
     expect(screen.getByText('list page')).toBeInTheDocument()
   })
 
-  it('centers the whole reading row while a reading page is mounted', () => {
+  it('goes full-bleed while a reading page is mounted', () => {
     render(
       <Layout>
         <ReadingPageStub />
@@ -39,13 +39,31 @@ describe('Layout', () => {
     )
     const main = screen.getByRole('main')
     expect(main).toHaveAttribute('data-content-mode', 'reading')
-    // Not the narrower `contained` cap...
-    expect(main.querySelector('.max-w-screen-xl')).toBeNull()
-    // ...but the row that holds the article AND the details rail is centered
-    // as one group, so the leftover width splits evenly (#888).
+    // The reading row spans the whole content area and is NOT capped or
+    // centered by the shell: the design pins the details column flush to the
+    // right edge and centers the article in what is left beside it (#890).
+    // Capping the row instead floated the column off the edge.
     const row = screen.getByTestId('reading-row')
-    expect(row).toHaveClass('mx-auto', 'max-w-screen-2xl', 'w-full')
+    expect(row).toHaveClass('w-full', 'flex-1')
+    for (const cls of Array.from(row.classList)) {
+      expect(cls).not.toMatch(/^(mx-auto|max-w-)/)
+    }
     expect(row).toContainElement(screen.getByText('reading'))
+  })
+
+  it('leaves the pending-invitations banner uncapped too', () => {
+    render(
+      <Layout>
+        <ReadingPageStub />
+      </Layout>
+    )
+    // The banner sits over the reading row, so a cap here would reintroduce
+    // the same dead band the row no longer has.
+    const banner = screen.getByRole('main').querySelector('.empty\\:hidden')
+    expect(banner).not.toBeNull()
+    for (const cls of Array.from(banner?.classList ?? [])) {
+      expect(cls).not.toMatch(/^(mx-auto|max-w-)/)
+    }
   })
 
   it('adds no containing block that would break the sticky details rail', () => {
@@ -56,7 +74,7 @@ describe('Layout', () => {
     )
     // `position: sticky` resolves against the nearest scroll container, and
     // `transform`/`filter` create a containing block — any of these on the
-    // centering wrapper would pin the rail to the row instead of the viewport.
+    // row wrapper would pin the rail to the row instead of the viewport.
     const row = screen.getByTestId('reading-row')
     for (const cls of Array.from(row.classList)) {
       expect(cls).not.toMatch(/^(overflow|transform|filter|blur)(-|$)/)

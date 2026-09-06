@@ -10,7 +10,9 @@ import { cn } from '@/lib/utils'
 import type { ReadingAction } from './types'
 
 function buttonVariant(action: ReadingAction): ButtonProps['variant'] {
-  if (action.tone === 'destructive') return 'destructive'
+  // Outlined, not filled: the design renders Delete as the fourth outlined
+  // action in the grid rather than as the one solid red button (#890).
+  if (action.tone === 'destructive') return 'destructive-outline'
   if (action.emphasis === 'primary') return 'default'
   return 'outline'
 }
@@ -25,7 +27,10 @@ interface ReadingActionsProps {
   className?: string
 }
 
-/** Full (icon + label) rendering of the action list. */
+/**
+ * Full (icon + label) rendering of the action list. Buttons are the design's
+ * 13px / 7px 10px `action` size rather than the generic `sm` (#890).
+ */
 export function ReadingActions({
   actions,
   layout,
@@ -47,7 +52,7 @@ export function ReadingActions({
         <Button
           key={action.id}
           type="button"
-          size="sm"
+          size="action"
           variant={buttonVariant(action)}
           disabled={action.disabled}
           onClick={action.onClick}

@@ -14,6 +14,11 @@ vi.mock('recharts', async () => {
 })
 
 import {
+  expectNoCardChrome,
+  FlatSurface,
+} from '@/lib/testing/panelPresentation'
+
+import {
   parseLocalDate,
   TimeSeriesBarChart,
   type TimeSeriesBarChartProps,
@@ -208,5 +213,43 @@ describe('parseLocalDate', () => {
     expect(date.getMonth()).toBe(4) // May, zero-indexed
     expect(date.getDate()).toBe(1)
     expect(date.getHours()).toBe(0)
+  })
+
+  // The details column supplies the surface; every dashboard and admin page
+  // keeps the card the chart has always been (#890).
+  describe('flat presentation', () => {
+    it('paints no card chrome inside the details column', () => {
+      render(
+        <FlatSurface>
+          <TimeSeriesBarChart {...buildProps({ size: 'compact' })} />
+        </FlatSurface>
+      )
+      const chart = screen.getByTestId('timeseries-bar-chart')
+      expectNoCardChrome(chart)
+      expect(chart.className).toBe('')
+      expect(
+        screen.getByRole('heading', { name: 'Resources created' })
+      ).toHaveClass('text-sm')
+      // The range control is the same chip as the panel header actions
+      // sitting beside it in the column — including the 14px glyph, which a
+      // hand-rolled copy of the geometry silently left at 16px.
+      const range = screen.getByLabelText('Select time range')
+      expect(range).toHaveClass(
+        'text-xs',
+        'rounded-md',
+        'px-2',
+        'py-1',
+        '[&_svg]:size-3.5'
+      )
+    })
+
+    it('keeps the card box on a dashboard', () => {
+      render(<TimeSeriesBarChart {...buildProps()} />)
+      expect(screen.getByTestId('timeseries-bar-chart')).toHaveClass(
+        'rounded-lg',
+        'border',
+        'shadow-sm'
+      )
+    })
   })
 })

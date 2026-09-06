@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { AttachmentCard } from '@/components/attachments/AttachmentCard'
+import {
+  expectNoCardChrome,
+  FlatSurface,
+} from '@/lib/testing/panelPresentation'
 import type { Attachment } from '@/services/attachmentService'
 
 function makeAttachment(overrides: Partial<Attachment> = {}): Attachment {
@@ -155,5 +159,38 @@ describe('AttachmentCard', () => {
       attachments: [makeAttachment({ size_bytes: 10 * 1024 * 1024 })],
     })
     expect(screen.getByTestId('attachment-add-button')).toBeDisabled()
+  })
+
+  describe('flat presentation', () => {
+    it('paints no card chrome and uses the chip action', () => {
+      render(
+        <FlatSurface>
+          <AttachmentCard
+            attachments={[makeAttachment()]}
+            onUpload={vi.fn()}
+            onDelete={vi.fn()}
+            onDownload={vi.fn()}
+          />
+        </FlatSurface>
+      )
+      const card = screen.getByTestId('attachment-card')
+      expectNoCardChrome(card)
+      expect(card.className).toBe('')
+      const add = screen.getByTestId('attachment-add-button')
+      expect(add).toHaveClass('text-xs')
+      expect(add).not.toHaveClass('h-9')
+      expect(screen.getByRole('heading', { name: 'Attachments' })).toHaveClass(
+        'text-sm'
+      )
+    })
+
+    it('keeps the card box everywhere else', () => {
+      renderCard({ attachments: [makeAttachment()] })
+      expect(screen.getByTestId('attachment-card')).toHaveClass(
+        'rounded-lg',
+        'border',
+        'shadow-sm'
+      )
+    })
   })
 })

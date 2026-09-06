@@ -2,11 +2,18 @@ import { Plus, Workflow } from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { PanelTitle } from '@/components/ui/panel-title'
+import {
+  Panel,
+  PanelAction,
+  PanelHeader,
+  PanelTitle,
+  usePanelInset,
+} from '@/components/ui/panel'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAlerts } from '@/hooks'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useRelations } from '@/hooks/useRelations'
+import { cn } from '@/lib/utils'
 import type { RelationResourceType } from '@/services/relationService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -27,6 +34,9 @@ interface RelationsPanelProps {
  * rollback). A composer adds human edges, matrix-constrained by the picker.
  * Server authorizes every write; the UI gating here is convenience only.
  *
+ * Built on the `ui/panel` primitives, so it is a card wherever it is dropped on
+ * a page and flat inside the reading page's details column (#890).
+ *
  * Note: RelatedResource carries no created_by, so Dismiss is gated on
  * canDeleteResource(undefined) — admins/owners (resource.delete.any) — since
  * per-edge own-vs-any can't be computed client-side; the server still enforces it.
@@ -39,6 +49,7 @@ export function RelationsPanel({
   const { can, canDeleteResource } = usePermissions()
   const { showError } = useAlerts()
   const state = useRelations(teamId, resourceType, resourceId)
+  const inset = usePanelInset()
 
   const [composing, setComposing] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -78,7 +89,10 @@ export function RelationsPanel({
   const renderBody = () => {
     if (state.loading) {
       return (
-        <div className="space-y-3 px-5 py-4" data-testid="relations-loading">
+        <div
+          className={cn(inset, 'space-y-3 py-4')}
+          data-testid="relations-loading"
+        >
           {[0, 1, 2].map(i => (
             <Skeleton key={i} className="h-8 w-full" />
           ))}
@@ -87,7 +101,12 @@ export function RelationsPanel({
     }
     if (state.error) {
       return (
-        <div className="flex flex-col items-center gap-2 px-5 py-6 text-center">
+        <div
+          className={cn(
+            inset,
+            'flex flex-col items-center gap-2 py-6 text-center'
+          )}
+        >
           <p className="text-muted-foreground text-sm">
             Couldn&apos;t load relations.
           </p>
@@ -104,13 +123,18 @@ export function RelationsPanel({
     }
     if (state.relations.length === 0) {
       return (
-        <p className="text-muted-foreground px-5 py-6 text-center text-sm">
+        <p
+          className={cn(
+            inset,
+            'text-muted-foreground py-6 text-center text-sm'
+          )}
+        >
           No relations yet.
         </p>
       )
     }
     return (
-      <div className="divide-border divide-y px-5">
+      <div className={cn(inset, 'divide-border divide-y')}>
         {state.relations.map(relation => (
           <RelationRow
             key={relation.relation_id}
@@ -131,33 +155,27 @@ export function RelationsPanel({
   }
 
   return (
-    <div
-      className="bg-card text-card-foreground overflow-hidden rounded-lg border shadow-sm"
-      data-testid="relations-panel"
-    >
-      <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-4">
+    <Panel data-testid="relations-panel">
+      <PanelHeader>
         <div className="flex min-w-0 items-center gap-2.5">
           <Workflow className="text-muted-foreground size-[17px] shrink-0" />
           <PanelTitle>Relations</PanelTitle>
         </div>
         {canAdd && !composing && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
+          <PanelAction
             onClick={() => {
               setComposing(true)
             }}
             data-testid="relation-add-button"
           >
-            <Plus className="mr-1 size-3.5" />
+            <Plus className="size-3.5" />
             Add relation
-          </Button>
+          </PanelAction>
         )}
-      </div>
+      </PanelHeader>
 
       {canAdd && composing && (
-        <div className="px-5 pb-4">
+        <div className={cn(inset, 'pb-4')}>
           <RelationComposer
             teamId={teamId}
             subjectType={resourceType}
@@ -176,6 +194,6 @@ export function RelationsPanel({
       <div className="bg-border h-px" />
 
       {renderBody()}
-    </div>
+    </Panel>
   )
 }

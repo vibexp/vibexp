@@ -17,12 +17,13 @@ import { Sidebar } from '@/components/layout/Sidebar'
  *   - `contained` (default): centered, capped at `max-w-screen-xl` (1280px)
  *     with padding scaling from `px-4` on mobile to `px-8` at lg+. Pages
  *     should NOT add their own `mx-auto max-w-*` wrapper.
- *   - `reading`: the page (via `ReadingPage`) owns the content row and lays
- *     out the article column and the details column itself; the shell only
- *     centers that whole row and caps it at `max-w-screen-2xl` (1536px), so
- *     the leftover width splits evenly on both sides of article + details
- *     rail (#888). The page should NOT center the article inside its own
- *     column — that puts every pixel of slack on one side.
+ *   - `reading`: full-bleed. The page (via `ReadingPage`) owns the content
+ *     row and lays out the article column and the details column itself.
+ *     The row is NOT capped or centered by the shell: the design pins the
+ *     details column flush to the right edge of the content area and centers
+ *     the article in whatever is left beside it (#890). Capping the row
+ *     instead (#888/#889) floated the column away from the edge and pushed
+ *     the article against the row's left edge.
  * - Individual pages render content with their own vertical rhythm.
  */
 export function Layout({ children }: Readonly<{ children: ReactNode }>) {
@@ -48,14 +49,15 @@ function ShellFrame({ children }: Readonly<{ children: ReactNode }>) {
           >
             {/* The banner renders nothing when there is nothing pending, so the
                 padded wrapper collapses via `empty:hidden`. */}
-            <div className="mx-auto w-full max-w-screen-2xl px-4 pt-6 empty:hidden md:px-6 lg:px-8">
+            <div className="px-4 pt-6 empty:hidden md:px-6 lg:px-8">
               <PendingInvitationsBanner />
             </div>
-            {/* Centers article + details rail as one group. No `overflow`,
-                `transform` or `filter` here: any of them would become the
-                containing block for the rail's `position: sticky`. */}
+            {/* Full width, so the details column can sit flush against the
+                right edge of the content area. No `overflow`, `transform` or
+                `filter` here: any of them would become the containing block
+                for the rail's `position: sticky`. */}
             <div
-              className="mx-auto flex min-h-0 w-full min-w-0 max-w-screen-2xl flex-1"
+              className="flex min-h-0 w-full min-w-0 flex-1"
               data-testid="reading-row"
             >
               {children}

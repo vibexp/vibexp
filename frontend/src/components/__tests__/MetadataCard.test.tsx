@@ -1,5 +1,10 @@
 import { render, screen } from '@testing-library/react'
 
+import {
+  expectNoCardChrome,
+  FlatSurface,
+} from '@/lib/testing/panelPresentation'
+
 import { AdditionalDataCard } from '../MetadataCard'
 
 // ---- AdditionalDataCard -----------------------------------------------------
@@ -75,5 +80,38 @@ describe('AdditionalDataCard', () => {
     circular.self = circular
     render(<AdditionalDataCard data={{ ref: circular }} />)
     expect(screen.getByText('[unserializable]')).toBeInTheDocument()
+  })
+
+  describe('flat presentation', () => {
+    it('paints no card chrome inside the details column', () => {
+      const { container } = render(
+        <FlatSurface>
+          <AdditionalDataCard data={{ status: 'active' }} />
+        </FlatSurface>
+      )
+      expectNoCardChrome(container.firstChild as HTMLElement)
+      expect(
+        screen.getByRole('heading', { name: 'Additional data' })
+      ).toHaveClass('text-sm')
+    })
+
+    it('keeps the card box everywhere else', () => {
+      const { container } = render(
+        <AdditionalDataCard data={{ status: 'active' }} />
+      )
+      expect(container.firstChild).toHaveClass(
+        'rounded-lg',
+        'border',
+        'shadow-sm'
+      )
+      // The card branch now sits on the shared panel scale (20px gutter,
+      // 16px title) rather than raw Card's 24px / overridden 14px.
+      expect(
+        screen.getByRole('heading', { name: 'Additional data' })
+      ).toHaveClass('text-base')
+      expect(
+        screen.getByRole('heading', { name: 'Additional data' }).parentElement
+      ).toHaveClass('px-5', 'pt-5', 'pb-4')
+    })
   })
 })

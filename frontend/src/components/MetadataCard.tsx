@@ -1,6 +1,11 @@
 import { type ReactNode } from 'react'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Panel,
+  PanelBody,
+  PanelHeader,
+  PanelTitle,
+} from '@/components/ui/panel'
 import { Separator } from '@/components/ui/separator'
 
 /**
@@ -65,7 +70,8 @@ interface AdditionalDataCardProps {
 }
 
 /**
- * Renders a Record<string, unknown> as key-value rows in a Card.
+ * Renders a Record<string, unknown> as key-value rows in a panel — a card on a
+ * page, flat inside the reading page's details column (#890).
  * Returns null when the record is empty.
  */
 export function AdditionalDataCard({
@@ -75,13 +81,11 @@ export function AdditionalDataCard({
   if (entries.length === 0) return null
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle as="h3" className="text-sm">
-          Additional data
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm">
+    <Panel>
+      <PanelHeader>
+        <PanelTitle>Additional data</PanelTitle>
+      </PanelHeader>
+      <PanelBody className="space-y-2 pb-4 text-sm">
         {entries.map(([key, value], index) => (
           <div key={key}>
             {index > 0 && <Separator className="mb-2" />}
@@ -90,7 +94,7 @@ export function AdditionalDataCard({
             </MetaRow>
           </div>
         ))}
-      </CardContent>
-    </Card>
+      </PanelBody>
+    </Panel>
   )
 }

@@ -4,6 +4,17 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
+/**
+ * Geometry of the compact chip affordance in the reading page's details
+ * column (#890): the panel header actions ("Add file", "Add comment", …) and
+ * the Access-activity range selector. Exported because the range control is a
+ * `SelectTrigger`, which cannot take the `chip` button size wholesale — the
+ * button base's `justify-center` fights the trigger's `justify-between` — so
+ * this is the one place the numbers live.
+ */
+export const CHIP_GEOMETRY =
+  'h-auto gap-1 rounded-md px-2 py-1 text-xs [&_svg]:size-3.5'
+
 const buttonVariants = cva(
   'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
@@ -12,6 +23,11 @@ const buttonVariants = cva(
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
         destructive:
           'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        // Outlined counterpart of `destructive`, so a destructive action can
+        // sit in a row of outlined actions without being the only filled one
+        // (the reading page's action grid and rail, #890).
+        'destructive-outline':
+          'border border-destructive bg-background text-destructive hover:bg-destructive/10',
         outline:
           'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
         secondary:
@@ -27,6 +43,15 @@ const buttonVariants = cva(
         // Square counterpart of `sm`, so an icon-only button can sit in a row
         // of small buttons without being the one that is 4px taller.
         'icon-sm': 'size-9 rounded-md',
+        // The details column's compact header affordance ("Add file", "Add
+        // comment", the range selector): 12px in a hairline pill, small
+        // enough to sit beside a section title at the 320px column width
+        // (#890). A size rather than a second button, so it inherits the
+        // outline variant's border/hover/focus/disabled styling.
+        chip: CHIP_GEOMETRY,
+        // Document actions in the reading page's action grid and phone chips,
+        // at the design's 13px / 7px 10px (#890).
+        action: 'h-auto rounded-md px-2.5 py-[7px] text-[13px]',
       },
     },
     defaultVariants: {
