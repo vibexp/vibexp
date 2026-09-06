@@ -19,6 +19,7 @@ import {
   usePanelInset,
 } from '@/components/ui/panel'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { cn } from '@/lib/utils'
 
 /* A right-rail metadata panel built entirely on the shared design system:
    the `ui/panel` primitives (so it is a card on a page and flat inside the
@@ -194,7 +195,10 @@ function VersionHistoryLink({
       to={to}
       data-testid="metadata-version-history-link"
       aria-label={`${label}, ${String(count)} ${count === 1 ? 'version' : 'versions'}`}
-      className={`${inset} flex items-center gap-2 border-t border-border py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent`}
+      className={cn(
+        inset,
+        'flex items-center gap-2 border-t border-border py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent'
+      )}
     >
       <History
         aria-hidden="true"

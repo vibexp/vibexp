@@ -261,7 +261,7 @@ export function BlueprintView() {
                         href={blueprint.source.repo}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-primary min-w-0 truncate text-sm hover:underline"
+                        className="text-primary min-w-0 truncate hover:underline"
                         title={blueprint.source.repo}
                       >
                         {blueprint.source.repo.replace(/^https?:\/\//, '')}
@@ -277,7 +277,7 @@ export function BlueprintView() {
                   )}
                   {blueprint.source.imported_at && (
                     <MetaRow label="Imported">
-                      <span className="text-muted-foreground text-sm">
+                      <span className="text-muted-foreground">
                         {formatDate(blueprint.source.imported_at)}
                       </span>
                     </MetaRow>

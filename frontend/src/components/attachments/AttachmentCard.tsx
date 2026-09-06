@@ -21,6 +21,7 @@ import {
   PanelTitle,
   usePanelInset,
 } from '@/components/ui/panel'
+import { cn } from '@/lib/utils'
 import type { Attachment } from '@/services/attachmentService'
 import { formatFileSize } from '@/utils/formatFileSize'
 
@@ -162,7 +163,7 @@ export function AttachmentCard({
   const renderAttachmentList = () => {
     if (attachments.length === 0) {
       return (
-        <p className={`${inset} text-muted-foreground py-4 text-sm`}>
+        <p className={cn(inset, 'text-muted-foreground py-4 text-sm')}>
           No attachments yet.
         </p>
       )
@@ -179,7 +180,10 @@ export function AttachmentCard({
           return (
             <li
               key={attachment.id}
-              className={`${inset} group/item hover:bg-muted/55 flex items-center gap-3 py-3 transition-colors`}
+              className={cn(
+                inset,
+                'group/item hover:bg-muted/55 flex items-center gap-3 py-3 transition-colors'
+              )}
               data-testid="attachment-item"
             >
               <div className="bg-muted text-muted-foreground grid size-[38px] shrink-0 place-items-center rounded-md">

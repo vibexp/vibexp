@@ -27,7 +27,10 @@ interface ReadingActionsProps {
   className?: string
 }
 
-/** Full (icon + label) rendering of the action list. */
+/**
+ * Full (icon + label) rendering of the action list. Buttons are the design's
+ * 13px / 7px 10px `action` size rather than the generic `sm` (#890).
+ */
 export function ReadingActions({
   actions,
   layout,
@@ -49,7 +52,7 @@ export function ReadingActions({
         <Button
           key={action.id}
           type="button"
-          size="sm"
+          size="action"
           variant={buttonVariant(action)}
           disabled={action.disabled}
           onClick={action.onClick}

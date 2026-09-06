@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/useAuth'
 import { useAlerts } from '@/hooks'
 import { useComments } from '@/hooks/useComments'
 import { usePermissions } from '@/hooks/usePermissions'
+import { cn } from '@/lib/utils'
 import type { Comment, CommentResourceType } from '@/services/commentService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -83,7 +84,7 @@ export function CommentsPanel({
     if (state.loading) {
       return (
         <div
-          className={`${inset} space-y-4 py-4`}
+          className={cn(inset, 'space-y-4 py-4')}
           data-testid="comments-loading"
         >
           {[0, 1, 2].map(i => (
@@ -102,7 +103,10 @@ export function CommentsPanel({
     if (state.error) {
       return (
         <div
-          className={`${inset} flex flex-col items-center gap-2 py-6 text-center`}
+          className={cn(
+            inset,
+            'flex flex-col items-center gap-2 py-6 text-center'
+          )}
         >
           <p className="text-muted-foreground text-sm">
             Couldn&apos;t load comments.
@@ -121,7 +125,10 @@ export function CommentsPanel({
     if (state.comments.length === 0) {
       return (
         <p
-          className={`${inset} text-muted-foreground py-6 text-center text-sm`}
+          className={cn(
+            inset,
+            'text-muted-foreground py-6 text-center text-sm'
+          )}
         >
           No comments yet.
           {canComment && ' Be the first to leave one.'}
@@ -129,7 +136,7 @@ export function CommentsPanel({
       )
     }
     return (
-      <div className={`${inset} divide-border divide-y`}>
+      <div className={cn(inset, 'divide-border divide-y')}>
         {visible.map(comment => (
           <CommentRow
             key={comment.id}
@@ -172,7 +179,7 @@ export function CommentsPanel({
 
       {/* Inline compose at the top of the list */}
       {canComment && composing && (
-        <div className={`${inset} pb-4`}>
+        <div className={cn(inset, 'pb-4')}>
           <CommentComposer
             focusOnMount
             onSubmit={state.addComment}
@@ -197,7 +204,10 @@ export function CommentsPanel({
           onClick={() => {
             setDialogOpen(true)
           }}
-          className={`${inset} text-foreground hover:bg-accent border-border flex w-full items-center gap-2 border-t py-3 text-sm font-medium transition-colors`}
+          className={cn(
+            inset,
+            'text-foreground hover:bg-accent border-border flex w-full items-center gap-2 border-t py-3 text-sm font-medium transition-colors'
+          )}
           data-testid="comments-see-all"
         >
           {'See all comments'}

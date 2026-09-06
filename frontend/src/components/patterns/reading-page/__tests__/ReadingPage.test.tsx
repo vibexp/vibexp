@@ -240,6 +240,21 @@ describe('ReadingPage', () => {
     })
   })
 
+  // The design's document actions are 13px with 7px/10px padding, not the
+  // generic `sm` button (#890).
+  it('sizes the action grid to the design scale', () => {
+    renderPage(
+      <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+        body
+      </ReadingPage>
+    )
+    const edit = within(screen.getByTestId('details-column')).getByTestId(
+      'edit-button'
+    )
+    expect(edit).toHaveClass('text-[13px]', 'px-2.5', 'py-[7px]')
+    expect(edit).not.toHaveClass('h-9')
+  })
+
   // Delete is the fourth outlined action in the grid, not the one solid red
   // button — and an outlined destructive on the rail (#890).
   describe('destructive action styling', () => {

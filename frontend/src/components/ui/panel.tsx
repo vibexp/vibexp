@@ -132,26 +132,13 @@ const PanelAction = React.forwardRef<
   React.ButtonHTMLAttributes<HTMLButtonElement>
 >(({ className, type = 'button', ...props }, ref) => {
   const flat = usePanelPresentation() === 'flat'
-  if (!flat) {
-    return (
-      <Button
-        ref={ref}
-        type={type}
-        variant="outline"
-        size="sm"
-        className={className}
-        {...props}
-      />
-    )
-  }
   return (
-    <button
+    <Button
       ref={ref}
       type={type}
-      className={cn(
-        'border-input bg-background ring-offset-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:shrink-0',
-        className
-      )}
+      variant="outline"
+      size={flat ? 'chip' : 'sm'}
+      className={cn('shrink-0', className)}
       {...props}
     />
   )

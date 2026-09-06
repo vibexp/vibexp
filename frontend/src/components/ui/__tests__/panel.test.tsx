@@ -122,6 +122,9 @@ describe('PanelAction', () => {
       'py-1'
     )
     expect(action).not.toHaveClass('h-9')
+    // Still the shared outline button, one size smaller — not a second
+    // hand-rolled button that would drift from the variant.
+    expect(action).toHaveClass('border-input', 'bg-background')
   })
 
   it('clicks and disables in both presentations', async () => {

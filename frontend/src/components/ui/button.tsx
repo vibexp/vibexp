@@ -32,6 +32,15 @@ const buttonVariants = cva(
         // Square counterpart of `sm`, so an icon-only button can sit in a row
         // of small buttons without being the one that is 4px taller.
         'icon-sm': 'size-9 rounded-md',
+        // The details column's compact header affordance ("Add file", "Add
+        // comment", the range selector): 12px in a hairline pill, small
+        // enough to sit beside a section title at the 320px column width
+        // (#890). A size rather than a second button, so it inherits the
+        // outline variant's border/hover/focus/disabled styling.
+        chip: 'h-auto gap-1 rounded-md px-2 py-1 text-xs [&_svg]:size-3.5',
+        // Document actions in the reading page's action grid and phone chips,
+        // at the design's 13px / 7px 10px (#890).
+        action: 'h-auto rounded-md px-2.5 py-[7px] text-[13px]',
       },
     },
     defaultVariants: {

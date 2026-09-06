@@ -104,6 +104,14 @@ describe('AdditionalDataCard', () => {
         'border',
         'shadow-sm'
       )
+      // The card branch now sits on the shared panel scale (20px gutter,
+      // 16px title) rather than raw Card's 24px / overridden 14px.
+      expect(
+        screen.getByRole('heading', { name: 'Additional data' })
+      ).toHaveClass('text-base')
+      expect(
+        screen.getByRole('heading', { name: 'Additional data' }).parentElement
+      ).toHaveClass('px-5', 'pt-5', 'pb-4')
     })
   })
 })

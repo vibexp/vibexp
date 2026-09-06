@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useAlerts } from '@/hooks'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useRelations } from '@/hooks/useRelations'
+import { cn } from '@/lib/utils'
 import type { RelationResourceType } from '@/services/relationService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -89,7 +90,7 @@ export function RelationsPanel({
     if (state.loading) {
       return (
         <div
-          className={`${inset} space-y-3 py-4`}
+          className={cn(inset, 'space-y-3 py-4')}
           data-testid="relations-loading"
         >
           {[0, 1, 2].map(i => (
@@ -101,7 +102,10 @@ export function RelationsPanel({
     if (state.error) {
       return (
         <div
-          className={`${inset} flex flex-col items-center gap-2 py-6 text-center`}
+          className={cn(
+            inset,
+            'flex flex-col items-center gap-2 py-6 text-center'
+          )}
         >
           <p className="text-muted-foreground text-sm">
             Couldn&apos;t load relations.
@@ -120,14 +124,17 @@ export function RelationsPanel({
     if (state.relations.length === 0) {
       return (
         <p
-          className={`${inset} text-muted-foreground py-6 text-center text-sm`}
+          className={cn(
+            inset,
+            'text-muted-foreground py-6 text-center text-sm'
+          )}
         >
           No relations yet.
         </p>
       )
     }
     return (
-      <div className={`${inset} divide-border divide-y`}>
+      <div className={cn(inset, 'divide-border divide-y')}>
         {state.relations.map(relation => (
           <RelationRow
             key={relation.relation_id}
@@ -168,7 +175,7 @@ export function RelationsPanel({
       </PanelHeader>
 
       {canAdd && composing && (
-        <div className={`${inset} pb-4`}>
+        <div className={cn(inset, 'pb-4')}>
           <RelationComposer
             teamId={teamId}
             subjectType={resourceType}
