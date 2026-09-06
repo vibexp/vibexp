@@ -112,6 +112,65 @@ describe('ReadingPage', () => {
     expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
   })
 
+  // The shell's reading row centers article + details rail as one group, so
+  // the article must not center itself inside the space left over beside the
+  // rail — that piles every leftover pixel on one side (#888).
+  describe('centering contract', () => {
+    function article() {
+      const el = screen.getByTestId('reading-page').querySelector('article')
+      expect(el).not.toBeNull()
+      return el!
+    }
+
+    it('keeps the measure but not the auto margins with the details open', () => {
+      renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      expect(screen.getByTestId('reading-details')).toHaveAttribute(
+        'data-state',
+        'open'
+      )
+      expect(article()).toHaveClass('max-w-[72ch]', 'w-full')
+      expect(article()).not.toHaveClass('mx-auto')
+    })
+
+    it('keeps the measure but not the auto margins with the rail collapsed', () => {
+      storage.set(STORAGE_KEYS.DETAILS_COLLAPSED, true)
+      renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      expect(screen.getByTestId('reading-details')).toHaveAttribute(
+        'data-state',
+        'collapsed'
+      )
+      expect(article()).toHaveClass('max-w-[72ch]', 'w-full')
+      expect(article()).not.toHaveClass('mx-auto')
+    })
+
+    // No rail means the article IS the row, so its own auto margins are what
+    // centers it — dropping them there would push it against the nav.
+    it('centers itself when there is no details rail to balance', () => {
+      renderPage(<ReadingPage title="Doc">body</ReadingPage>)
+      expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
+      expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
+    })
+
+    it('centers itself below lg, where the details are a sheet', () => {
+      viewport.setWidth(900)
+      renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
+      expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
+    })
+  })
+
   describe('desktop column', () => {
     it('renders actions and sections in the open details column', async () => {
       const user = userEvent.setup()

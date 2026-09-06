@@ -49,11 +49,18 @@ export interface ReadingPageProps {
 /**
  * The one reading layout every resource detail page uses (#886).
  *
- * - Registers `reading` mode with the shell (full-bleed content row) and,
+ * - Registers `reading` mode with the shell (which owns the content row) and,
  *   when there is anything to show, a details panel (header toggle).
  * - `lg+`: article column with a fixed 72ch measure + a sticky details
  *   column that folds to a 48px icon rail. Rail icons reopen the column and
  *   scroll to their section.
+ * - Horizontal centering belongs to the shell's reading row, which centers
+ *   article + details rail as one group, so the article drops its own
+ *   `mx-auto` whenever the rail is rendered: centering it inside its own
+ *   flex child would center it in the space *left over* beside the rail,
+ *   piling all the slack on one side (#888). With no rail (no details, or
+ *   below lg where they are a sheet) the article IS the row, and its auto
+ *   margins are what centers it.
  * - `md–lg`: the details open as a right-side sheet from the header toggle.
  * - `< md`: actions render as chips under the title; the details open as a
  *   bottom sheet.
@@ -84,6 +91,13 @@ export function ReadingPage({
     detailsSheetOpen,
     setDetailsSheetOpen,
   } = useShell()
+
+  // The details rail only exists at lg+; below that the details are a sheet.
+  // When it is there, the article and the rail are centered together by the
+  // shell's reading row and the article must NOT center itself; when it is
+  // not, the article IS the whole row, so its own auto margins are the
+  // centering (#888).
+  const railRendered = hasDetails && isDesktop
 
   const asideRef = useRef<HTMLElement>(null)
   const [pendingSection, setPendingSection] = useState<string | null>(null)
@@ -132,7 +146,8 @@ export function ReadingPage({
       >
         <article
           className={cn(
-            'mx-auto w-full px-4 py-6 md:px-8 lg:px-12 lg:py-10',
+            'w-full px-4 py-6 md:px-8 lg:px-12 lg:py-10',
+            !railRendered && 'mx-auto',
             READING_MEASURE
           )}
         >
