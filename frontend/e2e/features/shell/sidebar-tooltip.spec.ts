@@ -90,30 +90,42 @@ function assertCentredOnItem(tooltip: Box, item: Box, label: string): void {
   ).toBeLessThanOrEqual(CENTRE_TOLERANCE)
 }
 
+/**
+ * Two items far apart vertically, each in its OWN test.
+ *
+ * One hover per page is deliberate. Hovering a second rail item in the same
+ * test is not reliable: each item owns its own `Tooltip` root and Radix
+ * sequences the close of the first through a grace-area `pointermove` listener
+ * that is only installed on the commit AFTER the trigger's `pointerleave`, so
+ * the handover depends on how many pointer events happen to be dispatched. The
+ * per-item centring assertion is what discriminates anyway — a tooltip parked
+ * at the viewport origin cannot be centred on BOTH `/prompts` (near the top of
+ * the rail) and `/settings` (near the bottom), so two independent tests cover
+ * exactly what one test with two hovers would.
+ */
+const RAIL_ITEMS = [
+  { href: '/prompts', label: 'Prompts' },
+  { href: '/settings', label: 'Settings' },
+]
+
 test.describe('Collapsed sidebar tooltips (#891)', () => {
-  test('the main rail labels the hovered item, not the logo', async ({
-    page,
-  }) => {
-    await neutraliseAnimations(page)
-    await devLogin(page)
+  for (const item of RAIL_ITEMS) {
+    test(`the main rail labels ${item.label} beside its own icon`, async ({
+      page,
+    }) => {
+      await neutraliseAnimations(page)
+      await devLogin(page)
 
-    const sidebar = page.getByTestId('app-sidebar')
-    await expect(sidebar).toBeVisible()
+      const sidebar = page.getByTestId('app-sidebar')
+      await expect(sidebar).toBeVisible()
 
-    // Fold the sidebar into the 60px icon rail — the form the tooltips exist
-    // for, since the labels are hidden there.
-    await page.getByTestId('nav-toggle').click()
-    await expect(sidebar).toHaveAttribute('data-state', 'collapsed')
+      // Fold the sidebar into the 60px icon rail — the form the tooltips exist
+      // for, since the labels are hidden there.
+      await page.getByTestId('nav-toggle').click()
+      await expect(sidebar).toHaveAttribute('data-state', 'collapsed')
 
-    // Two items far apart vertically: a mis-anchored tooltip parks BOTH in the
-    // same top-left spot, so a single item cannot distinguish the two states.
-    // Located by href — in the collapsed rail the label span is display:none,
-    // so these links have no accessible name to query by.
-    const tooltipTops: number[] = []
-    for (const item of [
-      { href: '/prompts', label: 'Prompts' },
-      { href: '/settings', label: 'Settings' },
-    ]) {
+      // Located by href: in the collapsed rail the label span is display:none,
+      // so these links have no accessible name to query by.
       const link = sidebar.locator(`a[href="${item.href}"]`)
       await expect(link).toBeVisible()
       await link.hover()
@@ -124,27 +136,8 @@ test.describe('Collapsed sidebar tooltips (#891)', () => {
       const linkBox = await boxOf(link, `${item.label} link`)
       const tooltipBox = await settledTooltipBox(tooltip, linkBox, item.label)
       assertCentredOnItem(tooltipBox, linkBox, item.label)
-      tooltipTops.push(tooltipBox.y)
-      // Deliberately no "move away and assert it closed" step. Each rail item
-      // owns its own `Tooltip` root, so hovering the next one opens a separate
-      // bubble this text filter addresses independently — and asserting the
-      // close would only couple the spec to a Radix internal: the grace-area
-      // `pointermove` listener is installed by an effect keyed on the state set
-      // during the trigger's `pointerleave`, so it is not live until the next
-      // commit. `page.mouse.move` dispatches a single event by default, which
-      // therefore arrives before the listener exists and the tooltip never
-      // closes (it stays `data-state="delayed-open"`). Closing is not what
-      // #891 is about.
-    }
-
-    // The regression's signature: every tooltip in the SAME place regardless of
-    // which item is hovered.
-    const [first = 0, second = 0] = tooltipTops
-    expect(
-      Math.abs(first - second),
-      'both tooltips rendered at the same height — they are not tracking the hovered item'
-    ).toBeGreaterThan(CENTRE_TOLERANCE)
-  })
+    })
+  }
 
   test('the admin rail labels the hovered item below the lg breakpoint', async ({
     page,
