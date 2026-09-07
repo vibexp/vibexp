@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -160,8 +161,12 @@ func TestFreshnessCandidateRepository_ListStaleCandidates_IsUnorderedAndCursorle
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 
-	assert.NotContains(t, executed, "ORDER BY", "ordering by the random-uuid pk is what #862 removed")
-	assert.NotContains(t, executed, "id >", "a keyset cursor implies an ordering; there is none")
+	// Upper-cased first: a guard that a lower-case `order by` slips past is not
+	// a guard.
+	assert.NotContains(t, strings.ToUpper(executed), "ORDER BY",
+		"ordering by the random-uuid pk is what #862 removed")
+	assert.NotContains(t, strings.ToUpper(executed), "ID >",
+		"a keyset cursor implies an ordering; there is none")
 }
 
 // A caller that forgets to set a cap must still get a bounded query, not the
