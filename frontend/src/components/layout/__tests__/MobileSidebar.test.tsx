@@ -45,8 +45,11 @@ vi.mock('@/components/ui/sheet', async () => {
         // Mimic Radix Slot: clone the child, merging props. Crucially, Slot
         // joins className values into a string — a function className (as
         // react-router's NavLink uses) gets stringified into garbage classes.
-        // Replicating that here guards against regressions where NavLink is
-        // slotted directly instead of via a `display: contents` wrapper.
+        // Replicating that here is what keeps the drawer links honest now that
+        // the NavLink is slotted DIRECTLY (#891): the classes must come from a
+        // plain string built with `useNavLinkActive`, never from NavLink's function
+        // form. It also lands `data-testid="sheet-close"` on the `<a>` itself,
+        // which is the structural invariant the fix restores.
         const child = ReactActual.Children.only(children)
         return ReactActual.cloneElement(child, {
           'data-testid': 'sheet-close',
@@ -168,7 +171,9 @@ describe('MobileSidebar', () => {
   // -------------------------------------------------------------------------
   // Leaf links keep their Tailwind classes despite SheetClose's Slot merge.
   // Radix Slot stringifies NavLink's function `className`, which used to wipe
-  // every class (icon and label rendered on separate lines on mobile).
+  // every class (icon and label rendered on separate lines on mobile). The
+  // guard is unchanged by #891 — only the mechanism that satisfies it moved,
+  // from a `display: contents` wrapper to a string `className`.
   // -------------------------------------------------------------------------
   describe('nav link styling survives SheetClose asChild (Radix Slot)', () => {
     it('keeps the single-row flex classes on leaf nav links', () => {

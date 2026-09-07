@@ -7,6 +7,7 @@ import { SearchModal } from '@/components/layout/SearchModal'
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
 import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { useNavLinkActive } from '@/components/layout/useNavLinkActive'
 import {
   Collapsible,
   CollapsibleContent,
@@ -15,6 +16,65 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { SheetClose } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
+
+/**
+ * A slotted `asChild` child must be a real element with a real box, never a
+ * `display: contents` wrapper: Radix's `Slot` merges onto whatever it is given,
+ * and for a popper trigger that element is also the anchor floating-ui measures
+ * (a box-less wrapper measures 0x0 at the viewport origin — #891). `SheetClose`
+ * only needs click bubbling, which a real `<a>` provides, so these rows are not
+ * broken today; they carry the same anti-pattern and are normalised with the
+ * rails so it cannot be copied forward.
+ *
+ * Slot also string-joins `className`, which stringifies `NavLink`'s function
+ * form into garbage classes — hence `useNavLinkActive`, which mirrors NavLink's
+ * own `isActive` so the string form highlights identically. These have to be
+ * components rather than inline JSX because the links are rendered from a
+ * `.map()`, where a hook may not be called.
+ */
+function DrawerLeafLink({ item }: Readonly<{ item: NavItem }>) {
+  const end = item.href === '/'
+  const active = useNavLinkActive(item.href, end)
+  return (
+    <SheetClose asChild>
+      <NavLink
+        to={item.href}
+        end={end}
+        className={cn(
+          'flex items-center gap-[9px] rounded-md px-2.5 py-[7px] text-sm font-normal transition-colors',
+          active
+            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+            : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+        )}
+      >
+        <item.icon className="size-[15px] shrink-0 opacity-85" aria-hidden />
+        <span>{item.label}</span>
+      </NavLink>
+    </SheetClose>
+  )
+}
+
+/** Child row of a collapsible group. See `DrawerLeafLink` for the shape. */
+function DrawerChildLink({
+  child,
+}: Readonly<{ child: NonNullable<NavItem['children']>[number] }>) {
+  const active = useNavLinkActive(child.href)
+  return (
+    <SheetClose asChild>
+      <NavLink
+        to={child.href}
+        className={cn(
+          'rounded-md px-3 py-1.5 text-sm transition-colors',
+          active
+            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+            : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+        )}
+      >
+        {child.label}
+      </NavLink>
+    </SheetClose>
+  )
+}
 
 interface MobileGroupProps {
   item: NavItem
@@ -48,27 +108,7 @@ function MobileGroup({ item, pathname }: Readonly<MobileGroupProps>) {
       </CollapsibleTrigger>
       <CollapsibleContent className="ml-6 mt-0.5 flex flex-col gap-0.5 border-l pl-2">
         {children.map(child => (
-          <SheetClose asChild key={child.href}>
-            {/* Wrap NavLink in a span so Radix's Slot merge doesn't clobber
-                NavLink's function `className` prop (it merges classNames and
-                only accepts strings, which silently stringifies the function).
-                Clicks bubble to the span, so the sheet still closes. */}
-            <span className="contents">
-              <NavLink
-                to={child.href}
-                className={({ isActive }) =>
-                  cn(
-                    'rounded-md px-3 py-1.5 text-sm transition-colors',
-                    isActive
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                      : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-                  )
-                }
-              >
-                {child.label}
-              </NavLink>
-            </span>
-          </SheetClose>
+          <DrawerChildLink key={child.href} child={child} />
         ))}
       </CollapsibleContent>
     </Collapsible>
@@ -110,35 +150,7 @@ export function MobileSidebar() {
               {group.items.map(item => {
                 const hasChildren = !!item.children?.length
                 if (!hasChildren) {
-                  return (
-                    <SheetClose asChild key={item.href}>
-                      {/* Wrap NavLink in a span so Radix's Slot merge doesn't
-                          clobber NavLink's function `className` prop (it merges
-                          classNames and only accepts strings, which silently
-                          stringifies the function). Clicks bubble to the span,
-                          so the sheet still closes. */}
-                      <span className="contents">
-                        <NavLink
-                          to={item.href}
-                          end={item.href === '/'}
-                          className={({ isActive }) =>
-                            cn(
-                              'flex items-center gap-[9px] rounded-md px-2.5 py-[7px] text-sm font-normal transition-colors',
-                              isActive
-                                ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
-                                : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-                            )
-                          }
-                        >
-                          <item.icon
-                            className="size-[15px] shrink-0 opacity-85"
-                            aria-hidden
-                          />
-                          <span>{item.label}</span>
-                        </NavLink>
-                      </span>
-                    </SheetClose>
-                  )
+                  return <DrawerLeafLink key={item.href} item={item} />
                 }
                 return (
                   <MobileGroup
