@@ -1,4 +1,4 @@
-import { buildResourceUrl } from '@/lib/resourceUrl'
+import { buildProjectEditUrl, buildResourceUrl } from '@/lib/resourceUrl'
 
 describe('buildResourceUrl', () => {
   it('builds a prompt URL from its slug', () => {
@@ -50,5 +50,23 @@ describe('buildResourceUrl', () => {
 
   it('returns null for an unknown resource type', () => {
     expect(buildResourceUrl({ type: 'agent', id: 'x1', slug: 's' })).toBeNull()
+  })
+})
+
+describe('buildProjectEditUrl', () => {
+  it('builds the project settings URL for a team', () => {
+    expect(buildProjectEditUrl('team-1', 'design-system')).toBe(
+      '/teams/team-1/projects/design-system/edit'
+    )
+  })
+
+  it('percent-encodes both segments', () => {
+    expect(buildProjectEditUrl('team/1', 'a b')).toBe(
+      '/teams/team%2F1/projects/a%20b/edit'
+    )
+  })
+
+  it('returns null without a resolved team, so callers render no link', () => {
+    expect(buildProjectEditUrl(undefined, 'design-system')).toBeNull()
   })
 })

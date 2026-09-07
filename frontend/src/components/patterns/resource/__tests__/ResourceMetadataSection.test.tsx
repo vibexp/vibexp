@@ -174,6 +174,13 @@ describe('ResourceMetadataSection', () => {
     expect(rowLabels()).not.toContain('Project')
   })
 
+  it('omits the Project row when the href cannot be built', () => {
+    // `buildProjectEditUrl` returns null with no resolved team, which must
+    // render no row rather than a link to `/teams//projects/...`.
+    renderSection('memory', MEMORY, { projectHref: () => null })
+    expect(rowLabels()).not.toContain('Project')
+  })
+
   it('links the Project row through the caller-supplied href', () => {
     renderSection('memory', MEMORY)
     expect(screen.getByRole('link', { name: /Design System/ })).toHaveAttribute(

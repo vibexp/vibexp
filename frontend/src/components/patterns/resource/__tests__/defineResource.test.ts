@@ -232,4 +232,85 @@ describe('defineResource', () => {
       ).toThrow(/field 'type' has role 'type' but declares status metadata/)
     })
   })
+
+  // `render` is the escape hatch for the handful of non-scalar metadata rows.
+  // Confining it to `meta` is what stops it becoming a general per-page layout
+  // slot, so the guard needs its own coverage — without this, deleting it
+  // leaves the suite green.
+  describe('render is meta-only', () => {
+    it('accepts a render on a meta field', () => {
+      const valid = descriptor([
+        NAME,
+        SLUG,
+        { key: 'path', role: 'meta', label: 'Path', render: () => null },
+      ])
+      expect(defineResource(valid)).toBe(valid)
+    })
+
+    it('throws when a non-meta field declares a render', () => {
+      expect(() =>
+        defineResource(
+          descriptor([
+            { key: 'title', role: 'name', label: 'Title', render: () => null },
+            SLUG,
+          ])
+        )
+      ).toThrow(
+        /field 'title' declares 'render' but has role 'name' \(only 'meta' may\)/
+      )
+    })
+  })
+
+  describe('value labels', () => {
+    it('throws when a role other than status or type declares them', () => {
+      expect(() =>
+        defineResource(
+          descriptor([
+            NAME,
+            SLUG,
+            {
+              key: 'path',
+              role: 'meta',
+              label: 'Path',
+              valueLabels: { a: 'A' },
+            },
+          ])
+        )
+      ).toThrow(
+        /field 'path' declares 'valueLabels' but has role 'meta' \(only 'status' or 'type' may\)/
+      )
+    })
+
+    it('throws when a status label names a value the resource cannot be in', () => {
+      expect(() =>
+        defineResource(
+          descriptor([
+            NAME,
+            SLUG,
+            {
+              key: 'status',
+              role: 'status',
+              label: 'Status',
+              statusValues: ['active'],
+              valueLabels: { retired: 'Retired' },
+            },
+          ])
+        )
+      ).toThrow(/status value 'retired' is not one of \["active"\]/)
+    })
+
+    it('accepts open-ended labels on a type field', () => {
+      const valid = descriptor([
+        NAME,
+        SLUG,
+        {
+          key: 'type',
+          role: 'type',
+          label: 'Type',
+          valueLabels: { work_reports: 'Work reports' },
+        },
+      ])
+      expect(defineResource(valid)).toBe(valid)
+    })
+  })
 })
