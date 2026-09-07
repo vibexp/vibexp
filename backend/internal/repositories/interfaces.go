@@ -1764,6 +1764,10 @@ type FreshnessCandidateRepository interface {
 	// ONE call returns the WHOLE match set, up to Query.Limit. There is no
 	// cursor: Limit is a guard-rail, so a caller that gets exactly Limit rows
 	// back has matched at least that many and cannot read the remainder (#862).
+	// A caller that means to drain MUST therefore state its own Limit and
+	// compare against it -- omitting it substitutes an implementation default,
+	// which the caller cannot recognise in the row count and so cannot tell
+	// apart from a complete answer.
 	// Results are UNORDERED -- callers fold them into a set -- because the only
 	// orderable key is a random uuid, and ordering on it is what made the old
 	// paged form walk the heap at random.

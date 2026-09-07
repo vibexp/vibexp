@@ -164,8 +164,8 @@ func TestFreshnessCandidateRepository_ListStaleCandidates_IsUnorderedAndCursorle
 	assert.NotContains(t, executed, "id >", "a keyset cursor implies an ordering; there is none")
 }
 
-// A caller that forgets to set a batch size must still get a bounded query,
-// not the team's entire resource table.
+// A caller that forgets to set a cap must still get a bounded query, not the
+// team's entire resource table.
 func TestFreshnessCandidateRepository_ListStaleCandidates_DefaultsTheLimit(t *testing.T) {
 	repo, mock := setupFreshnessCandidateTest(t)
 

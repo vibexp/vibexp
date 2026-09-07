@@ -47,6 +47,13 @@ var freshnessAnyMediumColumns = []string{
 // a caller bug cannot pull an entire team's resources into memory. It is a
 // guard-rail and not a page size -- there is no cursor to read a remainder
 // with, so a caller that means to drain a rule states its own cap.
+//
+// A caller that omits Limit therefore gets an ARBITRARY (the query is
+// unordered) subset it cannot tell apart from a complete answer: its own Limit
+// is 0, so the row count signals nothing. That is deliberate -- the default is
+// a backstop against an unbounded read, not a usable drain -- and it is why
+// the evaluator sets candidateDrainCap explicitly and checks the result
+// against it.
 const defaultFreshnessCandidateLimit = 500
 
 // FreshnessCandidateRepository implements

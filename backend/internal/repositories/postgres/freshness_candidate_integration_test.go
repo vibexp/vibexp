@@ -278,8 +278,12 @@ func TestIntegrationFreshnessCandidates_OneCallDrainsEveryRowOnce(t *testing.T) 
 	scope := seedCandidateScope(t)
 	repo := NewFreshnessCandidateRepository(integrationDB)
 
-	// More than the old 500-row page would have held, so the pre-#862 code
-	// could not have satisfied this in one call.
+	// More than the evaluator's old 500-row page held. This is not itself a
+	// revert guard -- the REPOSITORY always returned up to Limit in one call,
+	// and 500 was the evaluator's page size, not the repository's -- it is the
+	// size at which the drain used to be split across cursor round trips and
+	// now is not. The revert guard for the query shape is
+	// TestFreshnessCandidateRepository_ListStaleCandidates_IsUnorderedAndCursorless.
 	const stale = 501
 
 	want := make([]string, 0, stale)
