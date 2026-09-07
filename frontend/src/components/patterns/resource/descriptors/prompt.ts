@@ -22,8 +22,20 @@ export const promptDescriptor = defineResource({
       tone: { draft: 'warning', published: 'success' },
     },
     { key: 'labels', role: 'taxonomy', label: 'Labels', optional: true },
-    { key: 'mcp_expose', role: 'meta', label: 'MCP' },
-    { key: 'is_shared', role: 'meta', label: 'Shared' },
+    {
+      key: 'mcp_expose',
+      role: 'meta',
+      label: 'MCP',
+      render: value => (value === true ? 'Exposed' : 'Not exposed'),
+    },
+    {
+      key: 'is_shared',
+      role: 'meta',
+      label: 'Shared',
+      // Only worth a row when it is true: an unshared prompt is the norm, and
+      // the reading header already badges a shared one.
+      render: value => (value === true ? 'Shared' : null),
+    },
     { key: 'project_id', role: 'meta', label: 'Project' },
   ],
   capabilities: {

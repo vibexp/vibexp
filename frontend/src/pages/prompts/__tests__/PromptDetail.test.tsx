@@ -148,6 +148,12 @@ function resetRenderer() {
   mockRenderer.fetchPlaceholders.mockResolvedValue(undefined)
 }
 
+vi.mock('@/services/projectService', () => ({
+  projectService: {
+    getProjects: vi.fn(),
+  },
+}))
+
 vi.mock('@/hooks', () => {
   const showSuccess = vi.fn()
   const showError = vi.fn()
@@ -166,6 +172,7 @@ vi.mock('@/hooks/useErrorHandler', () => ({
 
 import React from 'react'
 
+import { projectService } from '@/services/projectService'
 import { promptService } from '@/services/promptService'
 
 import { PromptDetail } from '../PromptDetail'
@@ -216,6 +223,10 @@ describe('PromptDetail page', () => {
     storage.clear()
     setTeamPermissions([])
     ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
+    // The Project metadata row (#903) resolves the owning project by id.
+    ;(projectService.getProjects as Mock).mockResolvedValue({
+      projects: [{ id: 'proj-1', name: 'My Project', slug: 'my-project-slug' }],
+    })
     ;(promptService.getPromptDependencies as Mock).mockResolvedValue({
       used_by: [],
       uses: [],
@@ -236,8 +247,12 @@ describe('PromptDetail page', () => {
         'team-1',
         'code-review-template'
       )
-      expect(screen.getByText('published')).toBeInTheDocument()
-      expect(screen.getByText('code-review-template')).toBeInTheDocument()
+      // Status and slug each render twice since #903: once in the reading
+      // header, once as a descriptor-generated Metadata row.
+      expect(screen.getAllByText('published')).toHaveLength(2)
+      expect(
+        screen.getAllByText('code-review-template').length
+      ).toBeGreaterThan(0)
       // The body renders once, in the default (Rendered) view — only the
       // active tab panel is mounted (#901).
       expect(screen.getByRole('tabpanel')).toHaveTextContent(
@@ -418,7 +433,9 @@ describe('PromptDetail page', () => {
 
       // userEvent.setup installs a clipboard stub; read it back to observe.
       const user = userEvent.setup()
-      await user.click(screen.getByRole('button', { name: /Copy/ }))
+      // The Metadata section's slug chip is also a "Copy …" button (#903), so
+      // address the page action by its exact name.
+      await user.click(screen.getByRole('button', { name: 'Copy content' }))
 
       expect(await navigator.clipboard.readText()).toBe(
         'Please review this code for: {{criteria}}'

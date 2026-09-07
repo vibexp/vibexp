@@ -3,10 +3,11 @@ import { Eye, Pencil, Share2, Trash2 } from 'lucide-react'
 import type { NavigateFunction } from 'react-router'
 
 import { FreshnessBadge } from '@/components/FreshnessBadge'
+import { statusTone } from '@/components/patterns/resource'
+import { StatusBadge } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatRelativeTime } from '@/lib/time'
-import { cn } from '@/lib/utils'
 import type { Prompt } from '@/services/promptService'
 
 function absTime(value: string) {
@@ -17,19 +18,6 @@ function absTime(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function StatusDotPill({ status }: Readonly<{ status: Prompt['status'] }>) {
-  const dotClass = status === 'published' ? 'bg-success' : 'bg-warning'
-  return (
-    <span
-      className="bg-muted text-foreground inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium"
-      aria-label={`Status: ${status}`}
-    >
-      <span className={cn('size-1.5 rounded-full', dotClass)} aria-hidden />
-      {status}
-    </span>
-  )
 }
 
 export function buildPromptsColumns({
@@ -76,7 +64,11 @@ export function buildPromptsColumns({
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => <StatusDotPill status={row.original.status} />,
+      cell: ({ row }) => (
+        <StatusBadge tone={statusTone('prompt', row.original.status)}>
+          {row.original.status}
+        </StatusBadge>
+      ),
     },
     {
       id: 'shared',

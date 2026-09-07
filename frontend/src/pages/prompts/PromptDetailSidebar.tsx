@@ -1,12 +1,13 @@
 import { Link2 } from 'lucide-react'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import {
-  MetadataPanel,
-  MetaRow,
-  type VersionHistoryMeta,
-} from '@/components/metadata/MetadataPanel'
+import type { VersionHistoryMeta } from '@/components/metadata/MetadataPanel'
 import type { ReadingSection } from '@/components/patterns/reading-page'
+import {
+  type ProjectRef,
+  ResourceMetadataSection,
+  resourceRegistry,
+} from '@/components/patterns/resource'
 import { Badge } from '@/components/ui/badge'
 import {
   Panel,
@@ -22,16 +23,23 @@ import type {
 interface PromptMetadataProps {
   prompt: Prompt
   versionHistory?: VersionHistoryMeta
+  /** Resolved owning project; omitted/null while it loads. */
+  project?: ProjectRef | null
+  /** Builds the Project row's link target. */
+  projectHref?: (project: ProjectRef) => string | null
 }
 
 /**
  * The prompt's Metadata section: description and labels cards, then the
- * shared `MetadataPanel`. The standard panels (attachments, activity,
- * comments, relations) come from `ResourceReadingPage`, not from here.
+ * descriptor-generated `ResourceMetadataSection` (#903). The standard panels
+ * (attachments, activity, comments, relations) come from
+ * `ResourceReadingPage`, not from here.
  */
 export function PromptMetadata({
   prompt,
   versionHistory,
+  project,
+  projectHref,
 }: Readonly<PromptMetadataProps>) {
   return (
     <div className="space-y-5">
@@ -65,15 +73,13 @@ export function PromptMetadata({
         </Panel>
       )}
 
-      <MetadataPanel
-        createdAt={prompt.created_at}
-        updatedAt={prompt.updated_at}
+      <ResourceMetadataSection
+        descriptor={resourceRegistry.prompt}
+        resource={prompt}
         versionHistory={versionHistory}
-      >
-        <MetaRow label="MCP">
-          {prompt.mcp_expose ? 'Exposed' : 'Not exposed'}
-        </MetaRow>
-      </MetadataPanel>
+        project={project}
+        projectHref={projectHref}
+      />
     </div>
   )
 }

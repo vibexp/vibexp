@@ -11,6 +11,7 @@ import {
   useBodyViewMode,
   useCopyAction,
 } from '@/components/patterns/reading-page'
+import { statusTone } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -20,6 +21,8 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics, usePromptRenderer } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useResourceProject } from '@/hooks/useResourceProject'
+import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import {
   PromptMetadata,
   promptUsedBySection,
@@ -141,6 +144,9 @@ export function PromptDetail() {
     useState<PromptDependenciesResponse | null>(null)
   const [loadingDependencies, setLoadingDependencies] = useState(false)
   const [versions, setVersions] = useState<PromptVersion[]>([])
+  // Supplemental — the Project metadata row needs the project's name, and the
+  // prompt payload carries only its id.
+  const project = useResourceProject(currentTeam?.id, prompt?.project_id)
   // Owned here rather than by `ResourceBody` because the render and
   // placeholder effects below key off it; persisted under the same shared
   // key so the choice follows the reader across resources (#901).
@@ -359,9 +365,7 @@ export function PromptDetail() {
         title={prompt.name}
         description={
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <StatusBadge
-              tone={prompt.status === 'published' ? 'success' : 'warning'}
-            >
+            <StatusBadge tone={statusTone('prompt', prompt.status)}>
               {prompt.status}
             </StatusBadge>
             {prompt.is_shared && (
@@ -383,7 +387,12 @@ export function PromptDetail() {
             : undefined
         }
         metadata={
-          <PromptMetadata prompt={prompt} versionHistory={versionHistory} />
+          <PromptMetadata
+            prompt={prompt}
+            versionHistory={versionHistory}
+            project={project}
+            projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
+          />
         }
         extraSections={promptUsedBySection(dependencies, loadingDependencies)}
       >

@@ -111,6 +111,47 @@ function assertStatusMetadata(kind: string, field: FieldSpec) {
 }
 
 /**
+ * `render` exists for the two blueprint/prompt `meta` rows that are not plain
+ * scalars. Restricting it to `role: 'meta'` is what stops it becoming a
+ * general per-page slot that re-creates the bespoke panels this replaces.
+ */
+function assertRenderIsMetaOnly(kind: string, field: FieldSpec) {
+  if (field.render && field.role !== 'meta') {
+    fail(
+      kind,
+      `field '${field.key}' declares 'render' but has role '${field.role}' (only 'meta' may)`
+    )
+  }
+}
+
+/**
+ * `valueLabels` is display text for a closed-ish value set, so it only makes
+ * sense on the two roles that render a value as a badge. On a `status` field
+ * every labelled value must be one the resource can actually be in — the same
+ * rule `tone` follows.
+ */
+function assertValueLabels(kind: string, field: FieldSpec) {
+  const labels = field.valueLabels
+  if (!labels) return
+  if (field.role !== 'status' && field.role !== 'type') {
+    fail(
+      kind,
+      `field '${field.key}' declares 'valueLabels' but has role '${field.role}' (only 'status' or 'type' may)`
+    )
+  }
+  if (field.role !== 'status') return
+  const values = field.statusValues ?? []
+  for (const value of Object.keys(labels)) {
+    if (!values.includes(value)) {
+      fail(
+        kind,
+        `status value '${value}' is not one of ${JSON.stringify(values)}`
+      )
+    }
+  }
+}
+
+/**
  * `Object.freeze` is shallow, and a descriptor is a singleton every page holds
  * a reference to — one stray write would corrupt the app globally. The
  * `readonly` members on `ResourceDescriptor` stop that at compile time; this
@@ -140,6 +181,8 @@ export function defineResource<T extends ResourceDescriptor>(descriptor: T): T {
   assertAddressMatchesShape(kind, fields, address)
   fields.forEach(field => {
     assertStatusMetadata(kind, field)
+    assertRenderIsMetaOnly(kind, field)
+    assertValueLabels(kind, field)
   })
 
   return deepFreeze(descriptor)

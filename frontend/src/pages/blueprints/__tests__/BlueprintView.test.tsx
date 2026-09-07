@@ -45,6 +45,12 @@ vi.mock('@/services/attachmentService', () => ({
   },
 }))
 
+vi.mock('@/services/projectService', () => ({
+  projectService: {
+    getProjects: vi.fn(),
+  },
+}))
+
 vi.mock('@/hooks', () => {
   const showSuccess = vi.fn()
   const trackEvent = vi.fn()
@@ -63,6 +69,7 @@ vi.mock('@/hooks/useErrorHandler', () => {
 
 import { attachmentService } from '@/services/attachmentService'
 import { blueprintService } from '@/services/blueprintService'
+import { projectService } from '@/services/projectService'
 
 import { BlueprintView } from '../BlueprintView'
 
@@ -95,6 +102,12 @@ function renderBlueprintView(project = 'my-project', slug = 'my-blueprint') {
 describe('BlueprintView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // The Project metadata row (#903) resolves the owning project by id.
+    ;(projectService.getProjects as Mock).mockResolvedValue({
+      projects: [
+        { id: 'my-project', name: 'My Project', slug: 'my-project-slug' },
+      ],
+    })
   })
 
   describe('when TeamContext is still loading (isLoadingTeam = true)', () => {
@@ -157,6 +170,25 @@ describe('BlueprintView', () => {
           'blueprint-1'
         )
       })
+    })
+
+    it('links the Metadata Project row to the owning project (#903)', async () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValue(mockBlueprint)
+
+      renderBlueprintView()
+
+      const link = await screen.findByRole('link', { name: /My Project/ })
+      expect(link).toHaveAttribute(
+        'href',
+        '/teams/team-1/projects/my-project-slug/edit'
+      )
     })
 
     it('shows the canonical path and no provenance when source is absent (#345)', async () => {

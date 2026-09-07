@@ -1,26 +1,27 @@
 import {
   AlertCircle,
   ArrowLeft,
-  FolderOpen,
   HardDrive,
   Pencil,
   Tag as TagIcon,
   Trash2,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { MetadataPanel, MetaRow } from '@/components/metadata/MetadataPanel'
 import { AdditionalDataCard } from '@/components/MetadataCard'
 import {
   type ReadingAction,
   ResourceBody,
   useCopyAction,
 } from '@/components/patterns/reading-page'
+import {
+  ResourceMetadataSection,
+  resourceRegistry,
+} from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
-import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -33,14 +34,10 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import {
-  MEMORY_STATUS_LABEL,
-  memoryStatusTone,
-} from '@/pages/memories/memoryStatus'
+import { useResourceProject } from '@/hooks/useResourceProject'
+import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import type { Memory, MemoryVersion } from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
-import type { Project } from '@/services/projectService'
-import { projectService } from '@/services/projectService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -67,11 +64,13 @@ export function MemoryView() {
 
   const [memory, setMemory] = useState<Memory | null>(null)
   const [versions, setVersions] = useState<MemoryVersion[]>([])
-  const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // Supplemental — the Project metadata row needs the project's name, and the
+  // memory payload carries only its id.
+  const project = useResourceProject(currentTeam?.id, memory?.project_id)
 
   const backAction: ReadingAction = {
     id: 'back',
@@ -82,19 +81,6 @@ export function MemoryView() {
     },
   }
   const copyAction = useCopyAction(memory?.text ?? '')
-
-  const fetchProject = useCallback(
-    async (teamId: string, projectId: string) => {
-      try {
-        const res = await projectService.getProjects(teamId, { limit: 100 })
-        const found = res.projects.find(p => p.id === projectId) ?? null
-        setProject(found)
-      } catch {
-        // project metadata is supplemental — don't surface this as a page error
-      }
-    },
-    []
-  )
 
   useEffect(() => {
     // Guard against stale responses: if id/team change mid-flight, a slower earlier
@@ -129,9 +115,6 @@ export function MemoryView() {
             action_context: 'view',
           },
         })
-        if (response.project_id) {
-          void fetchProject(currentTeam.id, response.project_id)
-        }
         // Version history powers the Metadata panel's footer link + count chip.
         // Best-effort: a failure here must not break the memory view itself.
         try {
@@ -155,7 +138,7 @@ export function MemoryView() {
     return () => {
       active = false
     }
-  }, [id, currentTeam, isLoadingTeam, handleError, trackEvent, fetchProject])
+  }, [id, currentTeam, isLoadingTeam, handleError, trackEvent])
 
   const handleDelete = async () => {
     if (!memory || !currentTeam) return
@@ -261,28 +244,13 @@ export function MemoryView() {
         attachments={false}
         metadata={
           <div className="space-y-5">
-            <MetadataPanel
-              createdAt={memory.created_at}
-              updatedAt={memory.updated_at}
+            <ResourceMetadataSection
+              descriptor={resourceRegistry.memory}
+              resource={memory}
               versionHistory={versionHistory}
-            >
-              <MetaRow label="Status">
-                <StatusBadge tone={memoryStatusTone(memory.status)}>
-                  {MEMORY_STATUS_LABEL[memory.status]}
-                </StatusBadge>
-              </MetaRow>
-              {project && (
-                <MetaRow label="Project">
-                  <Link
-                    to={`/teams/${currentTeam?.id ?? ''}/projects/${encodeURIComponent(project.slug)}/edit`}
-                    className="flex items-center gap-1 hover:underline"
-                  >
-                    <FolderOpen className="size-3" />
-                    {project.name}
-                  </Link>
-                </MetaRow>
-              )}
-            </MetadataPanel>
+              project={project}
+              projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
+            />
 
             {tags.length > 0 && (
               <Panel>

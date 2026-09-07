@@ -4,39 +4,28 @@ import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import {
-  MetadataPanel,
-  MetaRow,
-  MetaSlugRow,
-} from '@/components/metadata/MetadataPanel'
 import { AdditionalDataCard } from '@/components/MetadataCard'
 import {
   type ReadingAction,
   ResourceBody,
   useCopyAction,
 } from '@/components/patterns/reading-page'
+import {
+  ResourceMetadataSection,
+  resourceRegistry,
+} from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
-import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import {
-  ARTIFACT_STATUS_LABEL,
-  artifactStatusTone,
-} from '@/pages/artifacts/artifactStatus'
+import { useResourceProject } from '@/hooks/useResourceProject'
+import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import type { Artifact, ArtifactVersion } from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
-
-const TYPE_LABEL: Record<Artifact['type'], string> = {
-  general: 'General',
-  work_reports: 'Work reports',
-  static_contexts: 'Static contexts',
-}
 
 export function ArtifactView() {
   const { project, slug } = useParams<{ project: string; slug: string }>()
@@ -53,6 +42,9 @@ export function ArtifactView() {
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // Supplemental — the Project metadata row needs the project's name, and the
+  // artifact payload carries only its id.
+  const projectRef = useResourceProject(currentTeam?.id, artifact?.project_id)
 
   const backAction: ReadingAction = {
     id: 'back',
@@ -233,21 +225,13 @@ export function ArtifactView() {
         }
         metadata={
           <div className="space-y-5">
-            <MetadataPanel
-              createdAt={artifact.created_at}
-              updatedAt={artifact.updated_at}
+            <ResourceMetadataSection
+              descriptor={resourceRegistry.artifact}
+              resource={artifact}
               versionHistory={versionHistory}
-            >
-              <MetaRow label="Type">
-                <Badge variant="secondary">{TYPE_LABEL[artifact.type]}</Badge>
-              </MetaRow>
-              <MetaRow label="Status">
-                <StatusBadge tone={artifactStatusTone(artifact.status)}>
-                  {ARTIFACT_STATUS_LABEL[artifact.status]}
-                </StatusBadge>
-              </MetaRow>
-              <MetaSlugRow value={artifact.slug} />
-            </MetadataPanel>
+              project={projectRef}
+              projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
+            />
             <AdditionalDataCard data={artifact.metadata ?? {}} />
           </div>
         }

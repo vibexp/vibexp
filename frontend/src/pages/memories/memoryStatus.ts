@@ -1,3 +1,5 @@
+import { statusTone } from '@/components/patterns/resource'
+import type { StatusTone } from '@/components/StatusBadge'
 import type { MemoryStatus } from '@/services/memoryService'
 
 // Human-readable labels for each status (badge text, table cells).
@@ -21,15 +23,9 @@ export const MEMORY_STATUS_OPTIONS: readonly {
 
 // Distinct StatusBadge tones per status so the three states read differently:
 // active = success (green), draft = warning (amber), archived = neutral (muted).
-export function memoryStatusTone(
-  status: MemoryStatus
-): 'success' | 'warning' | 'neutral' {
-  switch (status) {
-    case 'active':
-      return 'success'
-    case 'draft':
-      return 'warning'
-    case 'archived':
-      return 'neutral'
-  }
+// The table itself lives on the memory descriptor (#903) so the detail page's
+// generated Status row and this list column cannot drift apart; this stays as
+// the list columns' call-site-shaped entry point into it.
+export function memoryStatusTone(status: MemoryStatus): StatusTone {
+  return statusTone('memory', status)
 }

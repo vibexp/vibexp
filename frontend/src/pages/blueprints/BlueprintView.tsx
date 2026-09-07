@@ -4,38 +4,28 @@ import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import {
-  MetadataPanel,
-  MetaRow,
-  MetaSlugRow,
-} from '@/components/metadata/MetadataPanel'
 import { AdditionalDataCard } from '@/components/MetadataCard'
 import {
   type ReadingAction,
   ResourceBody,
   useCopyAction,
 } from '@/components/patterns/reading-page'
+import {
+  ResourceMetadataSection,
+  resourceRegistry,
+} from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
-import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import { formatDate } from '@/lib/time'
+import { useResourceProject } from '@/hooks/useResourceProject'
+import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import type { Blueprint, BlueprintVersion } from '@/services/blueprintService'
 import { blueprintService } from '@/services/blueprintService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
-
-const TYPE_LABEL: Record<Blueprint['type'], string> = {
-  general: 'General',
-  'claude-code': 'Claude Code',
-  claude: 'Claude',
-  cursor: 'Cursor',
-  codex: 'Codex',
-}
 
 export function BlueprintView() {
   const { project, slug } = useParams<{ project: string; slug: string }>()
@@ -52,6 +42,9 @@ export function BlueprintView() {
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // Supplemental — the Project metadata row needs the project's name, and the
+  // blueprint payload carries only its id.
+  const projectRef = useResourceProject(currentTeam?.id, blueprint?.project_id)
 
   const backAction: ReadingAction = {
     id: 'back',
@@ -228,63 +221,13 @@ export function BlueprintView() {
         }
         metadata={
           <div className="space-y-5">
-            <MetadataPanel
-              createdAt={blueprint.created_at}
-              updatedAt={blueprint.updated_at}
+            <ResourceMetadataSection
+              descriptor={resourceRegistry.blueprint}
+              resource={blueprint}
               versionHistory={versionHistory}
-            >
-              <MetaRow label="Type">
-                <Badge variant="secondary">{TYPE_LABEL[blueprint.type]}</Badge>
-              </MetaRow>
-              <MetaRow label="Status">
-                <StatusBadge
-                  tone={blueprint.status === 'active' ? 'success' : 'neutral'}
-                >
-                  <span className="size-1.5 rounded-full bg-current" />
-                  {blueprint.status}
-                </StatusBadge>
-              </MetaRow>
-              <MetaSlugRow value={blueprint.slug} />
-              <MetaRow label="Path">
-                <code
-                  className="text-foreground/90 min-w-0 truncate font-mono text-xs"
-                  title={blueprint.path}
-                >
-                  {blueprint.path}
-                </code>
-              </MetaRow>
-              {blueprint.source && (
-                <>
-                  {blueprint.source.repo && (
-                    <MetaRow label="Source">
-                      <a
-                        href={blueprint.source.repo}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary min-w-0 truncate hover:underline"
-                        title={blueprint.source.repo}
-                      >
-                        {blueprint.source.repo.replace(/^https?:\/\//, '')}
-                      </a>
-                    </MetaRow>
-                  )}
-                  {blueprint.source.commit_sha && (
-                    <MetaRow label="Commit">
-                      <code className="text-muted-foreground font-mono text-xs">
-                        {blueprint.source.commit_sha.slice(0, 7)}
-                      </code>
-                    </MetaRow>
-                  )}
-                  {blueprint.source.imported_at && (
-                    <MetaRow label="Imported">
-                      <span className="text-muted-foreground">
-                        {formatDate(blueprint.source.imported_at)}
-                      </span>
-                    </MetaRow>
-                  )}
-                </>
-              )}
-            </MetadataPanel>
+              project={projectRef}
+              projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
+            />
             <AdditionalDataCard data={blueprint.metadata ?? {}} />
           </div>
         }

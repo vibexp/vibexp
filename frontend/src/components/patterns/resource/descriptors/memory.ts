@@ -21,8 +21,11 @@ export const memoryDescriptor = defineResource({
       label: 'Status',
       statusValues: ['active', 'draft', 'archived'],
       tone: { active: 'success', draft: 'warning', archived: 'neutral' },
+      valueLabels: { active: 'Active', draft: 'Draft', archived: 'Archived' },
     },
     { key: 'project_id', role: 'meta', label: 'Project' },
+    // The free-form blob: object-valued, so the metadata section renders no
+    // row for it — `AdditionalDataCard` beneath the panel owns it.
     { key: 'metadata', role: 'meta', label: 'Metadata', optional: true },
   ],
   capabilities: {
