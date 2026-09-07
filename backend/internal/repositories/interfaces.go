@@ -1761,8 +1761,12 @@ type FreshnessCandidateRepository interface {
 	// threshold. A resource never accessed through any selected medium falls
 	// back to updated_at, so "never accessed" is eligible rather than exempt.
 	//
-	// Results are ordered by resource id ascending, so passing the last id
-	// back as Query.AfterID reads the next batch.
+	// ONE call returns the WHOLE match set, up to Query.Limit. There is no
+	// cursor: Limit is a guard-rail, so a caller that gets exactly Limit rows
+	// back has matched at least that many and cannot read the remainder (#862).
+	// Results are UNORDERED -- callers fold them into a set -- because the only
+	// orderable key is a random uuid, and ordering on it is what made the old
+	// paged form walk the heap at random.
 	ListStaleCandidates(ctx context.Context, query models.FreshnessCandidateQuery) ([]models.FreshnessCandidate, error)
 }
 

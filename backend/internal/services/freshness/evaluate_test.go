@@ -113,14 +113,15 @@ func storedStale(ruleIDs ...string) *models.ResourceFreshness {
 }
 
 // expectCandidates answers one (rule, resource type) query with the given
-// candidates. The evaluator pages until a short page comes back, and these
-// pages are always short, so one expectation per query is right.
+// candidates. `.Once()` is load-bearing: since #862 a drain is exactly ONE
+// call, so a second one would be a regression back to paging rather than an
+// unmet expectation.
 func (d evaluatorDeps) expectCandidates(
 	resourceType string, candidates ...models.FreshnessCandidate,
 ) {
 	d.candidates.EXPECT().
 		ListStaleCandidates(mock.Anything, mock.MatchedBy(func(q models.FreshnessCandidateQuery) bool {
-			return q.TeamID == testTeamID && q.ResourceType == resourceType && q.AfterID == ""
+			return q.TeamID == testTeamID && q.ResourceType == resourceType
 		})).
 		Return(candidates, nil).Once()
 }
@@ -403,33 +404,29 @@ func TestEvaluate_ClearAlreadyGoneWritesNoAudit(t *testing.T) {
 	require.NoError(t, evaluator.Evaluate(context.Background(), testTeamID))
 }
 
-// A rule matching more resources than one batch holds must be paged through,
-// with the last id of each page carried into the next query.
-func TestEvaluate_PagesThroughCandidates(t *testing.T) {
+// A rule matching far more resources than the old 500-row page held must be
+// read in ONE query (#862). Ordering by the random-uuid primary key to carry a
+// keyset cursor cost ~42x the buffer accesses of a single drain, so a second
+// call here is the regression this asserts against.
+func TestEvaluate_DrainsCandidatesInOneCall(t *testing.T) {
 	evaluator, deps := newEvaluator(t)
 
-	first := make([]models.FreshnessCandidate, 500)
-	for i := range first {
-		first[i] = models.FreshnessCandidate{
+	matched := make([]models.FreshnessCandidate, 501)
+	for i := range matched {
+		matched[i] = models.FreshnessCandidate{
 			ResourceType: "prompt",
 			ResourceID:   promptIDForIndex(i),
 			ProjectID:    testProjectID,
 		}
 	}
-	lastOfFirstPage := first[len(first)-1].ResourceID
 
 	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
 		Return([]*models.FreshnessRule{rule(testRuleID, "prompt")}, nil).Once()
 	deps.candidates.EXPECT().
 		ListStaleCandidates(mock.Anything, mock.MatchedBy(func(q models.FreshnessCandidateQuery) bool {
-			return q.AfterID == ""
+			return q.TeamID == testTeamID && q.ResourceType == "prompt" && q.Limit > 0
 		})).
-		Return(first, nil).Once()
-	deps.candidates.EXPECT().
-		ListStaleCandidates(mock.Anything, mock.MatchedBy(func(q models.FreshnessCandidateQuery) bool {
-			return q.AfterID == lastOfFirstPage
-		})).
-		Return([]models.FreshnessCandidate{promptCandidate()}, nil).Once()
+		Return(matched, nil).Once()
 
 	deps.state.EXPECT().ListAllByTeam(mock.Anything, testTeamID).
 		Return([]*models.ResourceFreshness{}, nil).Once()
@@ -529,27 +526,33 @@ func promptIDForIndex(i int) string {
 	})
 }
 
-// Exhausting the batch cap must ABORT, not return a truncated match set.
+// Exhausting the drain cap must ABORT, not return a truncated match set.
 // Continuing would treat every unread resource as no longer stale and clear
 // it -- turning "I could not read everything" into an active mass un-flagging
-// with an audit row per resource, re-marked on the next run.
-func TestEvaluate_BatchCapAbortsInsteadOfTruncating(t *testing.T) {
+// with an audit row per resource, re-marked on the next run. Since #862 the
+// cap is one query's row limit rather than a batch count, so a single full
+// result set is what trips it.
+func TestEvaluate_DrainCapAbortsInsteadOfTruncating(t *testing.T) {
 	evaluator, deps := newEvaluator(t)
 
-	full := make([]models.FreshnessCandidate, 500)
+	// Mirrors freshness.candidateDrainCap, which is unexported. Every element
+	// is the same candidate: only the LENGTH decides, and reusing one value
+	// keeps a half-million-row slice cheap.
+	const drainCap = 500_000
+	full := make([]models.FreshnessCandidate, drainCap)
 	for i := range full {
 		full[i] = models.FreshnessCandidate{
 			ResourceType: "prompt",
-			ResourceID:   promptIDForIndex(i),
+			ResourceID:   testPromptID,
 			ProjectID:    testProjectID,
 		}
 	}
 
 	deps.rules.EXPECT().ListByTeam(mock.Anything, testTeamID, true).
 		Return([]*models.FreshnessRule{rule(testRuleID, "prompt")}, nil).Once()
-	// Every page comes back full, so the cursor never reaches the end.
+	// The drain comes back exactly full, so the cap truncated it.
 	deps.candidates.EXPECT().ListStaleCandidates(mock.Anything, mock.Anything).
-		Return(full, nil).Times(1000)
+		Return(full, nil).Once()
 
 	err := evaluator.Evaluate(context.Background(), testTeamID)
 

@@ -43,8 +43,10 @@ var freshnessAnyMediumColumns = []string{
 	"last_accessed_api_at",
 }
 
-// defaultFreshnessCandidateLimit bounds a query that did not ask for a batch
-// size, so a caller bug cannot pull an entire team's resources into memory.
+// defaultFreshnessCandidateLimit bounds a query that did not ask for a cap, so
+// a caller bug cannot pull an entire team's resources into memory. It is a
+// guard-rail and not a page size -- there is no cursor to read a remainder
+// with, so a caller that means to drain a rule states its own cap.
 const defaultFreshnessCandidateLimit = 500
 
 // FreshnessCandidateRepository implements
@@ -58,8 +60,8 @@ func NewFreshnessCandidateRepository(db *database.DB) repositories.FreshnessCand
 	return &FreshnessCandidateRepository{db: db}
 }
 
-// ListStaleCandidates returns one batch of resources a rule currently
-// considers stale.
+// ListStaleCandidates returns every resource a rule currently considers
+// stale, in one unordered pass bounded by query.Limit.
 //
 // The staleness test is a single comparison rather than an aggregate over
 // resource_access_events: `GREATEST(updated_at, <selected last-accessed
@@ -83,32 +85,40 @@ func NewFreshnessCandidateRepository(db *database.DB) repositories.FreshnessCand
 // The comparison is strict (`<`), so a resource whose last touch is EXACTLY
 // the threshold ago is not yet stale -- "more than N days" as written.
 //
-// # Scan bound: measured, and deliberately not indexed (#766)
+// # Scan bound: one unordered drain, deliberately not indexed (#766, #862)
 //
-// No index backs the staleness predicate, and that is a recorded decision
-// rather than an oversight. Measured on PG17, 245k prompts across 10 teams
-// (200k in the largest), ~1% of a team's rows stale, all buffers cached.
-// Sampled on `prompts`, but the finding is table-independent: the dominant
-// cost is the random-uuid `ORDER BY id` every one of the four shares, and the
-// GREATEST expression is unsargable in all of them (in `memories` doubly so --
-// its updated_at is naive, so the expression wraps it in AT TIME ZONE).
+// No index backs the staleness predicate, and no ORDER BY narrows the scan.
+// Both are recorded decisions rather than oversights. Measured on PG17, 245k
+// prompts across 10 teams (200k in the largest), ~1% of a team's rows stale,
+// all buffers cached. Sampled on `prompts`, but the finding is
+// table-independent: the GREATEST expression is unsargable in all four (in
+// `memories` doubly so -- its updated_at is naive, so the expression wraps it
+// in AT TIME ZONE), and all four have the same random-uuid primary key.
 //
 //	full drain of the largest team   ~5.9k buffers / ~97ms   (one pass)
-//	ONE LIMIT-500 batch              ~55k buffers / ~45ms
+//	ONE LIMIT-500 batch, ORDER BY id ~55k buffers / ~45ms
 //
-// Read those as I/O, not wall clock: the batch is FASTER in elapsed time
-// because it stops as soon as 500 rows match, while doing ~9x the buffer
-// accesses of scanning the entire table once. Draining a team walks the whole
-// id space across its batches, so ~246k accesses, ~42x the full scan. Every
-// buffer above was a cache hit, which is why 45ms hides it; on a cold cache
-// the access count is what would be felt.
+// Read those as I/O, not wall clock: the batch was FASTER in elapsed time
+// because it stopped as soon as 500 rows matched, while doing ~9x the buffer
+// accesses of scanning the entire table once. Draining a team that way walked
+// the whole id space across its batches, so ~246k accesses, ~42x the full
+// scan. Every buffer above was a cache hit, which is why 45ms hid it; on a
+// cold cache the access count is what would be felt.
 //
-// The cause is NOT the missing index: `id` is a random uuid, so `ORDER BY id`
+// The cause was NOT the missing index: `id` is a random uuid, so `ORDER BY id`
 // walks the heap in random physical order (~1.0 buffer/row) where a
 // team-ordered scan is near-sequential (~0.05). The planner picks that walk
 // because it estimates ~66k matching rows when 2.3k match -- a 29x
 // overestimate it cannot fix, since the GREATEST expression varies with the
 // rule's medium set and so carries no statistics.
+//
+// So the fix was the batching, not an index (#862): the ordering existed only
+// to carry a keyset cursor, and the evaluator never wanted it -- it folds
+// candidates into a map keyed by (resource type, resource id). Dropping both
+// the cursor predicate and the ORDER BY leaves the planner free to take the
+// `team_id` index or a sequential scan, which IS the "full drain" plan above.
+// Limit survives as a pure guard-rail; the caller treats reaching it as an
+// error, because without a cursor there is no remainder to read.
 //
 // The three candidate fixes were measured and rejected:
 //
@@ -128,13 +138,15 @@ func NewFreshnessCandidateRepository(db *database.DB) repositories.FreshnessCand
 //     knowledge base is read far more than written, so an old updated_at is
 //     the common case rather than the selective one.
 //
-// Accepted because the cost is small in absolute terms and well placed: the
-// pass runs at most once a day per team, serialized under the scheduler's
-// advisory lock, off the request path, and batched per resource type.
+// Accepted because the remaining cost is small in absolute terms and well
+// placed: the pass runs at most once a day per team, serialized under the
+// scheduler's advisory lock, off the request path, and one query per rule and
+// resource type.
 //
 // Revisit when a SINGLE team exceeds ~1M resources of one type, or if this
-// query ever moves onto a request path. The fix at that point is the batching,
-// not an index -- see #862.
+// query ever moves onto a request path. Both of the cheap options are spent,
+// so the next step would be the denormalized-column redesign above with its
+// per-medium-subset correctness problem solved -- not another index.
 func (r *FreshnessCandidateRepository) ListStaleCandidates(
 	ctx context.Context, query models.FreshnessCandidateQuery,
 ) ([]models.FreshnessCandidate, error) {
@@ -158,31 +170,28 @@ func (r *FreshnessCandidateRepository) ListStaleCandidates(
 	// above -- never from caller input -- so this interpolation cannot carry
 	// injection. Everything the caller supplies stays a bound parameter.
 	//
-	// The optional filters are expressed as `$n IS NULL OR ...` rather than by
-	// assembling the predicate conditionally: one query text means one sqlmock
-	// shape and one plan to reason about. Each placeholder is cast once, at
-	// every use, because lib/pq must infer a single type per placeholder.
+	// The optional project filter is expressed as `$n IS NULL OR ...` rather
+	// than by assembling the predicate conditionally: one query text means one
+	// sqlmock shape and one plan to reason about. Each placeholder is cast
+	// once, at every use, because lib/pq must infer a single type per
+	// placeholder.
+	//
+	// There is deliberately no ORDER BY -- see the scan-bound section above.
 	sqlText := fmt.Sprintf(`
 		SELECT id, project_id
 		FROM %s
 		WHERE team_id = $1::uuid
 		  AND ($2::uuid IS NULL OR project_id = $2::uuid)
-		  AND ($3::uuid IS NULL OR id > $3::uuid)
-		  AND %s < now() - make_interval(days => $4::integer)
-		ORDER BY id
-		LIMIT $5
+		  AND %s < now() - make_interval(days => $3::integer)
+		LIMIT $4
 	`, table, touchExpr)
 
 	var projectID interface{}
 	if query.ProjectID != nil {
 		projectID = *query.ProjectID
 	}
-	var afterID interface{}
-	if query.AfterID != "" {
-		afterID = query.AfterID
-	}
 
-	rows, err := r.db.QueryContext(ctx, sqlText, query.TeamID, projectID, afterID, query.ThresholdDays, limit)
+	rows, err := r.db.QueryContext(ctx, sqlText, query.TeamID, projectID, query.ThresholdDays, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list stale %s candidates: %w", query.ResourceType, err)
 	}
