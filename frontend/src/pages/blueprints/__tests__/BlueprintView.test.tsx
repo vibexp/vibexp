@@ -27,6 +27,7 @@ vi.mock('@/contexts/TeamContext', () => ({
 vi.mock('@/services/blueprintService', () => ({
   blueprintService: {
     getBlueprint: vi.fn(),
+    getBlueprintVersions: vi.fn().mockResolvedValue({ versions: [] }),
     deleteBlueprint: vi.fn(),
   },
 }))
@@ -405,6 +406,75 @@ describe('BlueprintView', () => {
       )
       // Exactly one view is mounted, so the body is never in the DOM twice.
       expect(screen.queryByTestId('markdown-renderer')).not.toBeInTheDocument()
+    })
+  })
+  // The Metadata panel's version-history affordance comes from
+  // `useResourceVersions` (#905); these pin this page's own wiring — the route
+  // it builds and the count it derives.
+  describe('version history', () => {
+    beforeEach(() => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValue(mockBlueprint)
+    })
+
+    it('renders the version-history link with the total-version count chip', async () => {
+      ;(blueprintService.getBlueprintVersions as Mock).mockResolvedValue({
+        versions: [
+          { id: 'v2', version_number: 2 },
+          { id: 'v1', version_number: 1 },
+        ],
+      })
+
+      renderBlueprintView()
+
+      const link = await screen.findByTestId('metadata-version-history-link')
+      expect(link).toHaveTextContent('View version history')
+      expect(link).toHaveTextContent('2')
+      expect(link).toHaveAttribute(
+        'href',
+        '/blueprints/my-project/my-blueprint/versions'
+      )
+      expect(blueprintService.getBlueprintVersions).toHaveBeenCalledWith(
+        'team-1',
+        'my-project',
+        'my-blueprint'
+      )
+    })
+
+    it('hides the version-history footer when there is no history yet', async () => {
+      ;(blueprintService.getBlueprintVersions as Mock).mockResolvedValue({
+        versions: [],
+      })
+
+      renderBlueprintView()
+
+      await waitFor(() => {
+        expect(screen.getByText('My Blueprint Title')).toBeInTheDocument()
+      })
+      expect(
+        screen.queryByTestId('metadata-version-history-link')
+      ).not.toBeInTheDocument()
+    })
+
+    it('keeps the page usable when the versions fetch fails', async () => {
+      ;(blueprintService.getBlueprintVersions as Mock).mockRejectedValue(
+        new Error('boom')
+      )
+
+      renderBlueprintView()
+
+      await waitFor(() => {
+        expect(screen.getByText('My Blueprint Title')).toBeInTheDocument()
+      })
+      expect(
+        screen.queryByTestId('metadata-version-history-link')
+      ).not.toBeInTheDocument()
     })
   })
 })

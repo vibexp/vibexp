@@ -23,11 +23,20 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceProject } from '@/hooks/useResourceProject'
+import { useResourceVersions } from '@/hooks/useResourceVersions'
 import { buildProjectEditUrl } from '@/lib/resourceUrl'
-import type { Blueprint, BlueprintVersion } from '@/services/blueprintService'
+import type { Blueprint } from '@/services/blueprintService'
 import { blueprintService } from '@/services/blueprintService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
+
+/**
+ * The blueprint's detail-route base — shared by the edit action and the
+ * version-history link, so the two can never drift apart.
+ */
+function blueprintBase(blueprint: Blueprint) {
+  return `/blueprints/${encodeURIComponent(blueprint.project_id)}/${encodeURIComponent(blueprint.slug)}`
+}
 
 export function BlueprintView() {
   const { project, slug } = useParams<{ project: string; slug: string }>()
@@ -39,7 +48,6 @@ export function BlueprintView() {
   const { trackEvent } = useAnalytics()
 
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null)
-  const [versions, setVersions] = useState<BlueprintVersion[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -59,9 +67,6 @@ export function BlueprintView() {
   const copyAction = useCopyAction(blueprint?.content ?? '')
 
   useEffect(() => {
-    // Guard against stale responses: if params/team change mid-flight, a slower
-    // earlier request must not overwrite the newer blueprint's version state.
-    let active = true
     const load = async () => {
       if (isLoadingTeam) return
       if (!project || !slug) {
@@ -95,18 +100,6 @@ export function BlueprintView() {
             action_context: 'view',
           },
         })
-        // Version history powers the Metadata panel's footer link + count chip.
-        // Best-effort: a failure here must not break the blueprint view itself.
-        try {
-          const history = await blueprintService.getBlueprintVersions(
-            currentTeam.id,
-            decodedProject,
-            decodedSlug
-          )
-          if (active) setVersions(history.versions)
-        } catch {
-          if (active) setVersions([])
-        }
       } catch (err) {
         setError(getErrorMessage(err, 'Failed to fetch blueprint'))
         handleError(err, 'Failed to load blueprint')
@@ -115,10 +108,25 @@ export function BlueprintView() {
       }
     }
     void load()
-    return () => {
-      active = false
-    }
   }, [project, slug, currentTeam, isLoadingTeam, handleError, trackEvent])
+
+  // Version history powers the Metadata panel's footer link + count chip.
+  // Best-effort and stale-guarded by the hook; gated on the same readiness
+  // conditions as the detail fetch above.
+  const { versionHistory } = useResourceVersions({
+    loadVersions:
+      !isLoadingTeam && currentTeam && project && slug
+        ? () =>
+            blueprintService.getBlueprintVersions(
+              currentTeam.id,
+              decodeURIComponent(project),
+              decodeURIComponent(slug)
+            )
+        : null,
+    to: blueprint ? `${blueprintBase(blueprint)}/versions` : undefined,
+    editedAt: blueprint?.updated_at,
+    deps: [isLoadingTeam, currentTeam?.id, project, slug],
+  })
 
   const handleDelete = async () => {
     if (!blueprint || !currentTeam) return
@@ -163,26 +171,7 @@ export function BlueprintView() {
     )
   }
 
-  const base = `/blueprints/${encodeURIComponent(blueprint.project_id)}/${encodeURIComponent(blueprint.slug)}`
-  // Snapshots capture the *prior* content and version numbers are monotonic (never
-  // reused, oldest pruned past the retention cap), so the live blueprint's version is
-  // one past the highest retained snapshot number. `versions.length` is the number of
-  // entries shown on the linked history page — the chip count.
-  const latestVersionNumber = versions.reduce(
-    (max, v) => Math.max(max, v.version_number),
-    0
-  )
-  // Only surface the version-history affordance once there's history to show; a "0"
-  // chip linking to an empty page would be misleading.
-  const versionHistory =
-    versions.length > 0
-      ? {
-          count: versions.length,
-          currentVersion: latestVersionNumber + 1,
-          editedAt: blueprint.updated_at,
-          to: `${base}/versions`,
-        }
-      : undefined
+  const base = blueprintBase(blueprint)
 
   const actions: ReadingAction[] = [
     backAction,

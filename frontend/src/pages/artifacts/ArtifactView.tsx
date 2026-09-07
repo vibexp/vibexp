@@ -23,11 +23,20 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceProject } from '@/hooks/useResourceProject'
+import { useResourceVersions } from '@/hooks/useResourceVersions'
 import { buildProjectEditUrl } from '@/lib/resourceUrl'
-import type { Artifact, ArtifactVersion } from '@/services/artifactService'
+import type { Artifact } from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
+
+/**
+ * The artifact's detail-route base — shared by the edit action and the
+ * version-history link, so the two can never drift apart.
+ */
+function artifactBase(artifact: Artifact) {
+  return `/artifacts/${encodeURIComponent(artifact.project_id)}/${encodeURIComponent(artifact.slug)}`
+}
 
 export function ArtifactView() {
   const { project, slug } = useParams<{ project: string; slug: string }>()
@@ -39,7 +48,6 @@ export function ArtifactView() {
   const { trackEvent } = useAnalytics()
 
   const [artifact, setArtifact] = useState<Artifact | null>(null)
-  const [versions, setVersions] = useState<ArtifactVersion[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -59,9 +67,6 @@ export function ArtifactView() {
   const copyAction = useCopyAction(artifact?.content ?? '')
 
   useEffect(() => {
-    // Guard against stale responses: if params/team change mid-flight, a slower
-    // earlier request must not overwrite the newer artifact's state.
-    let active = true
     const load = async () => {
       if (isLoadingTeam) return
       if (!project || !slug) {
@@ -87,7 +92,7 @@ export function ArtifactView() {
         )
         setArtifact(a)
         // Track the view immediately — analytics must not wait on the
-        // best-effort version-history fetch below.
+        // best-effort version-history fetch in `useResourceVersions`.
         trackEvent({
           event: ANALYTICS_EVENTS.ARTIFACT_VIEWED,
           properties: {
@@ -97,20 +102,6 @@ export function ArtifactView() {
             action_context: 'view',
           },
         })
-        // Version history powers the Metadata panel's footer link + count chip.
-        // Best-effort: a failure here must not break the artifact view itself.
-        // Guarded so a stale response (params/team changed mid-flight) can't
-        // overwrite a newer artifact's version state.
-        try {
-          const history = await artifactService.getArtifactVersions(
-            currentTeam.id,
-            decodedProject,
-            decodedSlug
-          )
-          if (active) setVersions(history.versions)
-        } catch {
-          if (active) setVersions([])
-        }
       } catch (err) {
         setError(getErrorMessage(err, 'Failed to fetch artifact'))
         handleError(err, 'Failed to load artifact')
@@ -119,10 +110,25 @@ export function ArtifactView() {
       }
     }
     void load()
-    return () => {
-      active = false
-    }
   }, [project, slug, currentTeam, isLoadingTeam, handleError, trackEvent])
+
+  // Version history powers the Metadata panel's footer link + count chip.
+  // Best-effort and stale-guarded by the hook; gated on the same readiness
+  // conditions as the detail fetch above.
+  const { versionHistory } = useResourceVersions({
+    loadVersions:
+      !isLoadingTeam && currentTeam && project && slug
+        ? () =>
+            artifactService.getArtifactVersions(
+              currentTeam.id,
+              decodeURIComponent(project),
+              decodeURIComponent(slug)
+            )
+        : null,
+    to: artifact ? `${artifactBase(artifact)}/versions` : undefined,
+    editedAt: artifact?.updated_at,
+    deps: [isLoadingTeam, currentTeam?.id, project, slug],
+  })
 
   const handleDelete = async () => {
     if (!artifact || !currentTeam) return
@@ -167,26 +173,7 @@ export function ArtifactView() {
     )
   }
 
-  const base = `/artifacts/${encodeURIComponent(artifact.project_id)}/${encodeURIComponent(artifact.slug)}`
-  // Snapshots capture the *prior* content and version numbers are monotonic
-  // (never reused, oldest pruned past the retention cap), so the live artifact's
-  // version is one past the highest retained snapshot number. `versions.length`
-  // is the number of entries shown on the linked history page — the chip count.
-  const latestVersionNumber = versions.reduce(
-    (max, v) => Math.max(max, v.version_number),
-    0
-  )
-  // Only surface the version-history affordance once there's history to show;
-  // a "0" chip linking to an empty page would be misleading.
-  const versionHistory =
-    versions.length > 0
-      ? {
-          count: versions.length,
-          currentVersion: latestVersionNumber + 1,
-          editedAt: artifact.updated_at,
-          to: `${base}/versions`,
-        }
-      : undefined
+  const base = artifactBase(artifact)
 
   const actions: ReadingAction[] = [
     backAction,
