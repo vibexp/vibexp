@@ -1,9 +1,10 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
 
 import type { PromptGalleryTemplate } from '@/services/promptGalleryService'
+import { storage } from '@/utils/storage'
 
 // Mock MarkdownRenderer to avoid marked/DOMPurify JSDOM issues.
 vi.mock('@/components/MarkdownRenderer', () => ({
@@ -172,5 +173,30 @@ describe('PromptGalleryDetail page', () => {
       vi.advanceTimersByTime(2000)
     })
     expect(screen.getByTestId('gallery-probe')).toBeInTheDocument()
+  })
+
+  describe('body view switch (#901)', () => {
+    beforeEach(() => {
+      storage.clear()
+    })
+
+    it('renders the gallery prompt body through ResourceBody, with a Raw view of the source', async () => {
+      const user = userEvent.setup()
+      renderDetail()
+
+      // Rendered by default, through the shared body — not a bare renderer.
+      const body = await screen.findByTestId('resource-body')
+      expect(within(body).getByTestId('markdown-content')).toHaveTextContent(
+        'Please review the following code'
+      )
+
+      await user.click(within(body).getByRole('tab', { name: 'Raw' }))
+
+      expect(screen.getByTestId('resource-body-raw')).toHaveTextContent(
+        'Please review the following code'
+      )
+      // Exactly one view is mounted, so the body is never in the DOM twice.
+      expect(screen.queryByTestId('markdown-content')).not.toBeInTheDocument()
+    })
   })
 })

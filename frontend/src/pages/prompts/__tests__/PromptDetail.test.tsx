@@ -5,22 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
 
 import type { Prompt } from '@/services/promptService'
-
-// The shared lucide mock lacks FileCode (PromptContentCard's raw-tab icon);
-// extend it locally instead of editing the shared mock file.
-vi.mock('lucide-react', async () => {
-  const actual = await vi.importActual<Record<string, unknown>>('lucide-react')
-  const ReactActual = await vi.importActual<typeof import('react')>('react')
-  const icon = (name: string) => (props: object) =>
-    ReactActual.createElement('svg', {
-      'data-testid': `${name.toLowerCase()}-icon`,
-      ...props,
-    })
-  return {
-    ...actual,
-    FileCode: actual.FileCode ?? icon('FileCode'),
-  }
-})
+import { storage } from '@/utils/storage'
 
 // Mock MarkdownRenderer to avoid marked/DOMPurify JSDOM issues
 vi.mock('@/components/MarkdownRenderer', () => ({
@@ -30,20 +15,6 @@ vi.mock('@/components/MarkdownRenderer', () => ({
 }))
 
 // Radix primitives can loop/crash in JSDOM — replace with plain divs.
-vi.mock('@/components/ui/tabs', () => ({
-  Tabs: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="tabs">{children}</div>
-  ),
-  TabsList: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  TabsTrigger: ({ children }: { children: React.ReactNode }) => (
-    <button type="button">{children}</button>
-  ),
-  TabsContent: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-}))
 vi.mock('@/components/ui/select', () => ({
   Select: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="select">{children}</div>
@@ -224,6 +195,7 @@ function renderPromptDetail(slug = 'code-review-template') {
 describe('PromptDetail page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    storage.clear()
     setTeamPermissions([])
     ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
     ;(promptService.getPromptDependencies as Mock).mockResolvedValue({
@@ -248,11 +220,11 @@ describe('PromptDetail page', () => {
       )
       expect(screen.getByText('published')).toBeInTheDocument()
       expect(screen.getByText('code-review-template')).toBeInTheDocument()
-      // Raw body reaches the content card (both tab panels render because the
-      // Tabs primitive is mocked with plain divs).
-      expect(
-        screen.getAllByText('Please review this code for: {{criteria}}').length
-      ).toBeGreaterThan(0)
+      // The body renders once, in the default (Rendered) view — only the
+      // active tab panel is mounted (#901).
+      expect(screen.getByRole('tabpanel')).toHaveTextContent(
+        'Please review this code for: {{criteria}}'
+      )
     })
 
     it('shows a loading header while the fetch is in flight', () => {
@@ -451,6 +423,43 @@ describe('PromptDetail page', () => {
         expect.any(Error),
         'Failed to load prompt'
       )
+    })
+  })
+
+  describe('body view switch (#901)', () => {
+    it('shows the raw source in the Raw view and remembers the choice', async () => {
+      const user = userEvent.setup()
+      const first = renderPromptDetail()
+      await screen.findByText('Code Review Template')
+
+      const body = screen.getByTestId('resource-body')
+      expect(within(body).getByTestId('markdown-renderer')).toBeInTheDocument()
+
+      await user.click(within(body).getByRole('tab', { name: 'Raw' }))
+
+      // `rawContent` is the prompt's own body — never the placeholder-rendered
+      // output — and only that one view is mounted.
+      expect(screen.getByTestId('resource-body-raw')).toHaveTextContent(
+        'Please review this code for: {{criteria}}'
+      )
+      expect(screen.queryByTestId('markdown-renderer')).not.toBeInTheDocument()
+
+      // The page owns the mode (its render effects key off it) but persists it
+      // under the same shared key, so a remount comes back in Raw.
+      first.unmount()
+      renderPromptDetail()
+      await screen.findByText('Code Review Template')
+      expect(screen.getByTestId('resource-body-raw')).toBeInTheDocument()
+    })
+
+    it('renders the placeholder inputs through the rendered-only slot', async () => {
+      renderPromptDetail()
+      await screen.findByText('Code Review Template')
+
+      // No placeholders on the fixture, so the slot contributes no markup —
+      // but the rendered panel is what mounts, and it is the only one.
+      expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
+      expect(screen.getByTestId('markdown-renderer')).toBeInTheDocument()
     })
   })
 })

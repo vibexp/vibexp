@@ -4,7 +4,6 @@ import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import {
   MetadataPanel,
   MetaRow,
@@ -13,6 +12,7 @@ import {
 import { AdditionalDataCard } from '@/components/MetadataCard'
 import {
   type ReadingAction,
+  ResourceBody,
   useCopyAction,
 } from '@/components/patterns/reading-page'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
@@ -289,7 +289,7 @@ export function BlueprintView() {
           </div>
         }
       >
-        <MarkdownRenderer content={blueprint.content} syntaxTheme="auto" />
+        <ResourceBody content={blueprint.content} />
       </ResourceReadingPage>
 
       <ConfirmDialog

@@ -1,5 +1,13 @@
 export { DetailsColumn, DetailsRail } from './DetailsPanel'
 export { ReadingActions } from './ReadingActions'
 export { ReadingPage, type ReadingPageProps } from './ReadingPage'
-export type { ReadingAction, ReadingIcon, ReadingSection } from './types'
+export { ResourceBody, type ResourceBodyProps } from './ResourceBody'
+export type {
+  BodyFormat,
+  BodyViewMode,
+  ReadingAction,
+  ReadingIcon,
+  ReadingSection,
+} from './types'
+export { useBodyViewMode } from './useBodyViewMode'
 export { useCopyAction } from './useCopyAction'

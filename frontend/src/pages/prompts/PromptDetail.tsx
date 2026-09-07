@@ -5,16 +5,21 @@ import { useNavigate, useParams } from 'react-router'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { type VersionHistoryMeta } from '@/components/metadata/MetadataPanel'
-import { type ReadingAction } from '@/components/patterns/reading-page'
+import {
+  type ReadingAction,
+  ResourceBody,
+  useBodyViewMode,
+  useCopyAction,
+} from '@/components/patterns/reading-page'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics, usePromptRenderer } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import { PromptContentCard } from '@/pages/prompts/PromptContentCard'
 import {
   PromptMetadata,
   promptUsedBySection,
@@ -69,6 +74,56 @@ function buildPromptVersionHistory(
   }
 }
 
+/**
+ * The prompt's rendered-mode-only affordances — the placeholder inputs whose
+ * values drive the server render, and the render error when one comes back.
+ * Slotted into `ResourceBody`'s `renderedExtra`, which is what keeps that
+ * shared component domain-free (#901).
+ */
+function PromptRenderedExtra({
+  allPlaceholders,
+  placeholderValues,
+  updatePlaceholderValue,
+  renderError,
+}: Readonly<{
+  allPlaceholders: string[]
+  placeholderValues: Record<string, string>
+  updatePlaceholderValue: (placeholder: string, value: string) => void
+  renderError: string | null
+}>) {
+  return (
+    <>
+      {allPlaceholders.length > 0 && (
+        <div className="bg-muted/40 space-y-2 rounded-md border p-3">
+          <div className="text-xs font-medium">Placeholders</div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {allPlaceholders.map(ph => (
+              <div key={ph} className="space-y-1">
+                <label className="text-muted-foreground text-xs font-medium">
+                  {ph}
+                </label>
+                <Input
+                  value={placeholderValues[ph] ?? ''}
+                  onChange={e => {
+                    updatePlaceholderValue(ph, e.target.value)
+                  }}
+                  placeholder={`Enter ${ph}`}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {renderError && (
+        <Alert variant="destructive">
+          <AlertTitle>Render error</AlertTitle>
+          <AlertDescription>{renderError}</AlertDescription>
+        </Alert>
+      )}
+    </>
+  )
+}
+
 export function PromptDetail() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
@@ -86,7 +141,10 @@ export function PromptDetail() {
     useState<PromptDependenciesResponse | null>(null)
   const [loadingDependencies, setLoadingDependencies] = useState(false)
   const [versions, setVersions] = useState<PromptVersion[]>([])
-  const [tab, setTab] = useState<'rendered' | 'raw'>('rendered')
+  // Owned here rather than by `ResourceBody` because the render and
+  // placeholder effects below key off it; persisted under the same shared
+  // key so the choice follows the reader across resources (#901).
+  const [tab, setTab] = useBodyViewMode()
 
   const {
     renderedBody,
@@ -229,15 +287,9 @@ export function PromptDetail() {
     }
   }
 
-  const handleCopyRendered = async () => {
-    try {
-      const text = renderedBody !== '' ? renderedBody : (prompt?.body ?? '')
-      await navigator.clipboard.writeText(text)
-      showSuccess('Copied to clipboard', 'Copied')
-    } catch {
-      showError('Failed to copy')
-    }
-  }
+  // Copy the SOURCE body, not the placeholder-rendered output — the raw view
+  // shows the same text, and it is what a reader pastes into a tool.
+  const copyAction = useCopyAction(prompt?.body ?? '')
 
   const backAction: ReadingAction = {
     id: 'back',
@@ -276,6 +328,7 @@ export function PromptDetail() {
 
   const actions: ReadingAction[] = [
     backAction,
+    copyAction,
     {
       id: 'edit',
       label: 'Edit',
@@ -334,20 +387,20 @@ export function PromptDetail() {
         }
         extraSections={promptUsedBySection(dependencies, loadingDependencies)}
       >
-        <PromptContentCard
-          prompt={prompt}
-          tab={tab}
-          onTabChange={setTab}
-          renderedBody={renderedBody}
-          renderError={renderError}
-          isRendering={isRendering}
-          isLoadingPlaceholders={isLoadingPlaceholders}
-          allPlaceholders={allPlaceholders}
-          placeholderValues={placeholderValues}
-          updatePlaceholderValue={updatePlaceholderValue}
-          onCopy={() => {
-            void handleCopyRendered()
-          }}
+        <ResourceBody
+          content={renderedBody !== '' ? renderedBody : prompt.body}
+          rawContent={prompt.body}
+          mode={tab}
+          onModeChange={setTab}
+          isLoading={isRendering || isLoadingPlaceholders}
+          renderedExtra={
+            <PromptRenderedExtra
+              allPlaceholders={allPlaceholders}
+              placeholderValues={placeholderValues}
+              updatePlaceholderValue={updatePlaceholderValue}
+              renderError={renderError}
+            />
+          }
         />
       </ResourceReadingPage>
 
