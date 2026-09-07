@@ -6,7 +6,7 @@ import {
   Tag as TagIcon,
   Trash2,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -20,6 +20,8 @@ import {
 import {
   ResourceMetadataSection,
   resourceRegistry,
+  statusLabel,
+  statusTone,
 } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -35,6 +37,7 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceProject } from '@/hooks/useResourceProject'
+import { deriveMemoryTitle } from '@/lib/memoryTitle'
 import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import type { Memory, MemoryVersion } from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
@@ -140,6 +143,14 @@ export function MemoryView() {
     }
   }, [id, currentTeam, isLoadingTeam, handleError, trackEvent])
 
+  // Memories carry no title, so it is derived from the body — memoised because
+  // that scans the whole (unbounded) text and this page re-renders on dialog
+  // and view-mode state.
+  const title = useMemo(
+    () => deriveMemoryTitle(memory?.text ?? ''),
+    [memory?.text]
+  )
+
   const handleDelete = async () => {
     if (!memory || !currentTeam) return
     try {
@@ -233,14 +244,22 @@ export function MemoryView() {
   return (
     <>
       <ResourceReadingPage
-        title={`Memory #${memory.id}`}
-        description="View memory details."
+        title={title}
+        status={{
+          value: statusLabel('memory', memory.status),
+          tone: statusTone('memory', memory.status),
+        }}
+        updatedAt={memory.updated_at}
         actions={actions}
         resource={
           currentTeam
             ? { kind: 'memory', id: memory.id, teamId: currentTeam.id }
             : undefined
         }
+        // Memory is not a registered attachment owner_type server-side — the
+        // universal attachments endpoint only accepts artifact/prompt/blueprint
+        // (internal/server/server.go), so the panel would 404 on list and
+        // upload. Raised on epic #899; flip this once the backend registers it.
         attachments={false}
         metadata={
           <div className="space-y-5">

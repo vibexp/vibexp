@@ -248,8 +248,10 @@ describe('PromptDetail page', () => {
         'code-review-template'
       )
       // Status and slug each render twice since #903: once in the reading
-      // header, once as a descriptor-generated Metadata row.
-      expect(screen.getAllByText('published')).toHaveLength(2)
+      // header, once as a descriptor-generated Metadata row — and both read
+      // the descriptor's `valueLabels`, not the raw enum (#902).
+      expect(screen.getAllByText('Published')).toHaveLength(2)
+      expect(screen.queryByText('published')).not.toBeInTheDocument()
       expect(
         screen.getAllByText('code-review-template').length
       ).toBeGreaterThan(0)

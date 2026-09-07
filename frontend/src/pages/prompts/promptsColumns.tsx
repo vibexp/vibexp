@@ -3,7 +3,7 @@ import { Eye, Pencil, Share2, Trash2 } from 'lucide-react'
 import type { NavigateFunction } from 'react-router'
 
 import { FreshnessBadge } from '@/components/FreshnessBadge'
-import { statusTone } from '@/components/patterns/resource'
+import { statusLabel, statusTone } from '@/components/patterns/resource'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -66,7 +66,7 @@ export function buildPromptsColumns({
       header: 'Status',
       cell: ({ row }) => (
         <StatusBadge tone={statusTone('prompt', row.original.status)}>
-          {row.original.status}
+          {statusLabel('prompt', row.original.status)}
         </StatusBadge>
       ),
     },

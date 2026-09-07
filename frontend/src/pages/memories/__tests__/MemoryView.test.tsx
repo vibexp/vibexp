@@ -218,7 +218,7 @@ describe('MemoryView', () => {
       expect(screen.getByText('Loading memory…')).toBeInTheDocument()
     })
 
-    it('renders the memory heading with the correct id', async () => {
+    it('renders a derived title instead of the raw id, with no static subtitle', async () => {
       mockUseTeam.mockReturnValue({
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
@@ -238,7 +238,41 @@ describe('MemoryView', () => {
       renderMemoryView()
 
       await waitFor(() => {
-        expect(screen.getByText('Memory #memory-1')).toBeInTheDocument()
+        expect(
+          screen.getByRole('heading', {
+            level: 1,
+            name: 'This is memory text content',
+          })
+        ).toBeInTheDocument()
+      })
+      expect(screen.queryByText('Memory #memory-1')).not.toBeInTheDocument()
+      expect(screen.queryByText('View memory details.')).not.toBeInTheDocument()
+      // Scoped to the header: the descriptor-generated Metadata section
+      // carries its own Status row (#903).
+      const header = screen.getByTestId('resource-header-meta')
+      expect(within(header).getByText('Active')).toBeInTheDocument()
+      expect(within(header).getByText('Updated')).toBeInTheDocument()
+    })
+
+    it('prefers the memory body\u2019s first markdown heading as the title', async () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(memoryService.getMemory as Mock).mockResolvedValue({
+        ...mockMemory,
+        text: '# Deployment runbook\n\nDrain the node first.',
+      })
+
+      renderMemoryView()
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { level: 1, name: 'Deployment runbook' })
+        ).toBeInTheDocument()
       })
     })
 

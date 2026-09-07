@@ -11,9 +11,8 @@ import {
   useBodyViewMode,
   useCopyAction,
 } from '@/components/patterns/reading-page'
-import { statusTone } from '@/components/patterns/resource'
+import { statusLabel, statusTone } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
-import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -34,27 +33,6 @@ import type {
 } from '@/services/promptService'
 import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function getRelativeTime(value: string): string {
-  const date = new Date(value)
-  const now = new Date()
-  const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
-  if (diff < 60) return `${String(diff)}s ago`
-  if (diff < 3600) return `${String(Math.floor(diff / 60))}m ago`
-  if (diff < 86400) return `${String(Math.floor(diff / 3600))}h ago`
-  if (diff < 2592000) return `${String(Math.floor(diff / 86400))}d ago`
-  return formatDate(value)
-}
 
 // Build the Metadata panel's version-history affordance. Snapshots capture the *prior*
 // body and version numbers are monotonic, so the live prompt's content version is one
@@ -363,22 +341,19 @@ export function PromptDetail() {
     <>
       <ResourceReadingPage
         title={prompt.name}
-        description={
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <StatusBadge tone={statusTone('prompt', prompt.status)}>
-              {prompt.status}
-            </StatusBadge>
-            {prompt.is_shared && (
-              <Badge variant="secondary" className="gap-1">
-                <Share2 className="size-3" />
-                Shared
-              </Badge>
-            )}
-            <span className="text-muted-foreground">
-              ID: <span className="font-mono">{prompt.slug}</span> · Updated{' '}
-              {getRelativeTime(prompt.updated_at)}
-            </span>
-          </div>
+        status={{
+          value: statusLabel('prompt', prompt.status),
+          tone: statusTone('prompt', prompt.status),
+        }}
+        address={{ label: 'Slug', value: prompt.slug }}
+        updatedAt={prompt.updated_at}
+        headerExtra={
+          prompt.is_shared && (
+            <Badge variant="secondary" className="gap-1">
+              <Share2 className="size-3" />
+              Shared
+            </Badge>
+          )
         }
         actions={actions}
         resource={

@@ -13,6 +13,8 @@ import {
 import {
   ResourceMetadataSection,
   resourceRegistry,
+  statusLabel,
+  statusTone,
 } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -212,7 +214,13 @@ export function BlueprintView() {
     <>
       <ResourceReadingPage
         title={blueprint.title}
-        description={blueprint.description}
+        status={{
+          value: statusLabel('blueprint', blueprint.status),
+          tone: statusTone('blueprint', blueprint.status),
+        }}
+        address={{ value: blueprint.slug }}
+        updatedAt={blueprint.updated_at}
+        summary={blueprint.description}
         actions={actions}
         resource={
           currentTeam

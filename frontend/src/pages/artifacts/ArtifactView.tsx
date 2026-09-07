@@ -13,6 +13,8 @@ import {
 import {
   ResourceMetadataSection,
   resourceRegistry,
+  statusLabel,
+  statusTone,
 } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -216,7 +218,13 @@ export function ArtifactView() {
     <>
       <ResourceReadingPage
         title={artifact.title}
-        description={artifact.description}
+        status={{
+          value: statusLabel('artifact', artifact.status),
+          tone: statusTone('artifact', artifact.status),
+        }}
+        address={{ value: artifact.slug }}
+        updatedAt={artifact.updated_at}
+        summary={artifact.description}
         actions={actions}
         resource={
           currentTeam
