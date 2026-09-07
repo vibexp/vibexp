@@ -23,23 +23,10 @@ const descriptors = {
 /** The kinds `resourceRegistry` is keyed by. */
 export type ResourceKindKey = keyof typeof descriptors
 
-/**
- * `Object.freeze` is shallow, and the registry is a singleton every page reads —
- * a stray write to one descriptor's `fields` or `capabilities` would corrupt the
- * app globally. The `readonly` members on `ResourceDescriptor` stop that at
- * compile time; this stops it at runtime too.
- */
-function deepFreeze<T>(value: T): T {
-  if (value !== null && typeof value === 'object') {
-    Object.values(value).forEach(deepFreeze)
-    Object.freeze(value)
-  }
-  return value
-}
-
+/** Each descriptor is already deeply frozen by `defineResource`. */
 export const resourceRegistry: Readonly<
   Record<ResourceKindKey, ResourceDescriptor>
-> = deepFreeze(descriptors)
+> = Object.freeze(descriptors)
 
 /** Looks a descriptor up by kind. Total over `ResourceKindKey`, so it cannot miss. */
 export function getResourceDescriptor(

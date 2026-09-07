@@ -11,8 +11,9 @@ import type { FieldRole, ResourceDescriptor } from '../types'
 // understand, so a descriptor can always back a `ResourceReadingPage`. Keying
 // this map by `ResourceKind` makes it exhaustive: adding a member to that union
 // fails `tsc -b` here until the registry gains a descriptor for it, and the
-// value type rejects a mapping onto a kind the registry does not have.
-const SIDE_PANEL_KINDS: Record<ResourceKind, ResourceKindKey> = {
+// `K & ResourceKindKey` value type forbids silencing that by mapping the new
+// kind onto some other kind's descriptor.
+const SIDE_PANEL_KINDS: { [K in ResourceKind]: K & ResourceKindKey } = {
   artifact: 'artifact',
   prompt: 'prompt',
   blueprint: 'blueprint',
@@ -41,17 +42,19 @@ describe('resourceRegistry', () => {
   })
 
   // Object.freeze is shallow, so freezing the registry alone would leave every
-  // descriptor — the object each page holds a reference to — writable.
+  // descriptor — the object each page holds a reference to — writable. Walk
+  // rather than enumerate levels, so the assertion pins "deep", not "4 deep".
   it('is frozen all the way down, so no consumer can mutate a descriptor', () => {
-    expect(Object.isFrozen(resourceRegistry)).toBe(true)
-    for (const descriptor of Object.values(resourceRegistry)) {
-      expect(Object.isFrozen(descriptor)).toBe(true)
-      expect(Object.isFrozen(descriptor.fields)).toBe(true)
-      expect(Object.isFrozen(descriptor.capabilities)).toBe(true)
-      for (const field of descriptor.fields) {
-        expect(Object.isFrozen(field)).toBe(true)
+    const unfrozen: string[] = []
+    const walk = (value: unknown, path: string) => {
+      if (value === null || typeof value !== 'object') return
+      if (!Object.isFrozen(value)) unfrozen.push(path)
+      for (const [key, child] of Object.entries(value)) {
+        walk(child, `${path}.${key}`)
       }
     }
+    walk(resourceRegistry, 'resourceRegistry')
+    expect(unfrozen).toEqual([])
   })
 
   it('looks a descriptor up by kind', () => {

@@ -186,6 +186,23 @@ describe('defineResource', () => {
       ).toThrow(/status value 'inactive' is not one of \["active","expired"\]/)
     })
 
+    it('throws when a status field declares an empty value list', () => {
+      expect(() =>
+        defineResource(
+          descriptor([
+            NAME,
+            SLUG,
+            {
+              key: 'status',
+              role: 'status',
+              label: 'Status',
+              statusValues: [],
+            },
+          ])
+        )
+      ).toThrow(/status field 'status' declares no status values/)
+    })
+
     it('throws when a status field declares no values', () => {
       expect(() =>
         defineResource(
