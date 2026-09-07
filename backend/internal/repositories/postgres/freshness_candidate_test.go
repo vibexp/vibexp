@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -45,7 +46,7 @@ func TestFreshnessCandidateRepository_ListStaleCandidates_ReturnsCandidates(t *t
 	repo, mock := setupFreshnessCandidateTest(t)
 
 	mock.ExpectQuery(`SELECT id, project_id\s+FROM prompts`).
-		WithArgs("team-1", nil, nil, 30, 2).
+		WithArgs("team-1", nil, 30, 2).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "project_id"}).
 			AddRow("prompt-1", "proj-1").
 			AddRow("prompt-2", "proj-2"))
@@ -69,7 +70,7 @@ func TestFreshnessCandidateRepository_ListStaleCandidates_AnyMediumUsesEveryColu
 	mock.ExpectQuery(
 		`GREATEST\(COALESCE\(updated_at, 'epoch'::timestamptz\), last_accessed_web_at, ` +
 			`last_accessed_cli_at, last_accessed_mcp_at, last_accessed_api_at\) ` +
-			`< now\(\) - make_interval\(days => \$4::integer\)`).
+			`< now\(\) - make_interval\(days => \$3::integer\)`).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "project_id"}))
 
 	_, err := repo.ListStaleCandidates(context.Background(), candidateQuery())
@@ -113,33 +114,68 @@ func TestFreshnessCandidateRepository_ListStaleCandidates_ConvertsNaiveMemoryTim
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-// The three optional inputs must reach the database as bound parameters, and
-// omitting one must bind NULL rather than an empty string -- the predicates are
-// written as `$n IS NULL OR ...`, so an empty string would filter everything out.
+// The optional project filter must reach the database as a bound parameter,
+// and omitting it must bind NULL rather than an empty string -- the predicate
+// is written as `$2 IS NULL OR ...`, so an empty string would filter
+// everything out.
 func TestFreshnessCandidateRepository_ListStaleCandidates_BindsOptionalFilters(t *testing.T) {
 	repo, mock := setupFreshnessCandidateTest(t)
 
 	projectID := "proj-1"
 	mock.ExpectQuery(`FROM prompts`).
-		WithArgs("team-1", projectID, "prompt-9", 30, 2).
+		WithArgs("team-1", projectID, 30, 2).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "project_id"}))
 
 	query := candidateQuery()
 	query.ProjectID = &projectID
-	query.AfterID = "prompt-9"
 	_, err := repo.ListStaleCandidates(context.Background(), query)
 
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-// A caller that forgets to set a batch size must still get a bounded query,
-// not the team's entire resource table.
+// The drain must stay unordered and cursorless (#862). `ORDER BY id` on a
+// random-uuid primary key turned the scan into a random heap walk costing ~42x
+// the buffer accesses of one full drain, and the ordering existed only to
+// carry the `id > $n` cursor the evaluator never wanted. sqlmock's regex
+// matcher can only assert what a query CONTAINS, so this one swaps in a
+// capturing matcher and asserts on the text the repository actually built.
+func TestFreshnessCandidateRepository_ListStaleCandidates_IsUnorderedAndCursorless(t *testing.T) {
+	var executed string
+	mockDB, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherFunc(func(_, actualSQL string) error {
+		executed = actualSQL
+		return nil
+	})))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	})
+	repo := NewFreshnessCandidateRepository(&database.DB{DB: mockDB})
+
+	mock.ExpectQuery("").WillReturnRows(sqlmock.NewRows([]string{"id", "project_id"}))
+
+	_, err = repo.ListStaleCandidates(context.Background(), candidateQuery())
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+
+	// Upper-cased first: a guard that a lower-case `order by` slips past is not
+	// a guard.
+	assert.NotContains(t, strings.ToUpper(executed), "ORDER BY",
+		"ordering by the random-uuid pk is what #862 removed")
+	assert.NotContains(t, strings.ToUpper(executed), "ID >",
+		"a keyset cursor implies an ordering; there is none")
+}
+
+// A caller that forgets to set a cap must still get a bounded query, not the
+// team's entire resource table.
 func TestFreshnessCandidateRepository_ListStaleCandidates_DefaultsTheLimit(t *testing.T) {
 	repo, mock := setupFreshnessCandidateTest(t)
 
 	mock.ExpectQuery(`FROM prompts`).
-		WithArgs("team-1", nil, nil, 30, defaultFreshnessCandidateLimit).
+		WithArgs("team-1", nil, 30, defaultFreshnessCandidateLimit).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "project_id"}))
 
 	query := candidateQuery()

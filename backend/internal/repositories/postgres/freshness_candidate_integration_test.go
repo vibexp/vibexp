@@ -269,37 +269,59 @@ func TestIntegrationFreshnessCandidates_CoversAllFourResourceTypes(t *testing.T)
 	}
 }
 
-// Paging must return each resource exactly once: the keyset cursor is what
-// stops a large rule from re-reading its first page forever.
-func TestIntegrationFreshnessCandidates_KeysetPagingWalksEveryRowOnce(t *testing.T) {
+// One call must drain the whole match set, each resource exactly once (#862).
+// This is what replaced the keyset walk: a rule matching more resources than
+// the old 500-row page held is now a single unordered query, so the row count
+// is the only thing that bounds it.
+func TestIntegrationFreshnessCandidates_OneCallDrainsEveryRowOnce(t *testing.T) {
 	resetFreshnessTables(t)
 	scope := seedCandidateScope(t)
 	repo := NewFreshnessCandidateRepository(integrationDB)
 
-	want := make([]string, 0, 5)
-	for i := 0; i < 5; i++ {
+	// More than the evaluator's old 500-row page held. This is not itself a
+	// revert guard -- the REPOSITORY always returned up to Limit in one call,
+	// and 500 was the evaluator's page size, not the repository's -- it is the
+	// size at which the drain used to be split across cursor round trips and
+	// now is not. The revert guard for the query shape is
+	// TestFreshnessCandidateRepository_ListStaleCandidates_IsUnorderedAndCursorless.
+	const stale = 501
+
+	want := make([]string, 0, stale)
+	for i := 0; i < stale; i++ {
 		id := insertTestPrompt(
 			t, scope.userID, scope.teamID, scope.projectID, fmt.Sprintf("p%d", i), "body", "published")
 		touchResource(t, "prompts", id, "", daysAgo(120), nil)
 		want = append(want, id)
 	}
 
-	seen := make([]string, 0, len(want))
-	query := models.FreshnessCandidateQuery{
-		TeamID: scope.teamID, ResourceType: "prompt", ThresholdDays: 30, Limit: 2,
-	}
-	for {
-		page, err := repo.ListStaleCandidates(context.Background(), query)
-		require.NoError(t, err)
-		seen = append(seen, candidateIDs(page)...)
-		if len(page) < query.Limit {
-			break
-		}
-		query.AfterID = page[len(page)-1].ResourceID
-	}
+	got, err := repo.ListStaleCandidates(context.Background(), models.FreshnessCandidateQuery{
+		TeamID: scope.teamID, ResourceType: "prompt", ThresholdDays: 30, Limit: 10_000,
+	})
+	require.NoError(t, err)
 
+	seen := candidateIDs(got)
 	assert.ElementsMatch(t, want, seen)
 	assert.Len(t, seen, len(want), "no resource may be returned twice")
+}
+
+// Limit is a hard cap, not a page boundary: there is no cursor with which to
+// read the remainder, so a caller reaching it must be able to SEE that it did.
+func TestIntegrationFreshnessCandidates_LimitCapsTheDrain(t *testing.T) {
+	resetFreshnessTables(t)
+	scope := seedCandidateScope(t)
+	repo := NewFreshnessCandidateRepository(integrationDB)
+
+	for i := 0; i < 5; i++ {
+		id := insertTestPrompt(
+			t, scope.userID, scope.teamID, scope.projectID, fmt.Sprintf("p%d", i), "body", "published")
+		touchResource(t, "prompts", id, "", daysAgo(120), nil)
+	}
+
+	got, err := repo.ListStaleCandidates(context.Background(), models.FreshnessCandidateQuery{
+		TeamID: scope.teamID, ResourceType: "prompt", ThresholdDays: 30, Limit: 3,
+	})
+	require.NoError(t, err)
+	assert.Len(t, got, 3)
 }
 
 // insertCandidateBlueprint seeds a blueprint. `path` is NOT NULL since

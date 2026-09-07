@@ -47,32 +47,34 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// candidateBatchSize bounds one page of the per-rule candidate query, so a
-// rule matching an entire team's resources never materializes one enormous
-// result set (or holds one long-lived cursor) in the database driver.
+// candidateDrainCap caps how many resources a single (rule, resource type)
+// pair may read, in ONE query. It is the product of the batch size (500) and
+// batch count (1000) it replaces (#862), so the ceiling is unchanged: half a
+// million resources per rule and type, far beyond any real team.
 //
-// It does NOT bound the evaluator's own memory: the desired-state map
-// accumulates every match across every batch, type and rule, and the stored
-// state is read unpaginated. The ceiling on both is the team's resource count;
-// maxCandidateBatches below is what keeps that finite.
-const candidateBatchSize = 500
-
-// maxCandidateBatches caps how many batches a single (rule, resource type)
-// pair may read. Without it a bug that fails to advance the keyset cursor
-// would loop forever inside a job the scheduler cannot interrupt cleanly. At
-// the default batch size this is half a million resources per rule and type,
-// far beyond any real team.
+// It is a guard-rail, not a page size. The query is deliberately unordered --
+// the only key to page on is a random uuid, and ordering by it cost ~42x the
+// buffer accesses of a single drain -- so there is no cursor with which to
+// read a remainder, and reaching the cap is an error rather than "read the
+// next page".
+//
+// It does NOT bound the evaluator's own memory, and never did: the
+// desired-state map accumulates every match across every type and rule, and
+// the stored state is read unpaginated. The ceiling on both is the team's
+// resource count, and this cap is what keeps that finite.
 //
 // Reaching it FAILS the run. A truncated match set is not "some resources go
 // unmarked": reconciliation treats everything outside the computed set as no
 // longer stale, so continuing would actively clear -- and audit as cleared --
 // every already-stale resource in the unread tail, then re-mark it next run.
 // Aborting leaves the team's state untouched, exactly like any other error.
-const maxCandidateBatches = 1000
+const candidateDrainCap = 500_000
 
 // ErrCandidateBatchCapExceeded reports that one rule's match set did not fit
-// within maxCandidateBatches. It is a distinct sentinel because it means the
-// cap needs revisiting, not that the database failed.
+// within candidateDrainCap -- one drain came back full, so the rule matches at
+// least that many resources and the rest cannot be read. It is a distinct
+// sentinel because it means the cap needs revisiting, not that the database
+// failed.
 var ErrCandidateBatchCapExceeded = errors.New("freshness rule matched more resources than one run may read")
 
 // Evaluator runs the freshness rule engine for one team at a time. It matches
@@ -196,8 +198,8 @@ func (e *Evaluator) desiredStale(
 	return desired, nil
 }
 
-// collectRuleMatches pages through one (rule, resource type) pair, adding the
-// rule's id to every resource it matches.
+// collectRuleMatches drains one (rule, resource type) pair in a single query,
+// adding the rule's id to every resource it matches.
 func (e *Evaluator) collectRuleMatches(
 	ctx context.Context,
 	teamID string,
@@ -205,35 +207,32 @@ func (e *Evaluator) collectRuleMatches(
 	resourceType string,
 	desired map[resourceKey]*desiredState,
 ) error {
-	query := models.FreshnessCandidateQuery{
+	candidates, err := e.candidates.ListStaleCandidates(ctx, models.FreshnessCandidateQuery{
 		TeamID:        teamID,
 		ResourceType:  resourceType,
 		ProjectID:     rule.ProjectID,
 		Mediums:       rule.Mediums,
 		ThresholdDays: rule.ThresholdDays,
-		Limit:         candidateBatchSize,
+		Limit:         candidateDrainCap,
+	})
+	if err != nil {
+		return fmt.Errorf(
+			"freshness evaluate: failed to list stale %s for rule %s: %w", resourceType, rule.ID, err)
 	}
 
-	for batch := 0; batch < maxCandidateBatches; batch++ {
-		candidates, err := e.candidates.ListStaleCandidates(ctx, query)
-		if err != nil {
-			return fmt.Errorf(
-				"freshness evaluate: failed to list stale %s for rule %s: %w", resourceType, rule.ID, err)
-		}
-		for _, candidate := range candidates {
-			addMatch(desired, candidate, rule.ID)
-		}
-
-		// A short page is the last page: the query returns up to Limit rows
-		// ordered by id, so fewer than Limit means the scan reached the end.
-		if len(candidates) < candidateBatchSize {
-			return nil
-		}
-		query.AfterID = candidates[len(candidates)-1].ResourceID
+	// A full result set means the cap truncated it, so the match set on hand
+	// is incomplete. Checked BEFORE folding it in: the run is already lost, and
+	// merging a known-partial set into the shared desired map would leave the
+	// caller holding state it must not act on.
+	if len(candidates) >= candidateDrainCap {
+		return fmt.Errorf("freshness evaluate: %w: rule %s over %s matched at least %d resources",
+			ErrCandidateBatchCapExceeded, rule.ID, resourceType, candidateDrainCap)
 	}
 
-	return fmt.Errorf("freshness evaluate: %w: rule %s over %s exceeded %d batches of %d",
-		ErrCandidateBatchCapExceeded, rule.ID, resourceType, maxCandidateBatches, candidateBatchSize)
+	for _, candidate := range candidates {
+		addMatch(desired, candidate, rule.ID)
+	}
+	return nil
 }
 
 // addMatch records that ruleID matches the candidate, keeping the rule id set

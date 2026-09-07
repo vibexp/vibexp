@@ -77,19 +77,22 @@ type ResourceFreshnessFilters struct {
 // anyway.
 //
 // ProjectID nil means "any project in the team" and an empty Mediums means
-// "any medium", exactly as on FreshnessRule. Limit plus AfterID is keyset
-// pagination over the resource id, so a rule matching an unbounded number of
-// resources is read in bounded batches.
+// "any medium", exactly as on FreshnessRule. One query returns a rule's whole
+// match set: it is drained in a single call rather than paged, because the
+// only key available to page on is the random-uuid primary key and ordering by
+// it turns the scan into a random heap walk (#862).
 type FreshnessCandidateQuery struct {
 	TeamID        string
 	ResourceType  string
 	ProjectID     *string
 	Mediums       []string
 	ThresholdDays int
-	Limit         int
-	// AfterID returns only resources with a greater id; empty starts at the
-	// beginning.
-	AfterID string
+	// Limit is a hard cap on ONE drain, not a page size: there is no cursor to
+	// read the remainder with, so a caller that reaches it has matched more
+	// than it asked to handle and must treat that as an error rather than as a
+	// page boundary. It exists so a caller bug cannot pull an unbounded result
+	// set into memory.
+	Limit int
 }
 
 // FreshnessCandidate is one resource a rule matched. ProjectID comes from the
