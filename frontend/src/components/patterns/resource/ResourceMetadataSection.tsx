@@ -47,9 +47,10 @@ export interface ResourceMetadataSectionProps {
   project?: ProjectRef | null
   /**
    * Builds the Project row's link target. Routing knowledge stays with the
-   * page; this component only knows there is a link.
+   * page; this component only knows there is a link. Returning `null` (no team
+   * resolved yet, say) renders no row rather than a broken one.
    */
-  projectHref?: (project: ProjectRef) => string
+  projectHref?: (project: ProjectRef) => string | null
   className?: string
 }
 
@@ -140,11 +141,13 @@ export function ResourceMetadataSection({
     )
   }
 
-  if (fields.hasProject && project && projectHref) {
+  const projectTo =
+    fields.hasProject && project && projectHref ? projectHref(project) : null
+  if (project && projectTo) {
     rows.push(
       <MetaRow key="project" label="Project">
         <Link
-          to={projectHref(project)}
+          to={projectTo}
           className="flex items-center gap-1 hover:underline"
         >
           <FolderOpen className="size-3" />

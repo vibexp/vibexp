@@ -35,6 +35,7 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceProject } from '@/hooks/useResourceProject'
+import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import type { Memory, MemoryVersion } from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
@@ -248,9 +249,7 @@ export function MemoryView() {
               resource={memory}
               versionHistory={versionHistory}
               project={project}
-              projectHref={p =>
-                `/teams/${currentTeam?.id ?? ''}/projects/${encodeURIComponent(p.slug)}/edit`
-              }
+              projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />
 
             {tags.length > 0 && (

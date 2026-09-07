@@ -102,14 +102,9 @@ export const blueprintDescriptor = defineResource({
           <span className="text-muted-foreground">{formatDate(value)}</span>
         ) : null,
     },
-    {
-      key: 'metadata',
-      role: 'meta',
-      label: 'Metadata',
-      optional: true,
-      // Rendered by `AdditionalDataCard` beneath the panel, not as a row.
-      render: () => null,
-    },
+    // The free-form blob: object-valued, so the metadata section renders no
+    // row for it — `AdditionalDataCard` beneath the panel owns it.
+    { key: 'metadata', role: 'meta', label: 'Metadata', optional: true },
   ],
   capabilities: {
     attachments: true,

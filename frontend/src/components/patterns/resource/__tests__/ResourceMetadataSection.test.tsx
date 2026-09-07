@@ -101,12 +101,19 @@ describe('ResourceMetadataSection', () => {
       'Slug',
       'Project',
       'MCP',
-      'Shared',
       'Created',
       'Updated',
     ])
     expect(screen.getByText('Exposed')).toBeInTheDocument()
-    expect(screen.getByText('Not shared')).toBeInTheDocument()
+    // An unshared prompt gets no Shared row — only a shared one does.
+    expect(rowLabels()).not.toContain('Shared')
+  })
+
+  it('adds the Shared row only for a shared prompt', () => {
+    renderSection('prompt', { ...PROMPT, is_shared: true })
+    // Label and value both read "Shared" — the row exists and carries a value.
+    expect(rowLabels()).toContain('Shared')
+    expect(screen.getAllByText('Shared')).toHaveLength(2)
   })
 
   it('generates the artifact rows in the same order, Type first', () => {

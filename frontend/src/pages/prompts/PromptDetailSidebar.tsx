@@ -26,7 +26,7 @@ interface PromptMetadataProps {
   /** Resolved owning project; omitted/null while it loads. */
   project?: ProjectRef | null
   /** Builds the Project row's link target. */
-  projectHref?: (project: ProjectRef) => string
+  projectHref?: (project: ProjectRef) => string | null
 }
 
 /**

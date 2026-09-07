@@ -148,6 +148,12 @@ function resetRenderer() {
   mockRenderer.fetchPlaceholders.mockResolvedValue(undefined)
 }
 
+vi.mock('@/services/projectService', () => ({
+  projectService: {
+    getProjects: vi.fn(),
+  },
+}))
+
 vi.mock('@/hooks', () => {
   const showSuccess = vi.fn()
   const showError = vi.fn()
@@ -166,6 +172,7 @@ vi.mock('@/hooks/useErrorHandler', () => ({
 
 import React from 'react'
 
+import { projectService } from '@/services/projectService'
 import { promptService } from '@/services/promptService'
 
 import { PromptDetail } from '../PromptDetail'
@@ -216,6 +223,10 @@ describe('PromptDetail page', () => {
     storage.clear()
     setTeamPermissions([])
     ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
+    // The Project metadata row (#903) resolves the owning project by id.
+    ;(projectService.getProjects as Mock).mockResolvedValue({
+      projects: [{ id: 'proj-1', name: 'My Project', slug: 'my-project-slug' }],
+    })
     ;(promptService.getPromptDependencies as Mock).mockResolvedValue({
       used_by: [],
       uses: [],

@@ -43,3 +43,18 @@ export function buildResourceUrl(fields: ResourceUrlFields): string | null {
       return null
   }
 }
+
+/**
+ * The project settings page a resource's Project metadata row links to.
+ *
+ * Kept here rather than inlined at each detail page: since #903 all four
+ * resource pages render the same Project row, and four copies of the template
+ * literal is exactly the per-page duplication that issue removes.
+ */
+export function buildProjectEditUrl(
+  teamId: string | undefined,
+  slug: string
+): string | null {
+  if (!teamId) return null
+  return `/teams/${encodeURIComponent(teamId)}/projects/${encodeURIComponent(slug)}/edit`
+}

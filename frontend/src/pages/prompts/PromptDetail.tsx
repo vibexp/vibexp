@@ -11,6 +11,7 @@ import {
   useBodyViewMode,
   useCopyAction,
 } from '@/components/patterns/reading-page'
+import { statusTone } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -21,6 +22,7 @@ import { useAlerts, useAnalytics, usePromptRenderer } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceProject } from '@/hooks/useResourceProject'
+import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import {
   PromptMetadata,
   promptUsedBySection,
@@ -363,9 +365,7 @@ export function PromptDetail() {
         title={prompt.name}
         description={
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <StatusBadge
-              tone={prompt.status === 'published' ? 'success' : 'warning'}
-            >
+            <StatusBadge tone={statusTone('prompt', prompt.status)}>
               {prompt.status}
             </StatusBadge>
             {prompt.is_shared && (
@@ -391,9 +391,7 @@ export function PromptDetail() {
             prompt={prompt}
             versionHistory={versionHistory}
             project={project}
-            projectHref={p =>
-              `/teams/${currentTeam?.id ?? ''}/projects/${encodeURIComponent(p.slug)}/edit`
-            }
+            projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
           />
         }
         extraSections={promptUsedBySection(dependencies, loadingDependencies)}

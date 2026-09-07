@@ -21,6 +21,7 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceProject } from '@/hooks/useResourceProject'
+import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import type { Blueprint, BlueprintVersion } from '@/services/blueprintService'
 import { blueprintService } from '@/services/blueprintService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
@@ -225,9 +226,7 @@ export function BlueprintView() {
               resource={blueprint}
               versionHistory={versionHistory}
               project={projectRef}
-              projectHref={p =>
-                `/teams/${currentTeam?.id ?? ''}/projects/${encodeURIComponent(p.slug)}/edit`
-              }
+              projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />
             <AdditionalDataCard data={blueprint.metadata ?? {}} />
           </div>

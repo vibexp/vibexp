@@ -32,7 +32,9 @@ export const promptDescriptor = defineResource({
       key: 'is_shared',
       role: 'meta',
       label: 'Shared',
-      render: value => (value === true ? 'Shared' : 'Not shared'),
+      // Only worth a row when it is true: an unshared prompt is the norm, and
+      // the reading header already badges a shared one.
+      render: value => (value === true ? 'Shared' : null),
     },
     { key: 'project_id', role: 'meta', label: 'Project' },
   ],

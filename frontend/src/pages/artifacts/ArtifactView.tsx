@@ -21,6 +21,7 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceProject } from '@/hooks/useResourceProject'
+import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import type { Artifact, ArtifactVersion } from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
@@ -229,9 +230,7 @@ export function ArtifactView() {
               resource={artifact}
               versionHistory={versionHistory}
               project={projectRef}
-              projectHref={p =>
-                `/teams/${currentTeam?.id ?? ''}/projects/${encodeURIComponent(p.slug)}/edit`
-              }
+              projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />
             <AdditionalDataCard data={artifact.metadata ?? {}} />
           </div>
