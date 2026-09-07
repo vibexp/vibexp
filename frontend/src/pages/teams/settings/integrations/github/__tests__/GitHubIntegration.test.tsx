@@ -66,8 +66,10 @@ vi.mock('@/services/githubAppConfigService', async () => ({
 // argument-less `usePermissions()` is recorded as a zero-argument call and the
 // assertion below can tell it apart from `usePermissions(team)`.
 const mockUsePermissions = vi.hoisted(() =>
-  vi.fn((...args: [unknown?]) => {
-    void args
+  // The parameter only exists to keep the declared arity of the forwarding
+  // wrapper below type-compatible; it is intentionally never read.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  vi.fn((..._args: [unknown?]) => {
     return {
       can: vi.fn(() => true),
       canDeleteResource: vi.fn(() => true),
