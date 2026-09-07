@@ -8,15 +8,16 @@ import {
 import type { FieldRole, ResourceDescriptor } from '../types'
 
 // The registry's keys must stay a superset of the kinds the shared side panels
-// understand, so a descriptor can always back a `ResourceReadingPage`. The
-// annotation and the `satisfies` are checked by `tsc -b`; the test below checks
-// the same list at runtime.
-const SIDE_PANEL_KINDS: readonly ResourceKindKey[] = [
-  'artifact',
-  'prompt',
-  'blueprint',
-  'memory',
-] satisfies readonly ResourceKind[]
+// understand, so a descriptor can always back a `ResourceReadingPage`. Keying
+// this map by `ResourceKind` makes it exhaustive: adding a member to that union
+// fails `tsc -b` here until the registry gains a descriptor for it, and the
+// value type rejects a mapping onto a kind the registry does not have.
+const SIDE_PANEL_KINDS: Record<ResourceKind, ResourceKindKey> = {
+  artifact: 'artifact',
+  prompt: 'prompt',
+  blueprint: 'blueprint',
+  memory: 'memory',
+}
 
 function keysWithRole(descriptor: ResourceDescriptor, role: FieldRole) {
   return descriptor.fields.filter(f => f.role === role).map(f => f.key)
@@ -39,8 +40,18 @@ describe('resourceRegistry', () => {
     }
   })
 
-  it('is frozen, so a consumer cannot register a kind at runtime', () => {
+  // Object.freeze is shallow, so freezing the registry alone would leave every
+  // descriptor — the object each page holds a reference to — writable.
+  it('is frozen all the way down, so no consumer can mutate a descriptor', () => {
     expect(Object.isFrozen(resourceRegistry)).toBe(true)
+    for (const descriptor of Object.values(resourceRegistry)) {
+      expect(Object.isFrozen(descriptor)).toBe(true)
+      expect(Object.isFrozen(descriptor.fields)).toBe(true)
+      expect(Object.isFrozen(descriptor.capabilities)).toBe(true)
+      for (const field of descriptor.fields) {
+        expect(Object.isFrozen(field)).toBe(true)
+      }
+    }
   })
 
   it('looks a descriptor up by kind', () => {
@@ -48,7 +59,7 @@ describe('resourceRegistry', () => {
   })
 
   it('covers every kind the shared side panels understand', () => {
-    for (const kind of SIDE_PANEL_KINDS) {
+    for (const kind of Object.values(SIDE_PANEL_KINDS)) {
       expect(getResourceDescriptor(kind).kind).toBe(kind)
     }
   })

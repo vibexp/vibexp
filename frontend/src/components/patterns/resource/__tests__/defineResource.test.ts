@@ -212,7 +212,7 @@ describe('defineResource', () => {
             },
           ])
         )
-      ).toThrow(/field 'type' has role 'type' but declares status values/)
+      ).toThrow(/field 'type' has role 'type' but declares status metadata/)
     })
   })
 })

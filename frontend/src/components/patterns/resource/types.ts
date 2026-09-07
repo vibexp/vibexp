@@ -38,6 +38,8 @@
  * over MCP), not preferences a page may override.
  */
 
+import type { StatusTone } from '@/components/StatusBadge'
+
 /** What a field means to a page. */
 export type FieldRole =
   | 'name'
@@ -51,40 +53,40 @@ export type FieldRole =
 
 /**
  * The badge tones `StatusBadge` understands, minus `default` — a declared
- * status value always names an explicit tone.
+ * status value always names an explicit tone. Derived rather than restated, so
+ * a tone renamed on the badge fails to compile here.
  */
-export type FieldTone =
-  'success' | 'warning' | 'destructive' | 'info' | 'neutral'
+export type FieldTone = Exclude<StatusTone, 'default'>
 
 /** One field of a resource, as the pages need to know it. */
 export interface FieldSpec {
   /** The property name on the API payload (`mcp_expose`, `project_id`, …). */
-  key: string
-  role: FieldRole
+  readonly key: string
+  readonly role: FieldRole
   /** Human-readable label for metadata rows, table headers and form fields. */
-  label: string
+  readonly label: string
   /** The API marks this property optional or nullable. */
-  optional?: boolean
+  readonly optional?: boolean
   /**
    * For a `status` field: every value the API can return, in display order.
    * Mirrors the per-kind enum in the OpenAPI spec until the shared
    * `ResourceStatus` enum lands (decision F).
    */
-  statusValues?: readonly string[]
+  readonly statusValues?: readonly string[]
   /**
    * For a `status` field: the badge tone per status value. Every key must be
    * one of `statusValues`.
    */
-  tone?: Readonly<Record<string, FieldTone>>
+  readonly tone?: Readonly<Record<string, FieldTone>>
 }
 
 /** Which shared side panels a resource kind supports. */
 export interface Capabilities {
-  attachments: boolean
-  versions: boolean
-  comments: boolean
-  relations: boolean
-  mcp: boolean
+  readonly attachments: boolean
+  readonly versions: boolean
+  readonly comments: boolean
+  readonly relations: boolean
+  readonly mcp: boolean
 }
 
 /**
@@ -101,14 +103,14 @@ export type ResourceAddressShape =
 /** A resource type, described as data. */
 export interface ResourceDescriptor {
   /** Stable discriminator; for team resources it is also the API resource type. */
-  kind: string
+  readonly kind: string
   /** Noun for one of them ("prompt"). */
-  singular: string
+  readonly singular: string
   /** Noun for several ("prompts"). */
-  plural: string
-  address: ResourceAddressShape
-  fields: readonly FieldSpec[]
-  capabilities: Capabilities
+  readonly plural: string
+  readonly address: ResourceAddressShape
+  readonly fields: readonly FieldSpec[]
+  readonly capabilities: Capabilities
   /** No create/edit/delete affordances — the gallery is served read-only. */
-  readOnly?: boolean
+  readonly readOnly?: boolean
 }

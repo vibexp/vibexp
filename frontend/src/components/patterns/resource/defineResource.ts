@@ -76,7 +76,7 @@ export function defineResource<T extends ResourceDescriptor>(descriptor: T): T {
       if (field.statusValues || field.tone) {
         fail(
           kind,
-          `field '${field.key}' has role '${field.role}' but declares status values`
+          `field '${field.key}' has role '${field.role}' but declares status metadata`
         )
       }
       continue
