@@ -114,7 +114,7 @@ export function BlueprintView() {
   // Best-effort and stale-guarded by the hook; gated on the same readiness
   // conditions as the detail fetch above.
   const { versionHistory } = useResourceVersions({
-    fetch:
+    loadVersions:
       !isLoadingTeam && currentTeam && project && slug
         ? () =>
             blueprintService.getBlueprintVersions(

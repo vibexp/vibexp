@@ -1,24 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import type { VersionHistoryMeta } from '@/components/metadata/MetadataPanel'
+import type {
+  ContentVersion,
+  ResourceVersionListResponse,
+} from '@/types/version'
 
-/**
- * The one field the derivation reads from a version snapshot. Every resource's
- * version type satisfies it (they are all aliases of the shared
- * `ResourceVersion`), so callers keep their own concrete types.
- */
-export interface ResourceVersionLike {
-  version_number: number
-}
-
-export interface UseResourceVersionsOptions<T extends ResourceVersionLike> {
+export interface UseResourceVersionsOptions {
   /**
    * Loads the resource's version snapshots, or `null` while the caller still
    * lacks the context to ask (no team resolved yet, no slug/id in the route).
-   * Callers re-create it on every render by design — the effect keys off
-   * `deps`, not off this callback's identity, so it needs no memoization.
+   * Callers build it inline — the effect keys off `deps`, not off this
+   * callback's identity, so it needs no memoization.
    */
-  fetch: (() => Promise<{ versions: T[] }>) | null
+  loadVersions: (() => Promise<ResourceVersionListResponse>) | null
   /**
    * react-router target for the "View version history" footer link, or
    * `undefined` until the resource itself has loaded (the route is built from
@@ -28,17 +23,24 @@ export interface UseResourceVersionsOptions<T extends ResourceVersionLike> {
   /** The resource's `updated_at` — rendered beside the version number. */
   editedAt?: string
   /**
-   * Identity of what is being fetched (team, slug, id, readiness). A change
-   * re-fetches and invalidates whatever was already in flight.
+   * Identity of what is being loaded (team, slug, id, readiness). A change
+   * discards the snapshots held for the previous identity and reloads.
    */
   deps: readonly unknown[]
 }
 
-export interface ResourceVersionsState<T> {
-  versions: T[]
+export interface ResourceVersionsState {
+  versions: ContentVersion[]
   versionHistory: VersionHistoryMeta | undefined
   loading: boolean
 }
+
+/**
+ * Empties the list, preserving the array identity when it is already empty so
+ * `useState` can bail out instead of paying a wasted render.
+ */
+const clearVersions = (previous: ContentVersion[]): ContentVersion[] =>
+  previous.length === 0 ? previous : []
 
 /**
  * Loads a resource's version snapshots and derives the Metadata panel's
@@ -46,32 +48,34 @@ export interface ResourceVersionsState<T> {
  *
  * Extracted so the four versioned resource detail pages share one
  * implementation instead of four copies of the same fetch-then-derive block
- * (#905). Two properties are the point:
+ * (#905). Three properties are the point:
  *
  * - **The stale-response guard now applies to every caller.** Three of the four
  *   pages had it; the prompt page did not, so a slow response for a previously
  *   viewed slug could land afterwards and render that prompt's version count.
- * - **The load stays best-effort.** The list only powers the panel's footer
- *   link and count chip, so a failure resolves to "no history" instead of
- *   surfacing as a page error — a 404/403 on `/versions` must never break the
- *   resource view itself.
+ * - **A change of identity drops the snapshots it belonged to.** The pages share
+ *   one component instance across a route-param change (the routes carry no
+ *   `key`), and the affordance's `to` follows the new resource immediately — so
+ *   keeping the old count would pair one resource's history with another's link
+ *   for as long as the reload takes.
+ * - **The load stays best-effort.** The list only powers the panel's footer link
+ *   and count chip, so a failure resolves to "no history" instead of surfacing
+ *   as a page error — a 404/403 on `/versions` must never break the resource
+ *   view itself.
  */
-export function useResourceVersions<T extends ResourceVersionLike>({
-  fetch,
+export function useResourceVersions({
+  loadVersions,
   to,
   editedAt,
   deps,
-}: UseResourceVersionsOptions<T>): ResourceVersionsState<T> {
-  const [versions, setVersions] = useState<T[]>([])
-  const [loading, setLoading] = useState(false)
+}: UseResourceVersionsOptions): ResourceVersionsState {
+  const [versions, setVersions] = useState<ContentVersion[]>([])
+  const [loading, setLoading] = useState(loadVersions !== null)
 
   useEffect(() => {
-    if (!fetch) {
-      // Drop whatever a previous identity left behind — but preserve the array
-      // identity when there is nothing to drop. Handing `useState` a fresh `[]`
-      // here forces a re-render on every mount, which re-runs the caller's own
-      // detail effect a beat earlier than it used to.
-      setVersions(previous => (previous.length === 0 ? previous : []))
+    // Anything held belongs to the identity that has just been replaced.
+    setVersions(clearVersions)
+    if (!loadVersions) {
       setLoading(false)
       return
     }
@@ -81,10 +85,10 @@ export function useResourceVersions<T extends ResourceVersionLike>({
     setLoading(true)
     const load = async () => {
       try {
-        const history = await fetch()
+        const history = await loadVersions()
         if (active) setVersions(history.versions)
       } catch {
-        if (active) setVersions([])
+        if (active) setVersions(clearVersions)
       } finally {
         if (active) setLoading(false)
       }
@@ -93,10 +97,10 @@ export function useResourceVersions<T extends ResourceVersionLike>({
     return () => {
       active = false
     }
-    // The effect keys off the caller-declared `deps`, not off `fetch`: callers
-    // build that closure inline, so a fresh identity every render would refetch
-    // forever. `exhaustive-deps` cannot statically verify a non-literal list and
-    // warns; the list is the documented contract of the `deps` option.
+    // The effect keys off the caller-declared `deps`, not off `loadVersions`:
+    // callers build that closure inline, so a fresh identity every render would
+    // reload forever. `exhaustive-deps` cannot statically verify a non-literal
+    // list and warns; the list is the `deps` option's contract.
   }, deps)
 
   const versionHistory = useMemo<VersionHistoryMeta | undefined>(() => {

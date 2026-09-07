@@ -138,7 +138,7 @@ export function MemoryView() {
   // Best-effort and stale-guarded by the hook; gated on the same readiness
   // conditions as the detail fetch above.
   const { versionHistory } = useResourceVersions({
-    fetch:
+    loadVersions:
       !isLoadingTeam && currentTeam && id
         ? () => memoryService.getMemoryVersions(currentTeam.id, id)
         : null,

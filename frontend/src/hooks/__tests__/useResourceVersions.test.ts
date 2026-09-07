@@ -2,29 +2,37 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useResourceVersions } from '@/hooks/useResourceVersions'
+import type {
+  ContentVersion,
+  ResourceVersionListResponse,
+} from '@/types/version'
 
-interface TestVersion {
-  version_number: number
-}
-
-interface VersionListResponse {
-  versions: TestVersion[]
-}
-
-/** A promise whose settlement this test controls, to order two in-flight fetches. */
+/** A promise whose settlement this test controls, to order two in-flight loads. */
 function deferred() {
-  let resolve!: (value: VersionListResponse) => void
+  let resolve!: (value: ResourceVersionListResponse) => void
   let reject!: (reason: unknown) => void
-  const promise = new Promise<VersionListResponse>((res, rej) => {
+  const promise = new Promise<ResourceVersionListResponse>((res, rej) => {
     resolve = res
     reject = rej
   })
   return { promise, resolve, reject }
 }
 
-const version = (version_number: number): TestVersion => ({ version_number })
+const version = (version_number: number): ContentVersion => ({
+  id: `version-${String(version_number)}`,
+  team_id: 'team-1',
+  resource_type: 'prompt',
+  resource_id: 'resource-1',
+  version_number,
+  content: 'snapshot content',
+  change_summary: null,
+  actor_type: 'human',
+  created_by: null,
+  author: null,
+  created_at: '2026-09-01T09:00:00Z',
+})
 
-/** Lets a settled fetch's `.then`/`.catch` continuations run to completion. */
+/** Lets a settled load's `.then`/`.catch` continuations run to completion. */
 async function flushMicrotasks() {
   await act(async () => {
     await Promise.resolve()
@@ -40,8 +48,8 @@ describe('useResourceVersions', () => {
 
   it('produces no affordance when the resource has no snapshots', async () => {
     const { result } = renderHook(() =>
-      useResourceVersions<TestVersion>({
-        fetch: () => Promise.resolve({ versions: [] }),
+      useResourceVersions({
+        loadVersions: () => Promise.resolve({ versions: [] }),
         to: '/artifacts/proj/art/versions',
         deps: ['art'],
       })
@@ -56,10 +64,10 @@ describe('useResourceVersions', () => {
 
   it('derives the count, the current version, the edit time and the route', async () => {
     const { result } = renderHook(() =>
-      useResourceVersions<TestVersion>({
+      useResourceVersions({
         // Deliberately out of order: the current version is one past the
         // HIGHEST retained snapshot, not past the last element.
-        fetch: () =>
+        loadVersions: () =>
           Promise.resolve({ versions: [version(1), version(3), version(2)] }),
         to: '/artifacts/proj/art/versions',
         editedAt: '2026-09-01T10:00:00Z',
@@ -80,8 +88,8 @@ describe('useResourceVersions', () => {
 
   it('withholds the affordance until the route is known', async () => {
     const { result } = renderHook(() =>
-      useResourceVersions<TestVersion>({
-        fetch: () => Promise.resolve({ versions: [version(1)] }),
+      useResourceVersions({
+        loadVersions: () => Promise.resolve({ versions: [version(1)] }),
         // The route is built from the resource payload, which has not arrived.
         to: undefined,
         deps: ['art'],
@@ -96,8 +104,8 @@ describe('useResourceVersions', () => {
 
   it('treats a failed load as "no history" rather than an error', async () => {
     const { result } = renderHook(() =>
-      useResourceVersions<TestVersion>({
-        fetch: () => Promise.reject(new Error('versions boom')),
+      useResourceVersions({
+        loadVersions: () => Promise.reject(new Error('versions boom')),
         to: '/memories/m1/versions',
         deps: ['m1'],
       })
@@ -110,15 +118,15 @@ describe('useResourceVersions', () => {
     expect(result.current.versionHistory).toBeUndefined()
   })
 
-  it('fetches nothing until the caller is ready', async () => {
-    const fetchVersions = vi
-      .fn<() => Promise<VersionListResponse>>()
+  it('loads nothing until the caller is ready', async () => {
+    const loadVersions = vi
+      .fn<() => Promise<ResourceVersionListResponse>>()
       .mockResolvedValue({ versions: [version(1)] })
 
     const { result, rerender } = renderHook(
       ({ ready }: { ready: boolean }) =>
-        useResourceVersions<TestVersion>({
-          fetch: ready ? fetchVersions : null,
+        useResourceVersions({
+          loadVersions: ready ? loadVersions : null,
           to: ready ? '/memories/m1/versions' : undefined,
           deps: [ready],
         }),
@@ -126,7 +134,7 @@ describe('useResourceVersions', () => {
     )
 
     await flushMicrotasks()
-    expect(fetchVersions).not.toHaveBeenCalled()
+    expect(loadVersions).not.toHaveBeenCalled()
     expect(result.current.loading).toBe(false)
     expect(result.current.versions).toEqual([])
     expect(result.current.versionHistory).toBeUndefined()
@@ -135,7 +143,42 @@ describe('useResourceVersions', () => {
     await waitFor(() => {
       expect(result.current.versionHistory?.count).toBe(1)
     })
-    expect(fetchVersions).toHaveBeenCalledTimes(1)
+    expect(loadVersions).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops the previous resource’s history the moment the identity changes', async () => {
+    const first = deferred()
+    const second = deferred()
+    const pending = [first, second]
+    let call = 0
+    const loadVersions = vi.fn(() => pending[call++].promise)
+
+    const { result, rerender } = renderHook(
+      ({ slug }: { slug: string }) =>
+        useResourceVersions({
+          loadVersions,
+          to: `/prompts/${slug}/versions`,
+          deps: [slug],
+        }),
+      { initialProps: { slug: 'first-prompt' } }
+    )
+
+    first.resolve({ versions: [version(1), version(2), version(3)] })
+    await waitFor(() => {
+      expect(result.current.versionHistory?.count).toBe(3)
+    })
+
+    // `to` follows the new prompt immediately, so holding the old count would
+    // pair the first prompt's history with the second prompt's link.
+    rerender({ slug: 'second-prompt' })
+    await flushMicrotasks()
+    expect(result.current.versions).toEqual([])
+    expect(result.current.versionHistory).toBeUndefined()
+
+    second.resolve({ versions: [version(1)] })
+    await waitFor(() => {
+      expect(result.current.versionHistory?.count).toBe(1)
+    })
   })
 
   it('discards a response that lands after the identity changed', async () => {
@@ -143,12 +186,12 @@ describe('useResourceVersions', () => {
     const second = deferred()
     const pending = [first, second]
     let call = 0
-    const fetchVersions = vi.fn(() => pending[call++].promise)
+    const loadVersions = vi.fn(() => pending[call++].promise)
 
     const { result, rerender } = renderHook(
       ({ slug }: { slug: string }) =>
-        useResourceVersions<TestVersion>({
-          fetch: fetchVersions,
+        useResourceVersions({
+          loadVersions,
           to: `/prompts/${slug}/versions`,
           deps: [slug],
         }),
@@ -157,7 +200,7 @@ describe('useResourceVersions', () => {
 
     // Navigate to another prompt while the first request is still in flight.
     rerender({ slug: 'second-prompt' })
-    expect(fetchVersions).toHaveBeenCalledTimes(2)
+    expect(loadVersions).toHaveBeenCalledTimes(2)
 
     second.resolve({ versions: [version(1)] })
     await waitFor(() => {
@@ -182,12 +225,12 @@ describe('useResourceVersions', () => {
     const second = deferred()
     const pending = [first, second]
     let call = 0
-    const fetchVersions = vi.fn(() => pending[call++].promise)
+    const loadVersions = vi.fn(() => pending[call++].promise)
 
     const { result, rerender } = renderHook(
       ({ slug }: { slug: string }) =>
-        useResourceVersions<TestVersion>({
-          fetch: fetchVersions,
+        useResourceVersions({
+          loadVersions,
           to: `/prompts/${slug}/versions`,
           deps: [slug],
         }),
@@ -212,16 +255,16 @@ describe('useResourceVersions', () => {
     })
   })
 
-  it('refetches when the identity changes', async () => {
-    const fetchVersions = vi
-      .fn<() => Promise<VersionListResponse>>()
+  it('reloads when the identity changes', async () => {
+    const loadVersions = vi
+      .fn<() => Promise<ResourceVersionListResponse>>()
       .mockResolvedValueOnce({ versions: [version(1)] })
       .mockResolvedValueOnce({ versions: [version(1), version(2)] })
 
     const { result, rerender } = renderHook(
       ({ slug }: { slug: string }) =>
-        useResourceVersions<TestVersion>({
-          fetch: fetchVersions,
+        useResourceVersions({
+          loadVersions,
           to: `/prompts/${slug}/versions`,
           deps: [slug],
         }),
@@ -239,6 +282,6 @@ describe('useResourceVersions', () => {
     expect(result.current.versionHistory?.to).toBe(
       '/prompts/second-prompt/versions'
     )
-    expect(fetchVersions).toHaveBeenCalledTimes(2)
+    expect(loadVersions).toHaveBeenCalledTimes(2)
   })
 })

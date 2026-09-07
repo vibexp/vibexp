@@ -33,7 +33,6 @@ import type {
 import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
-
 /**
  * The prompt's rendered-mode-only affordances — the placeholder inputs whose
  * values drive the server render, and the render error when one comes back.
@@ -170,7 +169,7 @@ export function PromptDetail() {
   // unguarded, so a slow response for a previously viewed slug could land
   // afterwards and render that prompt's version count (#905).
   const { versionHistory } = useResourceVersions({
-    fetch:
+    loadVersions:
       !isLoadingTeam && currentTeam && slug
         ? () => promptService.getPromptVersions(currentTeam.id, slug)
         : null,

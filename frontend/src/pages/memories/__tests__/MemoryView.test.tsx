@@ -21,6 +21,7 @@ vi.mock('@/contexts/TeamContext', () => ({
 vi.mock('@/services/memoryService', () => ({
   memoryService: {
     getMemory: vi.fn(),
+    getMemoryVersions: vi.fn().mockResolvedValue({ versions: [] }),
     deleteMemory: vi.fn(),
   },
 }))
@@ -456,6 +457,67 @@ describe('MemoryView', () => {
       )
       // Exactly one view is mounted, so the body is never in the DOM twice.
       expect(screen.queryByTestId('markdown-renderer')).not.toBeInTheDocument()
+    })
+  })
+  // The Metadata panel's version-history affordance comes from
+  // `useResourceVersions` (#905); these pin this page's own wiring — the route
+  // it builds and the count it derives.
+  describe('version history', () => {
+    beforeEach(() => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
+    })
+
+    it('renders the version-history link with the total-version count chip', async () => {
+      ;(memoryService.getMemoryVersions as Mock).mockResolvedValue({
+        versions: [
+          { id: 'v2', version_number: 2 },
+          { id: 'v1', version_number: 1 },
+        ],
+      })
+
+      renderMemoryView()
+
+      const link = await screen.findByTestId('metadata-version-history-link')
+      expect(link).toHaveTextContent('View version history')
+      expect(link).toHaveTextContent('2')
+      expect(link).toHaveAttribute('href', '/memories/memory-1/versions')
+      expect(memoryService.getMemoryVersions).toHaveBeenCalledWith(
+        'team-1',
+        'memory-1'
+      )
+    })
+
+    it('hides the version-history footer when there is no history yet', async () => {
+      ;(memoryService.getMemoryVersions as Mock).mockResolvedValue({
+        versions: [],
+      })
+
+      renderMemoryView()
+
+      await screen.findByTestId('resource-body')
+      expect(
+        screen.queryByTestId('metadata-version-history-link')
+      ).not.toBeInTheDocument()
+    })
+
+    it('keeps the page usable when the versions fetch fails', async () => {
+      ;(memoryService.getMemoryVersions as Mock).mockRejectedValue(
+        new Error('boom')
+      )
+
+      renderMemoryView()
+
+      await screen.findByTestId('resource-body')
+      expect(
+        screen.queryByTestId('metadata-version-history-link')
+      ).not.toBeInTheDocument()
     })
   })
 })
