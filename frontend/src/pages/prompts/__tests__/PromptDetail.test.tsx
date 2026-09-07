@@ -119,26 +119,43 @@ vi.mock('@/contexts/TeamContext', () => ({
   }),
 }))
 
+// Stable object so PromptDetail's render effects do not loop; hoisted and
+// mutable so a test can put the page into a placeholder / render-error state
+// (`vi.hoisted` because the mock factory below is itself hoisted above it).
+const mockRenderer = vi.hoisted(() => {
+  const placeholderValues: Record<string, string> = {}
+  return {
+    renderedBody: '',
+    renderError: null as string | null,
+    isRendering: false,
+    allPlaceholders: [] as string[],
+    placeholderValues,
+    isLoadingPlaceholders: false,
+    renderPrompt: vi.fn(),
+    fetchPlaceholders: vi.fn(),
+    updatePlaceholderValue: vi.fn(),
+  }
+})
+
+function resetRenderer() {
+  mockRenderer.renderedBody = ''
+  mockRenderer.renderError = null
+  mockRenderer.isRendering = false
+  mockRenderer.allPlaceholders = []
+  mockRenderer.placeholderValues = {}
+  mockRenderer.isLoadingPlaceholders = false
+  mockRenderer.renderPrompt.mockResolvedValue(undefined)
+  mockRenderer.fetchPlaceholders.mockResolvedValue(undefined)
+}
+
 vi.mock('@/hooks', () => {
   const showSuccess = vi.fn()
   const showError = vi.fn()
   const trackEvent = vi.fn()
-  // Stable object so PromptDetail's render effects do not loop.
-  const renderer = {
-    renderedBody: '',
-    renderError: null,
-    isRendering: false,
-    allPlaceholders: [] as string[],
-    placeholderValues: {} as Record<string, string>,
-    isLoadingPlaceholders: false,
-    renderPrompt: vi.fn().mockResolvedValue(undefined),
-    fetchPlaceholders: vi.fn().mockResolvedValue(undefined),
-    updatePlaceholderValue: vi.fn(),
-  }
   return {
     useAlerts: () => ({ showSuccess, showError }),
     useAnalytics: () => ({ trackEvent }),
-    usePromptRenderer: () => renderer,
+    usePromptRenderer: () => mockRenderer,
   }
 })
 
@@ -195,6 +212,7 @@ function renderPromptDetail(slug = 'code-review-template') {
 describe('PromptDetail page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRenderer()
     storage.clear()
     setTeamPermissions([])
     ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
@@ -452,14 +470,42 @@ describe('PromptDetail page', () => {
       expect(screen.getByTestId('resource-body-raw')).toBeInTheDocument()
     })
 
-    it('renders the placeholder inputs through the rendered-only slot', async () => {
+    it('renders the placeholder inputs and render error through the rendered-only slot', async () => {
+      const user = userEvent.setup()
+      mockRenderer.allPlaceholders = ['criteria']
+      mockRenderer.placeholderValues = { criteria: '' }
+      mockRenderer.renderError = 'unknown placeholder'
+
       renderPromptDetail()
       await screen.findByText('Code Review Template')
 
-      // No placeholders on the fixture, so the slot contributes no markup —
-      // but the rendered panel is what mounts, and it is the only one.
-      expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
-      expect(screen.getByTestId('markdown-renderer')).toBeInTheDocument()
+      // Both live in `renderedExtra`; deleting that prop drops them entirely.
+      expect(screen.getByPlaceholderText('Enter criteria')).toBeInTheDocument()
+      expect(screen.getByText('Render error')).toBeInTheDocument()
+      expect(screen.getByText('unknown placeholder')).toBeInTheDocument()
+
+      // …and they belong to the Rendered view only.
+      await user.click(screen.getByRole('tab', { name: 'Raw' }))
+      expect(
+        screen.queryByPlaceholderText('Enter criteria')
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText('Render error')).not.toBeInTheDocument()
+    })
+
+    it('forwards placeholder edits to the renderer', async () => {
+      const user = userEvent.setup()
+      mockRenderer.allPlaceholders = ['criteria']
+      mockRenderer.placeholderValues = { criteria: '' }
+
+      renderPromptDetail()
+      await screen.findByText('Code Review Template')
+
+      await user.type(screen.getByPlaceholderText('Enter criteria'), 'a')
+
+      expect(mockRenderer.updatePlaceholderValue).toHaveBeenCalledWith(
+        'criteria',
+        'a'
+      )
     })
   })
 })

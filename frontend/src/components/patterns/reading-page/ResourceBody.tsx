@@ -13,7 +13,7 @@ const VIEW_OPTIONS = [
   { value: 'raw', label: 'Raw' },
 ] as const
 
-export interface ResourceBodyProps {
+interface ResourceBodyBaseProps {
   /** What the rendered view shows (for prompts: the placeholder-rendered body). */
   content: string
   /** What the raw view shows. Defaults to `content` — the source, never the render. */
@@ -25,11 +25,20 @@ export interface ResourceBodyProps {
   /** Replaces the rendered body with a spinner while it is being produced. */
   isLoading?: boolean
   loadingLabel?: string
-  /** Controlled view mode. Omit to let the component own (and persist) it. */
-  mode?: BodyViewMode
-  onModeChange?: (mode: BodyViewMode) => void
   className?: string
 }
+
+/**
+ * Controlled and uncontrolled are the only two legal shapes. Split as a union
+ * rather than two independent optionals because `mode` without `onModeChange`
+ * would type-check and then be silently inert — the switch would render and
+ * respond to clicks while the caller's mode never moved.
+ */
+type ResourceBodyModeProps =
+  | { mode: BodyViewMode; onModeChange: (mode: BodyViewMode) => void }
+  | { mode?: undefined; onModeChange?: undefined }
+
+export type ResourceBodyProps = ResourceBodyBaseProps & ResourceBodyModeProps
 
 /**
  * The one body treatment every resource detail page uses (#901).

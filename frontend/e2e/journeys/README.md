@@ -136,7 +136,8 @@ referenced here have since been consolidated as noted above.
 4. Test placeholder rendering:
    - Switch to "Rendered" view
    - Fill in placeholder values
-   - Copy rendered output
+   - Copy the prompt body (the Copy action copies the SOURCE, not the
+     placeholder-rendered output, since #901)
 5. Create another prompt that includes the first via @mention
 6. Edit the original prompt
 7. View both prompts in the list
