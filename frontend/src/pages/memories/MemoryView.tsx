@@ -37,9 +37,10 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceProject } from '@/hooks/useResourceProject'
+import { useResourceVersions } from '@/hooks/useResourceVersions'
 import { deriveMemoryTitle } from '@/lib/memoryTitle'
 import { buildProjectEditUrl } from '@/lib/resourceUrl'
-import type { Memory, MemoryVersion } from '@/services/memoryService'
+import type { Memory } from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
@@ -66,7 +67,6 @@ export function MemoryView() {
   const { trackEvent } = useAnalytics()
 
   const [memory, setMemory] = useState<Memory | null>(null)
-  const [versions, setVersions] = useState<MemoryVersion[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -86,9 +86,6 @@ export function MemoryView() {
   const copyAction = useCopyAction(memory?.text ?? '')
 
   useEffect(() => {
-    // Guard against stale responses: if id/team change mid-flight, a slower earlier
-    // request must not overwrite the newer memory's version state.
-    let active = true
     const fetchMemory = async () => {
       if (isLoadingTeam) return
       if (!id) {
@@ -118,17 +115,6 @@ export function MemoryView() {
             action_context: 'view',
           },
         })
-        // Version history powers the Metadata panel's footer link + count chip.
-        // Best-effort: a failure here must not break the memory view itself.
-        try {
-          const history = await memoryService.getMemoryVersions(
-            currentTeam.id,
-            id
-          )
-          if (active) setVersions(history.versions)
-        } catch {
-          if (active) setVersions([])
-        }
       } catch (err) {
         const errorMessage = getErrorMessage(err, 'Failed to fetch memory')
         setError(errorMessage)
@@ -138,9 +124,6 @@ export function MemoryView() {
       }
     }
     void fetchMemory()
-    return () => {
-      active = false
-    }
   }, [id, currentTeam, isLoadingTeam, handleError, trackEvent])
 
   // Memories carry no title, so it is derived from the body — memoised because
@@ -150,6 +133,21 @@ export function MemoryView() {
     () => deriveMemoryTitle(memory?.text ?? ''),
     [memory?.text]
   )
+
+  // Version history powers the Metadata panel's footer link + count chip.
+  // Best-effort and stale-guarded by the hook; gated on the same readiness
+  // conditions as the detail fetch above.
+  const { versionHistory } = useResourceVersions({
+    fetch:
+      !isLoadingTeam && currentTeam && id
+        ? () => memoryService.getMemoryVersions(currentTeam.id, id)
+        : null,
+    to: memory
+      ? `/memories/${encodeURIComponent(memory.id)}/versions`
+      : undefined,
+    editedAt: memory?.updated_at,
+    deps: [isLoadingTeam, currentTeam?.id, id],
+  })
 
   const handleDelete = async () => {
     if (!memory || !currentTeam) return
@@ -192,25 +190,6 @@ export function MemoryView() {
 
   const tags = extractTags(memory.metadata)
   const extras = extractExtras(memory.metadata)
-  // Snapshots capture the *prior* text and version numbers are monotonic (never
-  // reused, oldest pruned past the retention cap), so the live memory's version is
-  // one past the highest retained snapshot number. `versions.length` is the number
-  // of entries shown on the linked history page — the chip count.
-  const latestVersionNumber = versions.reduce(
-    (max, v) => Math.max(max, v.version_number),
-    0
-  )
-  // Only surface the version-history affordance once there's history to show; a "0"
-  // chip linking to an empty page would be misleading.
-  const versionHistory =
-    versions.length > 0
-      ? {
-          count: versions.length,
-          currentVersion: latestVersionNumber + 1,
-          editedAt: memory.updated_at,
-          to: `/memories/${encodeURIComponent(memory.id)}/versions`,
-        }
-      : undefined
 
   const actions: ReadingAction[] = [
     backAction,

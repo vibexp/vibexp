@@ -4,7 +4,6 @@ import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { type VersionHistoryMeta } from '@/components/metadata/MetadataPanel'
 import {
   type ReadingAction,
   ResourceBody,
@@ -21,6 +20,7 @@ import { useAlerts, useAnalytics, usePromptRenderer } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceProject } from '@/hooks/useResourceProject'
+import { useResourceVersions } from '@/hooks/useResourceVersions'
 import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import {
   PromptMetadata,
@@ -29,31 +29,10 @@ import {
 import type {
   Prompt,
   PromptDependenciesResponse,
-  PromptVersion,
 } from '@/services/promptService'
 import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
-// Build the Metadata panel's version-history affordance. Snapshots capture the *prior*
-// body and version numbers are monotonic, so the live prompt's content version is one
-// past the highest retained snapshot number; `versions.length` is the count shown on the
-// linked history page. Returns undefined when there are no snapshots (nothing to link to).
-function buildPromptVersionHistory(
-  prompt: Prompt,
-  versions: PromptVersion[]
-): VersionHistoryMeta | undefined {
-  if (versions.length === 0) return undefined
-  const latestVersionNumber = versions.reduce(
-    (max, v) => Math.max(max, v.version_number),
-    0
-  )
-  return {
-    count: versions.length,
-    currentVersion: latestVersionNumber + 1,
-    editedAt: prompt.updated_at,
-    to: `/prompts/${encodeURIComponent(prompt.slug)}/versions`,
-  }
-}
 
 /**
  * The prompt's rendered-mode-only affordances — the placeholder inputs whose
@@ -121,7 +100,6 @@ export function PromptDetail() {
   const [dependencies, setDependencies] =
     useState<PromptDependenciesResponse | null>(null)
   const [loadingDependencies, setLoadingDependencies] = useState(false)
-  const [versions, setVersions] = useState<PromptVersion[]>([])
   // Supplemental — the Project metadata row needs the project's name, and the
   // prompt payload carries only its id.
   const project = useResourceProject(currentTeam?.id, prompt?.project_id)
@@ -174,17 +152,6 @@ export function PromptDetail() {
       } finally {
         setLoadingDependencies(false)
       }
-      // Version history powers the Metadata panel's footer link + count chip.
-      // Best-effort: a failure here must not break the prompt view itself.
-      try {
-        const history = await promptService.getPromptVersions(
-          currentTeam.id,
-          slug
-        )
-        setVersions(history.versions)
-      } catch {
-        setVersions([])
-      }
     } catch (error) {
       handleError(error, 'Failed to load prompt')
       void navigate('/prompts')
@@ -197,6 +164,22 @@ export function PromptDetail() {
     if (!slug || isLoadingTeam) return
     void loadPrompt()
   }, [slug, isLoadingTeam, loadPrompt])
+
+  // Version history powers the Metadata panel's footer link + count chip.
+  // Best-effort, and stale-guarded by the hook — `loadPrompt` fetched it
+  // unguarded, so a slow response for a previously viewed slug could land
+  // afterwards and render that prompt's version count (#905).
+  const { versionHistory } = useResourceVersions({
+    fetch:
+      !isLoadingTeam && currentTeam && slug
+        ? () => promptService.getPromptVersions(currentTeam.id, slug)
+        : null,
+    to: prompt
+      ? `/prompts/${encodeURIComponent(prompt.slug)}/versions`
+      : undefined,
+    editedAt: prompt?.updated_at,
+    deps: [isLoadingTeam, currentTeam?.id, slug],
+  })
 
   const loadedRef = useRef<string | null>(null)
   const prevValuesRef = useRef<Record<string, string>>({})
@@ -307,8 +290,6 @@ export function PromptDetail() {
       </ResourceReadingPage>
     )
   }
-
-  const versionHistory = buildPromptVersionHistory(prompt, versions)
 
   const actions: ReadingAction[] = [
     backAction,
