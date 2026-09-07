@@ -1,13 +1,9 @@
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
-type StatusTone =
-  | 'default'
-  | 'success'
-  | 'warning'
-  | 'destructive'
-  | 'info'
-  | 'neutral'
+/** Badge tones. Exported so callers can declare a tone without restating the union. */
+export type StatusTone =
+  'default' | 'success' | 'warning' | 'destructive' | 'info' | 'neutral'
 
 // Status roles render as solid fills — the design-system documents `--x` as the
 // solid badge fill, paired with its WCAG-checked `--x-foreground`. Tokens flip
