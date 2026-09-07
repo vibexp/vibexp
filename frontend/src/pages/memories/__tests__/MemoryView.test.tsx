@@ -1,9 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
 
 import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
+import { storage } from '@/utils/storage'
 
 // Mock TeamContext — stable references to prevent effect re-runs
 const mockUseTeam = vi.hoisted(() => vi.fn())
@@ -387,6 +389,39 @@ describe('MemoryView', () => {
         const matches = screen.getAllByText('Memory not found')
         expect(matches.length).toBeGreaterThan(0)
       })
+    })
+  })
+
+  describe('body view switch (#901)', () => {
+    beforeEach(() => {
+      storage.clear()
+    })
+
+    it('renders the memory body through ResourceBody, with a Raw view of the source', async () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
+      const user = userEvent.setup()
+      renderMemoryView()
+
+      // Rendered by default, through the shared body — not a bare renderer.
+      const body = await screen.findByTestId('resource-body')
+      expect(within(body).getByTestId('markdown-renderer')).toHaveTextContent(
+        'This is memory text content'
+      )
+
+      await user.click(within(body).getByRole('tab', { name: 'Raw' }))
+
+      expect(screen.getByTestId('resource-body-raw')).toHaveTextContent(
+        'This is memory text content'
+      )
+      // Exactly one view is mounted, so the body is never in the DOM twice.
+      expect(screen.queryByTestId('markdown-renderer')).not.toBeInTheDocument()
     })
   })
 })

@@ -5,22 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
 
 import type { Prompt } from '@/services/promptService'
-
-// The shared lucide mock lacks FileCode (PromptContentCard's raw-tab icon);
-// extend it locally instead of editing the shared mock file.
-vi.mock('lucide-react', async () => {
-  const actual = await vi.importActual<Record<string, unknown>>('lucide-react')
-  const ReactActual = await vi.importActual<typeof import('react')>('react')
-  const icon = (name: string) => (props: object) =>
-    ReactActual.createElement('svg', {
-      'data-testid': `${name.toLowerCase()}-icon`,
-      ...props,
-    })
-  return {
-    ...actual,
-    FileCode: actual.FileCode ?? icon('FileCode'),
-  }
-})
+import { storage } from '@/utils/storage'
 
 // Mock MarkdownRenderer to avoid marked/DOMPurify JSDOM issues
 vi.mock('@/components/MarkdownRenderer', () => ({
@@ -30,20 +15,6 @@ vi.mock('@/components/MarkdownRenderer', () => ({
 }))
 
 // Radix primitives can loop/crash in JSDOM — replace with plain divs.
-vi.mock('@/components/ui/tabs', () => ({
-  Tabs: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="tabs">{children}</div>
-  ),
-  TabsList: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  TabsTrigger: ({ children }: { children: React.ReactNode }) => (
-    <button type="button">{children}</button>
-  ),
-  TabsContent: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-}))
 vi.mock('@/components/ui/select', () => ({
   Select: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="select">{children}</div>
@@ -148,26 +119,43 @@ vi.mock('@/contexts/TeamContext', () => ({
   }),
 }))
 
+// Stable object so PromptDetail's render effects do not loop; hoisted and
+// mutable so a test can put the page into a placeholder / render-error state
+// (`vi.hoisted` because the mock factory below is itself hoisted above it).
+const mockRenderer = vi.hoisted(() => {
+  const placeholderValues: Record<string, string> = {}
+  return {
+    renderedBody: '',
+    renderError: null as string | null,
+    isRendering: false,
+    allPlaceholders: [] as string[],
+    placeholderValues,
+    isLoadingPlaceholders: false,
+    renderPrompt: vi.fn(),
+    fetchPlaceholders: vi.fn(),
+    updatePlaceholderValue: vi.fn(),
+  }
+})
+
+function resetRenderer() {
+  mockRenderer.renderedBody = ''
+  mockRenderer.renderError = null
+  mockRenderer.isRendering = false
+  mockRenderer.allPlaceholders = []
+  mockRenderer.placeholderValues = {}
+  mockRenderer.isLoadingPlaceholders = false
+  mockRenderer.renderPrompt.mockResolvedValue(undefined)
+  mockRenderer.fetchPlaceholders.mockResolvedValue(undefined)
+}
+
 vi.mock('@/hooks', () => {
   const showSuccess = vi.fn()
   const showError = vi.fn()
   const trackEvent = vi.fn()
-  // Stable object so PromptDetail's render effects do not loop.
-  const renderer = {
-    renderedBody: '',
-    renderError: null,
-    isRendering: false,
-    allPlaceholders: [] as string[],
-    placeholderValues: {} as Record<string, string>,
-    isLoadingPlaceholders: false,
-    renderPrompt: vi.fn().mockResolvedValue(undefined),
-    fetchPlaceholders: vi.fn().mockResolvedValue(undefined),
-    updatePlaceholderValue: vi.fn(),
-  }
   return {
     useAlerts: () => ({ showSuccess, showError }),
     useAnalytics: () => ({ trackEvent }),
-    usePromptRenderer: () => renderer,
+    usePromptRenderer: () => mockRenderer,
   }
 })
 
@@ -224,6 +212,8 @@ function renderPromptDetail(slug = 'code-review-template') {
 describe('PromptDetail page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRenderer()
+    storage.clear()
     setTeamPermissions([])
     ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
     ;(promptService.getPromptDependencies as Mock).mockResolvedValue({
@@ -248,11 +238,11 @@ describe('PromptDetail page', () => {
       )
       expect(screen.getByText('published')).toBeInTheDocument()
       expect(screen.getByText('code-review-template')).toBeInTheDocument()
-      // Raw body reaches the content card (both tab panels render because the
-      // Tabs primitive is mocked with plain divs).
-      expect(
-        screen.getAllByText('Please review this code for: {{criteria}}').length
-      ).toBeGreaterThan(0)
+      // The body renders once, in the default (Rendered) view — only the
+      // active tab panel is mounted (#901).
+      expect(screen.getByRole('tabpanel')).toHaveTextContent(
+        'Please review this code for: {{criteria}}'
+      )
     })
 
     it('shows a loading header while the fetch is in flight', () => {
@@ -450,6 +440,71 @@ describe('PromptDetail page', () => {
       expect(mockHandleError).toHaveBeenCalledWith(
         expect.any(Error),
         'Failed to load prompt'
+      )
+    })
+  })
+
+  describe('body view switch (#901)', () => {
+    it('shows the raw source in the Raw view and remembers the choice', async () => {
+      const user = userEvent.setup()
+      const first = renderPromptDetail()
+      await screen.findByText('Code Review Template')
+
+      const body = screen.getByTestId('resource-body')
+      expect(within(body).getByTestId('markdown-renderer')).toBeInTheDocument()
+
+      await user.click(within(body).getByRole('tab', { name: 'Raw' }))
+
+      // `rawContent` is the prompt's own body — never the placeholder-rendered
+      // output — and only that one view is mounted.
+      expect(screen.getByTestId('resource-body-raw')).toHaveTextContent(
+        'Please review this code for: {{criteria}}'
+      )
+      expect(screen.queryByTestId('markdown-renderer')).not.toBeInTheDocument()
+
+      // The page owns the mode (its render effects key off it) but persists it
+      // under the same shared key, so a remount comes back in Raw.
+      first.unmount()
+      renderPromptDetail()
+      await screen.findByText('Code Review Template')
+      expect(screen.getByTestId('resource-body-raw')).toBeInTheDocument()
+    })
+
+    it('renders the placeholder inputs and render error through the rendered-only slot', async () => {
+      const user = userEvent.setup()
+      mockRenderer.allPlaceholders = ['criteria']
+      mockRenderer.placeholderValues = { criteria: '' }
+      mockRenderer.renderError = 'unknown placeholder'
+
+      renderPromptDetail()
+      await screen.findByText('Code Review Template')
+
+      // Both live in `renderedExtra`; deleting that prop drops them entirely.
+      expect(screen.getByPlaceholderText('Enter criteria')).toBeInTheDocument()
+      expect(screen.getByText('Render error')).toBeInTheDocument()
+      expect(screen.getByText('unknown placeholder')).toBeInTheDocument()
+
+      // …and they belong to the Rendered view only.
+      await user.click(screen.getByRole('tab', { name: 'Raw' }))
+      expect(
+        screen.queryByPlaceholderText('Enter criteria')
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText('Render error')).not.toBeInTheDocument()
+    })
+
+    it('forwards placeholder edits to the renderer', async () => {
+      const user = userEvent.setup()
+      mockRenderer.allPlaceholders = ['criteria']
+      mockRenderer.placeholderValues = { criteria: '' }
+
+      renderPromptDetail()
+      await screen.findByText('Code Review Template')
+
+      await user.type(screen.getByPlaceholderText('Enter criteria'), 'a')
+
+      expect(mockRenderer.updatePlaceholderValue).toHaveBeenCalledWith(
+        'criteria',
+        'a'
       )
     })
   })

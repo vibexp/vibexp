@@ -3,11 +3,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import {
   type ReadingAction,
   ReadingPage,
   type ReadingSection,
+  ResourceBody,
   useCopyAction,
 } from '@/components/patterns/reading-page'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -178,7 +178,7 @@ export function PromptGalleryDetail() {
       actions={actions}
       sections={sections}
     >
-      <MarkdownRenderer content={prompt.content} syntaxTheme="auto" />
+      <ResourceBody content={prompt.content} />
     </ReadingPage>
   )
 }

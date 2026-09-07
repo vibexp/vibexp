@@ -33,3 +33,15 @@ export interface ReadingSection {
   icon: ReadingIcon
   content: ReactNode
 }
+
+/**
+ * Which view of a resource body is showing. `raw` always shows the source
+ * text — for a prompt that is `body`, not the placeholder-rendered output.
+ */
+export type BodyViewMode = 'rendered' | 'raw'
+
+/**
+ * The body's source format. Only `markdown` is implemented today; the type
+ * exists so a second format is a widening rather than a new prop.
+ */
+export type BodyFormat = 'markdown'
