@@ -21,9 +21,17 @@ export const memoryDescriptor = defineResource({
       label: 'Status',
       statusValues: ['active', 'draft', 'archived'],
       tone: { active: 'success', draft: 'warning', archived: 'neutral' },
+      valueLabels: { active: 'Active', draft: 'Draft', archived: 'Archived' },
     },
     { key: 'project_id', role: 'meta', label: 'Project' },
-    { key: 'metadata', role: 'meta', label: 'Metadata', optional: true },
+    {
+      key: 'metadata',
+      role: 'meta',
+      label: 'Metadata',
+      optional: true,
+      // Rendered by `AdditionalDataCard` beneath the panel, not as a row.
+      render: () => null,
+    },
   ],
   capabilities: {
     attachments: false,

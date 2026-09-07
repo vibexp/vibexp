@@ -27,9 +27,28 @@ export const artifactDescriptor = defineResource({
       label: 'Status',
       statusValues: ['active', 'draft', 'archived'],
       tone: { active: 'success', draft: 'warning', archived: 'neutral' },
+      valueLabels: { active: 'Active', draft: 'Draft', archived: 'Archived' },
     },
-    { key: 'type', role: 'type', label: 'Type' },
-    { key: 'metadata', role: 'meta', label: 'Metadata', optional: true },
+    {
+      key: 'type',
+      role: 'type',
+      label: 'Type',
+      // Partial on purpose: `type` is an open string, so a team type the SPA
+      // has never heard of renders as itself rather than as `undefined`.
+      valueLabels: {
+        general: 'General',
+        work_reports: 'Work reports',
+        static_contexts: 'Static contexts',
+      },
+    },
+    {
+      key: 'metadata',
+      role: 'meta',
+      label: 'Metadata',
+      optional: true,
+      // Rendered by `AdditionalDataCard` beneath the panel, not as a row.
+      render: () => null,
+    },
   ],
   capabilities: {
     attachments: true,

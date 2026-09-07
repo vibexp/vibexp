@@ -22,8 +22,18 @@ export const promptDescriptor = defineResource({
       tone: { draft: 'warning', published: 'success' },
     },
     { key: 'labels', role: 'taxonomy', label: 'Labels', optional: true },
-    { key: 'mcp_expose', role: 'meta', label: 'MCP' },
-    { key: 'is_shared', role: 'meta', label: 'Shared' },
+    {
+      key: 'mcp_expose',
+      role: 'meta',
+      label: 'MCP',
+      render: value => (value === true ? 'Exposed' : 'Not exposed'),
+    },
+    {
+      key: 'is_shared',
+      role: 'meta',
+      label: 'Shared',
+      render: value => (value === true ? 'Shared' : 'Not shared'),
+    },
     { key: 'project_id', role: 'meta', label: 'Project' },
   ],
   capabilities: {

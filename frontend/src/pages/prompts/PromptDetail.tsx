@@ -20,6 +20,7 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics, usePromptRenderer } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useResourceProject } from '@/hooks/useResourceProject'
 import {
   PromptMetadata,
   promptUsedBySection,
@@ -141,6 +142,9 @@ export function PromptDetail() {
     useState<PromptDependenciesResponse | null>(null)
   const [loadingDependencies, setLoadingDependencies] = useState(false)
   const [versions, setVersions] = useState<PromptVersion[]>([])
+  // Supplemental — the Project metadata row needs the project's name, and the
+  // prompt payload carries only its id.
+  const project = useResourceProject(currentTeam?.id, prompt?.project_id)
   // Owned here rather than by `ResourceBody` because the render and
   // placeholder effects below key off it; persisted under the same shared
   // key so the choice follows the reader across resources (#901).
@@ -383,7 +387,14 @@ export function PromptDetail() {
             : undefined
         }
         metadata={
-          <PromptMetadata prompt={prompt} versionHistory={versionHistory} />
+          <PromptMetadata
+            prompt={prompt}
+            versionHistory={versionHistory}
+            project={project}
+            projectHref={p =>
+              `/teams/${currentTeam?.id ?? ''}/projects/${encodeURIComponent(p.slug)}/edit`
+            }
+          />
         }
         extraSections={promptUsedBySection(dependencies, loadingDependencies)}
       >

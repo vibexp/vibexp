@@ -38,6 +38,8 @@
  * over MCP), not preferences a page may override.
  */
 
+import type { ReactNode } from 'react'
+
 import type { StatusTone } from '@/components/StatusBadge'
 
 /** What a field means to a page. */
@@ -78,6 +80,24 @@ export interface FieldSpec {
    * one of `statusValues`.
    */
   readonly tone?: Readonly<Record<string, FieldTone>>
+  /**
+   * Display text per raw value, for the `status` and `type` roles — the API
+   * returns `work_reports`, the badge reads "Work reports". Partial by design:
+   * a value with no entry renders as itself, so an `type` the server adds
+   * later degrades to its raw string rather than to `undefined`.
+   */
+  readonly valueLabels?: Readonly<Record<string, string>>
+  /**
+   * Escape hatch for the handful of `meta` fields whose value is not a plain
+   * scalar — a repo URL that renders as a link, a commit sha that renders
+   * truncated, a boolean that reads "Exposed". Returning `null` renders no
+   * row at all, which is how a field that belongs in another panel (an
+   * `AdditionalDataCard` blob) opts out of the metadata list.
+   *
+   * Deliberately narrow: `defineResource` rejects it on any role but `meta`,
+   * so it can never grow into a per-page layout slot.
+   */
+  readonly render?: (value: unknown) => ReactNode
 }
 
 /** Which shared side panels a resource kind supports. */
