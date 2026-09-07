@@ -10,6 +10,7 @@ import {
   ResourceBody,
   useCopyAction,
 } from '@/components/patterns/reading-page'
+import { ResourceHeaderMeta } from '@/components/resource-detail/ResourceHeaderMeta'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -174,7 +175,12 @@ export function PromptGalleryDetail() {
   return (
     <ReadingPage
       title={prompt.title}
-      description={prompt.description}
+      description={
+        <ResourceHeaderMeta
+          updatedAt={prompt.updated_at}
+          summary={prompt.description}
+        />
+      }
       actions={actions}
       sections={sections}
     >

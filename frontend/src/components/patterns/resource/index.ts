@@ -9,7 +9,13 @@ export {
   ResourceMetadataSection,
   type ResourceMetadataSectionProps,
 } from './ResourceMetadataSection'
-export { fieldLabel, fieldTone, statusFieldOf, statusTone } from './statusTone'
+export {
+  fieldLabel,
+  fieldTone,
+  statusFieldOf,
+  statusLabel,
+  statusTone,
+} from './statusTone'
 export type {
   Capabilities,
   FieldRole,

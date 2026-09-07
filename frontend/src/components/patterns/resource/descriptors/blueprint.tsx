@@ -34,6 +34,7 @@ export const blueprintDescriptor = defineResource({
       label: 'Status',
       statusValues: ['active', 'expired'],
       tone: { active: 'success', expired: 'neutral' },
+      valueLabels: { active: 'Active', expired: 'Expired' },
     },
     {
       key: 'type',

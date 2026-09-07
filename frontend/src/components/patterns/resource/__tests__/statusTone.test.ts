@@ -4,6 +4,7 @@ import {
   type ResourceKindKey,
   resourceRegistry,
   statusFieldOf,
+  statusLabel,
   statusTone,
 } from '..'
 
@@ -44,10 +45,29 @@ describe('fieldLabel', () => {
   })
 
   it('falls back to the raw value for an unlabelled one', () => {
-    // Blueprint statuses are rendered verbatim today; keep it that way.
-    expect(
-      fieldLabel(statusFieldOf(resourceRegistry.blueprint), 'active')
-    ).toBe('active')
+    // `type` is an open string, so a team type the SPA has never heard of
+    // renders as itself. Every kind's *status* is fully labelled since #902.
+    const typeField = resourceRegistry.artifact.fields.find(
+      f => f.role === 'type'
+    )
+    expect(fieldLabel(typeField, 'team_custom_type')).toBe('team_custom_type')
     expect(fieldLabel(undefined, 'whatever')).toBe('whatever')
+  })
+})
+
+describe('statusLabel', () => {
+  it('reads the descriptor for every kind that has a status', () => {
+    expect(statusLabel('prompt', 'published')).toBe('Published')
+    expect(statusLabel('blueprint', 'expired')).toBe('Expired')
+    expect(statusLabel('artifact', 'archived')).toBe('Archived')
+    expect(statusLabel('memory', 'draft')).toBe('Draft')
+  })
+
+  it('falls back to the raw value for a status the descriptor lacks', () => {
+    expect(statusLabel('prompt', 'retired')).toBe('retired')
+  })
+
+  it('returns the value unchanged for a kind with no status field', () => {
+    expect(statusLabel('gallery-prompt', 'anything')).toBe('anything')
   })
 })

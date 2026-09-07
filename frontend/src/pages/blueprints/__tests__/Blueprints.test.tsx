@@ -297,10 +297,10 @@ describe('Blueprints page', () => {
       expect(screen.getByText('Cursor Rules')).toBeInTheDocument()
       const specRow = rowOf('API Specification')
       expect(within(specRow).getByText('General')).toBeInTheDocument()
-      expect(within(specRow).getByText('active')).toBeInTheDocument()
+      expect(within(specRow).getByText('Active')).toBeInTheDocument()
       const cursorRow = rowOf('Cursor Rules')
       expect(within(cursorRow).getByText('Cursor')).toBeInTheDocument()
-      expect(within(cursorRow).getByText('expired')).toBeInTheDocument()
+      expect(within(cursorRow).getByText('Expired')).toBeInTheDocument()
       expect(blueprintService.getBlueprints).toHaveBeenCalledWith(
         'team-1',
         expect.objectContaining({

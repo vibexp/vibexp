@@ -20,6 +20,7 @@ export const promptDescriptor = defineResource({
       label: 'Status',
       statusValues: ['draft', 'published'],
       tone: { draft: 'warning', published: 'success' },
+      valueLabels: { draft: 'Draft', published: 'Published' },
     },
     { key: 'labels', role: 'taxonomy', label: 'Labels', optional: true },
     {

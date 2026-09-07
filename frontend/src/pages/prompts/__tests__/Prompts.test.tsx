@@ -175,8 +175,19 @@ describe('Prompts page', () => {
         expect(screen.getByText('Code Review Template')).toBeInTheDocument()
       })
       expect(screen.getByText('Bug Triage Prompt')).toBeInTheDocument()
-      expect(screen.getByText('published')).toBeInTheDocument()
-      expect(screen.getByText('draft')).toBeInTheDocument()
+      // Humanised from the descriptor's `valueLabels` so the table and the
+      // detail header read the same (#902). Scoped to the rows, since the
+      // status filter's options carry the same words.
+      const publishedRow = screen
+        .getByText('Code Review Template')
+        .closest('tr')
+      const draftRow = screen.getByText('Bug Triage Prompt').closest('tr')
+      expect(
+        within(publishedRow as HTMLElement).getByText('Published')
+      ).toBeInTheDocument()
+      expect(
+        within(draftRow as HTMLElement).getByText('Draft')
+      ).toBeInTheDocument()
       expect(promptService.getPrompts).toHaveBeenCalledWith(
         'team-1',
         expect.objectContaining({ page: 1, limit: 20 })

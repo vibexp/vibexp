@@ -1,15 +1,8 @@
-import {
-  ArrowRight,
-  Calendar,
-  Check,
-  Copy,
-  History,
-  Info,
-  RotateCcw,
-} from 'lucide-react'
+import { ArrowRight, Calendar, History, Info, RotateCcw } from 'lucide-react'
 import { type ComponentType, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
+import { CopyChip } from '@/components/CopyChip'
 import { RelativeTime } from '@/components/RelativeTime'
 import {
   Panel,
@@ -18,7 +11,6 @@ import {
   PanelTitle,
   usePanelInset,
 } from '@/components/ui/panel'
-import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { cn } from '@/lib/utils'
 
 /* A right-rail metadata panel built entirely on the shared design system:
@@ -54,13 +46,10 @@ export function MetaRow({
 }
 
 /**
- * A key/value row whose value is a monospace chip that is itself the
- * click-to-copy target — the one field people actually grab. The whole chip is a
- * real `<button>` (keyboard-activatable, with an `aria-label`), so it aligns
- * flush-right with the other rows instead of reserving space for a separate copy
- * button. On copy it swaps to a check affordance for ~1.5s. Long slugs truncate
- * to a single line with a trailing ellipsis — the full value is still copied on
- * click and announced via the `aria-label`/`title`, so nothing is lost.
+ * A key/value row whose value is the shared click-to-copy `CopyChip` — the one
+ * field people actually grab. The chip is a real `<button>`, so it aligns flush
+ * right with the other rows instead of reserving space for a separate copy
+ * button, and long slugs truncate without losing the copied value.
  */
 export function MetaSlugRow({
   label = 'Slug',
@@ -69,30 +58,10 @@ export function MetaSlugRow({
   label?: string
   value: string
 }>) {
-  const { copied, copy } = useCopyToClipboard()
-  const CopyIcon = copied ? Check : Copy
-  const action = `Copy ${label.toLowerCase()}`
-
   return (
     <PanelRow as="li">
       <span className="text-muted-foreground shrink-0">{label}</span>
-      <button
-        type="button"
-        onClick={() => {
-          copy(value)
-        }}
-        // Include the value: aria-label overrides the inner <code>, so without it
-        // assistive tech would announce the action but not what gets copied.
-        aria-label={`${action}: ${value}`}
-        title={copied ? 'Copied!' : action}
-        className="flex min-w-0 max-w-full cursor-pointer items-center justify-end gap-1.5 rounded-sm bg-secondary px-2 py-[3px] font-mono text-xs text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <code className="min-w-0 truncate font-mono">{value}</code>
-        <CopyIcon
-          aria-hidden="true"
-          className="size-3 shrink-0 text-muted-foreground"
-        />
-      </button>
+      <CopyChip label={label} value={value} />
     </PanelRow>
   )
 }

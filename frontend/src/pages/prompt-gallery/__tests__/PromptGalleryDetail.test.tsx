@@ -110,6 +110,19 @@ describe('PromptGalleryDetail page', () => {
     expect(screen.getByTestId('copy-button')).toBeInTheDocument()
   })
 
+  it('renders the standard header: description and updated time (#902)', async () => {
+    renderDetail()
+
+    const header = await screen.findByTestId('resource-header-meta')
+    // A gallery template has no team-scoped status or slug, so the shared
+    // header renders only its updated time and summary.
+    expect(within(header).getByText('Updated')).toBeInTheDocument()
+    expect(
+      within(header).getByText('Request a thorough code review')
+    ).toBeInTheDocument()
+    expect(within(header).queryByRole('button')).not.toBeInTheDocument()
+  })
+
   it('tracks usage and pre-fills the prompt editor from Use this prompt', async () => {
     renderDetail()
     await screen.findByText('Code Review Request')

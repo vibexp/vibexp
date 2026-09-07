@@ -17,6 +17,12 @@ import {
 } from '@/components/patterns/reading-page'
 import { RelationsPanel } from '@/components/relations/RelationsPanel'
 
+import {
+  type ResourceHeaderAddress,
+  ResourceHeaderMeta,
+  type ResourceHeaderStatus,
+} from './ResourceHeaderMeta'
+
 /** The resource kinds every standard side panel understands. */
 export type ResourceKind = 'artifact' | 'prompt' | 'blueprint' | 'memory'
 
@@ -50,21 +56,54 @@ export interface ResourceReadingPageProps extends Omit<
   attachments?: boolean
   /** Resource-specific sections appended after the standard ones. */
   extraSections?: readonly ReadingSection[]
+  /** Lifecycle state, rendered as the header's status badge. */
+  status?: ResourceHeaderStatus
+  /** The identifier a reader copies — the slug, for kinds that have one. */
+  address?: ResourceHeaderAddress
+  /** ISO timestamp of the last edit — "Updated <relative>" in the header. */
+  updatedAt?: string
+  /** Lead paragraph beneath the header's badge row. */
+  summary?: ReactNode
+  /** Kind-specific header badges (the prompt's Shared badge). */
+  headerExtra?: ReactNode
 }
 
 /**
- * `ReadingPage` plus the section set every team resource shares — Metadata,
- * Attachments, Access activity, Comments, Relations — in a fixed order, so
- * each resource type (and any resource type added later) gets the identical
- * details panel by describing itself rather than laying itself out.
+ * `ReadingPage` plus the standard resource header (#902) and the section set
+ * every team resource shares — Metadata, Attachments, Access activity,
+ * Comments, Relations — in a fixed order, so each resource type (and any
+ * resource type added later) gets the identical header and details panel by
+ * describing itself rather than laying itself out.
  */
 export function ResourceReadingPage({
   resource,
   metadata,
   attachments = true,
   extraSections = [],
+  status,
+  address,
+  updatedAt,
+  summary,
+  headerExtra,
+  description,
   ...pageProps
 }: Readonly<ResourceReadingPageProps>) {
+  // The standard header, built from data. An explicit `description` still wins,
+  // so the inherited `ReadingPageProps` escape hatch keeps working for a page
+  // that genuinely needs a bespoke node. `.some(Boolean)` rather than a chain
+  // of `??`, which would stop at the first present-but-falsy prop.
+  const hasHeaderMeta = [status, address, updatedAt, summary, headerExtra].some(
+    Boolean
+  )
+  const headerMeta = hasHeaderMeta ? (
+    <ResourceHeaderMeta
+      status={status}
+      address={address}
+      updatedAt={updatedAt}
+      summary={summary}
+      extra={headerExtra}
+    />
+  ) : undefined
   const sections: ReadingSection[] = [
     {
       id: RESOURCE_SECTION_IDS.metadata,
@@ -123,5 +162,11 @@ export function ResourceReadingPage({
     ...extraSections,
   ]
 
-  return <ReadingPage {...pageProps} sections={sections} />
+  return (
+    <ReadingPage
+      {...pageProps}
+      description={description ?? headerMeta}
+      sections={sections}
+    />
+  )
 }

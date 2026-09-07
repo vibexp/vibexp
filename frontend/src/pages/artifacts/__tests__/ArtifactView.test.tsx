@@ -142,6 +142,29 @@ describe('ArtifactView', () => {
   })
 
   describe('when TeamContext finishes loading with a team', () => {
+    it('renders the standard header: status, slug chip and updated time (#902)', async () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(artifactService.getArtifact as Mock).mockResolvedValue(mockArtifact)
+
+      renderArtifactView()
+
+      const header = await screen.findByTestId('resource-header-meta')
+      // Scoped to the header: the descriptor-generated Metadata section
+      // carries its own Status and Slug rows (#903).
+      expect(within(header).getByText('Active')).toBeInTheDocument()
+      expect(
+        within(header).getByRole('button', { name: 'Copy slug: my-artifact' })
+      ).toBeInTheDocument()
+      expect(within(header).getByText('Updated')).toBeInTheDocument()
+      expect(within(header).getByText('A test artifact')).toBeInTheDocument()
+    })
+
     it('loads and renders the artifact after team resolves', async () => {
       mockUseTeam.mockReturnValue({
         currentTeam: { id: 'team-1', name: 'Test Team' },

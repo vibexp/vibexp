@@ -61,3 +61,13 @@ export function fieldLabel(
 export function statusTone(kind: ResourceKindKey, value: string): StatusTone {
   return fieldTone(statusFieldOf(getResourceDescriptor(kind)), value)
 }
+
+/**
+ * The display text for a resource kind's status value — the same
+ * call-site-friendly form as `statusTone`, so a badge's tone and its wording
+ * come from one place. Falls back to the raw value for a status the descriptor
+ * has no label for.
+ */
+export function statusLabel(kind: ResourceKindKey, value: string): string {
+  return fieldLabel(statusFieldOf(getResourceDescriptor(kind)), value)
+}
