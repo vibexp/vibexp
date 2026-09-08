@@ -168,8 +168,7 @@ export function ListTable<
       <TableBody>
         {rows.map(row => {
           const handleRowClick:
-            | MouseEventHandler<HTMLTableRowElement>
-            | undefined = onRowClick
+            MouseEventHandler<HTMLTableRowElement> | undefined = onRowClick
             ? () => {
                 onRowClick(row)
               }

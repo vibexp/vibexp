@@ -42,7 +42,7 @@ export const artifactDescriptor = defineResource({
       },
     },
     // The free-form blob: object-valued, so the metadata section renders no
-    // row for it — `AdditionalDataCard` beneath the panel owns it.
+    // row for it — `ResourceTaxonomySection` owns it.
     { key: 'metadata', role: 'meta', label: 'Metadata', optional: true },
   ],
   capabilities: {

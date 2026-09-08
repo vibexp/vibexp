@@ -129,7 +129,7 @@ describe('ResourceMetadataSection', () => {
     // `valueLabels` turns the wire value into the badge text.
     expect(screen.getByText('Work reports')).toBeInTheDocument()
     expect(screen.getByText('Draft')).toBeInTheDocument()
-    // The `metadata` blob belongs to AdditionalDataCard, not to a row.
+    // The `metadata` blob belongs to ResourceTaxonomySection, not to a row.
     expect(rowLabels()).not.toContain('Metadata')
   })
 

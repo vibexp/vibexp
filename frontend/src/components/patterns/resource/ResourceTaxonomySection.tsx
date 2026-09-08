@@ -1,4 +1,4 @@
-import { AdditionalDataRows } from '@/components/MetadataCard'
+import { AdditionalDataRows } from '@/components/AdditionalDataRows'
 import { TaxonomyChips } from '@/components/TaxonomyChips'
 import {
   Panel,
@@ -38,13 +38,28 @@ type Group =
   | { kind: 'chips'; id: string; label: string; values: string[] }
   | { kind: 'pairs'; id: string; data: Record<string, unknown> }
 
-/** The chip values a `taxonomy` field carries, if any. */
+/**
+ * The chip values a `taxonomy` field carries, if any. Deduped: `metadata.tags`
+ * is user-authored and may repeat a tag, which would both render twice and warn
+ * on a duplicate React key.
+ */
 function chipValues(value: unknown): string[] {
   if (Array.isArray(value)) {
-    return value.filter((v): v is string => typeof v === 'string' && v !== '')
+    const strings = value.filter(
+      (v): v is string => typeof v === 'string' && v !== ''
+    )
+    return [...new Set(strings)]
   }
   if (typeof value === 'string' && value.length > 0) return [value]
   return []
+}
+
+/** A `tags` value the chip row can render without losing anything. */
+function isChipShaped(value: unknown): boolean {
+  return (
+    typeof value === 'string' ||
+    (Array.isArray(value) && value.every(entry => typeof entry === 'string'))
+  )
 }
 
 /** A free-form pair bag — a plain object, which no scalar metadata row claims. */
@@ -62,6 +77,10 @@ function isPairBag(value: unknown): value is Record<string, unknown> {
  */
 function splitTags(bag: Record<string, unknown>) {
   const { [TAGS_KEY]: tags, ...rest } = bag
+  // The lift is a display choice, never a filter: a `tags` the chip row cannot
+  // represent (a number, an object, a mixed array) stays a pair rather than
+  // vanishing from a bag that used to round-trip every key through `MetaValue`.
+  if (!isChipShaped(tags)) return { tags: [], rest: bag }
   return { tags: chipValues(tags), rest }
 }
 

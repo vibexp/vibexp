@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 
-import { AdditionalDataRows } from '../MetadataCard'
+import { AdditionalDataRows } from '../AdditionalDataRows'
 
 // ---- AdditionalDataRows -----------------------------------------------------
 

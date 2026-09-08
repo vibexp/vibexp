@@ -3,7 +3,7 @@ import { type ReactNode } from 'react'
 import { Separator } from '@/components/ui/separator'
 
 /**
- * A single label/value row used inside the Additional data card.
+ * A single label/value row of the free-form metadata pair list.
  */
 function MetaRow({
   label,

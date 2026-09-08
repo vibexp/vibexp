@@ -114,6 +114,37 @@ describe('ResourceTaxonomySection', () => {
       expect(within(block).getByText('note')).toBeInTheDocument()
     })
 
+    it("lifts a tags key out of any pair bag, not just memory's", () => {
+      renderSection('artifact', {
+        metadata: { tags: ['alpha'], other: 'kept' },
+      })
+      const block = section()
+      expect(within(block).getByText('Tags')).toBeInTheDocument()
+      expect(within(block).getByText('alpha')).toBeInTheDocument()
+      expect(within(block).getByText('Other')).toBeInTheDocument()
+      expect(within(block).getByText('kept')).toBeInTheDocument()
+    })
+
+    it.each([
+      ['a number', 42, '42'],
+      ['a mixed array', ['alpha', 42], '["alpha",42]'],
+    ])(
+      'keeps a tags value the chip row cannot represent (%s) as a pair',
+      (_name, tags, rendered) => {
+        // The bag used to round-trip every key through `MetaValue`; the lift is
+        // a display choice and must never drop data.
+        renderSection('artifact', { metadata: { tags } })
+        const block = section()
+        expect(within(block).getByText('Tags')).toBeInTheDocument()
+        expect(within(block).getByText(rendered)).toBeInTheDocument()
+      }
+    )
+
+    it('renders a repeated tag once', () => {
+      renderSection('memory', { metadata: { tags: ['alpha', 'alpha'] } })
+      expect(screen.getAllByText('alpha')).toHaveLength(1)
+    })
+
     it('renders declared taxonomy and the metadata bag under one heading', () => {
       renderSection('blueprint', {
         subtype: 'rules',
