@@ -48,7 +48,7 @@ function collectAvailableTags(prompts: PromptGalleryTemplate[]): string[] {
 }
 
 interface CategoryListProps {
-  /** The raw (still percent-encoded) route segment. */
+  /** The `:category` route segment, as `useParams` hands it back. */
   category: string
 }
 
