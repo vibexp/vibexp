@@ -5,6 +5,12 @@ import {
   searchFilter,
   statusFilter,
 } from '../filterSpecs'
+import {
+  bodyFormField,
+  metadataFormField,
+  projectFormField,
+  statusFormField,
+} from '../formSpecs'
 
 /**
  * Memory — the kind with no title of its own. `text` carries both roles: lists
@@ -44,6 +50,20 @@ export const memoryDescriptor = defineResource({
     // `text` is the memory's name field, and the list endpoint's `sort_by`
     // enum is [text, updated_at, created_at] (backend/paths/memories.yaml).
     sortable: ['text', 'updated_at'],
+  },
+  form: {
+    // `text` is the whole memory, so the form is the body plus its filing:
+    // there is no title to edit.
+    fields: [
+      bodyFormField('text', 'memory-text-textarea'),
+      projectFormField('memory-project-select'),
+      statusFormField('memory'),
+      metadataFormField(),
+    ],
+    // Memory has no `tags` FIELD — the chips edit `metadata.tags`, which the
+    // metadata control deliberately does not own (`MemoryForm` reserves the
+    // key). That lift is a display choice, so it stays a page-supplied slot.
+    extensions: ['tags'],
   },
   capabilities: {
     attachments: false,

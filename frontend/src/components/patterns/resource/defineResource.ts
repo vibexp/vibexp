@@ -1,8 +1,11 @@
 import type {
+  FieldRole,
   FieldSpec,
   FilterSpec,
+  FormFieldSpec,
   ResourceAddressShape,
   ResourceDescriptor,
+  ResourceFormSpec,
   ResourceListSpec,
 } from './types'
 
@@ -324,6 +327,206 @@ function assertListSpec(
 }
 
 /**
+ * The roles each form control can serve.
+ *
+ * A control is a way of *entering* a kind of value, so it only fits a field
+ * whose meaning matches: the body editor belongs on the long-form field, the
+ * project picker on the field that holds a project id, an option list on a
+ * field with a value vocabulary. Without this, a descriptor could put a Select
+ * on a free-text title and the page would render an empty dropdown — the exact
+ * silent-wrong-page failure the descriptor exists to prevent.
+ *
+ * Roles are matched against EVERY role the key carries, not just the first:
+ * memory's `text` is both its `name` and its `body`, so its body control is
+ * legal only if the lookup sees both.
+ */
+const CONTROL_ROLES: ReadonlyMap<string, readonly FieldRole[]> = new Map([
+  ['text', ['name', 'address', 'summary', 'type', 'taxonomy', 'meta']],
+  ['textarea', ['name', 'summary', 'body', 'meta']],
+  ['body', ['body']],
+  ['select', ['status', 'type']],
+  ['project', ['address', 'meta']],
+  ['taxonomy', ['taxonomy']],
+  ['metadata', ['meta']],
+])
+
+/** The section each control must live in. Absent means "any section". */
+const CONTROL_SECTION: ReadonlyMap<string, string> = new Map([
+  ['body', 'body'],
+  ['taxonomy', 'taxonomy'],
+  ['metadata', 'taxonomy'],
+])
+
+/**
+ * Controls that capture one value the user can leave empty, and so are the
+ * only ones `required` means anything on. A chip list and a key/value bag are
+ * always *present* (`[]`, `{}`) — marking one required would declare a rule
+ * the form can neither show nor enforce.
+ */
+const REQUIRABLE_CONTROLS: ReadonlySet<string> = new Set([
+  'text',
+  'textarea',
+  'body',
+  'select',
+  'project',
+])
+
+/** Every role the descriptor gives a key. See {@link CONTROL_ROLES}. */
+function rolesByKey(
+  fields: readonly FieldSpec[]
+): ReadonlyMap<string, ReadonlySet<FieldRole>> {
+  const roles = new Map<string, Set<FieldRole>>()
+  for (const field of fields) {
+    const existing = roles.get(field.key)
+    if (existing) existing.add(field.role)
+    else roles.set(field.key, new Set([field.role]))
+  }
+  return roles
+}
+
+/**
+ * A `select` reads its options from the field's exhaustive list or from the
+ * team's runtime type catalog — never from `valueLabels`, which is partial by
+ * design, for the same reason a list filter may not (#908). A control with no
+ * option list has no business declaring where options come from.
+ */
+function assertFormOptions(
+  kind: string,
+  form: FormFieldSpec,
+  field: FieldSpec
+) {
+  if (form.control !== 'select') {
+    if (form.optionsFrom) {
+      fail(
+        kind,
+        `form field '${form.key}' has control '${form.control}' but declares 'optionsFrom'`
+      )
+    }
+    return
+  }
+  if (!form.optionsFrom) {
+    fail(
+      kind,
+      `form field '${form.key}' with control 'select' needs 'optionsFrom'`
+    )
+  }
+  if (
+    form.optionsFrom === 'field' &&
+    !field.statusValues &&
+    !field.typeValues
+  ) {
+    fail(
+      kind,
+      `form field '${form.key}' reads options from its field, which enumerates none`
+    )
+  }
+}
+
+/** The control fits the field's meaning, and sits where that control belongs. */
+function assertFormControl(
+  kind: string,
+  form: FormFieldSpec,
+  roles: ReadonlySet<FieldRole>
+) {
+  const allowed = CONTROL_ROLES.get(form.control) ?? []
+  if (!allowed.some(role => roles.has(role))) {
+    fail(
+      kind,
+      `form field '${form.key}' has control '${form.control}', which serves ${JSON.stringify(allowed)}, but the field has ${JSON.stringify([...roles])}`
+    )
+  }
+  const section = CONTROL_SECTION.get(form.control)
+  if (section && form.section !== section) {
+    fail(
+      kind,
+      `form field '${form.key}' with control '${form.control}' belongs in the '${section}' section, found '${form.section}'`
+    )
+  }
+  if (form.required && !REQUIRABLE_CONTROLS.has(form.control)) {
+    fail(
+      kind,
+      `form field '${form.key}' is required but control '${form.control}' captures no required value`
+    )
+  }
+  if (form.maxItems !== undefined && form.control !== 'taxonomy') {
+    fail(
+      kind,
+      `form field '${form.key}' declares 'maxItems' but control '${form.control}' holds no list`
+    )
+  }
+  // An optional field left blank would fail its own pattern, so a patterned
+  // field that is not required is a rule the user cannot satisfy by omission.
+  if (form.pattern && !form.required) {
+    fail(
+      kind,
+      `form field '${form.key}' declares pattern '${form.pattern}' but is not required`
+    )
+  }
+}
+
+function assertFormField(
+  kind: string,
+  form: FormFieldSpec,
+  byKey: ReadonlyMap<string, FieldSpec>,
+  roles: ReadonlyMap<string, ReadonlySet<FieldRole>>
+) {
+  const field = byKey.get(form.key)
+  if (!field) {
+    fail(
+      kind,
+      `form field '${form.key}' names no declared field (control '${form.control}')`
+    )
+  }
+  assertFormControl(kind, form, roles.get(form.key) ?? new Set())
+  assertFormOptions(kind, form, field)
+}
+
+/**
+ * Extension slots are named so a page can fill one; two slots with one name
+ * would make "which node goes here?" ambiguous, and an empty name is not
+ * addressable at all.
+ */
+function assertFormExtensions(kind: string, extensions: readonly string[]) {
+  const seen = new Set<string>()
+  for (const name of extensions) {
+    if (name.trim() === '') fail(kind, 'form declares an empty extension name')
+    if (seen.has(name)) fail(kind, `duplicate form extension '${name}'`)
+    seen.add(name)
+  }
+}
+
+/**
+ * A read-only kind is served without create/edit affordances at all, so a form
+ * spec on one is dead data that would still have to be kept correct.
+ */
+function assertFormSpec(
+  kind: string,
+  fields: readonly FieldSpec[],
+  form: ResourceFormSpec | undefined,
+  readOnly: boolean | undefined
+) {
+  if (!form) return
+  if (readOnly) fail(kind, 'a read-only resource declares a form spec')
+  const byKey = fieldsByKey(fields)
+  const roles = rolesByKey(fields)
+  const seen = new Set<string>()
+  let projects = 0
+  for (const field of form.fields) {
+    if (seen.has(field.key)) fail(kind, `duplicate form field '${field.key}'`)
+    seen.add(field.key)
+    if (field.control === 'project') projects += 1
+    assertFormField(kind, field, byKey, roles)
+  }
+  if (projects > 1) {
+    fail(
+      kind,
+      `expected at most one 'project' form control, found ${String(projects)}`
+    )
+  }
+  assertFormExtensions(kind, form.extensions ?? [])
+}
+
+/**
  * `Object.freeze` is shallow, and a descriptor is a singleton every page holds
  * a reference to — one stray write would corrupt the app globally. The
  * `readonly` members on `ResourceDescriptor` stop that at compile time; this
@@ -345,7 +548,7 @@ function deepFreeze<T>(value: T): T {
  * the build rather than rendering a subtly wrong page.
  */
 export function defineResource<T extends ResourceDescriptor>(descriptor: T): T {
-  const { kind, plural, fields, address, list } = descriptor
+  const { kind, plural, fields, address, list, form, readOnly } = descriptor
 
   assertExactlyOneName(kind, fields)
   assertAtMostOneBody(kind, fields)
@@ -358,6 +561,7 @@ export function defineResource<T extends ResourceDescriptor>(descriptor: T): T {
     assertValueLabels(kind, field)
   })
   assertListSpec(kind, plural, fields, list)
+  assertFormSpec(kind, fields, form, readOnly)
 
   return deepFreeze(descriptor)
 }

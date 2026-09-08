@@ -7,6 +7,14 @@ import {
   searchFilter,
   statusFilter,
 } from '../filterSpecs'
+import {
+  bodyFormField,
+  metadataFormField,
+  nameFormField,
+  projectFormField,
+  slugFormField,
+  summaryFormField,
+} from '../formSpecs'
 
 /**
  * Blueprint — addressed like an artifact. Its status enum is `active | expired`
@@ -134,6 +142,31 @@ export const blueprintDescriptor = defineResource({
     // The list endpoint's `sort_by` enum is [created_at, updated_at, title]
     // (backend/paths/blueprints.yaml), so status is not sortable here.
     sortable: ['title', 'updated_at'],
+  },
+  form: {
+    // No status control: a blueprint expires from its freshness rules rather
+    // than being set expired by hand, which is why `BlueprintForm` never had
+    // one. `subtype` is likewise read-only — it comes from the import.
+    fields: [
+      nameFormField('title', 255, 'blueprint-title-input'),
+      slugFormField('blueprint-slug-input', true),
+      summaryFormField('description', 500, 'blueprint-description-input'),
+      projectFormField('blueprint-project-select'),
+      {
+        key: 'type',
+        control: 'select',
+        section: 'details',
+        required: true,
+        optionsFrom: 'field',
+        testId: 'blueprint-type-select',
+      },
+      bodyFormField('content', 'blueprint-content-textarea'),
+      metadataFormField(),
+    ],
+    // A sub-agents blueprint must carry a `model` metadata key (enforced in
+    // internal/services/blueprint.go). Which keys those are depends on the
+    // blueprint being edited, not on the kind, so the page fills the slot.
+    extensions: ['required-metadata-keys'],
   },
   capabilities: {
     attachments: true,

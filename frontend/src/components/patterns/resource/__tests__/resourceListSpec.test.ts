@@ -1,9 +1,6 @@
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import type { ResourceKindKey } from '../registry'
 import { getResourceDescriptor } from '../registry'
+import { queryEnum } from './specYaml'
 
 /**
  * The descriptor's `list.sortable` becomes a `sort_by` value on the wire, and
@@ -11,15 +8,10 @@ import { getResourceDescriptor } from '../registry'
  * — so a key declared here that the API does not accept is a broken column
  * header, not a cosmetic mismatch.
  *
- * The enums are read out of the OpenAPI spec itself rather than restated, so
- * this fails when the backend narrows one rather than when somebody remembers
- * to update a copy. `backend/openapi.yaml` is the source of truth for both
- * sides of this assertion (CLAUDE.md, "Spec-first backend").
+ * The enums are read out of the OpenAPI spec itself (see `specYaml.ts`) rather
+ * than restated, so this fails when the backend narrows one rather than when
+ * somebody remembers to update a copy.
  */
-const SPEC_DIR = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../../../../../backend/paths'
-)
 
 /** The path file whose `sort_by` enum governs each kind's list endpoint. */
 const SPEC_FILE: Partial<Record<ResourceKindKey, string>> = {
@@ -27,27 +19,6 @@ const SPEC_FILE: Partial<Record<ResourceKindKey, string>> = {
   blueprint: 'blueprints.yaml',
   memory: 'memories.yaml',
   prompt: 'prompts.yaml',
-}
-
-/**
- * Every `enum` a named query parameter declares in a path file, unioned. A file
- * describes both the team-scoped and the by-project variant of the same list,
- * and the descriptor does not distinguish them.
- *
- * The regex stops at the first `enum:` after the parameter's name, which is the
- * one in its own `schema:` — every list parameter in these files is a flat
- * string enum.
- */
-function queryEnum(file: string, param: string): Set<string> {
-  const yaml = readFileSync(resolve(SPEC_DIR, file), 'utf8')
-  const matches = yaml.matchAll(
-    new RegExp(`- name: ${param}[\\s\\S]*?enum: \\[([^\\]]+)\\]`, 'g')
-  )
-  const values = new Set<string>()
-  for (const [, list] of matches) {
-    for (const value of list.split(',')) values.add(value.trim())
-  }
-  return values
 }
 
 /** The values of the descriptor's field in a given role, in declaration order. */

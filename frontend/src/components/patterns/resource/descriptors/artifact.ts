@@ -5,6 +5,15 @@ import {
   searchFilter,
   statusFilter,
 } from '../filterSpecs'
+import {
+  bodyFormField,
+  metadataFormField,
+  nameFormField,
+  projectFormField,
+  slugFormField,
+  statusFormField,
+  summaryFormField,
+} from '../formSpecs'
 
 /**
  * Artifact — addressed by project + slug (`/artifacts/:project/:slug`, built
@@ -71,6 +80,27 @@ export const artifactDescriptor = defineResource({
     // [created_at, updated_at, title] — declaring it would 400 on the first
     // header click (backend/paths/artifacts.yaml).
     sortable: ['title', 'updated_at'],
+  },
+  form: {
+    fields: [
+      nameFormField('title', 255, 'artifact-title-input'),
+      slugFormField('artifact-slug-input', true),
+      summaryFormField('description', 500, 'artifact-description-input'),
+      projectFormField('artifact-project-select'),
+      {
+        key: 'type',
+        control: 'select',
+        section: 'details',
+        required: true,
+        // The team's registered types, so the option list is a runtime fetch
+        // rather than a vocabulary this descriptor can enumerate.
+        optionsFrom: 'types',
+        testId: 'artifact-type-select',
+      },
+      statusFormField('artifact'),
+      bodyFormField('content', 'artifact-content-textarea'),
+      metadataFormField(),
+    ],
   },
   capabilities: {
     attachments: true,

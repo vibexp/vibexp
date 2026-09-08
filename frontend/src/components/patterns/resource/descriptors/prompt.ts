@@ -1,5 +1,14 @@
 import { defineResource } from '../defineResource'
 import { freshnessFilter, searchFilter, statusFilter } from '../filterSpecs'
+import {
+  bodyFormField,
+  labelsFormField,
+  nameFormField,
+  projectFormField,
+  slugFormField,
+  statusFormField,
+  summaryFormField,
+} from '../formSpecs'
 
 /**
  * Prompt — the only kind addressed by slug alone (`/prompts/:slug`), and the
@@ -60,6 +69,22 @@ export const promptDescriptor = defineResource({
     // Prompts are the one list whose endpoint accepts `status` as a sort field
     // (backend/paths/prompts.yaml: [name, status, updated_at, created_at]).
     sortable: ['name', 'status', 'updated_at'],
+  },
+  form: {
+    fields: [
+      nameFormField('name', 50, 'prompt-name-input'),
+      // The only slug that stays editable after create: a prompt is addressed
+      // by slug alone and the editor already resolves collisions for it.
+      slugFormField('prompt-slug-input', false),
+      summaryFormField('description', 200, 'prompt-description-input'),
+      projectFormField('prompt-project-select'),
+      statusFormField('prompt'),
+      bodyFormField('body', 'prompt-body-textarea'),
+      labelsFormField('labels', 'prompt-labels-input'),
+    ],
+    // Only prompts are MCP-exposable, and the toggle is a fact about the
+    // share rather than a field of the prompt.
+    extensions: ['mcp-exposure'],
   },
   capabilities: {
     attachments: true,
