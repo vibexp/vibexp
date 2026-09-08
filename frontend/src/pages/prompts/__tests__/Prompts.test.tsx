@@ -609,7 +609,7 @@ describe('Prompts page — URL-synced filters (#906)', () => {
       },
       { timeout: 2000 }
     )
-    expect((promptService.getPrompts as Mock).mock.calls.length).toBe(
+    expect((promptService.getPrompts as Mock).mock.calls).toHaveLength(
       before + 1
     )
     expect(currentSearch).toContain('search=api')
