@@ -1,15 +1,9 @@
 import { type ReactNode } from 'react'
 
-import {
-  Panel,
-  PanelBody,
-  PanelHeader,
-  PanelTitle,
-} from '@/components/ui/panel'
 import { Separator } from '@/components/ui/separator'
 
 /**
- * A single label/value row used inside the Additional data card.
+ * A single label/value row of the free-form metadata pair list.
  */
 function MetaRow({
   label,
@@ -65,36 +59,36 @@ function MetaValue({ value }: Readonly<{ value: unknown }>) {
   )
 }
 
-interface AdditionalDataCardProps {
+interface AdditionalDataRowsProps {
   data: Record<string, unknown>
 }
 
 /**
- * Renders a Record<string, unknown> as key-value rows in a panel — a card on a
- * page, flat inside the reading page's details column (#890).
+ * Renders a `Record<string, unknown>` as hairline-separated key/value rows.
  * Returns null when the record is empty.
+ *
+ * Headless on purpose since #904: the free-form metadata bag is no longer a
+ * panel of its own ("Additional data") but one shape inside the unified
+ * taxonomy section, which owns the heading. Only the value formatting lives
+ * here, unchanged — an arbitrary metadata value still has exactly one
+ * rendering across the app.
  */
-export function AdditionalDataCard({
+export function AdditionalDataRows({
   data,
-}: Readonly<AdditionalDataCardProps>) {
+}: Readonly<AdditionalDataRowsProps>) {
   const entries = Object.entries(data)
   if (entries.length === 0) return null
 
   return (
-    <Panel>
-      <PanelHeader>
-        <PanelTitle>Additional data</PanelTitle>
-      </PanelHeader>
-      <PanelBody className="space-y-2 pb-4 text-sm">
-        {entries.map(([key, value], index) => (
-          <div key={key}>
-            {index > 0 && <Separator className="mb-2" />}
-            <MetaRow label={formatKey(key)}>
-              <MetaValue value={value} />
-            </MetaRow>
-          </div>
-        ))}
-      </PanelBody>
-    </Panel>
+    <div className="space-y-2 text-sm">
+      {entries.map(([key, value], index) => (
+        <div key={key}>
+          {index > 0 && <Separator className="mb-2" />}
+          <MetaRow label={formatKey(key)}>
+            <MetaValue value={value} />
+          </MetaRow>
+        </div>
+      ))}
+    </div>
   )
 }

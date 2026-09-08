@@ -520,4 +520,38 @@ describe('MemoryView', () => {
       ).not.toBeInTheDocument()
     })
   })
+
+  describe('unified taxonomy section (#904)', () => {
+    it('lifts metadata.tags to chips and leaves the other keys as pairs', async () => {
+      ;(memoryService.getMemory as Mock).mockResolvedValue({
+        ...mockMemory,
+        metadata: { tags: ['alpha', 'beta'], type: 'note' },
+      })
+
+      renderMemoryView()
+
+      await screen.findByTestId('resource-body')
+      expect(screen.getByText('Labels & metadata')).toBeInTheDocument()
+      expect(screen.getByText('Tags')).toBeInTheDocument()
+      expect(screen.getByText('alpha')).toBeInTheDocument()
+      expect(screen.getByText('beta')).toBeInTheDocument()
+      expect(screen.getByText('Type')).toBeInTheDocument()
+      expect(screen.getByText('note')).toBeInTheDocument()
+    })
+
+    it('renders no section and no "No metadata." note when there is nothing to group by', async () => {
+      ;(memoryService.getMemory as Mock).mockResolvedValue({
+        ...mockMemory,
+        metadata: {},
+      })
+
+      renderMemoryView()
+
+      await screen.findByTestId('resource-body')
+      // The bespoke "No metadata." fallback is gone: an empty taxonomy renders
+      // nothing at all, like every other kind always did.
+      expect(screen.queryByText('No metadata.')).not.toBeInTheDocument()
+      expect(screen.queryByText('Labels & metadata')).not.toBeInTheDocument()
+    })
+  })
 })

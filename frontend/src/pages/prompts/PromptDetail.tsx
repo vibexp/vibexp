@@ -327,6 +327,7 @@ export function PromptDetail() {
         }}
         address={{ label: 'Slug', value: prompt.slug }}
         updatedAt={prompt.updated_at}
+        summary={prompt.description}
         headerExtra={
           prompt.is_shared && (
             <Badge variant="secondary" className="gap-1">

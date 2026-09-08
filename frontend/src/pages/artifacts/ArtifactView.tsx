@@ -4,7 +4,6 @@ import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { AdditionalDataCard } from '@/components/MetadataCard'
 import {
   type ReadingAction,
   ResourceBody,
@@ -13,6 +12,7 @@ import {
 import {
   ResourceMetadataSection,
   resourceRegistry,
+  ResourceTaxonomySection,
   statusLabel,
   statusTone,
 } from '@/components/patterns/resource'
@@ -227,7 +227,10 @@ export function ArtifactView() {
               project={projectRef}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />
-            <AdditionalDataCard data={artifact.metadata ?? {}} />
+            <ResourceTaxonomySection
+              descriptor={resourceRegistry.artifact}
+              resource={artifact}
+            />
           </div>
         }
       >

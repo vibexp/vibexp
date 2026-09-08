@@ -11,6 +11,7 @@ import {
 import { StatusBadge } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 
+import { valueOf } from './fieldValue'
 import { fieldLabel, fieldTone } from './statusTone'
 import type { FieldSpec, ResourceDescriptor } from './types'
 
@@ -56,21 +57,6 @@ export interface ResourceMetadataSectionProps {
 
 /** The field key every kind uses for its owning project. */
 const PROJECT_KEY = 'project_id'
-
-/**
- * Reads a field's value off the payload, following a dotted key one level down
- * (`source.commit_sha`) so a nested provenance object can be described as
- * ordinary fields instead of needing a bespoke renderer per page.
- */
-function valueOf(resource: Record<string, unknown>, key: string): unknown {
-  const path = key.split('.')
-  let current: unknown = resource
-  for (const segment of path) {
-    if (current === null || typeof current !== 'object') return undefined
-    current = new Map(Object.entries(current)).get(segment)
-  }
-  return current
-}
 
 /** Fields carrying the metadata rows, bucketed by the role that renders them. */
 function partition(descriptor: ResourceDescriptor) {

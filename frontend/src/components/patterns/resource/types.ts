@@ -91,8 +91,8 @@ export interface FieldSpec {
    * Escape hatch for the handful of `meta` fields whose value is not a plain
    * scalar — a repo URL that renders as a link, a commit sha that renders
    * truncated, a boolean that reads "Exposed". Returning `null` renders no
-   * row at all, which is how a field that belongs in another panel (an
-   * `AdditionalDataCard` blob) opts out of the metadata list.
+   * row at all, which is how a field that belongs in another section (a
+   * free-form metadata blob) opts out of the metadata list.
    *
    * Deliberately narrow: `defineResource` rejects it on any role but `meta`,
    * so it can never grow into a per-page layout slot.
