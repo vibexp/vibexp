@@ -20,6 +20,7 @@ function Probe({
     sortBy,
     sortOrder,
     setFilters,
+    fallback: 'updated_at',
   })
   return null
 }

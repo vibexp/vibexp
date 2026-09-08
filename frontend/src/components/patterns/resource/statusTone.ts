@@ -55,6 +55,31 @@ export function fieldLabel(
 }
 
 /**
+ * Every value a `status` or closed `type` field can hold, in display order.
+ *
+ * This is the ONE reader of that vocabulary, so a filter's option list and the
+ * page's "is this URL value in the enum?" guard cannot disagree — the failure
+ * that shape produces is silent (the control offers a value the page then
+ * drops from the request, so the list quietly shows everything).
+ *
+ * `valueLabels` is deliberately not consulted: it is partial by design, so its
+ * keys are a subset, not the value set. A field with no exhaustive list — the
+ * artifact `type`, an open string matched against the team's registered
+ * types — correctly yields nothing to enumerate.
+ */
+export function fieldValues(field: FieldSpec | undefined): readonly string[] {
+  return field?.statusValues ?? field?.typeValues ?? []
+}
+
+/** The values of the descriptor's field in a given role, for a page's guard. */
+export function roleValues(
+  descriptor: ResourceDescriptor,
+  role: FieldSpec['role']
+): ReadonlySet<string> {
+  return new Set(fieldValues(descriptor.fields.find(f => f.role === role)))
+}
+
+/**
  * The badge tone for a resource kind's status value — the call-site-friendly
  * form, used by list columns that hold a row rather than a descriptor.
  */

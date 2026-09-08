@@ -16,6 +16,8 @@ export {
 export {
   fieldLabel,
   fieldTone,
+  fieldValues,
+  roleValues,
   statusFieldOf,
   statusLabel,
   statusTone,

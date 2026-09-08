@@ -12,7 +12,10 @@ import {
   ResourceFilterBar,
   useResourceListSort,
 } from '@/components/patterns/list-page'
-import { getResourceDescriptor } from '@/components/patterns/resource'
+import {
+  getResourceDescriptor,
+  roleValues,
+} from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
@@ -22,7 +25,6 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceListFilters } from '@/hooks/useResourceListFilters'
 import { useResourceListQuery } from '@/hooks/useResourceListQuery'
 import { buildMemoriesColumns } from '@/pages/memories/memoriesColumns'
-import { MEMORY_STATUS_OPTIONS } from '@/pages/memories/memoryStatus'
 import type {
   Memory,
   MemoryFilters,
@@ -34,6 +36,8 @@ import { projectService } from '@/services/projectService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 const MEMORY = getResourceDescriptor('memory')
+
+const MEMORY_STATUSES = roleValues(MEMORY, 'status')
 
 const PAGE_SIZE = 20
 
@@ -60,9 +64,7 @@ const FILTER_DEFAULTS = {
  * forward whatever the URL happens to contain.
  */
 function coerceStatus(value: string): MemoryStatus | undefined {
-  return MEMORY_STATUS_OPTIONS.some(option => option.value === value)
-    ? (value as MemoryStatus)
-    : undefined
+  return MEMORY_STATUSES.has(value) ? (value as MemoryStatus) : undefined
 }
 
 export function Memories() {
@@ -118,6 +120,7 @@ export function Memories() {
     sortBy: filters.sort_by,
     sortOrder,
     setFilters,
+    fallback: FILTER_DEFAULTS.sort_by,
   })
 
   const load = useCallback(async () => {

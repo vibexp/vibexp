@@ -12,7 +12,10 @@ import {
   ResourceFilterBar,
   useResourceListSort,
 } from '@/components/patterns/list-page'
-import { getResourceDescriptor } from '@/components/patterns/resource'
+import {
+  getResourceDescriptor,
+  roleValues,
+} from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
@@ -37,9 +40,7 @@ type PromptStatus = NonNullable<PromptFiltersType['status']>
 
 const PROMPT = getResourceDescriptor('prompt')
 
-const PROMPT_STATUSES: ReadonlySet<string> = new Set(
-  PROMPT.fields.find(field => field.role === 'status')?.statusValues ?? []
-)
+const PROMPT_STATUSES = roleValues(PROMPT, 'status')
 
 const PAGE_SIZE = 20
 
@@ -145,6 +146,7 @@ export function Prompts() {
     sortBy: filters.sort_by,
     sortOrder,
     setFilters,
+    fallback: FILTER_DEFAULTS.sort_by,
   })
 
   const load = useCallback(async () => {

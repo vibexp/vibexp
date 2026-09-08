@@ -66,6 +66,41 @@ describe('usePromptLabels', () => {
     expect(captured.loading).toBe(false)
   })
 
+  it('discards a response for a team that is no longer current', async () => {
+    // Switching team does not remount the prompts page, so a slow response for
+    // the previous team would otherwise land on the new team's filter.
+    let resolveFirst: (labels: string[]) => void = () => {}
+    getPromptLabels.mockReturnValueOnce(
+      new Promise<string[]>(resolve => {
+        resolveFirst = resolve
+      })
+    )
+
+    const { rerender } = render(<Probe />)
+    act(() => {
+      captured.load()
+    })
+    expect(getPromptLabels).toHaveBeenCalledWith('team-1')
+
+    mockTeam.current = { id: 'team-2' }
+    rerender(<Probe />)
+    await act(async () => {
+      resolveFirst(['team-1-label'])
+      await Promise.resolve()
+    })
+    expect(captured.labels).toEqual([])
+
+    // …and the new team re-arms the fetch rather than reusing the stale one.
+    getPromptLabels.mockResolvedValueOnce(['team-2-label'])
+    act(() => {
+      captured.load()
+    })
+    await waitFor(() => {
+      expect(captured.labels).toEqual(['team-2-label'])
+    })
+    expect(getPromptLabels).toHaveBeenLastCalledWith('team-2')
+  })
+
   it('does not call the service without a team', () => {
     mockTeam.current = null
     render(<Probe />)

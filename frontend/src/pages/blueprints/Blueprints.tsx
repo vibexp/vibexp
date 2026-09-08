@@ -12,7 +12,10 @@ import {
   ResourceFilterBar,
   useResourceListSort,
 } from '@/components/patterns/list-page'
-import { getResourceDescriptor } from '@/components/patterns/resource'
+import {
+  getResourceDescriptor,
+  roleValues,
+} from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
@@ -28,17 +31,11 @@ import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 const BLUEPRINT = getResourceDescriptor('blueprint')
 
-/** The `type` field's declared values — the same list the filter offers. */
-const BLUEPRINT_TYPES: ReadonlySet<string> = new Set(
-  Object.keys(
-    BLUEPRINT.fields.find(field => field.role === 'type')?.valueLabels ?? {}
-  )
-)
-
-/** The `status` field's declared values (`active | expired`). */
-const BLUEPRINT_STATUSES: ReadonlySet<string> = new Set(
-  BLUEPRINT.fields.find(field => field.role === 'status')?.statusValues ?? []
-)
+// Both guards read the descriptor's EXHAUSTIVE value lists, which is also what
+// the filter bar enumerates — so the page can never drop a value the control
+// just offered (`active | expired`, and the five blueprint types).
+const BLUEPRINT_TYPES = roleValues(BLUEPRINT, 'type')
+const BLUEPRINT_STATUSES = roleValues(BLUEPRINT, 'status')
 
 const PAGE_SIZE = 20
 
@@ -130,6 +127,7 @@ export function Blueprints() {
     sortBy: filters.sort_by,
     sortOrder,
     setFilters,
+    fallback: FILTER_DEFAULTS.sort_by,
   })
 
   const load = useCallback(async () => {

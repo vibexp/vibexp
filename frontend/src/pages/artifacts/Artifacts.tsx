@@ -12,7 +12,10 @@ import {
   ResourceFilterBar,
   useResourceListSort,
 } from '@/components/patterns/list-page'
-import { getResourceDescriptor } from '@/components/patterns/resource'
+import {
+  getResourceDescriptor,
+  roleValues,
+} from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
@@ -23,12 +26,13 @@ import { useResourceListFilters } from '@/hooks/useResourceListFilters'
 import { useResourceListQuery } from '@/hooks/useResourceListQuery'
 import { useTypes } from '@/hooks/useTypes'
 import { buildArtifactsColumns } from '@/pages/artifacts/artifactsColumns'
-import { ARTIFACT_STATUS_OPTIONS } from '@/pages/artifacts/artifactStatus'
 import type { Artifact, ArtifactFilters } from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 const ARTIFACT = getResourceDescriptor('artifact')
+
+const ARTIFACT_STATUSES = roleValues(ARTIFACT, 'status')
 
 const PAGE_SIZE = 20
 
@@ -57,7 +61,7 @@ const FILTER_DEFAULTS = {
  * is an open string matched against the team's registered types, not an enum.
  */
 function coerceStatus(value: string): Artifact['status'] | undefined {
-  return ARTIFACT_STATUS_OPTIONS.some(option => option.value === value)
+  return ARTIFACT_STATUSES.has(value)
     ? (value as Artifact['status'])
     : undefined
 }
@@ -123,6 +127,7 @@ export function Artifacts() {
     sortBy: filters.sort_by,
     sortOrder,
     setFilters,
+    fallback: FILTER_DEFAULTS.sort_by,
   })
 
   const load = useCallback(async () => {

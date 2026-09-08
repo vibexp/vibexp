@@ -173,6 +173,19 @@ const TIMESTAMP_SORT_KEYS: ReadonlySet<string> = new Set([
   'updated_at',
 ])
 
+/**
+ * The `resource_type` values the metadata endpoints accept
+ * (`backend/paths/metadata.yaml`). `ResourceFilterBar` addresses the catalog by
+ * the descriptor's `plural`, which is a plain `string` — so without this a
+ * `metadata` filter on a fifth kind would compile and then send a
+ * `resource_type` the API rejects.
+ */
+const METADATA_RESOURCE_TYPES: ReadonlySet<string> = new Set([
+  'artifacts',
+  'blueprints',
+  'memories',
+])
+
 /** Controls that drive a resource field, and so must name one. */
 const FIELD_BACKED_CONTROLS: ReadonlySet<FilterSpec['control']> = new Set([
   'select',
@@ -227,6 +240,7 @@ function assertFieldOptions(
  */
 function assertFilter(
   kind: string,
+  plural: string,
   filter: FilterSpec,
   byKey: ReadonlyMap<string, FieldSpec>
 ) {
@@ -235,6 +249,12 @@ function assertFilter(
       fail(
         kind,
         `filter '${filter.key}' has control '${filter.control}' but declares 'optionsFrom'`
+      )
+    }
+    if (filter.control === 'metadata' && !METADATA_RESOURCE_TYPES.has(plural)) {
+      fail(
+        kind,
+        `metadata filter needs a plural the metadata API knows, found '${plural}'`
       )
     }
     return
@@ -258,6 +278,7 @@ function assertFilter(
 
 function assertFilters(
   kind: string,
+  plural: string,
   filters: readonly FilterSpec[],
   byKey: ReadonlyMap<string, FieldSpec>
 ) {
@@ -267,7 +288,7 @@ function assertFilters(
       fail(kind, `duplicate filter key '${filter.key}'`)
     }
     seen.add(filter.key)
-    assertFilter(kind, filter, byKey)
+    assertFilter(kind, plural, filter, byKey)
   }
 }
 
@@ -292,12 +313,13 @@ function assertSortable(
 
 function assertListSpec(
   kind: string,
+  plural: string,
   fields: readonly FieldSpec[],
   list: ResourceListSpec | undefined
 ) {
   if (!list) return
   const byKey = fieldsByKey(fields)
-  assertFilters(kind, list.filters, byKey)
+  assertFilters(kind, plural, list.filters, byKey)
   assertSortable(kind, list.sortable, byKey)
 }
 
@@ -323,7 +345,7 @@ function deepFreeze<T>(value: T): T {
  * the build rather than rendering a subtly wrong page.
  */
 export function defineResource<T extends ResourceDescriptor>(descriptor: T): T {
-  const { kind, fields, address, list } = descriptor
+  const { kind, plural, fields, address, list } = descriptor
 
   assertExactlyOneName(kind, fields)
   assertAtMostOneBody(kind, fields)
@@ -335,7 +357,7 @@ export function defineResource<T extends ResourceDescriptor>(descriptor: T): T {
     assertRenderIsMetaOnly(kind, field)
     assertValueLabels(kind, field)
   })
-  assertListSpec(kind, fields, list)
+  assertListSpec(kind, plural, fields, list)
 
   return deepFreeze(descriptor)
 }

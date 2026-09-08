@@ -25,8 +25,13 @@ export interface UseResourceListSortOptions {
   sortBy: string
   sortOrder: SortDir
   setFilters: (next: Record<string, string>) => void
-  /** Used when the URL names a key the descriptor does not declare. */
-  fallback?: string
+  /**
+   * Used when the URL names a key the descriptor does not declare. Required,
+   * and passed as the page's own `FILTER_DEFAULTS.sort_by`: a default here
+   * would silently shadow the page's, and the two disagreeing means the URL
+   * says one column while the request sorts by another.
+   */
+  fallback: string
 }
 
 export interface UseResourceListSortResult {
@@ -40,7 +45,7 @@ export function useResourceListSort({
   sortBy,
   sortOrder,
   setFilters,
-  fallback = 'updated_at',
+  fallback,
 }: Readonly<UseResourceListSortOptions>): UseResourceListSortResult {
   // Memoised on the descriptor rather than on the list: a kind with no `list`
   // section falls back to a fresh `[]` on every render, which would make both

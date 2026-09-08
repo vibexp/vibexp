@@ -7,6 +7,7 @@ import type {
   FilterSpec,
   ResourceDescriptor,
 } from '@/components/patterns/resource'
+import { fieldValues } from '@/components/patterns/resource'
 import { TaxonomyFilter } from '@/components/TaxonomyFilter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -88,8 +89,10 @@ function fieldOptions(
 ): SelectOption[] {
   const field = descriptor.fields.find(candidate => candidate.key === key)
   const labels = new Map(Object.entries(field?.valueLabels ?? {}))
-  const values = field?.statusValues ?? field?.typeValues ?? []
-  return values.map(value => ({ value, label: labels.get(value) ?? value }))
+  return fieldValues(field).map(value => ({
+    value,
+    label: labels.get(value) ?? value,
+  }))
 }
 
 interface FilterControlProps {

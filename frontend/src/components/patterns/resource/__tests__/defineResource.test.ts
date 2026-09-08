@@ -457,6 +457,26 @@ describe('defineResource', () => {
       ).toThrow(/has control 'search' but declares 'optionsFrom'/)
     })
 
+    it('throws when a metadata filter names a plural the API has no catalog for', () => {
+      // The bar addresses the catalog by `plural`, which is a plain string —
+      // `resource_type` is an enum of exactly artifacts/blueprints/memories.
+      expect(() =>
+        defineResource(
+          descriptor([NAME, SLUG], {
+            plural: 'widgets',
+            list: {
+              filters: [
+                { key: 'metadata', control: 'metadata', label: 'Filter' },
+              ],
+              sortable: ['title'],
+            },
+          })
+        )
+      ).toThrow(
+        /metadata filter needs a plural the metadata API knows, found 'widgets'/
+      )
+    })
+
     it('throws on a duplicate filter key', () => {
       expect(() =>
         defineResource(
