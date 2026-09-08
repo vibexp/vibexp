@@ -1,4 +1,10 @@
 import { defineResource } from '../defineResource'
+import {
+  freshnessFilter,
+  metadataFilter,
+  searchFilter,
+  statusFilter,
+} from '../filterSpecs'
 
 /**
  * Artifact — addressed by project + slug (`/artifacts/:project/:slug`, built
@@ -47,35 +53,19 @@ export const artifactDescriptor = defineResource({
   ],
   list: {
     filters: [
-      { key: 'search', control: 'search', label: 'Search artifacts' },
+      searchFilter('artifacts'),
       {
         key: 'type',
         control: 'select',
         label: 'Filter by type',
         allLabel: 'All types',
         // Open string validated against the team's registered types, so the
-        // catalog is a runtime fetch rather than the field's partial labels.
+        // catalog is a runtime fetch rather than a list declared here.
         optionsFrom: 'types',
       },
-      {
-        key: 'status',
-        control: 'select',
-        label: 'Filter by status',
-        allLabel: 'All statuses',
-        optionsFrom: 'field',
-        testId: 'artifact-status-filter',
-      },
-      {
-        key: 'freshness',
-        control: 'freshness',
-        label: 'Filter artifacts by freshness',
-        testId: 'artifact-freshness-filter',
-      },
-      {
-        key: 'metadata',
-        control: 'metadata',
-        label: 'Filter artifacts by metadata',
-      },
+      statusFilter('artifact'),
+      freshnessFilter('artifact', 'artifacts'),
+      metadataFilter('artifacts'),
     ],
     // `status` is absent because the list endpoint's `sort_by` enum is
     // [created_at, updated_at, title] — declaring it would 400 on the first

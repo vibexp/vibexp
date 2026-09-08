@@ -1,4 +1,10 @@
 import { defineResource } from '../defineResource'
+import {
+  freshnessFilter,
+  metadataFilter,
+  searchFilter,
+  statusFilter,
+} from '../filterSpecs'
 
 /**
  * Memory — the kind with no title of its own. `text` carries both roles: lists
@@ -30,26 +36,10 @@ export const memoryDescriptor = defineResource({
   ],
   list: {
     filters: [
-      { key: 'search', control: 'search', label: 'Search memories' },
-      {
-        key: 'status',
-        control: 'select',
-        label: 'Filter by status',
-        allLabel: 'All statuses',
-        optionsFrom: 'field',
-        testId: 'memory-status-filter',
-      },
-      {
-        key: 'freshness',
-        control: 'freshness',
-        label: 'Filter memories by freshness',
-        testId: 'memory-freshness-filter',
-      },
-      {
-        key: 'metadata',
-        control: 'metadata',
-        label: 'Filter memories by metadata',
-      },
+      searchFilter('memories'),
+      statusFilter('memory'),
+      freshnessFilter('memory', 'memories'),
+      metadataFilter('memories'),
     ],
     // `text` is the memory's name field, and the list endpoint's `sort_by`
     // enum is [text, updated_at, created_at] (backend/paths/memories.yaml).

@@ -112,6 +112,16 @@ function assertStatusMetadata(kind: string, field: FieldSpec) {
   }
 }
 
+/** An exhaustive value list only means anything on the field it classifies. */
+function assertTypeValues(kind: string, field: FieldSpec) {
+  if (field.typeValues && field.role !== 'type') {
+    fail(
+      kind,
+      `field '${field.key}' declares 'typeValues' but has role '${field.role}' (only 'type' may)`
+    )
+  }
+}
+
 /**
  * `render` exists for the two blueprint/prompt `meta` rows that are not plain
  * scalars. Restricting it to `role: 'meta'` is what stops it becoming a
@@ -178,7 +188,7 @@ const FIELD_BACKED_CONTROLS: ReadonlySet<FilterSpec['control']> = new Set([
 const ALLOWED_OPTIONS_SOURCES: ReadonlyMap<string, readonly string[]> = new Map(
   [
     ['select', ['field', 'types']],
-    ['taxonomy', ['labels']],
+    ['taxonomy', ['prompt-labels']],
   ]
 )
 
@@ -192,8 +202,10 @@ function fieldsByKey(fields: readonly FieldSpec[]): Map<string, FieldSpec> {
 
 /**
  * A filter reading its options off the field can only do so when the field
- * enumerates them — a status without `statusValues`, or an open `type` with
- * only partial `valueLabels`, would render a Select with nothing in it.
+ * enumerates them EXHAUSTIVELY. `valueLabels` deliberately does not count: it
+ * is documented as partial, so an open `type` whose labels cover three of six
+ * values would otherwise render a Select missing half the options — silently,
+ * and only once the spec enum grows.
  */
 function assertFieldOptions(
   kind: string,
@@ -201,7 +213,7 @@ function assertFieldOptions(
   field: FieldSpec
 ) {
   if (filter.optionsFrom !== 'field') return
-  if (!field.statusValues && !field.valueLabels) {
+  if (!field.statusValues && !field.typeValues) {
     fail(
       kind,
       `filter '${filter.key}' reads options from its field, which enumerates none`
@@ -319,6 +331,7 @@ export function defineResource<T extends ResourceDescriptor>(descriptor: T): T {
   assertAddressMatchesShape(kind, fields, address)
   fields.forEach(field => {
     assertStatusMetadata(kind, field)
+    assertTypeValues(kind, field)
     assertRenderIsMetaOnly(kind, field)
     assertValueLabels(kind, field)
   })

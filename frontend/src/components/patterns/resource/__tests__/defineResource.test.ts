@@ -349,7 +349,7 @@ describe('defineResource', () => {
             key: 'labels',
             control: 'taxonomy',
             label: 'Filter by labels',
-            optionsFrom: 'labels',
+            optionsFrom: 'prompt-labels',
           },
         ],
         sortable: ['title', 'updated_at'],
@@ -403,21 +403,31 @@ describe('defineResource', () => {
             sortable: ['title'],
           })
         )
-      ).toThrow(/needs optionsFrom \["labels"\], found "field"/)
+      ).toThrow(/needs optionsFrom \["prompt-labels"\], found "field"/)
     })
 
-    it('throws when a field-read select has nothing to enumerate', () => {
+    it('rejects valueLabels as an option set — it is partial by design', () => {
       expect(() =>
         defineResource(
           descriptor(
-            [NAME, SLUG, { key: 'owner', role: 'meta', label: 'Owner' }],
+            [
+              NAME,
+              SLUG,
+              {
+                key: 'kind',
+                role: 'type',
+                label: 'Kind',
+                // Labelled but not enumerated: the artifact `type` shape.
+                valueLabels: { work_reports: 'Work reports' },
+              },
+            ],
             {
               list: {
                 filters: [
                   {
-                    key: 'owner',
+                    key: 'kind',
                     control: 'select',
-                    label: 'Filter by owner',
+                    label: 'Filter by kind',
                     optionsFrom: 'field',
                   },
                 ],

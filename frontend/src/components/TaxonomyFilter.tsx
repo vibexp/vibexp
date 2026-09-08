@@ -15,6 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 /**
  * A controlled multi-select over a resource's taxonomy catalog — today the
@@ -47,6 +48,8 @@ export interface TaxonomyFilterProps {
   noun?: string
   testId?: string
   disabled?: boolean
+  /** Lets a filter bar give the trigger the width its other controls use. */
+  className?: string
 }
 
 /** The trigger reads as the filter, not as a count, until there are too many. */
@@ -67,6 +70,7 @@ export function TaxonomyFilter({
   noun = 'labels',
   testId = 'taxonomy-filter',
   disabled = false,
+  className,
 }: Readonly<TaxonomyFilterProps>) {
   const [open, setOpen] = useState(false)
 
@@ -100,7 +104,7 @@ export function TaxonomyFilter({
           aria-label={label}
           disabled={disabled}
           data-testid={testId}
-          className="justify-between font-normal"
+          className={cn('justify-between font-normal', className)}
         >
           <span className="flex min-w-0 items-center gap-2">
             <Tags className="size-4 shrink-0 opacity-60" />

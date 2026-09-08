@@ -60,7 +60,14 @@ export function useResourceListSort({
   const onSortChange = useCallback(
     (key: string) => {
       if (key === sortKey) {
-        setFilters({ sort_order: sortOrder === 'asc' ? 'desc' : 'asc' })
+        // `sort_by` is written even on the flip, so an undeclared value the URL
+        // arrived with is replaced rather than carried into every link copied
+        // from the page. `useUrlFilters` drops it again when it equals the
+        // default, so the address bar self-cleans.
+        setFilters({
+          sort_by: key,
+          sort_order: sortOrder === 'asc' ? 'desc' : 'asc',
+        })
         return
       }
       setFilters({ sort_by: key, sort_order: key === nameKey ? 'asc' : 'desc' })

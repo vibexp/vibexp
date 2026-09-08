@@ -1,4 +1,5 @@
 import { defineResource } from '../defineResource'
+import { freshnessFilter, searchFilter, statusFilter } from '../filterSpecs'
 
 /**
  * Prompt — the only kind addressed by slug alone (`/prompts/:slug`), and the
@@ -42,30 +43,19 @@ export const promptDescriptor = defineResource({
   list: {
     // The prompt-only "Shared" tri-state is not here: it is not a field of the
     // resource but a fact about an active share, so the page contributes it to
-    // the bar as an extra control.
+    // the bar as an extra control. Prompts have no metadata filter either —
+    // the list endpoint has no such parameter.
     filters: [
-      { key: 'search', control: 'search', label: 'Search prompts' },
-      {
-        key: 'status',
-        control: 'select',
-        label: 'Filter by status',
-        allLabel: 'All statuses',
-        optionsFrom: 'field',
-        testId: 'prompt-status-filter',
-      },
+      searchFilter('prompts'),
+      statusFilter('prompt'),
       {
         key: 'labels',
         control: 'taxonomy',
         label: 'Filter by labels',
-        optionsFrom: 'labels',
+        optionsFrom: 'prompt-labels',
         testId: 'prompt-labels-filter',
       },
-      {
-        key: 'freshness',
-        control: 'freshness',
-        label: 'Filter prompts by freshness',
-        testId: 'prompt-freshness-filter',
-      },
+      freshnessFilter('prompt', 'prompts'),
     ],
     // Prompts are the one list whose endpoint accepts `status` as a sort field
     // (backend/paths/prompts.yaml: [name, status, updated_at, created_at]).

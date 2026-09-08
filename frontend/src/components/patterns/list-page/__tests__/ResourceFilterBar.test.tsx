@@ -246,13 +246,45 @@ describe('ResourceFilterBar', () => {
     expect(handleClear).toHaveBeenCalledTimes(1)
   })
 
-  it('renders every control at the one shared width', () => {
-    const { container } = renderBar({ kind: 'memory' })
-    const triggers = container.querySelectorAll('[role="combobox"]')
-    expect(triggers.length).toBeGreaterThan(0)
-    for (const trigger of triggers) {
-      expect(trigger).toHaveClass('w-[150px]')
+  it.each(['memory', 'prompt'] as ResourceKindKey[])(
+    'renders every %s control at the one shared width',
+    kind => {
+      // Prompts matter here specifically: the taxonomy trigger is a Button, not
+      // a SelectTrigger, and its text changes with the selection — so without
+      // the shared width it is the one control that resizes as you use it.
+      const { container } = renderBar({ kind })
+      const triggers = container.querySelectorAll('[role="combobox"]')
+      expect(triggers.length).toBeGreaterThan(0)
+      for (const trigger of triggers) {
+        expect(trigger).toHaveClass('w-[150px]')
+      }
     }
+  )
+
+  it('reads a closed type enum off the field, labels and all', async () => {
+    const user = userEvent.setup()
+    renderBar({ kind: 'blueprint' })
+    await user.click(screen.getByLabelText('Filter by type'))
+    const options = (await screen.findAllByRole('option')).map(
+      option => option.textContent
+    )
+    expect(options).toEqual([
+      'All types',
+      'General',
+      'Claude Code',
+      'Claude',
+      'Cursor',
+      'Codex',
+    ])
+  })
+
+  it('shows "All …" for a URL value the enum does not contain', () => {
+    // The page drops `?status=bogus` from the request; Radix would render an
+    // EMPTY trigger for it, since no SelectItem owns the value.
+    renderBar({ kind: 'memory', values: { status: 'bogus' } })
+    expect(screen.getByLabelText('Filter by status')).toHaveTextContent(
+      'All statuses'
+    )
   })
 
   it('keeps the test ids the existing page suites drive', () => {

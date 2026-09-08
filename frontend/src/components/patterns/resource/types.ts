@@ -85,6 +85,13 @@ export interface FieldSpec {
    */
   readonly statusValues?: readonly string[]
   /**
+   * For a closed `type` field: every value the API accepts, in display order.
+   * The artifact `type` has none — it is an open string matched against the
+   * team's registered types — which is exactly the difference a filter needs
+   * to know about.
+   */
+  readonly typeValues?: readonly string[]
+  /**
    * For a `status` field: the badge tone per status value. Every key must be
    * one of `statusValues`.
    */
@@ -144,13 +151,18 @@ export type FilterControl =
 /**
  * Where a `select`/`taxonomy` filter's options come from.
  *
- * `field` reads them off the named `FieldSpec` (`statusValues` for a status,
- * `valueLabels` for a closed `type`), which is what stops the filter's option
- * list drifting from the badge's. The other two are catalogs only known at
- * runtime: `types` is the team's registered artifact types and `labels` is the
- * team's prompt label catalog.
+ * `field` reads them off the named `FieldSpec`'s exhaustive value list
+ * (`statusValues` or `typeValues`), which is what stops the filter's option
+ * list drifting from the badge's. Deliberately NOT `valueLabels`: that map is
+ * partial by design, so promoting its keys to an option set would silently
+ * hide any value the server later adds without a label.
+ *
+ * The other two are catalogs only known at runtime. `prompt-labels` names the
+ * prompt label endpoint rather than a generic "labels", because that is the
+ * only taxonomy catalog that exists — a generic name would invite a descriptor
+ * to declare it for a taxonomy field it does not serve.
  */
-export type FilterOptionsSource = 'field' | 'types' | 'labels'
+export type FilterOptionsSource = 'field' | 'types' | 'prompt-labels'
 
 /** One control on a resource list's filter bar. */
 export interface FilterSpec {

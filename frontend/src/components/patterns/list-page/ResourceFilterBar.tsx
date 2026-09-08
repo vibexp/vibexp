@@ -74,14 +74,21 @@ interface SelectOption {
   label: string
 }
 
-/** Options a `select` reads off its own `FieldSpec`, in declaration order. */
+/**
+ * Options a `select` reads off its own `FieldSpec`, in declaration order.
+ *
+ * The values come from the field's EXHAUSTIVE list — never from `valueLabels`,
+ * which is partial by design, so its keys would quietly become a shorter option
+ * set than the API accepts. `valueLabels` supplies only the display text, and a
+ * value it does not label renders as itself.
+ */
 function fieldOptions(
   descriptor: ResourceDescriptor,
   key: string
 ): SelectOption[] {
   const field = descriptor.fields.find(candidate => candidate.key === key)
   const labels = new Map(Object.entries(field?.valueLabels ?? {}))
-  const values = field?.statusValues ?? [...labels.keys()]
+  const values = field?.statusValues ?? field?.typeValues ?? []
   return values.map(value => ({ value, label: labels.get(value) ?? value }))
 }
 
@@ -98,8 +105,14 @@ function SelectFilter({
   onChange,
   options,
 }: Readonly<FilterControlProps & { options: SelectOption[] }>) {
+  // A URL may carry a value the enum does not contain. The page already drops
+  // it from the request; the control must show "All …" rather than an empty
+  // trigger, which is what Radix renders for a value no `SelectItem` owns.
+  const selected = options.some(option => option.value === value)
+    ? value
+    : FILTER_ALL
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select value={selected} onValueChange={onChange}>
       <SelectTrigger
         className={FILTER_CONTROL_WIDTH}
         aria-label={spec.label}
@@ -142,7 +155,7 @@ function TypeCatalogFilter({
 }
 
 /** Same reasoning as `TypeCatalogFilter`, for the team's prompt labels. */
-function LabelsCatalogFilter({
+function PromptLabelsFilter({
   spec,
   value,
   onChange,
@@ -160,6 +173,9 @@ function LabelsCatalogFilter({
       onOpen={load}
       label={spec.label}
       testId={spec.testId}
+      // The trigger's text varies with the selection, so without this it is the
+      // one control on the bar that resizes as you use it.
+      className={FILTER_CONTROL_WIDTH}
     />
   )
 }
@@ -253,8 +269,8 @@ function ResourceFilterControl({
     )
   }
 
-  if (spec.control === 'taxonomy') {
-    return <LabelsCatalogFilter spec={spec} value={value} onChange={onChange} />
+  if (spec.optionsFrom === 'prompt-labels') {
+    return <PromptLabelsFilter spec={spec} value={value} onChange={onChange} />
   }
 
   if (spec.optionsFrom === 'types') {

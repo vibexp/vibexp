@@ -1114,6 +1114,9 @@ describe('Blueprints page — status filter (#908)', () => {
       expect(blueprintService.getBlueprints).toHaveBeenCalled()
     })
     expect(lastQuery().status).toBeUndefined()
+    // That the CONTROL also reads "All statuses" rather than going blank is
+    // asserted in `ResourceFilterBar.test.tsx`: this suite stubs the Radix
+    // Select, so the assertion would pass here whatever the bar renders.
   })
 
   it('the status filter alone flips the empty state to the filtered branch', async () => {

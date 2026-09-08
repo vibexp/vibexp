@@ -67,7 +67,23 @@ describe('useResourceListSort', () => {
     act(() => {
       captured.onSortChange('title')
     })
-    expect(setFilters).toHaveBeenCalledWith({ sort_order: 'desc' })
+    expect(setFilters).toHaveBeenCalledWith({
+      sort_by: 'title',
+      sort_order: 'desc',
+    })
+  })
+
+  it('rewrites an undeclared sort_by out of the URL on the next click', () => {
+    // Arrived as `?sort_by=status` on artifacts, which the endpoint 400s on.
+    renderSort('artifact', 'status')
+    act(() => {
+      // The user clicks the header the page is actually showing as active.
+      captured.onSortChange('updated_at')
+    })
+    expect(setFilters).toHaveBeenCalledWith({
+      sort_by: 'updated_at',
+      sort_order: 'asc',
+    })
   })
 
   it('starts a new name column ascending', () => {
