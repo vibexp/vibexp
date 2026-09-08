@@ -168,6 +168,33 @@ describe('ReadingPage', () => {
       expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
     })
 
+    // AC of #916: a detail page and its edit page must share the measure and
+    // the gutters, so leaving edit mode is not a visual jump. Compared as one
+    // string rather than by spot-checking classes: any divergence at all —
+    // padding, width cap, auto margins — fails here.
+    it('gives the editing presentation the identical article box', () => {
+      const reading = renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      const readingClasses = article().className
+      reading.unmount()
+
+      renderPage(
+        <ReadingPage
+          title="Doc"
+          presentation="editing"
+          actions={ACTIONS}
+          sections={SECTIONS}
+        >
+          body
+        </ReadingPage>
+      )
+      expect(article().className).toBe(readingClasses)
+      expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
+    })
+
     // The column and the rail are the same <aside>, so the flush-right
     // guarantee is that nothing sits between it and the end of the row.
     it('puts the details column last in the row, with nothing after it', () => {
@@ -253,6 +280,149 @@ describe('ReadingPage', () => {
     )
     expect(edit).toHaveClass('text-[13px]', 'px-2.5', 'py-[7px]')
     expect(edit).not.toHaveClass('h-9')
+  })
+
+  // Editing is the same shell hosting a form (#916): everything structural is
+  // shared, and `presentation` only marks the mode and keeps the details panel
+  // registered while an edit page is still loading its resource.
+  describe('editing presentation', () => {
+    const EDIT_ACTIONS: ReadingAction[] = [
+      {
+        id: 'save',
+        label: 'Save changes',
+        icon: Pencil,
+        emphasis: 'primary',
+        onClick: vi.fn(),
+        testId: 'save-button',
+      },
+      {
+        id: 'cancel',
+        label: 'Cancel',
+        icon: ArrowLeft,
+        onClick: vi.fn(),
+        testId: 'cancel-button',
+      },
+    ]
+
+    it('defaults to the reading presentation', () => {
+      renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      expect(screen.getByTestId('reading-page')).toHaveAttribute(
+        'data-presentation',
+        'reading'
+      )
+      expect(screen.getByTestId('reading-details')).toHaveAttribute(
+        'data-presentation',
+        'reading'
+      )
+    })
+
+    it('marks the page and the details column as editing', () => {
+      renderPage(
+        <ReadingPage
+          title="Edit doc"
+          presentation="editing"
+          actions={EDIT_ACTIONS}
+          sections={SECTIONS}
+        >
+          body
+        </ReadingPage>
+      )
+      expect(screen.getByTestId('reading-page')).toHaveAttribute(
+        'data-presentation',
+        'editing'
+      )
+      expect(screen.getByTestId('reading-details')).toHaveAttribute(
+        'data-presentation',
+        'editing'
+      )
+    })
+
+    // An edit page paints before its resource resolves. Reading mode drops the
+    // panel when there is nothing in it, which would make the header toggle and
+    // the whole column appear only once the fetch lands.
+    it('keeps the details panel registered with nothing to show yet', () => {
+      renderPage(
+        <ReadingPage title="Loading…" presentation="editing">
+          <p>spinner</p>
+        </ReadingPage>
+      )
+      expect(screen.getByTestId('probe')).toHaveAttribute(
+        'data-details-registered',
+        'true'
+      )
+      expect(screen.getByTestId('reading-details')).toBeInTheDocument()
+    })
+
+    it('drops the panel in reading mode with nothing to show', () => {
+      renderPage(
+        <ReadingPage title="Doc">
+          <p>body</p>
+        </ReadingPage>
+      )
+      expect(screen.getByTestId('probe')).toHaveAttribute(
+        'data-details-registered',
+        'false'
+      )
+      expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
+    })
+
+    it('renders Save as the solid primary action in the grid, Cancel outlined', () => {
+      renderPage(
+        <ReadingPage
+          title="Edit doc"
+          presentation="editing"
+          actions={EDIT_ACTIONS}
+          sections={SECTIONS}
+        >
+          body
+        </ReadingPage>
+      )
+      const column = within(screen.getByTestId('details-column'))
+      expect(column.getByTestId('save-button')).toHaveClass('bg-primary')
+      expect(column.getByTestId('cancel-button')).not.toHaveClass('bg-primary')
+    })
+
+    it('renders Save and Cancel as chips under the title on phones', () => {
+      viewport.setWidth(600)
+      renderPage(
+        <ReadingPage
+          title="Edit doc"
+          presentation="editing"
+          actions={EDIT_ACTIONS}
+          sections={SECTIONS}
+        >
+          body
+        </ReadingPage>
+      )
+      const chips = within(screen.getByTestId('reading-actions-chips'))
+      expect(chips.getByTestId('save-button')).toBeInTheDocument()
+      expect(chips.getByTestId('cancel-button')).toBeInTheDocument()
+    })
+
+    it('folds to the icon rail like the detail page does', () => {
+      storage.set(STORAGE_KEYS.DETAILS_COLLAPSED, true)
+      renderPage(
+        <ReadingPage
+          title="Edit doc"
+          presentation="editing"
+          actions={EDIT_ACTIONS}
+          sections={SECTIONS}
+        >
+          body
+        </ReadingPage>
+      )
+      expect(screen.getByTestId('reading-details')).toHaveAttribute(
+        'data-state',
+        'collapsed'
+      )
+      expect(
+        within(screen.getByTestId('details-rail')).getByTestId('save-button')
+      ).toBeInTheDocument()
+    })
   })
 
   // Delete is the fourth outlined action in the grid, not the one solid red

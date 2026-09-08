@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
+import { ReadingPage } from '@/components/patterns/reading-page'
 import type {
   BodySlotProps,
   ResourceBodyEditorExtensions,
@@ -15,6 +16,7 @@ import {
   getResourceDescriptor,
   ResourceBodyEditor,
   ResourceFormPage,
+  ResourceFormReadingPage,
 } from '@/components/patterns/resource'
 import { PromptTemplateLoader } from '@/components/PromptTemplateLoader'
 import { Button } from '@/components/ui/button'
@@ -280,14 +282,56 @@ export function PromptEditor() {
   const saveLabel = saving ? 'Saving…' : formSaveLabel(descriptor, mode)
 
   if (loading || loadingProjects) {
-    return (
+    // Editing renders its skeleton inside the reading shell, so the layout is
+    // in place before the fetch resolves rather than arriving with the prompt.
+    return isEditing ? (
+      <ReadingPage
+        title={formHeading(descriptor, mode)}
+        description="Loading prompt…"
+        presentation="editing"
+      >
+        <Skeleton className="h-64 w-full" />
+      </ReadingPage>
+    ) : (
       <div className="space-y-6">
         <PageHeader
           title={formHeading(descriptor, mode)}
-          description={isEditing ? 'Loading prompt…' : 'Loading projects…'}
+          description="Loading projects…"
         />
         <Skeleton className="h-64 w-full" />
       </div>
+    )
+  }
+
+  // Editing a prompt is the same document as reading it, so it goes through the
+  // reading shell (#916). Creating one is not — `prompts/new` keeps the
+  // standalone form, alongside the other three create pages, and keeps the
+  // template loader that only exists while creating.
+  if (isEditing) {
+    return (
+      <ResourceFormReadingPage
+        title={formHeading(descriptor, mode)}
+        description={`Editing: ${prompt?.name ?? ''}`}
+        descriptor={descriptor}
+        mode={mode}
+        initialValues={initialValues}
+        onSubmit={handleSubmit}
+        isLoading={saving}
+        renderBody={renderBody}
+        saveTestId="prompt-save-button"
+        extensions={{
+          'mcp-exposure': (
+            <McpExposureCard
+              value={mcpExpose}
+              onChange={setMcpExpose}
+              disabled={saving}
+            />
+          ),
+        }}
+        onCancel={() => {
+          void navigate(prompt ? `/prompts/${prompt.slug}` : '/prompts')
+        }}
+      />
     )
   }
 
@@ -295,11 +339,7 @@ export function PromptEditor() {
     <div className="space-y-6">
       <PageHeader
         title={formHeading(descriptor, mode)}
-        description={
-          isEditing
-            ? `Editing: ${prompt?.name ?? ''}`
-            : 'Create a new AI prompt with markdown support.'
-        }
+        description="Create a new AI prompt with markdown support."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button

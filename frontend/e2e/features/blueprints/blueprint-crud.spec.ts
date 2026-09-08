@@ -137,6 +137,48 @@ test.describe('Blueprint CRUD Operations', () => {
     ).toBeVisible({ timeout: 10000 })
   })
 
+  // The edit route lives in the reading shell now (#916), and Cancel is an
+  // action in its rail rather than a Back button in a page header. Dirty edits
+  // must survive a mis-click on it.
+  test('should warn before Cancel discards unsaved edits', async ({
+    authenticatedPage,
+  }) => {
+    const blueprint = generateBlueprintData()
+    await createBlueprint(authenticatedPage, blueprint)
+
+    await authenticatedPage.getByRole('button', { name: 'Edit' }).click()
+    await expect(authenticatedPage).toHaveURL(
+      /blueprints\/[^/]+\/[^/]+\/edit$/,
+      { timeout: 10000 }
+    )
+
+    const contentField = authenticatedPage.getByLabel('Content', {
+      exact: true,
+    })
+    await expect(contentField).toBeVisible({ timeout: 10000 })
+    await contentField.fill('Edited but never saved')
+
+    // Declining the prompt stays on the edit page with the edit intact.
+    authenticatedPage.once('dialog', dialog => {
+      void dialog.dismiss()
+    })
+    await authenticatedPage.getByRole('button', { name: 'Cancel' }).click()
+    await expect(authenticatedPage).toHaveURL(/blueprints\/[^/]+\/[^/]+\/edit$/)
+    await expect(contentField).toHaveValue('Edited but never saved')
+
+    // Accepting it leaves for the detail page, discarding the edit.
+    authenticatedPage.once('dialog', dialog => {
+      void dialog.accept()
+    })
+    await authenticatedPage.getByRole('button', { name: 'Cancel' }).click()
+    await authenticatedPage.waitForURL(/\/blueprints\/[^/]+\/[^/]+$/, {
+      timeout: 15000,
+    })
+    await expect(
+      authenticatedPage.getByText('Edited but never saved')
+    ).toHaveCount(0)
+  })
+
   test('should delete a blueprint from the list', async ({
     authenticatedPage,
   }) => {

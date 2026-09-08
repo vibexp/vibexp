@@ -8,7 +8,7 @@ import type { Artifact } from '@/services/artifactService'
 // itself has its own suite (`patterns/resource/form`).
 vi.mock('@/components/patterns/resource', async () => ({
   ...(await vi.importActual('@/components/patterns/resource')),
-  ResourceFormPage: vi.fn(() => <div data-testid="artifact-form" />),
+  ResourceFormReadingPage: vi.fn(() => <div data-testid="artifact-form" />),
 }))
 
 // Mock TeamContext — stable references to prevent effect re-runs

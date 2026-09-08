@@ -9,7 +9,7 @@ import type { Blueprint } from '@/services/blueprintService'
 // itself has its own suite (`patterns/resource/form`).
 vi.mock('@/components/patterns/resource', async () => ({
   ...(await vi.importActual('@/components/patterns/resource')),
-  ResourceFormPage: vi.fn(() => <div data-testid="blueprint-form" />),
+  ResourceFormReadingPage: vi.fn(() => <div data-testid="blueprint-form" />),
 }))
 
 // Mock TeamContext — stable references to prevent effect re-runs

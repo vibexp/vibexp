@@ -1,18 +1,14 @@
-import { AlertCircle, ArrowLeft, Save } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { AlertCircle, ArrowLeft } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { PageHeader } from '@/components/PageHeader'
-import type {
-  ResourceFormHandle,
-  ResourceFormValues,
-} from '@/components/patterns/resource'
+import { ReadingPage } from '@/components/patterns/reading-page'
+import type { ResourceFormValues } from '@/components/patterns/resource'
 import {
   formHeading,
-  formSaveLabel,
   getResourceDescriptor,
-  ResourceFormPage,
+  ResourceFormReadingPage,
 } from '@/components/patterns/resource'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -42,7 +38,6 @@ export function BlueprintEdit() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updating, setUpdating] = useState(false)
-  const formRef = useRef<ResourceFormHandle>(null)
 
   const loadAll = useCallback(async () => {
     if (isLoadingTeam) return
@@ -107,21 +102,21 @@ export function BlueprintEdit() {
     }
   }
 
+  // Loading and not-found render in the reading shell too, so the layout is
+  // in place before the fetch resolves rather than arriving with the data.
   if (isLoadingTeam || loading) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Loading blueprint…" />
+      <ReadingPage title="Loading blueprint…" presentation="editing">
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
-      </div>
+      </ReadingPage>
     )
   }
 
   if (error || !blueprint) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Blueprint not found" />
+      <ReadingPage title="Blueprint not found" presentation="editing">
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Could not load blueprint</AlertTitle>
@@ -131,6 +126,7 @@ export function BlueprintEdit() {
         </Alert>
         <Button
           variant="outline"
+          className="mt-6"
           onClick={() => {
             void navigate('/blueprints')
           }}
@@ -138,47 +134,25 @@ export function BlueprintEdit() {
           <ArrowLeft className="mr-2 size-4" />
           Back to blueprints
         </Button>
-      </div>
+      </ReadingPage>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={formHeading(descriptor, 'edit')}
-        description={blueprint.title}
-        actions={
-          <>
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate('/blueprints')
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-            <Button
-              onClick={() => {
-                formRef.current?.submit()
-              }}
-              disabled={updating}
-            >
-              <Save className="mr-2 size-4" />
-              {updating ? 'Saving…' : formSaveLabel(descriptor, 'edit')}
-            </Button>
-          </>
-        }
-      />
-      <ResourceFormPage
-        ref={formRef}
-        descriptor={descriptor}
-        mode="edit"
-        initialValues={blueprint}
-        onSubmit={handleSubmit}
-        isLoading={updating}
-        metadataRequiredKeys={requiredMetadataKeys(blueprint)}
-      />
-    </div>
+    <ResourceFormReadingPage
+      title={formHeading(descriptor, 'edit')}
+      description={blueprint.title}
+      descriptor={descriptor}
+      mode="edit"
+      initialValues={blueprint}
+      onSubmit={handleSubmit}
+      isLoading={updating}
+      metadataRequiredKeys={requiredMetadataKeys(blueprint)}
+      onCancel={() => {
+        void navigate(
+          `/blueprints/${encodeURIComponent(blueprint.project_id)}/${encodeURIComponent(blueprint.slug)}`
+        )
+      }}
+    />
   )
 }

@@ -1,40 +1,14 @@
-import { zodResolver } from '@hookform/resolvers/zod'
 import type { ReactNode } from 'react'
-import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import { useForm } from 'react-hook-form'
+import { forwardRef, useImperativeHandle } from 'react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { labelVariants } from '@/components/ui/label'
+import { Form } from '@/components/ui/form'
 
-import { fieldOfRole } from '../fieldOfRole'
-import type { FormFieldSpec, ResourceDescriptor } from '../types'
+import type { ResourceDescriptor } from '../types'
 import type { ResourceFormValues } from './buildFormSchema'
-import {
-  buildFormSchema,
-  defaultFormValues,
-  formFieldLabel,
-  formFieldsByKey,
-  slugify,
-} from './buildFormSchema'
 import type { ResourceFormMode } from './formLabels'
 import type { BodySlotProps } from './ResourceFormControl'
-import { ResourceFormControl } from './ResourceFormControl'
+import { useResourceForm } from './useResourceForm'
 
 /** The handle the page header's Save button drives. */
 export interface ResourceFormHandle {
@@ -87,17 +61,19 @@ export interface ResourceFormPageProps {
  * the slug auto-fills at all. Which fields a resource edits is a property of
  * the resource type now, and this page is the only reader.
  *
- * There is no `switch (kind)` here and there must never be one: the switch is
- * over the closed `FormControl` union in `ResourceFormControl`, so a resource
- * type this build has never seen renders a working form.
+ * The form itself lives in `useResourceForm`, which hands back the body,
+ * details and taxonomy controls as nodes; this component is only the standalone
+ * card grid around them. `ResourceFormReadingPage` renders the same nodes into
+ * the reading shell (#916) — one form, two layouts.
  *
  * ## What this does NOT own
  *
- * The page header. Every create/edit route keeps its own `PageHeader` with the
- * Back and Save buttons, which is why the form exposes a `{ submit }` handle
- * through `forwardRef` — the pattern all three react-hook-form pages already
- * use. `formSaveLabel` / `formHeading` / `formSubtitle` derive that header's
- * wording from the same descriptor.
+ * The page header. Every create route keeps its own `PageHeader` with the Back
+ * and Save buttons, which is why the form exposes a `{ submit }` handle through
+ * `forwardRef` — the pattern all three react-hook-form pages already use.
+ * `formSaveLabel` / `formHeading` / `formSubtitle` derive that header's wording
+ * from the same descriptor. (The four EDIT routes moved to the reading shell in
+ * #916 and take their Save/Cancel from the actions rail instead.)
  *
  * Fetching, navigation and the request payload stay with the page too: this
  * hands `onSubmit` the parsed values, keyed by field key.
@@ -119,126 +95,28 @@ export const ResourceFormPage = forwardRef<
   },
   ref
 ) {
-  const formElRef = useRef<HTMLFormElement>(null)
-  const slugManuallyEdited = useRef(mode === 'edit')
-  const [metadataValid, setMetadataValid] = useState(true)
-
-  const specs = useMemo(() => descriptor.form?.fields ?? [], [descriptor])
-  const byKey = useMemo(() => formFieldsByKey(descriptor), [descriptor])
-  const schema = useMemo(() => buildFormSchema(descriptor), [descriptor])
-
-  const form = useForm<ResourceFormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: defaultFormValues(descriptor, initialValues),
+  const {
+    form,
+    formElRef,
+    onFormSubmit,
+    submit,
+    getValues,
+    bodyNode,
+    detailsNode,
+    taxonomyNode,
+  } = useResourceForm({
+    descriptor,
+    mode,
+    initialValues,
+    onSubmit,
+    isLoading,
+    renderBody,
+    metadataRequiredKeys,
+    metadataReservedKeys,
   })
 
-  // Re-seeding is keyed on the CONTENT of `initialValues`, never on its
-  // identity: a page builds it as an object literal from the fetched resource,
-  // so an identity check re-seeds on every parent render — and a re-seed is a
-  // `reset`, which silently discards everything typed since. This page's own
-  // extension slots are page-owned state, so those re-renders are certain. An
-  // edit page whose resource resolves after first paint still re-seeds,
-  // because that is a genuine content change.
-  const seed = JSON.stringify(initialValues ?? null)
-  const lastSeed = useRef(seed)
-  useEffect(() => {
-    if (!initialValues || lastSeed.current === seed) return
-    lastSeed.current = seed
-    form.reset(defaultFormValues(descriptor, initialValues))
-  }, [seed, initialValues, descriptor, form])
+  useImperativeHandle(ref, () => ({ submit, getValues }), [submit, getValues])
 
-  const nameField = fieldOfRole(descriptor, 'name')
-  const slugSpec = specs.find(spec => spec.pattern === 'slug')
-  // A key no field owns simply watches nothing, which is the right answer for
-  // a kind with no name field.
-  const nameValue = form.watch(nameField?.key ?? '__no_name_field__')
-
-  // On create, the slug tracks the name until the user edits the slug field —
-  // the behaviour the artifact and prompt pages had and the blueprint page
-  // never got.
-  useEffect(() => {
-    if (mode !== 'create' || !slugSpec || !nameField) return
-    if (slugManuallyEdited.current) return
-    const next = slugify(typeof nameValue === 'string' ? nameValue : '')
-    form.setValue(slugSpec.key, next, { shouldValidate: next.length > 0 })
-  }, [nameValue, mode, slugSpec, nameField, form])
-
-  const handleSubmit = form.handleSubmit(async values => {
-    // The metadata editor surfaces its own inline errors; block the submit so
-    // an invalid map never reaches the API.
-    if (!metadataValid) return
-    await onSubmit(values)
-  })
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      submit() {
-        formElRef.current?.requestSubmit()
-      },
-      getValues: () => form.getValues(),
-    }),
-    [form]
-  )
-
-  const renderSpec = (spec: FormFieldSpec) => {
-    const label = formFieldLabel(byKey, spec.key)
-    const locked = isLoading || (spec.editableOnCreateOnly && mode === 'edit')
-    return (
-      <FormField
-        key={spec.key}
-        control={form.control}
-        name={spec.key}
-        render={({ field }) => (
-          <FormItem>
-            {/*
-              A `FormLabel` is a real `<label for=…>`, so it needs a labelable
-              leaf to point at. The metadata editor is a list of its own
-              labelled rows, not one control — labelling it would leave the
-              `for` dangling, which is worse than no label at all.
-            */}
-            {spec.control === 'metadata' ? (
-              // Styled from the same source as a real label, so the heading
-              // cannot drift from the ones beside it.
-              <p className={labelVariants()}>{label}</p>
-            ) : (
-              <FormLabel className={spec.control === 'body' ? 'sr-only' : ''}>
-                {label}
-              </FormLabel>
-            )}
-            <FormControl>
-              <ResourceFormControl
-                spec={spec}
-                field={byKey.get(spec.key)}
-                label={label}
-                resourceType={descriptor.plural}
-                value={field.value}
-                disabled={!!locked}
-                metadataRequiredKeys={metadataRequiredKeys}
-                metadataReservedKeys={metadataReservedKeys}
-                onMetadataValidityChange={setMetadataValid}
-                renderBody={renderBody}
-                onChange={next => {
-                  if (spec === slugSpec) slugManuallyEdited.current = true
-                  field.onChange(next)
-                }}
-              />
-            </FormControl>
-            {spec.description && (
-              <FormDescription>{spec.description}</FormDescription>
-            )}
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    )
-  }
-
-  const sectionSpecs = (section: FormFieldSpec['section']) =>
-    specs.filter(spec => spec.section === section)
-  const bodySpecs = sectionSpecs('body')
-  const detailSpecs = sectionSpecs('details')
-  const taxonomySpecs = sectionSpecs('taxonomy')
   const extensionNodes = new Map(Object.entries(extensions ?? {}))
 
   return (
@@ -247,36 +125,28 @@ export const ResourceFormPage = forwardRef<
         ref={formElRef}
         data-testid="resource-form"
         className="grid gap-6 lg:grid-cols-3"
-        onSubmit={event => {
-          void handleSubmit(event)
-        }}
+        onSubmit={onFormSubmit}
       >
-        <div className="min-w-0 space-y-4 lg:col-span-2">
-          {bodySpecs.map(renderSpec)}
-        </div>
+        <div className="min-w-0 space-y-4 lg:col-span-2">{bodyNode}</div>
         <div className="min-w-0 space-y-4">
-          {detailSpecs.length > 0 && (
+          {detailsNode && (
             <Card data-testid="resource-form-details">
               <CardHeader>
                 <CardTitle className="text-sm">Details</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {detailSpecs.map(renderSpec)}
-              </CardContent>
+              <CardContent className="space-y-4">{detailsNode}</CardContent>
             </Card>
           )}
           {(descriptor.form?.extensions ?? []).map(name => {
             const node = extensionNodes.get(name)
             return node ? <div key={name}>{node}</div> : null
           })}
-          {taxonomySpecs.length > 0 && (
+          {taxonomyNode && (
             <Card data-testid="resource-form-taxonomy">
               <CardHeader>
                 <CardTitle className="text-sm">Labels &amp; metadata</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {taxonomySpecs.map(renderSpec)}
-              </CardContent>
+              <CardContent className="space-y-4">{taxonomyNode}</CardContent>
             </Card>
           )}
         </div>

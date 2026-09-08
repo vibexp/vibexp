@@ -1,6 +1,10 @@
 export { DetailsColumn, DetailsRail } from './DetailsPanel'
 export { ReadingActions } from './ReadingActions'
-export { ReadingPage, type ReadingPageProps } from './ReadingPage'
+export {
+  ReadingPage,
+  type ReadingPageProps,
+  type ReadingPresentation,
+} from './ReadingPage'
 export { ResourceBody, type ResourceBodyProps } from './ResourceBody'
 export type {
   BodyFormat,
