@@ -49,6 +49,12 @@ describe('RelativeTime', () => {
     )
   })
 
+  it('omits `title` when there is no timestamp, rather than repeating "Never"', () => {
+    render(<RelativeTime value={null} />)
+
+    expect(screen.getByText('Never')).not.toHaveAttribute('title')
+  })
+
   it('applies the provided className to the compact label', () => {
     render(
       <RelativeTime

@@ -44,12 +44,12 @@ describe('AgentBasicInfo', () => {
   })
 
   it.each([
-    ['active', 'bg-success'],
-    ['paused', 'bg-muted'],
-    ['error', 'bg-destructive'],
+    ['active', 'Active', 'bg-success'],
+    ['paused', 'Paused', 'bg-muted'],
+    ['error', 'Error', 'bg-destructive'],
   ] as const)(
     'badges %s from the shared agent status field',
-    (status, toneClass) => {
+    (status, label, toneClass) => {
       // The detail page and the agents list read one `FieldSpec` (#907). A raw
       // <Badge> here would re-fork them — same agent, different colour on
       // /agents and /agents/:id — with agentStatus.test.ts still green, so the
@@ -58,7 +58,10 @@ describe('AgentBasicInfo', () => {
       // diverges on the other two.
       render(<AgentBasicInfo agent={{ ...makeAgent(null), status }} />)
 
-      expect(screen.getByText(/^(Active|Paused|Error)$/)).toHaveClass(toneClass)
+      // BOTH halves of the FieldSpec contract: a hardcoded label would render
+      // "Active" for an errored agent, and a hardcoded tone would colour it
+      // wrong — assert the wording and the fill together.
+      expect(screen.getByText(label)).toHaveClass(toneClass)
     }
   )
 })

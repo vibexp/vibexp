@@ -26,10 +26,12 @@ export function RelativeTime({
   value,
   className,
 }: Readonly<RelativeTimeProps>) {
+  // No value means both formatters return "Never", and a native bubble that
+  // just repeats the cell is noise — so the attribute is omitted entirely.
   return (
     <span
       className={cn('cursor-default', className)}
-      title={formatDateTime(value)}
+      title={value ? formatDateTime(value) : undefined}
     >
       {formatRelativeTime(value)}
     </span>
