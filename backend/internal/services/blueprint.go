@@ -194,7 +194,7 @@ type BlueprintFilters struct {
 func buildBlueprintFromRequest(userID, teamID string, req *models.CreateBlueprintRequest) *models.Blueprint {
 	status := req.Status
 	if status == "" {
-		status = "active"
+		status = models.BlueprintStatusActive
 	}
 
 	blueprintType := req.Type
@@ -233,6 +233,11 @@ func (s *BlueprintService) CreateBlueprint(
 	// Reject an over-limit label list before anything else: the documented
 	// maxItems/maxLength are enforced nowhere else (issue #910).
 	if err := validateLabels(req.Labels); err != nil {
+		return nil, err
+	}
+
+	// Status is checked here so the MCP tools get the REST answer (#912).
+	if err := validateStatus(models.BlueprintStatuses, req.Status); err != nil {
 		return nil, err
 	}
 
@@ -446,7 +451,9 @@ func applyBlueprintUpdates(blueprint *models.Blueprint, req *models.UpdateBluepr
 	if req.Content != nil {
 		blueprint.Content = *req.Content
 	}
-	if req.Status != nil {
+	// An empty status is "unchanged", never a clear -- see applyArtifactUpdates
+	// for why writing "" into a required enum field is not an option (#912).
+	if req.Status != nil && *req.Status != "" {
 		blueprint.Status = *req.Status
 	}
 	if req.Type != nil {
@@ -555,6 +562,11 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 	// Reject an over-limit label list before anything else: the documented
 	// maxItems/maxLength are enforced nowhere else (issue #910).
 	if err := validateLabels(req.Labels); err != nil {
+		return nil, err
+	}
+
+	// Status is checked here so the MCP tools get the REST answer (#912).
+	if err := validateOptionalStatus(models.BlueprintStatuses, req.Status); err != nil {
 		return nil, err
 	}
 

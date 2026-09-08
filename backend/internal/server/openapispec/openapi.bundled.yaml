@@ -756,11 +756,7 @@ paths:
           in: query
           description: Filter by status
           schema:
-            type: string
-            enum:
-              - active
-              - draft
-              - archived
+            $ref: '#/components/schemas/ArtifactStatus'
         - name: type
           in: query
           description: Filter by type. An open string matched against the team's registered types (the system defaults work_reports, static_contexts and general, plus any custom types the team has added), not a fixed enum.
@@ -907,11 +903,7 @@ paths:
           in: query
           description: Filter by status
           schema:
-            type: string
-            enum:
-              - active
-              - draft
-              - archived
+            $ref: '#/components/schemas/ArtifactStatus'
         - name: type
           in: query
           description: Filter by type. An open string matched against the team's registered types (the system defaults work_reports, static_contexts and general, plus any custom types the team has added), not a fixed enum.
@@ -2049,11 +2041,7 @@ paths:
           in: query
           description: Filter by lifecycle status. When omitted, archived memories are hidden (active and draft are returned); an explicit value returns only that status. Returns 400 for unknown values.
           schema:
-            type: string
-            enum:
-              - active
-              - draft
-              - archived
+            $ref: '#/components/schemas/MemoryStatus'
         - name: sort_by
           in: query
           description: 'Field to sort results by. Allowed: text, updated_at, created_at. Returns 400 for unknown values.'
@@ -2644,11 +2632,7 @@ paths:
           in: query
           description: Filter by status
           schema:
-            type: string
-            enum:
-              - active
-              - expired
-            example: active
+            $ref: '#/components/schemas/BlueprintStatus'
         - name: type
           in: query
           description: Filter by type
@@ -2831,10 +2815,7 @@ paths:
           in: query
           description: Filter by status
           schema:
-            type: string
-            enum:
-              - active
-              - expired
+            $ref: '#/components/schemas/BlueprintStatus'
         - name: type
           in: query
           description: Filter by type
@@ -3447,10 +3428,7 @@ paths:
         - name: status
           in: query
           schema:
-            type: string
-            enum:
-              - draft
-              - published
+            $ref: '#/components/schemas/PromptStatus'
           description: Filter by prompt status
         - name: labels
           in: query
@@ -14798,6 +14776,50 @@ components:
         - limit
         - total
         - total_pages
+    ResourceStatus:
+      type: string
+      description: The complete status vocabulary shared by prompts, artifacts, blueprints and memories. Each resource type accepts a named subset of these values, never the whole set; see PromptStatus, ArtifactStatus, BlueprintStatus and MemoryStatus.
+      enum:
+        - active
+        - draft
+        - archived
+        - published
+        - expired
+      example: active
+    PromptStatus:
+      type: string
+      description: Publication status of a prompt. A prompt is only exposed over MCP once it is `published`.
+      enum:
+        - draft
+        - published
+      example: published
+      x-subset-of: ResourceStatus
+    ArtifactStatus:
+      type: string
+      description: Lifecycle status of an artifact.
+      enum:
+        - active
+        - draft
+        - archived
+      example: active
+      x-subset-of: ResourceStatus
+    BlueprintStatus:
+      type: string
+      description: Lifecycle status of a blueprint. `expired` marks a blueprint whose rules no longer apply but whose content is kept for reference.
+      enum:
+        - active
+        - expired
+      example: active
+      x-subset-of: ResourceStatus
+    MemoryStatus:
+      type: string
+      description: Lifecycle status of a memory.
+      enum:
+        - active
+        - draft
+        - archived
+      example: active
+      x-subset-of: ResourceStatus
     ResourceAccessDailyCount:
       type: object
       description: Per-source access counts for a single calendar day (UTC), zero-filled.
@@ -15177,11 +15199,7 @@ components:
           example: 123e4567-e89b-12d3-a456-426614174001
           description: Project identifier that this prompt belongs to
         status:
-          type: string
-          enum:
-            - draft
-            - published
-          example: published
+          $ref: '#/components/schemas/PromptStatus'
         mcp_expose:
           type: boolean
           description: Whether this prompt is discoverable via MCP (Model Context Protocol) tools
@@ -15263,11 +15281,9 @@ components:
           example: 123e4567-e89b-12d3-a456-426614174000
           description: Project identifier that this prompt belongs to
         status:
-          type: string
-          enum:
-            - draft
-            - published
-          example: draft
+          allOf:
+            - $ref: '#/components/schemas/PromptStatus'
+          default: draft
         mcp_expose:
           type: boolean
           description: Whether this prompt should be discoverable via MCP tools. Defaults to true if not specified.
@@ -15308,10 +15324,7 @@ components:
           format: uuid
           description: Project identifier to move this prompt to a different project
         status:
-          type: string
-          enum:
-            - draft
-            - published
+          $ref: '#/components/schemas/PromptStatus'
         mcp_expose:
           type: boolean
           description: Whether this prompt should be discoverable via MCP tools
@@ -17347,13 +17360,7 @@ components:
           description: Timestamp when the artifact was last updated
           example: '2024-01-15T14:30:00Z'
         status:
-          type: string
-          enum:
-            - active
-            - draft
-            - archived
-          description: Current status of the artifact
-          example: active
+          $ref: '#/components/schemas/ArtifactStatus'
         title:
           type: string
           description: Human-readable title for the artifact
@@ -17445,13 +17452,9 @@ components:
           description: Type category of the artifact. An open string validated at runtime against the team's registered types (the system defaults work_reports, static_contexts and general, plus any custom types the team has added), not a fixed enum. Defaults to general when omitted.
           example: general
         status:
-          type: string
-          enum:
-            - active
-            - draft
-            - archived
-          description: Initial status of the artifact
-          example: active
+          allOf:
+            - $ref: '#/components/schemas/ArtifactStatus'
+          default: active
         metadata:
           type: object
           additionalProperties: true
@@ -17510,13 +17513,7 @@ components:
           description: Updated type category of the artifact. An open string validated at runtime against the team's registered types (the system defaults work_reports, static_contexts and general, plus any custom types the team has added), not a fixed enum.
           example: general
         status:
-          type: string
-          enum:
-            - active
-            - draft
-            - archived
-          description: Updated status of the artifact
-          example: active
+          $ref: '#/components/schemas/ArtifactStatus'
         metadata:
           type: object
           additionalProperties: true
@@ -18267,13 +18264,7 @@ components:
           description: The text content of the memory
           example: Remember to update the API documentation when adding new endpoints
         status:
-          type: string
-          enum:
-            - active
-            - draft
-            - archived
-          description: Current lifecycle status of the memory
-          example: active
+          $ref: '#/components/schemas/MemoryStatus'
         metadata:
           type: object
           additionalProperties: true
@@ -18351,13 +18342,9 @@ components:
           minLength: 1
           example: Remember to update the API documentation when adding new endpoints
         status:
-          type: string
-          enum:
-            - active
-            - draft
-            - archived
-          description: Initial lifecycle status of the memory (defaults to active)
-          example: active
+          allOf:
+            - $ref: '#/components/schemas/MemoryStatus'
+          default: active
         metadata:
           type: object
           additionalProperties: true
@@ -18399,13 +18386,7 @@ components:
           minLength: 1
           example: Updated reminder to include versioning in API documentation
         status:
-          type: string
-          enum:
-            - active
-            - draft
-            - archived
-          description: Updated lifecycle status of the memory
-          example: archived
+          $ref: '#/components/schemas/MemoryStatus'
         metadata:
           type: object
           additionalProperties: true
@@ -18638,12 +18619,7 @@ components:
           description: Timestamp when the spec library was last updated
           example: '2024-01-15T14:30:00Z'
         status:
-          type: string
-          enum:
-            - active
-            - expired
-          description: Current status of the spec library
-          example: active
+          $ref: '#/components/schemas/BlueprintStatus'
         title:
           type: string
           description: Human-readable title for the spec library
@@ -18830,13 +18806,9 @@ components:
           description: Subtype category for specific type spec libraries
           example: sub-agents
         status:
-          type: string
-          enum:
-            - active
-            - expired
-          description: Initial status of the spec library
+          allOf:
+            - $ref: '#/components/schemas/BlueprintStatus'
           default: active
-          example: active
         metadata:
           type: object
           additionalProperties: true
@@ -18926,12 +18898,7 @@ components:
           description: Updated subtype category for specific type spec libraries
           example: sub-agents
         status:
-          type: string
-          enum:
-            - active
-            - expired
-          description: Updated status of the spec library
-          example: active
+          $ref: '#/components/schemas/BlueprintStatus'
         metadata:
           type: object
           additionalProperties: true

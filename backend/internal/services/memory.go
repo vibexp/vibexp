@@ -139,6 +139,10 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 	if err := validateMemoryTitle(req.Title); err != nil {
 		return nil, err
 	}
+	// Status is checked here so the MCP tools get the REST answer (#912).
+	if err := validateOptionalStatus(models.MemoryStatuses, req.Status); err != nil {
+		return nil, err
+	}
 
 	// Default to active when no status is supplied (mirrors artifact create).
 	status := models.MemoryStatusActive
@@ -308,6 +312,10 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 		return nil, err
 	}
 	if err := validateMemoryTitle(req.Title.Value); err != nil {
+		return nil, err
+	}
+	// Status is checked here so the MCP tools get the REST answer (#912).
+	if err := validateOptionalStatus(models.MemoryStatuses, req.Status); err != nil {
 		return nil, err
 	}
 

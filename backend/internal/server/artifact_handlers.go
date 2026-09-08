@@ -535,14 +535,14 @@ func (s *Server) validateArtifactStatus(w http.ResponseWriter, status *string) b
 	if status == nil || *status == "" {
 		return true
 	}
-	switch *status {
-	case models.ArtifactStatusActive, models.ArtifactStatusDraft, models.ArtifactStatusArchived:
+	if models.IsAllowedStatus(models.ArtifactStatuses, *status) {
 		return true
-	default:
-		writeErrorResponse(w, nil, "validation_error",
-			"Status must be one of: active, draft, archived", http.StatusBadRequest)
-		return false
 	}
+	// Message built from the allowlist, not restated: the two must never
+	// disagree about what is accepted (#912).
+	writeErrorResponse(w, nil, "validation_error",
+		"Status must be one of: "+strings.Join(models.ArtifactStatuses, ", "), http.StatusBadRequest)
+	return false
 }
 
 // handleCreateArtifactError handles errors from artifact creation
@@ -560,7 +560,7 @@ func (s *Server) handleCreateArtifactError(w http.ResponseWriter, userID string,
 		return
 	}
 
-	if errors.Is(err, services.ErrInvalidLabels) {
+	if errors.Is(err, services.ErrInvalidLabels) || errors.Is(err, services.ErrInvalidStatus) {
 		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -652,7 +652,7 @@ func (s *Server) handleUpdateArtifactError(w http.ResponseWriter, userID, projec
 		return
 	}
 
-	if errors.Is(err, services.ErrInvalidLabels) {
+	if errors.Is(err, services.ErrInvalidLabels) || errors.Is(err, services.ErrInvalidStatus) {
 		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return
 	}

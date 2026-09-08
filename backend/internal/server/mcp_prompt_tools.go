@@ -245,7 +245,7 @@ func (s *Server) renderPrompt(
 		)
 		return mcpTextError(fmt.Sprintf("Failed to render prompt: %v", err)), nil, nil
 	}
-	if prompt.Status != "published" || !prompt.MCPExpose {
+	if prompt.Status != models.PromptStatusPublished || !prompt.MCPExpose {
 		return mcpTextError(fmt.Sprintf(
 			"prompt %q is not available for rendering: it must be published and MCP-exposed (mcp_expose=true)", slug,
 		)), nil, nil

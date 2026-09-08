@@ -32,9 +32,7 @@ Prompt:
       example: "123e4567-e89b-12d3-a456-426614174001"
       description: "Project identifier that this prompt belongs to"
     status:
-      type: string
-      enum: [draft, published]
-      example: "published"
+      $ref: './common.yaml#/PromptStatus'
     mcp_expose:
       type: boolean
       description: "Whether this prompt is discoverable via MCP (Model Context Protocol) tools"
@@ -121,9 +119,12 @@ CreatePromptRequest:
       example: "123e4567-e89b-12d3-a456-426614174000"
       description: "Project identifier that this prompt belongs to"
     status:
-      type: string
-      enum: [draft, published]
-      example: "draft"
+      # allOf, not a bare $ref: under OpenAPI 3.0.3 a sibling of $ref is
+      # ignored, and `default` is real API surface here (omitting status on
+      # create yields this value).
+      allOf:
+        - $ref: './common.yaml#/PromptStatus'
+      default: "draft"
     mcp_expose:
       type: boolean
       description: "Whether this prompt should be discoverable via MCP tools. Defaults to true if not specified."
@@ -163,8 +164,7 @@ UpdatePromptRequest:
       format: uuid
       description: "Project identifier to move this prompt to a different project"
     status:
-      type: string
-      enum: [draft, published]
+      $ref: './common.yaml#/PromptStatus'
     mcp_expose:
       type: boolean
       description: "Whether this prompt should be discoverable via MCP tools"

@@ -123,6 +123,68 @@ SortOrderParam:
     enum: [asc, desc]
     default: desc
 
+# ---------------------------------------------------------------------------
+# Resource status vocabulary (#912)
+#
+# ResourceStatus is the single vocabulary every resource type draws its status
+# values from. Each type declares its own named subset below, and every resource
+# schema and create/update request $refs its subset instead of restating an
+# inline `enum:` -- eleven copies of three vocabularies used to drift silently
+# against each other and against the Go allowlists.
+#
+# Each subset carries `x-subset-of: ResourceStatus`; TestResourceStatusSubsets
+# (internal/services/status_enum_test.go) reads that extension and fails the
+# build if a subset ever contains a value ResourceStatus does not, and
+# TestSpecEnumsMatchServiceAllowlists pins each subset to the Go allowlist in
+# internal/models/status.go that actually enforces it.
+#
+# Subsets are deliberately NOT unified: a status is only meaningful where the
+# resource type has semantics for it. Widening one is a product decision with
+# list-filter and UI consequences, not a spec tidy-up.
+# ---------------------------------------------------------------------------
+
+ResourceStatus:
+  type: string
+  description: >-
+    The complete status vocabulary shared by prompts, artifacts, blueprints and
+    memories. Each resource type accepts a named subset of these values, never
+    the whole set; see PromptStatus, ArtifactStatus, BlueprintStatus and
+    MemoryStatus.
+  enum: [active, draft, archived, published, expired]
+  example: "active"
+
+PromptStatus:
+  type: string
+  description: >-
+    Publication status of a prompt. A prompt is only exposed over MCP once it is
+    `published`.
+  enum: [draft, published]
+  example: "published"
+  x-subset-of: ResourceStatus
+
+ArtifactStatus:
+  type: string
+  description: Lifecycle status of an artifact.
+  enum: [active, draft, archived]
+  example: "active"
+  x-subset-of: ResourceStatus
+
+BlueprintStatus:
+  type: string
+  description: >-
+    Lifecycle status of a blueprint. `expired` marks a blueprint whose rules no
+    longer apply but whose content is kept for reference.
+  enum: [active, expired]
+  example: "active"
+  x-subset-of: ResourceStatus
+
+MemoryStatus:
+  type: string
+  description: Lifecycle status of a memory.
+  enum: [active, draft, archived]
+  example: "active"
+  x-subset-of: ResourceStatus
+
 PaginatedResponse:
   type: object
   properties:

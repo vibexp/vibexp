@@ -9,9 +9,9 @@ import (
 // returned by search), or archived (retired, hidden from default lists and
 // search but still reachable via an explicit status filter).
 const (
-	ArtifactStatusActive   = "active"
-	ArtifactStatusDraft    = "draft"
-	ArtifactStatusArchived = "archived"
+	ArtifactStatusActive   = StatusActive
+	ArtifactStatusDraft    = StatusDraft
+	ArtifactStatusArchived = StatusArchived
 )
 
 type Artifact struct {

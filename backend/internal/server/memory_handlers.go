@@ -42,7 +42,8 @@ func (s *Server) handleCreateMemoryError(w http.ResponseWriter, userID string, e
 		return
 	}
 
-	if errors.Is(err, services.ErrInvalidLabels) || errors.Is(err, services.ErrInvalidMemoryTitle) {
+	if errors.Is(err, services.ErrInvalidLabels) || errors.Is(err, services.ErrInvalidMemoryTitle) ||
+		errors.Is(err, services.ErrInvalidStatus) {
 		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -140,12 +141,7 @@ var allowedMemorySortFields = map[string]bool{
 // statuses. An empty value is handled by the caller (treated as "unset"), so it
 // is not accepted here.
 func isAllowedMemoryStatus(status string) bool {
-	switch status {
-	case models.MemoryStatusActive, models.MemoryStatusDraft, models.MemoryStatusArchived:
-		return true
-	default:
-		return false
-	}
+	return models.IsAllowedStatus(models.MemoryStatuses, status)
 }
 
 func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
@@ -243,7 +239,8 @@ func (s *Server) handleUpdateMemoryError(w http.ResponseWriter, userID, memoryID
 		return
 	}
 
-	if errors.Is(err, services.ErrInvalidLabels) || errors.Is(err, services.ErrInvalidMemoryTitle) {
+	if errors.Is(err, services.ErrInvalidLabels) || errors.Is(err, services.ErrInvalidMemoryTitle) ||
+		errors.Is(err, services.ErrInvalidStatus) {
 		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return
 	}

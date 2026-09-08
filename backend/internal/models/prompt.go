@@ -6,6 +6,14 @@ import (
 	"github.com/lib/pq"
 )
 
+// Prompt publication statuses. A prompt is draft (work in progress, never
+// exposed over MCP) or published. See models/status.go for the shared
+// vocabulary these are drawn from.
+const (
+	PromptStatusDraft     = StatusDraft
+	PromptStatusPublished = StatusPublished
+)
+
 type Prompt struct {
 	ID          string         `json:"id" db:"id"`
 	Name        string         `json:"name" db:"name"`

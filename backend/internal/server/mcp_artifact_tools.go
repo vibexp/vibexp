@@ -40,7 +40,7 @@ type UpdateArtifactParams struct {
 	Content     string                 `json:"content,omitempty" jsonschema:"New content"`
 	Description string                 `json:"description,omitempty" jsonschema:"New description"`
 	Type        string                 `json:"type,omitempty" jsonschema:"New type"`
-	Status      string                 `json:"status,omitempty" jsonschema:"New status"`
+	Status      string                 `json:"status,omitempty" jsonschema:"New status: active, draft or archived"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty" jsonschema:"New metadata"`
 	Labels      []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }

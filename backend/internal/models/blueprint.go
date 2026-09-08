@@ -4,6 +4,14 @@ import (
 	"time"
 )
 
+// Blueprint lifecycle statuses. A blueprint is active, or expired -- its rules
+// no longer apply but its content is kept for reference. See models/status.go
+// for the shared vocabulary these are drawn from.
+const (
+	BlueprintStatusActive  = StatusActive
+	BlueprintStatusExpired = StatusExpired
+)
+
 type Blueprint struct {
 	ID          string    `json:"id" db:"id"`
 	ProjectID   string    `json:"project_id" db:"project_id"`

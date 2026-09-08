@@ -76,6 +76,34 @@ func TestSpecEnumsMatchServiceAllowlists(t *testing.T) {
 			goName:  "models.SettingsAuditSurfaces (internal/models/team_settings_audit.go)",
 			goValue: models.SettingsAuditSurfaces,
 		},
+		// The resource status vocabulary and its four per-type subsets (#912).
+		// These mirror request-body AND query-parameter enums, so the binder
+		// validates neither -- models/status.go is the sole enforcement point.
+		{
+			schema:  "ResourceStatus",
+			goName:  "models.ResourceStatuses (internal/models/status.go)",
+			goValue: models.ResourceStatuses,
+		},
+		{
+			schema:  "PromptStatus",
+			goName:  "models.PromptStatuses (internal/models/status.go)",
+			goValue: models.PromptStatuses,
+		},
+		{
+			schema:  "ArtifactStatus",
+			goName:  "models.ArtifactStatuses (internal/models/status.go)",
+			goValue: models.ArtifactStatuses,
+		},
+		{
+			schema:  "BlueprintStatus",
+			goName:  "models.BlueprintStatuses (internal/models/status.go)",
+			goValue: models.BlueprintStatuses,
+		},
+		{
+			schema:  "MemoryStatus",
+			goName:  "models.MemoryStatuses (internal/models/status.go)",
+			goValue: models.MemoryStatuses,
+		},
 	}
 
 	for _, tc := range cases {

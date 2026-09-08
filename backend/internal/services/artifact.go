@@ -162,6 +162,11 @@ func (s *ArtifactService) CreateArtifact(
 		return nil, err
 	}
 
+	// Status is checked here so the MCP tools get the REST answer (#912).
+	if err := validateStatus(models.ArtifactStatuses, req.Status); err != nil {
+		return nil, err
+	}
+
 	// Validate and resolve team ID
 	finalTeamID, err := s.validateAndResolveTeamID(ctx, userID, teamID, nil)
 	if err != nil {
@@ -403,7 +408,11 @@ func applyArtifactUpdates(artifact *models.Artifact, req *models.UpdateArtifactR
 	if req.Content != nil {
 		artifact.Content = *req.Content
 	}
-	if req.Status != nil {
+	// An empty status is "unchanged", never a clear: `status` is a REQUIRED
+	// response field constrained to ArtifactStatus, so writing "" would put a
+	// value on the wire that neither generated client has a union member for
+	// (#912). Same rule as applyMemoryUpdates.
+	if req.Status != nil && *req.Status != "" {
 		artifact.Status = *req.Status
 	}
 	if req.Type != nil {
@@ -464,6 +473,11 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 	// Reject an over-limit label list before anything else: the documented
 	// maxItems/maxLength are enforced nowhere else (issue #910).
 	if err := validateLabels(req.Labels); err != nil {
+		return nil, err
+	}
+
+	// Status is checked here so the MCP tools get the REST answer (#912).
+	if err := validateOptionalStatus(models.ArtifactStatuses, req.Status); err != nil {
 		return nil, err
 	}
 

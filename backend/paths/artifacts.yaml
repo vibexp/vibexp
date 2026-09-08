@@ -87,8 +87,7 @@ api-v1-team_id-artifacts:
         in: query
         description: Filter by status
         schema:
-          type: string
-          enum: [active, draft, archived]
+          $ref: '../openapi.yaml#/components/schemas/ArtifactStatus'
       - name: type
         in: query
         description: >-
@@ -247,8 +246,7 @@ api-v1-team_id-artifacts-project_id:
         in: query
         description: Filter by status
         schema:
-          type: string
-          enum: [active, draft, archived]
+          $ref: '../openapi.yaml#/components/schemas/ArtifactStatus'
       - name: type
         in: query
         description: >-

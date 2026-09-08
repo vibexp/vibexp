@@ -23,19 +23,19 @@ const (
 
 // Defines values for ArtifactStatus.
 const (
-	ArtifactStatusActive   ArtifactStatus = "active"
-	ArtifactStatusArchived ArtifactStatus = "archived"
-	ArtifactStatusDraft    ArtifactStatus = "draft"
+	Active   ArtifactStatus = "active"
+	Archived ArtifactStatus = "archived"
+	Draft    ArtifactStatus = "draft"
 )
 
 // Valid indicates whether the value is a known member of the ArtifactStatus enum.
 func (e ArtifactStatus) Valid() bool {
 	switch e {
-	case ArtifactStatusActive:
+	case Active:
 		return true
-	case ArtifactStatusArchived:
+	case Archived:
 		return true
-	case ArtifactStatusDraft:
+	case Draft:
 		return true
 	default:
 		return false
@@ -171,27 +171,6 @@ func (e ListArtifactsParamsFreshness) Valid() bool {
 	}
 }
 
-// Defines values for ListArtifactsParamsStatus.
-const (
-	ListArtifactsParamsStatusActive   ListArtifactsParamsStatus = "active"
-	ListArtifactsParamsStatusArchived ListArtifactsParamsStatus = "archived"
-	ListArtifactsParamsStatusDraft    ListArtifactsParamsStatus = "draft"
-)
-
-// Valid indicates whether the value is a known member of the ListArtifactsParamsStatus enum.
-func (e ListArtifactsParamsStatus) Valid() bool {
-	switch e {
-	case ListArtifactsParamsStatusActive:
-		return true
-	case ListArtifactsParamsStatusArchived:
-		return true
-	case ListArtifactsParamsStatusDraft:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ListArtifactsParamsSortBy.
 const (
 	ListArtifactsParamsSortByCreatedAt ListArtifactsParamsSortBy = "created_at"
@@ -240,27 +219,6 @@ const (
 func (e ListArtifactsByProjectParamsFreshness) Valid() bool {
 	switch e {
 	case Stale:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListArtifactsByProjectParamsStatus.
-const (
-	Active   ListArtifactsByProjectParamsStatus = "active"
-	Archived ListArtifactsByProjectParamsStatus = "archived"
-	Draft    ListArtifactsByProjectParamsStatus = "draft"
-)
-
-// Valid indicates whether the value is a known member of the ListArtifactsByProjectParamsStatus enum.
-func (e ListArtifactsByProjectParamsStatus) Valid() bool {
-	switch e {
-	case Active:
-		return true
-	case Archived:
-		return true
-	case Draft:
 		return true
 	default:
 		return false
@@ -341,7 +299,7 @@ type Artifact struct {
 	// Slug Unique slug for the artifact within the project
 	Slug string `json:"slug"`
 
-	// Status Current status of the artifact
+	// Status Lifecycle status of an artifact.
 	Status ArtifactStatus `json:"status"`
 
 	// Title Human-readable title for the artifact
@@ -356,9 +314,6 @@ type Artifact struct {
 	// UserId ID of the user who owns this artifact
 	UserId string `json:"user_id"`
 }
-
-// ArtifactStatus Current status of the artifact
-type ArtifactStatus string
 
 // ArtifactListResponse defines model for ArtifactListResponse.
 type ArtifactListResponse struct {
@@ -377,6 +332,9 @@ type ArtifactListResponse struct {
 	// TotalPages Total number of pages
 	TotalPages int `json:"total_pages"`
 }
+
+// ArtifactStatus Lifecycle status of an artifact.
+type ArtifactStatus string
 
 // ErrorResponse RFC 9457 Problem Details for HTTP APIs
 type ErrorResponse struct {
@@ -528,7 +486,7 @@ type ListArtifactsParams struct {
 	ProjectId *openapi_types.UUID `form:"project_id,omitempty" json:"project_id,omitempty"`
 
 	// Status Filter by status
-	Status *ListArtifactsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Status *ArtifactStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// Type Filter by type. An open string matched against the team's registered types (the system defaults work_reports, static_contexts and general, plus any custom types the team has added), not a fixed enum.
 	Type *string `form:"type,omitempty" json:"type,omitempty"`
@@ -558,9 +516,6 @@ type ListArtifactsParams struct {
 // ListArtifactsParamsFreshness defines parameters for ListArtifacts.
 type ListArtifactsParamsFreshness string
 
-// ListArtifactsParamsStatus defines parameters for ListArtifacts.
-type ListArtifactsParamsStatus string
-
 // ListArtifactsParamsSortBy defines parameters for ListArtifacts.
 type ListArtifactsParamsSortBy string
 
@@ -573,7 +528,7 @@ type ListArtifactsByProjectParams struct {
 	Freshness *ListArtifactsByProjectParamsFreshness `form:"freshness,omitempty" json:"freshness,omitempty"`
 
 	// Status Filter by status
-	Status *ListArtifactsByProjectParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Status *ArtifactStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// Type Filter by type. An open string matched against the team's registered types (the system defaults work_reports, static_contexts and general, plus any custom types the team has added), not a fixed enum.
 	Type *string `form:"type,omitempty" json:"type,omitempty"`
@@ -602,9 +557,6 @@ type ListArtifactsByProjectParams struct {
 
 // ListArtifactsByProjectParamsFreshness defines parameters for ListArtifactsByProject.
 type ListArtifactsByProjectParamsFreshness string
-
-// ListArtifactsByProjectParamsStatus defines parameters for ListArtifactsByProject.
-type ListArtifactsByProjectParamsStatus string
 
 // ListArtifactsByProjectParamsSortBy defines parameters for ListArtifactsByProject.
 type ListArtifactsByProjectParamsSortBy string
