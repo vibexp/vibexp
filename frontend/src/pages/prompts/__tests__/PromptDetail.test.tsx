@@ -274,7 +274,7 @@ describe('PromptDetail page', () => {
   })
 
   describe('nullable labels (#121 drift class)', () => {
-    it('renders without crashing when labels is null and hides the Labels card', async () => {
+    it('renders without crashing when labels is null and shows no taxonomy section', async () => {
       ;(promptService.getPrompt as Mock).mockResolvedValue(
         buildPrompt({ labels: null })
       )
@@ -284,17 +284,39 @@ describe('PromptDetail page', () => {
       await waitFor(() => {
         expect(screen.getByText('Code Review Template')).toBeInTheDocument()
       })
+      // A prompt carries no metadata bag, so with no labels the whole unified
+      // section is absent — the single emptiness rule (#904).
       expect(screen.queryByText('Labels')).not.toBeInTheDocument()
+      expect(screen.queryByText('Labels & metadata')).not.toBeInTheDocument()
     })
 
-    it('renders the Labels card when labels are present', async () => {
+    it('renders the labels as taxonomy chips when they are present', async () => {
       renderPromptDetail()
 
       await waitFor(() => {
         expect(screen.getByText('Labels')).toBeInTheDocument()
       })
+      expect(screen.getByText('Labels & metadata')).toBeInTheDocument()
       expect(screen.getByText('code-review')).toBeInTheDocument()
       expect(screen.getByText('documentation')).toBeInTheDocument()
+    })
+  })
+
+  describe('unified taxonomy section (#904)', () => {
+    it('drops the bespoke Description panel and shows the summary in the header', async () => {
+      renderPromptDetail()
+
+      await waitFor(() => {
+        expect(screen.getByText('Code Review Template')).toBeInTheDocument()
+      })
+      // "Description" was a PanelTitle of its own before #904; the text now
+      // lives in the standard reading header (#902) and nowhere else.
+      expect(screen.queryByText('Description')).not.toBeInTheDocument()
+      expect(
+        within(screen.getByTestId('resource-header-meta')).getByText(
+          'Template for conducting code reviews'
+        )
+      ).toBeInTheDocument()
     })
   })
 

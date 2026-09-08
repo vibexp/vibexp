@@ -477,4 +477,48 @@ describe('BlueprintView', () => {
       ).not.toBeInTheDocument()
     })
   })
+  describe('unified taxonomy section (#904)', () => {
+    it('renders the metadata bag under the one unified heading', async () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValue({
+        ...mockBlueprint,
+        metadata: { author: 'ada' },
+        subtype: 'rules',
+      })
+
+      renderBlueprintView()
+
+      await screen.findByTestId('resource-body')
+      expect(screen.getByText('Labels & metadata')).toBeInTheDocument()
+      expect(screen.getByText('Subtype')).toBeInTheDocument()
+      expect(screen.getByText('rules')).toBeInTheDocument()
+      expect(screen.getByText('Author')).toBeInTheDocument()
+      expect(screen.getByText('ada')).toBeInTheDocument()
+      // The bespoke "Additional data" panel is gone — one heading now.
+      expect(screen.queryByText('Additional data')).not.toBeInTheDocument()
+    })
+
+    it('renders no section when there is nothing to group by', async () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValue(mockBlueprint)
+
+      renderBlueprintView()
+
+      await screen.findByTestId('resource-body')
+      expect(screen.queryByText('Labels & metadata')).not.toBeInTheDocument()
+      expect(screen.queryByText('Subtype')).not.toBeInTheDocument()
+    })
+  })
 })

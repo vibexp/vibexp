@@ -1,17 +1,9 @@
-import {
-  AlertCircle,
-  ArrowLeft,
-  HardDrive,
-  Pencil,
-  Tag as TagIcon,
-  Trash2,
-} from 'lucide-react'
+import { AlertCircle, ArrowLeft, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { AdditionalDataCard } from '@/components/MetadataCard'
 import {
   type ReadingAction,
   ResourceBody,
@@ -20,18 +12,12 @@ import {
 import {
   ResourceMetadataSection,
   resourceRegistry,
+  ResourceTaxonomySection,
   statusLabel,
   statusTone,
 } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
-import {
-  Panel,
-  PanelBody,
-  PanelHeader,
-  PanelTitle,
-} from '@/components/ui/panel'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -44,18 +30,6 @@ import type { Memory } from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
-
-function extractTags(meta?: Record<string, unknown>): string[] {
-  const tags = meta?.tags
-  if (!Array.isArray(tags)) return []
-  return tags.filter((t): t is string => typeof t === 'string')
-}
-
-function extractExtras(meta?: Record<string, unknown>) {
-  if (!meta) return {}
-  const { tags: _tags, ...rest } = meta
-  return rest
-}
 
 export function MemoryView() {
   const { id } = useParams<{ id: string }>()
@@ -188,9 +162,6 @@ export function MemoryView() {
     )
   }
 
-  const tags = extractTags(memory.metadata)
-  const extras = extractExtras(memory.metadata)
-
   const actions: ReadingAction[] = [
     backAction,
     copyAction,
@@ -216,9 +187,6 @@ export function MemoryView() {
       },
     })
   }
-
-  const hasMetadata =
-    tags.length > 0 || Object.keys(extras).length > 0 || project !== null
 
   return (
     <>
@@ -250,32 +218,10 @@ export function MemoryView() {
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />
 
-            {tags.length > 0 && (
-              <Panel>
-                <PanelHeader>
-                  <PanelTitle>Tags</PanelTitle>
-                </PanelHeader>
-                <PanelBody className="pb-4">
-                  <div className="flex flex-wrap gap-1.5">
-                    {tags.map(tag => (
-                      <Badge key={tag} variant="secondary" className="gap-1">
-                        <TagIcon className="size-3" />
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </PanelBody>
-              </Panel>
-            )}
-
-            <AdditionalDataCard data={extras} />
-
-            {!hasMetadata && (
-              <div className="text-muted-foreground flex items-center gap-2 p-3 text-xs">
-                <HardDrive className="size-4" />
-                No metadata.
-              </div>
-            )}
+            <ResourceTaxonomySection
+              descriptor={resourceRegistry.memory}
+              resource={memory}
+            />
           </div>
         }
       >

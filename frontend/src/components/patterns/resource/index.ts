@@ -10,6 +10,10 @@ export {
   type ResourceMetadataSectionProps,
 } from './ResourceMetadataSection'
 export {
+  ResourceTaxonomySection,
+  type ResourceTaxonomySectionProps,
+} from './ResourceTaxonomySection'
+export {
   fieldLabel,
   fieldTone,
   statusFieldOf,

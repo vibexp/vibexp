@@ -4,7 +4,6 @@ import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { AdditionalDataCard } from '@/components/MetadataCard'
 import {
   type ReadingAction,
   ResourceBody,
@@ -13,6 +12,7 @@ import {
 import {
   ResourceMetadataSection,
   resourceRegistry,
+  ResourceTaxonomySection,
   statusLabel,
   statusTone,
 } from '@/components/patterns/resource'
@@ -225,7 +225,10 @@ export function BlueprintView() {
               project={projectRef}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />
-            <AdditionalDataCard data={blueprint.metadata ?? {}} />
+            <ResourceTaxonomySection
+              descriptor={resourceRegistry.blueprint}
+              resource={blueprint}
+            />
           </div>
         }
       >

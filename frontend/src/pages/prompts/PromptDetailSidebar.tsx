@@ -7,8 +7,8 @@ import {
   type ProjectRef,
   ResourceMetadataSection,
   resourceRegistry,
+  ResourceTaxonomySection,
 } from '@/components/patterns/resource'
-import { Badge } from '@/components/ui/badge'
 import {
   Panel,
   PanelBody,
@@ -30,10 +30,11 @@ interface PromptMetadataProps {
 }
 
 /**
- * The prompt's Metadata section: description and labels cards, then the
- * descriptor-generated `ResourceMetadataSection` (#903). The standard panels
- * (attachments, activity, comments, relations) come from
- * `ResourceReadingPage`, not from here.
+ * The prompt's details column: the descriptor-generated metadata rows (#903)
+ * followed by the unified taxonomy section (#904). The summary lives in the
+ * reading header since #902 and labels are taxonomy, so this owns no panels of
+ * its own; the standard panels (attachments, activity, comments, relations)
+ * come from `ResourceReadingPage`.
  */
 export function PromptMetadata({
   prompt,
@@ -43,42 +44,17 @@ export function PromptMetadata({
 }: Readonly<PromptMetadataProps>) {
   return (
     <div className="space-y-5">
-      {prompt.description && (
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Description</PanelTitle>
-          </PanelHeader>
-          <PanelBody className="pb-4">
-            <p className="text-muted-foreground text-sm">
-              {prompt.description}
-            </p>
-          </PanelBody>
-        </Panel>
-      )}
-
-      {prompt.labels && prompt.labels.length > 0 && (
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Labels</PanelTitle>
-          </PanelHeader>
-          <PanelBody className="pb-4">
-            <div className="flex flex-wrap gap-1.5">
-              {prompt.labels.map(label => (
-                <Badge key={label} variant="outline">
-                  {label}
-                </Badge>
-              ))}
-            </div>
-          </PanelBody>
-        </Panel>
-      )}
-
       <ResourceMetadataSection
         descriptor={resourceRegistry.prompt}
         resource={prompt}
         versionHistory={versionHistory}
         project={project}
         projectHref={projectHref}
+      />
+
+      <ResourceTaxonomySection
+        descriptor={resourceRegistry.prompt}
+        resource={prompt}
       />
     </div>
   )
