@@ -48,6 +48,18 @@ describe('RelativeTime', () => {
     expect(full.length).toBeGreaterThan(0)
   })
 
+  it('exposes the absolute date-time as a `title` attribute', () => {
+    // The tooltip needs a pointer; list cells are also read by screen readers,
+    // copied, and asserted on in e2e, so the absolute value is on the element
+    // itself too (#907).
+    render(<RelativeTime value="2024-01-15T12:00:00Z" />)
+
+    expect(screen.getByText(/Jan 15, 2024/)).toHaveAttribute(
+      'title',
+      expect.stringContaining('January 15, 2024')
+    )
+  })
+
   it('applies the provided className to the compact label', () => {
     render(
       <RelativeTime

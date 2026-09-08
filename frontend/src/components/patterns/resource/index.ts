@@ -1,4 +1,5 @@
 export { defineResource } from './defineResource'
+export { fieldOfRole } from './fieldOfRole'
 export {
   getResourceDescriptor,
   type ResourceKindKey,

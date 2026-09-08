@@ -3,21 +3,35 @@ import { Eye, Pencil, Share2, Trash2 } from 'lucide-react'
 import type { NavigateFunction } from 'react-router'
 
 import { FreshnessBadge } from '@/components/FreshnessBadge'
-import { statusLabel, statusTone } from '@/components/patterns/resource'
-import { StatusBadge } from '@/components/StatusBadge'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { formatRelativeTime } from '@/lib/time'
+import {
+  actionsColumn,
+  columnList,
+  nameColumn,
+  statusColumn,
+  taxonomyColumn,
+  updatedColumn,
+} from '@/components/patterns/list-page'
+import {
+  fieldOfRole,
+  getResourceDescriptor,
+} from '@/components/patterns/resource'
 import type { Prompt } from '@/services/promptService'
 
-function absTime(value: string) {
-  return new Date(value).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+const descriptor = getResourceDescriptor('prompt')
+
+/** Prompts are the only list with a "Shared" column, so it stays a plain def. */
+const sharedColumn: ColumnDef<Prompt> = {
+  id: 'shared',
+  header: 'Shared',
+  cell: ({ row }) =>
+    row.original.is_shared ? (
+      <span className="text-muted-foreground inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
+        <Share2 className="size-3" />
+        Shared
+      </span>
+    ) : (
+      <span className="text-muted-foreground text-xs">—</span>
+    ),
 }
 
 export function buildPromptsColumns({
@@ -34,138 +48,55 @@ export function buildPromptsColumns({
    */
   canDelete: (prompt: Prompt) => boolean
 }): ColumnDef<Prompt>[] {
-  return [
-    {
-      accessorKey: 'name',
-      header: 'Name',
-      cell: ({ row }) => (
-        <div className="min-w-0 max-w-md space-y-0.5">
-          <div className="flex min-w-0 items-center gap-2">
-            <button
-              type="button"
-              className="hover:text-primary block min-w-0 flex-1 truncate text-left text-sm font-medium underline-offset-2 hover:underline"
-              onClick={() => {
-                void navigate(`/prompts/${row.original.slug}`)
-              }}
-            >
-              {row.original.name}
-            </button>
-            {/* Renders nothing when the resource is fresh. */}
-            <FreshnessBadge freshness={row.original.freshness} />
-          </div>
-          {row.original.description && (
-            <p className="text-muted-foreground truncate text-xs">
-              {row.original.description}
-            </p>
-          )}
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: ({ row }) => (
-        <StatusBadge tone={statusTone('prompt', row.original.status)}>
-          {statusLabel('prompt', row.original.status)}
-        </StatusBadge>
-      ),
-    },
-    {
-      id: 'shared',
-      header: 'Shared',
-      cell: ({ row }) =>
-        row.original.is_shared ? (
-          <span className="text-muted-foreground inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
-            <Share2 className="size-3" />
-            Shared
-          </span>
-        ) : (
-          <span className="text-muted-foreground text-xs">—</span>
-        ),
-    },
-    {
-      id: 'labels',
-      header: 'Labels',
-      cell: ({ row }) => {
-        const labels = row.original.labels ?? []
-        if (labels.length === 0) {
-          return <span className="text-muted-foreground text-xs">—</span>
-        }
-        return (
-          <div className="flex flex-wrap gap-1">
-            {labels.slice(0, 3).map(label => (
-              <Badge
-                key={label}
-                variant="outline"
-                className="bg-muted text-foreground rounded px-1.5 py-0 font-mono text-xs font-medium tracking-tight"
-              >
-                {label}
-              </Badge>
-            ))}
-            {labels.length > 3 && (
-              <Badge
-                variant="outline"
-                className="bg-muted text-foreground rounded px-1.5 py-0 font-mono text-xs font-medium tracking-tight"
-              >
-                +{labels.length - 3}
-              </Badge>
-            )}
-          </div>
-        )
-      },
-    },
-    {
-      accessorKey: 'updated_at',
-      header: 'Updated',
-      cell: ({ row }) => (
-        <span
-          className="text-muted-foreground whitespace-nowrap text-xs tabular-nums"
-          title={absTime(row.original.updated_at)}
-        >
-          {formatRelativeTime(row.original.updated_at)}
-        </span>
-      ),
-    },
-    {
-      id: 'actions',
-      cell: ({ row }) => (
-        <div className="flex justify-end gap-1 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="View"
-            onClick={() => {
-              void navigate(`/prompts/${row.original.slug}`)
-            }}
-          >
-            <Eye className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Edit"
-            onClick={() => {
-              // Editor still lives in v1 until Slice 5b lands
-              void navigate(`/prompts/${row.original.slug}/edit`)
-            }}
-          >
-            <Pencil className="size-4" />
-          </Button>
-          {canDelete(row.original) && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Delete"
-              data-testid="delete-prompt-button"
-              onClick={() => {
-                onDelete(row.original)
-              }}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          )}
-        </div>
-      ),
-    },
-  ]
+  const detailPath = (prompt: Prompt) => `/prompts/${prompt.slug}`
+  return columnList<Prompt>(
+    nameColumn<Prompt>({
+      field: fieldOfRole(descriptor, 'name'),
+      value: prompt => prompt.name,
+      to: detailPath,
+      navigate,
+      summary: prompt => prompt.description,
+      // Renders nothing when the resource is fresh.
+      adornment: prompt => <FreshnessBadge freshness={prompt.freshness} />,
+    }),
+    statusColumn<Prompt>({
+      field: fieldOfRole(descriptor, 'status'),
+      value: prompt => prompt.status,
+    }),
+    sharedColumn,
+    taxonomyColumn<Prompt>({
+      field: fieldOfRole(descriptor, 'taxonomy'),
+      values: prompt => prompt.labels ?? [],
+    }),
+    updatedColumn<Prompt>({ value: prompt => prompt.updated_at }),
+    actionsColumn<Prompt>({
+      singular: descriptor.singular,
+      actions: [
+        {
+          key: 'view',
+          label: 'View',
+          icon: Eye,
+          onSelect: prompt => {
+            void navigate(detailPath(prompt))
+          },
+        },
+        {
+          key: 'edit',
+          label: 'Edit',
+          icon: Pencil,
+          onSelect: prompt => {
+            // Editor still lives in v1 until Slice 5b lands
+            void navigate(`${detailPath(prompt)}/edit`)
+          },
+        },
+        {
+          key: 'delete',
+          label: 'Delete',
+          icon: Trash2,
+          onSelect: onDelete,
+          visible: canDelete,
+        },
+      ],
+    })
+  )
 }

@@ -2,16 +2,35 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Edit, MessageSquare, Trash2 } from 'lucide-react'
 import type { NavigateFunction } from 'react-router'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import {
+  actionsColumn,
+  columnList,
+  nameColumn,
+  statusColumn,
+  updatedColumn,
+} from '@/components/patterns/list-page'
+import type { FieldSpec } from '@/components/patterns/resource'
 import type { Agent } from '@/services/agentService'
 
-import {
-  agentStatusLabel,
-  agentStatusVariant,
-  formatDate,
-  successRateColor,
-} from './helpers'
+import { successRateColor } from './helpers'
+
+/**
+ * An agent is not a team resource, so it has no entry in the descriptor
+ * registry and nothing to look a `FieldSpec` up on. Declaring the two the list
+ * needs here keeps the agents list on the same factories — and therefore on the
+ * same status badge, relative timestamps and action test ids — as the four
+ * resource lists, without inventing a registry entry for a kind that has no
+ * detail route, capabilities or address shape.
+ */
+const nameField: FieldSpec = { key: 'name', role: 'name', label: 'Name' }
+const statusField: FieldSpec = {
+  key: 'status',
+  role: 'status',
+  label: 'Status',
+  statusValues: ['active', 'paused', 'error'],
+  tone: { active: 'success', paused: 'neutral', error: 'destructive' },
+  valueLabels: { active: 'Active', paused: 'Paused', error: 'Error' },
+}
 
 export function buildAgentsColumns({
   navigate,
@@ -27,30 +46,14 @@ export function buildAgentsColumns({
    */
   canDelete: (agent: Agent) => boolean
 }): ColumnDef<Agent>[] {
-  return [
-    {
-      accessorKey: 'name',
-      header: 'Name',
-      cell: ({ row }) => (
-        <div>
-          <div className="text-primary font-medium hover:underline">
-            {row.original.name}
-          </div>
-          <div className="text-muted-foreground line-clamp-1 max-w-xs text-xs">
-            {row.original.description || 'No description'}
-          </div>
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: ({ row }) => (
-        <Badge variant={agentStatusVariant(row.original.status)}>
-          {agentStatusLabel(row.original.status)}
-        </Badge>
-      ),
-    },
+  return columnList<Agent>(
+    nameColumn<Agent>({
+      field: nameField,
+      value: agent => agent.name,
+      summary: agent => agent.description || 'No description',
+      className: 'max-w-xs',
+    }),
+    statusColumn<Agent>({ field: statusField, value: agent => agent.status }),
     {
       accessorKey: 'total_runs',
       header: 'Total runs',
@@ -74,53 +77,38 @@ export function buildAgentsColumns({
         )
       },
     },
-    {
+    updatedColumn<Agent>({
       accessorKey: 'last_run',
       header: 'Last run',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {formatDate(row.original.last_run)}
-        </span>
-      ),
-    },
-    {
-      id: 'actions',
-      cell: ({ row }) => (
-        <div className="flex justify-end gap-1 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Chat with ${row.original.name}`}
-            onClick={() => {
-              void navigate(`/agents/${row.original.id}/chat`)
-            }}
-          >
-            <MessageSquare className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Edit ${row.original.name}`}
-            onClick={() => {
-              void navigate(`/agents/${row.original.id}/edit`)
-            }}
-          >
-            <Edit className="size-4" />
-          </Button>
-          {canDelete(row.original) && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`Delete ${row.original.name}`}
-              onClick={() => {
-                onDelete(row.original)
-              }}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          )}
-        </div>
-      ),
-    },
-  ]
+      value: agent => agent.last_run,
+    }),
+    actionsColumn<Agent>({
+      singular: 'agent',
+      actions: [
+        {
+          key: 'chat',
+          label: agent => `Chat with ${agent.name}`,
+          icon: MessageSquare,
+          onSelect: agent => {
+            void navigate(`/agents/${agent.id}/chat`)
+          },
+        },
+        {
+          key: 'edit',
+          label: agent => `Edit ${agent.name}`,
+          icon: Edit,
+          onSelect: agent => {
+            void navigate(`/agents/${agent.id}/edit`)
+          },
+        },
+        {
+          key: 'delete',
+          label: agent => `Delete ${agent.name}`,
+          icon: Trash2,
+          onSelect: onDelete,
+          visible: canDelete,
+        },
+      ],
+    })
+  )
 }

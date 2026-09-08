@@ -17,8 +17,10 @@ interface RelativeTimeProps {
 /**
  * Renders a compact relative-time label (e.g. "3d ago", or a short date
  * beyond 7 days) and reveals the full date-time (e.g. "June 7, 2026,
- * 09:14 AM") on hover via a tooltip. Reuses the shared formatters in
- * `@/lib/time` — no new date logic.
+ * 09:14 AM") on hover — via a tooltip, and via a native `title` so the
+ * absolute value survives where the tooltip cannot follow: a list cell read by
+ * a screen reader, a copy/paste, an e2e assertion (#907). Reuses the shared
+ * formatters in `@/lib/time` — no new date logic.
  */
 export function RelativeTime({
   value,
@@ -31,7 +33,9 @@ export function RelativeTime({
     <TooltipProvider>
       <Tooltip delayDuration={0}>
         <TooltipTrigger asChild>
-          <span className={cn('cursor-default', className)}>{compact}</span>
+          <span className={cn('cursor-default', className)} title={full}>
+            {compact}
+          </span>
         </TooltipTrigger>
         <TooltipContent>{full}</TooltipContent>
       </Tooltip>

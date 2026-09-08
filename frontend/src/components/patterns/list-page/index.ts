@@ -1,3 +1,21 @@
+export type {
+  ActionsColumnOptions,
+  NameColumnOptions,
+  RowAction,
+  StatusColumnOptions,
+  TaxonomyColumnOptions,
+  TypeColumnOptions,
+  UpdatedColumnOptions,
+} from './columns'
+export {
+  actionsColumn,
+  columnList,
+  nameColumn,
+  statusColumn,
+  taxonomyColumn,
+  typeColumn,
+  updatedColumn,
+} from './columns'
 export { FILTER_ALL, FILTER_CONTROL_WIDTH } from './filterControls'
 export { ListPage } from './ListPage'
 export { ListTable } from './ListTable'

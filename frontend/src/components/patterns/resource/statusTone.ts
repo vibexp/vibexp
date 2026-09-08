@@ -1,5 +1,6 @@
 import type { StatusTone } from '@/components/StatusBadge'
 
+import { fieldOfRole } from './fieldOfRole'
 import { getResourceDescriptor, type ResourceKindKey } from './registry'
 import type { FieldSpec, ResourceDescriptor } from './types'
 
@@ -31,7 +32,7 @@ function lookup(
 export function statusFieldOf(
   descriptor: ResourceDescriptor
 ): FieldSpec | undefined {
-  return descriptor.fields.find(field => field.role === 'status')
+  return fieldOfRole(descriptor, 'status')
 }
 
 /**
