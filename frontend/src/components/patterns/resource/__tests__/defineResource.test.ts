@@ -1,5 +1,5 @@
 import { defineResource } from '../defineResource'
-import type { FieldSpec, ResourceDescriptor } from '../types'
+import type { FieldSpec, ResourceDescriptor, ResourceFormSpec } from '../types'
 
 const NAME: FieldSpec = { key: 'title', role: 'name', label: 'Title' }
 const SLUG: FieldSpec = { key: 'slug', role: 'address', label: 'Slug' }
@@ -518,6 +518,252 @@ describe('defineResource', () => {
         filters: [],
         sortable: ['created_at', 'updated_at'],
       })
+      expect(defineResource(valid)).toBe(valid)
+    })
+  })
+
+  describe('form spec', () => {
+    const STATUS: FieldSpec = {
+      key: 'status',
+      role: 'status',
+      label: 'Status',
+      statusValues: ['active', 'archived'],
+    }
+    const OPEN_TYPE: FieldSpec = { key: 'type', role: 'type', label: 'Type' }
+    const BODY: FieldSpec = { key: 'content', role: 'body', label: 'Content' }
+    const PROJECT: FieldSpec = {
+      key: 'project_id',
+      role: 'meta',
+      label: 'Project',
+    }
+    const LABELS: FieldSpec = {
+      key: 'labels',
+      role: 'taxonomy',
+      label: 'Labels',
+    }
+    const FIELDS = [NAME, SLUG, STATUS, OPEN_TYPE, BODY, PROJECT, LABELS]
+
+    function withForm(form: ResourceFormSpec, fields = FIELDS) {
+      return descriptor(fields, { form })
+    }
+
+    it('accepts a well-formed spec covering every control', () => {
+      const valid = withForm({
+        fields: [
+          { key: 'title', control: 'text', section: 'details', required: true },
+          {
+            key: 'slug',
+            control: 'text',
+            section: 'details',
+            required: true,
+            pattern: 'slug',
+          },
+          {
+            key: 'status',
+            control: 'select',
+            section: 'details',
+            optionsFrom: 'field',
+          },
+          {
+            key: 'type',
+            control: 'select',
+            section: 'details',
+            optionsFrom: 'types',
+          },
+          { key: 'project_id', control: 'project', section: 'details' },
+          { key: 'content', control: 'body', section: 'body' },
+          { key: 'labels', control: 'taxonomy', section: 'taxonomy' },
+        ],
+        extensions: ['settings'],
+      })
+      expect(defineResource(valid)).toBe(valid)
+    })
+
+    it('throws when a form field names no declared field', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [{ key: 'headline', control: 'text', section: 'details' }],
+          })
+        )
+      ).toThrow(/form field 'headline' names no declared field/)
+    })
+
+    it('throws on a duplicate form field key', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [
+              { key: 'title', control: 'text', section: 'details' },
+              { key: 'title', control: 'textarea', section: 'details' },
+            ],
+          })
+        )
+      ).toThrow(/duplicate form field 'title'/)
+    })
+
+    it('throws when a control cannot serve the field’s role', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [{ key: 'title', control: 'select', section: 'details' }],
+          })
+        )
+      ).toThrow(/form field 'title' has control 'select', which serves/)
+    })
+
+    it('accepts a body control on a key that carries the body role among others', () => {
+      const dual: FieldSpec[] = [
+        { key: 'text', role: 'name', label: 'Memory' },
+        { key: 'text', role: 'body', label: 'Memory' },
+        SLUG,
+      ]
+      const valid = withForm(
+        { fields: [{ key: 'text', control: 'body', section: 'body' }] },
+        dual
+      )
+      expect(defineResource(valid)).toBe(valid)
+    })
+
+    it('throws when a control sits in the wrong section', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [{ key: 'content', control: 'body', section: 'details' }],
+          })
+        )
+      ).toThrow(/belongs in the 'body' section, found 'details'/)
+    })
+
+    it('throws when a select declares no options source', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [{ key: 'status', control: 'select', section: 'details' }],
+          })
+        )
+      ).toThrow(/form field 'status' with control 'select' needs 'optionsFrom'/)
+    })
+
+    it('throws when a select reads options from a field that enumerates none', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [
+              {
+                key: 'type',
+                control: 'select',
+                section: 'details',
+                optionsFrom: 'field',
+              },
+            ],
+          })
+        )
+      ).toThrow(
+        /form field 'type' reads options from its field, which enumerates none/
+      )
+    })
+
+    it('throws when a control that has no options declares an options source', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [
+              {
+                key: 'title',
+                control: 'text',
+                section: 'details',
+                optionsFrom: 'field',
+              },
+            ],
+          })
+        )
+      ).toThrow(/has control 'text' but declares 'optionsFrom'/)
+    })
+
+    it('throws when a required field uses a control that captures no required value', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [
+              {
+                key: 'labels',
+                control: 'taxonomy',
+                section: 'taxonomy',
+                required: true,
+              },
+            ],
+          })
+        )
+      ).toThrow(/is required but control 'taxonomy' captures no required value/)
+    })
+
+    it('throws when a patterned field is not required', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [
+              {
+                key: 'slug',
+                control: 'text',
+                section: 'details',
+                pattern: 'slug',
+              },
+            ],
+          })
+        )
+      ).toThrow(/declares pattern 'slug' but is not required/)
+    })
+
+    it('throws on more than one project control', () => {
+      const twoProjects: FieldSpec[] = [
+        ...FIELDS,
+        { key: 'owner_id', role: 'meta', label: 'Owner' },
+      ]
+      expect(() =>
+        defineResource(
+          withForm(
+            {
+              fields: [
+                { key: 'project_id', control: 'project', section: 'details' },
+                { key: 'owner_id', control: 'project', section: 'details' },
+              ],
+            },
+            twoProjects
+          )
+        )
+      ).toThrow(/expected at most one 'project' form control, found 2/)
+    })
+
+    it('throws on a duplicate extension name', () => {
+      expect(() =>
+        defineResource(
+          withForm({ fields: [], extensions: ['settings', 'settings'] })
+        )
+      ).toThrow(/duplicate form extension 'settings'/)
+    })
+
+    it('throws on an empty extension name', () => {
+      expect(() =>
+        defineResource(withForm({ fields: [], extensions: ['  '] }))
+      ).toThrow(/form declares an empty extension name/)
+    })
+
+    it('throws when a read-only kind declares a form', () => {
+      expect(() =>
+        defineResource(
+          descriptor(FIELDS, {
+            readOnly: true,
+            form: {
+              fields: [{ key: 'title', control: 'text', section: 'details' }],
+            },
+          })
+        )
+      ).toThrow(/a read-only resource declares a form spec/)
+    })
+
+    it('accepts a descriptor with no form at all', () => {
+      const valid = descriptor([NAME, SLUG])
       expect(defineResource(valid)).toBe(valid)
     })
   })

@@ -29,23 +29,56 @@ const SPEC_FILE: Partial<Record<ResourceKindKey, string>> = {
   prompt: 'prompts.yaml',
 }
 
+/** Where a `$ref`'d schema component lives. */
+const SCHEMA_DIR = resolve(SPEC_DIR, '../schemas')
+
+/** The values of an inline `enum: [a, b]` list. */
+function enumValues(list: string): string[] {
+  return list.split(',').map(value => value.trim())
+}
+
 /**
- * Every `enum` a named query parameter declares in a path file, unioned. A file
- * describes both the team-scoped and the by-project variant of the same list,
- * and the descriptor does not distinguish them.
+ * The `enum` of a shared schema component, by name.
  *
- * The regex stops at the first `enum:` after the parameter's name, which is the
- * one in its own `schema:` — every list parameter in these files is a flat
- * string enum.
+ * Splitting on de-dented lines gives one chunk per top-level key, which is all
+ * the structure this needs — the status components are flat string enums.
+ */
+function componentEnum(name: string): string[] {
+  const yaml = readFileSync(resolve(SCHEMA_DIR, 'common.yaml'), 'utf8')
+  const block = yaml
+    .split(/\n(?=\S)/)
+    .find(chunk => chunk.startsWith(`${name}:`))
+  const inline = /enum: \[([^\]]+)\]/.exec(block ?? '')
+  return inline ? enumValues(inline[1]) : []
+}
+
+/**
+ * Every value a named query parameter accepts, unioned across a path file. A
+ * file describes both the team-scoped and the by-project variant of the same
+ * list, and the descriptor does not distinguish them.
+ *
+ * The parameter's own chunk is isolated FIRST — everything between its
+ * `- name:` and the next one — before any `enum` is read out of it. Scanning
+ * forward from the name for the first `enum:` instead is what broke when #912
+ * hoisted the per-kind status enums into `common.yaml`: with no inline enum
+ * left to find, the scan ran on into the NEXT parameter and compared each
+ * kind's status values against its `sort_by` values. It failed loudly here,
+ * but the same shape would just as easily have passed vacuously.
  */
 function queryEnum(file: string, param: string): Set<string> {
   const yaml = readFileSync(resolve(SPEC_DIR, file), 'utf8')
-  const matches = yaml.matchAll(
-    new RegExp(`- name: ${param}[\\s\\S]*?enum: \\[([^\\]]+)\\]`, 'g')
-  )
   const values = new Set<string>()
-  for (const [, list] of matches) {
-    for (const value of list.split(',')) values.add(value.trim())
+  for (const chunk of yaml.split(/^\s*- name: /m)) {
+    if (!chunk.startsWith(`${param}\n`)) continue
+    const inline = /enum: \[([^\]]+)\]/.exec(chunk)
+    if (inline) {
+      for (const value of enumValues(inline[1])) values.add(value)
+      continue
+    }
+    const ref = /\$ref: ['"][^'"]*#\/(?:components\/schemas\/)?(\w+)['"]/.exec(
+      chunk
+    )
+    if (ref) for (const value of componentEnum(ref[1])) values.add(value)
   }
   return values
 }

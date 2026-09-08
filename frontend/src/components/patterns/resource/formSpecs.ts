@@ -1,0 +1,104 @@
+import type { FormFieldSpec } from './types'
+
+/**
+ * Builders for the form fields every resource create/edit page shares.
+ *
+ * The same lesson `filterSpecs.ts` records: four descriptors restating the
+ * same title / slug / summary / project / status entries by hand is still
+ * duplication, it drifts exactly the way four components did, and Sonar's
+ * new-code duplication gate counts declarative copies (#908).
+ *
+ * Resource-specific entries — the artifact type catalog, the prompt taxonomy —
+ * stay written out on their descriptor: they are the part that differs, and a
+ * builder used once is just indirection.
+ */
+
+/** Every kind's identifier and address segments are capped at 255 by the API. */
+const IDENTIFIER_MAX = 255
+
+/** The human-readable identifier: a prompt's `name`, everyone else's `title`. */
+export function nameFormField(key: string, testId: string): FormFieldSpec {
+  return {
+    key,
+    control: 'text',
+    section: 'details',
+    required: true,
+    maxLength: IDENTIFIER_MAX,
+    testId,
+  }
+}
+
+/**
+ * The URL segment. `editableOnCreateOnly` is a per-kind fact rather than a
+ * default: an artifact's slug is half its address and is locked after create,
+ * a prompt's stays editable.
+ */
+export function slugFormField(
+  testId: string,
+  editableOnCreateOnly: boolean
+): FormFieldSpec {
+  return {
+    key: 'slug',
+    control: 'text',
+    section: 'details',
+    required: true,
+    maxLength: IDENTIFIER_MAX,
+    pattern: 'slug',
+    placeholder: 'my-resource',
+    description: editableOnCreateOnly
+      ? 'Identifier used in URLs. Cannot be changed after creation.'
+      : 'Identifier used in URLs.',
+    editableOnCreateOnly,
+    testId,
+  }
+}
+
+/** The one-line description under the name. Optional on every kind. */
+export function summaryFormField(
+  key: string,
+  maxLength: number,
+  testId: string
+): FormFieldSpec {
+  return {
+    key,
+    control: 'textarea',
+    section: 'details',
+    maxLength,
+    placeholder: 'Enter a brief description…',
+    testId,
+  }
+}
+
+/** The long-form content, in the wide editor column. */
+export function bodyFormField(key: string, testId: string): FormFieldSpec {
+  return { key, control: 'body', section: 'body', required: true, testId }
+}
+
+/** The owning project, through the shared picker on every kind. */
+export function projectFormField(testId: string): FormFieldSpec {
+  return {
+    key: 'project_id',
+    control: 'project',
+    section: 'details',
+    required: true,
+    placeholder: 'Select project',
+    testId,
+  }
+}
+
+/** The lifecycle status, read off the kind's own `status` field. */
+export function statusFormField(kind: string): FormFieldSpec {
+  return {
+    key: 'status',
+    control: 'select',
+    section: 'details',
+    required: true,
+    optionsFrom: 'field',
+    testId: `${kind}-status-select`,
+  }
+}
+
+/** The free-form key/value bag, through the shared `MetadataEditor`. */
+export function metadataFormField(): FormFieldSpec {
+  return { key: 'metadata', control: 'metadata', section: 'taxonomy' }
+}

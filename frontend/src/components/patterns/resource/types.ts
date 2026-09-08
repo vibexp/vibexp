@@ -45,6 +45,13 @@
  * halves are validated against `fields` — and, for `sortable`, against the
  * list endpoint's own `sort_by` enum by `resourceListSpec.test.ts`, because a
  * key the API does not accept is a 400 on the first header click.
+ *
+ * ## Form behaviour
+ *
+ * The optional `form` section says which fields a create/edit page edits, in
+ * which control and in which of its three sections, so `ResourceFormPage`
+ * generates the zod schema and the layout from the resource type rather than
+ * each page hand-writing both (#913). Absent for kinds with no form.
  */
 
 import type { ReactNode } from 'react'
@@ -194,6 +201,103 @@ export interface ResourceListSpec {
   readonly sortable: readonly string[]
 }
 
+/**
+ * Which control a form field renders as.
+ *
+ * A closed union on purpose. The descriptor says what a field *is* — one line
+ * of text, the long-form body, the project — and the form page owns how that
+ * looks; a free-form control name would turn the descriptor into the per-page
+ * layout DSL that `FieldSpec.render` is deliberately fenced off from being.
+ *
+ * | control | renders |
+ * | --- | --- |
+ * | `text` | single-line `Input`; the value is trimmed |
+ * | `textarea` | short multi-line `Textarea` (a summary) |
+ * | `body` | the long-form editor slot, a `Textarea` until #914 lands |
+ * | `select` | option list, from the field's values or a runtime catalog |
+ * | `project` | the shared `ProjectPicker` |
+ * | `taxonomy` | a chip editor over a list of strings |
+ * | `metadata` | the shared `MetadataEditor` over the free-form blob |
+ *
+ * Named `…Kind` rather than `FormControl` so it cannot be confused with — or
+ * shadowed by — the shadcn `FormControl` primitive every form file imports.
+ */
+export type FormControlKind =
+  'text' | 'textarea' | 'body' | 'select' | 'project' | 'taxonomy' | 'metadata'
+
+/**
+ * Where in the form a field sits.
+ *
+ * Three fixed names rather than coordinates: `details` is the identity card,
+ * `body` is the wide editor column and `taxonomy` is the labels-and-metadata
+ * card, matching the reading page's own division of the same resource. Order
+ * inside a section is declaration order.
+ */
+export type FormSection = 'details' | 'body' | 'taxonomy'
+
+/**
+ * A named validation pattern, not a `RegExp`.
+ *
+ * `slug` is the only one, and it resolves to a single regex and a single
+ * message in `buildFormSchema` — which is the point, because the three
+ * hand-written forms had already drifted to three spellings of it. A literal
+ * `RegExp` on the descriptor would also make it unserializable and put ReDoS
+ * review on every future descriptor author.
+ */
+export type FormPattern = 'slug'
+
+/**
+ * Where a `select` control's options come from — the same two sources, and the
+ * same reasoning, as {@link FilterOptionsSource}. `field` reads the named
+ * field's exhaustive values; `types` is the team's registered type catalog,
+ * only known at runtime, which is how the artifact `type` (an open string) is
+ * expressible without the form page knowing what an artifact is.
+ */
+export type FormOptionsSource = 'field' | 'types'
+
+/** One editable field on a resource's create/edit form. */
+export interface FormFieldSpec {
+  /** A declared {@link FieldSpec} key — the form edits fields, never invents them. */
+  readonly key: string
+  readonly control: FormControlKind
+  readonly section: FormSection
+  /** The value may not be empty. Anything else is `.optional()` in the schema. */
+  readonly required?: boolean
+  /** Max characters, mirroring the API's own limit. */
+  readonly maxLength?: number
+  /** Extra shape constraint beyond length. */
+  readonly pattern?: FormPattern
+  /** Placeholder text for the control. */
+  readonly placeholder?: string
+  /** Helper text under the control. */
+  readonly description?: string
+  /** Required on `select`, forbidden on every other control. */
+  readonly optionsFrom?: FormOptionsSource
+  /**
+   * Editable while creating, locked while editing — an artifact's slug is part
+   * of its address and changing it would break every link to it. Declared here
+   * rather than hardcoded per page, because it is not uniform: a prompt's slug
+   * stays editable.
+   */
+  readonly editableOnCreateOnly?: boolean
+  /** Kept from the hand-written forms so the existing page and e2e tests keep passing. */
+  readonly testId?: string
+}
+
+/** How a resource's create/edit page is laid out and validated. */
+export interface ResourceFormSpec {
+  /** The editable fields, in render order within their section. */
+  readonly fields: readonly FormFieldSpec[]
+  /**
+   * Named slots a page may fill with a settings block the descriptor cannot
+   * describe — prompt MCP exposure, the blueprint sub-agent required keys.
+   * The form page renders whatever node it is handed under each name, in this
+   * order, and knows nothing else about it. Declaring the names here is what
+   * keeps the escape hatch enumerable instead of open-ended.
+   */
+  readonly extensions?: readonly string[]
+}
+
 /** A resource type, described as data. */
 export interface ResourceDescriptor {
   /** Stable discriminator; for team resources it is also the API resource type. */
@@ -207,6 +311,8 @@ export interface ResourceDescriptor {
   readonly capabilities: Capabilities
   /** How the resource's list page filters and sorts. Absent for kinds with no list page. */
   readonly list?: ResourceListSpec
+  /** How the resource's create/edit page is laid out and validated. Absent for kinds with no form. */
+  readonly form?: ResourceFormSpec
   /** No create/edit/delete affordances — the gallery is served read-only. */
   readonly readOnly?: boolean
 }

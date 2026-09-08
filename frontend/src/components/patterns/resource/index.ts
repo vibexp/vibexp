@@ -1,6 +1,22 @@
 export { defineResource } from './defineResource'
 export { fieldOfRole } from './fieldOfRole'
 export {
+  type BodySlotProps,
+  buildFormSchema,
+  defaultFormValues,
+  formHeading,
+  formSaveLabel,
+  formSubtitle,
+  type ResourceFormHandle,
+  type ResourceFormMode,
+  ResourceFormPage,
+  type ResourceFormPageProps,
+  type ResourceFormValues,
+  SLUG_MESSAGE,
+  SLUG_PATTERN,
+  slugify,
+} from './form'
+export {
   getResourceDescriptor,
   type ResourceKindKey,
   resourceRegistry,
@@ -31,7 +47,13 @@ export type {
   FilterControl,
   FilterOptionsSource,
   FilterSpec,
+  FormControlKind,
+  FormFieldSpec,
+  FormOptionsSource,
+  FormPattern,
+  FormSection,
   ResourceAddressShape,
   ResourceDescriptor,
+  ResourceFormSpec,
   ResourceListSpec,
 } from './types'
