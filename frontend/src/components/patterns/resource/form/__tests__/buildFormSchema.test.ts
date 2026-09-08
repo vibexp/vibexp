@@ -8,6 +8,8 @@ import type { ResourceDescriptor } from '../../types'
 import {
   buildFormSchema,
   defaultFormValues,
+  entryMaxLengthMessage,
+  maxItemsMessage,
   maxLengthMessage,
   requiredMessage,
   SLUG_MESSAGE,
@@ -116,6 +118,23 @@ describe('buildFormSchema', () => {
       ).toBe(maxLengthMessage('Description', 200))
     })
 
+    it('uses the prompt’s own 50-character name cap, not the 255 of a title', () => {
+      expect(
+        errorAt(
+          promptDescriptor,
+          { ...valid(promptDescriptor), name: 'x'.repeat(51) },
+          'name'
+        )
+      ).toBe(maxLengthMessage('Name', 50))
+      expect(
+        errorAt(
+          artifactDescriptor,
+          { ...valid(artifactDescriptor), title: 'x'.repeat(51) },
+          'title'
+        )
+      ).toBeUndefined()
+    })
+
     it('accepts a value exactly at the limit', () => {
       expect(
         errorAt(
@@ -205,6 +224,42 @@ describe('buildFormSchema', () => {
           labels: ['one', 'two'],
         }).success
       ).toBe(true)
+    })
+
+    it('caps the number of taxonomy entries at the descriptor’s limit', () => {
+      expect(
+        errorAt(
+          promptDescriptor,
+          {
+            ...valid(promptDescriptor),
+            labels: Array.from({ length: 11 }, (_, i) => `l${String(i)}`),
+          },
+          'labels'
+        )
+      ).toBe(maxItemsMessage('Labels', 10))
+    })
+
+    it('caps the length of each taxonomy entry', () => {
+      expect(
+        errorAt(
+          promptDescriptor,
+          { ...valid(promptDescriptor), labels: ['x'.repeat(51)] },
+          'labels'
+        )
+      ).toBe(entryMaxLengthMessage('Labels', 50))
+    })
+
+    it('accepts a full but legal taxonomy list', () => {
+      expect(
+        errorAt(
+          promptDescriptor,
+          {
+            ...valid(promptDescriptor),
+            labels: Array.from({ length: 10 }, (_, i) => `l${String(i)}`),
+          },
+          'labels'
+        )
+      ).toBeUndefined()
     })
 
     it('rejects a taxonomy value that is not a list of strings', () => {

@@ -2,6 +2,7 @@ import { defineResource } from '../defineResource'
 import { freshnessFilter, searchFilter, statusFilter } from '../filterSpecs'
 import {
   bodyFormField,
+  labelsFormField,
   nameFormField,
   projectFormField,
   slugFormField,
@@ -71,7 +72,7 @@ export const promptDescriptor = defineResource({
   },
   form: {
     fields: [
-      nameFormField('name', 'prompt-name-input'),
+      nameFormField('name', 50, 'prompt-name-input'),
       // The only slug that stays editable after create: a prompt is addressed
       // by slug alone and the editor already resolves collisions for it.
       slugFormField('prompt-slug-input', false),
@@ -79,13 +80,7 @@ export const promptDescriptor = defineResource({
       projectFormField('prompt-project-select'),
       statusFormField('prompt'),
       bodyFormField('body', 'prompt-body-textarea'),
-      {
-        key: 'labels',
-        control: 'taxonomy',
-        section: 'taxonomy',
-        placeholder: 'Add a label…',
-        testId: 'prompt-labels-input',
-      },
+      labelsFormField('labels', 'prompt-labels-input'),
     ],
     // Only prompts are MCP-exposable, and the toggle is a fact about the
     // share rather than a field of the prompt.

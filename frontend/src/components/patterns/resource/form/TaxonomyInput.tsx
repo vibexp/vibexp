@@ -9,8 +9,13 @@ export interface TaxonomyInputProps {
   onChange: (next: string[]) => void
   placeholder?: string
   disabled?: boolean
+  /** Stops adding past the API's own cap, and says so. */
+  maxItems?: number
+  id?: string
   'data-testid'?: string
   'aria-label'?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: boolean
 }
 
 /**
@@ -26,14 +31,19 @@ export function TaxonomyInput({
   onChange,
   placeholder,
   disabled = false,
+  maxItems,
+  id,
   'data-testid': testId,
   'aria-label': ariaLabel,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
 }: Readonly<TaxonomyInputProps>) {
   const [draft, setDraft] = useState('')
+  const atCap = maxItems !== undefined && value.length >= maxItems
 
   const commit = () => {
     const next = draft.trim()
-    if (next === '' || value.includes(next)) {
+    if (next === '' || value.includes(next) || atCap) {
       setDraft('')
       return
     }
@@ -44,11 +54,14 @@ export function TaxonomyInput({
   return (
     <div className="space-y-2">
       <Input
+        id={id}
         value={draft}
-        disabled={disabled}
+        disabled={disabled || atCap}
         placeholder={placeholder}
         data-testid={testId}
         aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
         onChange={event => {
           setDraft(event.target.value)
         }}
@@ -60,6 +73,11 @@ export function TaxonomyInput({
           commit()
         }}
       />
+      {maxItems !== undefined && (
+        <p className="text-muted-foreground text-xs">
+          {String(value.length)}/{String(maxItems)}
+        </p>
+      )}
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map(entry => (

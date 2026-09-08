@@ -19,7 +19,7 @@ import type { FieldSpec, FormFieldSpec } from '../types'
 import { TaxonomyInput } from './TaxonomyInput'
 
 /** What a `body` control is handed, so #914's editor can replace the textarea. */
-export interface BodySlotProps {
+export interface BodySlotProps extends SlotProps {
   value: string
   onChange: (next: string) => void
   disabled: boolean
@@ -28,7 +28,20 @@ export interface BodySlotProps {
   'data-testid'?: string
 }
 
-export interface ResourceFormControlProps {
+/**
+ * What shadcn's `FormControl` (a Radix `Slot`) clones onto its child: the id
+ * `FormLabel`'s `htmlFor` points at, the ids of the description and error
+ * nodes, and the invalid flag. They must land on the LEAF input, or the label
+ * is dangling and the validation message is never announced — a plain function
+ * component in between swallows them silently.
+ */
+export interface SlotProps {
+  id?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: boolean
+}
+
+export interface ResourceFormControlProps extends SlotProps {
   spec: FormFieldSpec
   /** The descriptor field the control edits — its label and value vocabulary. */
   field: FieldSpec | undefined
@@ -119,7 +132,7 @@ function MetadataControl({
   )
 }
 
-interface OptionSelectProps {
+interface OptionSelectProps extends SlotProps {
   spec: FormFieldSpec
   label: string
   value: string
@@ -136,10 +149,11 @@ function OptionSelect({
   onChange,
   disabled,
   options,
+  ...slot
 }: Readonly<OptionSelectProps>) {
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger aria-label={label} data-testid={spec.testId}>
+      <SelectTrigger {...slot} aria-label={label} data-testid={spec.testId}>
         <SelectValue placeholder={spec.placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -190,11 +204,13 @@ export function ResourceFormControl({
   metadataRequiredKeys,
   metadataReservedKeys,
   renderBody,
+  ...slot
 }: Readonly<ResourceFormControlProps>) {
   switch (spec.control) {
     case 'text':
       return (
         <Input
+          {...slot}
           value={asString(value)}
           disabled={disabled}
           placeholder={spec.placeholder}
@@ -207,6 +223,7 @@ export function ResourceFormControl({
     case 'textarea':
       return (
         <Textarea
+          {...slot}
           value={asString(value)}
           disabled={disabled}
           placeholder={spec.placeholder}
@@ -219,6 +236,7 @@ export function ResourceFormControl({
       )
     case 'body': {
       const bodyProps: BodySlotProps = {
+        ...slot,
         value: asString(value),
         onChange,
         disabled,
@@ -229,6 +247,7 @@ export function ResourceFormControl({
       if (renderBody) return renderBody(bodyProps)
       return (
         <Textarea
+          {...slot}
           value={bodyProps.value}
           disabled={disabled}
           placeholder={spec.placeholder}
@@ -243,6 +262,7 @@ export function ResourceFormControl({
     }
     case 'select': {
       const shared = {
+        ...slot,
         spec,
         label,
         value: asString(value),
@@ -266,6 +286,7 @@ export function ResourceFormControl({
     case 'project':
       return (
         <ProjectPicker
+          {...slot}
           value={asString(value)}
           disabled={disabled}
           placeholder={spec.placeholder}
@@ -278,9 +299,11 @@ export function ResourceFormControl({
     case 'taxonomy':
       return (
         <TaxonomyInput
+          {...slot}
           value={Array.isArray(value) ? (value as string[]) : []}
           disabled={disabled}
           placeholder={spec.placeholder}
+          maxItems={spec.maxItems}
           aria-label={label}
           data-testid={spec.testId}
           onChange={onChange}

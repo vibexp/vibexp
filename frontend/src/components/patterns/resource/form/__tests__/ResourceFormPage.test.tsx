@@ -7,13 +7,16 @@ import { createRef } from 'react'
 vi.mock('@/components/ProjectPicker', () => ({
   ProjectPicker: ({
     onChange,
+    id,
     'data-testid': testId,
   }: {
     onChange: (id: string | null) => void
+    id?: string
     'data-testid'?: string
   }) => (
     <button
       type="button"
+      id={id}
       data-testid={testId}
       onClick={() => {
         onChange('p1')
@@ -311,5 +314,91 @@ describe('ResourceFormPage — submit', () => {
     expect(screen.getByTestId('artifact-title-input')).toHaveValue(
       'Loaded later'
     )
+  })
+})
+
+/**
+ * `FormControl` is a Radix `Slot` whose whole job is to clone `id`,
+ * `aria-describedby` and `aria-invalid` onto the real input — a component in
+ * between that does not forward them swallows them silently, leaving every
+ * `FormLabel htmlFor` dangling and every validation message unannounced. The
+ * forms this page replaces are queried by label in their own suites
+ * (`BlueprintForm.test.tsx`), so losing it would be a regression that only
+ * showed up as deleted assertions in #915.
+ */
+describe('ResourceFormPage — label and error association', () => {
+  it.each([
+    ['artifact title (text)', artifactDescriptor, 'Title'],
+    ['artifact description (textarea)', artifactDescriptor, 'Description'],
+    ['artifact content (body)', artifactDescriptor, 'Content'],
+    ['artifact status (select)', artifactDescriptor, 'Status'],
+    ['artifact project (picker)', artifactDescriptor, 'Project'],
+    ['prompt labels (taxonomy)', promptDescriptor, 'Labels'],
+  ])('associates the %s control with its label', (_case, descriptor, label) => {
+    renderPage(descriptor)
+    expect(screen.getByLabelText(label)).toBeInTheDocument()
+  })
+
+  it('marks the control invalid and points the message at it', async () => {
+    const { ref } = renderPage(artifactDescriptor)
+    await submit(ref)
+    const title = screen.getByLabelText('Title')
+    expect(title).toHaveAttribute('aria-invalid', 'true')
+    const message = await screen.findByText('Title is required')
+    expect(title.getAttribute('aria-describedby')).toContain(message.id)
+  })
+
+  it('does not label the metadata editor, which has no single control', () => {
+    renderPage(memoryDescriptor)
+    // The heading is still rendered; it is simply not a <label for="…">.
+    expect(screen.getByText('Metadata')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Metadata')).not.toBeInTheDocument()
+  })
+})
+
+describe('ResourceFormPage — taxonomy bounds', () => {
+  it('stops adding past the descriptor’s cap', async () => {
+    const user = userEvent.setup()
+    renderPage(promptDescriptor, {
+      initialValues: {
+        labels: Array.from({ length: 10 }, (_, i) => `label-${String(i)}`),
+      },
+    })
+    expect(screen.getByText('10/10')).toBeInTheDocument()
+    expect(screen.getByTestId('prompt-labels-input')).toBeDisabled()
+    await user.click(screen.getByLabelText('Remove label-0'))
+    expect(screen.getByTestId('prompt-labels-input')).toBeEnabled()
+  })
+})
+
+describe('ResourceFormPage — re-seeding', () => {
+  function editTree(initialValues: Record<string, unknown>) {
+    return (
+      <ResourceFormPage
+        descriptor={artifactDescriptor}
+        mode="edit"
+        initialValues={initialValues}
+        onSubmit={vi.fn()}
+      />
+    )
+  }
+
+  it('keeps typed input when the parent re-renders with an equal seed', async () => {
+    const user = userEvent.setup()
+    const view = render(editTree({ title: 'Loaded' }))
+    await user.clear(screen.getByTestId('artifact-title-input'))
+    await user.type(screen.getByTestId('artifact-title-input'), 'Typed by hand')
+    // A fresh object with identical content — what every page produces on each
+    // render. An identity check would reset the form and lose the edit.
+    view.rerender(editTree({ title: 'Loaded' }))
+    expect(screen.getByTestId('artifact-title-input')).toHaveValue(
+      'Typed by hand'
+    )
+  })
+
+  it('re-seeds when the seed’s content genuinely changes', () => {
+    const view = render(editTree({ title: 'Loaded' }))
+    view.rerender(editTree({ title: 'Reloaded' }))
+    expect(screen.getByTestId('artifact-title-input')).toHaveValue('Reloaded')
   })
 })

@@ -698,6 +698,23 @@ describe('defineResource', () => {
       ).toThrow(/is required but control 'taxonomy' captures no required value/)
     })
 
+    it('throws when a control that holds no list declares maxItems', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [
+              {
+                key: 'title',
+                control: 'text',
+                section: 'details',
+                maxItems: 3,
+              },
+            ],
+          })
+        )
+      ).toThrow(/declares 'maxItems' but control 'text' holds no list/)
+    })
+
     it('throws when a patterned field is not required', () => {
       expect(() =>
         defineResource(

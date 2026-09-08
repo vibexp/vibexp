@@ -112,21 +112,26 @@ export const ResourceFormPage = forwardRef<
   const specs = useMemo(() => descriptor.form?.fields ?? [], [descriptor])
   const byKey = useMemo(() => formFieldsByKey(descriptor), [descriptor])
   const schema = useMemo(() => buildFormSchema(descriptor), [descriptor])
-  const defaults = useMemo(
-    () => defaultFormValues(descriptor, initialValues),
-    [descriptor, initialValues]
-  )
 
   const form = useForm<ResourceFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: defaults,
+    defaultValues: defaultFormValues(descriptor, initialValues),
   })
 
-  // Seeding happens on mount; an edit page that resolves its resource after
-  // first paint re-seeds here, exactly as the three hand-written forms did.
+  // Re-seeding is keyed on the CONTENT of `initialValues`, never on its
+  // identity: a page builds it as an object literal from the fetched resource,
+  // so an identity check re-seeds on every parent render — and a re-seed is a
+  // `reset`, which silently discards everything typed since. This page's own
+  // extension slots are page-owned state, so those re-renders are certain. An
+  // edit page whose resource resolves after first paint still re-seeds,
+  // because that is a genuine content change.
+  const seed = JSON.stringify(initialValues ?? null)
+  const lastSeed = useRef(seed)
   useEffect(() => {
-    if (initialValues) form.reset(defaults)
-  }, [initialValues, defaults, form])
+    if (!initialValues || lastSeed.current === seed) return
+    lastSeed.current = seed
+    form.reset(defaultFormValues(descriptor, initialValues))
+  }, [seed, initialValues, descriptor, form])
 
   const nameField = fieldOfRole(descriptor, 'name')
   const slugSpec = specs.find(spec => spec.pattern === 'slug')
@@ -167,9 +172,19 @@ export const ResourceFormPage = forwardRef<
         name={spec.key}
         render={({ field }) => (
           <FormItem>
-            <FormLabel className={spec.control === 'body' ? 'sr-only' : ''}>
-              {label}
-            </FormLabel>
+            {/*
+              A `FormLabel` is a real `<label for=…>`, so it needs a labelable
+              leaf to point at. The metadata editor is a list of its own
+              labelled rows, not one control — labelling it would leave the
+              `for` dangling, which is worse than no label at all.
+            */}
+            {spec.control === 'metadata' ? (
+              <p className="text-sm leading-none font-medium">{label}</p>
+            ) : (
+              <FormLabel className={spec.control === 'body' ? 'sr-only' : ''}>
+                {label}
+              </FormLabel>
+            )}
             <FormControl>
               <ResourceFormControl
                 spec={spec}

@@ -448,6 +448,12 @@ function assertFormControl(
       `form field '${form.key}' is required but control '${form.control}' captures no required value`
     )
   }
+  if (form.maxItems !== undefined && form.control !== 'taxonomy') {
+    fail(
+      kind,
+      `form field '${form.key}' declares 'maxItems' but control '${form.control}' holds no list`
+    )
+  }
   // An optional field left blank would fail its own pattern, so a patterned
   // field that is not required is a rule the user cannot satisfy by omission.
   if (form.pattern && !form.required) {

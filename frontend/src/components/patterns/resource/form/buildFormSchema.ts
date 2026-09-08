@@ -47,6 +47,19 @@ export function maxLengthMessage(label: string, maxLength: number): string {
   return `${label} must be at most ${String(maxLength)} characters`
 }
 
+/** "Each entry of Labels must be at most 50 characters". */
+export function entryMaxLengthMessage(
+  label: string,
+  maxLength: number
+): string {
+  return `Each entry of ${label} must be at most ${String(maxLength)} characters`
+}
+
+/** "Labels allows at most 10 entries". */
+export function maxItemsMessage(label: string, maxItems: number): string {
+  return `${label} allows at most ${String(maxItems)} entries`
+}
+
 /**
  * The one `slugify`, lifted out of the three copies that had already drifted
  * (the prompt editor's kept spaces as a separate pass, the artifact and
@@ -111,6 +124,26 @@ function selectSchema(
   return spec.required ? schema : schema.optional()
 }
 
+/**
+ * A label list is bounded on both axes by the API (`maxItems: 10`,
+ * `items.maxLength: 50`), and those bounds were enforced in exactly one of the
+ * four forms — as a hidden add-button in the prompt editor, with nothing behind
+ * it. Declaring them on the descriptor is what turns "the UI happens to stop
+ * you" into a rule every kind gets.
+ */
+function taxonomySchema(spec: FormFieldSpec, label: string): z.ZodType {
+  const entry =
+    spec.maxLength === undefined
+      ? z.string()
+      : z
+          .string()
+          .max(spec.maxLength, entryMaxLengthMessage(label, spec.maxLength))
+  const list = z.array(entry)
+  return spec.maxItems === undefined
+    ? list
+    : list.max(spec.maxItems, maxItemsMessage(label, spec.maxItems))
+}
+
 function controlSchema(
   spec: FormFieldSpec,
   field: FieldSpec | undefined,
@@ -120,7 +153,7 @@ function controlSchema(
     case 'select':
       return selectSchema(spec, field, label)
     case 'taxonomy':
-      return z.array(z.string())
+      return taxonomySchema(spec, label)
     case 'metadata':
       return z.record(z.string(), z.unknown())
     default:

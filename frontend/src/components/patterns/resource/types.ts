@@ -263,8 +263,13 @@ export interface FormFieldSpec {
   readonly section: FormSection
   /** The value may not be empty. Anything else is `.optional()` in the schema. */
   readonly required?: boolean
-  /** Max characters, mirroring the API's own limit. */
+  /**
+   * Max characters, mirroring the API's own limit. On a `taxonomy` control it
+   * caps each ENTRY, which is how the API bounds a label list too.
+   */
   readonly maxLength?: number
+  /** Max entries. `taxonomy` only — the API bounds label lists by count. */
+  readonly maxItems?: number
   /** Extra shape constraint beyond length. */
   readonly pattern?: FormPattern
   /** Placeholder text for the control. */

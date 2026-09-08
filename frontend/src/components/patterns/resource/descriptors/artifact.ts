@@ -83,7 +83,7 @@ export const artifactDescriptor = defineResource({
   },
   form: {
     fields: [
-      nameFormField('title', 'artifact-title-input'),
+      nameFormField('title', 255, 'artifact-title-input'),
       slugFormField('artifact-slug-input', true),
       summaryFormField('description', 500, 'artifact-description-input'),
       projectFormField('artifact-project-select'),

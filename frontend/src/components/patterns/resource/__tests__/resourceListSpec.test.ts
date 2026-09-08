@@ -1,9 +1,6 @@
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import type { ResourceKindKey } from '../registry'
 import { getResourceDescriptor } from '../registry'
+import { queryEnum } from './specYaml'
 
 /**
  * The descriptor's `list.sortable` becomes a `sort_by` value on the wire, and
@@ -11,15 +8,10 @@ import { getResourceDescriptor } from '../registry'
  * — so a key declared here that the API does not accept is a broken column
  * header, not a cosmetic mismatch.
  *
- * The enums are read out of the OpenAPI spec itself rather than restated, so
- * this fails when the backend narrows one rather than when somebody remembers
- * to update a copy. `backend/openapi.yaml` is the source of truth for both
- * sides of this assertion (CLAUDE.md, "Spec-first backend").
+ * The enums are read out of the OpenAPI spec itself (see `specYaml.ts`) rather
+ * than restated, so this fails when the backend narrows one rather than when
+ * somebody remembers to update a copy.
  */
-const SPEC_DIR = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../../../../../backend/paths'
-)
 
 /** The path file whose `sort_by` enum governs each kind's list endpoint. */
 const SPEC_FILE: Partial<Record<ResourceKindKey, string>> = {
@@ -27,60 +19,6 @@ const SPEC_FILE: Partial<Record<ResourceKindKey, string>> = {
   blueprint: 'blueprints.yaml',
   memory: 'memories.yaml',
   prompt: 'prompts.yaml',
-}
-
-/** Where a `$ref`'d schema component lives. */
-const SCHEMA_DIR = resolve(SPEC_DIR, '../schemas')
-
-/** The values of an inline `enum: [a, b]` list. */
-function enumValues(list: string): string[] {
-  return list.split(',').map(value => value.trim())
-}
-
-/**
- * The `enum` of a shared schema component, by name.
- *
- * Splitting on de-dented lines gives one chunk per top-level key, which is all
- * the structure this needs — the status components are flat string enums.
- */
-function componentEnum(name: string): string[] {
-  const yaml = readFileSync(resolve(SCHEMA_DIR, 'common.yaml'), 'utf8')
-  const block = yaml
-    .split(/\n(?=\S)/)
-    .find(chunk => chunk.startsWith(`${name}:`))
-  const inline = /enum: \[([^\]]+)\]/.exec(block ?? '')
-  return inline ? enumValues(inline[1]) : []
-}
-
-/**
- * Every value a named query parameter accepts, unioned across a path file. A
- * file describes both the team-scoped and the by-project variant of the same
- * list, and the descriptor does not distinguish them.
- *
- * The parameter's own chunk is isolated FIRST — everything between its
- * `- name:` and the next one — before any `enum` is read out of it. Scanning
- * forward from the name for the first `enum:` instead is what broke when #912
- * hoisted the per-kind status enums into `common.yaml`: with no inline enum
- * left to find, the scan ran on into the NEXT parameter and compared each
- * kind's status values against its `sort_by` values. It failed loudly here,
- * but the same shape would just as easily have passed vacuously.
- */
-function queryEnum(file: string, param: string): Set<string> {
-  const yaml = readFileSync(resolve(SPEC_DIR, file), 'utf8')
-  const values = new Set<string>()
-  for (const chunk of yaml.split(/^\s*- name: /m)) {
-    if (!chunk.startsWith(`${param}\n`)) continue
-    const inline = /enum: \[([^\]]+)\]/.exec(chunk)
-    if (inline) {
-      for (const value of enumValues(inline[1])) values.add(value)
-      continue
-    }
-    const ref = /\$ref: ['"][^'"]*#\/(?:components\/schemas\/)?(\w+)['"]/.exec(
-      chunk
-    )
-    if (ref) for (const value of componentEnum(ref[1])) values.add(value)
-  }
-  return values
 }
 
 /** The values of the descriptor's field in a given role, in declaration order. */

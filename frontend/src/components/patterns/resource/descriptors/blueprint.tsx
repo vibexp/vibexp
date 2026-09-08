@@ -148,7 +148,7 @@ export const blueprintDescriptor = defineResource({
     // than being set expired by hand, which is why `BlueprintForm` never had
     // one. `subtype` is likewise read-only — it comes from the import.
     fields: [
-      nameFormField('title', 'blueprint-title-input'),
+      nameFormField('title', 255, 'blueprint-title-input'),
       slugFormField('blueprint-slug-input', true),
       summaryFormField('description', 500, 'blueprint-description-input'),
       projectFormField('blueprint-project-select'),

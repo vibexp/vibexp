@@ -13,17 +13,28 @@ import type { FormFieldSpec } from './types'
  * builder used once is just indirection.
  */
 
-/** Every kind's identifier and address segments are capped at 255 by the API. */
-const IDENTIFIER_MAX = 255
+/** Every kind's address slug is capped at 255 by the API. */
+const SLUG_MAX = 255
 
-/** The human-readable identifier: a prompt's `name`, everyone else's `title`. */
-export function nameFormField(key: string, testId: string): FormFieldSpec {
+/**
+ * The human-readable identifier: a prompt's `name`, everyone else's `title`.
+ *
+ * `maxLength` is a parameter and not a shared constant because the limit is
+ * NOT uniform — a prompt name is capped at 50 and every title at 255
+ * (`backend/schemas/*.yaml`, the `Create*Request` schemas). Assuming otherwise
+ * is exactly the drift `resourceFormSpec.test.ts` now pins against the spec.
+ */
+export function nameFormField(
+  key: string,
+  maxLength: number,
+  testId: string
+): FormFieldSpec {
   return {
     key,
     control: 'text',
     section: 'details',
     required: true,
-    maxLength: IDENTIFIER_MAX,
+    maxLength,
     testId,
   }
 }
@@ -42,7 +53,7 @@ export function slugFormField(
     control: 'text',
     section: 'details',
     required: true,
-    maxLength: IDENTIFIER_MAX,
+    maxLength: SLUG_MAX,
     pattern: 'slug',
     placeholder: 'my-resource',
     description: editableOnCreateOnly
@@ -95,6 +106,22 @@ export function statusFormField(kind: string): FormFieldSpec {
     required: true,
     optionsFrom: 'field',
     testId: `${kind}-status-select`,
+  }
+}
+
+/**
+ * A label list, through the shared chip editor. Both bounds are the API's
+ * (`maxItems: 10`, `items.maxLength: 50` on every labelled resource).
+ */
+export function labelsFormField(key: string, testId: string): FormFieldSpec {
+  return {
+    key,
+    control: 'taxonomy',
+    section: 'taxonomy',
+    maxItems: 10,
+    maxLength: 50,
+    placeholder: 'Add a label…',
+    testId,
   }
 }
 
