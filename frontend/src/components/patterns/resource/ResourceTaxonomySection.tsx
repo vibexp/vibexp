@@ -151,7 +151,10 @@ export function ResourceTaxonomySection({
           <div key={group.id} className="space-y-1.5">
             {group.kind === 'chips' ? (
               <>
-                <span className="text-muted-foreground block text-xs">
+                <span
+                  className="text-muted-foreground block text-xs"
+                  data-testid="taxonomy-group-label"
+                >
                   {group.label}
                 </span>
                 <TaxonomyChips values={group.values} />

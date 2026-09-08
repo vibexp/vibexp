@@ -162,10 +162,9 @@ describe('ResourceTaxonomySection', () => {
         category: 'writing',
         tags: ['sharp'],
       })
-      const block = section()
-      const labels = Array.from(
-        block.querySelectorAll('span.text-muted-foreground')
-      ).map(node => node.textContent)
+      const labels = screen
+        .getAllByTestId('taxonomy-group-label')
+        .map(node => node.textContent)
       expect(labels).toEqual(['Category', 'Tags'])
     })
   })
