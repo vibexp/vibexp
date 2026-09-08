@@ -12,8 +12,8 @@ import {
   updatedColumn,
 } from '@/components/patterns/list-page'
 import {
-  type FieldSpec,
   fieldOfRole,
+  type FieldSpec,
   getResourceDescriptor,
 } from '@/components/patterns/resource'
 import { markdownToExcerpt } from '@/lib/markdownExcerpt'
