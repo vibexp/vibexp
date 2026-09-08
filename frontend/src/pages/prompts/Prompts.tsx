@@ -15,6 +15,8 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useResourceListFilters } from '@/hooks/useResourceListFilters'
+import { useResourceListQuery } from '@/hooks/useResourceListQuery'
 import { PromptFilters, type SharedFilter } from '@/pages/prompts/PromptFilters'
 import { buildPromptsColumns } from '@/pages/prompts/promptsColumns'
 import type {
@@ -23,9 +25,9 @@ import type {
 } from '@/services/promptService'
 import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
-import { getErrorMessage } from '@/utils/errorHandling'
 
 type PromptSortKey = NonNullable<PromptFiltersType['sort_by']>
+type PromptStatus = NonNullable<PromptFiltersType['status']>
 
 // Backend also accepts 'created_at' as a sort field, but the UI only exposes
 // the three columns rendered with sortable headers (name, status, updated_at).
@@ -35,13 +37,54 @@ const PROMPT_SORTABLE_KEYS: readonly PromptSortKey[] = [
   'updated_at',
 ]
 
-interface State {
-  prompts: Prompt[]
-  loading: boolean
-  error: string | null
-  totalPages: number
-  currentPage: number
-  total: number
+const PROMPT_STATUSES: readonly PromptStatus[] = ['draft', 'published']
+
+const PAGE_SIZE = 20
+
+/**
+ * Filter defaults. Every value here is omitted from the URL, so an unfiltered
+ * page has a clean address bar (see `useUrlFilters`).
+ *
+ * `project_id` is deliberately absent: it comes from the global header project
+ * selector, not this page's filter bar, so it is neither page-shareable nor
+ * something `Clear filters` could clear.
+ *
+ * `metadata` is a base key of `useResourceListFilters` that prompts do not
+ * filter on — the list endpoint has no such parameter — so it stays at its
+ * default and is never sent (#906; adding the control is out of scope).
+ */
+const FILTER_DEFAULTS = {
+  page: '1',
+  search: '',
+  metadata: '',
+  status: 'all',
+  shared: 'all',
+  freshness: 'all',
+  sort_by: 'updated_at',
+  sort_order: 'desc',
+}
+
+/**
+ * `status` and `sort_by` are enums the API 400s on, so whatever the URL happens
+ * to contain must be validated rather than forwarded.
+ */
+function coerceStatus(value: string): PromptStatus | undefined {
+  return PROMPT_STATUSES.includes(value as PromptStatus)
+    ? (value as PromptStatus)
+    : undefined
+}
+
+function coerceSortKey(value: string): PromptSortKey {
+  return PROMPT_SORTABLE_KEYS.includes(value as PromptSortKey)
+    ? (value as PromptSortKey)
+    : 'updated_at'
+}
+
+/** The tri-state stays a string in the URL; only the request sees a boolean. */
+function coerceShared(value: string): boolean | undefined {
+  if (value === 'shared') return true
+  if (value === 'not_shared') return false
+  return undefined
 }
 
 function toSharedFilter(shared: boolean | undefined): SharedFilter {
@@ -56,80 +99,86 @@ export function Prompts() {
   const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
+  const handleErrorRef = useCallback(
+    (error: unknown) => {
+      handleError(error, 'Failed to load prompts')
+    },
+    [handleError]
+  )
   const { trackEvent } = useAnalytics()
 
-  const [state, setState] = useState<State>({
-    prompts: [],
-    loading: true,
-    error: null,
-    totalPages: 0,
-    currentPage: 1,
-    total: 0,
+  const projectId = currentProject?.id
+
+  const {
+    filters,
+    setFilters,
+    searchInput,
+    setSearchInput,
+    page,
+    setPage,
+    sortOrder,
+    hasActiveFilters,
+    handleClear,
+  } = useResourceListFilters({
+    defaults: FILTER_DEFAULTS,
+    filterKeys: ['status', 'shared', 'freshness'],
+    projectId,
+    isProjectLoading,
   })
-  const [filters, setFilters] = useState<PromptFiltersType>(() => ({
-    search: '',
-    sort_by: 'updated_at',
-    sort_order: 'desc',
-    page: 1,
-    limit: 20,
-    project_id: currentProject?.id,
-  }))
-  const [searchInput, setSearchInput] = useState('')
+
   const [promptToDelete, setPromptToDelete] = useState<Prompt | null>(null)
   const [deleting, setDeleting] = useState(false)
+  // Bumped after a delete to re-run the fetch effect without duplicating it.
+  const [reloadToken, setReloadToken] = useState(0)
 
-  const fetchPrompts = useCallback(
-    async (current: PromptFiltersType) => {
-      // Wait for a persisted project selection to restore, so the first fetch
-      // is already scoped instead of flashing unfiltered results.
-      if (!currentTeam || isProjectLoading) return
-      setState(prev => ({ ...prev, loading: true, error: null }))
-      const response = await promptService.getPrompts(currentTeam.id, current)
-      setState({
-        prompts: response.prompts,
-        loading: false,
-        error: null,
-        totalPages: response.total_pages,
-        currentPage: current.page ?? 1,
-        total: response.total_count,
-      })
-    },
-    [currentTeam, isProjectLoading]
-  )
+  const status =
+    filters.status === 'all' ? undefined : coerceStatus(filters.status)
+  const shared =
+    filters.shared === 'all' ? undefined : coerceShared(filters.shared)
+  // The API accepts only `stale` and 400s on anything else, so a junk URL value
+  // must be dropped rather than forwarded.
+  const freshness =
+    filters.freshness === 'stale' ? ('stale' as const) : undefined
+  const sortKey = coerceSortKey(filters.sort_by)
 
-  useEffect(() => {
-    fetchPrompts(filters).catch((error: unknown) => {
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: getErrorMessage(error, 'Failed to fetch prompts'),
-      }))
-      handleError(error, 'Failed to load prompts')
+  const load = useCallback(async () => {
+    const response = await promptService.getPrompts(currentTeam?.id ?? '', {
+      page,
+      limit: PAGE_SIZE,
+      search: filters.search || undefined,
+      status,
+      shared,
+      freshness,
+      project_id: projectId,
+      sort_by: sortKey,
+      sort_order: sortOrder,
     })
-  }, [fetchPrompts, filters, handleError])
-
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setFilters(prev =>
-        prev.search === searchInput
-          ? prev
-          : { ...prev, search: searchInput, page: 1 }
-      )
-    }, 500)
-    return () => {
-      clearTimeout(timeout)
+    return {
+      items: response.prompts,
+      totalPages: response.total_pages,
+      total: response.total_count,
     }
-  }, [searchInput])
+  }, [
+    currentTeam?.id,
+    page,
+    filters.search,
+    status,
+    shared,
+    freshness,
+    projectId,
+    sortKey,
+    sortOrder,
+  ])
 
-  // Keep the list scoped to the globally selected project (header selector).
-  const projectId = currentProject?.id
-  useEffect(() => {
-    setFilters(prev =>
-      prev.project_id === projectId
-        ? prev
-        : { ...prev, project_id: projectId, page: 1 }
-    )
-  }, [projectId])
+  const state = useResourceListQuery({
+    // Wait for a persisted project selection to restore, so the first fetch is
+    // already scoped instead of flashing unfiltered results.
+    ready: !!currentTeam && !isProjectLoading,
+    load,
+    reloadToken,
+    errorFallback: 'Failed to fetch prompts',
+    onError: handleErrorRef,
+  })
 
   useEffect(() => {
     trackEvent({
@@ -144,7 +193,7 @@ export function Prompts() {
       setDeleting(true)
       await promptService.deletePrompt(currentTeam.id, promptToDelete.slug)
       showSuccess('Prompt deleted successfully', 'Success')
-      void fetchPrompts(filters)
+      setReloadToken(token => token + 1)
     } catch (error) {
       handleError(error, 'Failed to delete prompt')
     } finally {
@@ -152,12 +201,6 @@ export function Prompts() {
       setPromptToDelete(null)
     }
   }
-
-  const statusFilter = filters.status ?? 'all'
-  const sharedFilter = toSharedFilter(filters.shared)
-
-  const sortKey: PromptSortKey = filters.sort_by ?? 'updated_at'
-  const sortDir = filters.sort_order ?? 'desc'
 
   const columns = useMemo(
     () =>
@@ -171,33 +214,27 @@ export function Prompts() {
 
   // Toggle direction when re-clicking the active column; otherwise switch
   // column and pick a sensible default direction (asc for name, desc otherwise).
-  const handleSortChange = useCallback((key: PromptSortKey) => {
-    setFilters(prev => {
-      const prevKey = prev.sort_by ?? 'updated_at'
-      const prevDir = prev.sort_order ?? 'desc'
-      if (prevKey === key) {
-        return {
-          ...prev,
-          sort_order: prevDir === 'asc' ? 'desc' : 'asc',
-          page: 1,
-        }
-      }
-      return {
-        ...prev,
+  const handleSortChange = useCallback(
+    (key: PromptSortKey) => {
+      setFilters({
         sort_by: key,
-        sort_order: key === 'name' ? 'asc' : 'desc',
-        page: 1,
-      }
-    })
-  }, [])
+        sort_order:
+          key === sortKey
+            ? sortOrder === 'asc'
+              ? 'desc'
+              : 'asc'
+            : key === 'name'
+              ? 'asc'
+              : 'desc',
+      })
+    },
+    [setFilters, sortKey, sortOrder]
+  )
 
-  const visibleCount = state.prompts.length
-  const totalCount = state.total
-  const currentPage = filters.page ?? 1
-  const status = listPageStatus(
+  const listStatus = listPageStatus(
     state.loading,
     state.error,
-    state.prompts.length === 0
+    state.items.length === 0
   )
 
   return (
@@ -223,83 +260,87 @@ export function Prompts() {
           <PromptFilters
             searchInput={searchInput}
             onSearchInputChange={setSearchInput}
-            statusFilter={statusFilter}
-            onStatusChange={v => {
-              setFilters(prev => ({
-                ...prev,
-                status: v === 'all' ? undefined : v,
-                page: 1,
-              }))
+            statusFilter={status ?? 'all'}
+            onStatusChange={value => {
+              setFilters({ status: value })
             }}
-            sharedFilter={sharedFilter}
-            onSharedChange={v => {
-              setFilters(prev => ({
-                ...prev,
-                shared: v === 'all' ? undefined : v === 'shared',
-                page: 1,
-              }))
+            sharedFilter={toSharedFilter(shared)}
+            onSharedChange={value => {
+              setFilters({ shared: value })
             }}
-            freshness={filters.freshness}
-            onFreshnessChange={v => {
-              setFilters(prev => ({ ...prev, freshness: v, page: 1 }))
+            freshness={freshness}
+            onFreshnessChange={value => {
+              setFilters({ freshness: value ?? FILTER_DEFAULTS.freshness })
             }}
+            onClear={handleClear}
+            hasActiveFilters={hasActiveFilters}
           />
         </ListPage.Filters>
 
         <ListPage.Body
-          status={status}
+          status={listStatus}
           errorTitle="Failed to load prompts"
           errorMessage={state.error}
           empty={
-            <EmptyState
-              icon={FileText}
-              title={
-                filters.search || filters.project_id
-                  ? 'No prompts match your filters'
-                  : 'No prompts yet'
-              }
-              description={
-                filters.search || filters.project_id
-                  ? 'Try different search or filter settings.'
-                  : 'Create your first prompt to build a reusable AI workflow.'
-              }
-              actions={
-                <Button
-                  onClick={() => {
-                    void navigate('/prompts/new')
-                  }}
-                >
-                  <Plus className="mr-2 size-4" />
-                  New prompt
-                </Button>
-              }
-            />
+            // Two distinct empty states: "nothing exists" is a fact about the
+            // team, "nothing matches" is a fact about the filters, and only the
+            // second one has a way out.
+            hasActiveFilters ? (
+              <EmptyState
+                icon={FileText}
+                title="No prompts match your filters"
+                description="Try different search, status, shared or freshness settings."
+                actions={
+                  <Button variant="outline" onClick={handleClear}>
+                    Clear filters
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={FileText}
+                title="No prompts yet"
+                description="Create your first prompt to build a reusable AI workflow."
+                actions={
+                  <Button
+                    onClick={() => {
+                      void navigate('/prompts/new')
+                    }}
+                  >
+                    <Plus className="mr-2 size-4" />
+                    New prompt
+                  </Button>
+                }
+              />
+            )
           }
         >
           <ListTable
-            rows={state.prompts}
+            rows={state.items}
             columns={columns}
             sortableKeys={PROMPT_SORTABLE_KEYS}
             sortKey={sortKey}
-            sortDir={sortDir}
+            sortDir={sortOrder}
             onSortChange={handleSortChange}
           />
         </ListPage.Body>
 
         <ListPage.Footer
           count={
-            status === 'loading' || status === 'error'
+            listStatus === 'loading' || listStatus === 'error'
               ? undefined
-              : { visible: visibleCount, total: totalCount, noun: 'prompt' }
+              : {
+                  visible: state.items.length,
+                  total: state.total,
+                  noun: 'prompt',
+                }
           }
           pagination={{
-            page: currentPage,
+            page,
             totalPages: state.totalPages,
-            onPageChange: page => {
-              setFilters(prev => ({ ...prev, page }))
-            },
+            onPageChange: setPage,
           }}
-          hideCount={status === 'loading'}
+          hideCount={listStatus === 'loading'}
         />
       </ListPage.Container>
 

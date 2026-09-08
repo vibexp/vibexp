@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -16,6 +17,9 @@ interface AgentFiltersProps {
   onSearchInputChange: (value: string) => void
   currentStatusFilter: StatusFilter
   onStatusFilterChange: (status: StatusFilter) => void
+  /** Shown only while at least one filter is applied. */
+  onClear?: () => void
+  hasActiveFilters: boolean
 }
 
 export function AgentFilters({
@@ -23,6 +27,8 @@ export function AgentFilters({
   onSearchInputChange,
   currentStatusFilter,
   onStatusFilterChange,
+  onClear,
+  hasActiveFilters,
 }: Readonly<AgentFiltersProps>) {
   return (
     <div className="flex flex-col gap-3 lg:flex-row">
@@ -57,6 +63,12 @@ export function AgentFilters({
           </SelectContent>
         </Select>
       </div>
+
+      {hasActiveFilters && onClear && (
+        <Button variant="outline" onClick={onClear}>
+          Clear filters
+        </Button>
+      )}
     </div>
   )
 }

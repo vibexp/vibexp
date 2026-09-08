@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import type { Mock } from 'vitest'
 
 import type {
@@ -182,9 +182,23 @@ function statCard(title: string): HTMLElement {
   return titleEl!.parentElement!
 }
 
-function renderAgents() {
+let currentSearch = ''
+
+function LocationProbe() {
+  currentSearch = useLocation().search
+  return null
+}
+
+/** The filter object of the most recent getAgents call. */
+const lastQuery = () => {
+  const { calls } = (agentService.getAgents as Mock).mock
+  return calls[calls.length - 1][1] as Record<string, unknown>
+}
+
+function renderAgents(initialEntry = '/agents') {
+  currentSearch = ''
   return render(
-    <MemoryRouter initialEntries={['/agents']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/agents" element={<Agents />} />
         <Route
@@ -204,6 +218,7 @@ function renderAgents() {
           element={<div data-testid="chat-probe">Agent chat probe</div>}
         />
       </Routes>
+      <LocationProbe />
     </MemoryRouter>
   )
 }
@@ -638,5 +653,171 @@ describe('Agents page', () => {
       })
       expect(toast.success).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('Agents page — URL-synced filters (#906)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions([])
+    ;(agentService.getAgents as Mock).mockResolvedValue(buildListResponse([]))
+  })
+
+  it('keeps defaults out of the URL and sends no filter params', async () => {
+    renderAgents()
+
+    await waitFor(() => {
+      expect(agentService.getAgents).toHaveBeenCalled()
+    })
+    expect(lastQuery()).toEqual(
+      expect.objectContaining({
+        page: 1,
+        limit: 20,
+        search: undefined,
+        status: undefined,
+        sort_by: 'created_at',
+        sort_order: 'desc',
+      })
+    )
+    expect(currentSearch).toBe('')
+  })
+
+  it('rehydrates search, status and page from the URL on mount', async () => {
+    renderAgents('/agents?search=triage&status=paused&page=2')
+
+    await waitFor(() => {
+      expect(agentService.getAgents).toHaveBeenCalled()
+    })
+    const query = lastQuery()
+    expect(query.search).toBe('triage')
+    expect(query.status).toBe('paused')
+    expect(query.page).toBe(2)
+    expect(
+      screen.getByPlaceholderText('Search agents by name or description…')
+    ).toHaveValue('triage')
+  })
+
+  it('drops a status outside the enum rather than forwarding a 400', async () => {
+    renderAgents('/agents?status=nonsense')
+
+    await waitFor(() => {
+      expect(agentService.getAgents).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBeUndefined()
+  })
+
+  it('falls back to the default sort key for an unknown sort_by', async () => {
+    renderAgents('/agents?sort_by=whatever')
+
+    await waitFor(() => {
+      expect(agentService.getAgents).toHaveBeenCalled()
+    })
+    expect(lastQuery().sort_by).toBe('created_at')
+  })
+
+  it('writes a picked status to the URL and resets the page', async () => {
+    renderAgents('/agents?page=4')
+    await waitFor(() => {
+      expect(lastQuery().page).toBe(4)
+    })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Paused' }))
+
+    await waitFor(() => {
+      expect(lastQuery().status).toBe('paused')
+    })
+    expect(lastQuery().page).toBe(1)
+    expect(currentSearch).toContain('status=paused')
+  })
+
+  it('writes the debounced search term to the URL', async () => {
+    renderAgents()
+    await waitFor(() => {
+      expect(agentService.getAgents).toHaveBeenCalled()
+    })
+
+    const user = userEvent.setup()
+    await user.type(
+      screen.getByPlaceholderText('Search agents by name or description…'),
+      'bot'
+    )
+
+    await waitFor(
+      () => {
+        expect(lastQuery().search).toBe('bot')
+      },
+      { timeout: 2000 }
+    )
+    expect(currentSearch).toContain('search=bot')
+  })
+
+  it('paging writes ?page to the URL', async () => {
+    ;(agentService.getAgents as Mock).mockResolvedValue({
+      ...buildListResponse([buildAgent()]),
+      total_count: 25,
+      total_pages: 2,
+    })
+    renderAgents()
+    await screen.findByText('Code Review Agent')
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+
+    await waitFor(() => {
+      expect(currentSearch).toContain('page=2')
+    })
+  })
+})
+
+describe('Agents page — Clear filters and the two-branch empty state (#906)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions([])
+    ;(agentService.getAgents as Mock).mockResolvedValue(buildListResponse([]))
+  })
+
+  it('offers Add agent, and no Clear filters, when nothing is filtered', async () => {
+    renderAgents()
+
+    await screen.findByText('No agents yet')
+    expect(
+      screen.queryByRole('button', { name: 'Clear filters' })
+    ).not.toBeInTheDocument()
+    // Header button plus the empty-state action.
+    expect(screen.getAllByRole('button', { name: /Add agent/ })).toHaveLength(2)
+  })
+
+  it('the status filter alone flips the empty state to the filtered branch', async () => {
+    // The old empty state branched on `search` only, so filtering by status
+    // alone showed "No agents yet" with a create button.
+    renderAgents('/agents?status=paused')
+
+    await screen.findByText('No agents match your filters')
+    expect(
+      screen.getAllByRole('button', { name: 'Clear filters' }).length
+    ).toBeGreaterThan(0)
+    // Only the page header's create button survives.
+    expect(screen.getAllByRole('button', { name: /Add agent/ })).toHaveLength(1)
+  })
+
+  it('Clear filters empties the URL, the search box and the request', async () => {
+    renderAgents('/agents?search=nope&status=error')
+    await screen.findByText('No agents match your filters')
+
+    const user = userEvent.setup()
+    const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
+    await user.click(clear)
+
+    await waitFor(() => {
+      expect(lastQuery().search).toBeUndefined()
+    })
+    expect(lastQuery().status).toBeUndefined()
+    expect(lastQuery().page).toBe(1)
+    expect(currentSearch).toBe('')
+    expect(
+      screen.getByPlaceholderText('Search agents by name or description…')
+    ).toHaveValue('')
+    await screen.findByText('No agents yet')
   })
 })

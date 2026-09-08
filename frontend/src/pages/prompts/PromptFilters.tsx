@@ -1,6 +1,7 @@
 import { Search } from 'lucide-react'
 
 import { FreshnessFilterSelect } from '@/components/FreshnessFilterSelect'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -23,6 +24,9 @@ interface Props {
   /** `stale` shows only resources the freshness rules currently flag (#738). */
   freshness: 'stale' | undefined
   onFreshnessChange: (value: 'stale' | undefined) => void
+  /** Shown only while at least one filter is applied. */
+  onClear?: () => void
+  hasActiveFilters: boolean
 }
 
 export function PromptFilters({
@@ -34,6 +38,8 @@ export function PromptFilters({
   onSharedChange,
   freshness,
   onFreshnessChange,
+  onClear,
+  hasActiveFilters,
 }: Readonly<Props>) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -87,6 +93,12 @@ export function PromptFilters({
         ariaLabel="Filter prompts by freshness"
         testId="prompt-freshness-filter"
       />
+
+      {hasActiveFilters && onClear && (
+        <Button variant="outline" onClick={onClear}>
+          Clear filters
+        </Button>
+      )}
     </div>
   )
 }
