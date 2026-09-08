@@ -3,6 +3,7 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
@@ -10,6 +11,10 @@ import (
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/vibexp/vibexp/internal/database"
+	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 // Migration 016_resource_labels (#910, epic #899), on its OWN scratch database:
@@ -23,6 +28,7 @@ import (
 // must not land a value the API's own limits would reject on the next edit.
 
 type migration016Fixtures struct {
+	userID       string
 	teamID       string
 	projectID    string
 	withTags     string
@@ -43,7 +49,9 @@ func seedMigration016Fixtures(t *testing.T, db *sql.DB) migration016Fixtures {
 		userID, "labels-"+userID[:8]+"@example.com", "Labels Fixture")
 	require.NoError(t, err)
 
-	fx := migration016Fixtures{teamID: uuid.New().String(), projectID: uuid.New().String()}
+	fx := migration016Fixtures{
+		userID: userID, teamID: uuid.New().String(), projectID: uuid.New().String(),
+	}
 	_, err = db.Exec("INSERT INTO teams (id, owner_id, name, slug) VALUES ($1, $2, $3, $4)",
 		fx.teamID, userID, "Team "+fx.teamID[:8], "team-"+fx.teamID[:8])
 	require.NoError(t, err)
@@ -80,7 +88,7 @@ func seedMigration016Fixtures(t *testing.T, db *sql.DB) migration016Fixtures {
 	// backfill that did not would land values it could never produce -- and an
 	// untrimmed label matches no `?labels=` filter, because the query side IS
 	// trimmed.
-	fx.messyTags = insert(`{"tags": ["  api ", "api", "onboarding ", "  "]}`)
+	fx.messyTags = insert(`{"tags": ["  api ", "\tapi\n", "onboarding ", " \t "]}`)
 	fx.backdated = insert(`{"tags": ["stale-check"]}`)
 
 	// updated_at is an EDIT signal: search recency ranking and resource freshness
@@ -179,14 +187,14 @@ func TestMigration016_ResourceLabels(t *testing.T) {
 		}, []string(labels), "the first ten in order, each truncated to 50 characters")
 	})
 
+	t.Run("the backfill normalises the way the write path does", func(t *testing.T) {
+		assert.Equal(t, []string{"api", "onboarding"}, memoryLabels(t, db, fx.messyTags),
+			"trimmed of whitespace, de-duplicated on the first occurrence, empties dropped")
+	})
+
 	// The backfill is an UPDATE on the one table carrying an unconditional
 	// updated_at trigger. Left enabled, it would mark every migrated memory as
 	// edited just now, corrupting search recency ranking and resource freshness.
-	t.Run("the backfill normalises exactly as the write path does", func(t *testing.T) {
-		assert.Equal(t, []string{"api", "onboarding"}, memoryLabels(t, db, fx.messyTags),
-			"trimmed, de-duplicated on the first occurrence, empties dropped")
-	})
-
 	t.Run("the backfill does not look like an edit", func(t *testing.T) {
 		var updatedAt string
 		require.NoError(t, db.QueryRow(
@@ -211,13 +219,15 @@ func TestMigration016_ResourceLabels(t *testing.T) {
 	})
 }
 
-// TestLabelsRoundTripAndFilter proves the column is actually usable end to end:
-// a label written through the repository comes back, and the `labels` filter
-// narrows the PAGE and the TOTAL together. The count and page queries are built
-// from separately hard-coded FROM clauses sharing only the where-clause builder,
-// so a predicate that reached only one of them would return a short page
-// describing an unfiltered total -- which an assertion about the page alone
-// never notices.
+// TestMigration016_LabelsFilterNarrowsPageAndTotal proves the column is usable
+// end to end THROUGH THE REPOSITORY: a label written to the column comes back on
+// the model, and the `labels` filter narrows the page and the total together.
+//
+// That pairing is the property worth an integration test. MemoryRepository builds
+// its count query and its page query from separately hard-coded FROM clauses
+// sharing only the where-clause builder, so a predicate that reached one alone
+// would return a short page describing an unfiltered total -- and asserting the
+// page alone would never notice.
 func TestMigration016_LabelsFilterNarrowsPageAndTotal(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
@@ -230,14 +240,40 @@ func TestMigration016_LabelsFilterNarrowsPageAndTotal(t *testing.T) {
 		"UPDATE memories SET labels = $1 WHERE id = $2", pq.StringArray{"alpha", "beta"}, fx.noTags)
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, countRows(t, db,
-		"SELECT count(*) FROM memories WHERE team_id = $1 AND labels && $2",
-		fx.teamID, pq.StringArray{"alpha"}))
-	assert.Equal(t, 1, countRows(t, db,
-		"SELECT count(*) FROM memories WHERE team_id = $1 AND labels && $2",
-		fx.teamID, pq.StringArray{"alpha", "gamma"}),
-		"overlap matches ANY of the requested labels")
-	assert.Equal(t, 0, countRows(t, db,
-		"SELECT count(*) FROM memories WHERE team_id = $1 AND labels && $2",
-		fx.teamID, pq.StringArray{"gamma"}))
+	repo := NewMemoryRepository(&database.DB{DB: db})
+	list := func(t *testing.T, labels []string) ([]models.Memory, int) {
+		t.Helper()
+		memories, total, listErr := repo.List(context.Background(), fx.userID, repositories.MemoryFilters{
+			TeamID: fx.teamID, Page: 1, Limit: 50, Labels: labels,
+		})
+		require.NoError(t, listErr)
+		return memories, total
+	}
+
+	t.Run("unfiltered returns every seeded memory", func(t *testing.T) {
+		memories, total := list(t, nil)
+		assert.Equal(t, len(memories), total, "page and total must agree")
+		assert.Greater(t, total, 1)
+	})
+
+	t.Run("the filter narrows the page and the total together", func(t *testing.T) {
+		memories, total := list(t, []string{"alpha"})
+		require.Len(t, memories, 1)
+		assert.Equal(t, 1, total, "the COUNT query must carry the predicate too, not just the page")
+		assert.Equal(t, fx.noTags, memories[0].ID)
+		assert.Equal(t, []string{"alpha", "beta"}, []string(memories[0].Labels),
+			"labels written to the column come back on the model")
+	})
+
+	t.Run("overlap matches ANY of the requested labels", func(t *testing.T) {
+		memories, total := list(t, []string{"alpha", "gamma"})
+		assert.Len(t, memories, 1)
+		assert.Equal(t, 1, total)
+	})
+
+	t.Run("a label nothing carries matches nothing", func(t *testing.T) {
+		memories, total := list(t, []string{"gamma"})
+		assert.Empty(t, memories)
+		assert.Equal(t, 0, total)
+	})
 }

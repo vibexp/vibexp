@@ -29,15 +29,22 @@ CREATE INDEX idx_blueprints_labels ON public.blueprints USING gin (labels);
 CREATE INDEX idx_memories_labels   ON public.memories   USING gin (labels);
 
 -- Backfill the memory convention. Guarded by jsonb_typeof so a scalar or object
--- parked at that key cannot abort the whole migration, and normalised exactly as
+-- parked at that key cannot abort the whole migration, and normalised the way
 -- services.normalizeLabels does on every write -- trimmed, empties dropped,
--- de-duplicated on the first occurrence, truncated to 50 characters and capped at
--- 10 entries. Anything looser would land rows the write path could never produce:
--- an untrimmed label matches no `?labels=` filter (the query side IS trimmed),
--- and an over-long or over-full list is one the API would reject on the next
--- edit. The key is then removed from metadata: the
--- write path (services.MemoryService) folds any `tags` an old client still
--- sends into labels, so nothing re-creates it.
+-- de-duplicated on the first occurrence, truncated to 50 characters and capped
+-- at 10 entries. Anything looser would land rows the write path could never
+-- produce: an untrimmed label matches no `?labels=` filter (the query side IS
+-- trimmed), and an over-long or over-full list is one the API would reject on
+-- the next edit.
+--
+-- btrim names its whitespace set explicitly because bare btrim() strips SPACES
+-- ONLY, where Go's strings.TrimSpace strips every ASCII whitespace character.
+-- (Go additionally trims non-ASCII Unicode spaces; a tag carrying one converges
+-- on its next write rather than being wrong here.)
+--
+-- The key is then removed from metadata: the write path
+-- (services.MemoryService) folds any `tags` an old client still sends into
+-- labels, so nothing re-creates it.
 --
 -- update_memories_updated_at is an UNCONDITIONAL BEFORE UPDATE ... FOR EACH ROW
 -- trigger, so this statement would rewrite updated_at on every migrated memory
@@ -53,10 +60,10 @@ UPDATE public.memories
                      FROM (
                            SELECT DISTINCT ON (tag) tag, ord
                              FROM (
-                                   SELECT left(btrim(tag), 50) AS tag, ord
+                                   SELECT left(btrim(tag, E' \t\n\r\f\v'), 50) AS tag, ord
                                      FROM jsonb_array_elements_text(metadata->'tags')
                                           WITH ORDINALITY AS elems(tag, ord)
-                                    WHERE btrim(tag) <> ''
+                                    WHERE btrim(tag, E' \t\n\r\f\v') <> ''
                                   ) AS trimmed
                             ORDER BY tag, ord
                           ) AS deduped
