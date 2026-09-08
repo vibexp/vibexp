@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowLeft, FileText, Tags, Wand2 } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Wand2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
@@ -6,23 +6,22 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import {
   type ReadingAction,
   ReadingPage,
-  type ReadingSection,
   ResourceBody,
   useCopyAction,
 } from '@/components/patterns/reading-page'
-import { ResourceHeaderMeta } from '@/components/resource-detail/ResourceHeaderMeta'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import {
-  Panel,
-  PanelBody,
-  PanelHeader,
-  PanelTitle,
-} from '@/components/ui/panel'
+  getResourceDescriptor,
+  ResourceMetadataSection,
+  ResourceTaxonomySection,
+} from '@/components/patterns/resource'
+import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useAlertContext } from '@/contexts/AlertContext'
 import type { PromptGalleryTemplate } from '@/services/promptGalleryService'
 import { promptGalleryService } from '@/services/promptGalleryService'
 import { getErrorMessage } from '@/utils/errorHandling'
+
+const GALLERY_PROMPT = getResourceDescriptor('gallery-prompt')
 
 export function PromptGalleryDetail() {
   const { id } = useParams<{ id: string }>()
@@ -130,61 +129,33 @@ export function PromptGalleryDetail() {
     },
   ]
 
-  const sections: ReadingSection[] = [
-    {
-      id: 'category',
-      label: 'Category',
-      icon: FileText,
-      content: (
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Category</PanelTitle>
-          </PanelHeader>
-          <PanelBody className="pb-4">
-            <Badge variant="secondary" className="gap-1">
-              <FileText className="size-3" />
-              {prompt.category}
-            </Badge>
-          </PanelBody>
-        </Panel>
-      ),
-    },
-    {
-      id: 'tags',
-      label: 'Tags',
-      icon: Tags,
-      content: prompt.tags && prompt.tags.length > 0 && (
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Tags</PanelTitle>
-          </PanelHeader>
-          <PanelBody className="pb-4">
-            <div className="flex flex-wrap gap-1.5">
-              {prompt.tags.map(tag => (
-                <Badge key={tag} variant="outline">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          </PanelBody>
-        </Panel>
-      ),
-    },
-  ]
-
   return (
-    <ReadingPage
+    <ResourceReadingPage
       title={prompt.title}
-      description={
-        <ResourceHeaderMeta
-          updatedAt={prompt.updated_at}
-          summary={prompt.description}
-        />
-      }
+      updatedAt={prompt.updated_at}
+      summary={prompt.description}
       actions={actions}
-      sections={sections}
+      // A gallery prompt is served by the public gallery API and has no
+      // team-scoped resource id, so it passes no `resource`: Attachments,
+      // Access activity, Comments and Relations all drop out on their own.
+      attachments={false}
+      metadata={
+        <div className="space-y-5">
+          <ResourceMetadataSection
+            descriptor={GALLERY_PROMPT}
+            resource={prompt}
+          />
+          {/* Category and Tags are both `taxonomy` fields on the descriptor,
+              so they render as one "Labels & metadata" block rather than the
+              two hand-built panels this page used to compose. */}
+          <ResourceTaxonomySection
+            descriptor={GALLERY_PROMPT}
+            resource={prompt}
+          />
+        </div>
+      }
     >
       <ResourceBody content={prompt.content} />
-    </ReadingPage>
+    </ResourceReadingPage>
   )
 }

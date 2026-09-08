@@ -50,7 +50,7 @@ function buildListResponse(
     prompts,
     total_count: prompts.length,
     page: 1,
-    per_page: 10,
+    per_page: 20,
     total_pages: prompts.length > 0 ? 1 : 0,
     ...overrides,
   }
@@ -82,7 +82,6 @@ const getPromptsMock = promptGalleryService.getPrompts as Mock
 describe('PromptGalleryCategory page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    window.scrollTo = vi.fn()
     getPromptsMock.mockResolvedValue(buildListResponse([]))
   })
 
@@ -108,7 +107,7 @@ describe('PromptGalleryCategory page', () => {
       search: undefined,
       tags: undefined,
       page: 1,
-      limit: 10,
+      limit: 20,
     })
     // Decoded category is the page title; count line comes from total_count.
     expect(screen.getByText('Code Review')).toBeInTheDocument()
@@ -255,30 +254,87 @@ describe('PromptGalleryCategory page', () => {
     expect(screen.queryByTestId('clear-filters-button')).not.toBeInTheDocument()
   })
 
-  it('pages forward and back through multi-page results', async () => {
+  it('pages forward and back through the shared ListPage footer', async () => {
     getPromptsMock.mockResolvedValue(
       buildListResponse([buildTemplate()], { total_count: 25, total_pages: 3 })
     )
 
     renderCategory()
-    await screen.findByText('Page 1 of 3')
+    // The bespoke "Page X of Y" strip is gone: the footer carries the count.
+    const countLine = await screen.findByText(/Showing/)
+    expect(countLine).toHaveTextContent('Showing 1 of 25 prompts')
+    expect(screen.queryByText(/Page 1 of 3/)).not.toBeInTheDocument()
 
     const user = userEvent.setup()
     expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await waitFor(() => {
-      expect(getPromptsMock).toHaveBeenCalledWith(
+      expect(getPromptsMock).toHaveBeenLastCalledWith(
         expect.objectContaining({ page: 2 })
       )
     })
-    await screen.findByText('Page 2 of 3')
-    expect(window.scrollTo).toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeEnabled()
 
     await user.click(screen.getByRole('button', { name: 'Previous' }))
     await waitFor(() => {
-      expect(screen.getByText('Page 1 of 3')).toBeInTheDocument()
+      expect(getPromptsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1 })
+      )
     })
+  })
+
+  it('issues one request per debounce window for a burst of keystrokes', async () => {
+    getPromptsMock.mockResolvedValue(buildListResponse([buildTemplate()]))
+
+    renderCategory()
+    await screen.findByText('Code Review Request')
+    expect(getPromptsMock).toHaveBeenCalledTimes(1)
+
+    const user = userEvent.setup()
+    await user.type(
+      screen.getByPlaceholderText('Search prompts by title or description…'),
+      'review'
+    )
+
+    // Six keystrokes, one committed search. The pre-#917 page put the raw
+    // input straight into the fetch effect's deps and fetched per character.
+    await waitFor(() => {
+      expect(getPromptsMock).toHaveBeenCalledTimes(2)
+    })
+    expect(getPromptsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: 'review', page: 1 })
+    )
+
+    // And it settles there — no trailing per-keystroke fetches arrive late.
+    await new Promise(resolve => setTimeout(resolve, 600))
+    expect(getPromptsMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('restores search, tags and page from the initial URL', async () => {
+    getPromptsMock.mockResolvedValue(
+      buildListResponse([buildTemplate({ tags: ['security'] })], {
+        total_count: 25,
+        total_pages: 3,
+      })
+    )
+
+    renderCategory(
+      '/prompt-gallery/Engineering?search=api&tags=security&page=2'
+    )
+
+    await waitFor(() => {
+      expect(getPromptsMock).toHaveBeenCalledWith({
+        category: 'Engineering',
+        search: 'api',
+        tags: ['security'],
+        page: 2,
+        limit: 20,
+      })
+    })
+    expect(
+      screen.getByPlaceholderText('Search prompts by title or description…')
+    ).toHaveValue('api')
   })
 
   it('navigates to the prompt detail when a card is clicked', async () => {

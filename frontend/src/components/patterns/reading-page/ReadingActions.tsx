@@ -57,7 +57,16 @@ export function ReadingActions({
           disabled={action.disabled}
           onClick={action.onClick}
           data-testid={action.testId}
-          className={layout === 'grid' ? 'w-full' : undefined}
+          className={
+            layout === 'grid'
+              ? cn(
+                  'w-full',
+                  // The primary action carries the longest label on the page
+                  // ("Use this prompt"), which clips inside a half-width cell.
+                  action.emphasis === 'primary' && 'col-span-2'
+                )
+              : undefined
+          }
         >
           <action.icon className="size-4" aria-hidden />
           {action.label}
