@@ -1,13 +1,10 @@
-import { AlertCircle, Download, Play, Wand2 } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 
-import { MarkdownRenderer } from '@/components/MarkdownRenderer'
-import { PromptMentionTextarea } from '@/components/PromptMentionTextarea'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import type { ResourceBodyEditorExtensions } from '@/components/patterns/resource'
+import { ResourceBodyEditor } from '@/components/patterns/resource'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { RenderTab } from './RenderTab'
 import type { EditorView, PromptFormData } from './types'
@@ -32,6 +29,15 @@ interface EditorPaneProps {
   isRendering: boolean
 }
 
+/**
+ * The prompt editor's left column: the name card, then the shared body editor.
+ *
+ * Everything below the name card used to be written out here — the tab shell,
+ * the mention textarea, the preview pane, the Render tab and the template
+ * button — which is exactly why no other resource could have a preview. It is
+ * now `ResourceBodyEditor` plus the three extensions that really are
+ * prompt-only (#914).
+ */
 export function EditorPane({
   formData,
   errors,
@@ -50,6 +56,29 @@ export function EditorPane({
   renderError,
   isRendering,
 }: Readonly<EditorPaneProps>) {
+  // Rendering is only meaningful once the prompt exists (its placeholders are
+  // resolved server-side), and the template loader only while creating one —
+  // so both tabs come and go, and the editor tolerates that by construction.
+  const extensions: ResourceBodyEditorExtensions = {
+    mentions: { excludeCurrentPrompt },
+    render: isEditing
+      ? {
+          disabled: isLoadingPlaceholders,
+          content: (
+            <RenderTab
+              allPlaceholders={allPlaceholders}
+              placeholderValues={placeholderValues}
+              onPlaceholderChange={onPlaceholderChange}
+              renderedBody={renderedBody}
+              renderError={renderError}
+              isRendering={isRendering}
+            />
+          ),
+        }
+      : undefined,
+    templates: isEditing ? undefined : onLoadTemplateClick,
+  }
+
   return (
     <div className="flex-1 space-y-4 lg:w-[70%]">
       <Card>
@@ -85,89 +114,16 @@ export function EditorPane({
         </CardContent>
       </Card>
 
-      <Tabs
-        value={view}
-        onValueChange={v => {
-          onViewChange(v as EditorView)
-        }}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <TabsList>
-            <TabsTrigger value="write">Write</TabsTrigger>
-            <TabsTrigger value="preview">Preview</TabsTrigger>
-            {isEditing && (
-              <TabsTrigger value="render" disabled={isLoadingPlaceholders}>
-                <Play className="mr-1 size-3.5" />
-                Render
-              </TabsTrigger>
-            )}
-          </TabsList>
-          <div className="flex items-center gap-2">
-            {!isEditing && (
-              <Button variant="outline" size="sm" onClick={onLoadTemplateClick}>
-                <Download className="mr-2 size-3.5" />
-                Load template
-              </Button>
-            )}
-            {view !== 'render' && (
-              <Badge variant="outline" className="gap-1">
-                <Wand2 className="size-3" />
-                Type @ to reference prompts
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        <TabsContent value="write">
-          <Card>
-            <CardContent className="p-6">
-              <PromptMentionTextarea
-                data-testid="prompt-body-textarea"
-                value={formData.body}
-                onChange={onBodyChange}
-                placeholder="Write your prompt here… Use markdown for **bold**, *italic*, `code`.&#10;&#10;💡 Type @ to reference other prompts"
-                rows={30}
-                error={errors.body}
-                excludeCurrentPrompt={excludeCurrentPrompt}
-                className="min-h-[600px]"
-              />
-              {errors.body && (
-                <p className="text-destructive mt-2 flex items-center gap-1 text-sm">
-                  <AlertCircle className="size-4" />
-                  {errors.body}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="preview">
-          <Card>
-            <CardContent className="min-h-[600px] p-6">
-              <div className="prose dark:prose-invert max-w-none">
-                <MarkdownRenderer
-                  content={formData.body || 'No content to preview…'}
-                  enableCodeCopy={true}
-                  enableMermaid={true}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {isEditing && (
-          <TabsContent value="render">
-            <RenderTab
-              allPlaceholders={allPlaceholders}
-              placeholderValues={placeholderValues}
-              onPlaceholderChange={onPlaceholderChange}
-              renderedBody={renderedBody}
-              renderError={renderError}
-              isRendering={isRendering}
-            />
-          </TabsContent>
-        )}
-      </Tabs>
+      <ResourceBodyEditor
+        data-testid="prompt-body-textarea"
+        value={formData.body}
+        onChange={onBodyChange}
+        view={view}
+        onViewChange={onViewChange}
+        error={errors.body}
+        placeholder="Write your prompt here… Use markdown for **bold**, *italic*, `code`.&#10;&#10;💡 Type @ to reference other prompts"
+        extensions={extensions}
+      />
     </div>
   )
 }

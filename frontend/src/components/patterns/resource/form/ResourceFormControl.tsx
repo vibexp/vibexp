@@ -14,11 +14,12 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { useTypes } from '@/hooks/useTypes'
 
+import { ResourceBodyEditor } from '../editor'
 import { fieldValues } from '../statusTone'
 import type { FieldSpec, FormFieldSpec } from '../types'
 import { TaxonomyInput } from './TaxonomyInput'
 
-/** What a `body` control is handed, so #914's editor can replace the textarea. */
+/** What a `body` control is handed, so a page can substitute its own editor. */
 export interface BodySlotProps extends SlotProps {
   value: string
   onChange: (next: string) => void
@@ -57,7 +58,7 @@ export interface ResourceFormControlProps extends SlotProps {
   metadataRequiredKeys?: string[]
   /** Keys another control owns, so the metadata editor hides them. */
   metadataReservedKeys?: string[]
-  /** Replaces the default body textarea (#914). */
+  /** Replaces the shared `ResourceBodyEditor` (#914). */
   renderBody?: (props: BodySlotProps) => ReactNode
 }
 
@@ -245,17 +246,19 @@ export function ResourceFormControl({
         'data-testid': spec.testId,
       }
       if (renderBody) return renderBody(bodyProps)
+      // Write / Preview for every kind, with no extensions: the prompt-only
+      // mentions, Render tab and template loader are opt-in, and a page that
+      // wants them passes its own `renderBody` (#914).
       return (
-        <Textarea
+        <ResourceBodyEditor
           {...slot}
           value={bodyProps.value}
           disabled={disabled}
           placeholder={spec.placeholder}
           data-testid={spec.testId}
-          rows={22}
-          className="font-mono text-sm"
-          onChange={event => {
-            onChange(event.target.value)
+          aria-label={label}
+          onChange={next => {
+            onChange(next)
           }}
         />
       )

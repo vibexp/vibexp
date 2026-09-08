@@ -213,7 +213,7 @@ export interface ResourceListSpec {
  * | --- | --- |
  * | `text` | single-line `Input`; the value is trimmed |
  * | `textarea` | short multi-line `Textarea` (a summary) |
- * | `body` | the long-form editor slot, a `Textarea` until #914 lands |
+ * | `body` | the shared `ResourceBodyEditor` — Write/Preview markdown (#914) |
  * | `select` | option list, from the field's values or a runtime catalog |
  * | `project` | the shared `ProjectPicker` |
  * | `taxonomy` | a chip editor over a list of strings |

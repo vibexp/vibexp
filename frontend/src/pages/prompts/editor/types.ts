@@ -1,3 +1,4 @@
+import type { BodyEditorView } from '@/components/patterns/resource'
 import type { Project } from '@/services/projectService'
 
 export interface PromptFormData {
@@ -11,7 +12,8 @@ export interface PromptFormData {
   project_id: string
 }
 
-export type EditorView = 'write' | 'preview' | 'render'
+/** The prompt editor's tabs are the shared body editor's — one vocabulary, not two. */
+export type EditorView = BodyEditorView
 
 export interface EditorSettingsProps {
   formData: PromptFormData

@@ -11,6 +11,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { MetadataEditor } from '@/components/metadata/MetadataEditor'
+import { ResourceBodyEditor } from '@/components/patterns/resource'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -30,7 +31,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import { MEMORY_STATUS_OPTIONS } from '@/pages/memories/memoryStatus'
 import type {
   CreateMemoryRequest,
@@ -174,15 +174,15 @@ export const MemoryForm = forwardRef<MemoryFormHandle, MemoryFormProps>(
                 <FormItem>
                   <FormLabel className="sr-only">Memory content</FormLabel>
                   <FormControl>
-                    <Textarea
-                      {...field}
+                    <ResourceBodyEditor
                       data-testid="memory-content-textarea"
+                      value={field.value}
+                      onChange={field.onChange}
                       disabled={isLoading}
-                      rows={24}
                       placeholder="Enter your memory content here…
 
 Share insights, learnings, code snippets, or any valuable information you want to remember."
-                      className="font-mono text-sm"
+                      aria-label="Memory content"
                     />
                   </FormControl>
                   <FormMessage />

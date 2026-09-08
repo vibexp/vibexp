@@ -10,6 +10,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { MetadataEditor } from '@/components/metadata/MetadataEditor'
+import { ResourceBodyEditor } from '@/components/patterns/resource'
 import { ProjectPicker } from '@/components/ProjectPicker'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -169,13 +170,13 @@ export const ArtifactForm = forwardRef<ArtifactFormHandle, ArtifactFormProps>(
                 <FormItem>
                   <FormLabel className="sr-only">Content</FormLabel>
                   <FormControl>
-                    <Textarea
-                      {...field}
+                    <ResourceBodyEditor
                       data-testid="artifact-content-textarea"
+                      value={field.value}
+                      onChange={field.onChange}
                       disabled={isLoading}
-                      rows={22}
                       placeholder="Enter artifact content…"
-                      className="font-mono text-sm"
+                      aria-label="Content"
                     />
                   </FormControl>
                   <FormMessage />
