@@ -160,13 +160,14 @@ func TestBlueprintRepository_Create_PersistsProvenance(t *testing.T) {
 	repo := NewBlueprintRepository(&database.DB{DB: db})
 	now := time.Now()
 	// Args: 13 base cols, then path, path_derived, raw_content, content_sha,
-	// source_repo, source_commit_sha, source_blob_sha, source_content_sha, imported_at.
+	// source_repo, source_commit_sha, source_blob_sha, source_content_sha,
+	// imported_at, labels.
 	mock.ExpectQuery("INSERT INTO blueprints").
 		WithArgs(
 			"proj-1", "s", "u", "team-1", "T", "D", "raw body",
 			"active", "general", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
 			"CLAUDE.md", false, "raw body", "sha-1",
-			"https://github.com/o/r", "commit-1", "blob-1", nil, now,
+			"https://github.com/o/r", "commit-1", "blob-1", nil, now, sqlmock.AnyArg(),
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow("bp-1", now, now))
 
@@ -201,11 +202,13 @@ func TestBlueprintRepository_GetByID_AssemblesSource(t *testing.T) {
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 		"path", "path_derived", "raw_content", "content_sha",
 		"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
+		"labels",
 	}).AddRow(
 		"bp-1", "proj-1", "s", "u", "team-1", "T", "D",
 		"body", "active", "general", nil, nil, now, now, 1,
 		"CLAUDE.md", false, "raw bytes", "sha-1",
 		"https://github.com/o/r", "commit-1", "blob-1", "import-sha", now,
+		pq.StringArray{"onboarding"},
 	)
 	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*").
 		WithArgs("bp-1", "team-1", "u").WillReturnRows(rows)

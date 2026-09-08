@@ -82,6 +82,16 @@ Blueprint:
       example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     source:
       $ref: '#/BlueprintSource'
+    labels:
+      type: array
+      items:
+        type: string
+        maxLength: 50
+      maxItems: 10
+      example: ["onboarding", "api"]
+      description: >-
+        Labels for categorising and filtering. Always present: an empty array
+        when the resource has none. At most 10 labels, 50 characters each.
     related:
       type: array
       description: >-
@@ -112,6 +122,7 @@ Blueprint:
     - title
     - type
     - path
+    - labels
 
 # Read-only import provenance for a blueprint (server-set on import; absent for
 # VibeXP-authored blueprints).
@@ -215,6 +226,14 @@ CreateBlueprintRequest:
         default is derived from (type, subtype, slug). Must be relative — no
         leading "/", no "..", no backslashes.
       example: ".claude/skills/deploy/SKILL.md"
+    labels:
+      type: array
+      items:
+        type: string
+        maxLength: 50
+      maxItems: 10
+      example: ["onboarding", "api"]
+      description: "Optional labels for categorising and filtering (max 10, 50 characters each)"
   required:
     - slug
     - content
@@ -280,6 +299,14 @@ UpdateBlueprintRequest:
         Optional repo-relative path override; freezes the blueprint's path. Must
         be relative — no leading "/", no "..", no backslashes.
       example: ".claude/skills/deploy/SKILL.md"
+    labels:
+      type: array
+      items:
+        type: string
+        maxLength: 50
+      maxItems: 10
+      example: ["onboarding", "api"]
+      description: "Updated labels for categorising and filtering (max 10, 50 characters each)"
 
 # Response model for spec library lists
 BlueprintListResponse:

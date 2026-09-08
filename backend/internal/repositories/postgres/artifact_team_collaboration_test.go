@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -58,16 +59,16 @@ func TestArtifactRepository_TeamMember_CanListOtherMembersArtifacts(t *testing.T
 
 	// Mock list query - no DISTINCT or JOINs needed with EXISTS subqueries
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
-		`a\.description, a\.status, a\.type, a\.metadata, a\.created_at, a\.updated_at\s+FROM artifacts a\s+WHERE`
+		`a\.description, a\.status, a\.type, a\.metadata, a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE`
 	mock.ExpectQuery(listQuery).
 		WithArgs(teamID, teamID, bobUserID, teamID, bobUserID, "archived").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
-			"status", "type", "metadata", "created_at", "updated_at",
+			"status", "type", "metadata", "created_at", "updated_at", "labels",
 		}).AddRow(
 			aliceArtifactID, "project-123", "design-doc", aliceUserID, teamID,
 			"System Design Document", "Architecture design",
-			"active", "work_reports", []byte("{}"), now, now,
+			"active", "work_reports", []byte("{}"), now, now, pq.StringArray{},
 		))
 
 	// Bob lists artifacts
@@ -112,11 +113,11 @@ func TestArtifactRepository_TeamMember_CanGetOtherMembersArtifacts(t *testing.T)
 		WithArgs(aliceArtifactID, teamID, bobUserID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
-			"content", "status", "type", "metadata", "created_at", "updated_at", "version",
+			"content", "status", "type", "metadata", "created_at", "updated_at", "version", "labels",
 		}).AddRow(
 			aliceArtifactID, "project-123", "design-doc", aliceUserID, teamID,
 			"System Design Document", "Architecture design", "Content here",
-			"active", "work_reports", []byte("{}"), now, now, 1,
+			"active", "work_reports", []byte("{}"), now, now, 1, pq.StringArray{},
 		))
 
 	// Bob gets Alice's artifact
@@ -182,7 +183,7 @@ func TestArtifactRepository_TeamMember_CanUpdateOtherMembersArtifacts(t *testing
 		WithArgs(
 			aliceArtifactID, "project-123", "design-doc",
 			"System Design - Updated by Bob", "Updated description", "Updated content",
-			"active", "work_reports", sqlmock.AnyArg(), teamID, now, teamID, 1,
+			"active", "work_reports", sqlmock.AnyArg(), teamID, now, teamID, 1, sqlmock.AnyArg(),
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 
@@ -342,17 +343,17 @@ func TestArtifactRepository_ListCrossTeam_ReturnsArtifactsFromMultipleTeams(t *t
 	// LIST query must include a.user_id = $1 to prove creator-ownership scoping
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id,` +
 		` a\.title, a\.description, a\.status, a\.type, a\.metadata,` +
-		` a\.created_at, a\.updated_at\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
+		` a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, "archived").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
-			"status", "type", "metadata", "created_at", "updated_at",
+			"status", "type", "metadata", "created_at", "updated_at", "labels",
 		}).
 			AddRow(artifactAID, "project-1", "slug-a", aliceUserID, teamAID,
-				"Artifact A", "Desc A", "active", "general", []byte("{}"), now, now).
+				"Artifact A", "Desc A", "active", "general", []byte("{}"), now, now, pq.StringArray{}).
 			AddRow(artifactBID, "project-2", "slug-b", aliceUserID, teamBID,
-				"Artifact B", "Desc B", "active", "work_reports", []byte("{}"), now, now))
+				"Artifact B", "Desc B", "active", "work_reports", []byte("{}"), now, now, pq.StringArray{}))
 
 	artifacts, total, err := repo.ListCrossTeam(ctx, aliceUserID, filters)
 
@@ -403,15 +404,15 @@ func TestArtifactRepository_ListCrossTeam_ExcludesOtherUsersArtifacts(t *testing
 
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
-		` a\.created_at, a\.updated_at\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
+		` a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, "archived").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
-			"status", "type", "metadata", "created_at", "updated_at",
+			"status", "type", "metadata", "created_at", "updated_at", "labels",
 		}).AddRow(
 			aliceArtifactID, "project-1", "slug-alice", aliceUserID, "team-1",
-			"Alice's Artifact", "", "active", "general", []byte("{}"), now, now,
+			"Alice's Artifact", "", "active", "general", []byte("{}"), now, now, pq.StringArray{},
 		))
 
 	artifacts, total, err := repo.ListCrossTeam(ctx, aliceUserID, filters)
@@ -459,15 +460,15 @@ func TestArtifactRepository_ListCrossTeam_HonoursProjectFilter(t *testing.T) {
 
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
-		` a\.created_at, a\.updated_at\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
+		` a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, projectID, "archived").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
-			"status", "type", "metadata", "created_at", "updated_at",
+			"status", "type", "metadata", "created_at", "updated_at", "labels",
 		}).AddRow(
 			artifactID, projectID, "slug-1", aliceUserID, "team-1",
-			"Project Artifact", "", "active", "general", []byte("{}"), now, now,
+			"Project Artifact", "", "active", "general", []byte("{}"), now, now, pq.StringArray{},
 		))
 
 	artifacts, total, err := repo.ListCrossTeam(ctx, aliceUserID, filters)
@@ -515,15 +516,15 @@ func TestArtifactRepository_ListCrossTeam_HonoursStatusAndTypeFilter(t *testing.
 
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
-		` a\.created_at, a\.updated_at\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
+		` a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, typeStr, statusStr).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
-			"status", "type", "metadata", "created_at", "updated_at",
+			"status", "type", "metadata", "created_at", "updated_at", "labels",
 		}).AddRow(
 			artifactID, "project-1", "slug-work", aliceUserID, "team-1",
-			"Work Report", "", "active", "work_reports", []byte("{}"), now, now,
+			"Work Report", "", "active", "work_reports", []byte("{}"), now, now, pq.StringArray{},
 		))
 
 	artifacts, total, err := repo.ListCrossTeam(ctx, aliceUserID, filters)
@@ -570,15 +571,15 @@ func TestArtifactRepository_ListCrossTeam_HonoursSearchFilter(t *testing.T) {
 
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
-		` a\.created_at, a\.updated_at\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
+		` a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, "active", "%design%", "%design%", "%design%").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
-			"status", "type", "metadata", "created_at", "updated_at",
+			"status", "type", "metadata", "created_at", "updated_at", "labels",
 		}).AddRow(
 			artifactID, "project-1", "slug-design", aliceUserID, "team-1",
-			"System Design Document", "", "active", "general", []byte("{}"), now, now,
+			"System Design Document", "", "active", "general", []byte("{}"), now, now, pq.StringArray{},
 		))
 
 	artifacts, total, err := repo.ListCrossTeam(ctx, aliceUserID, filters)

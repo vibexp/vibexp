@@ -51,13 +51,13 @@ func TestArtifactRepository_OptimisticLocking(t *testing.T) {
 
 	// Simulate version mismatch (no rows affected)
 	// Args order: id, project_id, slug, title, description, content, status, type, metadata,
-	// team_id, updated_at, team_id, version
+	// team_id, updated_at, team_id, version, labels
 	mock.ExpectQuery("UPDATE artifacts.*WHERE.*").
 		WithArgs(
 			artifact.ID, artifact.ProjectID, artifact.Slug,
 			artifact.Title, artifact.Description, artifact.Content,
 			artifact.Status, artifact.Type, sqlmock.AnyArg(),
-			artifact.TeamID, sqlmock.AnyArg(), artifact.TeamID, artifact.Version,
+			artifact.TeamID, sqlmock.AnyArg(), artifact.TeamID, artifact.Version, sqlmock.AnyArg(),
 		).
 		WillReturnError(sql.ErrNoRows)
 
@@ -98,12 +98,12 @@ func TestMemoryRepository_OptimisticLocking(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Simulate version mismatch (UPDATE fails because version doesn't match)
-	// Args order: id, text, status, metadata, project_id, team_id, updated_at, team_id, version, user_id.
+	// Args order: id, text, status, metadata, project_id, team_id, updated_at, team_id, version, labels.
 	// The memory carries no status, so the repository defaults it to "active".
 	mock.ExpectQuery("UPDATE memories.*WHERE.*").
 		WithArgs(
 			memory.ID, memory.Text, "active", sqlmock.AnyArg(), memory.ProjectID,
-			memory.TeamID, sqlmock.AnyArg(), memory.TeamID, memory.Version,
+			memory.TeamID, sqlmock.AnyArg(), memory.TeamID, memory.Version, sqlmock.AnyArg(),
 		).
 		WillReturnError(sql.ErrNoRows)
 
@@ -152,7 +152,8 @@ func TestBlueprintRepository_OptimisticLocking(t *testing.T) {
 
 	// Simulate version mismatch (UPDATE fails because version doesn't match)
 	// Args order: id, project_id, slug, title, description, content, status, type, subtype,
-	// metadata, team_id, updated_at, path, path_derived, raw_content, content_sha, team_id, version
+	// metadata, team_id, updated_at, path, path_derived, raw_content, content_sha, team_id, version,
+	// labels
 	mock.ExpectQuery("UPDATE blueprints.*WHERE.*").
 		WithArgs(
 			specLibrary.ID, specLibrary.ProjectID, specLibrary.Slug,
@@ -160,7 +161,7 @@ func TestBlueprintRepository_OptimisticLocking(t *testing.T) {
 			specLibrary.Status, specLibrary.Type, specLibrary.Subtype, sqlmock.AnyArg(),
 			specLibrary.TeamID, sqlmock.AnyArg(),
 			specLibrary.Path, specLibrary.PathDerived, sqlmock.AnyArg(), sqlmock.AnyArg(),
-			specLibrary.TeamID, specLibrary.Version,
+			specLibrary.TeamID, specLibrary.Version, sqlmock.AnyArg(),
 		).
 		WillReturnError(sql.ErrNoRows)
 
@@ -212,13 +213,13 @@ func TestArtifactRepository_SuccessfulUpdate(t *testing.T) {
 		AddRow(now, 2) // Version incremented to 2
 
 	// Args order: id, project_id, slug, title, description, content, status, type, metadata,
-	// team_id, updated_at, team_id, version
+	// team_id, updated_at, team_id, version, labels
 	mock.ExpectQuery("UPDATE artifacts.*WHERE.*").
 		WithArgs(
 			artifact.ID, artifact.ProjectID, artifact.Slug,
 			artifact.Title, artifact.Description, artifact.Content,
 			artifact.Status, artifact.Type, sqlmock.AnyArg(),
-			artifact.TeamID, sqlmock.AnyArg(), artifact.TeamID, artifact.Version,
+			artifact.TeamID, sqlmock.AnyArg(), artifact.TeamID, artifact.Version, sqlmock.AnyArg(),
 		).
 		WillReturnRows(rows)
 

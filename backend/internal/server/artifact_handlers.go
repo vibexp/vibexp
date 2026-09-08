@@ -560,6 +560,11 @@ func (s *Server) handleCreateArtifactError(w http.ResponseWriter, userID string,
 		return
 	}
 
+	if errors.Is(err, services.ErrInvalidLabels) {
+		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	s.logger.With(
 		"service", serverLogServiceName,
 		"handler", "handleCreateArtifact",
@@ -644,6 +649,11 @@ func (s *Server) handleUpdateArtifactError(w http.ResponseWriter, userID, projec
 		s.logger.With("service", serverLogServiceName, "handler", "handleUpdateArtifact", "user_id", userID).
 			Warn("Forbidden artifact write attempt")
 		writeErrorResponse(w, nil, "forbidden", "You do not have permission to update this artifact", http.StatusForbidden)
+		return
+	}
+
+	if errors.Is(err, services.ErrInvalidLabels) {
+		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return
 	}
 

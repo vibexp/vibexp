@@ -462,6 +462,11 @@ func (s *Server) handleCreateBlueprintError(w http.ResponseWriter, userID string
 		return
 	}
 
+	if errors.Is(err, services.ErrInvalidLabels) {
+		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	s.logger.With(
 		"service", serverLogServiceName,
 		"handler", "handleCreateBlueprint",
@@ -549,7 +554,7 @@ func (s *Server) handleUpdateBlueprintError(w http.ResponseWriter, userID, proje
 		return
 	}
 
-	if errors.Is(err, services.ErrInvalidBlueprintPath) {
+	if errors.Is(err, services.ErrInvalidBlueprintPath) || errors.Is(err, services.ErrInvalidLabels) {
 		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return
 	}

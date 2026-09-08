@@ -29,6 +29,7 @@ type CreateBlueprintParams struct {
 	Subtype     *string                `json:"subtype,omitempty" jsonschema:"Optional subtype (e.g. \"sub-agents\"); when \"sub-agents\", metadata.model is required"`
 	Status      string                 `json:"status,omitempty" jsonschema:"One of \"active\", \"expired\""`
 	Metadata    map[string]interface{} `json:"metadata,omitempty" jsonschema:"Optional custom metadata (e.g. {\"model\": \"...\"} for sub-agents)"`
+	Labels      []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }
 
 // UpdateBlueprintParams defines the parameters for updating an existing blueprint.
@@ -47,6 +48,7 @@ type UpdateBlueprintParams struct {
 	Subtype     *string                `json:"subtype,omitempty" jsonschema:"New subtype (e.g. \"sub-agents\")"`
 	Status      string                 `json:"status,omitempty" jsonschema:"New status: one of \"active\", \"expired\""`
 	Metadata    map[string]interface{} `json:"metadata,omitempty" jsonschema:"New custom metadata (replaces the existing metadata when provided)"`
+	Labels      []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }
 
 // blueprintWriteResponse is the slim response returned by create/update blueprint tools.
@@ -99,6 +101,7 @@ func (s *Server) createBlueprint(
 		Subtype:     params.Subtype,
 		Status:      params.Status,
 		Metadata:    params.Metadata,
+		Labels:      params.Labels,
 	}
 
 	blueprint, err := s.container.BlueprintService().CreateBlueprint(userID, teamID, createReq)
@@ -147,6 +150,9 @@ func buildBlueprintUpdateRequest(params *UpdateBlueprintParams) *models.UpdateBl
 	}
 	if params.Metadata != nil {
 		updateReq.Metadata = params.Metadata
+	}
+	if params.Labels != nil {
+		updateReq.Labels = params.Labels
 	}
 	return updateReq
 }

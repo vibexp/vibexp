@@ -52,6 +52,16 @@ Memory:
       format: int64
       description: "Version number for optimistic concurrency control"
       example: 1
+    labels:
+      type: array
+      items:
+        type: string
+        maxLength: 50
+      maxItems: 10
+      example: ["onboarding", "api"]
+      description: >-
+        Labels for categorising and filtering. Always present: an empty array
+        when the resource has none. At most 10 labels, 50 characters each.
     related:
       type: array
       description: >-
@@ -80,6 +90,7 @@ Memory:
     - created_at
     - updated_at
     - version
+    - labels
 
 # Request model for creating memories
 CreateMemoryRequest:
@@ -108,6 +119,14 @@ CreateMemoryRequest:
         category: "reminder"
         priority: "high"
         project: "api-project"
+    labels:
+      type: array
+      items:
+        type: string
+        maxLength: 50
+      maxItems: 10
+      example: ["onboarding", "api"]
+      description: "Optional labels for categorising and filtering (max 10, 50 characters each)"
   required:
     - project_id
     - text
@@ -140,6 +159,14 @@ UpdateMemoryRequest:
         priority: "medium"
         project: "api-project"
         updated: true
+    labels:
+      type: array
+      items:
+        type: string
+        maxLength: 50
+      maxItems: 10
+      example: ["onboarding", "api"]
+      description: "Updated labels for categorising and filtering (max 10, 50 characters each)"
 
 # Response model for memory lists
 MemoryListResponse:

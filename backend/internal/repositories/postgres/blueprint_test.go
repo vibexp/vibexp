@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -42,12 +43,14 @@ func TestGetByID_NilMetadata(t *testing.T) {
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 		"path", "path_derived", "raw_content", "content_sha",
 		"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
+		"labels",
 	}).AddRow(
 		blueprintID, "550e8400-e29b-41d4-a716-446655440000", "test-slug",
 		userID, "team-123", "Test Title", "Test Description",
 		"Test Content", "active", "general", nil, nil, // NULL subtype and metadata
 		time.Now(), time.Now(), 1,
 		"test.md", true, nil, nil, nil, nil, nil, nil, nil, // path, path_derived, NULL sync+source_content_sha/provenance
+		pq.StringArray{},
 	)
 
 	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*").
@@ -81,11 +84,13 @@ func TestGetByProjectIDAndSlug_NilMetadata(t *testing.T) {
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 		"path", "path_derived", "raw_content", "content_sha",
 		"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
+		"labels",
 	}).AddRow(
 		"spec-lib-456", projectID, slug, userID, "team-123", "Test Title", "Test Description",
 		"Test Content", "active", "general", nil, nil, // NULL subtype and metadata
 		time.Now(), time.Now(), 1,
 		"test.md", true, nil, nil, nil, nil, nil, nil, nil, // path, path_derived, NULL sync+source_content_sha/provenance
+		pq.StringArray{},
 	)
 
 	query := "SELECT (.+) FROM blueprints s.*"
@@ -110,10 +115,11 @@ func blueprintDetailRow() *sqlmock.Rows {
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 		"path", "path_derived", "raw_content", "content_sha",
 		"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
+		"labels",
 	}).AddRow(
 		"bp-1", "proj-1", "slug", "user-1", "team-1", "T", "D",
 		"body", "active", "general", nil, nil, time.Now(), time.Now(), 1,
-		"slug.md", true, "raw", "sha", nil, nil, nil, nil, nil,
+		"slug.md", true, "raw", "sha", nil, nil, nil, nil, nil, pq.StringArray{},
 	)
 }
 

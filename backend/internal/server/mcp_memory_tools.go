@@ -51,6 +51,7 @@ type StoreMemoryParams struct {
 	Text      string                 `json:"text" jsonschema:"Memory content/text"`
 	Status    string                 `json:"status,omitempty" jsonschema:"Lifecycle status: active (default), draft, or archived"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty" jsonschema:"Additional key-value metadata pairs"`
+	Labels    []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }
 
 // UpdateMemoryParams defines the parameters for updating a specific memory
@@ -60,6 +61,7 @@ type UpdateMemoryParams struct {
 	Text     string                 `json:"text,omitempty" jsonschema:"New memory text"`
 	Status   string                 `json:"status,omitempty" jsonschema:"New lifecycle status: active, draft, or archived"`
 	Metadata map[string]interface{} `json:"metadata,omitempty" jsonschema:"New metadata"`
+	Labels   []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }
 
 // Memory Tool Implementations
@@ -99,6 +101,7 @@ func (s *Server) storeMemory(
 		Text:      params.Text,
 		Status:    statusPtr,
 		Metadata:  params.Metadata,
+		Labels:    params.Labels,
 	}
 
 	memory, err := s.container.MemoryService().CreateMemory(userID, teamID, createReq)
@@ -186,6 +189,25 @@ func buildMemorySearchItems(memories []models.Memory) []memorySearchItem {
 	return items
 }
 
+// buildMemoryUpdateRequest builds an UpdateMemoryRequest from the non-empty
+// params fields. Empty string fields are left as nil pointers, so a field
+// cannot be cleared to "" via update (consistent with the other MCP write
+// tools); labels and metadata ARE clearable, because an explicitly supplied
+// empty list is a meaningful edit.
+func buildMemoryUpdateRequest(params *UpdateMemoryParams, statusPtr *string) *models.UpdateMemoryRequest {
+	updateReq := &models.UpdateMemoryRequest{Status: statusPtr}
+	if params.Text != "" {
+		updateReq.Text = &params.Text
+	}
+	if params.Metadata != nil {
+		updateReq.Metadata = params.Metadata
+	}
+	if params.Labels != nil {
+		updateReq.Labels = params.Labels
+	}
+	return updateReq
+}
+
 // updateMemory implements the tool that updates a specific memory in the resolved team.
 func (s *Server) updateMemory(
 	ctx context.Context,
@@ -203,15 +225,8 @@ func (s *Server) updateMemory(
 		return statusErr, nil, nil
 	}
 
-	updateReq := &models.UpdateMemoryRequest{Status: statusPtr}
-	if params.Text != "" {
-		updateReq.Text = &params.Text
-	}
-	if params.Metadata != nil {
-		updateReq.Metadata = params.Metadata
-	}
-
-	memory, err := s.container.MemoryService().UpdateMemory(userID, teamID, params.MemoryID, updateReq)
+	memory, err := s.container.MemoryService().UpdateMemory(
+		userID, teamID, params.MemoryID, buildMemoryUpdateRequest(params, statusPtr))
 	if err != nil {
 		slog.Error(
 			"Failed to update memory via MCP",

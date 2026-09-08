@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,6 +20,7 @@ import (
 // version column on the list path).
 var memoryListColumns = []string{
 	"id", "user_id", "team_id", "project_id", "text", "status", "metadata", "created_at", "updated_at",
+	"labels",
 }
 
 // setupMemoryListTest builds a MemoryRepository backed by a sqlmock connection.
@@ -61,7 +63,7 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 	oneRow := func() *sqlmock.Rows {
 		return sqlmock.NewRows(memoryListColumns).AddRow(
 			"memory-1", "user-123", "team-123", "project-123", "remember this",
-			"active", []byte(`{"env":"prod"}`), now, now,
+			"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
 		)
 	}
 
@@ -315,13 +317,13 @@ func TestMemoryRepository_List_ExplicitProjection(t *testing.T) {
 
 	mock.ExpectQuery(
 		`SELECT m\.id, m\.user_id, m\.team_id, m\.project_id, ` +
-			`m\.text, m\.status, m\.metadata, m\.created_at, m\.updated_at ` +
+			`m\.text, m\.status, m\.metadata, m\.created_at, m\.updated_at, m\.labels ` +
 			`FROM memories m WHERE`,
 	).
 		WithArgs(memoryListDefaultArgs()...).
 		WillReturnRows(sqlmock.NewRows(memoryListColumns).AddRow(
 			"memory-1", "user-123", "team-123", "project-123", "remember this",
-			"active", []byte(`{"env":"prod"}`), now, now,
+			"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
 		))
 
 	memories, total, err := repo.List(ctx, "user-123", filters)
@@ -388,7 +390,7 @@ func TestMemoryRepository_List_ErrorPaths(t *testing.T) {
 					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows(memoryListColumns).AddRow(
 						"memory-1", "user-123", "team-123", "project-123", "remember this",
-						"active", []byte(`{not valid json`), now, now,
+						"active", []byte(`{not valid json`), now, now, pq.StringArray{},
 					))
 			},
 			wantErr: "failed to unmarshal metadata",
@@ -401,7 +403,7 @@ func TestMemoryRepository_List_ErrorPaths(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				rows := sqlmock.NewRows(memoryListColumns).AddRow(
 					"memory-1", "user-123", "team-123", "project-123", "remember this",
-					"active", []byte(`{"env":"prod"}`), now, now,
+					"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
 				).RowError(0, sql.ErrConnDone)
 				mock.ExpectQuery(`FROM memories m`).
 					WithArgs(memoryListDefaultArgs()...).

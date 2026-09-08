@@ -134,9 +134,9 @@ func (r *BlueprintRepository) Create(ctx context.Context, blueprint *models.Blue
 		(project_id, slug, user_id, team_id, title, description, content,
 		status, type, subtype, metadata, created_at, updated_at,
 		path, path_derived, raw_content, content_sha,
-		source_repo, source_commit_sha, source_blob_sha, source_content_sha, imported_at)
+		source_repo, source_commit_sha, source_blob_sha, source_content_sha, imported_at, labels)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-		$14, $15, $16, $17, $18, $19, $20, $21, $22)
+		$14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -147,6 +147,7 @@ func (r *BlueprintRepository) Create(ctx context.Context, blueprint *models.Blue
 		blueprint.CreatedAt, blueprint.UpdatedAt,
 		blueprint.Path, blueprint.PathDerived, nullableString(blueprint.RawContent), nullableString(blueprint.ContentSHA),
 		srcRepo, srcCommit, srcBlob, nullableString(blueprint.SourceContentSHA), importedAt,
+		blueprint.Labels,
 	).Scan(&blueprint.ID, &blueprint.CreatedAt, &blueprint.UpdatedAt)
 
 	if err != nil {
@@ -171,7 +172,8 @@ func (r *BlueprintRepository) GetByID(
 		SELECT s.id, s.project_id, s.slug, s.user_id, s.team_id, s.title, s.description, s.content, s.status,
 		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
 		s.path, s.path_derived, s.raw_content, s.content_sha,
-		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at
+		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at,
+		s.labels
 		FROM blueprints s
 		WHERE s.id = $1
 			AND s.team_id = $2
@@ -191,6 +193,7 @@ func (r *BlueprintRepository) GetByID(
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
+		&blueprint.Labels,
 	)
 
 	if err != nil {
@@ -220,7 +223,8 @@ func (r *BlueprintRepository) GetByProjectIDAndPath(
 		SELECT s.id, s.project_id, s.slug, s.user_id, s.team_id, s.title, s.description, s.content, s.status,
 		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
 		s.path, s.path_derived, s.raw_content, s.content_sha,
-		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at
+		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at,
+		s.labels
 		FROM blueprints s
 		WHERE s.project_id = $1
 			AND s.path = $2
@@ -241,6 +245,7 @@ func (r *BlueprintRepository) GetByProjectIDAndPath(
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
+		&blueprint.Labels,
 	)
 	if err != nil {
 		return nil, mapNoRows(
@@ -266,7 +271,8 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 		SELECT s.id, s.project_id, s.slug, s.user_id, s.team_id, s.title, s.description, s.content, s.status,
 		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
 		s.path, s.path_derived, s.raw_content, s.content_sha,
-		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at
+		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at,
+		s.labels
 		FROM blueprints s
 		WHERE s.project_id = $1
 			AND s.slug = $2
@@ -287,6 +293,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
+		&blueprint.Labels,
 	)
 
 	if err != nil {
@@ -317,7 +324,7 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 		SELECT id, project_id, slug, user_id, team_id, title, description, content, status,
 		type, subtype, metadata, created_at, updated_at, version,
 		path, path_derived, raw_content, content_sha,
-		source_repo, source_commit_sha, source_blob_sha, source_content_sha, imported_at
+		source_repo, source_commit_sha, source_blob_sha, source_content_sha, imported_at, labels
 		FROM blueprints
 		WHERE id = $1 AND user_id = $2
 	`
@@ -332,6 +339,7 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
+		&blueprint.Labels,
 	)
 
 	if err != nil {
@@ -362,7 +370,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlugCrossTeam(
 		SELECT id, project_id, slug, user_id, team_id, title, description, content, status,
 		type, subtype, metadata, created_at, updated_at, version,
 		path, path_derived, raw_content, content_sha,
-		source_repo, source_commit_sha, source_blob_sha, source_content_sha, imported_at
+		source_repo, source_commit_sha, source_blob_sha, source_content_sha, imported_at, labels
 		FROM blueprints
 		WHERE project_id = $1 AND slug = $2 AND user_id = $3
 	`
@@ -377,6 +385,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlugCrossTeam(
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
+		&blueprint.Labels,
 	)
 
 	if err != nil {
@@ -409,6 +418,7 @@ var blueprintListColumns = []string{
 	"s.metadata", "s.created_at", "s.updated_at",
 	"s.path", "s.path_derived", "s.content_sha",
 	"s.source_repo", "s.source_commit_sha", "s.source_blob_sha", "s.imported_at",
+	"s.labels",
 }
 
 // buildBlueprintListOrderByClause builds the ORDER BY clause for the blueprint
@@ -452,6 +462,8 @@ func applyBlueprintFilters(
 	if containment := metadataContainment("s.metadata", filters.MetadataFilter); containment != nil {
 		where = append(where, containment)
 	}
+
+	where = applyLabelsFilter(where, "s.labels", filters.Labels)
 
 	return where
 }
@@ -611,6 +623,7 @@ func scanBlueprintListRows(rows *sql.Rows) ([]models.Blueprint, error) {
 			&metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt,
 			&blueprint.Path, &blueprint.PathDerived, &sync.contentSHA,
 			&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
+			&blueprint.Labels,
 		)
 		if scanErr != nil {
 			return nil, fmt.Errorf("failed to scan blueprint: %w", scanErr)
@@ -669,7 +682,8 @@ func (r *BlueprintRepository) Update(ctx context.Context, blueprint *models.Blue
 		UPDATE blueprints
 		SET project_id = $2, slug = $3, title = $4, description = $5, content = $6,
 		status = $7, type = $8, subtype = $9, metadata = $10, team_id = $11, updated_at = $12,
-		path = $13, path_derived = $14, raw_content = $15, content_sha = $16, version = version + 1
+		path = $13, path_derived = $14, raw_content = $15, content_sha = $16, labels = $19,
+		version = version + 1
 		WHERE id = $1
 			AND team_id = $17
 			AND version = $18
@@ -682,7 +696,7 @@ func (r *BlueprintRepository) Update(ctx context.Context, blueprint *models.Blue
 		blueprint.Status, blueprint.Type, blueprint.Subtype, metadataJSON,
 		blueprint.TeamID, blueprint.UpdatedAt,
 		blueprint.Path, blueprint.PathDerived, nullableString(blueprint.RawContent), nullableString(blueprint.ContentSHA),
-		blueprint.TeamID, blueprint.Version,
+		blueprint.TeamID, blueprint.Version, blueprint.Labels,
 	).Scan(&blueprint.UpdatedAt, &blueprint.Version)
 
 	if err != nil {
@@ -719,6 +733,9 @@ func (r *BlueprintRepository) UpdateOnReimport(ctx context.Context, blueprint *m
 		path = $8, path_derived = $9, raw_content = $10, content_sha = $11,
 		source_repo = $12, source_commit_sha = $13, source_blob_sha = $14, source_content_sha = $15,
 		imported_at = $16, updated_at = $17, version = version + 1
+		-- labels is deliberately NOT in this SET list: it is team taxonomy applied
+		-- inside VibeXP, not content derived from the source repo, so a re-import
+		-- must preserve it (issue #910).
 		WHERE id = $1 AND team_id = $18
 		RETURNING updated_at, version
 	`

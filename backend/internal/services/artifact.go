@@ -69,6 +69,9 @@ type ArtifactFilters struct {
 	Search    string
 	SortBy    string
 	SortOrder string
+	// Labels narrows the list to resources carrying at least one of these
+	// labels, from the comma-separated `labels` query parameter (issue #910).
+	Labels []string
 	// MetadataFilter is the parsed `metadata` query parameter (epic #519).
 	MetadataFilter repositories.MetadataFilter
 	Page           int
@@ -142,6 +145,7 @@ func buildArtifactFromRequest(
 		Status:      status,
 		Type:        artifactType,
 		Metadata:    metadata,
+		Labels:      normalizeLabels(req.Labels),
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -151,6 +155,12 @@ func (s *ArtifactService) CreateArtifact(
 	userID, teamID string, req *models.CreateArtifactRequest,
 ) (*models.Artifact, error) {
 	ctx := context.Background()
+
+	// Reject an over-limit label list before anything else: the documented
+	// maxItems/maxLength are enforced nowhere else (issue #910).
+	if err := validateLabels(req.Labels); err != nil {
+		return nil, err
+	}
 
 	// Validate and resolve team ID
 	finalTeamID, err := s.validateAndResolveTeamID(ctx, userID, teamID, nil)
@@ -285,6 +295,7 @@ func (s *ArtifactService) ListArtifacts(userID string, filters ArtifactFilters) 
 		SortBy:         filters.SortBy,
 		SortOrder:      filters.SortOrder,
 		MetadataFilter: filters.MetadataFilter,
+		Labels:         filters.Labels,
 		Page:           filters.Page,
 		Limit:          filters.Limit,
 	}
@@ -348,6 +359,7 @@ func (s *ArtifactService) ListArtifactsByProjectCrossTeam(
 		SortBy:         filters.SortBy,
 		SortOrder:      filters.SortOrder,
 		MetadataFilter: filters.MetadataFilter,
+		Labels:         filters.Labels,
 		Page:           filters.Page,
 		Limit:          filters.Limit,
 	}
@@ -400,6 +412,9 @@ func applyArtifactUpdates(artifact *models.Artifact, req *models.UpdateArtifactR
 	if req.Metadata != nil {
 		artifact.Metadata = req.Metadata
 	}
+	if req.Labels != nil {
+		artifact.Labels = normalizeLabels(req.Labels)
+	}
 	artifact.UpdatedAt = time.Now()
 }
 
@@ -444,6 +459,12 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 		context.Background(), userID, artifact.TeamID, authz.ResourceUpdateAny,
 	); authzErr != nil {
 		return nil, authzErr
+	}
+
+	// Reject an over-limit label list before anything else: the documented
+	// maxItems/maxLength are enforced nowhere else (issue #910).
+	if err := validateLabels(req.Labels); err != nil {
+		return nil, err
 	}
 
 	ctx := context.Background()
