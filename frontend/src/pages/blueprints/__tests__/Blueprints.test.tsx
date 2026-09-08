@@ -168,6 +168,7 @@ function buildBlueprint(overrides: Partial<Blueprint> = {}): Blueprint {
     description: 'The canonical API spec',
     type: 'general',
     metadata: {},
+    labels: [],
     ...overrides,
   }
 }

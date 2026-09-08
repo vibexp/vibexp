@@ -4,25 +4,31 @@ import { useNavigate, useParams } from 'react-router'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { PageHeader } from '@/components/PageHeader'
+import type {
+  ResourceFormHandle,
+  ResourceFormValues,
+} from '@/components/patterns/resource'
+import {
+  formHeading,
+  formSaveLabel,
+  getResourceDescriptor,
+  ResourceFormPage,
+} from '@/components/patterns/resource'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import {
-  BlueprintForm,
-  type BlueprintFormHandle,
-} from '@/pages/blueprints/BlueprintForm'
-import type {
-  Blueprint,
-  CreateBlueprintRequest,
-  UpdateBlueprintRequest,
-} from '@/services/blueprintService'
+  requiredMetadataKeys,
+  toBlueprintRequest,
+} from '@/pages/blueprints/blueprintRequest'
+import type { Blueprint } from '@/services/blueprintService'
 import { blueprintService } from '@/services/blueprintService'
-import type { Project } from '@/services/projectService'
-import { projectService } from '@/services/projectService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
+
+const descriptor = getResourceDescriptor('blueprint')
 
 export function BlueprintEdit() {
   const { project, slug } = useParams<{ project: string; slug: string }>()
@@ -33,11 +39,10 @@ export function BlueprintEdit() {
   const { trackEvent } = useAnalytics()
 
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null)
-  const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updating, setUpdating] = useState(false)
-  const formRef = useRef<BlueprintFormHandle>(null)
+  const formRef = useRef<ResourceFormHandle>(null)
 
   const loadAll = useCallback(async () => {
     if (isLoadingTeam) return
@@ -54,16 +59,12 @@ export function BlueprintEdit() {
     try {
       setLoading(true)
       setError(null)
-      const [a, projectsRes] = await Promise.all([
-        blueprintService.getBlueprint(
-          currentTeam.id,
-          decodeURIComponent(project),
-          decodeURIComponent(slug)
-        ),
-        projectService.getProjects(currentTeam.id, { limit: 100 }),
-      ])
+      const a = await blueprintService.getBlueprint(
+        currentTeam.id,
+        decodeURIComponent(project),
+        decodeURIComponent(slug)
+      )
       setBlueprint(a)
-      setProjects(projectsRes.projects)
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to load blueprint'))
       handleError(err, 'Failed to load blueprint')
@@ -76,9 +77,7 @@ export function BlueprintEdit() {
     void loadAll()
   }, [loadAll])
 
-  const handleSubmit = async (
-    data: CreateBlueprintRequest | UpdateBlueprintRequest
-  ) => {
+  const handleSubmit = async (values: ResourceFormValues) => {
     if (!blueprint || !currentTeam) return
     try {
       setUpdating(true)
@@ -86,7 +85,7 @@ export function BlueprintEdit() {
         currentTeam.id,
         blueprint.project_id,
         blueprint.slug,
-        data
+        toBlueprintRequest(values)
       )
       trackEvent({
         event: ANALYTICS_EVENTS.BLUEPRINT_UPDATED,
@@ -146,7 +145,7 @@ export function BlueprintEdit() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Edit blueprint"
+        title={formHeading(descriptor, 'edit')}
         description={blueprint.title}
         actions={
           <>
@@ -166,17 +165,19 @@ export function BlueprintEdit() {
               disabled={updating}
             >
               <Save className="mr-2 size-4" />
-              {updating ? 'Saving…' : 'Save changes'}
+              {updating ? 'Saving…' : formSaveLabel(descriptor, 'edit')}
             </Button>
           </>
         }
       />
-      <BlueprintForm
+      <ResourceFormPage
         ref={formRef}
-        blueprint={blueprint}
-        projects={projects}
+        descriptor={descriptor}
+        mode="edit"
+        initialValues={blueprint}
         onSubmit={handleSubmit}
         isLoading={updating}
+        metadataRequiredKeys={requiredMetadataKeys(blueprint)}
       />
     </div>
   )

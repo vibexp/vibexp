@@ -1,22 +1,34 @@
 import { ArrowLeft, Save } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { PageHeader } from '@/components/PageHeader'
+import type {
+  ResourceFormHandle,
+  ResourceFormValues,
+} from '@/components/patterns/resource'
+import {
+  formHeading,
+  formSaveLabel,
+  getResourceDescriptor,
+  ResourceFormPage,
+} from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { MemoryForm, type MemoryFormHandle } from '@/pages/memories/MemoryForm'
-import type {
-  CreateMemoryRequest,
-  UpdateMemoryRequest,
-} from '@/services/memoryService'
+import {
+  RESERVED_METADATA_KEYS,
+  toMemoryRequest,
+} from '@/pages/memories/memoryRequest'
+import { MemoryTagsCard } from '@/pages/memories/MemoryTagsCard'
 import { memoryService } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
+
+const descriptor = getResourceDescriptor('memory')
 
 export function MemoryCreate() {
   const navigate = useNavigate()
@@ -28,7 +40,8 @@ export function MemoryCreate() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loadingProjects, setLoadingProjects] = useState(true)
   const [creating, setCreating] = useState(false)
-  const formRef = useRef<MemoryFormHandle>(null)
+  const [tags, setTags] = useState<string[]>([])
+  const formRef = useRef<ResourceFormHandle>(null)
 
   const fetchProjects = useCallback(async () => {
     if (isLoadingTeam) return
@@ -54,9 +67,16 @@ export function MemoryCreate() {
     void fetchProjects()
   }, [fetchProjects])
 
-  const handleSubmit = async (
-    data: CreateMemoryRequest | UpdateMemoryRequest
-  ) => {
+  // The one kind whose create page still fetches projects itself: it preselects
+  // the first one, which `ProjectPicker` deliberately does not do (#1790). That
+  // default is the reason `e2e/memories.spec.ts` can create a memory without
+  // touching the picker, so it is behaviour rather than convenience.
+  const initialValues = useMemo<ResourceFormValues | undefined>(
+    () => (projects.length > 0 ? { project_id: projects[0].id } : undefined),
+    [projects]
+  )
+
+  const handleSubmit = async (values: ResourceFormValues) => {
     if (!currentTeam) {
       handleError(
         new Error('Team context is required'),
@@ -68,7 +88,9 @@ export function MemoryCreate() {
       setCreating(true)
       const memory = await memoryService.createMemory(
         currentTeam.id,
-        data as CreateMemoryRequest
+        // A create omits an empty title entirely; only an update sends `null`,
+        // which is how the API distinguishes "unchanged" from "cleared".
+        toMemoryRequest(values, tags, undefined)
       )
       trackEvent({
         event: ANALYTICS_EVENTS.MEMORY_CREATED,
@@ -91,7 +113,7 @@ export function MemoryCreate() {
   if (loadingProjects) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Create memory" />
+        <PageHeader title={formHeading(descriptor, 'create')} />
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
@@ -102,7 +124,7 @@ export function MemoryCreate() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Create memory"
+        title={formHeading(descriptor, 'create')}
         description="Save a new memory for future reference."
         actions={
           <>
@@ -122,16 +144,28 @@ export function MemoryCreate() {
               disabled={creating || projects.length === 0}
             >
               <Save className="mr-2 size-4" />
-              {creating ? 'Creating…' : 'Create memory'}
+              {creating ? 'Creating…' : formSaveLabel(descriptor, 'create')}
             </Button>
           </>
         }
       />
-      <MemoryForm
+      <ResourceFormPage
         ref={formRef}
-        projects={projects}
+        descriptor={descriptor}
+        mode="create"
+        initialValues={initialValues}
         onSubmit={handleSubmit}
         isLoading={creating}
+        metadataReservedKeys={RESERVED_METADATA_KEYS}
+        extensions={{
+          tags: (
+            <MemoryTagsCard
+              value={tags}
+              onChange={setTags}
+              disabled={creating}
+            />
+          ),
+        }}
       />
     </div>
   )

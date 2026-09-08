@@ -87,6 +87,7 @@ const mockArtifact: Artifact = vi.hoisted(() => ({
   description: 'A test artifact',
   type: 'general',
   metadata: {},
+  labels: [],
 }))
 
 function renderArtifactView(project = 'my-project', slug = 'my-artifact') {

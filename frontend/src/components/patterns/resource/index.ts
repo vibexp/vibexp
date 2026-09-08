@@ -14,9 +14,12 @@ export {
   type BodySlotProps,
   buildFormSchema,
   defaultFormValues,
+  enumValue,
   formHeading,
   formSaveLabel,
   formSubtitle,
+  metadataOrUndefined,
+  recordValue,
   type ResourceFormHandle,
   type ResourceFormMode,
   ResourceFormPage,
@@ -25,6 +28,10 @@ export {
   SLUG_MESSAGE,
   SLUG_PATTERN,
   slugify,
+  stringListValue,
+  stringValue,
+  TaxonomyInput,
+  type TaxonomyInputProps,
 } from './form'
 export {
   getResourceDescriptor,

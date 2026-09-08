@@ -17,6 +17,7 @@ import {
   getResourceDescriptor,
 } from '@/components/patterns/resource'
 import { markdownToExcerpt } from '@/lib/markdownExcerpt'
+import { extractTags } from '@/pages/memories/memoryRequest'
 import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 
@@ -32,12 +33,6 @@ const MEMORY_EXCERPT_LENGTH = 140
  * the descriptor.
  */
 const tagsField: FieldSpec = { key: 'tags', role: 'taxonomy', label: 'Tags' }
-
-export function extractTags(meta?: Record<string, unknown>): string[] {
-  const tags = meta?.tags
-  if (!Array.isArray(tags)) return []
-  return tags.filter((t): t is string => typeof t === 'string')
-}
 
 export function buildMemoriesColumns({
   navigate,
@@ -79,13 +74,19 @@ export function buildMemoriesColumns({
 
   return columnList<Memory>(
     nameColumn<Memory>({
-      field: fieldOfRole(descriptor, 'name'),
-      // A memory has no title: the list shows an excerpt of its body, which is
-      // why this column reads "Content" rather than the descriptor's label.
+      // The BODY field, not the `name` one, and deliberately: a memory's title
+      // is optional (#911) so most rows still show a body excerpt, and the
+      // endpoint's `sort_by` accepts `text` and has no `title` value — keying
+      // the column on `title` would silently drop its sort header.
+      field: fieldOfRole(descriptor, 'body'),
+      // Which is also why it reads "Content" rather than the field's label.
       header: 'Content',
-      // Plain text, not markdown: the raw body puts `#` and `**` in the
+      // The title when there is one; otherwise an excerpt of the body — plain
+      // text, not markdown, because the raw body puts `#` and `**` in the
       // memory's only identifying cell (#909).
-      value: memory => markdownToExcerpt(memory.text, MEMORY_EXCERPT_LENGTH),
+      value: memory =>
+        memory.title?.trim() ??
+        markdownToExcerpt(memory.text, MEMORY_EXCERPT_LENGTH),
       multiline: true,
       className: 'max-w-xl',
       // Renders nothing when the resource is fresh.

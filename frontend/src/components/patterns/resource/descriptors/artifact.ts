@@ -7,6 +7,7 @@ import {
 } from '../filterSpecs'
 import {
   bodyFormField,
+  labelsFormField,
   metadataFormField,
   nameFormField,
   projectFormField,
@@ -56,6 +57,7 @@ export const artifactDescriptor = defineResource({
         static_contexts: 'Static contexts',
       },
     },
+    { key: 'labels', role: 'taxonomy', label: 'Labels', optional: true },
     // The free-form blob: object-valued, so the metadata section renders no
     // row for it — `ResourceTaxonomySection` owns it.
     { key: 'metadata', role: 'meta', label: 'Metadata', optional: true },
@@ -98,7 +100,11 @@ export const artifactDescriptor = defineResource({
         testId: 'artifact-type-select',
       },
       statusFormField('artifact'),
-      bodyFormField('content', 'artifact-content-textarea'),
+      {
+        ...bodyFormField('content', 'artifact-content-textarea'),
+        placeholder: 'Enter artifact content…',
+      },
+      labelsFormField('labels', 'artifact-labels-input'),
       metadataFormField(),
     ],
   },

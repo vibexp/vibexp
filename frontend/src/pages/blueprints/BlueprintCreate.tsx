@@ -1,26 +1,28 @@
 import { ArrowLeft, Save } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
-import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { PageHeader } from '@/components/PageHeader'
+import type {
+  ResourceFormHandle,
+  ResourceFormValues,
+} from '@/components/patterns/resource'
+import {
+  formHeading,
+  formSaveLabel,
+  getResourceDescriptor,
+  ResourceFormPage,
+} from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import {
-  BlueprintForm,
-  type BlueprintFormHandle,
-} from '@/pages/blueprints/BlueprintForm'
-import type {
-  CreateBlueprintRequest,
-  UpdateBlueprintRequest,
-} from '@/services/blueprintService'
+import { toBlueprintRequest } from '@/pages/blueprints/blueprintRequest'
 import { blueprintService } from '@/services/blueprintService'
-import type { Project } from '@/services/projectService'
-import { projectService } from '@/services/projectService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
+
+const descriptor = getResourceDescriptor('blueprint')
 
 export function BlueprintCreate() {
   const navigate = useNavigate()
@@ -29,37 +31,10 @@ export function BlueprintCreate() {
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
 
-  const [projects, setProjects] = useState<Project[]>([])
-  const [loadingProjects, setLoadingProjects] = useState(true)
   const [creating, setCreating] = useState(false)
-  const formRef = useRef<BlueprintFormHandle>(null)
+  const formRef = useRef<ResourceFormHandle>(null)
 
-  const fetchProjects = useCallback(async () => {
-    if (!currentTeam) {
-      setLoadingProjects(false)
-      return
-    }
-    try {
-      setLoadingProjects(true)
-      const res = await projectService.getProjects(currentTeam.id, {
-        limit: 100,
-      })
-      setProjects(res.projects)
-    } catch (error) {
-      console.error('Failed to fetch projects:', error)
-      setProjects([])
-    } finally {
-      setLoadingProjects(false)
-    }
-  }, [currentTeam])
-
-  useEffect(() => {
-    void fetchProjects()
-  }, [fetchProjects])
-
-  const handleSubmit = async (
-    data: CreateBlueprintRequest | UpdateBlueprintRequest
-  ) => {
+  const handleSubmit = async (values: ResourceFormValues) => {
     if (!currentTeam) {
       showError('Team context is required', 'Create Failed')
       return
@@ -68,7 +43,7 @@ export function BlueprintCreate() {
       setCreating(true)
       const blueprint = await blueprintService.createBlueprint(
         currentTeam.id,
-        data as CreateBlueprintRequest
+        toBlueprintRequest(values)
       )
       trackEvent({
         event: ANALYTICS_EVENTS.BLUEPRINT_CREATED,
@@ -90,21 +65,10 @@ export function BlueprintCreate() {
     }
   }
 
-  if (loadingProjects) {
-    return (
-      <div className="space-y-6">
-        <PageHeader title="Create blueprint" />
-        <div className="flex justify-center py-12">
-          <LoadingSpinner size="lg" />
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Create blueprint"
+        title={formHeading(descriptor, 'create')}
         description="Save AI-generated content to reuse later."
         actions={
           <>
@@ -124,14 +88,15 @@ export function BlueprintCreate() {
               disabled={creating}
             >
               <Save className="mr-2 size-4" />
-              {creating ? 'Creating…' : 'Create blueprint'}
+              {creating ? 'Creating…' : formSaveLabel(descriptor, 'create')}
             </Button>
           </>
         }
       />
-      <BlueprintForm
+      <ResourceFormPage
         ref={formRef}
-        projects={projects}
+        descriptor={descriptor}
+        mode="create"
         onSubmit={handleSubmit}
         isLoading={creating}
       />

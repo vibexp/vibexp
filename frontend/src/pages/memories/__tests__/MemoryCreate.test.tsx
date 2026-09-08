@@ -22,6 +22,18 @@ vi.mock('@/services/projectService', () => ({
   },
 }))
 
+// The picker fetches and searches projects of its own; these tests are about
+// which project the PAGE preselects, so it is stubbed to echo the value.
+vi.mock('@/components/ProjectPicker', () => ({
+  ProjectPicker: ({
+    value,
+    'data-testid': testId,
+  }: {
+    value: string
+    'data-testid'?: string
+  }) => <div data-testid={testId}>{value}</div>,
+}))
+
 vi.mock('@/hooks', () => ({
   useAlerts: () => ({ showSuccess: vi.fn(), showError: vi.fn() }),
   useAnalytics: () => ({ trackEvent: vi.fn() }),
@@ -57,6 +69,8 @@ const mockCreatedMemory: Memory = {
   team_id: 'team-1',
   project_id: 'project-1',
   text: 'My new memory',
+  title: null,
+  labels: [],
   status: 'active',
   metadata: {},
   created_at: '2024-01-01T00:00:00Z',

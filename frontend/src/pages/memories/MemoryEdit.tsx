@@ -1,25 +1,37 @@
 import { AlertCircle, ArrowLeft, Save } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { PageHeader } from '@/components/PageHeader'
+import type {
+  ResourceFormHandle,
+  ResourceFormValues,
+} from '@/components/patterns/resource'
+import {
+  formHeading,
+  formSaveLabel,
+  getResourceDescriptor,
+  ResourceFormPage,
+} from '@/components/patterns/resource'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { MemoryForm, type MemoryFormHandle } from '@/pages/memories/MemoryForm'
-import type {
-  CreateMemoryRequest,
-  Memory,
-  UpdateMemoryRequest,
-} from '@/services/memoryService'
+import {
+  extractTags,
+  memoryInitialValues,
+  RESERVED_METADATA_KEYS,
+  toMemoryRequest,
+} from '@/pages/memories/memoryRequest'
+import { MemoryTagsCard } from '@/pages/memories/MemoryTagsCard'
+import type { Memory } from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
-import type { Project } from '@/services/projectService'
-import { projectService } from '@/services/projectService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
+
+const descriptor = getResourceDescriptor('memory')
 
 export function MemoryEdit() {
   const { id } = useParams<{ id: string }>()
@@ -30,11 +42,11 @@ export function MemoryEdit() {
   const { trackEvent } = useAnalytics()
 
   const [memory, setMemory] = useState<Memory | null>(null)
-  const [projects, setProjects] = useState<Project[]>([])
+  const [tags, setTags] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updating, setUpdating] = useState(false)
-  const formRef = useRef<MemoryFormHandle>(null)
+  const formRef = useRef<ResourceFormHandle>(null)
 
   const loadAll = useCallback(async () => {
     if (isLoadingTeam) return
@@ -51,12 +63,9 @@ export function MemoryEdit() {
     try {
       setLoading(true)
       setError(null)
-      const [response, projectsRes] = await Promise.all([
-        memoryService.getMemory(currentTeam.id, id),
-        projectService.getProjects(currentTeam.id, { limit: 100 }),
-      ])
+      const response = await memoryService.getMemory(currentTeam.id, id)
       setMemory(response)
-      setProjects(projectsRes.projects)
+      setTags(extractTags(response.metadata))
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to load memory'))
       handleError(err, 'Failed to load memory')
@@ -69,13 +78,18 @@ export function MemoryEdit() {
     void loadAll()
   }, [loadAll])
 
-  const handleSubmit = async (
-    data: CreateMemoryRequest | UpdateMemoryRequest
-  ) => {
+  const handleSubmit = async (values: ResourceFormValues) => {
     if (!id || !memory || !currentTeam) return
     try {
       setUpdating(true)
-      await memoryService.updateMemory(currentTeam.id, id, data)
+      // `null`, not omitted: on an update the API reads a missing `title` as
+      // "leave it alone" and `null` as "clear it", so emptying the field must
+      // send the explicit null.
+      await memoryService.updateMemory(
+        currentTeam.id,
+        id,
+        toMemoryRequest(values, tags, null)
+      )
       trackEvent({
         event: ANALYTICS_EVENTS.MEMORY_UPDATED,
         properties: {
@@ -96,6 +110,14 @@ export function MemoryEdit() {
       setUpdating(false)
     }
   }
+
+  // Memoised on the resource, not rebuilt per render: `ResourceFormPage`
+  // re-seeds on a CONTENT change, so a fresh literal is harmless but a fresh
+  // `JSON.stringify` of the whole memory on every keystroke is not.
+  const initialValues = useMemo(
+    () => (memory ? memoryInitialValues(memory) : undefined),
+    [memory]
+  )
 
   if (isLoadingTeam || loading) {
     return (
@@ -135,7 +157,7 @@ export function MemoryEdit() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Edit memory"
+        title={formHeading(descriptor, 'edit')}
         description="Update the content or tags."
         actions={
           <>
@@ -155,17 +177,28 @@ export function MemoryEdit() {
               disabled={updating}
             >
               <Save className="mr-2 size-4" />
-              {updating ? 'Saving…' : 'Save changes'}
+              {updating ? 'Saving…' : formSaveLabel(descriptor, 'edit')}
             </Button>
           </>
         }
       />
-      <MemoryForm
+      <ResourceFormPage
         ref={formRef}
-        memory={memory}
-        projects={projects}
+        descriptor={descriptor}
+        mode="edit"
+        initialValues={initialValues}
         onSubmit={handleSubmit}
         isLoading={updating}
+        metadataReservedKeys={RESERVED_METADATA_KEYS}
+        extensions={{
+          tags: (
+            <MemoryTagsCard
+              value={tags}
+              onChange={setTags}
+              disabled={updating}
+            />
+          ),
+        }}
       />
     </div>
   )

@@ -17,6 +17,13 @@ export {
   type ResourceFormMode,
 } from './formLabels'
 export {
+  enumValue,
+  metadataOrUndefined,
+  recordValue,
+  stringListValue,
+  stringValue,
+} from './formValues'
+export {
   type BodySlotProps,
   ResourceFormControl,
   type ResourceFormControlProps,

@@ -17,7 +17,7 @@ import type { SortDir } from './types'
  *
  * - clicking the active column flips the direction;
  * - a new column starts in the direction that reads naturally for it — A–Z for
- *   the name column, newest-first for everything else;
+ *   the list's primary text column, newest-first for everything else;
  * - a `sort_by` the URL happens to contain but the descriptor does not declare
  *   falls back, because the list endpoints answer an unknown `sort_by` with a
  *   400 rather than ignoring it.
@@ -57,11 +57,21 @@ export function useResourceListSort({
     () => descriptor.list?.sortable ?? [],
     [descriptor]
   )
-  const nameKey = fieldOfRole(descriptor, 'name')?.key
-
   // Membership only, so a Set rather than an array scan (Sonar S7776); the
   // array itself still goes to `ListTable`, which cares about the order.
   const allowed = useMemo(() => new Set<string>(sortableKeys), [sortableKeys])
+
+  // The column that sorts A–Z on its first click: the `name` field wherever the
+  // endpoint can sort by it, and otherwise the `body` field. Memory is why the
+  // fallback exists — its title is optional (#911) so the primary column shows
+  // an excerpt of the body, and `sort_by` on /memories offers `text`, never
+  // `title`. Stated as a rule rather than a special case so a user-defined kind
+  // with an optional name gets the same behaviour.
+  const nameKey = fieldOfRole(descriptor, 'name')?.key
+  const primaryKey =
+    nameKey !== undefined && allowed.has(nameKey)
+      ? nameKey
+      : fieldOfRole(descriptor, 'body')?.key
 
   const sortKey = allowed.has(sortBy) ? sortBy : fallback
 
@@ -78,9 +88,12 @@ export function useResourceListSort({
         })
         return
       }
-      setFilters({ sort_by: key, sort_order: key === nameKey ? 'asc' : 'desc' })
+      setFilters({
+        sort_by: key,
+        sort_order: key === primaryKey ? 'asc' : 'desc',
+      })
     },
-    [nameKey, setFilters, sortKey, sortOrder]
+    [primaryKey, setFilters, sortKey, sortOrder]
   )
 
   return { sortableKeys, sortKey, onSortChange }

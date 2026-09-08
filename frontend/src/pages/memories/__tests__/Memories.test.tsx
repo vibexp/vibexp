@@ -12,7 +12,8 @@ import { render, screen } from '@testing-library/react'
 import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 
-import { buildMemoriesColumns, extractTags } from '../memoriesColumns'
+import { buildMemoriesColumns } from '../memoriesColumns'
+import { extractTags } from '../memoryRequest'
 
 const makeMemory = (overrides: Partial<Memory> = {}): Memory => ({
   id: 'mem-1',
@@ -20,8 +21,10 @@ const makeMemory = (overrides: Partial<Memory> = {}): Memory => ({
   team_id: 'team-1',
   project_id: 'project-alpha',
   text: 'Sample memory',
+  title: null,
   status: 'active',
   metadata: {},
+  labels: [],
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-02T00:00:00Z',
   version: 1,

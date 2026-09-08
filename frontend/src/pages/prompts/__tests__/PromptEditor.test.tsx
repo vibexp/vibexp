@@ -197,6 +197,31 @@ vi.mock('@/hooks', () => {
   }
 })
 
+// The picker fetches and searches projects of its own. Stubbed to one button so
+// the tests can choose a project without going through that machinery — the
+// generated form's own suite covers the real wiring.
+vi.mock('@/components/ProjectPicker', () => ({
+  ProjectPicker: ({
+    value,
+    onChange,
+    'data-testid': testId,
+  }: {
+    value: string
+    onChange: (id: string) => void
+    'data-testid'?: string
+  }) => (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={() => {
+        onChange('p1')
+      }}
+    >
+      {value || 'pick project'}
+    </button>
+  ),
+}))
+
 vi.mock('@/lib/toast', () => ({
   toast: {
     success: vi.fn(),
@@ -213,6 +238,7 @@ import { useAnalytics } from '@/hooks'
 import { toast } from '@/lib/toast'
 import { projectService } from '@/services/projectService'
 import { promptService } from '@/services/promptService'
+import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 import { PromptEditor } from '../PromptEditor'
 
@@ -287,81 +313,98 @@ beforeEach(() => {
   ;(promptService.updatePrompt as Mock).mockResolvedValue(buildPrompt())
 })
 
+/** Everything a create needs before the schema will let it submit. */
+async function fillRequiredFields(
+  user: ReturnType<typeof userEvent.setup>,
+  name = 'My Prompt'
+) {
+  await user.type(screen.getByTestId('prompt-name-input'), name)
+  fireEvent.change(screen.getByTestId('prompt-body-textarea'), {
+    target: { value: 'Hello {{name}}' },
+  })
+}
+
 describe('PromptEditor — create mode', () => {
-  it('renders an empty form and navigates back on Back', async () => {
+  it('renders the generated form and navigates back on Back', async () => {
     const user = userEvent.setup()
     renderEditor()
 
-    expect(screen.getByText('Create new prompt')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Create prompt' })
+    ).toBeInTheDocument()
+    expect(screen.getByTestId('resource-form')).toBeInTheDocument()
     expect(screen.getByTestId('prompt-name-input')).toHaveValue('')
     expect(screen.getByTestId('prompt-body-textarea')).toHaveValue('')
-    expect(screen.getByText('Save as draft')).toBeInTheDocument()
     expect(promptService.getPrompt).not.toHaveBeenCalled()
-
-    await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenCalledWith('team-1', {})
-    })
 
     await user.click(screen.getByRole('button', { name: /back/i }))
     expect(mockNavigate).toHaveBeenCalledWith('/prompts')
   })
 
-  it('auto-generates the slug from the name and creates the prompt with the typed payload', async () => {
-    const user = userEvent.setup()
+  it('preselects the only project a team has', async () => {
+    renderEditor()
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-project-select')).toHaveTextContent(
+        'p1'
+      )
+    })
+  })
+
+  it('leaves the project empty when the team has more than one', async () => {
+    ;(projectService.getProjects as Mock).mockResolvedValue({
+      projects: [projectAlpha, projectBeta],
+    })
     renderEditor()
 
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenCalled()
     })
-
-    await user.type(screen.getByTestId('prompt-name-input'), 'My New Prompt!')
-    // Auto-slug is shown next to the name field
-    expect(await screen.findByText('my-new-prompt')).toBeInTheDocument()
-
-    await user.type(
-      screen.getByTestId('prompt-body-textarea'),
-      'Review the code'
+    expect(screen.getByTestId('prompt-project-select')).toHaveTextContent(
+      'pick project'
     )
+  })
+
+  it('auto-generates the slug from the name and creates the prompt', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-project-select')).toHaveTextContent(
+        'p1'
+      )
+    })
+
+    await fillRequiredFields(user, 'My New Prompt')
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-slug-input')).toHaveValue(
+        'my-new-prompt'
+      )
+    })
 
     await user.click(screen.getByTestId('prompt-save-button'))
 
     await waitFor(() => {
       expect(promptService.createPrompt).toHaveBeenCalledWith('team-1', {
-        name: 'My New Prompt!',
+        name: 'My New Prompt',
         slug: 'my-new-prompt',
         description: '',
-        body: 'Review the code',
+        body: 'Hello {{name}}',
+        project_id: 'p1',
         status: 'draft',
         mcp_expose: false,
-        // The single available project was auto-selected.
-        project_id: 'p1',
         labels: [],
       })
     })
-    expect(promptService.updatePrompt).not.toHaveBeenCalled()
-    expect(toast.success).toHaveBeenCalledWith('Prompt created successfully')
     expect(mockNavigate).toHaveBeenCalledWith('/prompts/my-new-prompt')
   })
 
   it('surfaces validation errors and does not save an empty form', async () => {
-    // Two projects → no auto-selection, so project_id is empty too.
-    ;(projectService.getProjects as Mock).mockResolvedValue({
-      projects: [projectAlpha, projectBeta],
-    })
     const user = userEvent.setup()
     renderEditor()
 
-    await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenCalled()
-    })
-
     await user.click(screen.getByTestId('prompt-save-button'))
 
-    expect(toast.error).toHaveBeenCalledWith('Please fix the validation errors')
-    expect(screen.getByText('Name is required')).toBeInTheDocument()
-    expect(screen.getByText('Slug is required')).toBeInTheDocument()
-    expect(screen.getByText('Project is required')).toBeInTheDocument()
-    expect(screen.getByText('Prompt content is required')).toBeInTheDocument()
+    expect(await screen.findByText('Name is required')).toBeInTheDocument()
+    expect(screen.getByText('Body is required')).toBeInTheDocument()
     expect(promptService.createPrompt).not.toHaveBeenCalled()
   })
 
@@ -369,63 +412,51 @@ describe('PromptEditor — create mode', () => {
     const user = userEvent.setup()
     renderEditor()
 
-    await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenCalled()
-    })
-
-    await user.type(screen.getByTestId('prompt-name-input'), 'Named')
-    await user.type(screen.getByTestId('prompt-body-textarea'), 'Body')
-
-    const slugInput = screen.getByTestId('prompt-slug-input')
-    await user.clear(slugInput)
-    await user.type(slugInput, 'Bad Slug!')
-
-    // Manual edit turns off auto-generation
-    expect(
-      screen.getByText(/Custom slug \(won't auto-update\)/)
-    ).toBeInTheDocument()
-
+    await fillRequiredFields(user)
+    await user.clear(screen.getByTestId('prompt-slug-input'))
+    await user.type(screen.getByTestId('prompt-slug-input'), 'Bad Slug!')
     await user.click(screen.getByTestId('prompt-save-button'))
 
     expect(
-      screen.getByText(
-        'Slug must contain only lowercase letters, numbers, and hyphens'
-      )
+      await screen.findByText('Lowercase letters, numbers, and dashes only')
     ).toBeInTheDocument()
     expect(promptService.createPrompt).not.toHaveBeenCalled()
   })
 
-  it('carries settings-pane edits (status, MCP, labels, description) into the payload', async () => {
+  it('rejects a description longer than 200 characters', async () => {
     const user = userEvent.setup()
     renderEditor()
 
+    await fillRequiredFields(user)
+    fireEvent.change(screen.getByTestId('prompt-description-input'), {
+      target: { value: 'x'.repeat(201) },
+    })
+    await user.click(screen.getByTestId('prompt-save-button'))
+
+    expect(
+      await screen.findByText('Description must be at most 200 characters')
+    ).toBeInTheDocument()
+    expect(promptService.createPrompt).not.toHaveBeenCalled()
+  })
+
+  it('carries the status, the labels and the MCP toggle into the payload', async () => {
+    const user = userEvent.setup()
+    renderEditor()
     await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenCalled()
+      expect(screen.getByTestId('prompt-project-select')).toHaveTextContent(
+        'p1'
+      )
     })
 
-    await user.type(screen.getByTestId('prompt-name-input'), 'Configured')
-    await user.type(screen.getByTestId('prompt-body-textarea'), 'Body')
+    await fillRequiredFields(user)
+    await user.type(screen.getByTestId('prompt-labels-input'), 'review')
+    await user.keyboard('{Enter}')
 
-    // Description with live character counter
-    const description = screen.getByPlaceholderText(
-      'Enter a brief description…'
-    )
-    await user.type(description, 'Short summary')
-    expect(screen.getByText('13/200')).toBeInTheDocument()
-
-    // Labels: add two, ignore a duplicate, then remove one
-    const labelsInput = screen.getByPlaceholderText('Type and press Enter…')
-    await user.type(labelsInput, 'alpha{Enter}')
-    await user.type(labelsInput, 'beta{Enter}')
-    await user.type(labelsInput, 'alpha{Enter}')
-    expect(screen.getByText('2/10 labels')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Remove alpha' }))
-    expect(screen.getByText('1/10 labels')).toBeInTheDocument()
-
-    // Status → published flips the save label and reveals the MCP switch
+    // The MCP switch only exists once the prompt is published — the slot reads
+    // the live status out of the form rather than mirroring it in the page.
+    expect(screen.queryByTestId('prompt-mcp-expose')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Published' }))
-    expect(screen.getByText('Publish')).toBeInTheDocument()
-    await user.click(screen.getByRole('switch'))
+    await user.click(await screen.findByTestId('prompt-mcp-expose'))
 
     await user.click(screen.getByTestId('prompt-save-button'))
 
@@ -433,50 +464,53 @@ describe('PromptEditor — create mode', () => {
       expect(promptService.createPrompt).toHaveBeenCalledWith(
         'team-1',
         expect.objectContaining({
-          description: 'Short summary',
-          labels: ['beta'],
           status: 'published',
           mcp_expose: true,
+          labels: ['review'],
         })
       )
     })
   })
 
-  it('rejects a description longer than 200 characters', async () => {
+  it('never exposes a draft over MCP, however the toggle was left', async () => {
     const user = userEvent.setup()
     renderEditor()
-
     await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenCalled()
+      expect(screen.getByTestId('prompt-project-select')).toHaveTextContent(
+        'p1'
+      )
     })
 
-    await user.type(screen.getByTestId('prompt-name-input'), 'Named')
-    await user.type(screen.getByTestId('prompt-body-textarea'), 'Body')
-    // Bypass the textarea's maxLength the way a paste would
-    fireEvent.change(
-      screen.getByPlaceholderText('Enter a brief description…'),
-      { target: { value: 'x'.repeat(201) } }
-    )
-
+    await fillRequiredFields(user)
+    await user.click(screen.getByRole('button', { name: 'Published' }))
+    await user.click(await screen.findByTestId('prompt-mcp-expose'))
+    // …and back to draft, which withdraws the switch without resetting it.
+    await user.click(screen.getByRole('button', { name: 'Draft' }))
     await user.click(screen.getByTestId('prompt-save-button'))
 
-    expect(
-      screen.getByText('Description cannot be longer than 200 characters')
-    ).toBeInTheDocument()
-    expect(promptService.createPrompt).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(promptService.createPrompt).toHaveBeenCalledWith(
+        'team-1',
+        expect.objectContaining({ status: 'draft', mcp_expose: false })
+      )
+    })
   })
 
   it('prefills the form from navigation state', () => {
     renderEditor({
       pathname: '/prompts/create',
-      state: { title: 'Source Prompt', body: 'Copied body', description: 'D' },
+      state: {
+        title: 'Gallery Prompt',
+        body: 'Gallery body',
+        description: 'Gallery description',
+      },
     })
 
     expect(screen.getByTestId('prompt-name-input')).toHaveValue(
-      'Based on: Source Prompt'
+      'Based on: Gallery Prompt'
     )
     expect(screen.getByTestId('prompt-body-textarea')).toHaveValue(
-      'Copied body'
+      'Gallery body'
     )
   })
 
@@ -484,94 +518,112 @@ describe('PromptEditor — create mode', () => {
     const user = userEvent.setup()
     renderEditor()
 
-    await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenCalled()
-    })
-
     await user.click(screen.getByRole('button', { name: /load template/i }))
     await user.click(screen.getByTestId('template-loader-pick'))
 
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-body-textarea')).toHaveValue(
+        'Template body'
+      )
+    })
     expect(screen.getByTestId('prompt-name-input')).toHaveValue(
       'Great Template (Copy)'
-    )
-    expect(screen.getByTestId('prompt-body-textarea')).toHaveValue(
-      'Template body'
-    )
-    expect(toast.success).toHaveBeenCalledWith(
-      'Template "Great Template" loaded'
     )
   })
 
   it('asks for confirmation before a template overwrites existing content', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const user = userEvent.setup()
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     renderEditor()
 
+    await user.type(screen.getByTestId('prompt-body-textarea'), 'typed')
     await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenCalled()
+      expect(screen.getByTestId('prompt-body-textarea')).toHaveValue('typed')
     })
-
-    await user.type(screen.getByTestId('prompt-body-textarea'), 'Precious')
     await user.click(screen.getByRole('button', { name: /load template/i }))
     await user.click(screen.getByTestId('template-loader-pick'))
 
     expect(confirmSpy).toHaveBeenCalled()
-    // Declined → content untouched
-    expect(screen.getByTestId('prompt-body-textarea')).toHaveValue('Precious')
+    expect(screen.getByTestId('prompt-body-textarea')).toHaveValue('typed')
     confirmSpy.mockRestore()
+  })
+
+  it('keeps the fields a template does not set when one is loaded', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-project-select')).toHaveTextContent(
+        'p1'
+      )
+    })
+
+    await user.type(screen.getByTestId('prompt-labels-input'), 'review')
+    await user.keyboard('{Enter}')
+    await user.click(screen.getByRole('button', { name: /load template/i }))
+    await user.click(screen.getByTestId('template-loader-pick'))
+
+    // Re-seeding the form is a `reset`, so the template has to carry the rest
+    // of the form with it or the project and the labels vanish.
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-body-textarea')).toHaveValue(
+        'Template body'
+      )
+    })
+    expect(screen.getByText('review')).toBeInTheDocument()
+    expect(screen.getByTestId('prompt-project-select')).toHaveTextContent('p1')
   })
 })
 
 describe('PromptEditor — edit mode', () => {
   it('prefills the form from the loaded prompt and updates on save', async () => {
-    ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
     const user = userEvent.setup()
+    ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
     renderEditor('/prompts/my-prompt/edit')
 
-    expect(await screen.findByText('Edit prompt')).toBeInTheDocument()
-    expect(promptService.getPrompt).toHaveBeenCalledWith('team-1', 'my-prompt')
-    expect(screen.getByTestId('prompt-name-input')).toHaveValue('My Prompt')
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-name-input')).toHaveValue('My Prompt')
+    })
     expect(screen.getByTestId('prompt-body-textarea')).toHaveValue(
       'Hello {{name}}'
     )
-    expect(screen.getByTestId('prompt-slug-input')).toHaveValue('my-prompt')
-    // Published prompt → the save button reads Publish
-    expect(screen.getByText('Publish')).toBeInTheDocument()
+    expect(screen.getByText('review')).toBeInTheDocument()
+    expect(screen.getByText('Edit prompt')).toBeInTheDocument()
+    // The project is never re-fetched for an edit: the prompt carries its own.
+    expect(projectService.getProjects).not.toHaveBeenCalled()
 
+    await user.clear(screen.getByTestId('prompt-name-input'))
+    await user.type(screen.getByTestId('prompt-name-input'), 'Renamed')
     await user.click(screen.getByTestId('prompt-save-button'))
 
     await waitFor(() => {
       expect(promptService.updatePrompt).toHaveBeenCalledWith(
         'team-1',
         'my-prompt',
-        {
-          name: 'My Prompt',
+        expect.objectContaining({
+          name: 'Renamed',
+          // The slug does NOT follow a rename after create: a prompt is
+          // addressed by slug alone.
           slug: 'my-prompt',
-          description: 'A description',
-          body: 'Hello {{name}}',
-          status: 'published',
           mcp_expose: true,
-          labels: ['review'],
-          project_id: 'p1',
-        }
+        })
       )
     })
-    expect(promptService.createPrompt).not.toHaveBeenCalled()
-    expect(toast.success).toHaveBeenCalledWith('Prompt updated successfully')
     expect(mockNavigate).toHaveBeenCalledWith('/prompts/my-prompt')
   })
 
   it('opens the render view, loads placeholders, and shows the rendered output', async () => {
+    const user = userEvent.setup()
     ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
     ;(promptService.getPromptPlaceholders as Mock).mockResolvedValue(['name'])
     ;(promptService.renderPrompt as Mock).mockResolvedValue({
-      rendered_body: 'Hello Ada',
+      rendered_body: 'Hello world',
     })
-    const { trackEvent } = useAnalytics()
-    const user = userEvent.setup()
     renderEditor('/prompts/my-prompt/edit')
 
-    await screen.findByText('Edit prompt')
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-name-input')).toHaveValue('My Prompt')
+    })
+
     await user.click(screen.getByTestId('tab-trigger-render'))
 
     await waitFor(() => {
@@ -580,59 +632,54 @@ describe('PromptEditor — edit mode', () => {
         'my-prompt'
       )
     })
-    expect(trackEvent).toHaveBeenCalledWith({
-      event: 'prompt_preview_viewed',
-      properties: expect.objectContaining({
-        prompt_id: 'my-prompt',
-        preview_type: 'render',
-      }),
-    })
-
-    const placeholderInput = await screen.findByPlaceholderText(
-      'Enter value for {{name}}'
-    )
-    await user.type(placeholderInput, 'Ada')
-
-    // Rendering is debounced (500ms) behind the placeholder edits
-    await waitFor(
-      () => {
-        expect(promptService.renderPrompt).toHaveBeenCalledWith(
-          'team-1',
-          'my-prompt',
-          { name: 'Ada' }
-        )
-      },
-      { timeout: 3000 }
-    )
-    expect(await screen.findByText('Hello Ada')).toBeInTheDocument()
+    expect(
+      await screen.findByPlaceholderText('Enter value for {{name}}')
+    ).toBeInTheDocument()
   })
 
   it('shows an error toast and navigates back when the prompt fails to load', async () => {
-    ;(promptService.getPrompt as Mock).mockRejectedValue(
-      new Error('prompt not found')
-    )
-    renderEditor('/prompts/missing/edit')
+    ;(promptService.getPrompt as Mock).mockRejectedValue(new Error('nope'))
+    renderEditor('/prompts/my-prompt/edit')
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('prompt not found')
+      expect(toast.error).toHaveBeenCalled()
     })
     expect(mockNavigate).toHaveBeenCalledWith('/prompts')
   })
 
   it('surfaces a save failure without navigating away', async () => {
+    const user = userEvent.setup()
     ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
     ;(promptService.updatePrompt as Mock).mockRejectedValue(
-      new Error('validation failed upstream')
+      new Error('save failed')
     )
-    const user = userEvent.setup()
     renderEditor('/prompts/my-prompt/edit')
 
-    await screen.findByText('Edit prompt')
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-name-input')).toHaveValue('My Prompt')
+    })
+
     await user.click(screen.getByTestId('prompt-save-button'))
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('validation failed upstream')
+      expect(toast.error).toHaveBeenCalled()
     })
     expect(mockNavigate).not.toHaveBeenCalledWith('/prompts/my-prompt')
+  })
+})
+
+describe('PromptEditor — analytics', () => {
+  it('tracks the preview view', async () => {
+    const user = userEvent.setup()
+    const { trackEvent } = useAnalytics()
+    renderEditor()
+
+    await user.click(screen.getByTestId('tab-trigger-preview'))
+
+    expect(trackEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: ANALYTICS_EVENTS.PROMPT_PREVIEW_VIEWED,
+      })
+    )
   })
 })

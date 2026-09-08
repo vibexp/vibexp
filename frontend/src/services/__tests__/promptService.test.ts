@@ -1,4 +1,8 @@
-import type { Prompt, PromptListResponse } from '../promptService'
+import type {
+  CreatePromptRequest,
+  Prompt,
+  PromptListResponse,
+} from '../promptService'
 
 // Mock the generated client; unwrap stays real so service tests exercise the
 // same success/error resolution production uses.
@@ -110,12 +114,15 @@ describe('PromptService', () => {
   })
 
   describe('createPrompt', () => {
-    const createRequest = {
+    const createRequest: CreatePromptRequest = {
       name: 'My Prompt',
       slug: 'my-prompt',
       description: 'A test prompt',
       body: 'Hello {{name}}',
       project_id: 'project-1',
+      // `status` carries an OpenAPI `default`, which the generated schema
+      // renders as a REQUIRED property (#912 moved it behind a $ref).
+      status: 'draft',
     }
 
     it('posts the create request body', async () => {
