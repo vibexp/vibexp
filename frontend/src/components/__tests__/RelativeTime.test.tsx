@@ -1,16 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 
 import { RelativeTime } from '../RelativeTime'
-
-// Radix Tooltip (via popper) relies on ResizeObserver, which jsdom lacks.
-beforeAll(() => {
-  global.ResizeObserver = class {
-    observe(): void {}
-    unobserve(): void {}
-    disconnect(): void {}
-  }
-})
 
 describe('RelativeTime', () => {
   it('renders a relative label for a recent date', () => {
@@ -34,24 +24,17 @@ describe('RelativeTime', () => {
     expect(label.textContent).not.toMatch(/\(.*\)/)
   })
 
-  it('reveals the full date-time on hover via tooltip', async () => {
-    const user = userEvent.setup()
+  it('renders the full date-time exactly once, not as a second visible node', () => {
+    // The absolute value is an attribute, not text: a Radix tooltip alongside
+    // the native `title` would show two bubbles on the same hover (#907).
     render(<RelativeTime value="2024-01-15T12:00:00Z" />)
 
-    // Before hover, only the compact label is in the document.
     expect(screen.queryByText(/January 15, 2024/)).not.toBeInTheDocument()
-
-    await user.hover(screen.getByText(/Jan 15, 2024/))
-
-    // Radix renders the tooltip content (with a visually-hidden a11y copy).
-    const full = await screen.findAllByText(/January 15, 2024/)
-    expect(full.length).toBeGreaterThan(0)
   })
 
   it('exposes the absolute date-time as a `title` attribute', () => {
-    // The tooltip needs a pointer; list cells are also read by screen readers,
-    // copied, and asserted on in e2e, so the absolute value is on the element
-    // itself too (#907).
+    // List cells are read by screen readers, copied, and asserted on in e2e —
+    // all of which reach a `title` and none of which reach a JS tooltip (#907).
     render(<RelativeTime value="2024-01-15T12:00:00Z" />)
 
     expect(screen.getByText(/Jan 15, 2024/)).toHaveAttribute(

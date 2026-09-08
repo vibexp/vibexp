@@ -12,25 +12,19 @@ import {
 import type { FieldSpec } from '@/components/patterns/resource'
 import type { Agent } from '@/services/agentService'
 
+import { agentStatusField } from './agentStatus'
 import { successRateColor } from './helpers'
 
 /**
  * An agent is not a team resource, so it has no entry in the descriptor
- * registry and nothing to look a `FieldSpec` up on. Declaring the two the list
+ * registry and nothing to look a `FieldSpec` up on. Declaring the one the list
  * needs here keeps the agents list on the same factories — and therefore on the
  * same status badge, relative timestamps and action test ids — as the four
  * resource lists, without inventing a registry entry for a kind that has no
- * detail route, capabilities or address shape.
+ * detail route, capabilities or address shape. Status has its own module: the
+ * detail page renders the same badge from the same spec.
  */
 const nameField: FieldSpec = { key: 'name', role: 'name', label: 'Name' }
-const statusField: FieldSpec = {
-  key: 'status',
-  role: 'status',
-  label: 'Status',
-  statusValues: ['active', 'paused', 'error'],
-  tone: { active: 'success', paused: 'neutral', error: 'destructive' },
-  valueLabels: { active: 'Active', paused: 'Paused', error: 'Error' },
-}
 
 export function buildAgentsColumns({
   navigate,
@@ -53,7 +47,10 @@ export function buildAgentsColumns({
       summary: agent => agent.description || 'No description',
       className: 'max-w-xs',
     }),
-    statusColumn<Agent>({ field: statusField, value: agent => agent.status }),
+    statusColumn<Agent>({
+      field: agentStatusField,
+      value: agent => agent.status,
+    }),
     {
       accessorKey: 'total_runs',
       header: 'Total runs',

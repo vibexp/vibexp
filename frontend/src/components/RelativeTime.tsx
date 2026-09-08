@@ -1,9 +1,3 @@
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { formatDateTime, formatRelativeTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
@@ -15,30 +9,29 @@ interface RelativeTimeProps {
 }
 
 /**
- * Renders a compact relative-time label (e.g. "3d ago", or a short date
- * beyond 7 days) and reveals the full date-time (e.g. "June 7, 2026,
- * 09:14 AM") on hover — via a tooltip, and via a native `title` so the
- * absolute value survives where the tooltip cannot follow: a list cell read by
- * a screen reader, a copy/paste, an e2e assertion (#907). Reuses the shared
- * formatters in `@/lib/time` — no new date logic.
+ * Renders a compact relative-time label (e.g. "3d ago", or a short date beyond
+ * 7 days) and reveals the full date-time (e.g. "June 7, 2026, 09:14 AM") on
+ * hover through the native `title`. Reuses the shared formatters in
+ * `@/lib/time` — no new date logic.
+ *
+ * The full value used to come from a Radix tooltip. #907 needed it on `title`
+ * as well (a list cell is read by screen readers, copied and asserted on in
+ * e2e, none of which a Radix popper reaches), and a browser renders its own
+ * `title` bubble regardless of any JS tooltip — so keeping both meant two
+ * tooltips on every timestamp in the app. The native one is what survives: it
+ * satisfies every consumer, and it drops three Radix nodes per rendered
+ * timestamp, of which a list page has one per row.
  */
 export function RelativeTime({
   value,
   className,
 }: Readonly<RelativeTimeProps>) {
-  const compact = formatRelativeTime(value)
-  const full = formatDateTime(value)
-
   return (
-    <TooltipProvider>
-      <Tooltip delayDuration={0}>
-        <TooltipTrigger asChild>
-          <span className={cn('cursor-default', className)} title={full}>
-            {compact}
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>{full}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <span
+      className={cn('cursor-default', className)}
+      title={formatDateTime(value)}
+    >
+      {formatRelativeTime(value)}
+    </span>
   )
 }

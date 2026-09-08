@@ -6,15 +6,6 @@ import type { Artifact } from '@/services/artifactService'
 
 import { buildArtifactsColumns } from '../artifactsColumns'
 
-// The Updated column now renders RelativeTime (Radix Tooltip → ResizeObserver).
-beforeAll(() => {
-  global.ResizeObserver = class {
-    observe(): void {}
-    unobserve(): void {}
-    disconnect(): void {}
-  }
-})
-
 function renderUpdatedCell(updatedAt: string) {
   const columns = buildArtifactsColumns({
     navigate: vi.fn(),

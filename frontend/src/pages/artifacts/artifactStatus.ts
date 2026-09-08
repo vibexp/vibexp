@@ -1,5 +1,3 @@
-import { statusTone } from '@/components/patterns/resource'
-import type { StatusTone } from '@/components/StatusBadge'
 import type { ArtifactStatus } from '@/services/artifactService'
 
 // Human-readable labels for each status (badge text, table cells).
@@ -21,11 +19,7 @@ export const ARTIFACT_STATUS_OPTIONS: readonly {
   { value: 'archived', label: 'Archived' },
 ]
 
-// Distinct StatusBadge tones per status so the three states read differently:
-// active = success (green), draft = warning (amber), archived = neutral (muted).
-// The table itself lives on the artifact descriptor (#903) so the detail page's
-// generated Status row and this list column cannot drift apart; this stays as
-// the list columns' call-site-shaped entry point into it.
-export function artifactStatusTone(status: ArtifactStatus): StatusTone {
-  return statusTone('artifact', status)
-}
+// Tones are NOT here: they live on the artifact descriptor's `status` FieldSpec
+// (#903) and are read by `statusColumn`/`ResourceMetadataSection` through
+// `fieldTone`. The wrapper this module used to export for the list column went
+// with #907, when the column started reading the descriptor directly.
