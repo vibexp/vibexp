@@ -43,14 +43,22 @@ describe('AgentBasicInfo', () => {
     expect(screen.getByText('Protocol: Not specified')).toBeInTheDocument()
   })
 
-  it('badges the status through the shared agent status field', () => {
-    // The detail page and the agents list read one `FieldSpec` (#907). A raw
-    // <Badge> here would re-fork them — same agent, different colour on
-    // /agents and /agents/:id — with agentStatus.test.ts still green, so the
-    // guard has to be on this component, not on the spec.
-    render(<AgentBasicInfo agent={makeAgent(null)} />)
+  it.each([
+    ['active', 'bg-success'],
+    ['paused', 'bg-muted'],
+    ['error', 'bg-destructive'],
+  ] as const)(
+    'badges %s from the shared agent status field',
+    (status, toneClass) => {
+      // The detail page and the agents list read one `FieldSpec` (#907). A raw
+      // <Badge> here would re-fork them — same agent, different colour on
+      // /agents and /agents/:id — with agentStatus.test.ts still green, so the
+      // guard has to be on this component, not on the spec. Every status is
+      // exercised: a hardcoded map that happens to agree on `active` still
+      // diverges on the other two.
+      render(<AgentBasicInfo agent={{ ...makeAgent(null), status }} />)
 
-    const badge = screen.getByText('Active')
-    expect(badge).toHaveClass('border-transparent', 'bg-success')
-  })
+      expect(screen.getByText(/^(Active|Paused|Error)$/)).toHaveClass(toneClass)
+    }
+  )
 })

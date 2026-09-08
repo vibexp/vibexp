@@ -34,6 +34,13 @@ interface ListCase {
   columns: ColumnDef<{ id: string }>[]
   row: Record<string, unknown>
   statusText: string
+  /**
+   * The solid fill `StatusBadge` gives that status's descriptor tone. This is
+   * the discriminator, NOT `border-transparent` — three of the four plain
+   * `Badge` variants carry that too (`ui/badge.tsx`), so asserting it would
+   * pass for a hand-rolled badge.
+   */
+  statusToneClass: string
   /** Every action the list offers, in the order the buttons render. */
   actions: readonly string[]
 }
@@ -53,6 +60,7 @@ function listCases(): ListCase[] {
       columns: asColumns(buildPromptsColumns(common)),
       row: { ...base, name: 'Runbook', status: 'published', labels: ['a'] },
       statusText: 'Published',
+      statusToneClass: 'bg-success',
       actions: ['view', 'edit', 'delete'],
     },
     {
@@ -61,6 +69,7 @@ function listCases(): ListCase[] {
       columns: asColumns(buildArtifactsColumns(common)),
       row: { ...base, title: 'Runbook', status: 'active', type: 'general' },
       statusText: 'Active',
+      statusToneClass: 'bg-success',
       actions: ['view', 'edit', 'delete'],
     },
     {
@@ -69,6 +78,7 @@ function listCases(): ListCase[] {
       columns: asColumns(buildBlueprintsColumns(common)),
       row: { ...base, title: 'Runbook', status: 'expired', type: 'cursor' },
       statusText: 'Expired',
+      statusToneClass: 'bg-muted',
       actions: ['view', 'edit', 'delete'],
     },
     {
@@ -79,6 +89,7 @@ function listCases(): ListCase[] {
       ),
       row: { ...base, text: 'Remember this', status: 'archived', metadata: {} },
       statusText: 'Archived',
+      statusToneClass: 'bg-muted',
       actions: ['view', 'edit', 'delete'],
     },
     {
@@ -94,6 +105,7 @@ function listCases(): ListCase[] {
         last_run: THREE_HOURS_AGO,
       },
       statusText: 'Active',
+      statusToneClass: 'bg-success',
       actions: ['chat', 'edit', 'delete'],
     },
   ]
@@ -127,10 +139,11 @@ describe.each(listCases())('$list list columns', testCase => {
 
   it('renders its status through the one status badge', () => {
     renderList(testCase)
-    // StatusBadge is the only status component left: every tone it can render
-    // is a `border-transparent` fill, which the plain <Badge> variants are not.
+    // The tone comes off the descriptor, so a list that stopped calling
+    // `statusColumn` and hand-rolled a <Badge> again cannot land on it: two of
+    // the five cases are `bg-muted`, which no default badge renders.
     expect(screen.getByText(testCase.statusText)).toHaveClass(
-      'border-transparent'
+      testCase.statusToneClass
     )
   })
 
