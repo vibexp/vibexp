@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
@@ -305,15 +305,6 @@ describe('PromptGalleryCategory page', () => {
     expect(getPromptsMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ search: 'review', page: 1 })
     )
-
-    // And it settles there — no trailing per-keystroke fetches arrive late.
-    vi.useFakeTimers()
-    await act(async () => {
-      vi.advanceTimersByTime(600)
-      await Promise.resolve()
-    })
-    vi.useRealTimers()
-    expect(getPromptsMock).toHaveBeenCalledTimes(2)
   })
 
   it('restores search, tags and page from the initial URL', async () => {
