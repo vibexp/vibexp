@@ -30,18 +30,33 @@ const SPEC_FILE: Partial<Record<ResourceKindKey, string>> = {
 }
 
 /**
- * Every `sort_by` enum in a path file, unioned. A file describes both the
- * team-scoped and the by-project variant of the same list, and the descriptor
- * does not distinguish them.
+ * Every `enum` a named query parameter declares in a path file, unioned. A file
+ * describes both the team-scoped and the by-project variant of the same list,
+ * and the descriptor does not distinguish them.
+ *
+ * The regex stops at the first `enum:` after the parameter's name, which is the
+ * one in its own `schema:` — every list parameter in these files is a flat
+ * string enum.
  */
-function sortByEnum(file: string): Set<string> {
+function queryEnum(file: string, param: string): Set<string> {
   const yaml = readFileSync(resolve(SPEC_DIR, file), 'utf8')
-  const matches = yaml.matchAll(/- name: sort_by[\s\S]*?enum: \[([^\]]+)\]/g)
+  const matches = yaml.matchAll(
+    new RegExp(`- name: ${param}[\\s\\S]*?enum: \\[([^\\]]+)\\]`, 'g')
+  )
   const values = new Set<string>()
   for (const [, list] of matches) {
     for (const value of list.split(',')) values.add(value.trim())
   }
   return values
+}
+
+/** The values of the descriptor's field in a given role, in declaration order. */
+function declaredValues(
+  kind: ResourceKindKey,
+  role: 'status' | 'type'
+): readonly string[] {
+  const field = getResourceDescriptor(kind).fields.find(f => f.role === role)
+  return field?.statusValues ?? field?.typeValues ?? []
 }
 
 const KINDS = Object.entries(SPEC_FILE) as [ResourceKindKey, string][]
@@ -54,7 +69,7 @@ describe('resource list specs', () => {
   it.each(KINDS)(
     '%s only declares sortable keys its list endpoint accepts',
     (kind, file) => {
-      const accepted = sortByEnum(file)
+      const accepted = queryEnum(file, 'sort_by')
       // Guards the guard: a regex that matched nothing would make every
       // assertion below vacuous.
       expect(accepted.size).toBeGreaterThan(0)
@@ -77,6 +92,33 @@ describe('resource list specs', () => {
     )
     expect(controls).toContain('search')
     expect(controls).toContain('freshness')
+  })
+
+  // A descriptor's status/type values stopped being badge trivia in #908: they
+  // are now ALSO the page's request guard, so a value the backend adds and the
+  // descriptor lacks is stripped from the request — `?status=<new>` silently
+  // returns an unfiltered list. Hand review caught that drift twice on this
+  // branch, which is the evidence that review is the wrong mechanism for it.
+  it.each(KINDS)(
+    "%s's status values are exactly its list endpoint's status enum",
+    (kind, file) => {
+      const accepted = queryEnum(file, 'status')
+      expect(accepted.size).toBeGreaterThan(0)
+      expect([...declaredValues(kind, 'status')].sort()).toEqual(
+        [...accepted].sort()
+      )
+    }
+  )
+
+  it("blueprint's type values are exactly its list endpoint's type enum", () => {
+    // The one closed `type`. An artifact's is an open string matched against
+    // the team's registered types, so it declares no exhaustive list at all.
+    const accepted = queryEnum('blueprints.yaml', 'type')
+    expect(accepted.size).toBeGreaterThan(0)
+    expect([...declaredValues('blueprint', 'type')].sort()).toEqual(
+      [...accepted].sort()
+    )
+    expect(declaredValues('artifact', 'type')).toEqual([])
   })
 
   it('offers a status filter on every kind that has a status', () => {
