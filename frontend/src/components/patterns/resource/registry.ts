@@ -1,3 +1,4 @@
+import { agentDescriptor } from './descriptors/agent'
 import { artifactDescriptor } from './descriptors/artifact'
 import { blueprintDescriptor } from './descriptors/blueprint'
 import { galleryPromptDescriptor } from './descriptors/galleryPrompt'
@@ -9,8 +10,9 @@ import type { ResourceDescriptor } from './types'
  * Every resource kind the SPA knows about. The first four are team resources
  * and their keys are also the API's resource-type discriminators (they match
  * `ResourceKind` in `components/resource-detail/ResourceReadingPage`, which the
- * registry test pins); `gallery-prompt` is descriptor-only — the public gallery
- * has no team-scoped resource id.
+ * registry test pins). `gallery-prompt` and `agent` are descriptor-only: the
+ * public gallery and the agents API both address things that have no
+ * team-scoped resource id, so no shared side panel can reach them.
  */
 const descriptors = {
   prompt: promptDescriptor,
@@ -18,6 +20,7 @@ const descriptors = {
   blueprint: blueprintDescriptor,
   memory: memoryDescriptor,
   'gallery-prompt': galleryPromptDescriptor,
+  agent: agentDescriptor,
 }
 
 /** The kinds `resourceRegistry` is keyed by. */

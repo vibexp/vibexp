@@ -3,11 +3,12 @@ import { fieldLabel, fieldTone } from '@/components/patterns/resource'
 import { agentStatusField } from '../agentStatus'
 
 /*
- * `agentStatusField` is hand-written rather than validated by `defineResource`
- * (an agent is not a registered resource kind), so the invariants that
- * validator enforces are pinned here instead: a tone or a label for a value the
- * field does not declare would otherwise compile and degrade silently to
- * `neutral` / the raw string.
+ * `agentStatusField` now travels on the `agent` descriptor (#918), so
+ * `defineResource` validates the invariants a status field shares with every
+ * other kind. These stay because they pin the ones it does not: that the field
+ * still reaches the agents list through `pages/agents/agentStatus`, and that a
+ * tone or a label for a value the field does not declare would degrade silently
+ * to `neutral` / the raw string rather than fail.
  */
 describe('agentStatusField', () => {
   const values = agentStatusField.statusValues ?? []

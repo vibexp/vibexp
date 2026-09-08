@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -54,6 +53,11 @@ function getUserMessage(input: unknown): string {
   return text.length > 100 ? `${text.substring(0, 100)}…` : text
 }
 
+/**
+ * The agent's ten most recent executions, rendered in the reading article.
+ * Card chrome removed in #918 — the article is card-free, so the heading and
+ * the "View all tasks" link sit directly above the bordered table.
+ */
 export function RecentExecutionsTable({
   recentExecutions,
   loadingExecutions,
@@ -108,9 +112,11 @@ export function RecentExecutionsTable({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">Recent tasks</CardTitle>
+    <section className="space-y-4" aria-labelledby="recent-tasks-heading">
+      <div className="flex items-center justify-between gap-3">
+        <h3 id="recent-tasks-heading" className="text-lg font-semibold">
+          Recent tasks
+        </h3>
         <Button
           variant="outline"
           size="sm"
@@ -121,18 +127,16 @@ export function RecentExecutionsTable({
           <Activity className="mr-2 size-4" />
           View all tasks
         </Button>
-      </CardHeader>
-      <CardContent>
-        {loadingExecutions ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
-          </div>
-        ) : (
-          renderExecutions()
-        )}
-      </CardContent>
-    </Card>
+      </div>
+      {loadingExecutions ? (
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      ) : (
+        renderExecutions()
+      )}
+    </section>
   )
 }

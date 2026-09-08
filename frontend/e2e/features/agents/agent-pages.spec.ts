@@ -60,7 +60,10 @@ test.describe('Agents', () => {
 
     await authenticatedPage.goto('/agents/agent-42')
 
-    // The details page renders the agent name as both h1 and a section h2.
+    // Since #918 the page is a ResourceReadingPage: the agent name is the
+    // article's only h1, and Chat / Conversations / Edit are reading actions in
+    // the details column (labelled buttons at this viewport, tooltip-labelled
+    // icons when the column is folded — either way they resolve by name).
     await expect(
       authenticatedPage.getByRole('heading', { name: 'Detail Agent', level: 1 })
     ).toBeVisible({ timeout: 10000 })
