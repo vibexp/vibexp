@@ -184,7 +184,6 @@ export const ResourceBodyEditor = forwardRef<
       value={activeView}
       onValueChange={handleViewChange}
       className={className}
-      data-testid={testId ? `${testId}-editor` : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <TabsList>
@@ -225,7 +224,7 @@ export const ResourceBodyEditor = forwardRef<
               The mention textarea renders the invalid border AND the message
               itself, from its own `error` prop. Its class list is a template
               literal with no tailwind-merge, so an appended `border-destructive`
-              does not REPLACE the `border-input` it always emits — both survive,
+              does not REPLACE the `border-input` it emits by default — both survive,
               and which one paints is decided by their order in the generated
               stylesheet, not by their order in the attribute. Hence: hand it the
               error, and do not render a second message beside it.
@@ -281,10 +280,7 @@ export const ResourceBodyEditor = forwardRef<
       <TabsContent value="preview">
         <Card>
           <CardContent className={cn(BODY_EDITOR_MIN_HEIGHT, 'p-6')}>
-            <div
-              className="prose dark:prose-invert max-w-none"
-              data-testid={testId ? `${testId}-preview` : undefined}
-            >
+            <div className="prose dark:prose-invert max-w-none">
               <MarkdownRenderer content={value || 'Nothing to preview yet…'} />
             </div>
           </CardContent>
