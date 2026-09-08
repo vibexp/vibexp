@@ -24,13 +24,14 @@ import (
 // artifactCrossTeamColumns mirrors the 14-column projection of the cross-team getters.
 var artifactCrossTeamColumns = []string{
 	"id", "project_id", "slug", "user_id", "team_id", "title", "description",
-	"content", "status", "type", "metadata", "created_at", "updated_at", "version",
+	"content", "status", "type", "metadata", "created_at", "updated_at", "version", "labels",
 }
 
 func artifactCrossTeamRow(now time.Time) *sqlmock.Rows {
 	return sqlmock.NewRows(artifactCrossTeamColumns).AddRow(
 		"art-1", "proj-1", "my-slug", "user-1", "team-9", "Title", "Desc",
 		"content", "published", "document", []byte(`{"k":"v"}`), now, now, int64(2),
+		pq.StringArray{"onboarding"},
 	)
 }
 

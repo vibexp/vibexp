@@ -28,6 +28,7 @@ type CreateArtifactParams struct {
 	Type        string                 `json:"type,omitempty" jsonschema:"Team type slug. Defaults: general, work-reports, static-contexts; teams may add custom types. Defaults to general when omitted."`
 	Status      string                 `json:"status,omitempty" jsonschema:"One of \"active\", \"draft\", \"archived\""`
 	Metadata    map[string]interface{} `json:"metadata,omitempty" jsonschema:"Key-value metadata pairs"`
+	Labels      []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }
 
 // UpdateArtifactParams defines the parameters for updating a specific artifact
@@ -41,6 +42,7 @@ type UpdateArtifactParams struct {
 	Type        string                 `json:"type,omitempty" jsonschema:"New type"`
 	Status      string                 `json:"status,omitempty" jsonschema:"New status"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty" jsonschema:"New metadata"`
+	Labels      []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }
 
 // artifactWriteResponse is the slim response returned by create/update artifact tools.
@@ -117,6 +119,7 @@ func (s *Server) createArtifact(
 		Type:        params.Type,
 		Status:      params.Status,
 		Metadata:    params.Metadata,
+		Labels:      params.Labels,
 	}
 
 	artifact, err := s.container.ArtifactService().CreateArtifact(userID, teamID, createReq)
@@ -196,6 +199,9 @@ func buildArtifactUpdateRequest(params *UpdateArtifactParams) *models.UpdateArti
 	}
 	if params.Metadata != nil {
 		updateReq.Metadata = params.Metadata
+	}
+	if params.Labels != nil {
+		updateReq.Labels = params.Labels
 	}
 	return updateReq
 }

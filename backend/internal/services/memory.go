@@ -60,6 +60,9 @@ type MemoryFilters struct {
 	// no freshness filtering (issue #735).
 	Freshness string
 	Search    string
+	// Labels narrows the list to resources carrying at least one of these
+	// labels, from the comma-separated `labels` query parameter (issue #910).
+	Labels []string
 	// MetadataFilter is the parsed `metadata` query parameter (epic #519).
 	MetadataFilter repositories.MetadataFilter
 	Status         *string
@@ -81,11 +84,22 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 		return nil, authzErr
 	}
 
+	// Reject an over-limit label list before anything else: the documented
+	// maxItems/maxLength are enforced nowhere else (issue #910).
+	if err := validateLabels(req.Labels); err != nil {
+		return nil, err
+	}
+
 	// Default to active when no status is supplied (mirrors artifact create).
 	status := models.MemoryStatusActive
 	if req.Status != nil && *req.Status != "" {
 		status = *req.Status
 	}
+
+	// A legacy client (the SPA and every pre-#910 MCP client) still sends its
+	// taxonomy as metadata.tags; fold it into labels so the "no tags key in
+	// memory metadata" invariant holds for old and new clients alike.
+	labels, metadata, _ := foldLegacyMemoryTags(req.Labels, req.Metadata)
 
 	now := time.Now()
 	memory := &models.Memory{
@@ -94,7 +108,8 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 		ProjectID: req.ProjectID,
 		Text:      req.Text,
 		Status:    status,
-		Metadata:  req.Metadata,
+		Metadata:  metadata,
+		Labels:    labels,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -138,6 +153,7 @@ func (s *MemoryService) ListMemories(userID string, filters MemoryFilters) (*mod
 		Freshness:      freshnessFilter(filters.Freshness),
 		Search:         filters.Search,
 		MetadataFilter: filters.MetadataFilter,
+		Labels:         filters.Labels,
 		Status:         filters.Status,
 		TeamID:         filters.TeamID,
 		ProjectID:      filters.ProjectID,
@@ -192,8 +208,12 @@ func applyMemoryUpdates(memory *models.Memory, req *models.UpdateMemoryRequest) 
 	if req.Text != nil {
 		memory.Text = *req.Text
 	}
+	labels, metadata, hasTaxonomy := foldLegacyMemoryTags(req.Labels, req.Metadata)
 	if req.Metadata != nil {
-		memory.Metadata = req.Metadata
+		memory.Metadata = metadata
+	}
+	if hasTaxonomy {
+		memory.Labels = labels
 	}
 	if req.ProjectID != nil {
 		memory.ProjectID = *req.ProjectID
@@ -220,6 +240,12 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 	// it. Same placement as the artifact/blueprint helpers.
 	if authzErr := s.authz.Can(ctx, userID, memory.TeamID, authz.ResourceUpdateAny); authzErr != nil {
 		return nil, authzErr
+	}
+
+	// Reject an over-limit label list before anything else: the documented
+	// maxItems/maxLength are enforced nowhere else (issue #910).
+	if err := validateLabels(req.Labels); err != nil {
+		return nil, err
 	}
 
 	// Note: team_id cannot be changed via update (removed from UpdateMemoryRequest)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,7 +22,7 @@ var blueprintListColumnsTest = []string{
 	"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 	"status", "type", "subtype", "metadata", "created_at", "updated_at",
 	"path", "path_derived", "content_sha",
-	"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
+	"source_repo", "source_commit_sha", "source_blob_sha", "imported_at", "labels",
 }
 
 // setupBlueprintListTest builds a BlueprintRepository backed by a sqlmock
@@ -48,6 +49,7 @@ func blueprintListOneRow(now time.Time) *sqlmock.Rows {
 		"Title", "Description", "active", "general", "openapi",
 		[]byte(`{"env":"prod"}`), now, now,
 		"slug-1.md", true, nil, nil, nil, nil, nil, // path, path_derived, sync/provenance NULL
+		pq.StringArray{"onboarding"},
 	)
 }
 
@@ -274,8 +276,8 @@ func TestBlueprintRepository_List_ExplicitProjection(t *testing.T) {
 		`SELECT s\.id, s\.project_id, s\.slug, s\.user_id, s\.team_id, ` +
 			`s\.title, s\.description, s\.status, s\.type, s\.subtype, s\.metadata, ` +
 			`s\.created_at, s\.updated_at, s\.path, s\.path_derived, s\.content_sha, ` +
-			`s\.source_repo, s\.source_commit_sha, s\.source_blob_sha, s\.imported_at ` +
-			`FROM blueprints s WHERE`,
+			`s\.source_repo, s\.source_commit_sha, s\.source_blob_sha, s\.imported_at, ` +
+			`s\.labels FROM blueprints s WHERE`,
 	).
 		WithArgs(blueprintListBaseArgs()...).
 		WillReturnRows(blueprintListOneRow(now))
@@ -335,6 +337,7 @@ func TestBlueprintRepository_List_EmptyMetadataInitializesMap(t *testing.T) {
 			"Title", "Description", "active", "general", nil,
 			nil, now, now, // NULL metadata
 			"slug-1.md", true, nil, nil, nil, nil, nil, // path, path_derived, sync/provenance NULL
+			pq.StringArray{},
 		))
 
 	blueprints, total, err := repo.List(ctx, "user-123", filters)
@@ -401,7 +404,7 @@ func TestBlueprintRepository_ListSquirrel_ErrorPaths(t *testing.T) {
 						"blueprint-1", "project-1", "slug-1", "user-123", "team-123",
 						"Title", "Description", "active", "general", "openapi",
 						[]byte(`{not valid json`), now, now,
-						"slug-1.md", true, nil, nil, nil, nil, nil,
+						"slug-1.md", true, nil, nil, nil, nil, nil, pq.StringArray{},
 					))
 			},
 			wantErr: "failed to unmarshal metadata",

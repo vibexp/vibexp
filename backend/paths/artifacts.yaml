@@ -102,6 +102,14 @@ api-v1-team_id-artifacts:
         description: Search in title, description, and content
         schema:
           type: string
+      - name: labels
+        in: query
+        description: >-
+          Comma-separated list of labels to filter by. A resource matches when it
+          carries at least one of the listed labels.
+        schema:
+          type: string
+        example: "onboarding,api"
       - name: metadata
         in: query
         description: >-
@@ -253,6 +261,14 @@ api-v1-team_id-artifacts-project_id:
         description: Search in title, description, and content
         schema:
           type: string
+      - name: labels
+        in: query
+        description: >-
+          Comma-separated list of labels to filter by. A resource matches when it
+          carries at least one of the listed labels.
+        schema:
+          type: string
+        example: "onboarding,api"
       - name: metadata
         in: query
         description: >-

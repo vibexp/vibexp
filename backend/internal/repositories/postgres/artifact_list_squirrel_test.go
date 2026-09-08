@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -15,11 +16,11 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// artifactListColumnsTest mirrors the 12 columns scanned by List and
+// artifactListColumnsTest mirrors the 13 columns scanned by List and
 // ListCrossTeam (content excluded from list operations).
 var artifactListColumnsTest = []string{
 	"id", "project_id", "slug", "user_id", "team_id", "title", "description",
-	"status", "type", "metadata", "created_at", "updated_at",
+	"status", "type", "metadata", "created_at", "updated_at", "labels",
 }
 
 // setupArtifactListTest builds an ArtifactRepository backed by a sqlmock
@@ -60,7 +61,7 @@ func artifactListOneRow(now time.Time) *sqlmock.Rows {
 	return sqlmock.NewRows(artifactListColumnsTest).AddRow(
 		"artifact-1", "project-1", "slug-1", "user-123", "team-123",
 		"Title", "Description", "active", "general",
-		[]byte(`{"env":"prod"}`), now, now,
+		[]byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
 	)
 }
 
@@ -392,7 +393,7 @@ func TestArtifactRepository_ListSquirrel(t *testing.T) {
 	}
 }
 
-// TestArtifactRepository_List_ExplicitProjection pins the full 12-column
+// TestArtifactRepository_List_ExplicitProjection pins the full 13-column
 // projection (content excluded) for the default List path. A `.+` matcher would
 // not catch column drift, so the projection is asserted verbatim.
 func TestArtifactRepository_List_ExplicitProjection(t *testing.T) {
@@ -414,7 +415,7 @@ func TestArtifactRepository_List_ExplicitProjection(t *testing.T) {
 	mock.ExpectQuery(
 		`SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, ` +
 			`a\.title, a\.description, a\.status, a\.type, a\.metadata, ` +
-			`a\.created_at, a\.updated_at FROM artifacts a WHERE`,
+			`a\.created_at, a\.updated_at, a\.labels FROM artifacts a WHERE`,
 	).
 		WithArgs(artifactListDefaultArgs()...).
 		WillReturnRows(artifactListOneRow(now))
@@ -429,7 +430,7 @@ func TestArtifactRepository_List_ExplicitProjection(t *testing.T) {
 }
 
 // TestArtifactRepository_ListCrossTeam_ExplicitProjection pins the full
-// 12-column projection for the default ListCrossTeam path.
+// 13-column projection for the default ListCrossTeam path.
 func TestArtifactRepository_ListCrossTeam_ExplicitProjection(t *testing.T) {
 	repo, mock, mockDB := setupArtifactListTest(t)
 	defer func() {
@@ -449,7 +450,7 @@ func TestArtifactRepository_ListCrossTeam_ExplicitProjection(t *testing.T) {
 	mock.ExpectQuery(
 		`SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, ` +
 			`a\.title, a\.description, a\.status, a\.type, a\.metadata, ` +
-			`a\.created_at, a\.updated_at FROM artifacts a WHERE`,
+			`a\.created_at, a\.updated_at, a\.labels FROM artifacts a WHERE`,
 	).
 		WithArgs(artifactCrossTeamDefaultArgs()...).
 		WillReturnRows(artifactListOneRow(now))
@@ -502,7 +503,7 @@ func TestArtifactRepository_ListSquirrel_ErrorPaths(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows(artifactListColumnsTest).AddRow(
 						"artifact-1", "project-1", "slug-1", "user-123", "team-123",
 						"Title", "Description", "active", "general",
-						[]byte(`{not valid json`), now, now,
+						[]byte(`{not valid json`), now, now, pq.StringArray{},
 					))
 			},
 			wantErr: "failed to unmarshal metadata",
@@ -519,7 +520,7 @@ func TestArtifactRepository_ListSquirrel_ErrorPaths(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows(artifactListColumnsTest).AddRow(
 						"artifact-1", "project-1", "slug-1", "user-123", "team-123",
 						"Title", "Description", "active", "general",
-						[]byte(`{not valid json`), now, now,
+						[]byte(`{not valid json`), now, now, pq.StringArray{},
 					))
 			},
 			wantErr: "failed to unmarshal metadata (cross-team)",

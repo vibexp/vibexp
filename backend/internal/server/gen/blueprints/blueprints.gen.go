@@ -611,6 +611,9 @@ type Blueprint struct {
 	// Id Unique identifier for the spec library
 	Id string `json:"id"`
 
+	// Labels Labels for categorising and filtering. Always present: an empty array when the resource has none. At most 10 labels, 50 characters each.
+	Labels []string `json:"labels"`
+
 	// Metadata Additional metadata as key-value pairs
 	Metadata *map[string]interface{} `json:"metadata,omitempty"`
 
@@ -679,6 +682,9 @@ type BlueprintDetail struct {
 
 	// Id Unique identifier for the spec library
 	Id string `json:"id"`
+
+	// Labels Labels for categorising and filtering. Always present: an empty array when the resource has none. At most 10 labels, 50 characters each.
+	Labels []string `json:"labels"`
 
 	// Metadata Additional metadata as key-value pairs
 	Metadata *map[string]interface{} `json:"metadata,omitempty"`
@@ -929,6 +935,9 @@ type ListSpecLibrariesParams struct {
 	// Search Search in title, description, and content
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
 
+	// Labels Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels.
+	Labels *string `form:"labels,omitempty" json:"labels,omitempty"`
+
 	// Metadata Filter by metadata as a JSON object of key to array of string values. Keys are combined with AND, values within a key with OR, and an empty array means "the key exists". Values match metadata stored as a scalar or as an array, and numeric/boolean values are matched by their string form. At most 10 keys, 25 values per key, key length 255, value length 512. Example: {"env":["prod","staging"],"team":["core"]}
 	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
 
@@ -979,6 +988,9 @@ type ListSpecLibrariesByProjectParams struct {
 
 	// Search Search in title, description, and content
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// Labels Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels.
+	Labels *string `form:"labels,omitempty" json:"labels,omitempty"`
 
 	// Metadata Filter by metadata as a JSON object of key to array of string values. Keys are combined with AND, values within a key with OR, and an empty array means "the key exists". Values match metadata stored as a scalar or as an array, and numeric/boolean values are matched by their string form. At most 10 keys, 25 values per key, key length 255, value length 512. Example: {"env":["prod","staging"],"team":["core"]}
 	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
@@ -1173,6 +1185,19 @@ func (siw *ServerInterfaceWrapper) ListSpecLibraries(w http.ResponseWriter, r *h
 		return
 	}
 
+	// ------------- Optional query parameter "labels" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "labels", r.URL.Query(), &params.Labels, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "labels"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "labels", Err: err})
+		}
+		return
+	}
+
 	// ------------- Optional query parameter "metadata" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "metadata", r.URL.Query(), &params.Metadata, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
@@ -1343,6 +1368,19 @@ func (siw *ServerInterfaceWrapper) ListSpecLibrariesByProject(w http.ResponseWri
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "labels" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "labels", r.URL.Query(), &params.Labels, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "labels"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "labels", Err: err})
 		}
 		return
 	}

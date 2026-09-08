@@ -126,13 +126,17 @@ func assertAllowlistEntriesStillRequired(t *testing.T, fields map[string][]strin
 
 // requiredArrayResponseRegistry maps an OpenAPI response schema name to a
 // zero-value instance of the Go type the live handler serializes for it. Every
-// listed type's required array field(s) use models.JSONArray[T], so a nil
+// listed type's required array field(s) use models.JSONArray[T] -- or, for the
+// shared `labels` taxonomy, models.LabelList, which is JSONArray[string] plus
+// the sql.Scanner/driver.Valuer a text[] column needs (issue #910) -- so a nil
 // value serializes as [] by construction. Add an entry when you introduce a
-// documented response with a required array (and use JSONArray[T] for it).
+// documented response with a required array (and use one of those types).
 var requiredArrayResponseRegistry = map[string]any{
 	"APIKey":                         models.APIKey{},
 	"AgentListResponse":              models.AgentListResponse{},
+	"Artifact":                       models.Artifact{},
 	"ArtifactVersionListResponse":    models.ArtifactVersionListResponse{},
+	"Blueprint":                      models.Blueprint{},
 	"AttachmentListResponse":         models.AttachmentListResponse{},
 	"BlueprintImportReport":          models.BlueprintImportReport{},
 	"BlueprintVersionListResponse":   models.BlueprintVersionListResponse{},
@@ -142,6 +146,7 @@ var requiredArrayResponseRegistry = map[string]any{
 	"FeedItemReplyListResponse":      models.FeedItemReplyListResponse{},
 	"FeedListResponse":               models.FeedListResponse{},
 	"GitHubRepositoriesResponse":     models.GitHubRepositoriesResponse{},
+	"Memory":                         models.Memory{},
 	"MemoryVersionListResponse":      models.MemoryVersionListResponse{},
 	"ModelProviderListResponse":      models.ModelProviderListResponse{},
 	"PendingInvitationsListResponse": models.PendingInvitationsListResponse{},

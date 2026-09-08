@@ -47,6 +47,7 @@ func (bs *blueprintsStrictServer) ListSpecLibraries(
 		subtype:          optionalEnumValue(request.Params.Subtype),
 		search:           optionalStringValue(request.Params.Search),
 		metadata:         optionalStringValue(request.Params.Metadata),
+		labels:           optionalStringValue(request.Params.Labels),
 		sortBy:           optionalEnumValue(request.Params.SortBy),
 		sortOrder:        optionalEnumValue(request.Params.SortOrder),
 		queryProjectUUID: request.Params.ProjectId,
@@ -87,6 +88,7 @@ func (bs *blueprintsStrictServer) ListSpecLibrariesByProject(
 		subtype:       optionalEnumValue(request.Params.Subtype),
 		search:        optionalStringValue(request.Params.Search),
 		metadata:      optionalStringValue(request.Params.Metadata),
+		labels:        optionalStringValue(request.Params.Labels),
 		sortBy:        optionalEnumValue(request.Params.SortBy),
 		sortOrder:     optionalEnumValue(request.Params.SortOrder),
 		page:          request.Params.Page,
@@ -227,6 +229,7 @@ type blueprintListQuery struct {
 	metadata      string
 	sortBy        string
 	sortOrder     string
+	labels        string
 	// queryProjectUUID is the `project_id` QUERY parameter, which only the
 	// team-wide list operation has; the by-project operation takes it from the
 	// path instead. The spec DOES type this one as format: uuid.
@@ -280,6 +283,7 @@ func blueprintFiltersFromQuery(
 		SortBy:         query.sortBy,
 		SortOrder:      query.sortOrder,
 		MetadataFilter: metadataFilter,
+		Labels:         parseLabelsFilter(query.labels),
 		Page:           pagination.Page,
 		Limit:          pagination.Limit,
 	}, nil
@@ -343,6 +347,7 @@ func toGenBlueprint(src *models.Blueprint) (blueprintsgen.Blueprint, error) {
 		Path:        src.Path,
 		Type:        blueprintsgen.BlueprintType(src.Type),
 		Status:      blueprintsgen.BlueprintStatus(src.Status),
+		Labels:      genLabels(src.Labels),
 		CreatedAt:   src.CreatedAt,
 		UpdatedAt:   src.UpdatedAt,
 	}
@@ -391,6 +396,7 @@ func toGenBlueprintDetail(src *models.Blueprint) (blueprintsgen.BlueprintDetail,
 		Type:        blueprintsgen.BlueprintDetailType(base.Type),
 		Status:      blueprintsgen.BlueprintDetailStatus(base.Status),
 		Metadata:    base.Metadata,
+		Labels:      base.Labels,
 		ContentSha:  base.ContentSha,
 		Source:      base.Source,
 		Related:     base.Related,

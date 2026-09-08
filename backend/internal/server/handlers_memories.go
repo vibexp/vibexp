@@ -170,6 +170,7 @@ func memoryFiltersFromParams(
 		ProjectID:      projectID,
 		Search:         optionalStringValue(params.Search),
 		MetadataFilter: metadataFilter,
+		Labels:         parseLabelsFilter(optionalStringValue(params.Labels)),
 		Status:         status,
 		SortBy:         sortBy,
 		SortOrder:      sortOrder,
@@ -275,6 +276,7 @@ func toGenMemory(src *models.Memory) (memoriesgen.Memory, error) {
 		ProjectId: src.ProjectID,
 		Text:      src.Text,
 		Status:    memoriesgen.MemoryStatus(src.Status),
+		Labels:    genLabels(src.Labels),
 		CreatedAt: src.CreatedAt,
 		UpdatedAt: src.UpdatedAt,
 		Version:   src.Version,
@@ -511,4 +513,29 @@ func (s *Server) memoriesResponseErrorHandler(w http.ResponseWriter, r *http.Req
 	}
 	s.logger.With("error", err).Error("Unhandled memories handler error")
 	apierrors.WriteJSONError(w, r, apierrors.NewInternalError(memoriesMsgInternalError))
+}
+
+// parseLabelsFilter splits the comma-separated `labels` query parameter into the
+// list the repositories match with an array-overlap predicate (issue #910).
+// Empty entries are dropped so "a,,b" and a trailing comma mean what a reader
+// expects rather than filtering on a label that cannot exist; a parameter that
+// is empty or all separators yields nil, i.e. no filtering at all.
+//
+// It is a free function, not a method: the four resource list handlers build
+// their filters through two methods and two free functions, so only a free
+// function can be shared by all of them.
+func parseLabelsFilter(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	out := make([]string, 0, strings.Count(raw, ",")+1)
+	for _, label := range strings.Split(raw, ",") {
+		if trimmed := strings.TrimSpace(label); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

@@ -24,6 +24,10 @@ type Blueprint struct {
 	// response-conformance assertions).
 	Metadata map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
 	Version  int64                  `json:"version" db:"version"`
+	// Labels is the shared taxonomy field (issue #910). It is a REQUIRED array in
+	// the response schema, so LabelList guarantees `[]` rather than `null`; it is
+	// also the `labels text[]` column, which is why it is not a plain []string.
+	Labels LabelList `json:"labels" db:"labels"`
 
 	// Sync-ready fields (epic #334).
 	//
@@ -83,7 +87,8 @@ type CreateBlueprintRequest struct {
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 	// Path optionally freezes the blueprint's repo-relative path; when omitted a
 	// default is derived from (type, subtype, slug). Traversal-validated.
-	Path *string `json:"path,omitempty" validate:"omitempty,max=1024"`
+	Path   *string  `json:"path,omitempty" validate:"omitempty,max=1024"`
+	Labels []string `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
 }
 
 type UpdateBlueprintRequest struct {
@@ -98,7 +103,8 @@ type UpdateBlueprintRequest struct {
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 	// Path optionally overrides (freezes) the blueprint's repo-relative path.
 	// Traversal-validated.
-	Path *string `json:"path,omitempty" validate:"omitempty,max=1024"`
+	Path   *string  `json:"path,omitempty" validate:"omitempty,max=1024"`
+	Labels []string `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
 }
 
 type BlueprintListResponse struct {

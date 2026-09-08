@@ -45,6 +45,7 @@ func (as *artifactsStrictServer) ListArtifacts(
 		artifactType: optionalStringValue(request.Params.Type),
 		search:       optionalStringValue(request.Params.Search),
 		metadata:     optionalStringValue(request.Params.Metadata),
+		labels:       optionalStringValue(request.Params.Labels),
 		sortBy:       optionalEnumValue(request.Params.SortBy),
 		sortOrder:    optionalEnumValue(request.Params.SortOrder),
 		queryProject: request.Params.ProjectId,
@@ -74,6 +75,7 @@ func (as *artifactsStrictServer) ListArtifactsByProject(
 			artifactType: optionalStringValue(request.Params.Type),
 			search:       optionalStringValue(request.Params.Search),
 			metadata:     optionalStringValue(request.Params.Metadata),
+			labels:       optionalStringValue(request.Params.Labels),
 			sortBy:       optionalEnumValue(request.Params.SortBy),
 			sortOrder:    optionalEnumValue(request.Params.SortOrder),
 			page:         request.Params.Page,
@@ -220,6 +222,7 @@ type artifactListQuery struct {
 	metadata     string
 	sortBy       string
 	sortOrder    string
+	labels       string
 	// queryProject is the `project_id` QUERY parameter, which only the
 	// team-wide list operation has; the by-project operation takes it from the
 	// path instead.
@@ -260,6 +263,7 @@ func artifactFiltersFromQuery(
 		SortBy:         query.sortBy,
 		SortOrder:      query.sortOrder,
 		MetadataFilter: metadataFilter,
+		Labels:         parseLabelsFilter(query.labels),
 		Page:           pagination.Page,
 		Limit:          pagination.Limit,
 	}, nil
@@ -334,6 +338,7 @@ func toGenArtifact(src *models.Artifact) (artifactsgen.Artifact, error) {
 		Type:        src.Type,
 		Status:      artifactsgen.ArtifactStatus(src.Status),
 		Metadata:    &metadata,
+		Labels:      genLabels(src.Labels),
 		CreatedAt:   src.CreatedAt,
 		UpdatedAt:   src.UpdatedAt,
 	}
@@ -519,4 +524,14 @@ func (s *Server) artifactsResponseErrorHandler(w http.ResponseWriter, r *http.Re
 	}
 	s.logger.With("error", err).Error("Unhandled artifacts handler error")
 	apierrors.WriteJSONError(w, r, apierrors.NewInternalError(artifactsMsgInternalError))
+}
+
+// genLabels copies a resource's labels into the shape a generated strict-server
+// type wants. `labels` is a REQUIRED array in the response schemas, and a
+// generated type cannot use the models.JSONArray shim, so the [] guarantee has
+// to come from the construction site: make(...,0,len) never yields a nil slice
+// and therefore never serializes as `null` (issue #125 "Layer C", issue #910).
+func genLabels(labels models.LabelList) []string {
+	out := make([]string, 0, len(labels))
+	return append(out, labels...)
 }

@@ -42,6 +42,11 @@ func (s *Server) handleCreateMemoryError(w http.ResponseWriter, userID string, e
 		return
 	}
 
+	if errors.Is(err, services.ErrInvalidLabels) {
+		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	s.logger.With(
 		"service", serverLogServiceName,
 		"handler", "handleCreateMemory",
@@ -223,6 +228,11 @@ func (s *Server) handleUpdateMemoryError(w http.ResponseWriter, userID, memoryID
 		s.logger.With("service", serverLogServiceName, "handler", "handleUpdateMemory", "user_id", userID).
 			Warn("Forbidden memory write attempt")
 		writeErrorResponse(w, nil, "forbidden", "You do not have permission to update this memory", http.StatusForbidden)
+		return
+	}
+
+	if errors.Is(err, services.ErrInvalidLabels) {
+		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return
 	}
 

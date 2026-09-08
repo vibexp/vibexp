@@ -29,6 +29,10 @@ type Artifact struct {
 	Type        string                 `json:"type" db:"type"`
 	Metadata    map[string]interface{} `json:"metadata" db:"metadata"`
 	Version     int64                  `json:"version,omitempty" db:"version"`
+	// Labels is the shared taxonomy field (issue #910). It is a REQUIRED array in
+	// the response schema, so LabelList guarantees `[]` rather than `null`; it is
+	// also the `labels text[]` column, which is why it is not a plain []string.
+	Labels LabelList `json:"labels" db:"labels"`
 	// Related is the depth-1 typed neighborhood, populated on the detail GET
 	// (issue #424). JSONArray so it always serializes as [] (never null) for the
 	// required response field; not a DB column (db:"-").
@@ -55,6 +59,7 @@ type CreateArtifactRequest struct {
 	Type     string                 `json:"type" validate:"omitempty"`
 	Status   string                 `json:"status" validate:"omitempty,oneof=active draft archived"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Labels   []string               `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
 }
 
 type UpdateArtifactRequest struct {
@@ -68,6 +73,7 @@ type UpdateArtifactRequest struct {
 	Type     *string                `json:"type,omitempty" validate:"omitempty"`
 	Status   *string                `json:"status,omitempty" validate:"omitempty,oneof=active draft archived"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Labels   []string               `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
 	// ChangeSummary is an optional human-readable description of this edit, recorded on
 	// the content-version snapshot it produces and rendered in the version history.
 	ChangeSummary *string `json:"change_summary,omitempty" validate:"omitempty,max=500"`

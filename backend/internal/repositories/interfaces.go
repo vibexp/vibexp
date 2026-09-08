@@ -564,8 +564,11 @@ type ArtifactFilters struct {
 	// MetadataFilter is the JSONB containment filter behind the `metadata`
 	// query parameter: keys ANDed, values within a key ORed.
 	MetadataFilter MetadataFilter
-	Page           int
-	Limit          int
+	// Labels narrows the list to resources carrying at least one of these
+	// labels (issue #910); empty means no label filtering.
+	Labels []string
+	Page   int
+	Limit  int
 }
 
 // EmbeddingProviderRepository defines the interface for embedding provider data access operations
@@ -818,8 +821,11 @@ type MemoryFilters struct {
 	ProjectID      *string
 	SortBy         string
 	SortOrder      string
-	Page           int
-	Limit          int
+	// Labels narrows the list to resources carrying at least one of these
+	// labels (issue #910); empty means no label filtering.
+	Labels []string
+	Page   int
+	Limit  int
 }
 
 // EmbeddingRepository defines the interface for embedding data access operations
@@ -1095,8 +1101,11 @@ type BlueprintFilters struct {
 	// MetadataFilter is the JSONB containment filter behind the `metadata`
 	// query parameter: keys ANDed, values within a key ORed.
 	MetadataFilter MetadataFilter
-	Page           int
-	Limit          int
+	// Labels narrows the list to resources carrying at least one of these
+	// labels (issue #910); empty means no label filtering.
+	Labels []string
+	Page   int
+	Limit  int
 }
 
 // UserPreferencesRepository defines the interface for user preferences data access operations

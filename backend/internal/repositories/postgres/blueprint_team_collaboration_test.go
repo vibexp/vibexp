@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -60,7 +61,7 @@ func TestBlueprintRepository_TeamMember_CanListOtherMembersSpecs(t *testing.T) {
 	listQuery := `SELECT s\.id, s\.project_id, s\.slug, s\.user_id, s\.team_id, s\.title, ` +
 		`s\.description, s\.status, s\.type, s\.subtype, s\.metadata, s\.created_at, s\.updated_at, ` +
 		`s\.path, s\.path_derived, s\.content_sha, s\.source_repo, s\.source_commit_sha, ` +
-		`s\.source_blob_sha, s\.imported_at ` +
+		`s\.source_blob_sha, s\.imported_at, s\.labels ` +
 		`FROM blueprints s WHERE`
 	mock.ExpectQuery(listQuery).
 		WithArgs(teamID, teamID, bobUserID, teamID, bobUserID).
@@ -68,12 +69,12 @@ func TestBlueprintRepository_TeamMember_CanListOtherMembersSpecs(t *testing.T) {
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"status", "type", "subtype", "metadata", "created_at", "updated_at",
 			"path", "path_derived", "content_sha",
-			"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
+			"source_repo", "source_commit_sha", "source_blob_sha", "imported_at", "labels",
 		}).AddRow(
 			aliceSpecID, "project-123", "api-spec", aliceUserID, teamID,
 			"API Specification", "REST API spec",
 			"active", "api", "openapi", []byte("{}"), now, now,
-			"api-spec.md", true, nil, nil, nil, nil, nil,
+			"api-spec.md", true, nil, nil, nil, nil, nil, pq.StringArray{},
 		))
 
 	// Bob lists specs
@@ -117,7 +118,7 @@ func TestBlueprintRepository_TeamMember_CanGetOtherMembersSpecs(t *testing.T) {
 	getQuery := `SELECT s\.id, s\.project_id, s\.slug, s\.user_id, s\.team_id, s\.title, s\.description, ` +
 		`s\.content, s\.status, s\.type, s\.subtype, s\.metadata, s\.created_at, s\.updated_at, s\.version,\s+` +
 		`s\.path, s\.path_derived, s\.raw_content, s\.content_sha, s\.source_repo, s\.source_commit_sha, ` +
-		`s\.source_blob_sha, s\.source_content_sha, s\.imported_at\s+` +
+		`s\.source_blob_sha, s\.source_content_sha, s\.imported_at,\s+s\.labels\s+` +
 		`FROM blueprints s\s+WHERE.*`
 	mock.ExpectQuery(getQuery).
 		WithArgs(aliceSpecID, teamID, bobUserID).
@@ -126,11 +127,12 @@ func TestBlueprintRepository_TeamMember_CanGetOtherMembersSpecs(t *testing.T) {
 			"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 			"path", "path_derived", "raw_content", "content_sha",
 			"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
+			"labels",
 		}).AddRow(
 			aliceSpecID, "project-123", "api-spec", aliceUserID, teamID,
 			"API Specification", "REST API spec", "OpenAPI content",
 			"active", "api", "openapi", []byte("{}"), now, now, 1,
-			"api-spec.md", true, nil, nil, nil, nil, nil, nil, nil,
+			"api-spec.md", true, nil, nil, nil, nil, nil, nil, nil, pq.StringArray{},
 		))
 
 	// Bob gets Alice's spec
@@ -200,7 +202,7 @@ func TestBlueprintRepository_TeamMember_CanUpdateOtherMembersSpecs(t *testing.T)
 			"API Specification - Updated by Bob", "Updated description", "Updated OpenAPI content",
 			"active", "api", "openapi", sqlmock.AnyArg(), teamID, now,
 			spec.Path, spec.PathDerived, sqlmock.AnyArg(), sqlmock.AnyArg(),
-			teamID, 1,
+			teamID, 1, sqlmock.AnyArg(),
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 

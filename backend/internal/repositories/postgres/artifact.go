@@ -41,13 +41,13 @@ const (
 	artifactStatusColumn = "a.status"
 )
 
-// artifactListColumns is the 12-column projection shared by List and
+// artifactListColumns is the 13-column projection shared by List and
 // ListCrossTeam. The content column is deliberately excluded from list
 // operations to keep payloads small.
 var artifactListColumns = []string{
 	"a.id", "a.project_id", "a.slug", "a.user_id", artifactTeamIDColumn,
 	"a.title", "a.description", artifactStatusColumn, "a.type", "a.metadata",
-	"a.created_at", "a.updated_at",
+	"a.created_at", "a.updated_at", "a.labels",
 }
 
 // ArtifactRepository implements the repositories.ArtifactRepository interface for PostgreSQL
@@ -71,8 +71,9 @@ func (r *ArtifactRepository) Create(ctx context.Context, artifact *models.Artifa
 
 	query := `
 		INSERT INTO artifacts
-		(project_id, slug, user_id, team_id, title, description, content, status, type, metadata, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		(project_id, slug, user_id, team_id, title, description, content, status, type, metadata,
+		created_at, updated_at, labels)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -80,7 +81,7 @@ func (r *ArtifactRepository) Create(ctx context.Context, artifact *models.Artifa
 		artifact.ProjectID, artifact.Slug, artifact.UserID, artifact.TeamID,
 		artifact.Title, artifact.Description, artifact.Content,
 		artifact.Status, artifact.Type, metadataJSON,
-		artifact.CreatedAt, artifact.UpdatedAt,
+		artifact.CreatedAt, artifact.UpdatedAt, artifact.Labels,
 	).Scan(&artifact.ID, &artifact.CreatedAt, &artifact.UpdatedAt)
 
 	if err != nil {
@@ -101,7 +102,7 @@ func (r *ArtifactRepository) Create(ctx context.Context, artifact *models.Artifa
 func (r *ArtifactRepository) GetByID(ctx context.Context, userID, teamID, artifactID string) (*models.Artifact, error) {
 	query := `
 		SELECT a.id, a.project_id, a.slug, a.user_id, a.team_id, a.title, a.description, a.content,
-		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version
+		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels
 		FROM artifacts a
 		WHERE a.id = $1
 			AND a.team_id = $2
@@ -117,7 +118,7 @@ func (r *ArtifactRepository) GetByID(ctx context.Context, userID, teamID, artifa
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
-		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version,
+		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
 	)
 
 	if err != nil {
@@ -138,7 +139,7 @@ func (r *ArtifactRepository) GetByProjectIDAndSlug(
 ) (*models.Artifact, error) {
 	query := `
 		SELECT a.id, a.project_id, a.slug, a.user_id, a.team_id, a.title, a.description, a.content,
-		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version
+		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels
 		FROM artifacts a
 		WHERE a.project_id = $1
 			AND a.slug = $2
@@ -155,7 +156,7 @@ func (r *ArtifactRepository) GetByProjectIDAndSlug(
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
-		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version,
+		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
 	)
 
 	if err != nil {
@@ -178,7 +179,7 @@ func (r *ArtifactRepository) GetByIDCrossTeam(
 ) (*models.Artifact, error) {
 	query := `
 		SELECT id, project_id, slug, user_id, team_id, title, description, content, status, type, metadata,
-		created_at, updated_at, version
+		created_at, updated_at, version, labels
 		FROM artifacts
 		WHERE id = $1 AND user_id = $2
 	`
@@ -189,7 +190,7 @@ func (r *ArtifactRepository) GetByIDCrossTeam(
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
-		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version,
+		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
 	)
 
 	if err != nil {
@@ -212,7 +213,7 @@ func (r *ArtifactRepository) GetByProjectIDAndSlugCrossTeam(
 ) (*models.Artifact, error) {
 	query := `
 		SELECT id, project_id, slug, user_id, team_id, title, description, content, status, type, metadata,
-		created_at, updated_at, version
+		created_at, updated_at, version, labels
 		FROM artifacts
 		WHERE project_id = $1 AND slug = $2 AND user_id = $3
 	`
@@ -223,7 +224,7 @@ func (r *ArtifactRepository) GetByProjectIDAndSlugCrossTeam(
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
-		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version,
+		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
 	)
 
 	if err != nil {
@@ -275,6 +276,8 @@ func applyArtifactFilters(where squirrel.And, filters repositories.ArtifactFilte
 	if filters.Type != nil && *filters.Type != "" {
 		where = append(where, squirrel.Eq{"a.type": *filters.Type})
 	}
+
+	where = applyLabelsFilter(where, "a.labels", filters.Labels)
 
 	where = applyArtifactStatusVisibility(where, filters)
 
@@ -393,7 +396,7 @@ func (r *ArtifactRepository) queryArtifacts(
 	return artifacts, nil
 }
 
-// scanArtifactListRows scans the 12-column artifact projection shared by List
+// scanArtifactListRows scans the 13-column artifact projection shared by List
 // and ListCrossTeam (content excluded), unmarshalling the JSON metadata column
 // per row. A malformed metadata payload returns an error. crossTeam selects the
 // error-string suffix.
@@ -406,7 +409,7 @@ func scanArtifactListRows(rows *sql.Rows, crossTeam bool) ([]models.Artifact, er
 			&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 			&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 			&artifact.Status, &artifact.Type,
-			&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt,
+			&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Labels,
 		)
 		if scanErr != nil {
 			return nil, fmt.Errorf("failed to scan artifact%s: %w", artifactErrSuffix(crossTeam), scanErr)
@@ -524,7 +527,8 @@ func (r *ArtifactRepository) Update(ctx context.Context, artifact *models.Artifa
 	query := `
 		UPDATE artifacts
 		SET project_id = $2, slug = $3, title = $4, description = $5, content = $6,
-		status = $7, type = $8, metadata = $9, team_id = $10, updated_at = $11, version = version + 1
+		status = $7, type = $8, metadata = $9, team_id = $10, updated_at = $11, labels = $14,
+		version = version + 1
 		WHERE id = $1
 			AND team_id = $12
 			AND version = $13
@@ -535,7 +539,7 @@ func (r *ArtifactRepository) Update(ctx context.Context, artifact *models.Artifa
 		artifact.ID, artifact.ProjectID, artifact.Slug,
 		artifact.Title, artifact.Description, artifact.Content,
 		artifact.Status, artifact.Type, metadataJSON,
-		artifact.TeamID, artifact.UpdatedAt, artifact.TeamID, artifact.Version,
+		artifact.TeamID, artifact.UpdatedAt, artifact.TeamID, artifact.Version, artifact.Labels,
 	).Scan(&artifact.UpdatedAt, &artifact.Version)
 
 	if err != nil {

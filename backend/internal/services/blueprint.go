@@ -181,6 +181,9 @@ type BlueprintFilters struct {
 	Search    string
 	SortBy    string
 	SortOrder string
+	// Labels narrows the list to resources carrying at least one of these
+	// labels, from the comma-separated `labels` query parameter (issue #910).
+	Labels []string
 	// MetadataFilter is the parsed `metadata` query parameter (epic #519).
 	MetadataFilter repositories.MetadataFilter
 	Page           int
@@ -216,6 +219,7 @@ func buildBlueprintFromRequest(userID, teamID string, req *models.CreateBlueprin
 		Type:        blueprintType,
 		Subtype:     req.Subtype,
 		Metadata:    metadata,
+		Labels:      normalizeLabels(req.Labels),
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -225,6 +229,12 @@ func (s *BlueprintService) CreateBlueprint(
 	userID, teamID string, req *models.CreateBlueprintRequest,
 ) (*models.Blueprint, error) {
 	ctx := context.Background()
+
+	// Reject an over-limit label list before anything else: the documented
+	// maxItems/maxLength are enforced nowhere else (issue #910).
+	if err := validateLabels(req.Labels); err != nil {
+		return nil, err
+	}
 
 	// Team ID comes from URL path and is already validated by middleware
 	finalTeamID := teamID
@@ -384,6 +394,7 @@ func (s *BlueprintService) ListBlueprints(
 		SortBy:         filters.SortBy,
 		SortOrder:      filters.SortOrder,
 		MetadataFilter: filters.MetadataFilter,
+		Labels:         filters.Labels,
 		Page:           filters.Page,
 		Limit:          filters.Limit,
 	}
@@ -446,6 +457,9 @@ func applyBlueprintUpdates(blueprint *models.Blueprint, req *models.UpdateBluepr
 	}
 	if req.Metadata != nil {
 		blueprint.Metadata = req.Metadata
+	}
+	if req.Labels != nil {
+		blueprint.Labels = normalizeLabels(req.Labels)
 	}
 	blueprint.UpdatedAt = time.Now()
 }
@@ -536,6 +550,12 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 		context.Background(), userID, blueprint.TeamID, authz.ResourceUpdateAny,
 	); authzErr != nil {
 		return nil, authzErr
+	}
+
+	// Reject an over-limit label list before anything else: the documented
+	// maxItems/maxLength are enforced nowhere else (issue #910).
+	if err := validateLabels(req.Labels); err != nil {
+		return nil, err
 	}
 
 	ctx := context.Background()
