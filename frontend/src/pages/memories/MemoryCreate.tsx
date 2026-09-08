@@ -90,7 +90,7 @@ export function MemoryCreate() {
         currentTeam.id,
         // A create omits an empty title entirely; only an update sends `null`,
         // which is how the API distinguishes "unchanged" from "cleared".
-        toMemoryRequest(values, tags, undefined)
+        toMemoryRequest(values, tags, 'omit')
       )
       trackEvent({
         event: ANALYTICS_EVENTS.MEMORY_CREATED,

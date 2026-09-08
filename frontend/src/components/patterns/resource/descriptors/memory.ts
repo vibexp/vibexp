@@ -77,7 +77,10 @@ export const memoryDescriptor = defineResource({
           'Enter your memory content here…\n\nShare insights, learnings, code snippets, or any valuable information you want to remember.',
       },
       projectFormField('memory-project-select'),
-      statusFormField('memory'),
+      statusFormField(
+        'memory',
+        'Drafts are hidden from search; archived memories are hidden from default lists and search.'
+      ),
       labelsFormField('labels', 'memory-labels-input'),
       metadataFormField(),
     ],

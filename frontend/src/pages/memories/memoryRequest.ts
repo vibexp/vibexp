@@ -58,28 +58,34 @@ export function memoryInitialValues(memory: Memory): ResourceFormValues {
 }
 
 /**
+ * What an empty title field means, which is the one asymmetry between creating
+ * a memory and editing one: per the spec, omitting the key on an update leaves
+ * the title unchanged while `null` clears it — so an edit that empties the
+ * field must send the explicit null, and a create with no title must send
+ * nothing at all.
+ */
+export type EmptyTitle = 'omit' | 'clear'
+
+/**
  * The memory request body, built from a generated form's parsed values plus the
  * page-owned tag chips, which are folded back into `metadata`.
- *
- * `emptyTitleAs` is the one asymmetry between create and edit: the title is
- * optional, and per the spec omitting the key on an update leaves it unchanged
- * while `null` clears it — so an edit that empties the field must send `null`,
- * and a create with no title must send nothing at all.
  */
 export function toMemoryRequest(
   values: ResourceFormValues,
   tags: string[],
-  emptyTitleAs: null | undefined
+  emptyTitle: EmptyTitle
 ): CreateMemoryRequest {
   const metadata = extractExtras(recordValue(values, 'metadata'))
   if (tags.length > 0) metadata.tags = tags
-  const title = stringValue(values, 'title')
-  return {
+  const request: CreateMemoryRequest = {
     project_id: stringValue(values, 'project_id'),
-    title: title === '' ? emptyTitleAs : title,
     text: stringValue(values, 'text'),
     status: enumValue(values, 'status', MEMORY_STATUSES),
     labels: stringListValue(values, 'labels'),
     metadata: metadataOrUndefined(metadata),
   }
+  const title = stringValue(values, 'title')
+  if (title !== '') request.title = title
+  else if (emptyTitle === 'clear') request.title = null
+  return request
 }

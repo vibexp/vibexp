@@ -34,6 +34,22 @@ const MEMORY_EXCERPT_LENGTH = 140
  */
 const tagsField: FieldSpec = { key: 'tags', role: 'taxonomy', label: 'Tags' }
 
+/**
+ * What the primary column shows: the title when the memory has one, and an
+ * excerpt of the body otherwise.
+ *
+ * Blank-checked rather than null-checked. The schema puts no `minLength` on
+ * `title` (`backend/schemas/memories.yaml`), so a memory written through the
+ * API or MCP can carry `""` — and treating only `null` as absent would render
+ * an empty Content cell, which is the #909 failure over again.
+ */
+function contentCellValue(memory: Memory): string {
+  const title = memory.title?.trim() ?? ''
+  return title === ''
+    ? markdownToExcerpt(memory.text, MEMORY_EXCERPT_LENGTH)
+    : title
+}
+
 export function buildMemoriesColumns({
   navigate,
   onDelete,
@@ -84,9 +100,7 @@ export function buildMemoriesColumns({
       // The title when there is one; otherwise an excerpt of the body — plain
       // text, not markdown, because the raw body puts `#` and `**` in the
       // memory's only identifying cell (#909).
-      value: memory =>
-        memory.title?.trim() ??
-        markdownToExcerpt(memory.text, MEMORY_EXCERPT_LENGTH),
+      value: contentCellValue,
       multiline: true,
       className: 'max-w-xl',
       // Renders nothing when the resource is fresh.

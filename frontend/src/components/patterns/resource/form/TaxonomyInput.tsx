@@ -84,6 +84,10 @@ export function TaxonomyInput({
           event.preventDefault()
           commit()
         }}
+        // Blur too, which the memory form's tag card always did: clicking Save
+        // blurs this input on the way to submitting, so without it a tag typed
+        // and not "Entered" is silently dropped from the payload.
+        onBlur={commit}
       />
       {maxItems !== undefined && (
         <p className="text-muted-foreground text-xs">

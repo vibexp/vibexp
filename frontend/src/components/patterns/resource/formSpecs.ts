@@ -97,14 +97,25 @@ export function projectFormField(testId: string): FormFieldSpec {
   }
 }
 
-/** The lifecycle status, read off the kind's own `status` field. */
-export function statusFormField(kind: string): FormFieldSpec {
+/**
+ * The lifecycle status, read off the kind's own `status` field.
+ *
+ * `description` is a parameter because what a status MEANS is per-kind and the
+ * copy is not always worth having: an artifact and a memory both hide drafts
+ * from search, a blueprint expires, a prompt publishes. Only the kinds that had
+ * the sentence keep it — it was the one place the UI said what the values do.
+ */
+export function statusFormField(
+  kind: string,
+  description?: string
+): FormFieldSpec {
   return {
     key: 'status',
     control: 'select',
     section: 'details',
     required: true,
     optionsFrom: 'field',
+    description,
     testId: `${kind}-status-select`,
   }
 }

@@ -155,6 +155,26 @@ describe('the Content column cell', () => {
     expect(cell.textContent).not.toContain('*')
   })
 
+  it('shows the title when the memory has one (#911)', () => {
+    renderContentCell(
+      makeMemory({ title: 'Deploy checklist', text: 'Drain the node first.' })
+    )
+
+    expect(screen.getByText('Deploy checklist')).toBeInTheDocument()
+    expect(screen.queryByText(/Drain the node/)).not.toBeInTheDocument()
+  })
+
+  it.each([['   '], ['']])(
+    'falls back to the body excerpt for a title of %j',
+    title => {
+      // The schema puts no `minLength` on `title`, so an empty string is a
+      // storable value — and `??` would render it as a blank cell.
+      renderContentCell(makeMemory({ title, text: 'Drain the node first.' }))
+
+      expect(screen.getByText('Drain the node first.')).toBeInTheDocument()
+    }
+  )
+
   it('renders an empty cell rather than an ellipsis for a blank memory', () => {
     renderContentCell(makeMemory({ id: 'mem-blank', text: '   \n  ' }))
 

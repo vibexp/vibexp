@@ -313,6 +313,22 @@ beforeEach(() => {
   ;(promptService.updatePrompt as Mock).mockResolvedValue(buildPrompt())
 })
 
+/**
+ * Renders the create route and waits for the form.
+ *
+ * Create mode paints a skeleton until the projects fetch settles, so that the
+ * form's first seed is its only one — seeding `initialValues` after first paint
+ * is a `reset`, and a reset discards everything typed in between.
+ */
+async function renderCreated(
+  initialEntry:
+    string | { pathname: string; state?: unknown } = '/prompts/create'
+) {
+  const result = renderEditor(initialEntry)
+  await screen.findByTestId('prompt-name-input')
+  return result
+}
+
 /** Everything a create needs before the schema will let it submit. */
 async function fillRequiredFields(
   user: ReturnType<typeof userEvent.setup>,
@@ -327,7 +343,7 @@ async function fillRequiredFields(
 describe('PromptEditor — create mode', () => {
   it('renders the generated form and navigates back on Back', async () => {
     const user = userEvent.setup()
-    renderEditor()
+    await renderCreated()
 
     expect(
       screen.getByRole('heading', { name: 'Create prompt' })
@@ -342,23 +358,28 @@ describe('PromptEditor — create mode', () => {
   })
 
   it('preselects the only project a team has', async () => {
+    await renderCreated()
+    expect(screen.getByTestId('prompt-project-select')).toHaveTextContent('p1')
+  })
+
+  it('waits for the projects fetch before painting the form', () => {
+    ;(projectService.getProjects as Mock).mockImplementation(
+      () => new Promise(() => undefined)
+    )
     renderEditor()
-    await waitFor(() => {
-      expect(screen.getByTestId('prompt-project-select')).toHaveTextContent(
-        'p1'
-      )
-    })
+
+    // Painting first and seeding the project afterwards would `reset` the form
+    // out from under anything already typed.
+    expect(screen.queryByTestId('prompt-name-input')).not.toBeInTheDocument()
+    expect(screen.getByText('Loading projects…')).toBeInTheDocument()
   })
 
   it('leaves the project empty when the team has more than one', async () => {
     ;(projectService.getProjects as Mock).mockResolvedValue({
       projects: [projectAlpha, projectBeta],
     })
-    renderEditor()
+    await renderCreated()
 
-    await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenCalled()
-    })
     expect(screen.getByTestId('prompt-project-select')).toHaveTextContent(
       'pick project'
     )
@@ -366,12 +387,7 @@ describe('PromptEditor — create mode', () => {
 
   it('auto-generates the slug from the name and creates the prompt', async () => {
     const user = userEvent.setup()
-    renderEditor()
-    await waitFor(() => {
-      expect(screen.getByTestId('prompt-project-select')).toHaveTextContent(
-        'p1'
-      )
-    })
+    await renderCreated()
 
     await fillRequiredFields(user, 'My New Prompt')
     await waitFor(() => {
@@ -399,7 +415,7 @@ describe('PromptEditor — create mode', () => {
 
   it('surfaces validation errors and does not save an empty form', async () => {
     const user = userEvent.setup()
-    renderEditor()
+    await renderCreated()
 
     await user.click(screen.getByTestId('prompt-save-button'))
 
@@ -410,7 +426,7 @@ describe('PromptEditor — create mode', () => {
 
   it('rejects a manually entered slug with invalid characters', async () => {
     const user = userEvent.setup()
-    renderEditor()
+    await renderCreated()
 
     await fillRequiredFields(user)
     await user.clear(screen.getByTestId('prompt-slug-input'))
@@ -425,7 +441,7 @@ describe('PromptEditor — create mode', () => {
 
   it('rejects a description longer than 200 characters', async () => {
     const user = userEvent.setup()
-    renderEditor()
+    await renderCreated()
 
     await fillRequiredFields(user)
     fireEvent.change(screen.getByTestId('prompt-description-input'), {
@@ -441,12 +457,7 @@ describe('PromptEditor — create mode', () => {
 
   it('carries the status, the labels and the MCP toggle into the payload', async () => {
     const user = userEvent.setup()
-    renderEditor()
-    await waitFor(() => {
-      expect(screen.getByTestId('prompt-project-select')).toHaveTextContent(
-        'p1'
-      )
-    })
+    await renderCreated()
 
     await fillRequiredFields(user)
     await user.type(screen.getByTestId('prompt-labels-input'), 'review')
@@ -474,12 +485,7 @@ describe('PromptEditor — create mode', () => {
 
   it('never exposes a draft over MCP, however the toggle was left', async () => {
     const user = userEvent.setup()
-    renderEditor()
-    await waitFor(() => {
-      expect(screen.getByTestId('prompt-project-select')).toHaveTextContent(
-        'p1'
-      )
-    })
+    await renderCreated()
 
     await fillRequiredFields(user)
     await user.click(screen.getByRole('button', { name: 'Published' }))
@@ -496,8 +502,8 @@ describe('PromptEditor — create mode', () => {
     })
   })
 
-  it('prefills the form from navigation state', () => {
-    renderEditor({
+  it('prefills the form from navigation state', async () => {
+    await renderCreated({
       pathname: '/prompts/create',
       state: {
         title: 'Gallery Prompt',
@@ -516,7 +522,7 @@ describe('PromptEditor — create mode', () => {
 
   it('loads a template into the form via the template loader', async () => {
     const user = userEvent.setup()
-    renderEditor()
+    await renderCreated()
 
     await user.click(screen.getByRole('button', { name: /load template/i }))
     await user.click(screen.getByTestId('template-loader-pick'))
@@ -534,7 +540,7 @@ describe('PromptEditor — create mode', () => {
   it('asks for confirmation before a template overwrites existing content', async () => {
     const user = userEvent.setup()
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    renderEditor()
+    await renderCreated()
 
     await user.type(screen.getByTestId('prompt-body-textarea'), 'typed')
     await waitFor(() => {
@@ -550,12 +556,7 @@ describe('PromptEditor — create mode', () => {
 
   it('keeps the fields a template does not set when one is loaded', async () => {
     const user = userEvent.setup()
-    renderEditor()
-    await waitFor(() => {
-      expect(screen.getByTestId('prompt-project-select')).toHaveTextContent(
-        'p1'
-      )
-    })
+    await renderCreated()
 
     await user.type(screen.getByTestId('prompt-labels-input'), 'review')
     await user.keyboard('{Enter}')
@@ -672,7 +673,7 @@ describe('PromptEditor — analytics', () => {
   it('tracks the preview view', async () => {
     const user = userEvent.setup()
     const { trackEvent } = useAnalytics()
-    renderEditor()
+    await renderCreated()
 
     await user.click(screen.getByTestId('tab-trigger-preview'))
 

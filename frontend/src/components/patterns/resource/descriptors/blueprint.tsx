@@ -175,10 +175,11 @@ export const blueprintDescriptor = defineResource({
       labelsFormField('labels', 'blueprint-labels-input'),
       metadataFormField(),
     ],
-    // A sub-agents blueprint must carry a `model` metadata key (enforced in
-    // internal/services/blueprint.go). Which keys those are depends on the
-    // blueprint being edited, not on the kind, so the page fills the slot.
-    extensions: ['required-metadata-keys'],
+    // No extension slots. A sub-agents blueprint must carry a `model` metadata
+    // key (enforced in internal/services/blueprint.go), but that is a rule ABOUT
+    // the metadata control rather than a node beside it, so the page passes it
+    // as `metadataRequiredKeys` (`BlueprintEdit`) — a declared-but-never-filled
+    // slot would render nothing and read as an unimplemented feature.
   },
   capabilities: {
     attachments: true,

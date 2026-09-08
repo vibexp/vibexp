@@ -74,6 +74,10 @@ export function PromptEditor() {
   const prefilledData = location.state as PrefilledPrompt | null
 
   const [loading, setLoading] = useState(!!slug)
+  // Create mode waits for the projects fetch before painting the form. Seeding
+  // `initialValues` after first paint is a `reset`, and a reset discards
+  // everything typed in the meantime — the trap `ResourceFormPage` documents.
+  const [loadingProjects, setLoadingProjects] = useState(!slug)
   const [view, setView] = useState<EditorView>('write')
   const [showTemplateLoader, setShowTemplateLoader] = useState(false)
   const [prompt, setPrompt] = useState<Prompt | null>(null)
@@ -129,8 +133,18 @@ export function PromptEditor() {
   )
 
   useEffect(() => {
+    if (isEditing) {
+      setLoadingProjects(false)
+      return
+    }
+    // Still resolving the team: stay on the skeleton rather than painting a
+    // form that is about to be re-seeded.
+    if (isLoadingTeam) return
+    if (!currentTeam) {
+      setLoadingProjects(false)
+      return
+    }
     const fetchProjects = async () => {
-      if (!currentTeam || isEditing) return
       try {
         const response = await projectService.getProjects(currentTeam.id, {})
         // A team with exactly one project preselects it. `ProjectPicker` has no
@@ -141,10 +155,12 @@ export function PromptEditor() {
         }
       } catch {
         setDefaultProjectId('')
+      } finally {
+        setLoadingProjects(false)
       }
     }
     void fetchProjects()
-  }, [currentTeam, isEditing])
+  }, [currentTeam, isEditing, isLoadingTeam])
 
   useEffect(() => {
     if (slug && !isLoadingTeam) {
@@ -263,12 +279,12 @@ export function PromptEditor() {
   // published prompt — and every other kind says "Create …" / "Save changes".
   const saveLabel = saving ? 'Saving…' : formSaveLabel(descriptor, mode)
 
-  if (loading) {
+  if (loading || loadingProjects) {
     return (
       <div className="space-y-6">
         <PageHeader
           title={formHeading(descriptor, mode)}
-          description="Loading prompt…"
+          description={isEditing ? 'Loading prompt…' : 'Loading projects…'}
         />
         <Skeleton className="h-64 w-full" />
       </div>

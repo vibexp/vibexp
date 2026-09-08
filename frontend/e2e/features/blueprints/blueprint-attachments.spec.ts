@@ -29,7 +29,7 @@ async function createBlueprint(
   await page.getByLabel('Slug').fill(blueprint.slug)
   await page.getByLabel('Content', { exact: true }).fill(blueprint.content)
 
-  // Project is a Radix Select with no default — pick the first project.
+  // Project is a searchable ProjectPicker with no default — pick the first project.
   // (Targeted by testid: the header project switcher's accessible name also
   // contains "Project", so a role+name lookup is ambiguous since #78.)
   await page.getByTestId('blueprint-project-select').click()

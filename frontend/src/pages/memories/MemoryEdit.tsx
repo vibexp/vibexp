@@ -88,7 +88,7 @@ export function MemoryEdit() {
       await memoryService.updateMemory(
         currentTeam.id,
         id,
-        toMemoryRequest(values, tags, null)
+        toMemoryRequest(values, tags, 'clear')
       )
       trackEvent({
         event: ANALYTICS_EVENTS.MEMORY_UPDATED,

@@ -99,7 +99,10 @@ export const artifactDescriptor = defineResource({
         optionsFrom: 'types',
         testId: 'artifact-type-select',
       },
-      statusFormField('artifact'),
+      statusFormField(
+        'artifact',
+        'Drafts are hidden from search; archived artifacts are hidden from default lists and search.'
+      ),
       {
         ...bodyFormField('content', 'artifact-content-textarea'),
         placeholder: 'Enter artifact content…',

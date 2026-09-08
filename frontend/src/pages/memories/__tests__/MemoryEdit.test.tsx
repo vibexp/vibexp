@@ -133,6 +133,27 @@ describe('MemoryEdit', () => {
     })
   })
 
+  it('keeps a tag that was typed but never "Entered"', async () => {
+    const user = userEvent.setup()
+    renderEdit()
+    await waitForForm()
+
+    // Clicking Save blurs the chip input; the draft has to survive that or the
+    // most ordinary way to add a tag silently loses it.
+    await user.type(screen.getByTestId('memory-tags-input'), 'deploy')
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(memoryService.updateMemory).toHaveBeenCalledWith(
+        'team-1',
+        'mem-1',
+        expect.objectContaining({
+          metadata: expect.objectContaining({ tags: ['runbook', 'deploy'] }),
+        })
+      )
+    })
+  })
+
   it('clears the title with an explicit null rather than omitting it', async () => {
     const user = userEvent.setup()
     renderEdit()
