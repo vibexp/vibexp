@@ -2,8 +2,18 @@ package models
 
 import "slices"
 
-// The resource status vocabulary (#912).
-//
+// The resource status vocabulary (#912): the five values it is made of. The
+// per-type constants (ArtifactStatusActive, PromptStatusDraft, ...) alias these
+// rather than respelling them, so a status means the same thing whichever type
+// carries it.
+const (
+	StatusActive    = "active"
+	StatusDraft     = "draft"
+	StatusArchived  = "archived"
+	StatusPublished = "published"
+	StatusExpired   = "expired"
+)
+
 // ResourceStatuses mirrors the `ResourceStatus` schema in
 // backend/schemas/common.yaml: the complete set of status values any of the
 // four resource types may use. Each type accepts one of the named subsets
@@ -25,17 +35,6 @@ import "slices"
 // only for prompts, `expired` retires a blueprint whose rules no longer apply.
 // Widening one is a product decision -- it changes what the list filters accept
 // and what the UI must render -- not a spec tidy-up.
-// The five values the vocabulary is made of. The per-type constants
-// (ArtifactStatusActive, PromptStatusDraft, ...) alias these rather than
-// respelling them, so a status means the same thing whichever type carries it.
-const (
-	StatusActive    = "active"
-	StatusDraft     = "draft"
-	StatusArchived  = "archived"
-	StatusPublished = "published"
-	StatusExpired   = "expired"
-)
-
 var (
 	// ResourceStatuses is the full vocabulary, and must stay the union of the
 	// four subsets below.

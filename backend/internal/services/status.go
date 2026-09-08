@@ -34,8 +34,10 @@ var ErrInvalidStatus = errors.New("invalid status")
 // substitute the documented default and the update paths leave the stored
 // status alone. What "" must never do is reach the column -- `status` is a
 // REQUIRED response field constrained to an enum, so a blank one is a body no
-// generated client can represent. That is the callers' job, and all four update
-// paths now do it (`req.Status != nil && *req.Status != ""`).
+// generated client can represent. That is the callers' job, pinned by
+// TestServicesTreatEmptyStatusAsUnchanged rather than asserted here: a
+// comment claiming a guarantee the callers do not honour is exactly how this
+// got shipped in the first place.
 func validateStatus(allowed []string, status string) error {
 	if status == "" || models.IsAllowedStatus(allowed, status) {
 		return nil

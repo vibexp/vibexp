@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -179,5 +180,60 @@ func TestMemoryService_RejectsOutOfSubsetStatus(t *testing.T) {
 			&models.UpdateMemoryRequest{Status: &status})
 
 		require.ErrorIs(t, err, ErrInvalidStatus)
+	})
+}
+
+// An EMPTY status is the other half of the contract, and the one with no
+// handler standing in front of it: `status` is a REQUIRED response field
+// constrained to an enum, so persisting "" puts a value on the wire that no
+// generated client has a union member for. validateStatus deliberately accepts
+// "" (it is the wire form of "not supplied"), which makes each update path
+// solely responsible for not writing it -- so each one is pinned here (#912).
+func TestServicesTreatEmptyStatusAsUnchanged(t *testing.T) {
+	const (
+		userID    = "user-1"
+		teamID    = "team-1"
+		projectID = testServiceProjectID
+		slug      = "s"
+	)
+	empty := ""
+
+	t.Run("prompt", func(t *testing.T) {
+		repo := mocks.NewMockPromptRepository(t)
+		repo.EXPECT().GetByID(mock.Anything, userID, teamID, "prompt-1").
+			Return(&models.Prompt{ID: "prompt-1", UserID: userID, TeamID: teamID,
+				Status: models.PromptStatusPublished}, nil).Once()
+		repo.EXPECT().Update(mock.Anything, mock.MatchedBy(func(p *models.Prompt) bool {
+			return p.Status == models.PromptStatusPublished
+		})).Return(nil).Once()
+
+		svc := NewPromptService(PromptServiceDeps{
+			Repo: repo, Authz: allowAllAuthz{}, Logger: statusTestLogger(),
+		})
+
+		_, err := svc.UpdatePrompt(userID, teamID, "prompt-1",
+			&models.UpdatePromptRequest{Status: &empty})
+		require.NoError(t, err)
+	})
+
+	t.Run("artifact", func(t *testing.T) {
+		artifact := &models.Artifact{ID: "artifact-1", UserID: userID, TeamID: teamID,
+			Status: models.ArtifactStatusArchived}
+		applyArtifactUpdates(artifact, &models.UpdateArtifactRequest{Status: &empty})
+		assert.Equal(t, models.ArtifactStatusArchived, artifact.Status)
+	})
+
+	t.Run("blueprint", func(t *testing.T) {
+		blueprint := &models.Blueprint{ID: "blueprint-1", UserID: userID, TeamID: teamID,
+			Status: models.BlueprintStatusExpired}
+		applyBlueprintUpdates(blueprint, &models.UpdateBlueprintRequest{Status: &empty})
+		assert.Equal(t, models.BlueprintStatusExpired, blueprint.Status)
+	})
+
+	t.Run("memory", func(t *testing.T) {
+		memory := &models.Memory{ID: "memory-1", UserID: userID, TeamID: teamID,
+			Status: models.MemoryStatusArchived}
+		applyMemoryUpdates(memory, &models.UpdateMemoryRequest{Status: &empty})
+		assert.Equal(t, models.MemoryStatusArchived, memory.Status)
 	})
 }

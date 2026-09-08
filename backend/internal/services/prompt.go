@@ -357,10 +357,8 @@ func (s *PromptService) updatePromptInternal(
 		return nil, authzErr
 	}
 
-	if req.Status != nil {
-		if statusErr := validateStatus(models.PromptStatuses, *req.Status); statusErr != nil {
-			return nil, statusErr
-		}
+	if statusErr := validateOptionalStatus(models.PromptStatuses, req.Status); statusErr != nil {
+		return nil, statusErr
 	}
 
 	// Check if there are any updates to apply
@@ -451,7 +449,9 @@ func buildUpdatedPrompt(existingPrompt *models.Prompt, req *models.UpdatePromptR
 	if req.ProjectID != nil {
 		updatedPrompt.ProjectID = *req.ProjectID
 	}
-	if req.Status != nil {
+	// An empty status is "unchanged", never a clear -- see applyArtifactUpdates
+	// for why writing "" into a required enum field is not an option (#912).
+	if req.Status != nil && *req.Status != "" {
 		updatedPrompt.Status = *req.Status
 	}
 	if req.MCPExpose != nil {
