@@ -58,7 +58,6 @@ export function actionsColumn<T>({
                   size="icon"
                   aria-label={label}
                   data-testid={`${action.key}-${singular}-button`}
-
                   onClick={() => {
                     action.onSelect(item)
                   }}

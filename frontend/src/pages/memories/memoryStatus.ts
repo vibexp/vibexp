@@ -1,11 +1,8 @@
 import type { MemoryStatus } from '@/services/memoryService'
 
-// Human-readable labels for each status (badge text, table cells).
-export const MEMORY_STATUS_LABEL: Record<MemoryStatus, string> = {
-  active: 'Active',
-  draft: 'Draft',
-  archived: 'Archived',
-}
+// Labels are NOT here either: the descriptor's `valueLabels` is what badges and
+// table cells read (#903), through `fieldLabel`. The map this module exported
+// lost its last caller with #907, for the same reason the tone wrapper did.
 
 // Select options in display order. An explicit array (rather than mapping over
 // labels with a computed key) keeps form/filter <Select>s free of the

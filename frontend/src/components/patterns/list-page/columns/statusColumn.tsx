@@ -8,7 +8,10 @@ import {
 import { StatusBadge } from '@/components/StatusBadge'
 
 export interface StatusColumnOptions<T> {
-  /** The descriptor's `role: 'status'` field — `statusFieldOf(descriptor)`. */
+  /**
+   * The descriptor's `role: 'status'` field — `fieldOfRole(descriptor,
+   * 'status')`, or the equivalent `statusFieldOf(descriptor)`.
+   */
   field: FieldSpec | undefined
   value: (row: T) => string
 }

@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 import { RelativeTime } from '../RelativeTime'
 
@@ -24,10 +25,15 @@ describe('RelativeTime', () => {
     expect(label.textContent).not.toMatch(/\(.*\)/)
   })
 
-  it('renders the full date-time exactly once, not as a second visible node', () => {
-    // The absolute value is an attribute, not text: a Radix tooltip alongside
-    // the native `title` would show two bubbles on the same hover (#907).
+  it('does not render the full date-time as a second bubble on hover', async () => {
+    // The absolute value is an attribute, not text: a JS tooltip alongside the
+    // native `title` shows two bubbles on the same hover (#907). The assertion
+    // has to come AFTER the hover — a Radix tooltip renders nothing until it
+    // opens, so checking before would pass with the tooltip still there.
+    const user = userEvent.setup()
     render(<RelativeTime value="2024-01-15T12:00:00Z" />)
+
+    await user.hover(screen.getByText(/Jan 15, 2024/))
 
     expect(screen.queryByText(/January 15, 2024/)).not.toBeInTheDocument()
   })

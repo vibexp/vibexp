@@ -42,4 +42,15 @@ describe('AgentBasicInfo', () => {
     render(<AgentBasicInfo agent={makeAgent({ supportedInterfaces: [] })} />)
     expect(screen.getByText('Protocol: Not specified')).toBeInTheDocument()
   })
+
+  it('badges the status through the shared agent status field', () => {
+    // The detail page and the agents list read one `FieldSpec` (#907). A raw
+    // <Badge> here would re-fork them — same agent, different colour on
+    // /agents and /agents/:id — with agentStatus.test.ts still green, so the
+    // guard has to be on this component, not on the spec.
+    render(<AgentBasicInfo agent={makeAgent(null)} />)
+
+    const badge = screen.getByText('Active')
+    expect(badge).toHaveClass('border-transparent', 'bg-success')
+  })
 })

@@ -10,17 +10,6 @@ import {
 
 import { MetadataPanel, MetaRow, MetaSlugRow } from '../MetadataPanel'
 
-// Radix primitives in this tree rely on ResizeObserver — jsdom doesn't provide
-// it. (RelativeTime no longer does: it is a plain span with a `title` since
-// #907.)
-beforeAll(() => {
-  global.ResizeObserver = class {
-    observe(): void {}
-    unobserve(): void {}
-    disconnect(): void {}
-  }
-})
-
 const CREATED = '2024-01-01T00:00:00Z'
 const UPDATED = '2024-01-02T00:00:00Z'
 
