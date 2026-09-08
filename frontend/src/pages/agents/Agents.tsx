@@ -38,21 +38,25 @@ interface AgentStatsSummary {
   avgSuccessRate: number
 }
 
-const AGENT_STATUSES: readonly AgentStatus[] = ['active', 'paused', 'error']
+const AGENT_STATUSES: ReadonlySet<AgentStatus> = new Set([
+  'active',
+  'paused',
+  'error',
+])
 
 /**
  * `agentService.getAgents` does not forward `sort_by`/`sort_order` today and no
  * agent column is sortable, so these keys only pin the URL contract — validated
  * here so #908 can wire the sort up without a junk value reaching the API.
  */
-const AGENT_SORT_KEYS: readonly AgentSortKey[] = [
+const AGENT_SORT_KEYS: ReadonlySet<AgentSortKey> = new Set([
   'name',
   'status',
   'total_runs',
   'success_rate',
   'last_run',
   'created_at',
-]
+])
 
 const PAGE_SIZE = 20
 
@@ -74,13 +78,13 @@ const FILTER_DEFAULTS = {
 }
 
 function coerceStatus(value: string): AgentStatus | undefined {
-  return AGENT_STATUSES.includes(value as AgentStatus)
+  return AGENT_STATUSES.has(value as AgentStatus)
     ? (value as AgentStatus)
     : undefined
 }
 
 function coerceSortKey(value: string): AgentSortKey {
-  return AGENT_SORT_KEYS.includes(value as AgentSortKey)
+  return AGENT_SORT_KEYS.has(value as AgentSortKey)
     ? (value as AgentSortKey)
     : 'created_at'
 }

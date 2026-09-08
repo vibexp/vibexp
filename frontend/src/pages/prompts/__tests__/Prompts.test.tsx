@@ -694,9 +694,6 @@ describe('Prompts page — Clear filters and the two-branch empty state (#906)',
     expect(
       screen.getAllByRole('button', { name: 'Clear filters' }).length
     ).toBeGreaterThan(0)
-    expect(
-      screen.queryByRole('button', { name: /New prompt/ })
-    ).toBeInTheDocument()
     // Only the page header's create button survives; the empty state offers
     // Clear filters instead.
     expect(screen.getAllByRole('button', { name: /New prompt/ })).toHaveLength(
@@ -707,7 +704,9 @@ describe('Prompts page — Clear filters and the two-branch empty state (#906)',
   it('the shared filter alone also counts as filtered', async () => {
     renderPrompts('/prompts?shared=not_shared')
 
-    await screen.findByText('No prompts match your filters')
+    expect(
+      await screen.findByText('No prompts match your filters')
+    ).toBeInTheDocument()
   })
 
   it('Clear filters empties the URL, the search box and the request', async () => {

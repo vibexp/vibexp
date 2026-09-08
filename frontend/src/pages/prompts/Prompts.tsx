@@ -37,7 +37,10 @@ const PROMPT_SORTABLE_KEYS: readonly PromptSortKey[] = [
   'updated_at',
 ]
 
-const PROMPT_STATUSES: readonly PromptStatus[] = ['draft', 'published']
+const PROMPT_STATUSES: ReadonlySet<PromptStatus> = new Set([
+  'draft',
+  'published',
+])
 
 const PAGE_SIZE = 20
 
@@ -69,7 +72,7 @@ const FILTER_DEFAULTS = {
  * to contain must be validated rather than forwarded.
  */
 function coerceStatus(value: string): PromptStatus | undefined {
-  return PROMPT_STATUSES.includes(value as PromptStatus)
+  return PROMPT_STATUSES.has(value as PromptStatus)
     ? (value as PromptStatus)
     : undefined
 }
@@ -212,21 +215,18 @@ export function Prompts() {
     [navigate, canDeleteResource]
   )
 
-  // Toggle direction when re-clicking the active column; otherwise switch
-  // column and pick a sensible default direction (asc for name, desc otherwise).
   const handleSortChange = useCallback(
     (key: PromptSortKey) => {
-      setFilters({
-        sort_by: key,
-        sort_order:
-          key === sortKey
-            ? sortOrder === 'asc'
-              ? 'desc'
-              : 'asc'
-            : key === 'name'
-              ? 'asc'
-              : 'desc',
-      })
+      // Re-clicking the active column flips direction.
+      if (key === sortKey) {
+        setFilters({
+          sort_by: key,
+          sort_order: sortOrder === 'asc' ? 'desc' : 'asc',
+        })
+        return
+      }
+      // A new column gets a sensible default: asc for name, desc otherwise.
+      setFilters({ sort_by: key, sort_order: key === 'name' ? 'asc' : 'desc' })
     },
     [setFilters, sortKey, sortOrder]
   )
