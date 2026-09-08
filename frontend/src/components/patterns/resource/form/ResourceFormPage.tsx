@@ -20,6 +20,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { labelVariants } from '@/components/ui/label'
 
 import { fieldOfRole } from '../fieldOfRole'
 import type { FormFieldSpec, ResourceDescriptor } from '../types'
@@ -179,7 +180,9 @@ export const ResourceFormPage = forwardRef<
               `for` dangling, which is worse than no label at all.
             */}
             {spec.control === 'metadata' ? (
-              <p className="text-sm leading-none font-medium">{label}</p>
+              // Styled from the same source as a real label, so the heading
+              // cannot drift from the ones beside it.
+              <p className={labelVariants()}>{label}</p>
             ) : (
               <FormLabel className={spec.control === 'body' ? 'sr-only' : ''}>
                 {label}

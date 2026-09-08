@@ -11,6 +11,16 @@ export interface TaxonomyInputProps {
   disabled?: boolean
   /** Stops adding past the API's own cap, and says so. */
   maxItems?: number
+  /**
+   * Max characters per entry, enforced natively on the draft input.
+   *
+   * The schema caps entries too, but a zod error inside an array lands at
+   * `labels.0` and react-hook-form nests it — `FormMessage` reads
+   * `error.message` off the array node, finds none, and renders nothing. An
+   * over-long entry would therefore block Save with no visible reason at all,
+   * so the control must make one impossible to type in the first place.
+   */
+  maxEntryLength?: number
   id?: string
   'data-testid'?: string
   'aria-label'?: string
@@ -32,6 +42,7 @@ export function TaxonomyInput({
   placeholder,
   disabled = false,
   maxItems,
+  maxEntryLength,
   id,
   'data-testid': testId,
   'aria-label': ariaLabel,
@@ -43,7 +54,7 @@ export function TaxonomyInput({
 
   const commit = () => {
     const next = draft.trim()
-    if (next === '' || value.includes(next) || atCap) {
+    if (next === '' || value.includes(next)) {
       setDraft('')
       return
     }
@@ -58,6 +69,7 @@ export function TaxonomyInput({
         value={draft}
         disabled={disabled || atCap}
         placeholder={placeholder}
+        maxLength={maxEntryLength}
         data-testid={testId}
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}

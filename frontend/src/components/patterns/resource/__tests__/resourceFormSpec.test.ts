@@ -81,6 +81,19 @@ describe('resource form specs', () => {
     expect(name?.maxLength).toBe(50)
   })
 
+  it('does not report an array property’s item cap as its own maxLength', () => {
+    // `labels` declares `maxItems` and `items.maxLength`, and no `maxLength`
+    // of its own — reading the nested one as the property's would understate
+    // every text cap that happens to sit beside an array.
+    expect(
+      requestLimits('prompts.yaml', 'CreatePromptRequest', 'labels')
+    ).toEqual({
+      maxLength: undefined,
+      maxItems: 10,
+      itemMaxLength: 50,
+    })
+  })
+
   it('throws on a property the request schema does not declare', () => {
     expect(() =>
       requestLimits('prompts.yaml', 'CreatePromptRequest', 'nonesuch')

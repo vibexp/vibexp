@@ -135,9 +135,15 @@ export function requestLimits(
     throw new Error(`${request}.${property} not found in ${schemaFile}`)
   }
   const items = blockOf(block, 'items')
+  // The property's OWN scalars only: `blockOf` returns the whole subtree, so
+  // reading `maxLength` off it would pick up the nested `items.maxLength` of an
+  // array property and report a bound the property does not declare — a
+  // silently wrong answer, which is the one failure mode this module exists to
+  // rule out.
+  const own = items === '' ? block : block.replace(items, '')
   return {
-    maxLength: numberIn(block, 'maxLength'),
-    maxItems: numberIn(block, 'maxItems'),
+    maxLength: numberIn(own, 'maxLength'),
+    maxItems: numberIn(own, 'maxItems'),
     itemMaxLength: numberIn(items, 'maxLength'),
   }
 }

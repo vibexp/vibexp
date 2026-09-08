@@ -327,6 +327,12 @@ describe('ResourceFormPage — submit', () => {
  * showed up as deleted assertions in #915.
  */
 describe('ResourceFormPage — label and error association', () => {
+  /**
+   * Asserted through the LABEL's own `htmlFor`, not through `getByLabelText`:
+   * the taxonomy and select controls already carried an `aria-label`, so a
+   * label-text query passes on those two whether or not the slot's `id` ever
+   * reaches the DOM — exactly the vacuous guard this fix needs to avoid.
+   */
   it.each([
     ['artifact title (text)', artifactDescriptor, 'Title'],
     ['artifact description (textarea)', artifactDescriptor, 'Description'],
@@ -334,9 +340,12 @@ describe('ResourceFormPage — label and error association', () => {
     ['artifact status (select)', artifactDescriptor, 'Status'],
     ['artifact project (picker)', artifactDescriptor, 'Project'],
     ['prompt labels (taxonomy)', promptDescriptor, 'Labels'],
-  ])('associates the %s control with its label', (_case, descriptor, label) => {
+  ])('points the %s label at a real control', (_case, descriptor, label) => {
     renderPage(descriptor)
-    expect(screen.getByLabelText(label)).toBeInTheDocument()
+    const node = screen.getByText(label, { selector: 'label' })
+    const target = node.getAttribute('for')
+    expect(target).toBeTruthy()
+    expect(document.getElementById(target ?? '')).not.toBeNull()
   })
 
   it('marks the control invalid and points the message at it', async () => {
@@ -400,5 +409,29 @@ describe('ResourceFormPage — re-seeding', () => {
     const view = render(editTree({ title: 'Loaded' }))
     view.rerender(editTree({ title: 'Reloaded' }))
     expect(screen.getByTestId('artifact-title-input')).toHaveValue('Reloaded')
+  })
+})
+
+describe('ResourceFormPage — taxonomy entry length', () => {
+  it('cannot create an entry longer than the descriptor allows', async () => {
+    const user = userEvent.setup()
+    const { ref, onSubmit } = renderPage(promptDescriptor, {
+      initialValues: {
+        name: 'A prompt',
+        slug: 'a-prompt',
+        body: 'Body',
+        project_id: 'p1',
+      },
+    })
+    const input = screen.getByTestId('prompt-labels-input')
+    await user.type(input, `${'x'.repeat(60)}{Enter}`)
+    // The schema caps entries too, but a zod error inside an array nests under
+    // `labels[0]` and `FormMessage` renders nothing for it — so Save would
+    // silently do nothing. The control has to make the entry impossible.
+    expect(screen.getByText('x'.repeat(50))).toBeInTheDocument()
+    await submit(ref)
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ labels: ['x'.repeat(50)] })
+    )
   })
 })

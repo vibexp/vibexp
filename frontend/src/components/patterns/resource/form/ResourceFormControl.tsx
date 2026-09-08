@@ -304,6 +304,7 @@ export function ResourceFormControl({
           disabled={disabled}
           placeholder={spec.placeholder}
           maxItems={spec.maxItems}
+          maxEntryLength={spec.maxLength}
           aria-label={label}
           data-testid={spec.testId}
           onChange={onChange}
