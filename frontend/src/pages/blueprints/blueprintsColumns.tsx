@@ -3,29 +3,21 @@ import { Eye, Pencil, Trash2 } from 'lucide-react'
 import type { NavigateFunction } from 'react-router'
 
 import { FreshnessBadge } from '@/components/FreshnessBadge'
-import { statusLabel, statusTone } from '@/components/patterns/resource'
-import { StatusBadge } from '@/components/StatusBadge'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import {
+  actionsColumn,
+  columnList,
+  nameColumn,
+  statusColumn,
+  typeColumn,
+  updatedColumn,
+} from '@/components/patterns/list-page'
+import {
+  fieldOfRole,
+  getResourceDescriptor,
+} from '@/components/patterns/resource'
 import type { Blueprint } from '@/services/blueprintService'
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-const TYPE_LABEL: Record<Blueprint['type'], string> = {
-  general: 'General',
-  'claude-code': 'Claude Code',
-  claude: 'Claude',
-  cursor: 'Cursor',
-  codex: 'Codex',
-}
+const descriptor = getResourceDescriptor('blueprint')
 
 export function buildBlueprintsColumns({
   navigate,
@@ -41,105 +33,56 @@ export function buildBlueprintsColumns({
    */
   canDelete: (blueprint: Blueprint) => boolean
 }): ColumnDef<Blueprint>[] {
-  return [
-    {
-      accessorKey: 'title',
-      header: 'Title',
-      cell: ({ row }) => {
-        const a = row.original
-        const base = `/blueprints/${encodeURIComponent(a.project_id)}/${encodeURIComponent(a.slug)}`
-        return (
-          <div className="max-w-md space-y-0.5">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="hover:text-primary text-left text-sm font-medium underline-offset-2 hover:underline"
-                onClick={() => {
-                  void navigate(base)
-                }}
-              >
-                {a.title}
-              </button>
-              {/* Renders nothing when the resource is fresh. */}
-              <FreshnessBadge freshness={a.freshness} />
-            </div>
-            {a.description && (
-              <p className="text-muted-foreground text-xs">
-                {a.description.slice(0, 100)}
-                {a.description.length > 100 ? '…' : ''}
-              </p>
-            )}
-          </div>
-        )
-      },
-    },
-    {
-      accessorKey: 'type',
-      header: 'Type',
-      cell: ({ row }) => (
-        <Badge variant="outline">{TYPE_LABEL[row.original.type]}</Badge>
+  const detailPath = (blueprint: Blueprint) =>
+    `/blueprints/${encodeURIComponent(blueprint.project_id)}/${encodeURIComponent(blueprint.slug)}`
+  return columnList<Blueprint>(
+    nameColumn<Blueprint>({
+      field: fieldOfRole(descriptor, 'name'),
+      value: blueprint => blueprint.title,
+      to: detailPath,
+      navigate,
+      summary: blueprint => blueprint.description,
+      // Renders nothing when the resource is fresh.
+      adornment: blueprint => (
+        <FreshnessBadge freshness={blueprint.freshness} />
       ),
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: ({ row }) => (
-        <StatusBadge tone={statusTone('blueprint', row.original.status)}>
-          {statusLabel('blueprint', row.original.status)}
-        </StatusBadge>
-      ),
-    },
-    {
-      accessorKey: 'updated_at',
-      header: 'Updated',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {formatDate(row.original.updated_at)}
-        </span>
-      ),
-    },
-    {
-      id: 'actions',
-      cell: ({ row }) => {
-        const a = row.original
-        const base = `/blueprints/${encodeURIComponent(a.project_id)}/${encodeURIComponent(a.slug)}`
-        return (
-          <div className="flex justify-end gap-1 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="View"
-              onClick={() => {
-                void navigate(base)
-              }}
-            >
-              <Eye className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Edit"
-              onClick={() => {
-                void navigate(`${base}/edit`)
-              }}
-            >
-              <Pencil className="size-4" />
-            </Button>
-            {canDelete(a) && (
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Delete"
-                onClick={() => {
-                  onDelete(a)
-                }}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            )}
-          </div>
-        )
-      },
-    },
-  ]
+    }),
+    typeColumn<Blueprint>({
+      field: fieldOfRole(descriptor, 'type'),
+      value: blueprint => blueprint.type,
+    }),
+    statusColumn<Blueprint>({
+      field: fieldOfRole(descriptor, 'status'),
+      value: blueprint => blueprint.status,
+    }),
+    updatedColumn<Blueprint>({ value: blueprint => blueprint.updated_at }),
+    actionsColumn<Blueprint>({
+      singular: descriptor.singular,
+      actions: [
+        {
+          key: 'view',
+          label: 'View',
+          icon: Eye,
+          onSelect: blueprint => {
+            void navigate(detailPath(blueprint))
+          },
+        },
+        {
+          key: 'edit',
+          label: 'Edit',
+          icon: Pencil,
+          onSelect: blueprint => {
+            void navigate(`${detailPath(blueprint)}/edit`)
+          },
+        },
+        {
+          key: 'delete',
+          label: 'Delete',
+          icon: Trash2,
+          onSelect: onDelete,
+          visible: canDelete,
+        },
+      ],
+    })
+  )
 }

@@ -1,17 +1,14 @@
 import { Bot, Calendar, Clock } from 'lucide-react'
 import { useState } from 'react'
 
-import { Badge } from '@/components/ui/badge'
+import { fieldLabel, fieldTone } from '@/components/patterns/resource'
+import { StatusBadge } from '@/components/StatusBadge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import type { Agent } from '@/services/agentService'
 
-import {
-  agentStatusLabel,
-  agentStatusVariant,
-  formatDate,
-  primaryInterface,
-} from '../helpers'
+import { agentStatusField } from '../agentStatus'
+import { formatDate, primaryInterface } from '../helpers'
 
 interface AgentBasicInfoProps {
   agent: Agent
@@ -58,9 +55,9 @@ export function AgentBasicInfo({ agent }: Readonly<AgentBasicInfoProps>) {
               )}
             </div>
           </div>
-          <Badge variant={agentStatusVariant(agent.status)}>
-            {agentStatusLabel(agent.status)}
-          </Badge>
+          <StatusBadge tone={fieldTone(agentStatusField, agent.status)}>
+            {fieldLabel(agentStatusField, agent.status)}
+          </StatusBadge>
         </div>
 
         <Separator />

@@ -1,31 +1,9 @@
-import type { MemoryStatus } from '@/services/memoryService'
+import { MEMORY_STATUS_OPTIONS } from '../memoryStatus'
 
-import {
-  MEMORY_STATUS_LABEL,
-  MEMORY_STATUS_OPTIONS,
-  memoryStatusTone,
-} from '../memoryStatus'
-
+// Tones and labels are the descriptor's, not this module's (#903/#907) — they
+// are pinned by the resource pattern's own tests. What is left here is the
+// Select options the form and the filter bar consume.
 describe('memoryStatus helpers', () => {
-  it('maps each status to a distinct badge tone', () => {
-    expect(memoryStatusTone('active')).toBe('success')
-    expect(memoryStatusTone('draft')).toBe('warning')
-    expect(memoryStatusTone('archived')).toBe('neutral')
-
-    const tones = (['active', 'draft', 'archived'] as MemoryStatus[]).map(
-      memoryStatusTone
-    )
-    expect(new Set(tones).size).toBe(3) // all distinct
-  })
-
-  it('labels every status', () => {
-    expect(MEMORY_STATUS_LABEL).toEqual({
-      active: 'Active',
-      draft: 'Draft',
-      archived: 'Archived',
-    })
-  })
-
   it('exposes select options in display order', () => {
     expect(MEMORY_STATUS_OPTIONS.map(o => o.value)).toEqual([
       'active',

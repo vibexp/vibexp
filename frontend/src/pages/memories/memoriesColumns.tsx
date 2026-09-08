@@ -1,31 +1,37 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Eye, FolderOpen, Pencil, Tag as TagIcon, Trash2 } from 'lucide-react'
+import { Eye, FolderOpen, Pencil, Trash2 } from 'lucide-react'
 import type { NavigateFunction } from 'react-router'
 
 import { FreshnessBadge } from '@/components/FreshnessBadge'
-import { StatusBadge } from '@/components/StatusBadge'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { markdownToExcerpt } from '@/lib/markdownExcerpt'
 import {
-  MEMORY_STATUS_LABEL,
-  memoryStatusTone,
-} from '@/pages/memories/memoryStatus'
+  actionsColumn,
+  columnList,
+  nameColumn,
+  statusColumn,
+  taxonomyColumn,
+  updatedColumn,
+} from '@/components/patterns/list-page'
+import {
+  fieldOfRole,
+  type FieldSpec,
+  getResourceDescriptor,
+} from '@/components/patterns/resource'
+import { markdownToExcerpt } from '@/lib/markdownExcerpt'
 import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+const descriptor = getResourceDescriptor('memory')
 
 /** Longest excerpt shown in the list's Content cell. */
 const MEMORY_EXCERPT_LENGTH = 140
+
+/**
+ * Memory declares no `taxonomy` field: its tags are lifted out of the free-form
+ * `metadata` bag, exactly as `ResourceTaxonomySection` does on the detail page
+ * (#904). The lift is a display choice, so the spec lives here rather than on
+ * the descriptor.
+ */
+const tagsField: FieldSpec = { key: 'tags', role: 'taxonomy', label: 'Tags' }
 
 export function extractTags(meta?: Record<string, unknown>): string[] {
   const tags = meta?.tags
@@ -53,128 +59,76 @@ export function buildMemoriesColumns({
 }): ColumnDef<Memory>[] {
   const projectMap = new Map(projects.map(p => [p.id, p]))
 
-  const columns: ColumnDef<Memory>[] = [
-    {
-      accessorKey: 'text',
-      header: 'Content',
-      cell: ({ row }) => (
-        <div className="max-w-xl space-y-1">
-          {/* Plain text, not markdown: the raw body puts `#` and `**` in the
-              memory's only identifying cell (#909). */}
-          <p className="text-sm leading-relaxed">
-            {markdownToExcerpt(row.original.text, MEMORY_EXCERPT_LENGTH)}
-          </p>
-          {/* Renders nothing when the resource is fresh. */}
-          <FreshnessBadge freshness={row.original.freshness} />
-        </div>
-      ),
-    },
-  ]
-
-  if (projects.length > 0) {
-    columns.push({
-      id: 'project',
-      header: 'Project',
-      cell: ({ row }) => {
-        const proj = projectMap.get(row.original.project_id)
-        if (!proj) {
-          return <span className="text-muted-foreground text-xs">—</span>
-        }
-        return (
-          <span className="flex items-center gap-1 text-xs">
-            <FolderOpen className="size-3 shrink-0" />
-            {proj.name}
-          </span>
-        )
-      },
-    })
-  }
-
-  if (includeTags) {
-    columns.push({
-      id: 'tags',
-      header: 'Tags',
-      cell: ({ row }) => {
-        const tags = extractTags(row.original.metadata)
-        if (tags.length === 0) {
-          return <span className="text-muted-foreground text-xs">—</span>
-        }
-        return (
-          <div className="flex flex-wrap gap-1">
-            {tags.slice(0, 3).map(tag => (
-              <Badge key={tag} variant="secondary" className="gap-1">
-                <TagIcon className="size-3" />
-                {tag}
-              </Badge>
-            ))}
-            {tags.length > 3 && (
-              <Badge variant="outline">+{tags.length - 3}</Badge>
-            )}
-          </div>
-        )
-      },
-    })
-  }
-
-  columns.push(
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: ({ row }) => (
-        <StatusBadge tone={memoryStatusTone(row.original.status)}>
-          {MEMORY_STATUS_LABEL[row.original.status]}
-        </StatusBadge>
-      ),
-    },
-    {
-      accessorKey: 'updated_at',
-      header: 'Updated',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground whitespace-nowrap text-xs tabular-nums">
-          {formatDate(row.original.updated_at)}
+  /** Only rendered when the page is not already scoped to one project. */
+  const projectColumn: ColumnDef<Memory> = {
+    id: 'project',
+    header: 'Project',
+    cell: ({ row }) => {
+      const proj = projectMap.get(row.original.project_id)
+      if (!proj) {
+        return <span className="text-muted-foreground text-xs">—</span>
+      }
+      return (
+        <span className="flex items-center gap-1 text-xs">
+          <FolderOpen className="size-3 shrink-0" />
+          {proj.name}
         </span>
-      ),
+      )
     },
-    {
-      id: 'actions',
-      cell: ({ row }) => (
-        <div className="flex justify-end gap-1 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="View"
-            onClick={() => {
-              void navigate(`/memories/${row.original.id}`)
-            }}
-          >
-            <Eye className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Edit"
-            onClick={() => {
-              void navigate(`/memories/${row.original.id}/edit`)
-            }}
-          >
-            <Pencil className="size-4" />
-          </Button>
-          {canDelete(row.original) && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Delete"
-              onClick={() => {
-                onDelete(row.original)
-              }}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          )}
-        </div>
-      ),
-    }
-  )
+  }
 
-  return columns
+  return columnList<Memory>(
+    nameColumn<Memory>({
+      field: fieldOfRole(descriptor, 'name'),
+      // A memory has no title: the list shows an excerpt of its body, which is
+      // why this column reads "Content" rather than the descriptor's label.
+      header: 'Content',
+      // Plain text, not markdown: the raw body puts `#` and `**` in the
+      // memory's only identifying cell (#909).
+      value: memory => markdownToExcerpt(memory.text, MEMORY_EXCERPT_LENGTH),
+      multiline: true,
+      className: 'max-w-xl',
+      // Renders nothing when the resource is fresh.
+      adornment: memory => <FreshnessBadge freshness={memory.freshness} />,
+    }),
+    projects.length > 0 && projectColumn,
+    includeTags &&
+      taxonomyColumn<Memory>({
+        field: tagsField,
+        values: memory => extractTags(memory.metadata),
+      }),
+    statusColumn<Memory>({
+      field: fieldOfRole(descriptor, 'status'),
+      value: memory => memory.status,
+    }),
+    updatedColumn<Memory>({ value: memory => memory.updated_at }),
+    actionsColumn<Memory>({
+      singular: descriptor.singular,
+      actions: [
+        {
+          key: 'view',
+          label: 'View',
+          icon: Eye,
+          onSelect: memory => {
+            void navigate(`/memories/${memory.id}`)
+          },
+        },
+        {
+          key: 'edit',
+          label: 'Edit',
+          icon: Pencil,
+          onSelect: memory => {
+            void navigate(`/memories/${memory.id}/edit`)
+          },
+        },
+        {
+          key: 'delete',
+          label: 'Delete',
+          icon: Trash2,
+          onSelect: onDelete,
+          visible: canDelete,
+        },
+      ],
+    })
+  )
 }

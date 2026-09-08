@@ -10,16 +10,6 @@ import {
 
 import { MetadataPanel, MetaRow, MetaSlugRow } from '../MetadataPanel'
 
-// MetadataPanel renders RelativeTime (Radix Tooltip), whose popper relies on
-// ResizeObserver — jsdom doesn't provide it.
-beforeAll(() => {
-  global.ResizeObserver = class {
-    observe(): void {}
-    unobserve(): void {}
-    disconnect(): void {}
-  }
-})
-
 const CREATED = '2024-01-01T00:00:00Z'
 const UPDATED = '2024-01-02T00:00:00Z'
 

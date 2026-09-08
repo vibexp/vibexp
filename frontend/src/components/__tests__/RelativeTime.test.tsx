@@ -3,15 +3,6 @@ import userEvent from '@testing-library/user-event'
 
 import { RelativeTime } from '../RelativeTime'
 
-// Radix Tooltip (via popper) relies on ResizeObserver, which jsdom lacks.
-beforeAll(() => {
-  global.ResizeObserver = class {
-    observe(): void {}
-    unobserve(): void {}
-    disconnect(): void {}
-  }
-})
-
 describe('RelativeTime', () => {
   it('renders a relative label for a recent date', () => {
     vi.useFakeTimers()
@@ -34,18 +25,34 @@ describe('RelativeTime', () => {
     expect(label.textContent).not.toMatch(/\(.*\)/)
   })
 
-  it('reveals the full date-time on hover via tooltip', async () => {
+  it('does not render the full date-time as a second bubble on hover', async () => {
+    // The absolute value is an attribute, not text: a JS tooltip alongside the
+    // native `title` shows two bubbles on the same hover (#907). The assertion
+    // has to come AFTER the hover — a Radix tooltip renders nothing until it
+    // opens, so checking before would pass with the tooltip still there.
     const user = userEvent.setup()
     render(<RelativeTime value="2024-01-15T12:00:00Z" />)
 
-    // Before hover, only the compact label is in the document.
-    expect(screen.queryByText(/January 15, 2024/)).not.toBeInTheDocument()
-
     await user.hover(screen.getByText(/Jan 15, 2024/))
 
-    // Radix renders the tooltip content (with a visually-hidden a11y copy).
-    const full = await screen.findAllByText(/January 15, 2024/)
-    expect(full.length).toBeGreaterThan(0)
+    expect(screen.queryByText(/January 15, 2024/)).not.toBeInTheDocument()
+  })
+
+  it('exposes the absolute date-time as a `title` attribute', () => {
+    // List cells are read by screen readers, copied, and asserted on in e2e —
+    // all of which reach a `title` and none of which reach a JS tooltip (#907).
+    render(<RelativeTime value="2024-01-15T12:00:00Z" />)
+
+    expect(screen.getByText(/Jan 15, 2024/)).toHaveAttribute(
+      'title',
+      expect.stringContaining('January 15, 2024')
+    )
+  })
+
+  it('omits `title` when there is no timestamp, rather than repeating "Never"', () => {
+    render(<RelativeTime value={null} />)
+
+    expect(screen.getByText('Never')).not.toHaveAttribute('title')
   })
 
   it('applies the provided className to the compact label', () => {

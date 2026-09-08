@@ -42,4 +42,26 @@ describe('AgentBasicInfo', () => {
     render(<AgentBasicInfo agent={makeAgent({ supportedInterfaces: [] })} />)
     expect(screen.getByText('Protocol: Not specified')).toBeInTheDocument()
   })
+
+  it.each([
+    ['active', 'Active', 'bg-success'],
+    ['paused', 'Paused', 'bg-muted'],
+    ['error', 'Error', 'bg-destructive'],
+  ] as const)(
+    'badges %s from the shared agent status field',
+    (status, label, toneClass) => {
+      // The detail page and the agents list read one `FieldSpec` (#907). A raw
+      // <Badge> here would re-fork them — same agent, different colour on
+      // /agents and /agents/:id — with agentStatus.test.ts still green, so the
+      // guard has to be on this component, not on the spec. Every status is
+      // exercised: a hardcoded map that happens to agree on `active` still
+      // diverges on the other two.
+      render(<AgentBasicInfo agent={{ ...makeAgent(null), status }} />)
+
+      // BOTH halves of the FieldSpec contract: a hardcoded label would render
+      // "Active" for an errored agent, and a hardcoded tone would colour it
+      // wrong — assert the wording and the fill together.
+      expect(screen.getByText(label)).toHaveClass(toneClass)
+    }
+  )
 })

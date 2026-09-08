@@ -1,6 +1,9 @@
 import { useCallback, useMemo } from 'react'
 
-import type { ResourceDescriptor } from '@/components/patterns/resource'
+import {
+  fieldOfRole,
+  type ResourceDescriptor,
+} from '@/components/patterns/resource'
 
 import type { SortDir } from './types'
 
@@ -54,7 +57,7 @@ export function useResourceListSort({
     () => descriptor.list?.sortable ?? [],
     [descriptor]
   )
-  const nameKey = descriptor.fields.find(field => field.role === 'name')?.key
+  const nameKey = fieldOfRole(descriptor, 'name')?.key
 
   // Membership only, so a Set rather than an array scan (Sonar S7776); the
   // array itself still goes to `ListTable`, which cares about the order.

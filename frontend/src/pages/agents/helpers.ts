@@ -22,37 +22,9 @@ export function primaryInterface(
   return card?.supportedInterfaces?.[0] ?? undefined
 }
 
-export type AgentStatusVariant =
-  | 'default'
-  | 'secondary'
-  | 'destructive'
-  | 'outline'
-
-export function agentStatusVariant(status: string): AgentStatusVariant {
-  switch (status) {
-    case 'active':
-      return 'default'
-    case 'paused':
-      return 'secondary'
-    case 'error':
-      return 'destructive'
-    default:
-      return 'outline'
-  }
-}
-
-export function agentStatusLabel(status: string): string {
-  switch (status) {
-    case 'active':
-      return 'Active'
-    case 'paused':
-      return 'Paused'
-    case 'error':
-      return 'Error'
-    default:
-      return status.charAt(0).toUpperCase() + status.slice(1)
-  }
-}
+// Status tone and wording moved to `agentStatus.ts` (#907): they are one
+// `FieldSpec`, read by both the list column and the detail badge, the same way
+// the four registered resource kinds read theirs off their descriptor.
 
 export function successRateColor(percentage: number): string {
   if (percentage >= 80) return 'text-success'
