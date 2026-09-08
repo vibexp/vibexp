@@ -33,8 +33,23 @@ vi.mock('@/services/promptService', () => ({
   promptService: {
     getPrompts: vi.fn(),
     deletePrompt: vi.fn(),
+    // The taxonomy filter's catalog (#908); lazy, so most tests never hit it.
+    getPromptLabels: vi.fn(),
   },
 }))
+
+// The labels filter is a Radix Popover + cmdk, which the Select mock above does
+// not cover; these are the layout APIs jsdom lacks.
+beforeAll(() => {
+  global.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
+})
 
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
 vi.mock('@/contexts/useAuth', () => ({
@@ -726,5 +741,95 @@ describe('Prompts page — Clear filters and the two-branch empty state (#906)',
     expect(currentSearch).toBe('')
     expect(screen.getByPlaceholderText('Search prompts…')).toHaveValue('')
     await screen.findByText('No prompts yet')
+  })
+})
+
+describe('Prompts page — taxonomy (labels) filter (#908)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions([])
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
+    ;(promptService.getPrompts as Mock).mockResolvedValue(buildListResponse([]))
+    ;(promptService.getPromptLabels as Mock).mockResolvedValue([
+      'api',
+      'review',
+    ])
+  })
+
+  it('sends no labels param and shows no labels in the URL by default', async () => {
+    renderPrompts()
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    expect(lastQuery().labels).toBeUndefined()
+    expect(currentSearch).toBe('')
+  })
+
+  it('rehydrates a comma-separated list from the URL, into the request AND the bar', async () => {
+    renderPrompts('/prompts?labels=api%2Creview')
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    // The API takes the list verbatim (backend/paths/prompts.yaml `labels`).
+    expect(lastQuery().labels).toBe('api,review')
+    expect(screen.getByLabelText('Filter by labels')).toHaveTextContent(
+      '2 labels'
+    )
+  })
+
+  it('picking a label writes the URL and refetches from page 1', async () => {
+    renderPrompts('/prompts?page=4')
+    await waitFor(() => {
+      expect(lastQuery().page).toBe(4)
+    })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByLabelText('Filter by labels'))
+    await user.click(await screen.findByRole('option', { name: /review/ }))
+
+    await waitFor(() => {
+      expect(lastQuery().labels).toBe('review')
+    })
+    expect(lastQuery().page).toBe(1)
+    expect(currentSearch).toContain('labels=review')
+  })
+
+  it('the labels filter alone flips the empty state to the filtered branch', async () => {
+    renderPrompts('/prompts?labels=api')
+
+    expect(
+      await screen.findByText('No prompts match your filters')
+    ).toBeInTheDocument()
+  })
+
+  it('Clear filters drops the labels param', async () => {
+    renderPrompts('/prompts?labels=api')
+    await screen.findByText('No prompts match your filters')
+
+    const user = userEvent.setup()
+    const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
+    await user.click(clear)
+
+    await waitFor(() => {
+      expect(lastQuery().labels).toBeUndefined()
+    })
+    expect(currentSearch).toBe('')
+  })
+
+  it('fetches the label catalog only once the popover opens', async () => {
+    renderPrompts()
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    expect(promptService.getPromptLabels).not.toHaveBeenCalled()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByLabelText('Filter by labels'))
+    await waitFor(() => {
+      expect(promptService.getPromptLabels).toHaveBeenCalledWith('team-1')
+    })
   })
 })

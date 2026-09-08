@@ -5,10 +5,17 @@ import { useNavigate } from 'react-router'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import {
+  FILTER_ALL,
   ListPage,
   listPageStatus,
   ListTable,
+  ResourceFilterBar,
+  useResourceListSort,
 } from '@/components/patterns/list-page'
+import {
+  getResourceDescriptor,
+  roleValues,
+} from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
@@ -18,16 +25,14 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceListFilters } from '@/hooks/useResourceListFilters'
 import { useResourceListQuery } from '@/hooks/useResourceListQuery'
 import { useTypes } from '@/hooks/useTypes'
-import { ArtifactFilters } from '@/pages/artifacts/ArtifactFilters'
 import { buildArtifactsColumns } from '@/pages/artifacts/artifactsColumns'
-import { ARTIFACT_STATUS_OPTIONS } from '@/pages/artifacts/artifactStatus'
-import type { Artifact } from '@/services/artifactService'
+import type { Artifact, ArtifactFilters } from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
-type ArtifactSortKey = 'updated_at'
+const ARTIFACT = getResourceDescriptor('artifact')
 
-const ARTIFACT_SORTABLE_KEYS: readonly ArtifactSortKey[] = ['updated_at']
+const ARTIFACT_STATUSES = roleValues(ARTIFACT, 'status')
 
 const PAGE_SIZE = 20
 
@@ -42,9 +47,9 @@ const PAGE_SIZE = 20
 const FILTER_DEFAULTS = {
   page: '1',
   search: '',
-  type: 'all',
-  status: 'all',
-  freshness: 'all',
+  type: FILTER_ALL,
+  status: FILTER_ALL,
+  freshness: FILTER_ALL,
   metadata: '',
   sort_by: 'updated_at',
   sort_order: 'desc',
@@ -56,7 +61,7 @@ const FILTER_DEFAULTS = {
  * is an open string matched against the team's registered types, not an enum.
  */
 function coerceStatus(value: string): Artifact['status'] | undefined {
-  return ARTIFACT_STATUS_OPTIONS.some(option => option.value === value)
+  return ARTIFACT_STATUSES.has(value)
     ? (value as Artifact['status'])
     : undefined
 }
@@ -79,25 +84,22 @@ export function Artifacts() {
 
   const projectId = currentProject?.id
 
-  const {
-    filters,
-    setFilters,
-    searchInput,
-    setSearchInput,
-    page,
-    setPage,
-    sortOrder,
-    metadata,
-    metadataParam,
-    setMetadata,
-    hasActiveFilters,
-    handleClear,
-  } = useResourceListFilters({
+  const listFilters = useResourceListFilters({
     defaults: FILTER_DEFAULTS,
     filterKeys: ['type', 'status', 'freshness'],
     projectId,
     isProjectLoading,
   })
+  const {
+    filters,
+    setFilters,
+    page,
+    setPage,
+    sortOrder,
+    metadataParam,
+    hasActiveFilters,
+    handleClear,
+  } = listFilters
 
   const [artifactToDelete, setArtifactToDelete] = useState<Artifact | null>(
     null
@@ -110,13 +112,23 @@ export function Artifacts() {
   // coercion to absorb a junk value the way `status` does — an explicit `?type=`
   // in the URL would otherwise be forwarded as an empty string.
   const type =
-    filters.type === 'all' || filters.type === '' ? undefined : filters.type
+    filters.type === FILTER_ALL || filters.type === ''
+      ? undefined
+      : filters.type
   const status =
-    filters.status === 'all' ? undefined : coerceStatus(filters.status)
+    filters.status === FILTER_ALL ? undefined : coerceStatus(filters.status)
   // The API accepts only `stale` and 400s on anything else, so a junk URL value
   // must be dropped rather than forwarded.
   const freshness =
     filters.freshness === 'stale' ? ('stale' as const) : undefined
+
+  const { sortableKeys, sortKey, onSortChange } = useResourceListSort({
+    descriptor: ARTIFACT,
+    sortBy: filters.sort_by,
+    sortOrder,
+    setFilters,
+    fallback: FILTER_DEFAULTS.sort_by,
+  })
 
   const load = useCallback(async () => {
     const response = await artifactService.getArtifacts(currentTeam?.id ?? '', {
@@ -128,7 +140,9 @@ export function Artifacts() {
       metadata: metadataParam,
       freshness,
       project_id: projectId,
-      sort_by: 'updated_at',
+      // Safe by construction: the descriptor's sortable keys are pinned to
+      // this endpoint's `sort_by` enum by `resourceListSpec.test.ts`.
+      sort_by: sortKey as ArtifactFilters['sort_by'],
       sort_order: sortOrder,
     })
     return {
@@ -145,6 +159,7 @@ export function Artifacts() {
     metadataParam,
     freshness,
     projectId,
+    sortKey,
     sortOrder,
   ])
 
@@ -183,17 +198,6 @@ export function Artifacts() {
       setArtifactToDelete(null)
     }
   }
-
-  const handleSortChange = useCallback(
-    (key: ArtifactSortKey) => {
-      // Only one sortable column today, so a click always flips direction.
-      setFilters({
-        sort_by: key,
-        sort_order: sortOrder === 'asc' ? 'desc' : 'asc',
-      })
-    },
-    [setFilters, sortOrder]
-  )
 
   const typeNames = useMemo(
     () => new Map(types.map(t => [t.slug, t.name])),
@@ -236,26 +240,10 @@ export function Artifacts() {
 
       <ListPage.Container>
         <ListPage.Filters>
-          <ArtifactFilters
-            searchInput={searchInput}
-            onSearchInputChange={setSearchInput}
-            type={type}
-            onTypeChange={value => {
-              setFilters({ type: value ?? FILTER_DEFAULTS.type })
-            }}
-            status={status}
-            onStatusChange={value => {
-              setFilters({ status: value ?? FILTER_DEFAULTS.status })
-            }}
-            freshness={freshness}
-            onFreshnessChange={value => {
-              setFilters({ freshness: value ?? FILTER_DEFAULTS.freshness })
-            }}
-            metadata={metadata}
-            onMetadataChange={setMetadata}
+          <ResourceFilterBar
+            descriptor={ARTIFACT}
+            filters={listFilters}
             projectId={projectId}
-            onClear={handleClear}
-            hasActiveFilters={hasActiveFilters}
           />
         </ListPage.Filters>
 
@@ -300,10 +288,10 @@ export function Artifacts() {
           <ListTable
             rows={state.items}
             columns={columns}
-            sortableKeys={ARTIFACT_SORTABLE_KEYS}
-            sortKey="updated_at"
+            sortableKeys={sortableKeys}
+            sortKey={sortKey}
             sortDir={sortOrder}
-            onSortChange={handleSortChange}
+            onSortChange={onSortChange}
           />
         </ListPage.Body>
 

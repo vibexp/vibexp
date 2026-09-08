@@ -494,3 +494,77 @@ describe('Artifacts page — stale filter (#738)', () => {
     expect(lastQuery().freshness).toBeUndefined()
   })
 })
+
+describe('Artifacts page — descriptor-driven sorting (#908)', () => {
+  // The table (and therefore the sortable headers) only renders once the list
+  // is non-empty; an empty list swaps in the EmptyState instead.
+  const oneArtifact = {
+    ...emptyResponse,
+    artifacts: [
+      {
+        id: 'artifact-1',
+        project_id: 'proj-1',
+        slug: 'sprint-report',
+        user_id: 'user-1',
+        title: 'Sprint Report',
+        description: '',
+        content: '',
+        type: 'general',
+        status: 'active',
+        metadata: {},
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-02T00:00:00Z',
+      },
+    ],
+    total_count: 1,
+    total_pages: 1,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
+    ;(artifactService.getArtifacts as Mock).mockResolvedValue(oneArtifact)
+  })
+
+  it('sorts by title, which the descriptor declares and the endpoint accepts', async () => {
+    renderArtifacts()
+    await screen.findByText('Sprint Report')
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Title' }))
+
+    await waitFor(() => {
+      expect(lastQuery()).toEqual(
+        expect.objectContaining({ sort_by: 'title', sort_order: 'asc' })
+      )
+    })
+    expect(currentSearch).toContain('sort_by=title')
+
+    // Re-clicking the active column only flips the direction.
+    await user.click(screen.getByRole('button', { name: 'Title' }))
+    await waitFor(() => {
+      expect(lastQuery()).toEqual(
+        expect.objectContaining({ sort_by: 'title', sort_order: 'desc' })
+      )
+    })
+  })
+
+  it('leaves the status column unsortable — this endpoint 400s on sort_by=status', async () => {
+    renderArtifacts()
+    await screen.findByText('Sprint Report')
+
+    expect(
+      screen.queryByRole('button', { name: 'Status' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('falls back to updated_at when the URL names an undeclared sort column', async () => {
+    renderArtifacts('/artifacts?sort_by=status')
+
+    await waitFor(() => {
+      expect(artifactService.getArtifacts).toHaveBeenCalled()
+    })
+    expect(lastQuery().sort_by).toBe('updated_at')
+  })
+})

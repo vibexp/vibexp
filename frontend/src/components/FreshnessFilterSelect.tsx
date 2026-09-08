@@ -1,3 +1,4 @@
+import { FILTER_CONTROL_WIDTH } from '@/components/patterns/list-page/filterControls'
 import {
   Select,
   SelectContent,
@@ -39,7 +40,7 @@ export function FreshnessFilterSelect({
       }}
     >
       <SelectTrigger
-        className="w-[150px]"
+        className={FILTER_CONTROL_WIDTH}
         aria-label={ariaLabel}
         data-testid={testId}
       >

@@ -36,6 +36,15 @@
  * Which shared side panels a kind supports. They are facts about the resource
  * as it exists today (memory has no attachments; only prompts can be exposed
  * over MCP), not preferences a page may override.
+ *
+ * ## List behaviour
+ *
+ * The optional `list` section says which controls the resource's list page
+ * offers and which columns it may be sorted by, so a filter bar is generated
+ * from the resource type rather than hand-written once per page (#908). Both
+ * halves are validated against `fields` — and, for `sortable`, against the
+ * list endpoint's own `sort_by` enum by `resourceListSpec.test.ts`, because a
+ * key the API does not accept is a 400 on the first header click.
  */
 
 import type { ReactNode } from 'react'
@@ -75,6 +84,13 @@ export interface FieldSpec {
    * `ResourceStatus` enum lands (decision F).
    */
   readonly statusValues?: readonly string[]
+  /**
+   * For a closed `type` field: every value the API accepts, in display order.
+   * The artifact `type` has none — it is an open string matched against the
+   * team's registered types — which is exactly the difference a filter needs
+   * to know about.
+   */
+  readonly typeValues?: readonly string[]
   /**
    * For a `status` field: the badge tone per status value. Every key must be
    * one of `statusValues`.
@@ -120,6 +136,64 @@ export interface Capabilities {
 export type ResourceAddressShape =
   readonly ['slug'] | readonly ['project', 'slug'] | readonly ['id']
 
+/**
+ * Which control a list filter renders as.
+ *
+ * `search`, `freshness` and `metadata` are list-level controls with no field
+ * of their own — every resource searches over its own text, freshness is a
+ * property of the freshness rules and `metadata` is the free-form blob — so
+ * they name no `FieldSpec`. `select` and `taxonomy` do, and `defineResource`
+ * enforces it.
+ */
+export type FilterControl =
+  'search' | 'select' | 'freshness' | 'metadata' | 'taxonomy'
+
+/**
+ * Where a `select`/`taxonomy` filter's options come from.
+ *
+ * `field` reads them off the named `FieldSpec`'s exhaustive value list
+ * (`statusValues` or `typeValues`), which is what stops the filter's option
+ * list drifting from the badge's. Deliberately NOT `valueLabels`: that map is
+ * partial by design, so promoting its keys to an option set would silently
+ * hide any value the server later adds without a label.
+ *
+ * The other two are catalogs only known at runtime. `prompt-labels` names the
+ * prompt label endpoint rather than a generic "labels", because that is the
+ * only taxonomy catalog that exists — a generic name would invite a descriptor
+ * to declare it for a taxonomy field it does not serve.
+ */
+export type FilterOptionsSource = 'field' | 'types' | 'prompt-labels'
+
+/** One control on a resource list's filter bar. */
+export interface FilterSpec {
+  /**
+   * The URL/query parameter this control drives. For `select` and `taxonomy`
+   * it must also be a declared field key.
+   */
+  readonly key: string
+  readonly control: FilterControl
+  /** Accessible name for the control ("Filter by status"). */
+  readonly label: string
+  /** Text of the "no filter" option ("All statuses"). `select` only. */
+  readonly allLabel?: string
+  /** Required on `select` and `taxonomy`, forbidden on the other controls. */
+  readonly optionsFrom?: FilterOptionsSource
+  /** Kept from the hand-written bars so existing page tests keep passing. */
+  readonly testId?: string
+}
+
+/** How a resource's list page filters and sorts. */
+export interface ResourceListSpec {
+  /** The filter bar, in render order. */
+  readonly filters: readonly FilterSpec[]
+  /**
+   * Column keys the list may be sorted by. Each is a declared field key or one
+   * of the universal timestamps, and each must be accepted by the list
+   * endpoint's `sort_by` enum.
+   */
+  readonly sortable: readonly string[]
+}
+
 /** A resource type, described as data. */
 export interface ResourceDescriptor {
   /** Stable discriminator; for team resources it is also the API resource type. */
@@ -131,6 +205,8 @@ export interface ResourceDescriptor {
   readonly address: ResourceAddressShape
   readonly fields: readonly FieldSpec[]
   readonly capabilities: Capabilities
+  /** How the resource's list page filters and sorts. Absent for kinds with no list page. */
+  readonly list?: ResourceListSpec
   /** No create/edit/delete affordances — the gallery is served read-only. */
   readonly readOnly?: boolean
 }

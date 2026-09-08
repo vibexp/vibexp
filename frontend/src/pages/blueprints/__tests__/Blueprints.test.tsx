@@ -395,7 +395,9 @@ describe('Blueprints page', () => {
         ).toBeInTheDocument()
       })
       expect(
-        screen.getByText('Try different search, type or metadata settings.')
+        screen.getByText(
+          'Try different search, type, status or metadata settings.'
+        )
       ).toBeInTheDocument()
     })
   })
@@ -1055,5 +1057,87 @@ describe('Blueprints page — stale filter wiring (#738)', () => {
       expect(blueprintService.getBlueprints).toHaveBeenCalled()
     })
     expect(screen.queryByTestId('freshness-badge')).not.toBeInTheDocument()
+  })
+})
+
+describe('Blueprints page — status filter (#908)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions([])
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
+      buildListResponse([])
+    )
+  })
+
+  it('sends no status by default and keeps it out of the URL', async () => {
+    renderBlueprints()
+
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBeUndefined()
+    expect(currentSearch).toBe('')
+  })
+
+  it('rehydrates the status from the URL and forwards it to the API', async () => {
+    renderBlueprints('/blueprints?status=expired')
+
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalled()
+    })
+    // `active | expired` — not the artifact/memory triple (#899 vocabulary).
+    expect(lastQuery().status).toBe('expired')
+  })
+
+  it('picking a status writes the URL and refetches from page 1', async () => {
+    renderBlueprints('/blueprints?page=3')
+    await waitFor(() => {
+      expect(lastQuery().page).toBe(3)
+    })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Expired' }))
+
+    await waitFor(() => {
+      expect(lastQuery().status).toBe('expired')
+    })
+    expect(lastQuery().page).toBe(1)
+    expect(currentSearch).toContain('status=expired')
+  })
+
+  it('drops a status outside the enum rather than 400ing the list', async () => {
+    renderBlueprints('/blueprints?status=bogus')
+
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBeUndefined()
+    // That the CONTROL also reads "All statuses" rather than going blank is
+    // asserted in `ResourceFilterBar.test.tsx`: this suite stubs the Radix
+    // Select, so the assertion would pass here whatever the bar renders.
+  })
+
+  it('the status filter alone flips the empty state to the filtered branch', async () => {
+    renderBlueprints('/blueprints?status=active')
+
+    expect(
+      await screen.findByText('No blueprints match your filters')
+    ).toBeInTheDocument()
+  })
+
+  it('Clear filters drops the status param', async () => {
+    renderBlueprints('/blueprints?status=active')
+    await screen.findByText('No blueprints match your filters')
+
+    const user = userEvent.setup()
+    const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
+    await user.click(clear)
+
+    await waitFor(() => {
+      expect(lastQuery().status).toBeUndefined()
+    })
+    expect(currentSearch).toBe('')
   })
 })

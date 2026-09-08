@@ -1,6 +1,12 @@
 import { formatDate } from '@/lib/time'
 
 import { defineResource } from '../defineResource'
+import {
+  freshnessFilter,
+  metadataFilter,
+  searchFilter,
+  statusFilter,
+} from '../filterSpecs'
 
 /**
  * Blueprint — addressed like an artifact. Its status enum is `active | expired`
@@ -40,6 +46,10 @@ export const blueprintDescriptor = defineResource({
       key: 'type',
       role: 'type',
       label: 'Type',
+      // Closed enum (backend/paths/blueprints.yaml), unlike the artifact type.
+      // Declared separately from `valueLabels`, which is partial by design and
+      // must never be mistaken for the complete value set.
+      typeValues: ['general', 'claude-code', 'claude', 'cursor', 'codex'],
       valueLabels: {
         general: 'General',
         'claude-code': 'Claude Code',
@@ -107,6 +117,24 @@ export const blueprintDescriptor = defineResource({
     // row for it — `ResourceTaxonomySection` owns it.
     { key: 'metadata', role: 'meta', label: 'Metadata', optional: true },
   ],
+  list: {
+    filters: [
+      searchFilter('blueprints'),
+      {
+        key: 'type',
+        control: 'select',
+        label: 'Filter by type',
+        allLabel: 'All types',
+        optionsFrom: 'field',
+      },
+      statusFilter('blueprint'),
+      freshnessFilter('blueprint', 'blueprints'),
+      metadataFilter('blueprints'),
+    ],
+    // The list endpoint's `sort_by` enum is [created_at, updated_at, title]
+    // (backend/paths/blueprints.yaml), so status is not sortable here.
+    sortable: ['title', 'updated_at'],
+  },
   capabilities: {
     attachments: true,
     versions: true,

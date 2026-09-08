@@ -1,4 +1,10 @@
 import { defineResource } from '../defineResource'
+import {
+  freshnessFilter,
+  metadataFilter,
+  searchFilter,
+  statusFilter,
+} from '../filterSpecs'
 
 /**
  * Artifact — addressed by project + slug (`/artifacts/:project/:slug`, built
@@ -45,6 +51,27 @@ export const artifactDescriptor = defineResource({
     // row for it — `ResourceTaxonomySection` owns it.
     { key: 'metadata', role: 'meta', label: 'Metadata', optional: true },
   ],
+  list: {
+    filters: [
+      searchFilter('artifacts'),
+      {
+        key: 'type',
+        control: 'select',
+        label: 'Filter by type',
+        allLabel: 'All types',
+        // Open string validated against the team's registered types, so the
+        // catalog is a runtime fetch rather than a list declared here.
+        optionsFrom: 'types',
+      },
+      statusFilter('artifact'),
+      freshnessFilter('artifact', 'artifacts'),
+      metadataFilter('artifacts'),
+    ],
+    // `status` is absent because the list endpoint's `sort_by` enum is
+    // [created_at, updated_at, title] — declaring it would 400 on the first
+    // header click (backend/paths/artifacts.yaml).
+    sortable: ['title', 'updated_at'],
+  },
   capabilities: {
     attachments: true,
     versions: true,

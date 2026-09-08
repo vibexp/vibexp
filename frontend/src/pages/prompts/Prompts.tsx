@@ -5,10 +5,17 @@ import { useNavigate } from 'react-router'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import {
+  FILTER_ALL,
   ListPage,
   listPageStatus,
   ListTable,
+  ResourceFilterBar,
+  useResourceListSort,
 } from '@/components/patterns/list-page'
+import {
+  getResourceDescriptor,
+  roleValues,
+} from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
@@ -17,8 +24,11 @@ import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceListFilters } from '@/hooks/useResourceListFilters'
 import { useResourceListQuery } from '@/hooks/useResourceListQuery'
-import { PromptFilters, type SharedFilter } from '@/pages/prompts/PromptFilters'
 import { buildPromptsColumns } from '@/pages/prompts/promptsColumns'
+import {
+  PromptSharedFilter,
+  type SharedFilter,
+} from '@/pages/prompts/PromptSharedFilter'
 import type {
   Prompt,
   PromptFilters as PromptFiltersType,
@@ -26,21 +36,11 @@ import type {
 import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
-type PromptSortKey = NonNullable<PromptFiltersType['sort_by']>
 type PromptStatus = NonNullable<PromptFiltersType['status']>
 
-// Backend also accepts 'created_at' as a sort field, but the UI only exposes
-// the three columns rendered with sortable headers (name, status, updated_at).
-const PROMPT_SORTABLE_KEYS: readonly PromptSortKey[] = [
-  'name',
-  'status',
-  'updated_at',
-]
+const PROMPT = getResourceDescriptor('prompt')
 
-const PROMPT_STATUSES: ReadonlySet<PromptStatus> = new Set([
-  'draft',
-  'published',
-])
+const PROMPT_STATUSES = roleValues(PROMPT, 'status')
 
 const PAGE_SIZE = 20
 
@@ -55,32 +55,30 @@ const PAGE_SIZE = 20
  * `metadata` is a base key of `useResourceListFilters` that prompts do not
  * filter on — the list endpoint has no such parameter — so it stays at its
  * default and is never sent (#906; adding the control is out of scope).
+ *
+ * `labels` is a comma-separated list rather than an enum, so its cleared value
+ * is the empty string, not `all` (#908).
  */
 const FILTER_DEFAULTS = {
   page: '1',
   search: '',
   metadata: '',
-  status: 'all',
-  shared: 'all',
-  freshness: 'all',
+  status: FILTER_ALL,
+  labels: '',
+  shared: FILTER_ALL,
+  freshness: FILTER_ALL,
   sort_by: 'updated_at',
   sort_order: 'desc',
 }
 
 /**
- * `status` and `sort_by` are enums the API 400s on, so whatever the URL happens
- * to contain must be validated rather than forwarded.
+ * `status` is an enum the API 400s on, so whatever the URL happens to contain
+ * must be validated rather than forwarded. `labels` needs no such guard: it is
+ * an open list matched against the team's own labels, and an unknown label
+ * simply matches nothing.
  */
 function coerceStatus(value: string): PromptStatus | undefined {
-  return PROMPT_STATUSES.has(value as PromptStatus)
-    ? (value as PromptStatus)
-    : undefined
-}
-
-function coerceSortKey(value: string): PromptSortKey {
-  return PROMPT_SORTABLE_KEYS.includes(value as PromptSortKey)
-    ? (value as PromptSortKey)
-    : 'updated_at'
+  return PROMPT_STATUSES.has(value) ? (value as PromptStatus) : undefined
 }
 
 /** The tri-state stays a string in the URL; only the request sees a boolean. */
@@ -112,22 +110,21 @@ export function Prompts() {
 
   const projectId = currentProject?.id
 
+  const listFilters = useResourceListFilters({
+    defaults: FILTER_DEFAULTS,
+    filterKeys: ['status', 'labels', 'shared', 'freshness'],
+    projectId,
+    isProjectLoading,
+  })
   const {
     filters,
     setFilters,
-    searchInput,
-    setSearchInput,
     page,
     setPage,
     sortOrder,
     hasActiveFilters,
     handleClear,
-  } = useResourceListFilters({
-    defaults: FILTER_DEFAULTS,
-    filterKeys: ['status', 'shared', 'freshness'],
-    projectId,
-    isProjectLoading,
-  })
+  } = listFilters
 
   const [promptToDelete, setPromptToDelete] = useState<Prompt | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -135,14 +132,22 @@ export function Prompts() {
   const [reloadToken, setReloadToken] = useState(0)
 
   const status =
-    filters.status === 'all' ? undefined : coerceStatus(filters.status)
+    filters.status === FILTER_ALL ? undefined : coerceStatus(filters.status)
+  const labels = filters.labels || undefined
   const shared =
-    filters.shared === 'all' ? undefined : coerceShared(filters.shared)
+    filters.shared === FILTER_ALL ? undefined : coerceShared(filters.shared)
   // The API accepts only `stale` and 400s on anything else, so a junk URL value
   // must be dropped rather than forwarded.
   const freshness =
     filters.freshness === 'stale' ? ('stale' as const) : undefined
-  const sortKey = coerceSortKey(filters.sort_by)
+
+  const { sortableKeys, sortKey, onSortChange } = useResourceListSort({
+    descriptor: PROMPT,
+    sortBy: filters.sort_by,
+    sortOrder,
+    setFilters,
+    fallback: FILTER_DEFAULTS.sort_by,
+  })
 
   const load = useCallback(async () => {
     const response = await promptService.getPrompts(currentTeam?.id ?? '', {
@@ -150,10 +155,13 @@ export function Prompts() {
       limit: PAGE_SIZE,
       search: filters.search || undefined,
       status,
+      labels,
       shared,
       freshness,
       project_id: projectId,
-      sort_by: sortKey,
+      // Safe by construction: the descriptor's sortable keys are pinned to
+      // this endpoint's `sort_by` enum by `resourceListSpec.test.ts`.
+      sort_by: sortKey as PromptFiltersType['sort_by'],
       sort_order: sortOrder,
     })
     return {
@@ -166,6 +174,7 @@ export function Prompts() {
     page,
     filters.search,
     status,
+    labels,
     shared,
     freshness,
     projectId,
@@ -215,22 +224,6 @@ export function Prompts() {
     [navigate, canDeleteResource]
   )
 
-  const handleSortChange = useCallback(
-    (key: PromptSortKey) => {
-      // Re-clicking the active column flips direction.
-      if (key === sortKey) {
-        setFilters({
-          sort_by: key,
-          sort_order: sortOrder === 'asc' ? 'desc' : 'asc',
-        })
-        return
-      }
-      // A new column gets a sensible default: asc for name, desc otherwise.
-      setFilters({ sort_by: key, sort_order: key === 'name' ? 'asc' : 'desc' })
-    },
-    [setFilters, sortKey, sortOrder]
-  )
-
   const listStatus = listPageStatus(
     state.loading,
     state.error,
@@ -257,23 +250,17 @@ export function Prompts() {
 
       <ListPage.Container>
         <ListPage.Filters>
-          <PromptFilters
-            searchInput={searchInput}
-            onSearchInputChange={setSearchInput}
-            statusFilter={status ?? 'all'}
-            onStatusChange={value => {
-              setFilters({ status: value })
-            }}
-            sharedFilter={toSharedFilter(shared)}
-            onSharedChange={value => {
-              setFilters({ shared: value })
-            }}
-            freshness={freshness}
-            onFreshnessChange={value => {
-              setFilters({ freshness: value ?? FILTER_DEFAULTS.freshness })
-            }}
-            onClear={handleClear}
-            hasActiveFilters={hasActiveFilters}
+          <ResourceFilterBar
+            descriptor={PROMPT}
+            filters={listFilters}
+            extras={
+              <PromptSharedFilter
+                value={toSharedFilter(shared)}
+                onChange={value => {
+                  setFilters({ shared: value })
+                }}
+              />
+            }
           />
         </ListPage.Filters>
 
@@ -289,7 +276,7 @@ export function Prompts() {
               <EmptyState
                 icon={FileText}
                 title="No prompts match your filters"
-                description="Try different search, status, shared or freshness settings."
+                description="Try different search, status, label, shared or freshness settings."
                 actions={
                   <Button variant="outline" onClick={handleClear}>
                     Clear filters
@@ -318,10 +305,10 @@ export function Prompts() {
           <ListTable
             rows={state.items}
             columns={columns}
-            sortableKeys={PROMPT_SORTABLE_KEYS}
+            sortableKeys={sortableKeys}
             sortKey={sortKey}
             sortDir={sortOrder}
-            onSortChange={handleSortChange}
+            onSortChange={onSortChange}
           />
         </ListPage.Body>
 

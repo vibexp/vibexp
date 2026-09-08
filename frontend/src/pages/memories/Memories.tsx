@@ -5,10 +5,17 @@ import { useNavigate } from 'react-router'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import {
+  FILTER_ALL,
   ListPage,
   listPageStatus,
   ListTable,
+  ResourceFilterBar,
+  useResourceListSort,
 } from '@/components/patterns/list-page'
+import {
+  getResourceDescriptor,
+  roleValues,
+} from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
@@ -18,13 +25,19 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceListFilters } from '@/hooks/useResourceListFilters'
 import { useResourceListQuery } from '@/hooks/useResourceListQuery'
 import { buildMemoriesColumns } from '@/pages/memories/memoriesColumns'
-import { MemoryFilters } from '@/pages/memories/MemoryFilters'
-import { MEMORY_STATUS_OPTIONS } from '@/pages/memories/memoryStatus'
-import type { Memory, MemoryStatus } from '@/services/memoryService'
+import type {
+  Memory,
+  MemoryFilters,
+  MemoryStatus,
+} from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
+
+const MEMORY = getResourceDescriptor('memory')
+
+const MEMORY_STATUSES = roleValues(MEMORY, 'status')
 
 const PAGE_SIZE = 20
 
@@ -39,9 +52,10 @@ const PAGE_SIZE = 20
 const FILTER_DEFAULTS = {
   page: '1',
   search: '',
-  status: 'all',
-  freshness: 'all',
+  status: FILTER_ALL,
+  freshness: FILTER_ALL,
   metadata: '',
+  sort_by: 'updated_at',
   sort_order: 'desc',
 }
 
@@ -50,9 +64,7 @@ const FILTER_DEFAULTS = {
  * forward whatever the URL happens to contain.
  */
 function coerceStatus(value: string): MemoryStatus | undefined {
-  return MEMORY_STATUS_OPTIONS.some(option => option.value === value)
-    ? (value as MemoryStatus)
-    : undefined
+  return MEMORY_STATUSES.has(value) ? (value as MemoryStatus) : undefined
 }
 
 export function Memories() {
@@ -73,25 +85,22 @@ export function Memories() {
 
   const projectId = currentProject?.id
 
-  const {
-    filters,
-    setFilters,
-    searchInput,
-    setSearchInput,
-    page,
-    setPage,
-    sortOrder,
-    metadata,
-    metadataParam,
-    setMetadata,
-    hasActiveFilters,
-    handleClear,
-  } = useResourceListFilters({
+  const listFilters = useResourceListFilters({
     defaults: FILTER_DEFAULTS,
     filterKeys: ['status', 'freshness'],
     projectId,
     isProjectLoading,
   })
+  const {
+    filters,
+    setFilters,
+    page,
+    setPage,
+    sortOrder,
+    metadataParam,
+    hasActiveFilters,
+    handleClear,
+  } = listFilters
 
   const [projects, setProjects] = useState<Project[]>([])
   const [memoryToDelete, setMemoryToDelete] = useState<Memory | null>(null)
@@ -100,11 +109,19 @@ export function Memories() {
   const [reloadToken, setReloadToken] = useState(0)
 
   const status =
-    filters.status === 'all' ? undefined : coerceStatus(filters.status)
+    filters.status === FILTER_ALL ? undefined : coerceStatus(filters.status)
   // The API accepts only `stale` and 400s on anything else, so a junk URL value
   // must be dropped rather than forwarded.
   const freshness =
     filters.freshness === 'stale' ? ('stale' as const) : undefined
+
+  const { sortableKeys, sortKey, onSortChange } = useResourceListSort({
+    descriptor: MEMORY,
+    sortBy: filters.sort_by,
+    sortOrder,
+    setFilters,
+    fallback: FILTER_DEFAULTS.sort_by,
+  })
 
   const load = useCallback(async () => {
     const response = await memoryService.getMemories(currentTeam?.id ?? '', {
@@ -115,7 +132,9 @@ export function Memories() {
       metadata: metadataParam,
       freshness,
       project_id: projectId,
-      sort_by: 'updated_at',
+      // Safe by construction: the descriptor's sortable keys are pinned to
+      // this endpoint's `sort_by` enum by `resourceListSpec.test.ts`.
+      sort_by: sortKey as MemoryFilters['sort_by'],
       sort_order: sortOrder,
     })
     return {
@@ -131,6 +150,7 @@ export function Memories() {
     metadataParam,
     freshness,
     projectId,
+    sortKey,
     sortOrder,
   ])
 
@@ -181,17 +201,6 @@ export function Memories() {
     }
   }
 
-  const handleSortChange = useCallback(
-    (key: 'updated_at') => {
-      // Only one sortable column today, so a click always flips direction.
-      setFilters({
-        sort_by: key,
-        sort_order: sortOrder === 'asc' ? 'desc' : 'asc',
-      })
-    },
-    [setFilters, sortOrder]
-  )
-
   const columns = useMemo(
     () =>
       buildMemoriesColumns({
@@ -232,22 +241,10 @@ export function Memories() {
 
       <ListPage.Container>
         <ListPage.Filters>
-          <MemoryFilters
-            searchInput={searchInput}
-            onSearchInputChange={setSearchInput}
-            status={status}
-            onStatusChange={value => {
-              setFilters({ status: value ?? FILTER_DEFAULTS.status })
-            }}
-            freshness={freshness}
-            onFreshnessChange={value => {
-              setFilters({ freshness: value ?? FILTER_DEFAULTS.freshness })
-            }}
-            metadata={metadata}
-            onMetadataChange={setMetadata}
+          <ResourceFilterBar
+            descriptor={MEMORY}
+            filters={listFilters}
             projectId={projectId}
-            onClear={handleClear}
-            hasActiveFilters={hasActiveFilters}
           />
         </ListPage.Filters>
 
@@ -292,10 +289,10 @@ export function Memories() {
           <ListTable
             rows={state.items}
             columns={columns}
-            sortableKeys={['updated_at'] as const}
-            sortKey="updated_at"
+            sortableKeys={sortableKeys}
+            sortKey={sortKey}
             sortDir={sortOrder}
-            onSortChange={handleSortChange}
+            onSortChange={onSortChange}
           />
         </ListPage.Body>
 

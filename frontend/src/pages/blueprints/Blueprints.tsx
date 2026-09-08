@@ -5,10 +5,17 @@ import { useNavigate } from 'react-router'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import {
+  FILTER_ALL,
   ListPage,
   listPageStatus,
   ListTable,
+  ResourceFilterBar,
+  useResourceListSort,
 } from '@/components/patterns/list-page'
+import {
+  getResourceDescriptor,
+  roleValues,
+} from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
@@ -17,26 +24,18 @@ import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceListFilters } from '@/hooks/useResourceListFilters'
 import { useResourceListQuery } from '@/hooks/useResourceListQuery'
-import { BlueprintFilters } from '@/pages/blueprints/BlueprintFilters'
 import { buildBlueprintsColumns } from '@/pages/blueprints/blueprintsColumns'
-import type { Blueprint } from '@/services/blueprintService'
+import type { Blueprint, BlueprintFilters } from '@/services/blueprintService'
 import { blueprintService } from '@/services/blueprintService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
-type BlueprintSortKey = 'title' | 'updated_at'
+const BLUEPRINT = getResourceDescriptor('blueprint')
 
-const BLUEPRINT_SORTABLE_KEYS: readonly BlueprintSortKey[] = [
-  'title',
-  'updated_at',
-]
-
-const BLUEPRINT_TYPES: readonly string[] = [
-  'general',
-  'claude-code',
-  'claude',
-  'cursor',
-  'codex',
-]
+// Both guards read the descriptor's EXHAUSTIVE value lists, which is also what
+// the filter bar enumerates — so the page can never drop a value the control
+// just offered (`active | expired`, and the five blueprint types).
+const BLUEPRINT_TYPES = roleValues(BLUEPRINT, 'type')
+const BLUEPRINT_STATUSES = roleValues(BLUEPRINT, 'status')
 
 const PAGE_SIZE = 20
 
@@ -51,24 +50,25 @@ const PAGE_SIZE = 20
 const FILTER_DEFAULTS = {
   page: '1',
   search: '',
-  type: 'all',
-  freshness: 'all',
+  type: FILTER_ALL,
+  status: FILTER_ALL,
+  freshness: FILTER_ALL,
   metadata: '',
   sort_by: 'updated_at',
   sort_order: 'desc',
 }
 
-function isSortKey(value: string): value is BlueprintSortKey {
-  return (BLUEPRINT_SORTABLE_KEYS as readonly string[]).includes(value)
-}
-
 /**
- * The API rejects a `type` outside its enum with a 400, so the page must not
- * forward whatever the URL happens to contain.
+ * The API rejects a `type` or `status` outside its enum with a 400, so the page
+ * must not forward whatever the URL happens to contain.
  */
 function coerceType(value: string): Blueprint['type'] | undefined {
-  return BLUEPRINT_TYPES.includes(value)
-    ? (value as Blueprint['type'])
+  return BLUEPRINT_TYPES.has(value) ? (value as Blueprint['type']) : undefined
+}
+
+function coerceStatus(value: string): Blueprint['status'] | undefined {
+  return BLUEPRINT_STATUSES.has(value)
+    ? (value as Blueprint['status'])
     : undefined
 }
 
@@ -89,25 +89,22 @@ export function Blueprints() {
 
   const projectId = currentProject?.id
 
-  const {
-    filters,
-    setFilters,
-    searchInput,
-    setSearchInput,
-    page,
-    setPage,
-    sortOrder,
-    metadata,
-    metadataParam,
-    setMetadata,
-    hasActiveFilters,
-    handleClear,
-  } = useResourceListFilters({
+  const listFilters = useResourceListFilters({
     defaults: FILTER_DEFAULTS,
-    filterKeys: ['type', 'freshness'],
+    filterKeys: ['type', 'status', 'freshness'],
     projectId,
     isProjectLoading,
   })
+  const {
+    filters,
+    setFilters,
+    page,
+    setPage,
+    sortOrder,
+    metadataParam,
+    hasActiveFilters,
+    handleClear,
+  } = listFilters
 
   const [blueprintToDelete, setBlueprintToDelete] = useState<Blueprint | null>(
     null
@@ -116,14 +113,22 @@ export function Blueprints() {
   // Bumped after a delete to re-run the fetch effect without duplicating it.
   const [reloadToken, setReloadToken] = useState(0)
 
-  const sortBy: BlueprintSortKey = isSortKey(filters.sort_by)
-    ? filters.sort_by
-    : 'updated_at'
-  const type = filters.type === 'all' ? undefined : coerceType(filters.type)
+  const type =
+    filters.type === FILTER_ALL ? undefined : coerceType(filters.type)
+  const status =
+    filters.status === FILTER_ALL ? undefined : coerceStatus(filters.status)
   // The API accepts only `stale` and 400s on anything else, so a junk URL value
   // must be dropped rather than forwarded.
   const freshness =
     filters.freshness === 'stale' ? ('stale' as const) : undefined
+
+  const { sortableKeys, sortKey, onSortChange } = useResourceListSort({
+    descriptor: BLUEPRINT,
+    sortBy: filters.sort_by,
+    sortOrder,
+    setFilters,
+    fallback: FILTER_DEFAULTS.sort_by,
+  })
 
   const load = useCallback(async () => {
     const response = await blueprintService.getBlueprints(
@@ -133,10 +138,13 @@ export function Blueprints() {
         limit: PAGE_SIZE,
         search: filters.search || undefined,
         type,
+        status,
         metadata: metadataParam,
         freshness,
         project_id: projectId,
-        sort_by: sortBy,
+        // Safe by construction: the descriptor's sortable keys are pinned to
+        // this endpoint's `sort_by` enum by `resourceListSpec.test.ts`.
+        sort_by: sortKey as BlueprintFilters['sort_by'],
         sort_order: sortOrder,
       }
     )
@@ -150,10 +158,11 @@ export function Blueprints() {
     page,
     filters.search,
     type,
+    status,
     metadataParam,
     freshness,
     projectId,
-    sortBy,
+    sortKey,
     sortOrder,
   ])
 
@@ -193,20 +202,6 @@ export function Blueprints() {
     }
   }
 
-  const handleSortChange = useCallback(
-    (key: BlueprintSortKey) => {
-      // Clicking the active column flips direction; a new column starts in the
-      // direction that reads naturally for it — A-Z for titles, newest first
-      // for dates.
-      setFilters(
-        key === sortBy
-          ? { sort_order: sortOrder === 'asc' ? 'desc' : 'asc' }
-          : { sort_by: key, sort_order: key === 'title' ? 'asc' : 'desc' }
-      )
-    },
-    [setFilters, sortBy, sortOrder]
-  )
-
   const columns = useMemo(
     () =>
       buildBlueprintsColumns({
@@ -217,7 +212,7 @@ export function Blueprints() {
     [navigate, canDeleteResource]
   )
 
-  const status = listPageStatus(
+  const listStatus = listPageStatus(
     state.loading,
     state.error,
     state.items.length === 0
@@ -242,27 +237,15 @@ export function Blueprints() {
 
       <ListPage.Container>
         <ListPage.Filters>
-          <BlueprintFilters
-            searchInput={searchInput}
-            onSearchInputChange={setSearchInput}
-            type={type}
-            onTypeChange={value => {
-              setFilters({ type: value ?? FILTER_DEFAULTS.type })
-            }}
-            freshness={freshness}
-            onFreshnessChange={value => {
-              setFilters({ freshness: value ?? FILTER_DEFAULTS.freshness })
-            }}
-            metadata={metadata}
-            onMetadataChange={setMetadata}
+          <ResourceFilterBar
+            descriptor={BLUEPRINT}
+            filters={listFilters}
             projectId={projectId}
-            onClear={handleClear}
-            hasActiveFilters={hasActiveFilters}
           />
         </ListPage.Filters>
 
         <ListPage.Body
-          status={status}
+          status={listStatus}
           errorTitle="Failed to load blueprints"
           errorMessage={state.error}
           empty={
@@ -273,7 +256,7 @@ export function Blueprints() {
               <EmptyState
                 icon={BookOpen}
                 title="No blueprints match your filters"
-                description="Try different search, type or metadata settings."
+                description="Try different search, type, status or metadata settings."
                 actions={
                   <Button variant="outline" onClick={handleClear}>
                     Clear filters
@@ -302,16 +285,16 @@ export function Blueprints() {
           <ListTable
             rows={state.items}
             columns={columns}
-            sortableKeys={BLUEPRINT_SORTABLE_KEYS}
-            sortKey={sortBy}
+            sortableKeys={sortableKeys}
+            sortKey={sortKey}
             sortDir={sortOrder}
-            onSortChange={handleSortChange}
+            onSortChange={onSortChange}
           />
         </ListPage.Body>
 
         <ListPage.Footer
           count={
-            status === 'loading' || status === 'error'
+            listStatus === 'loading' || listStatus === 'error'
               ? undefined
               : {
                   visible: state.items.length,
@@ -324,7 +307,7 @@ export function Blueprints() {
             totalPages: state.totalPages,
             onPageChange: setPage,
           }}
-          hideCount={status === 'loading'}
+          hideCount={listStatus === 'loading'}
         />
       </ListPage.Container>
 

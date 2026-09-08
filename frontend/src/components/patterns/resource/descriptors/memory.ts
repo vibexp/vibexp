@@ -1,4 +1,10 @@
 import { defineResource } from '../defineResource'
+import {
+  freshnessFilter,
+  metadataFilter,
+  searchFilter,
+  statusFilter,
+} from '../filterSpecs'
 
 /**
  * Memory — the kind with no title of its own. `text` carries both roles: lists
@@ -28,6 +34,17 @@ export const memoryDescriptor = defineResource({
     // row for it — `ResourceTaxonomySection` owns it (and lifts its `tags`).
     { key: 'metadata', role: 'meta', label: 'Metadata', optional: true },
   ],
+  list: {
+    filters: [
+      searchFilter('memories'),
+      statusFilter('memory'),
+      freshnessFilter('memory', 'memories'),
+      metadataFilter('memories'),
+    ],
+    // `text` is the memory's name field, and the list endpoint's `sort_by`
+    // enum is [text, updated_at, created_at] (backend/paths/memories.yaml).
+    sortable: ['text', 'updated_at'],
+  },
   capabilities: {
     attachments: false,
     versions: true,
