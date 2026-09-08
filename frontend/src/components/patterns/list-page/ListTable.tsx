@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
+import { TABLE_HEAD_CLASS } from './tableHeaderStyle'
 import type { SortDir } from './types'
 
 /**
@@ -80,7 +81,8 @@ function ListTableHeadCell({
   return (
     <TableHead
       className={cn(
-        'h-9 text-xs font-medium',
+        'h-9',
+        TABLE_HEAD_CLASS,
         isActionsColumn && 'text-right',
         align,
         isSortable && 'cursor-pointer select-none hover:text-foreground',

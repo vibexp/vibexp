@@ -7,6 +7,8 @@
  * Jest/JSDOM) with a lightweight interactive mock.
  */
 
+import { render, screen } from '@testing-library/react'
+
 import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 
@@ -113,6 +115,47 @@ describe('buildMemoriesColumns', () => {
     expect(ids).toContain('status')
     expect(ids).toContain('updated_at')
     expect(ids).toContain('actions')
+  })
+})
+
+describe('the Content column cell', () => {
+  const renderContentCell = (memory: Memory) => {
+    const columns = buildMemoriesColumns({
+      navigate: vi.fn(),
+      onDelete: vi.fn(),
+      canDelete: () => true,
+      includeTags: false,
+    })
+    const contentColumn = columns.find(
+      c => 'accessorKey' in c && c.accessorKey === 'text'
+    )
+    const renderCell = contentColumn?.cell
+    if (typeof renderCell !== 'function') {
+      throw new Error('the Content column has no cell renderer')
+    }
+    render(
+      <>
+        {renderCell({
+          row: { original: memory },
+        } as Parameters<typeof renderCell>[0])}
+      </>
+    )
+  }
+
+  it('renders the memory body as plain text, not raw markdown', () => {
+    renderContentCell(makeMemory({ text: '## Heading\n\n**bold** body' }))
+
+    const cell = screen.getByText(/Heading/)
+    expect(cell).toBeInTheDocument()
+    expect(cell.textContent).toBe('Heading bold body')
+    expect(cell.textContent).not.toContain('#')
+    expect(cell.textContent).not.toContain('*')
+  })
+
+  it('renders an empty cell rather than an ellipsis for a blank memory', () => {
+    renderContentCell(makeMemory({ id: 'mem-blank', text: '   \n  ' }))
+
+    expect(screen.queryByText('…')).not.toBeInTheDocument()
   })
 })
 

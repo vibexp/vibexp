@@ -3,7 +3,12 @@
  * and the body (#900). Until the API grows a real title (epic #899 decision D,
  * backend half), derive a readable one client-side so a memory is identifiable
  * in a tab, a heading and a search result instead of reading "Memory #<uuid>".
+ *
+ * The markdown stripping itself lives in `markdownExcerpt.ts` (#909), shared
+ * with the memory list's Content cell; only the heading logic is here.
  */
+
+import { contentLines, markdownToExcerpt } from '@/lib/markdownExcerpt'
 
 /** Longest excerpt used when the body carries no heading. */
 const MAX_EXCERPT_LENGTH = 60
@@ -43,44 +48,6 @@ function stripClosingHashes(heading: string): string {
     : trimmed
 }
 
-/** Opens or closes a fenced code block (``` or ~~~), possibly with an info string. */
-const CODE_FENCE = /^ {0,3}(`{3,}|~{3,})/
-
-/**
- * The body's lines with fenced code blocks removed, so a shell comment like
- * `# install deps` inside a fence cannot masquerade as the memory's heading.
- */
-function contentLines(text: string): string[] {
-  const lines: string[] = []
-  let openFence: { char: string; length: number } | null = null
-
-  // Every line terminator CommonMark recognises, not just LF. The backend
-  // stores a memory's text verbatim, so a Windows or classic-Mac MCP/CLI
-  // writer lands `\r\n` or a lone `\r`; leaving one in keeps ATX_HEADING and
-  // CODE_FENCE from matching (JS `.` excludes terminators, `^` is unanchored
-  // without the `m` flag) — the whole body arrives as one line.
-  for (const line of text.split(/\r\n|[\n\r\u2028\u2029]/)) {
-    const fence = CODE_FENCE.exec(line)?.[1]
-    if (fence !== undefined) {
-      // CommonMark: only a run of the SAME character and at least as long as
-      // the opening one closes the block. A different or shorter run inside an
-      // open block is just content we are already skipping.
-      if (openFence === null) {
-        openFence = { char: fence.charAt(0), length: fence.length }
-      } else if (
-        fence.startsWith(openFence.char) &&
-        fence.length >= openFence.length
-      ) {
-        openFence = null
-      }
-      continue
-    }
-    if (openFence === null) lines.push(line)
-  }
-
-  return lines
-}
-
 /** The first ATX heading's text, or `undefined` when the body has none. */
 function firstHeading(lines: readonly string[]): string | undefined {
   for (const line of lines) {
@@ -90,42 +57,14 @@ function firstHeading(lines: readonly string[]): string | undefined {
   return undefined
 }
 
-/** The body as one whitespace-collapsed line, with markdown syntax stripped. */
-function toPlainText(lines: readonly string[]): string {
-  return lines
-    .map(line =>
-      line
-        .replace(/^ {0,3}#{1,6}\s*/, '') // heading markers (an empty heading)
-        .replace(/^ {0,3}(?:[*+-]|\d+[.)])\s+/, '') // list markers
-        .replace(/^ {0,3}>\s?/, '') // block quotes
-        // Emphasis / inline-code delimiters. `_` is deliberately absent: it is
-        // far more often a snake_case identifier or a URL than markdown stress.
-        .replace(/[*`~]/g, '')
-    )
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-/** Caps `value` at `MAX_EXCERPT_LENGTH`, breaking on the last whole word. */
-function excerpt(value: string): string {
-  if (value.length <= MAX_EXCERPT_LENGTH) return value
-  const head = value.slice(0, MAX_EXCERPT_LENGTH)
-  const lastSpace = head.lastIndexOf(' ')
-  const cut = lastSpace > 0 ? head.slice(0, lastSpace) : head
-  return `${cut.trimEnd()}…`
-}
-
 /**
  * A display title for a memory: its first markdown heading when it has one,
  * otherwise a word-boundary excerpt of the plain-text body, otherwise
  * `'Untitled memory'`.
  */
 export function deriveMemoryTitle(text: string): string {
-  const lines = contentLines(text)
-  const heading = firstHeading(lines)
+  const heading = firstHeading(contentLines(text))
   if (heading !== undefined && heading !== '') return heading
 
-  const plain = toPlainText(lines)
-  return plain === '' ? FALLBACK_TITLE : excerpt(plain)
+  return markdownToExcerpt(text, MAX_EXCERPT_LENGTH) || FALLBACK_TITLE
 }

@@ -6,6 +6,7 @@ import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { markdownToExcerpt } from '@/lib/markdownExcerpt'
 import {
   MEMORY_STATUS_LABEL,
   memoryStatusTone,
@@ -23,15 +24,13 @@ function formatDate(value: string) {
   })
 }
 
+/** Longest excerpt shown in the list's Content cell. */
+const MEMORY_EXCERPT_LENGTH = 140
+
 export function extractTags(meta?: Record<string, unknown>): string[] {
   const tags = meta?.tags
   if (!Array.isArray(tags)) return []
   return tags.filter((t): t is string => typeof t === 'string')
-}
-
-function truncate(text: string, max = 140) {
-  if (text.length <= max) return text
-  return text.slice(0, max) + '…'
 }
 
 export function buildMemoriesColumns({
@@ -60,8 +59,10 @@ export function buildMemoriesColumns({
       header: 'Content',
       cell: ({ row }) => (
         <div className="max-w-xl space-y-1">
+          {/* Plain text, not markdown: the raw body puts `#` and `**` in the
+              memory's only identifying cell (#909). */}
           <p className="text-sm leading-relaxed">
-            {truncate(row.original.text)}
+            {markdownToExcerpt(row.original.text, MEMORY_EXCERPT_LENGTH)}
           </p>
           {/* Renders nothing when the resource is fresh. */}
           <FreshnessBadge freshness={row.original.freshness} />
