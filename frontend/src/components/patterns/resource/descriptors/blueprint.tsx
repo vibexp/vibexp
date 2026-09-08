@@ -9,10 +9,12 @@ import {
 } from '../filterSpecs'
 import {
   bodyFormField,
+  labelsFormField,
   metadataFormField,
   nameFormField,
   projectFormField,
   slugFormField,
+  statusFormField,
   summaryFormField,
 } from '../formSpecs'
 
@@ -67,6 +69,7 @@ export const blueprintDescriptor = defineResource({
       },
     },
     { key: 'subtype', role: 'taxonomy', label: 'Subtype', optional: true },
+    { key: 'labels', role: 'taxonomy', label: 'Labels', optional: true },
     {
       key: 'path',
       role: 'meta',
@@ -144,9 +147,8 @@ export const blueprintDescriptor = defineResource({
     sortable: ['title', 'updated_at'],
   },
   form: {
-    // No status control: a blueprint expires from its freshness rules rather
-    // than being set expired by hand, which is why `BlueprintForm` never had
-    // one. `subtype` is likewise read-only — it comes from the import.
+    // `subtype` is read-only — it comes from the import — so it has no control
+    // even though it is a declared taxonomy field.
     fields: [
       nameFormField('title', 255, 'blueprint-title-input'),
       slugFormField('blueprint-slug-input', true),
@@ -160,13 +162,24 @@ export const blueprintDescriptor = defineResource({
         optionsFrom: 'field',
         testId: 'blueprint-type-select',
       },
-      bodyFormField('content', 'blueprint-content-textarea'),
+      // A blueprint's status IS editable — the API has accepted it since
+      // before this epic (`UpdateBlueprintRequest.status`) and only the form
+      // was missing (#915). The vocabulary is the two values #912 left it
+      // with: widening a subset is a product decision, not a UI one, and
+      // `BlueprintStatus` is still `[active, expired]` on the spec.
+      statusFormField('blueprint'),
+      {
+        ...bodyFormField('content', 'blueprint-content-textarea'),
+        placeholder: 'Enter blueprint content…',
+      },
+      labelsFormField('labels', 'blueprint-labels-input'),
       metadataFormField(),
     ],
-    // A sub-agents blueprint must carry a `model` metadata key (enforced in
-    // internal/services/blueprint.go). Which keys those are depends on the
-    // blueprint being edited, not on the kind, so the page fills the slot.
-    extensions: ['required-metadata-keys'],
+    // No extension slots. A sub-agents blueprint must carry a `model` metadata
+    // key (enforced in internal/services/blueprint.go), but that is a rule ABOUT
+    // the metadata control rather than a node beside it, so the page passes it
+    // as `metadataRequiredKeys` (`BlueprintEdit`) — a declared-but-never-filled
+    // slot would render nothing and read as an unimplemented feature.
   },
   capabilities: {
     attachments: true,

@@ -1,8 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { Mock } from 'vitest'
 
-import type { Prompt } from '@/services/promptService'
-import type { Team } from '@/services/teamService'
+import type { CreatePromptRequest, Prompt } from '@/services/promptService'
 
 vi.mock('@/services/promptService', () => ({
   promptService: {
@@ -28,12 +27,8 @@ import { toast } from '@/lib/toast'
 import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
-import type { PromptFormData } from '../editor/types'
 import { usePromptSave } from '../editor/usePromptSave'
 import { useRenderPreview } from '../editor/useRenderPreview'
-import { slugify, useSlugGeneration } from '../editor/useSlugGeneration'
-
-const team = { id: 'team-1', name: 'Test Team' } as Team
 
 function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
   return {
@@ -56,7 +51,9 @@ function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
   }
 }
 
-const formData: PromptFormData = {
+// Since #915 the hook takes the request body itself — `toPromptRequest` maps
+// the generated form's parsed values to it — rather than a form-shaped object.
+const payload: CreatePromptRequest = {
   name: 'My Prompt',
   slug: 'my-prompt',
   description: 'A description',
@@ -81,7 +78,7 @@ describe('usePromptSave', () => {
 
     let saved: string | null = 'sentinel'
     await act(async () => {
-      saved = await result.current.save(formData)
+      saved = await result.current.save(payload)
     })
 
     expect(saved).toBeNull()
@@ -98,7 +95,7 @@ describe('usePromptSave', () => {
 
     let saved: string | null = null
     await act(async () => {
-      saved = await result.current.save(formData)
+      saved = await result.current.save(payload)
     })
 
     expect(saved).toBe('my-prompt')
@@ -133,7 +130,7 @@ describe('usePromptSave', () => {
 
     let saved: string | null = null
     await act(async () => {
-      saved = await result.current.save({ ...formData, slug: 'new-slug' })
+      saved = await result.current.save({ ...payload, slug: 'new-slug' })
     })
 
     // Returns the (possibly renamed) slug from the form…
@@ -161,83 +158,13 @@ describe('usePromptSave', () => {
 
     let saved: string | null = 'sentinel'
     await act(async () => {
-      saved = await result.current.save(formData)
+      saved = await result.current.save(payload)
     })
 
     expect(saved).toBeNull()
     expect(toast.error).toHaveBeenCalledWith('slug already taken')
     expect(trackEvent).not.toHaveBeenCalled()
     expect(result.current.saving).toBe(false)
-  })
-})
-
-describe('slugify', () => {
-  it('normalizes names into URL-safe slugs', () => {
-    expect(slugify('My Great Prompt')).toBe('my-great-prompt')
-    expect(slugify('Hello, World! (v2)')).toBe('hello-world-v2')
-    expect(slugify('  spaced   out  ')).toBe('spaced-out')
-    expect(slugify('--already--dashed--')).toBe('already-dashed')
-    expect(slugify('***')).toBe('')
-  })
-})
-
-describe('useSlugGeneration', () => {
-  it('returns an empty slug without a team or base', async () => {
-    const { result } = renderHook(() => useSlugGeneration(null, undefined))
-    await expect(result.current.generateUniqueSlug('base')).resolves.toBe('')
-
-    const withTeam = renderHook(() => useSlugGeneration(team, undefined))
-    await expect(withTeam.result.current.generateUniqueSlug('')).resolves.toBe(
-      ''
-    )
-    expect(promptService.getPrompts).not.toHaveBeenCalled()
-  })
-
-  it('keeps the base slug when it is not taken', async () => {
-    ;(promptService.getPrompts as Mock).mockResolvedValue({
-      prompts: [buildPrompt({ slug: 'other' })],
-    })
-    const { result } = renderHook(() => useSlugGeneration(team, undefined))
-
-    await expect(result.current.generateUniqueSlug('fresh')).resolves.toBe(
-      'fresh'
-    )
-    expect(promptService.getPrompts).toHaveBeenCalledWith('team-1', {
-      limit: 1000,
-    })
-  })
-
-  it('appends a random suffix when the slug collides', async () => {
-    ;(promptService.getPrompts as Mock).mockResolvedValue({
-      prompts: [buildPrompt({ slug: 'taken' })],
-    })
-    const { result } = renderHook(() => useSlugGeneration(team, undefined))
-
-    const slug = await result.current.generateUniqueSlug('taken')
-    expect(slug).toMatch(/^taken-[a-z0-9]{4}$/)
-  })
-
-  it('ignores the prompt currently being edited when checking collisions', async () => {
-    ;(promptService.getPrompts as Mock).mockResolvedValue({
-      prompts: [buildPrompt({ slug: 'my-prompt' })],
-    })
-    const { result } = renderHook(() => useSlugGeneration(team, 'my-prompt'))
-
-    await expect(result.current.generateUniqueSlug('my-prompt')).resolves.toBe(
-      'my-prompt'
-    )
-  })
-
-  it('falls back to the base slug when the lookup fails', async () => {
-    ;(promptService.getPrompts as Mock).mockRejectedValue(
-      new Error('network down')
-    )
-    const { result } = renderHook(() => useSlugGeneration(team, undefined))
-
-    await expect(result.current.generateUniqueSlug('base')).resolves.toBe(
-      'base'
-    )
-    expect(result.current.isCheckingSlug).toBe(false)
   })
 })
 

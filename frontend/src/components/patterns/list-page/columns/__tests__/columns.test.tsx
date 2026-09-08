@@ -73,7 +73,7 @@ describe('nameColumn', () => {
       field: fieldOfRole(memory, 'name'),
       value: r => r.name,
     })
-    expect(col).toMatchObject({ accessorKey: 'text', header: 'Memory' })
+    expect(col).toMatchObject({ accessorKey: 'title', header: 'Title' })
   })
 
   it('accepts a header override for a list that titles the column differently', () => {

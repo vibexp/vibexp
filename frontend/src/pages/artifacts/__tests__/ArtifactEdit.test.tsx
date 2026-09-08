@@ -4,9 +4,11 @@ import type { Mock } from 'vitest'
 
 import type { Artifact } from '@/services/artifactService'
 
-// Mock ArtifactForm to avoid complex form internals in unit tests
-vi.mock('@/pages/artifacts/ArtifactForm', () => ({
-  ArtifactForm: vi.fn(() => <div data-testid="artifact-form" />),
+// Stub the generated form: these are TeamContext-lifecycle tests, and the form
+// itself has its own suite (`patterns/resource/form`).
+vi.mock('@/components/patterns/resource', async () => ({
+  ...(await vi.importActual('@/components/patterns/resource')),
+  ResourceFormPage: vi.fn(() => <div data-testid="artifact-form" />),
 }))
 
 // Mock TeamContext — stable references to prevent effect re-runs
@@ -47,6 +49,7 @@ const mockArtifact: Artifact = {
   description: 'A test artifact',
   type: 'general',
   metadata: {},
+  labels: [],
 }
 
 function renderArtifactEdit(project = 'my-project', slug = 'my-artifact') {

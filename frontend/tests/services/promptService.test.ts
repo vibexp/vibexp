@@ -130,6 +130,7 @@ describe('PromptService', () => {
         slug,
         body: 'Hello {{name}}',
         project_id: 'project-1',
+        status: 'draft',
       }
       mockGeneratedClient.POST.mockReturnValue(success(mockPrompt))
 

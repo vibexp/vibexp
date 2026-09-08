@@ -3,21 +3,29 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
+import type {
+  ResourceFormHandle,
+  ResourceFormValues,
+} from '@/components/patterns/resource'
+import {
+  formHeading,
+  formSaveLabel,
+  getResourceDescriptor,
+  ResourceFormPage,
+} from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import {
-  ArtifactForm,
-  type ArtifactFormHandle,
-} from '@/pages/artifacts/ArtifactForm'
-import type {
-  CreateArtifactRequest,
-  UpdateArtifactRequest,
-} from '@/services/artifactService'
+import { toArtifactRequest } from '@/pages/artifacts/artifactRequest'
 import { artifactService } from '@/services/artifactService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
+
+const descriptor = getResourceDescriptor('artifact')
+
+/** Stable reference: a fresh literal would re-seed the form on every render. */
+const INITIAL_VALUES: ResourceFormValues = { type: 'general' }
 
 export function ArtifactCreate() {
   const navigate = useNavigate()
@@ -27,11 +35,9 @@ export function ArtifactCreate() {
   const { trackEvent } = useAnalytics()
 
   const [creating, setCreating] = useState(false)
-  const formRef = useRef<ArtifactFormHandle>(null)
+  const formRef = useRef<ResourceFormHandle>(null)
 
-  const handleSubmit = async (
-    data: CreateArtifactRequest | UpdateArtifactRequest
-  ) => {
+  const handleSubmit = async (values: ResourceFormValues) => {
     if (!currentTeam) {
       showError('Team context is required', 'Create Failed')
       return
@@ -40,7 +46,7 @@ export function ArtifactCreate() {
       setCreating(true)
       const artifact = await artifactService.createArtifact(
         currentTeam.id,
-        data as CreateArtifactRequest
+        toArtifactRequest(values)
       )
       trackEvent({
         event: ANALYTICS_EVENTS.ARTIFACT_CREATED,
@@ -65,7 +71,7 @@ export function ArtifactCreate() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Create artifact"
+        title={formHeading(descriptor, 'create')}
         description="Save AI-generated content to reuse later."
         actions={
           <>
@@ -85,13 +91,20 @@ export function ArtifactCreate() {
               disabled={creating}
             >
               <Save className="mr-2 size-4" />
-              {creating ? 'Creating…' : 'Create artifact'}
+              {creating ? 'Creating…' : formSaveLabel(descriptor, 'create')}
             </Button>
           </>
         }
       />
-      <ArtifactForm
+      <ResourceFormPage
         ref={formRef}
+        descriptor={descriptor}
+        mode="create"
+        // `type` reads the team's runtime type catalog, so the generated form
+        // cannot pick an opening value for it the way it does for a status —
+        // and the artifact e2e journeys that never touch the type select rely
+        // on the API's own default being preselected, as the old form did.
+        initialValues={INITIAL_VALUES}
         onSubmit={handleSubmit}
         isLoading={creating}
       />

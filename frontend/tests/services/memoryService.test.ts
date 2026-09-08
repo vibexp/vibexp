@@ -41,6 +41,8 @@ describe('MemoryService', () => {
     team_id: teamId,
     project_id: projectId,
     text: 'remember this',
+    title: null,
+    labels: [],
     status: 'active',
     metadata: {},
     created_at: '2024-01-01T00:00:00Z',

@@ -5,8 +5,11 @@ import type { Mock } from 'vitest'
 import type { Blueprint } from '@/services/blueprintService'
 
 // Mock BlueprintForm to avoid complex form internals in unit tests
-vi.mock('@/pages/blueprints/BlueprintForm', () => ({
-  BlueprintForm: vi.fn(() => <div data-testid="blueprint-form" />),
+// Stub the generated form: these are TeamContext-lifecycle tests, and the form
+// itself has its own suite (`patterns/resource/form`).
+vi.mock('@/components/patterns/resource', async () => ({
+  ...(await vi.importActual('@/components/patterns/resource')),
+  ResourceFormPage: vi.fn(() => <div data-testid="blueprint-form" />),
 }))
 
 // Mock TeamContext — stable references to prevent effect re-runs
@@ -55,6 +58,7 @@ const mockBlueprint: Blueprint = {
   description: 'A test blueprint',
   type: 'general' as const,
   metadata: {},
+  labels: [],
 }
 
 function renderBlueprintEdit(project = 'my-project', slug = 'my-blueprint') {
@@ -127,9 +131,9 @@ describe('BlueprintEdit', () => {
         'my-project',
         'my-blueprint'
       )
-      expect(projectService.getProjects).toHaveBeenCalledWith('team-1', {
-        limit: 100,
-      })
+      // The page no longer fetches projects: the generated form's
+      // `ProjectPicker` owns that (#915).
+      expect(projectService.getProjects).not.toHaveBeenCalled()
     })
   })
 

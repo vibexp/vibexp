@@ -72,14 +72,26 @@ export const promptDescriptor = defineResource({
   },
   form: {
     fields: [
-      nameFormField('name', 50, 'prompt-name-input'),
+      // The placeholders on `name` and `body` are load-bearing, not cosmetic:
+      // `e2e/smoke/critical-paths.smoke.spec.ts` and every slug test in
+      // `e2e/features/prompts/prompt-crud.spec.ts` locate those two controls by
+      // placeholder text rather than by test id.
+      {
+        ...nameFormField('name', 50, 'prompt-name-input'),
+        placeholder: 'Enter prompt name',
+      },
       // The only slug that stays editable after create: a prompt is addressed
-      // by slug alone and the editor already resolves collisions for it.
+      // by slug alone, so renaming it is a legitimate edit rather than a
+      // change of identity. A collision is rejected server-side.
       slugFormField('prompt-slug-input', false),
       summaryFormField('description', 200, 'prompt-description-input'),
       projectFormField('prompt-project-select'),
       statusFormField('prompt'),
-      bodyFormField('body', 'prompt-body-textarea'),
+      {
+        ...bodyFormField('body', 'prompt-body-textarea'),
+        placeholder:
+          'Write your prompt here… Use markdown for **bold**, *italic*, `code`.\n\n💡 Type @ to reference other prompts',
+      },
       labelsFormField('labels', 'prompt-labels-input'),
     ],
     // Only prompts are MCP-exposable, and the toggle is a fact about the

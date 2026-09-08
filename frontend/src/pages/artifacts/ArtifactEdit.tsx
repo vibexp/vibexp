@@ -4,23 +4,28 @@ import { useNavigate, useParams } from 'react-router'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { PageHeader } from '@/components/PageHeader'
+import type {
+  ResourceFormHandle,
+  ResourceFormValues,
+} from '@/components/patterns/resource'
+import {
+  formHeading,
+  formSaveLabel,
+  getResourceDescriptor,
+  ResourceFormPage,
+} from '@/components/patterns/resource'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import {
-  ArtifactForm,
-  type ArtifactFormHandle,
-} from '@/pages/artifacts/ArtifactForm'
-import type {
-  Artifact,
-  CreateArtifactRequest,
-  UpdateArtifactRequest,
-} from '@/services/artifactService'
+import { toArtifactRequest } from '@/pages/artifacts/artifactRequest'
+import type { Artifact } from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
+
+const descriptor = getResourceDescriptor('artifact')
 
 export function ArtifactEdit() {
   const { project, slug } = useParams<{ project: string; slug: string }>()
@@ -34,7 +39,7 @@ export function ArtifactEdit() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updating, setUpdating] = useState(false)
-  const formRef = useRef<ArtifactFormHandle>(null)
+  const formRef = useRef<ResourceFormHandle>(null)
 
   const loadAll = useCallback(async () => {
     if (isLoadingTeam) return
@@ -69,9 +74,7 @@ export function ArtifactEdit() {
     void loadAll()
   }, [loadAll])
 
-  const handleSubmit = async (
-    data: CreateArtifactRequest | UpdateArtifactRequest
-  ) => {
+  const handleSubmit = async (values: ResourceFormValues) => {
     if (!artifact || !currentTeam) return
     try {
       setUpdating(true)
@@ -79,7 +82,7 @@ export function ArtifactEdit() {
         currentTeam.id,
         artifact.project_id,
         artifact.slug,
-        data
+        toArtifactRequest(values)
       )
       trackEvent({
         event: ANALYTICS_EVENTS.ARTIFACT_UPDATED,
@@ -139,7 +142,7 @@ export function ArtifactEdit() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Edit artifact"
+        title={formHeading(descriptor, 'edit')}
         description={artifact.title}
         actions={
           <>
@@ -159,14 +162,19 @@ export function ArtifactEdit() {
               disabled={updating}
             >
               <Save className="mr-2 size-4" />
-              {updating ? 'Saving…' : 'Save changes'}
+              {updating ? 'Saving…' : formSaveLabel(descriptor, 'edit')}
             </Button>
           </>
         }
       />
-      <ArtifactForm
+      <ResourceFormPage
         ref={formRef}
-        artifact={artifact}
+        descriptor={descriptor}
+        mode="edit"
+        // The fetched resource IS a value map: `defaultFormValues` reads only
+        // the keys the descriptor declares, so there is nothing to map here and
+        // nothing to keep in sync when a field is added.
+        initialValues={artifact}
         onSubmit={handleSubmit}
         isLoading={updating}
       />

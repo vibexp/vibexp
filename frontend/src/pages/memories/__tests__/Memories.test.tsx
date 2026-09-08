@@ -12,7 +12,8 @@ import { render, screen } from '@testing-library/react'
 import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 
-import { buildMemoriesColumns, extractTags } from '../memoriesColumns'
+import { buildMemoriesColumns } from '../memoriesColumns'
+import { extractTags } from '../memoryRequest'
 
 const makeMemory = (overrides: Partial<Memory> = {}): Memory => ({
   id: 'mem-1',
@@ -20,8 +21,10 @@ const makeMemory = (overrides: Partial<Memory> = {}): Memory => ({
   team_id: 'team-1',
   project_id: 'project-alpha',
   text: 'Sample memory',
+  title: null,
   status: 'active',
   metadata: {},
+  labels: [],
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-02T00:00:00Z',
   version: 1,
@@ -151,6 +154,26 @@ describe('the Content column cell', () => {
     expect(cell.textContent).not.toContain('#')
     expect(cell.textContent).not.toContain('*')
   })
+
+  it('shows the title when the memory has one (#911)', () => {
+    renderContentCell(
+      makeMemory({ title: 'Deploy checklist', text: 'Drain the node first.' })
+    )
+
+    expect(screen.getByText('Deploy checklist')).toBeInTheDocument()
+    expect(screen.queryByText(/Drain the node/)).not.toBeInTheDocument()
+  })
+
+  it.each([['   '], ['']])(
+    'falls back to the body excerpt for a title of %j',
+    title => {
+      // The schema puts no `minLength` on `title`, so an empty string is a
+      // storable value — and `??` would render it as a blank cell.
+      renderContentCell(makeMemory({ title, text: 'Drain the node first.' }))
+
+      expect(screen.getByText('Drain the node first.')).toBeInTheDocument()
+    }
+  )
 
   it('renders an empty cell rather than an ellipsis for a blank memory', () => {
     renderContentCell(makeMemory({ id: 'mem-blank', text: '   \n  ' }))

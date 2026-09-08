@@ -22,6 +22,18 @@ vi.mock('@/services/projectService', () => ({
   },
 }))
 
+// The picker fetches and searches projects of its own; these tests are about
+// which project the PAGE preselects, so it is stubbed to echo the value.
+vi.mock('@/components/ProjectPicker', () => ({
+  ProjectPicker: ({
+    value,
+    'data-testid': testId,
+  }: {
+    value: string
+    'data-testid'?: string
+  }) => <div data-testid={testId}>{value}</div>,
+}))
+
 vi.mock('@/hooks', () => ({
   useAlerts: () => ({ showSuccess: vi.fn(), showError: vi.fn() }),
   useAnalytics: () => ({ trackEvent: vi.fn() }),
@@ -57,6 +69,8 @@ const mockCreatedMemory: Memory = {
   team_id: 'team-1',
   project_id: 'project-1',
   text: 'My new memory',
+  title: null,
+  labels: [],
   status: 'active',
   metadata: {},
   created_at: '2024-01-01T00:00:00Z',
@@ -188,6 +202,49 @@ describe('MemoryCreate', () => {
           project_id: 'project-1',
           text: 'My new memory',
         })
+      )
+    })
+
+    // Omitted, not `null`: the API reads a missing `title` as "none" on a
+    // create and as "leave unchanged" on an update, so the two paths must send
+    // different things for an empty field (`toMemoryRequest`'s `emptyTitleAs`).
+    const [, payload] = (memoryService.createMemory as Mock).mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ]
+    expect(payload).not.toHaveProperty('title')
+  })
+
+  it('sends a typed title', async () => {
+    ;(projectService.getProjects as Mock).mockResolvedValue({
+      projects: [mockProject],
+      total_count: 1,
+      page: 1,
+      per_page: 100,
+      total_pages: 1,
+    })
+    ;(memoryService.createMemory as Mock).mockResolvedValue(mockCreatedMemory)
+
+    renderMemoryCreate()
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText(/Enter your memory content/)
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByTestId('memory-title-input'), {
+      target: { value: 'Deploy checklist' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/Enter your memory content/), {
+      target: { value: 'My new memory' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /create memory/i }))
+
+    await waitFor(() => {
+      expect(memoryService.createMemory).toHaveBeenCalledWith(
+        'team-1',
+        expect.objectContaining({ title: 'Deploy checklist' })
       )
     })
   })

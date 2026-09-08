@@ -1,12 +1,10 @@
 import { useState } from 'react'
 
 import { toast } from '@/lib/toast'
-import type { Prompt } from '@/services/promptService'
+import type { CreatePromptRequest, Prompt } from '@/services/promptService'
 import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
-
-import type { PromptFormData } from './types'
 
 interface UsePromptSaveArgs {
   teamId: string | undefined
@@ -24,7 +22,10 @@ export function usePromptSave({
 }: UsePromptSaveArgs) {
   const [saving, setSaving] = useState(false)
 
-  const save = async (formData: PromptFormData): Promise<string | null> => {
+  // Takes the request body rather than a form-shaped object: since #915 the
+  // form's parsed values are mapped to it by `toPromptRequest`, so this hook
+  // owns the call, the analytics and the toasts and nothing about field shape.
+  const save = async (payload: CreatePromptRequest): Promise<string | null> => {
     if (!teamId) {
       toast.error('No team selected')
       return null
@@ -33,25 +34,14 @@ export function usePromptSave({
     try {
       setSaving(true)
 
-      const payload = {
-        name: formData.name,
-        slug: formData.slug,
-        description: formData.description,
-        body: formData.body,
-        status: formData.status,
-        mcp_expose: formData.mcp_expose,
-        labels: formData.labels,
-        project_id: formData.project_id,
-      }
-
       if (prompt) {
         await promptService.updatePrompt(teamId, prompt.slug, payload)
         trackEvent({
           event: ANALYTICS_EVENTS.PROMPT_UPDATED,
           properties: {
             prompt_id: prompt.slug,
-            prompt_title: formData.name,
-            prompt_type: formData.status,
+            prompt_title: payload.name,
+            prompt_type: payload.status,
             action_context: 'update',
           },
         })
@@ -61,15 +51,15 @@ export function usePromptSave({
         trackEvent({
           event: ANALYTICS_EVENTS.PROMPT_CREATED,
           properties: {
-            prompt_id: formData.slug,
-            prompt_title: formData.name,
-            prompt_type: formData.status,
+            prompt_id: payload.slug,
+            prompt_title: payload.name,
+            prompt_type: payload.status,
             action_context: 'create',
           },
         })
         toast.success('Prompt created successfully')
       }
-      return formData.slug
+      return payload.slug
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to save prompt'))
       return null

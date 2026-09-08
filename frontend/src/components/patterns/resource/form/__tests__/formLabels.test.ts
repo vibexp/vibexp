@@ -38,7 +38,7 @@ describe('formSubtitle', () => {
     expect(formSubtitle(promptDescriptor, { name: 'My prompt' })).toBe(
       'My prompt'
     )
-    expect(formSubtitle(memoryDescriptor, { text: 'A memory' })).toBe(
+    expect(formSubtitle(memoryDescriptor, { title: 'A memory' })).toBe(
       'A memory'
     )
   })

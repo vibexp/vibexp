@@ -1,5 +1,6 @@
 import type { ResourceKindKey } from '../registry'
 import { getResourceDescriptor } from '../registry'
+import type { FieldRole } from '../types'
 import { queryEnum } from './specYaml'
 
 /**
@@ -50,12 +51,19 @@ describe('resource list specs', () => {
     }
   )
 
-  it.each(KINDS)('%s is sortable by its name field and by updated_at', kind => {
-    const descriptor = getResourceDescriptor(kind)
-    const nameKey = descriptor.fields.find(field => field.role === 'name')?.key
-    expect(descriptor.list?.sortable).toContain(nameKey)
-    expect(descriptor.list?.sortable).toContain('updated_at')
-  })
+  it.each(KINDS)(
+    '%s is sortable by the field its primary column shows, and by updated_at',
+    kind => {
+      const descriptor = getResourceDescriptor(kind)
+      // The primary column reads the `name` field on every kind but memory:
+      // a memory's title is optional (#911) so the column shows an excerpt of
+      // the BODY, and `sort_by` on /memories offers `text`, never `title`.
+      const role: FieldRole = kind === 'memory' ? 'body' : 'name'
+      const key = descriptor.fields.find(field => field.role === role)?.key
+      expect(descriptor.list?.sortable).toContain(key)
+      expect(descriptor.list?.sortable).toContain('updated_at')
+    }
+  )
 
   it.each(KINDS)('%s offers a search and a freshness filter', kind => {
     const controls = (getResourceDescriptor(kind).list?.filters ?? []).map(

@@ -88,6 +88,7 @@ const mockBlueprint: Blueprint = vi.hoisted(() => ({
   description: 'A test blueprint',
   type: 'general',
   metadata: {},
+  labels: [],
 }))
 
 function renderBlueprintView(project = 'my-project', slug = 'my-blueprint') {

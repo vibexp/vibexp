@@ -185,10 +185,13 @@ test.describe('Prompt CRUD Operations', () => {
           .locator('[data-testid="prompt-save-button"]')
           .click()
 
-        // The inline slug-format error blocks submission (still on create page).
+        // The inline slug-format error blocks submission (still on create
+        // page). The wording is the shared one every kind now uses: #915 put
+        // the prompt on `ResourceFormPage`, whose slug rule is declared once
+        // (`SLUG_MESSAGE`) instead of spelled three ways across three forms.
         await expect(
           authenticatedPage.getByText(
-            'Slug must contain only lowercase letters, numbers, and hyphens'
+            'Lowercase letters, numbers, and dashes only'
           )
         ).toBeVisible({ timeout: 10000 })
         await expect(authenticatedPage).toHaveURL(/prompts\/new/)

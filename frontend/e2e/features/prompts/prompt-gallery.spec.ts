@@ -271,8 +271,12 @@ test.describe('Prompt Gallery', () => {
 
       // Wait for form to load
       await expect(authenticatedPage).toHaveURL(/\/prompts\/new/)
+      // "Create prompt", not the prompt-only "Create new prompt" it used to
+      // say: #915 put every kind's create page on the same `formHeading`
+      // ("Create <singular>"), which the artifact, blueprint and memory pages
+      // already read.
       await expect(
-        authenticatedPage.getByRole('heading', { name: /Create New Prompt/i })
+        authenticatedPage.getByRole('heading', { name: /Create prompt/i })
       ).toBeVisible()
 
       // Verify form is pre-filled

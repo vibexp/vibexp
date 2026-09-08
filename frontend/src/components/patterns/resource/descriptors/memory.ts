@@ -7,16 +7,19 @@ import {
 } from '../filterSpecs'
 import {
   bodyFormField,
+  labelsFormField,
   metadataFormField,
   projectFormField,
   statusFormField,
 } from '../formSpecs'
 
 /**
- * Memory — the kind with no title of its own. `text` carries both roles: lists
- * render a truncated excerpt of it as the row's identifier, and the reading
- * page renders the whole thing as the body. Memory is also the one built-in
- * that does not take attachments (`MemoryView` passes `attachments={false}`).
+ * Memory — the one kind whose title is OPTIONAL (#911). `title` carries the
+ * `name` role so the form, the header subtitle and the list all read one field;
+ * `text` is the body alone, and every reader falls back to an excerpt of it
+ * when the title is null (which every memory written before #911 is). Memory is
+ * also the one built-in that does not take attachments (`MemoryView` passes
+ * `attachments={false}`).
  */
 export const memoryDescriptor = defineResource({
   kind: 'memory',
@@ -24,7 +27,7 @@ export const memoryDescriptor = defineResource({
   plural: 'memories',
   address: ['id'],
   fields: [
-    { key: 'text', role: 'name', label: 'Memory' },
+    { key: 'title', role: 'name', label: 'Title', optional: true },
     { key: 'text', role: 'body', label: 'Memory' },
     { key: 'id', role: 'address', label: 'ID' },
     {
@@ -36,6 +39,7 @@ export const memoryDescriptor = defineResource({
       valueLabels: { active: 'Active', draft: 'Draft', archived: 'Archived' },
     },
     { key: 'project_id', role: 'meta', label: 'Project' },
+    { key: 'labels', role: 'taxonomy', label: 'Labels', optional: true },
     // The free-form blob: object-valued, so the metadata section renders no
     // row for it — `ResourceTaxonomySection` owns it (and lifts its `tags`).
     { key: 'metadata', role: 'meta', label: 'Metadata', optional: true },
@@ -47,17 +51,37 @@ export const memoryDescriptor = defineResource({
       freshnessFilter('memory', 'memories'),
       metadataFilter('memories'),
     ],
-    // `text` is the memory's name field, and the list endpoint's `sort_by`
-    // enum is [text, updated_at, created_at] (backend/paths/memories.yaml).
+    // The list's primary column is keyed on `text`, not on the `title` name
+    // field: the endpoint's `sort_by` enum is [text, updated_at, created_at]
+    // (backend/paths/memories.yaml) and #911 did not add `title` to it.
     sortable: ['text', 'updated_at'],
   },
   form: {
-    // `text` is the whole memory, so the form is the body plus its filing:
-    // there is no title to edit.
     fields: [
-      bodyFormField('text', 'memory-text-textarea'),
+      // Not `nameFormField`: a memory's title is the one name field the API
+      // leaves optional, so it must not carry that builder's `required: true`.
+      {
+        key: 'title',
+        control: 'text',
+        section: 'details',
+        maxLength: 255,
+        placeholder: 'Optional short title…',
+        testId: 'memory-title-input',
+      },
+      // The test id is the one `e2e/memories.spec.ts` has always driven this
+      // textarea by; the descriptor's own `memory-text-textarea` never reached
+      // a rendered page, so the e2e selector is what survives (#915).
+      {
+        ...bodyFormField('text', 'memory-content-textarea'),
+        placeholder:
+          'Enter your memory content here…\n\nShare insights, learnings, code snippets, or any valuable information you want to remember.',
+      },
       projectFormField('memory-project-select'),
-      statusFormField('memory'),
+      statusFormField(
+        'memory',
+        'Drafts are hidden from search; archived memories are hidden from default lists and search.'
+      ),
+      labelsFormField('labels', 'memory-labels-input'),
       metadataFormField(),
     ],
     // Memory has no `tags` FIELD — the chips edit `metadata.tags`, which the

@@ -212,10 +212,11 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
         await projectSelect.selectOption({ index: 1 })
       }
 
-      // STEP 4: Save
-      await authenticatedPage
-        .getByRole('button', { name: /save as draft/i })
-        .click()
+      // STEP 4: Save. The button reads "Create prompt" since #915 — the old
+      // "Save as draft" / "Publish" pair was read off the form's own status,
+      // which now lives inside `ResourceFormPage` while the button stays in the
+      // page header, and every other kind already said "Create <singular>".
+      await authenticatedPage.getByTestId('prompt-save-button').click()
       await authenticatedPage.waitForTimeout(3000)
 
       // STEP 5: Verify prompt was saved (redirects to detail page)

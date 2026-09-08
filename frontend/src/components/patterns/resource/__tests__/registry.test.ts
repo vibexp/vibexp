@@ -74,7 +74,9 @@ describe('resourceRegistry', () => {
       ['prompt', 'name', 'body', ['slug']],
       ['artifact', 'title', 'content', ['project_id', 'slug']],
       ['blueprint', 'title', 'content', ['project_id', 'slug']],
-      ['memory', 'text', 'text', ['id']],
+      // #911 gave memory an optional `title`; it takes the `name` role and
+      // `text` is the body alone, with every reader falling back to an excerpt.
+      ['memory', 'title', 'text', ['id']],
       ['gallery-prompt', 'title', 'content', ['id']],
     ] as const)(
       '%s is named by `%s`, bodied by `%s` and addressed by %j',
@@ -110,6 +112,7 @@ describe('resourceRegistry', () => {
         artifact: [
           'content',
           'description',
+          'labels',
           'metadata',
           'project_id',
           'slug',
@@ -120,6 +123,7 @@ describe('resourceRegistry', () => {
         blueprint: [
           'content',
           'description',
+          'labels',
           'metadata',
           'path',
           'project_id',
@@ -132,7 +136,15 @@ describe('resourceRegistry', () => {
           'title',
           'type',
         ],
-        memory: ['id', 'metadata', 'project_id', 'status', 'text'],
+        memory: [
+          'id',
+          'labels',
+          'metadata',
+          'project_id',
+          'status',
+          'text',
+          'title',
+        ],
         'gallery-prompt': [
           'category',
           'content',

@@ -189,7 +189,9 @@ describe('ResourceFormPage — controls', () => {
       ),
     })
     expect(screen.getByTestId('custom-body')).toBeInTheDocument()
-    expect(screen.queryByTestId('memory-text-textarea')).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('memory-content-textarea')
+    ).not.toBeInTheDocument()
   })
 })
 
@@ -237,7 +239,7 @@ describe('ResourceFormPage — create versus edit', () => {
 
   it('disables every control while the page is saving', () => {
     renderPage(memoryDescriptor, { isLoading: true })
-    expect(screen.getByTestId('memory-text-textarea')).toBeDisabled()
+    expect(screen.getByTestId('memory-content-textarea')).toBeDisabled()
   })
 })
 
@@ -272,8 +274,14 @@ describe('ResourceFormPage — submit', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       // Trimmed by the schema, so a page never has to trim again.
       text: 'A memory',
+      // Every declared field is present whether the resource carried it or
+      // not, so a control never starts uncontrolled — an optional text field
+      // the resource has no value for parses to the empty string, and it is
+      // the page's job to decide whether that means "omit" or "clear".
+      title: '',
       project_id: 'p1',
       status: 'active',
+      labels: [],
       metadata: {},
     })
   })

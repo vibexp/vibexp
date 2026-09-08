@@ -36,9 +36,19 @@ import type { ResourceFormMode } from './formLabels'
 import type { BodySlotProps } from './ResourceFormControl'
 import { ResourceFormControl } from './ResourceFormControl'
 
-/** The submit handle the page header's Save button drives. */
+/** The handle the page header's Save button drives. */
 export interface ResourceFormHandle {
   submit: () => void
+  /**
+   * The form's current values.
+   *
+   * The page owns the extension slots but not the form, and an extension
+   * occasionally has to read it: the prompt editor's template loader must not
+   * replace a body the user has already typed into, and re-seeding through
+   * `initialValues` would otherwise discard every OTHER field along with it.
+   * Reading, never writing — a slot that wants to change a field re-seeds.
+   */
+  getValues: () => ResourceFormValues
 }
 
 export interface ResourceFormPageProps {
@@ -160,11 +170,16 @@ export const ResourceFormPage = forwardRef<
     await onSubmit(values)
   })
 
-  useImperativeHandle(ref, () => ({
-    submit() {
-      formElRef.current?.requestSubmit()
-    },
-  }))
+  useImperativeHandle(
+    ref,
+    () => ({
+      submit() {
+        formElRef.current?.requestSubmit()
+      },
+      getValues: () => form.getValues(),
+    }),
+    [form]
+  )
 
   const renderSpec = (spec: FormFieldSpec) => {
     const label = formFieldLabel(byKey, spec.key)
