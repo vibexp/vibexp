@@ -113,7 +113,10 @@ export function ArtifactEdit() {
 
   if (error || !artifact) {
     return (
-      <ReadingPage title="Artifact not found" presentation="editing">
+      // A terminal error state, not a page waiting on a fetch: there is no
+      // form coming, so the editing presentation would only add an empty
+      // details column and a toggle that opens nothing.
+      <ReadingPage title="Artifact not found">
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Could not load artifact</AlertTitle>

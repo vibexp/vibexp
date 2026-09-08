@@ -1,5 +1,6 @@
 import { Info, Save, Tags, X } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { useShell } from '@/components/layout/ShellContext'
 import {
@@ -20,6 +21,13 @@ export const RESOURCE_FORM_SECTION_IDS = {
   taxonomy: 'form-taxonomy',
 } as const
 
+/**
+ * How long to wait after reopening the details surface before scrolling to the
+ * first invalid control. The column's fields are unmounted while it is folded,
+ * so there is nothing to scroll to until React has committed the reopen.
+ */
+const REVEAL_ERROR_DELAY_MS = 0
+
 export interface ResourceFormReadingPageProps extends ResourceFormPageProps {
   /** The `<h1>` — "Edit artifact". */
   title: string
@@ -29,6 +37,13 @@ export interface ResourceFormReadingPageProps extends ResourceFormPageProps {
   onCancel: () => void
   /** Forwarded to the Save action, for pages an e2e spec addresses by id. */
   saveTestId?: string
+  /**
+   * Unsaved state the form does not own — a page's `extensions` are its own
+   * `useState` and are invisible to react-hook-form, so the memory's tags and
+   * the prompt's MCP toggle would otherwise be discarded by Cancel or by a tab
+   * close without any prompt.
+   */
+  extraDirty?: boolean
 }
 
 /**
@@ -53,6 +68,7 @@ export function ResourceFormReadingPage({
   description,
   onCancel,
   saveTestId,
+  extraDirty = false,
   descriptor,
   mode,
   initialValues,
@@ -63,7 +79,22 @@ export function ResourceFormReadingPage({
   metadataRequiredKeys,
   metadataReservedKeys,
 }: Readonly<ResourceFormReadingPageProps>) {
-  const { setDetailsOpen } = useShell()
+  const { isDesktop, detailsOpen, setDetailsOpen, setDetailsSheetOpen } =
+    useShell()
+
+  // Refs so the unmount cleanup below reads the latest values without
+  // re-subscribing on every shell change. Written from an effect, never during
+  // render — the React Compiler lint rejects the latter, and a ref written mid
+  // render is not guaranteed to survive a discarded one.
+  const forcedColumnOpen = useRef(false)
+  const detailsOpenNow = useRef(detailsOpen)
+  const setDetailsOpenNow = useRef(setDetailsOpen)
+  useEffect(() => {
+    detailsOpenNow.current = detailsOpen
+    setDetailsOpenNow.current = setDetailsOpen
+  })
+
+  const [revealErrors, setRevealErrors] = useState(0)
 
   const {
     form,
@@ -85,13 +116,56 @@ export function ResourceFormReadingPage({
     metadataReservedKeys,
     // Most fields live in the details column, and the column folds to a 48px
     // rail that renders none of them. A validation error the reader cannot
-    // reach is one they cannot fix, so a failed submit reopens the column.
+    // reach is one they cannot fix, so a failed submit reopens the column —
+    // whichever surface is live, since below `lg` the details are a sheet with
+    // an entirely separate open state.
     onInvalidSubmit: () => {
-      setDetailsOpen(true)
+      if (isDesktop) {
+        if (!detailsOpen) forcedColumnOpen.current = true
+        setDetailsOpen(true)
+      } else {
+        setDetailsSheetOpen(true)
+      }
+      setRevealErrors(n => n + 1)
     },
   })
 
-  const { confirmLeave } = useUnsavedChanges(isDirty && !isLoading)
+  // Give the reader their folded rail back on the way out. `setDetailsOpen`
+  // writes `DETAILS_COLLAPSED`, a persisted app-wide preference, so without
+  // this one mistyped field would silently un-fold every reading page from now
+  // on — the preference #916 exists to stop edit mode throwing away. Skipped
+  // when they reopened or refolded it themselves in the meantime.
+  useEffect(
+    () => () => {
+      if (forcedColumnOpen.current && detailsOpenNow.current) {
+        setDetailsOpenNow.current(false)
+      }
+    },
+    []
+  )
+
+  // …and scroll to the first error once the surface holding it has mounted.
+  // The fields do not exist while the column is folded, so react-hook-form's
+  // own `shouldFocusError` has no ref to focus at validation time.
+  useEffect(() => {
+    if (revealErrors === 0) return
+    const timer = setTimeout(() => {
+      const invalid = document.querySelector<HTMLElement>(
+        '[aria-invalid="true"]'
+      )
+      if (typeof invalid?.scrollIntoView === 'function') {
+        invalid.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      }
+      invalid?.focus()
+    }, REVEAL_ERROR_DELAY_MS)
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [revealErrors])
+
+  const { confirmLeave } = useUnsavedChanges(
+    (isDirty || extraDirty) && !isLoading
+  )
 
   const extensionNodes = new Map(Object.entries(extensions ?? {}))
   const declaredExtensions = descriptor.form?.extensions ?? []

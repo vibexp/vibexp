@@ -116,7 +116,10 @@ export function BlueprintEdit() {
 
   if (error || !blueprint) {
     return (
-      <ReadingPage title="Blueprint not found" presentation="editing">
+      // A terminal error state, not a page waiting on a fetch: there is no
+      // form coming, so the editing presentation would only add an empty
+      // details column and a toggle that opens nothing.
+      <ReadingPage title="Blueprint not found">
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Could not load blueprint</AlertTitle>

@@ -29,6 +29,11 @@ import { getErrorMessage } from '@/utils/errorHandling'
 
 const descriptor = getResourceDescriptor('memory')
 
+/** Order-sensitive: the tag list is a sequence the reader can reorder. */
+function sameTags(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((tag, index) => tag === b[index])
+}
+
 export function MemoryEdit() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -128,7 +133,10 @@ export function MemoryEdit() {
 
   if (error || !memory) {
     return (
-      <ReadingPage title="Memory not found" presentation="editing">
+      // A terminal error state, not a page waiting on a fetch: there is no
+      // form coming, so the editing presentation would only add an empty
+      // details column and a toggle that opens nothing.
+      <ReadingPage title="Memory not found">
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Could not load memory</AlertTitle>
@@ -160,6 +168,9 @@ export function MemoryEdit() {
       onSubmit={handleSubmit}
       isLoading={updating}
       metadataReservedKeys={RESERVED_METADATA_KEYS}
+      // The tags card is page state, invisible to react-hook-form: without
+      // this, adding a tag and hitting Cancel discards it with no prompt.
+      extraDirty={!sameTags(tags, extractTags(memory.metadata))}
       extensions={{
         tags: (
           <MemoryTagsCard value={tags} onChange={setTags} disabled={updating} />

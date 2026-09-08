@@ -20,7 +20,6 @@ export {
   formSubtitle,
   metadataOrUndefined,
   recordValue,
-  RESOURCE_FORM_SECTION_IDS,
   type ResourceFormHandle,
   type ResourceFormMode,
   ResourceFormPage,

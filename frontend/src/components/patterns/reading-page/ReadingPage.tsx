@@ -117,6 +117,13 @@ export function ReadingPage({
   // below that the details are a sheet.
   const railRendered = hasDetails && isDesktop
 
+  // Reading actions are a convenience, so below `md` they become chips and in
+  // between they live in the sheet. A form's Save is not a convenience: at
+  // 768–1023px there is no rail and no chip row, which would leave the primary
+  // action reachable only by first opening the details sheet. So while editing,
+  // the chips cover every width the rail does not.
+  const actionsAsChips = presentation === 'editing' ? !isDesktop : !isTablet
+
   const asideRef = useRef<HTMLElement>(null)
   const [pendingSection, setPendingSection] = useState<string | null>(null)
 
@@ -176,7 +183,7 @@ export function ReadingPage({
                 {description}
               </div>
             )}
-            {!isTablet && (
+            {actionsAsChips && (
               <ReadingActions
                 actions={actions}
                 layout="chips"

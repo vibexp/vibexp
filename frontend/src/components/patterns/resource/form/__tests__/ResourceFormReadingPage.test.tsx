@@ -44,7 +44,10 @@ import { memoryDescriptor } from '../../descriptors/memory'
 import { promptDescriptor } from '../../descriptors/prompt'
 import type { ResourceDescriptor } from '../../types'
 import type { ResourceFormReadingPageProps } from '../ResourceFormReadingPage'
-import { ResourceFormReadingPage } from '../ResourceFormReadingPage'
+import {
+  RESOURCE_FORM_SECTION_IDS,
+  ResourceFormReadingPage,
+} from '../ResourceFormReadingPage'
 
 const EDIT_KINDS: readonly (readonly [string, ResourceDescriptor])[] = [
   ['prompt', promptDescriptor],
@@ -128,6 +131,12 @@ describe('ResourceFormReadingPage', () => {
       expect(
         within(column).getByTestId('resource-form-taxonomy')
       ).toBeInTheDocument()
+
+      // Each one is a real rail-addressable section, not just a div in the
+      // column — that is what lets the folded rail scroll to it.
+      for (const id of Object.values(RESOURCE_FORM_SECTION_IDS)) {
+        expect(column.querySelector(`[data-section="${id}"]`)).not.toBeNull()
+      }
     }
   )
 
@@ -243,5 +252,100 @@ describe('ResourceFormReadingPage', () => {
       'data-state',
       'open'
     )
+  })
+
+  // Below `lg` the details are a Sheet with an entirely separate open state,
+  // so opening the column does nothing there.
+  it('opens the details sheet instead when a submit fails below lg', async () => {
+    const user = userEvent.setup()
+    viewport.setWidth(900)
+    renderEditPage(artifactDescriptor, {
+      initialValues: { title: '', content: 'Body' },
+    })
+    expect(
+      screen.queryByTestId('reading-details-sheet')
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(screen.getByTestId('reading-details-sheet')).toBeInTheDocument()
+  })
+
+  // `DETAILS_COLLAPSED` is persisted and app-wide: a mistyped field must not
+  // silently un-fold every reading page from then on.
+  it('restores the reader’s folded rail on the way out', async () => {
+    const user = userEvent.setup()
+    storage.set(STORAGE_KEYS.DETAILS_COLLAPSED, true)
+    const { view } = renderEditPage(artifactDescriptor, {
+      initialValues: { title: '', content: 'Body' },
+    })
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(storage.getJSON(STORAGE_KEYS.DETAILS_COLLAPSED)).toBe(false)
+    view.unmount()
+    expect(storage.getJSON(STORAGE_KEYS.DETAILS_COLLAPSED)).toBe(true)
+  })
+
+  it('leaves an already-open column alone on the way out', async () => {
+    const user = userEvent.setup()
+    const { view } = renderEditPage(artifactDescriptor, {
+      initialValues: { title: '', content: 'Body' },
+    })
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    view.unmount()
+    expect(storage.getJSON(STORAGE_KEYS.DETAILS_COLLAPSED)).toBe(false)
+  })
+
+  // Opening the panel is only half of it: the reader still has to find the
+  // field that failed.
+  it('scrolls the first invalid control into view', async () => {
+    const user = userEvent.setup()
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    renderEditPage(artifactDescriptor, {
+      initialValues: { title: '', content: 'Body' },
+    })
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(scrollIntoView).toHaveBeenCalled()
+    expect(screen.getByTestId('artifact-title-input')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+  })
+
+  // A page's `extensions` are its own useState and invisible to
+  // react-hook-form, so the guard has to be told about them.
+  describe('extraDirty', () => {
+    it('asks before Cancel discards extension-only edits', async () => {
+      const user = userEvent.setup()
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      const { onCancel } = renderEditPage(memoryDescriptor, {
+        initialValues: { text: 'Body' },
+        extraDirty: true,
+      })
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(confirmSpy).toHaveBeenCalled()
+      expect(onCancel).not.toHaveBeenCalled()
+    })
+
+    it('registers the tab-close guard for extension-only edits', () => {
+      const addSpy = vi.spyOn(window, 'addEventListener')
+      renderEditPage(memoryDescriptor, {
+        initialValues: { text: 'Body' },
+        extraDirty: true,
+      })
+      expect(addSpy.mock.calls.some(call => call[0] === 'beforeunload')).toBe(
+        true
+      )
+    })
   })
 })

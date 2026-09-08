@@ -386,6 +386,39 @@ describe('ReadingPage', () => {
       expect(column.getByTestId('cancel-button')).not.toHaveClass('bg-primary')
     })
 
+    // 768–1023px has no rail (that starts at lg) and, in reading mode, no
+    // chips either — the actions live in a sheet that opens closed. Fine for
+    // Copy and Delete, not for a form's primary action.
+    it('keeps Save reachable as a chip between md and lg', () => {
+      viewport.setWidth(900)
+      renderPage(
+        <ReadingPage
+          title="Edit doc"
+          presentation="editing"
+          actions={EDIT_ACTIONS}
+          sections={SECTIONS}
+        >
+          body
+        </ReadingPage>
+      )
+      expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
+      const chips = within(screen.getByTestId('reading-actions-chips'))
+      expect(chips.getByTestId('save-button')).toBeInTheDocument()
+      expect(chips.getByTestId('cancel-button')).toBeInTheDocument()
+    })
+
+    it('leaves the reading presentation without chips between md and lg', () => {
+      viewport.setWidth(900)
+      renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      expect(
+        screen.queryByTestId('reading-actions-chips')
+      ).not.toBeInTheDocument()
+    })
+
     it('renders Save and Cancel as chips under the title on phones', () => {
       viewport.setWidth(600)
       renderPage(

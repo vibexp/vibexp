@@ -319,6 +319,9 @@ export function PromptEditor() {
         isLoading={saving}
         renderBody={renderBody}
         saveTestId="prompt-save-button"
+        // The MCP card is page state, invisible to react-hook-form: without
+        // this, toggling it and hitting Cancel discards it with no prompt.
+        extraDirty={mcpExpose !== (prompt?.mcp_expose ?? false)}
         extensions={{
           'mcp-exposure': (
             <McpExposureCard

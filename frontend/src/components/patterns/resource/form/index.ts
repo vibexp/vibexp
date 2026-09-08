@@ -34,7 +34,6 @@ export {
   type ResourceFormPageProps,
 } from './ResourceFormPage'
 export {
-  RESOURCE_FORM_SECTION_IDS,
   ResourceFormReadingPage,
   type ResourceFormReadingPageProps,
 } from './ResourceFormReadingPage'
