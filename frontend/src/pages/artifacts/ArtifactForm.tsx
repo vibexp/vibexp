@@ -172,11 +172,12 @@ export const ArtifactForm = forwardRef<ArtifactFormHandle, ArtifactFormProps>(
                   <FormControl>
                     <ResourceBodyEditor
                       data-testid="artifact-content-textarea"
+                      ref={field.ref}
                       value={field.value}
                       onChange={field.onChange}
+                      onBlur={field.onBlur}
                       disabled={isLoading}
                       placeholder="Enter artifact content…"
-                      aria-label="Content"
                     />
                   </FormControl>
                   <FormMessage />

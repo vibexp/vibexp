@@ -154,11 +154,12 @@ export const BlueprintForm = forwardRef<
                 <FormControl>
                   <ResourceBodyEditor
                     data-testid="blueprint-content-textarea"
+                    ref={field.ref}
                     value={field.value}
                     onChange={field.onChange}
+                    onBlur={field.onBlur}
                     disabled={isLoading}
                     placeholder="Enter blueprint content…"
-                    aria-label="Content"
                   />
                 </FormControl>
                 <FormMessage />

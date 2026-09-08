@@ -176,13 +176,14 @@ export const MemoryForm = forwardRef<MemoryFormHandle, MemoryFormProps>(
                   <FormControl>
                     <ResourceBodyEditor
                       data-testid="memory-content-textarea"
+                      ref={field.ref}
                       value={field.value}
                       onChange={field.onChange}
+                      onBlur={field.onBlur}
                       disabled={isLoading}
                       placeholder="Enter your memory content here…
 
 Share insights, learnings, code snippets, or any valuable information you want to remember."
-                      aria-label="Memory content"
                     />
                   </FormControl>
                   <FormMessage />

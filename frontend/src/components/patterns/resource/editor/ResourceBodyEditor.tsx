@@ -1,6 +1,6 @@
 import { AlertCircle, Download, Play, Wand2 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { forwardRef, useState } from 'react'
 
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import type { BodyFormat } from '@/components/patterns/reading-page'
@@ -36,12 +36,15 @@ export const BODY_EDITOR_MIN_ROWS = 12
  *
  * `field-sizing: content` makes the textarea's intrinsic height track what is
  * typed into it, which is the whole point of the issue: a long body pushes the
- * page down instead of scrolling inside a small box. It is one mechanism for
- * both write panes — including `PromptMentionTextarea`, which owns its own
- * `<textarea>` and takes only a `className` — where a scroll-height effect
- * would have to reach a ref this component does not have. Where the property
- * is unsupported the pane degrades to the shared minimum plus `resize-y`, not
- * to the fixed box it replaces.
+ * page down instead of scrolling inside a small box. One CSS declaration
+ * rather than a scroll-height effect, so it applies identically to both write
+ * panes; where the property is unsupported the pane degrades to the shared
+ * minimum, not to the fixed box it replaces.
+ *
+ * `resize-y` is UNCONDITIONAL, not a fallback — both textareas already had it
+ * and dragging the handle is a habit worth keeping. The trade is real: a drag
+ * writes an inline `height`, which outranks `field-sizing` and pins that one
+ * element for the rest of the session. Deliberate: the user asked for a size.
  */
 const WRITE_TEXTAREA_CLASS = `${BODY_EDITOR_MIN_HEIGHT} field-sizing-content resize-y font-mono text-sm`
 
@@ -86,6 +89,8 @@ interface ResourceBodyEditorBaseProps {
   placeholder?: string
   /** Inline validation message, rendered once under the write pane. */
   error?: string
+  /** react-hook-form registers the leaf through this, so `touched` works. */
+  onBlur?: () => void
   disabled?: boolean
   className?: string
   /** Accessible name for the textarea when no visible `<label>` points at it. */
@@ -127,29 +132,37 @@ export type ResourceBodyEditorProps = ResourceBodyEditorBaseProps &
  * baked in, which is what lets artifacts, blueprints and memories — which had
  * a plain fixed-height textarea and no preview at all — use the same component.
  *
- * **Slot props and `mentions`.** `id` / `aria-describedby` / `aria-invalid`
- * reach the `<textarea>` on the default path. The `mentions` extension swaps
- * in `PromptMentionTextarea`, which owns its own `<textarea>` and accepts none
- * of them, so a generated form must not enable `mentions` until that component
- * forwards them — today the extension is used only by the prompt editor, which
- * is not driven by react-hook-form.
+ * **Both write panes are the same leaf.** `disabled`, the accessible name,
+ * the `FormControl` slot ids and the forwarded ref reach the `<textarea>`
+ * whichever pane renders — a component in between that swallowed them would
+ * leave a label dangling or a control editable mid-save, and it would do it
+ * silently. That is why `PromptMentionTextarea` forwards a ref and accepts the
+ * form-control props rather than the `mentions` extension being fenced off
+ * from generated forms.
  */
-export function ResourceBodyEditor({
-  value,
-  onChange,
-  extensions,
-  placeholder,
-  error,
-  disabled = false,
-  className,
-  view,
-  onViewChange,
-  'aria-label': ariaLabel,
-  'data-testid': testId,
-  id,
-  'aria-describedby': describedBy,
-  'aria-invalid': invalid,
-}: Readonly<ResourceBodyEditorProps>) {
+export const ResourceBodyEditor = forwardRef<
+  HTMLTextAreaElement,
+  Readonly<ResourceBodyEditorProps>
+>(function ResourceBodyEditor(
+  {
+    value,
+    onChange,
+    extensions,
+    placeholder,
+    error,
+    onBlur,
+    disabled = false,
+    className,
+    view,
+    onViewChange,
+    'aria-label': ariaLabel,
+    'data-testid': testId,
+    id,
+    'aria-describedby': describedBy,
+    'aria-invalid': invalid,
+  },
+  ref
+) {
   const [ownView, setOwnView] = useState<BodyEditorView>('write')
   const requested = view ?? ownView
   // A Render tab that is not offered must never be the active one — an
@@ -165,7 +178,6 @@ export function ResourceBodyEditor({
   }
 
   const slot = { id, 'aria-describedby': describedBy, 'aria-invalid': invalid }
-  const errorClass = error ? 'border-destructive' : ''
 
   return (
     <Tabs
@@ -209,36 +221,56 @@ export function ResourceBodyEditor({
       <TabsContent value="write">
         <Card>
           <CardContent className="p-6">
+            {/*
+              The mention textarea renders the invalid border AND the message
+              itself, from its own `error` prop — its class list is a template
+              literal with no tailwind-merge, so an appended `border-destructive`
+              loses to the `border-input` it always emits. Hence: hand it the
+              error, and do not render a second message beside it.
+            */}
             {extensions?.mentions ? (
               <PromptMentionTextarea
-                data-testid={testId}
-                value={value}
-                onChange={onChange}
-                placeholder={placeholder}
-                rows={BODY_EDITOR_MIN_ROWS}
-                excludeCurrentPrompt={extensions.mentions.excludeCurrentPrompt}
-                className={cn(WRITE_TEXTAREA_CLASS, errorClass)}
-              />
-            ) : (
-              <Textarea
                 {...slot}
+                ref={ref}
                 data-testid={testId}
                 aria-label={ariaLabel}
                 value={value}
+                onChange={onChange}
+                onBlur={onBlur}
+                error={error}
                 disabled={disabled}
                 placeholder={placeholder}
                 rows={BODY_EDITOR_MIN_ROWS}
-                className={cn(WRITE_TEXTAREA_CLASS, errorClass)}
-                onChange={event => {
-                  onChange(event.target.value)
-                }}
+                excludeCurrentPrompt={extensions.mentions.excludeCurrentPrompt}
+                className={WRITE_TEXTAREA_CLASS}
               />
-            )}
-            {error && (
-              <p className="text-destructive mt-2 flex items-center gap-1 text-sm">
-                <AlertCircle className="size-4" />
-                {error}
-              </p>
+            ) : (
+              <>
+                <Textarea
+                  {...slot}
+                  ref={ref}
+                  data-testid={testId}
+                  aria-label={ariaLabel}
+                  value={value}
+                  onBlur={onBlur}
+                  disabled={disabled}
+                  placeholder={placeholder}
+                  rows={BODY_EDITOR_MIN_ROWS}
+                  className={cn(
+                    WRITE_TEXTAREA_CLASS,
+                    error && 'border-destructive'
+                  )}
+                  onChange={event => {
+                    onChange(event.target.value)
+                  }}
+                />
+                {error && (
+                  <p className="text-destructive mt-2 flex items-center gap-1 text-sm">
+                    <AlertCircle className="size-4" />
+                    {error}
+                  </p>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -262,4 +294,4 @@ export function ResourceBodyEditor({
       )}
     </Tabs>
   )
-}
+})

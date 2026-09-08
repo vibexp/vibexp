@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState } from 'react'
+import { createRef, forwardRef, useState } from 'react'
 
 import type { BodyEditorView } from '../ResourceBodyEditor'
 import {
@@ -17,36 +17,67 @@ vi.mock('@/components/MarkdownRenderer', () => ({
   ),
 }))
 
-// The real one pulls in analytics and the template-picker dialog. The editor's
-// contract with it is narrow — which props it hands over — so record them.
+// The real one pulls in analytics and the template-picker dialog. The stand-in
+// keeps the shape that matters here: ONE `<textarea>` leaf that every prop —
+// including the ref — has to reach, and the component's own error message.
 vi.mock('@/components/PromptMentionTextarea', () => ({
-  PromptMentionTextarea: ({
-    value,
-    onChange,
-    className,
-    rows,
-    'data-testid': testId,
-    excludeCurrentPrompt,
-  }: {
-    value: string
-    onChange: (next: string) => void
-    className?: string
-    rows?: number
-    'data-testid'?: string
-    excludeCurrentPrompt?: string
-  }) => (
-    <textarea
-      data-testid={testId}
-      data-mention-textarea="true"
-      data-exclude={excludeCurrentPrompt}
-      className={className}
-      rows={rows}
-      value={value}
-      onChange={event => {
-        onChange(event.target.value)
-      }}
-    />
-  ),
+  PromptMentionTextarea: forwardRef<
+    HTMLTextAreaElement,
+    {
+      value: string
+      onChange: (next: string) => void
+      onBlur?: () => void
+      className?: string
+      rows?: number
+      error?: string
+      disabled?: boolean
+      'data-testid'?: string
+      'aria-label'?: string
+      id?: string
+      'aria-describedby'?: string
+      'aria-invalid'?: boolean
+      excludeCurrentPrompt?: string
+    }
+  >(function PromptMentionTextarea(props, ref) {
+    const {
+      value,
+      onChange,
+      onBlur,
+      className,
+      rows,
+      error,
+      disabled,
+      'data-testid': testId,
+      'aria-label': ariaLabel,
+      id,
+      'aria-describedby': describedBy,
+      'aria-invalid': invalid,
+      excludeCurrentPrompt,
+    } = props
+    return (
+      <div>
+        <textarea
+          ref={ref}
+          id={id}
+          aria-label={ariaLabel}
+          aria-describedby={describedBy}
+          aria-invalid={invalid}
+          data-testid={testId}
+          data-mention-textarea="true"
+          data-exclude={excludeCurrentPrompt}
+          className={className}
+          rows={rows}
+          disabled={disabled}
+          value={value}
+          onBlur={onBlur}
+          onChange={event => {
+            onChange(event.target.value)
+          }}
+        />
+        {error && <p>{error}</p>}
+      </div>
+    )
+  }),
 }))
 
 const BODY = '# Heading\n\nSome **markdown** body.'
@@ -217,6 +248,117 @@ describe('ResourceBodyEditor', () => {
       expect(textarea.className).toContain(BODY_EDITOR_MIN_HEIGHT)
       expect(textarea).toHaveAttribute('rows', String(BODY_EDITOR_MIN_ROWS))
     })
+  })
+
+  describe('form-control wiring', () => {
+    // Every one of these reached the leaf on the plain path and was dropped on
+    // the mentions path in the first cut — a control that stays editable
+    // mid-save and a label pointing at nothing, both silently.
+    it.each([
+      ['plain', undefined],
+      ['mentions', { mentions: {} }],
+    ] as const)(
+      'forwards the ref to the %s textarea leaf',
+      (_case, extensions) => {
+        const ref = createRef<HTMLTextAreaElement>()
+        render(
+          <ResourceBodyEditor
+            ref={ref}
+            value={BODY}
+            onChange={vi.fn()}
+            extensions={extensions}
+          />
+        )
+
+        expect(ref.current).toBe(writeArea())
+      }
+    )
+
+    it.each([
+      ['plain', undefined],
+      ['mentions', { mentions: {} }],
+    ] as const)('disables the %s textarea', (_case, extensions) => {
+      render(
+        <ResourceBodyEditor
+          value={BODY}
+          onChange={vi.fn()}
+          disabled
+          extensions={extensions}
+        />
+      )
+
+      expect(writeArea()).toBeDisabled()
+    })
+
+    it.each([
+      ['plain', undefined],
+      ['mentions', { mentions: {} }],
+    ] as const)(
+      'names the %s textarea and carries the slot ids',
+      (_case, extensions) => {
+        render(
+          <ResourceBodyEditor
+            value={BODY}
+            onChange={vi.fn()}
+            aria-label="Content"
+            id="body-field"
+            aria-describedby="body-description"
+            aria-invalid
+            extensions={extensions}
+          />
+        )
+
+        const textarea = screen.getByLabelText('Content')
+        expect(textarea).toHaveAttribute('id', 'body-field')
+        expect(textarea).toHaveAttribute('aria-describedby', 'body-description')
+        expect(textarea).toHaveAttribute('aria-invalid', 'true')
+      }
+    )
+
+    it.each([
+      ['plain', undefined],
+      ['mentions', { mentions: {} }],
+    ] as const)(
+      'reports blur on the %s textarea',
+      async (_case, extensions) => {
+        const user = userEvent.setup()
+        const onBlur = vi.fn()
+        render(
+          <ResourceBodyEditor
+            value={BODY}
+            onChange={vi.fn()}
+            onBlur={onBlur}
+            extensions={extensions}
+          />
+        )
+
+        await user.click(writeArea())
+        await user.tab()
+
+        expect(onBlur.mock.calls).toHaveLength(1)
+      }
+    )
+
+    it.each([
+      ['plain', undefined],
+      ['mentions', { mentions: {} }],
+    ] as const)(
+      'shows the error exactly once on the %s pane',
+      (_case, extensions) => {
+        render(
+          <ResourceBodyEditor
+            value=""
+            onChange={vi.fn()}
+            error="Body is required"
+            extensions={extensions}
+          />
+        )
+
+        // The mention textarea renders its own message from `error`; the editor
+        // must hand it over rather than add a second one beside it.
+        expect(screen.getAllByText('Body is required')).toHaveLength(1)
+      }
+    )
   })
 
   describe('render extension', () => {
