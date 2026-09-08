@@ -98,12 +98,12 @@ func TestMemoryRepository_OptimisticLocking(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Simulate version mismatch (UPDATE fails because version doesn't match)
-	// Args order: id, text, status, metadata, project_id, team_id, updated_at, team_id, version, labels.
+	// Args order: id, text, status, metadata, project_id, team_id, updated_at, team_id, version, labels, title.
 	// The memory carries no status, so the repository defaults it to "active".
 	mock.ExpectQuery("UPDATE memories.*WHERE.*").
 		WithArgs(
 			memory.ID, memory.Text, "active", sqlmock.AnyArg(), memory.ProjectID,
-			memory.TeamID, sqlmock.AnyArg(), memory.TeamID, memory.Version, sqlmock.AnyArg(),
+			memory.TeamID, sqlmock.AnyArg(), memory.TeamID, memory.Version, sqlmock.AnyArg(), memory.Title,
 		).
 		WillReturnError(sql.ErrNoRows)
 

@@ -16,10 +16,10 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// memoryListColumns mirrors the 9 columns scanned by List (status added; no
-// version column on the list path).
+// memoryListColumns mirrors the 11 columns scanned by List (status and title
+// added; no version column on the list path).
 var memoryListColumns = []string{
-	"id", "user_id", "team_id", "project_id", "text", "status", "metadata", "created_at", "updated_at",
+	"id", "user_id", "team_id", "project_id", "title", "text", "status", "metadata", "created_at", "updated_at",
 	"labels",
 }
 
@@ -62,7 +62,7 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 
 	oneRow := func() *sqlmock.Rows {
 		return sqlmock.NewRows(memoryListColumns).AddRow(
-			"memory-1", "user-123", "team-123", "project-123", "remember this",
+			"memory-1", "user-123", "team-123", "project-123", nil, "remember this",
 			"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
 		)
 	}
@@ -296,7 +296,7 @@ func TestMemoryRepository_List_RequiresTeamID(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestMemoryRepository_List_ExplicitProjection pins the full 9-column projection
+// TestMemoryRepository_List_ExplicitProjection pins the full 11-column projection
 // for the default path. A `.+` matcher would not catch column drift, so the
 // projection is asserted verbatim.
 func TestMemoryRepository_List_ExplicitProjection(t *testing.T) {
@@ -316,13 +316,13 @@ func TestMemoryRepository_List_ExplicitProjection(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	mock.ExpectQuery(
-		`SELECT m\.id, m\.user_id, m\.team_id, m\.project_id, ` +
+		`SELECT m\.id, m\.user_id, m\.team_id, m\.project_id, m\.title, ` +
 			`m\.text, m\.status, m\.metadata, m\.created_at, m\.updated_at, m\.labels ` +
 			`FROM memories m WHERE`,
 	).
 		WithArgs(memoryListDefaultArgs()...).
 		WillReturnRows(sqlmock.NewRows(memoryListColumns).AddRow(
-			"memory-1", "user-123", "team-123", "project-123", "remember this",
+			"memory-1", "user-123", "team-123", "project-123", nil, "remember this",
 			"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
 		))
 
@@ -389,7 +389,7 @@ func TestMemoryRepository_List_ErrorPaths(t *testing.T) {
 				mock.ExpectQuery(`FROM memories m`).
 					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows(memoryListColumns).AddRow(
-						"memory-1", "user-123", "team-123", "project-123", "remember this",
+						"memory-1", "user-123", "team-123", "project-123", nil, "remember this",
 						"active", []byte(`{not valid json`), now, now, pq.StringArray{},
 					))
 			},
@@ -402,7 +402,7 @@ func TestMemoryRepository_List_ErrorPaths(t *testing.T) {
 					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				rows := sqlmock.NewRows(memoryListColumns).AddRow(
-					"memory-1", "user-123", "team-123", "project-123", "remember this",
+					"memory-1", "user-123", "team-123", "project-123", nil, "remember this",
 					"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
 				).RowError(0, sql.ErrConnDone)
 				mock.ExpectQuery(`FROM memories m`).

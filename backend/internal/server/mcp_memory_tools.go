@@ -48,6 +48,7 @@ type memorySearchResponse struct {
 type StoreMemoryParams struct {
 	TeamID    string                 `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ProjectID string                 `json:"project_id" jsonschema:"Project UUID — required; the project this memory belongs to"`
+	Title     string                 `json:"title,omitempty" jsonschema:"Optional short title for the memory (max 255 characters)"`
 	Text      string                 `json:"text" jsonschema:"Memory content/text"`
 	Status    string                 `json:"status,omitempty" jsonschema:"Lifecycle status: active (default), draft, or archived"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty" jsonschema:"Additional key-value metadata pairs"`
@@ -56,8 +57,10 @@ type StoreMemoryParams struct {
 
 // UpdateMemoryParams defines the parameters for updating a specific memory
 type UpdateMemoryParams struct {
-	TeamID   string                 `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
-	MemoryID string                 `json:"memory_id" jsonschema:"Memory identifier"`
+	TeamID   string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
+	MemoryID string `json:"memory_id" jsonschema:"Memory identifier"`
+	// Clearing a title is REST-only; see buildMemoryUpdateRequest.
+	Title    string                 `json:"title,omitempty" jsonschema:"New short title (max 255); omit to keep it"`
 	Text     string                 `json:"text,omitempty" jsonschema:"New memory text"`
 	Status   string                 `json:"status,omitempty" jsonschema:"New lifecycle status: active, draft, or archived"`
 	Metadata map[string]interface{} `json:"metadata,omitempty" jsonschema:"New metadata"`
@@ -98,10 +101,13 @@ func (s *Server) storeMemory(
 
 	createReq := &models.CreateMemoryRequest{
 		ProjectID: params.ProjectID,
-		Text:      params.Text,
-		Status:    statusPtr,
-		Metadata:  params.Metadata,
-		Labels:    params.Labels,
+		// "" is how the MCP wire format spells "argument omitted": there is no
+		// null for a scalar, so an absent title must not become an empty one.
+		Title:    optionalString(params.Title),
+		Text:     params.Text,
+		Status:   statusPtr,
+		Metadata: params.Metadata,
+		Labels:   params.Labels,
 	}
 
 	memory, err := s.container.MemoryService().CreateMemory(userID, teamID, createReq)
@@ -190,12 +196,21 @@ func buildMemorySearchItems(memories []models.Memory) []memorySearchItem {
 }
 
 // buildMemoryUpdateRequest builds an UpdateMemoryRequest from the non-empty
-// params fields. Empty string fields are left as nil pointers, so a field
-// cannot be cleared to "" via update (consistent with the other MCP write
-// tools); labels and metadata ARE clearable, because an explicitly supplied
-// empty list is a meaningful edit.
+// params fields. Empty string fields are left unset, so a field cannot be
+// cleared to "" via update (consistent with the other MCP write tools); labels
+// and metadata ARE clearable, because an explicitly supplied empty list is a
+// meaningful edit. `title` follows the string rule rather than the list one:
+// the MCP argument is a plain string, so an omitted title is indistinguishable
+// from "" and both mean "leave it alone". Clearing a title is a REST-only
+// operation (`{"title": null}`).
 func buildMemoryUpdateRequest(params *UpdateMemoryParams, statusPtr *string) *models.UpdateMemoryRequest {
 	updateReq := &models.UpdateMemoryRequest{Status: statusPtr}
+	// TrimSpace, not just != "": normalizeMemoryTitle collapses a whitespace-only
+	// title to nil downstream, so passing "   " through here would CLEAR the
+	// title -- the one thing this transport is documented not to be able to do.
+	if strings.TrimSpace(params.Title) != "" {
+		updateReq.Title = models.NewOptionalString(params.Title)
+	}
 	if params.Text != "" {
 		updateReq.Text = &params.Text
 	}

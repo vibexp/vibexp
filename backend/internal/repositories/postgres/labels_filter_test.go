@@ -106,7 +106,7 @@ func TestMemoryRepository_LabelsFilterNarrowsCountAndPage(t *testing.T) {
 	mock.ExpectQuery(`FROM memories m WHERE .*m\.labels && \$`).
 		WithArgs(labelArgs...).
 		WillReturnRows(sqlmock.NewRows(memoryListColumns).AddRow(
-			"memory-1", "user-123", "team-123", "project-123", "remember this",
+			"memory-1", "user-123", "team-123", "project-123", nil, "remember this",
 			"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
 		))
 

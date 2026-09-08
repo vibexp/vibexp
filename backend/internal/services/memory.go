@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/vibexp/vibexp/internal/authz"
@@ -12,6 +14,51 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
 )
+
+// MaxMemoryTitleLength is the documented `maxLength` of `memories.title` in
+// schemas/memories.yaml, in runes, matching the varchar(255) column added by
+// migration 017.
+const MaxMemoryTitleLength = 255
+
+// ErrInvalidMemoryTitle is returned by a create/update whose `title` exceeds
+// MaxMemoryTitleLength. Like ErrInvalidLabels it is a sentinel rather than a
+// handler-side check because the six MCP write tools call the services, so the
+// documented limit has to be enforced where both transports pass -- the
+// `validate:` struct tags on this domain are inert (nothing calls
+// validate.Struct on it) and the generated binder ignores `maxLength`.
+var ErrInvalidMemoryTitle = errors.New("invalid title")
+
+// validateMemoryTitle rejects an over-long title. A nil title (absent, or an
+// explicit null) is valid: the field is optional and nullable.
+//
+// The length is measured on the TRIMMED value, because that is what
+// normalizeMemoryTitle stores -- measuring the raw string would 400 a title
+// that fits the column perfectly well once its stray whitespace is gone.
+func validateMemoryTitle(title *string) error {
+	if title == nil {
+		return nil
+	}
+	if n := len([]rune(strings.TrimSpace(*title))); n > MaxMemoryTitleLength {
+		return fmt.Errorf("%w: title may be at most %d characters, got %d",
+			ErrInvalidMemoryTitle, MaxMemoryTitleLength, n)
+	}
+	return nil
+}
+
+// normalizeMemoryTitle collapses an empty or whitespace-only title to nil, so a
+// memory is either genuinely titled or `title: null` -- never `""`, which the
+// SPA would render as a blank heading instead of falling back to the first
+// markdown heading.
+func normalizeMemoryTitle(title *string) *string {
+	if title == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*title)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
 
 type MemoryService struct {
 	repo              repositories.MemoryRepository
@@ -89,6 +136,9 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 	if err := validateLabels(req.Labels); err != nil {
 		return nil, err
 	}
+	if err := validateMemoryTitle(req.Title); err != nil {
+		return nil, err
+	}
 
 	// Default to active when no status is supplied (mirrors artifact create).
 	status := models.MemoryStatusActive
@@ -106,6 +156,7 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 		UserID:    userID,
 		TeamID:    teamID,
 		ProjectID: req.ProjectID,
+		Title:     normalizeMemoryTitle(req.Title),
 		Text:      req.Text,
 		Status:    status,
 		Metadata:  metadata,
@@ -125,7 +176,10 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 
 	// Publish memory created event using project_id as project identifier
 	if s.eventManager != nil {
-		event := events.NewMemoryCreatedEvent(memory.ID, memory.UserID, memory.ProjectID, memory.Text, memory.CreatedAt)
+		// The event payloads carry a plain string; "" means untitled, which is
+		// exactly what the embedding context header treats as "no header".
+		event := events.NewMemoryCreatedEvent(
+			memory.ID, memory.UserID, memory.ProjectID, derefString(memory.Title), memory.Text, memory.CreatedAt)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish memory created event")
 		}
@@ -208,6 +262,12 @@ func applyMemoryUpdates(memory *models.Memory, req *models.UpdateMemoryRequest) 
 	if req.Text != nil {
 		memory.Text = *req.Text
 	}
+	// Three-state title (issue #911): an absent key leaves it alone, an explicit
+	// null clears it, a value sets it. OptionalString is what carries the
+	// difference; a *string would collapse the first two.
+	if req.Title.Set {
+		memory.Title = normalizeMemoryTitle(req.Title.Value)
+	}
 	labels, metadata, hasTaxonomy := foldLegacyMemoryTags(req.Labels, req.Metadata)
 	if req.Metadata != nil {
 		memory.Metadata = metadata
@@ -247,6 +307,9 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 	if err := validateLabels(req.Labels); err != nil {
 		return nil, err
 	}
+	if err := validateMemoryTitle(req.Title.Value); err != nil {
+		return nil, err
+	}
 
 	// Note: team_id cannot be changed via update (removed from UpdateMemoryRequest)
 	// Team reassignment is forbidden to prevent cross-team resource moves
@@ -283,7 +346,8 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 
 	// Publish memory updated event using project_id as project identifier
 	if s.eventManager != nil {
-		event := events.NewMemoryUpdatedEvent(memory.ID, memory.UserID, memory.ProjectID, memory.Text, memory.UpdatedAt)
+		event := events.NewMemoryUpdatedEvent(
+			memory.ID, memory.UserID, memory.ProjectID, derefString(memory.Title), memory.Text, memory.UpdatedAt)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish memory updated event")
 		}

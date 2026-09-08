@@ -1,0 +1,21 @@
+-- Migration 017: an optional title for memories (issue #911, epic #899).
+--
+-- A memory is the one resource type with nothing to call it: every surface that
+-- lists, links or searches memories has to invent an identifier, and each
+-- invents a different one. This gives it a real one.
+--
+-- NULLABLE with no default and NO BACKFILL, deliberately (decision D of #899):
+-- existing memories keep returning `title: null` and the SPA keeps deriving a
+-- display title from the first markdown heading. Adding a nullable column with
+-- no default is a catalog-only change -- no table rewrite, no lock beyond the
+-- brief ACCESS EXCLUSIVE the ALTER itself takes.
+--
+-- varchar(255) matches the documented `maxLength: 255` in schemas/memories.yaml
+-- and the blueprint/feed-item title limits already in use.
+--
+-- Note the `update_memories_updated_at` trigger on this table: it is a BEFORE
+-- UPDATE ... FOR EACH ROW trigger, so it plays no part in a DDL-only migration.
+-- It does mean a later title edit bumps `updated_at`, which is the intended
+-- behaviour -- a title change is a content edit.
+
+ALTER TABLE public.memories ADD COLUMN title varchar(255);

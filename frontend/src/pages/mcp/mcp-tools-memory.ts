@@ -18,6 +18,11 @@ export const memoryTools: MCPTool[] = [
           type: 'string',
           description: TEAM_ID_DESCRIPTION,
         },
+        title: {
+          type: 'string',
+          description:
+            'Optional short title for the memory (max 255 characters). Omit it and clients fall back to deriving a display title from the first markdown heading in the text.',
+        },
         text: {
           type: 'string',
           description:
@@ -58,6 +63,11 @@ export const memoryTools: MCPTool[] = [
           type: 'string',
           description:
             'Unique identifier of the memory to update. This must match exactly with the ID of the existing memory.',
+        },
+        title: {
+          type: 'string',
+          description:
+            'New short title for the memory (max 255 characters). Leave empty to keep the existing title unchanged; clearing a title is a REST-only operation.',
         },
         text: {
           type: 'string',

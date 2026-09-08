@@ -18256,6 +18256,12 @@ components:
           type: string
           description: ID of the project this memory belongs to
           example: 01234567-89ab-cdef-0123-456789abcdef
+        title:
+          type: string
+          maxLength: 255
+          nullable: true
+          description: Optional short title for the memory. Always present; null when the memory has none, in which case clients derive a display title from the text (e.g. its first markdown heading).
+          example: Deploy checklist
         text:
           type: string
           description: The text content of the memory
@@ -18318,6 +18324,7 @@ components:
         - user_id
         - team_id
         - project_id
+        - title
         - text
         - status
         - created_at
@@ -18332,6 +18339,12 @@ components:
           format: uuid
           description: UUID of the project this memory belongs to
           example: 01234567-89ab-cdef-0123-456789abcdef
+        title:
+          type: string
+          maxLength: 255
+          nullable: true
+          description: Optional short title for the memory (max 255 characters)
+          example: Deploy checklist
         text:
           type: string
           description: The text content of the memory
@@ -18374,6 +18387,12 @@ components:
           format: uuid
           description: New project UUID for the memory (moves it between projects)
           example: 01234567-89ab-cdef-0123-456789abcdef
+        title:
+          type: string
+          maxLength: 255
+          nullable: true
+          description: Updated title for the memory (max 255 characters). Omit the key to leave the title unchanged; send null to clear it.
+          example: Deploy checklist
         text:
           type: string
           description: Updated text content of the memory

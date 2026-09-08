@@ -279,6 +279,10 @@ func toGenMemory(src *models.Memory) (memoriesgen.Memory, error) {
 		UserId:    src.UserID,
 		TeamId:    src.TeamID,
 		ProjectId: src.ProjectID,
+		// Title is required-but-nullable in the schema, so the generated field
+		// carries no omitempty: a nil pointer renders as `"title": null`, which
+		// is exactly the wire shape an untitled memory must have (#911).
+		Title:     src.Title,
 		Text:      src.Text,
 		Status:    memoriesgen.MemoryStatus(src.Status),
 		Labels:    genLabels(src.Labels),

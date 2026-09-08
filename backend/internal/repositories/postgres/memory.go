@@ -42,13 +42,13 @@ func (r *MemoryRepository) Create(ctx context.Context, memory *models.Memory) er
 	memory.Status = status
 
 	query := `
-		INSERT INTO memories (user_id, team_id, project_id, text, status, metadata, created_at, updated_at, labels)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO memories (user_id, team_id, project_id, title, text, status, metadata, created_at, updated_at, labels)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id, created_at, updated_at
 	`
 
 	err = r.db.QueryRowContext(ctx, query,
-		memory.UserID, memory.TeamID, memory.ProjectID, memory.Text, status, metadataJSON,
+		memory.UserID, memory.TeamID, memory.ProjectID, memory.Title, memory.Text, status, metadataJSON,
 		memory.CreatedAt, memory.UpdatedAt, memory.Labels,
 	).Scan(&memory.ID, &memory.CreatedAt, &memory.UpdatedAt)
 
@@ -63,7 +63,7 @@ func (r *MemoryRepository) Create(ctx context.Context, memory *models.Memory) er
 // Uses EXISTS subqueries to avoid Cartesian product with multi-member teams
 func (r *MemoryRepository) GetByID(ctx context.Context, userID, teamID, memoryID string) (*models.Memory, error) {
 	query := `
-		SELECT m.id, m.user_id, m.team_id, m.project_id, m.text, m.status, m.metadata,
+		SELECT m.id, m.user_id, m.team_id, m.project_id, m.title, m.text, m.status, m.metadata,
 		       m.created_at, m.updated_at, m.version, m.labels
 		FROM memories m
 		WHERE m.id = $1
@@ -78,8 +78,8 @@ func (r *MemoryRepository) GetByID(ctx context.Context, userID, teamID, memoryID
 	var metadataJSON []byte
 
 	err := r.db.QueryRowContext(ctx, query, memoryID, teamID, userID).Scan(
-		&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Text, &memory.Status, &metadataJSON,
-		&memory.CreatedAt, &memory.UpdatedAt, &memory.Version, &memory.Labels,
+		&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Title, &memory.Text, &memory.Status,
+		&metadataJSON, &memory.CreatedAt, &memory.UpdatedAt, &memory.Version, &memory.Labels,
 	)
 
 	if err != nil {
@@ -96,7 +96,7 @@ func (r *MemoryRepository) GetByID(ctx context.Context, userID, teamID, memoryID
 // GetByIDCrossTeam retrieves a memory by ID across all user's teams
 func (r *MemoryRepository) GetByIDCrossTeam(ctx context.Context, userID, memoryID string) (*models.Memory, error) {
 	query := `
-		SELECT id, user_id, team_id, project_id, text, status, metadata, created_at, updated_at, version, labels
+		SELECT id, user_id, team_id, project_id, title, text, status, metadata, created_at, updated_at, version, labels
 		FROM memories
 		WHERE id = $1 AND user_id = $2
 	`
@@ -105,8 +105,8 @@ func (r *MemoryRepository) GetByIDCrossTeam(ctx context.Context, userID, memoryI
 	var metadataJSON []byte
 
 	err := r.db.QueryRowContext(ctx, query, memoryID, userID).Scan(
-		&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Text, &memory.Status, &metadataJSON,
-		&memory.CreatedAt, &memory.UpdatedAt, &memory.Version, &memory.Labels,
+		&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Title, &memory.Text, &memory.Status,
+		&metadataJSON, &memory.CreatedAt, &memory.UpdatedAt, &memory.Version, &memory.Labels,
 	)
 
 	if err != nil {
@@ -261,7 +261,7 @@ func (r *MemoryRepository) queryList(
 
 	query, args, err := psql.
 		Select(
-			"m.id", "m.user_id", "m.team_id", "m.project_id",
+			"m.id", "m.user_id", "m.team_id", "m.project_id", "m.title",
 			"m.text", "m.status", "m.metadata", "m.created_at", "m.updated_at", "m.labels",
 		).
 		From("memories m").
@@ -296,7 +296,7 @@ func (r *MemoryRepository) queryList(
 	return memories, nil
 }
 
-// scanMemoryRows scans the 10-column memory projection shared by the list and
+// scanMemoryRows scans the 11-column memory projection shared by the list and
 // metadata-search queries, unmarshalling the JSON metadata column per row.
 func scanMemoryRows(rows *sql.Rows) ([]models.Memory, error) {
 	memories := make([]models.Memory, 0)
@@ -305,8 +305,8 @@ func scanMemoryRows(rows *sql.Rows) ([]models.Memory, error) {
 		var metadataJSON []byte
 
 		scanErr := rows.Scan(
-			&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Text, &memory.Status, &metadataJSON,
-			&memory.CreatedAt, &memory.UpdatedAt, &memory.Labels,
+			&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Title, &memory.Text, &memory.Status,
+			&metadataJSON, &memory.CreatedAt, &memory.UpdatedAt, &memory.Labels,
 		)
 		if scanErr != nil {
 			return nil, fmt.Errorf("failed to scan memory: %w", scanErr)
@@ -362,7 +362,7 @@ func (r *MemoryRepository) Update(ctx context.Context, memory *models.Memory) er
 	query := `
 		UPDATE memories
 		SET text = $2, status = $3, metadata = $4, project_id = $5, team_id = $6, updated_at = $7,
-		labels = $10, version = version + 1
+		labels = $10, title = $11, version = version + 1
 		WHERE id = $1
 			AND team_id = $8
 			AND version = $9
@@ -371,7 +371,7 @@ func (r *MemoryRepository) Update(ctx context.Context, memory *models.Memory) er
 
 	err = r.db.QueryRowContext(ctx, query,
 		memory.ID, memory.Text, status, metadataJSON, memory.ProjectID, memory.TeamID, memory.UpdatedAt,
-		memory.TeamID, memory.Version, memory.Labels,
+		memory.TeamID, memory.Version, memory.Labels, memory.Title,
 	).Scan(&memory.UpdatedAt, &memory.Version)
 
 	if err != nil {

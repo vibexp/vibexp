@@ -16,10 +16,16 @@ const (
 )
 
 type Memory struct {
-	ID        string                 `json:"id" db:"id"`
-	UserID    string                 `json:"user_id" db:"user_id"`
-	TeamID    string                 `json:"team_id" db:"team_id"`
-	ProjectID string                 `json:"project_id" db:"project_id"`
+	ID        string `json:"id" db:"id"`
+	UserID    string `json:"user_id" db:"user_id"`
+	TeamID    string `json:"team_id" db:"team_id"`
+	ProjectID string `json:"project_id" db:"project_id"`
+	// Title is the memory's optional short title (issue #911). A pointer, and
+	// REQUIRED-but-nullable in the response schema, so an untitled memory
+	// serializes as `"title": null` rather than `""` or an absent key -- the
+	// SPA distinguishes "no title" (derive one from the first heading) from
+	// "titled the empty string", which is not a thing.
+	Title     *string                `json:"title" db:"title"`
 	Text      string                 `json:"text" db:"text"`
 	Status    string                 `json:"status" db:"status"`
 	Metadata  map[string]interface{} `json:"metadata" db:"metadata"`
@@ -46,19 +52,27 @@ type Memory struct {
 }
 
 type CreateMemoryRequest struct {
-	ProjectID string                 `json:"project_id" validate:"required,uuid"`
-	Text      string                 `json:"text" validate:"required,min=1"`
-	Status    *string                `json:"status,omitempty" validate:"omitempty,oneof=active draft archived"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
-	Labels    []string               `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
+	ProjectID string `json:"project_id" validate:"required,uuid"`
+	// Title is optional; nil and "" both create an untitled memory. The
+	// validate tag is documentation only -- nothing calls validate.Struct on
+	// this domain, so the 255-rune limit is enforced in the service.
+	Title    *string                `json:"title,omitempty" validate:"omitempty,max=255"`
+	Text     string                 `json:"text" validate:"required,min=1"`
+	Status   *string                `json:"status,omitempty" validate:"omitempty,oneof=active draft archived"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Labels   []string               `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
 }
 
 type UpdateMemoryRequest struct {
-	ProjectID *string                `json:"project_id,omitempty" validate:"omitempty,uuid"`
-	Text      *string                `json:"text,omitempty" validate:"omitempty,min=1"`
-	Status    *string                `json:"status,omitempty" validate:"omitempty,oneof=active draft archived"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
-	Labels    []string               `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
+	ProjectID *string `json:"project_id,omitempty" validate:"omitempty,uuid"`
+	// Title uses OptionalString rather than *string because it is the one
+	// nullable field here: omitting the key leaves the title unchanged, while
+	// an explicit `null` clears it. A *string cannot express that difference.
+	Title    OptionalString         `json:"title,omitzero"`
+	Text     *string                `json:"text,omitempty" validate:"omitempty,min=1"`
+	Status   *string                `json:"status,omitempty" validate:"omitempty,oneof=active draft archived"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Labels   []string               `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
 }
 
 type MemoryListResponse struct {

@@ -44,6 +44,26 @@ describe('mcpTools catalog', () => {
     }
   })
 
+  // The curated catalog is hand-maintained and drifts silently from the backend
+  // tool structs: it is what a user browsing /mcp actually reads. `labels`
+  // (#910) and `title` (#911) were both added to the memory write tools, so
+  // both are pinned here rather than trusted.
+  //
+  // Deliberately a SUBSET check, not an exhaustive one: `status` is a real
+  // argument on both backend param structs and is missing from this catalog
+  // already, so an exhaustive assertion would fail on a gap that predates the
+  // two fields being pinned.
+  it('documents title and labels on both memory write tools', () => {
+    for (const name of ['vibexp_io_create_memory', 'vibexp_io_update_memory']) {
+      const tool = mcpTools.find(t => t.name === name)
+      expect(tool).toBeDefined()
+      const properties = tool?.inputSchema.properties ?? {}
+      expect(Object.keys(properties)).toEqual(
+        expect.arrayContaining(['title', 'text', 'metadata', 'labels'])
+      )
+    }
+  })
+
   it('every entry has non-empty name and description', () => {
     for (const tool of mcpTools) {
       expect(tool.name.trim()).not.toBe('')

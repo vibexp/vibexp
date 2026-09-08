@@ -363,10 +363,11 @@ func TestMemoryCreatedEvent(t *testing.T) {
 	memoryID := "memory123"
 	userID := "user123"
 	projectName := "test-project"
+	title := "Test title"
 	text := "Test memory"
 	createdAt := time.Now()
 
-	event := NewMemoryCreatedEvent(memoryID, userID, projectName, text, createdAt)
+	event := NewMemoryCreatedEvent(memoryID, userID, projectName, title, text, createdAt)
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypeMemoryCreated, event.Type())
@@ -377,6 +378,7 @@ func TestMemoryCreatedEvent(t *testing.T) {
 	assert.Equal(t, memoryID, payload.MemoryID)
 	assert.Equal(t, userID, payload.UserID)
 	assert.Equal(t, projectName, payload.ProjectName)
+	assert.Equal(t, title, payload.Title)
 	assert.Equal(t, text, payload.Text)
 	assert.Equal(t, createdAt, payload.CreatedAt)
 }
@@ -385,10 +387,11 @@ func TestMemoryUpdatedEvent(t *testing.T) {
 	memoryID := "memory123"
 	userID := "user123"
 	projectName := "test-project"
+	title := "Updated title"
 	text := "Updated memory"
 	updatedAt := time.Now()
 
-	event := NewMemoryUpdatedEvent(memoryID, userID, projectName, text, updatedAt)
+	event := NewMemoryUpdatedEvent(memoryID, userID, projectName, title, text, updatedAt)
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypeMemoryUpdated, event.Type())
@@ -399,6 +402,7 @@ func TestMemoryUpdatedEvent(t *testing.T) {
 	assert.Equal(t, memoryID, payload.MemoryID)
 	assert.Equal(t, userID, payload.UserID)
 	assert.Equal(t, projectName, payload.ProjectName)
+	assert.Equal(t, title, payload.Title)
 	assert.Equal(t, text, payload.Text)
 	assert.Equal(t, updatedAt, payload.UpdatedAt)
 }
