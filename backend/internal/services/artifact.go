@@ -408,7 +408,11 @@ func applyArtifactUpdates(artifact *models.Artifact, req *models.UpdateArtifactR
 	if req.Content != nil {
 		artifact.Content = *req.Content
 	}
-	if req.Status != nil {
+	// An empty status is "unchanged", never a clear: `status` is a REQUIRED
+	// response field constrained to ArtifactStatus, so writing "" would put a
+	// value on the wire that neither generated client has a union member for
+	// (#912). Same rule as applyMemoryUpdates.
+	if req.Status != nil && *req.Status != "" {
 		artifact.Status = *req.Status
 	}
 	if req.Type != nil {

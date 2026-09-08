@@ -142,7 +142,12 @@ CreateArtifactRequest:
         to general when omitted.
       example: "general"
     status:
-      $ref: './common.yaml#/ArtifactStatus'
+      # allOf, not a bare $ref: under OpenAPI 3.0.3 a sibling of $ref is
+      # ignored, and `default` is real API surface here (omitting status on
+      # create yields this value).
+      allOf:
+        - $ref: './common.yaml#/ArtifactStatus'
+      default: "active"
     metadata:
       type: object
       additionalProperties: true

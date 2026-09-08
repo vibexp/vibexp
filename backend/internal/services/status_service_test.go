@@ -66,42 +66,118 @@ func TestPromptService_RejectsOutOfSubsetStatus(t *testing.T) {
 }
 
 func TestArtifactService_RejectsOutOfSubsetStatus(t *testing.T) {
-	svc := NewArtifactService(ArtifactServiceDeps{
-		Repo:   mocks.NewMockArtifactRepository(t),
-		Authz:  allowAllAuthz{},
-		Logger: statusTestLogger(),
+	const (
+		userID    = "user-1"
+		teamID    = "team-1"
+		projectID = testServiceProjectID
+		slug      = "s"
+	)
+
+	t.Run("create", func(t *testing.T) {
+		svc := NewArtifactService(ArtifactServiceDeps{
+			Repo:   mocks.NewMockArtifactRepository(t),
+			Authz:  allowAllAuthz{},
+			Logger: statusTestLogger(),
+		})
+
+		_, err := svc.CreateArtifact(userID, teamID, &models.CreateArtifactRequest{
+			ProjectID: projectID, Slug: slug, Title: "t", Content: "c",
+			Status: models.PromptStatusPublished, // valid for prompts, not for artifacts
+		})
+
+		require.ErrorIs(t, err, ErrInvalidStatus)
 	})
 
-	_, err := svc.CreateArtifact("user-1", "team-1", &models.CreateArtifactRequest{
-		ProjectID: testServiceProjectID, Slug: "s", Title: "t", Content: "c",
-		Status: models.PromptStatusPublished, // valid for prompts, not for artifacts
-	})
+	t.Run("update", func(t *testing.T) {
+		repo := mocks.NewMockArtifactRepository(t)
+		repo.EXPECT().GetByProjectIDAndSlug(mock.Anything, userID, teamID, projectID, slug).
+			Return(&models.Artifact{ID: "artifact-1", UserID: userID, TeamID: teamID}, nil).Once()
 
-	require.ErrorIs(t, err, ErrInvalidStatus)
+		svc := NewArtifactService(ArtifactServiceDeps{
+			Repo:   repo,
+			Authz:  allowAllAuthz{},
+			Logger: statusTestLogger(),
+		})
+
+		status := models.BlueprintStatusExpired
+		_, err := svc.UpdateArtifactByProjectIDAndSlugInTeam(userID, teamID, projectID, slug,
+			&models.UpdateArtifactRequest{Status: &status})
+
+		require.ErrorIs(t, err, ErrInvalidStatus)
+	})
 }
 
 func TestBlueprintService_RejectsOutOfSubsetStatus(t *testing.T) {
-	svc := NewBlueprintService(BlueprintServiceDeps{
-		Repo:   mocks.NewMockBlueprintRepository(t),
-		Authz:  allowAllAuthz{},
-		Logger: statusTestLogger(),
+	const (
+		userID    = "user-1"
+		teamID    = "team-1"
+		projectID = testServiceProjectID
+		slug      = "s"
+	)
+
+	t.Run("create", func(t *testing.T) {
+		svc := NewBlueprintService(BlueprintServiceDeps{
+			Repo:   mocks.NewMockBlueprintRepository(t),
+			Authz:  allowAllAuthz{},
+			Logger: statusTestLogger(),
+		})
+
+		_, err := svc.CreateBlueprint(userID, teamID, &models.CreateBlueprintRequest{
+			ProjectID: projectID, Slug: slug, Title: "t", Content: "c",
+			Status: models.ArtifactStatusArchived, // valid for artifacts, not for blueprints
+		})
+
+		require.ErrorIs(t, err, ErrInvalidStatus)
 	})
 
-	_, err := svc.CreateBlueprint("user-1", "team-1", &models.CreateBlueprintRequest{
-		ProjectID: testServiceProjectID, Slug: "s", Title: "t", Content: "c",
-		Status: models.ArtifactStatusArchived, // valid for artifacts, not for blueprints
-	})
+	t.Run("update", func(t *testing.T) {
+		repo := mocks.NewMockBlueprintRepository(t)
+		repo.EXPECT().GetByProjectIDAndSlug(mock.Anything, userID, teamID, projectID, slug).
+			Return(&models.Blueprint{ID: "blueprint-1", UserID: userID, TeamID: teamID}, nil).Once()
 
-	require.ErrorIs(t, err, ErrInvalidStatus)
+		svc := NewBlueprintService(BlueprintServiceDeps{
+			Repo:   repo,
+			Authz:  allowAllAuthz{},
+			Logger: statusTestLogger(),
+		})
+
+		status := models.MemoryStatusDraft
+		_, err := svc.UpdateBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug,
+			&models.UpdateBlueprintRequest{Status: &status})
+
+		require.ErrorIs(t, err, ErrInvalidStatus)
+	})
 }
 
 func TestMemoryService_RejectsOutOfSubsetStatus(t *testing.T) {
-	svc := createTestMemoryService(mocks.NewMockMemoryRepository(t))
+	const (
+		userID   = "user-1"
+		teamID   = "team-1"
+		memoryID = "memory-1"
+	)
 
-	status := models.BlueprintStatusExpired // valid for blueprints, not for memories
-	_, err := svc.CreateMemory("user-1", "team-1", &models.CreateMemoryRequest{
-		ProjectID: testServiceProjectID, Text: "t", Status: &status,
+	t.Run("create", func(t *testing.T) {
+		svc := createTestMemoryService(mocks.NewMockMemoryRepository(t))
+
+		status := models.BlueprintStatusExpired // valid for blueprints, not for memories
+		_, err := svc.CreateMemory(userID, teamID, &models.CreateMemoryRequest{
+			ProjectID: testServiceProjectID, Text: "t", Status: &status,
+		})
+
+		require.ErrorIs(t, err, ErrInvalidStatus)
 	})
 
-	require.ErrorIs(t, err, ErrInvalidStatus)
+	t.Run("update", func(t *testing.T) {
+		repo := mocks.NewMockMemoryRepository(t)
+		repo.EXPECT().GetByID(mock.Anything, userID, teamID, memoryID).
+			Return(&models.Memory{ID: memoryID, UserID: userID, TeamID: teamID}, nil).Once()
+
+		svc := createTestMemoryService(repo)
+
+		status := models.PromptStatusPublished
+		_, err := svc.UpdateMemory(userID, teamID, memoryID,
+			&models.UpdateMemoryRequest{Status: &status})
+
+		require.ErrorIs(t, err, ErrInvalidStatus)
+	})
 }

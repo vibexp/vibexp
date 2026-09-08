@@ -8,8 +8,8 @@ import (
 // no longer apply but its content is kept for reference. See models/status.go
 // for the shared vocabulary these are drawn from.
 const (
-	BlueprintStatusActive  = "active"
-	BlueprintStatusExpired = "expired"
+	BlueprintStatusActive  = StatusActive
+	BlueprintStatusExpired = StatusExpired
 )
 
 type Blueprint struct {

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,7 +46,10 @@ func assertStatusRejected(t *testing.T, req *http.Request, rr *httptest.Response
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Equal(t, "VALIDATION_FAILED", body["code"])
-	assert.Contains(t, body["detail"], "tatus",
+
+	detail, ok := body["detail"].(string)
+	require.True(t, ok, "the error body must carry a detail string")
+	assert.Contains(t, strings.ToLower(detail), "status",
 		"the rejection must name the field so a client can act on it")
 }
 

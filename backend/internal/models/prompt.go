@@ -10,8 +10,8 @@ import (
 // exposed over MCP) or published. See models/status.go for the shared
 // vocabulary these are drawn from.
 const (
-	PromptStatusDraft     = "draft"
-	PromptStatusPublished = "published"
+	PromptStatusDraft     = StatusDraft
+	PromptStatusPublished = StatusPublished
 )
 
 type Prompt struct {

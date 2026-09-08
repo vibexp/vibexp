@@ -1,6 +1,10 @@
 package services
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -59,6 +63,80 @@ func TestResourceStatusSubsetsAreDrawnFromVocabulary(t *testing.T) {
 				subset, vocabulary, vocabulary)
 		})
 	}
+}
+
+// TestResourceSchemasDeclareNoInlineStatusEnum is the other half of the gate:
+// the subsets are only a single source of truth for as long as nothing restates
+// one. Eleven inline `enum:` blocks are what this issue removed, and re-adding
+// one is a two-line edit that every other check in the suite would wave through
+// -- the spec would still be valid, the bundle would still build, and
+// ComponentEnum would still read the (now unused) component happily.
+//
+// It reads the authored YAML as text rather than the parsed model on purpose:
+// libopenapi resolves a $ref transparently, so by the time a schema is a
+// *base.Schema an inline enum and a $ref'd one are indistinguishable, which is
+// exactly the difference being asserted.
+func TestResourceSchemasDeclareNoInlineStatusEnum(t *testing.T) {
+	root := repoBackendDir(t)
+
+	for _, file := range []string{"prompts.yaml", "artifacts.yaml", "blueprints.yaml", "memories.yaml"} {
+		t.Run(file, func(t *testing.T) {
+			raw, err := os.ReadFile(filepath.Join(root, "schemas", file))
+			require.NoError(t, err)
+
+			lines := strings.Split(string(raw), "\n")
+			var offenders []string
+			for i, line := range lines {
+				if strings.TrimSpace(line) != "status:" {
+					continue
+				}
+				indent := len(line) - len(strings.TrimLeft(line, " "))
+				// Scan the property body: everything indented deeper than `status:`.
+				for j := i + 1; j < len(lines); j++ {
+					body := lines[j]
+					if strings.TrimSpace(body) == "" {
+						continue
+					}
+					if len(body)-len(strings.TrimLeft(body, " ")) <= indent {
+						break
+					}
+					if strings.HasPrefix(strings.TrimSpace(body), "enum:") {
+						offenders = append(offenders, fmt.Sprintf("%s:%d", file, j+1))
+					}
+				}
+			}
+
+			assert.Empty(t, offenders,
+				"a `status` property declares an inline enum. Every one of them must be "+
+					"a $ref to its subset in common.yaml, or the vocabulary has a second "+
+					"source again and nothing compares the two (#912)")
+		})
+	}
+
+	// Prove the scan can actually see an enum, so an empty result means "none"
+	// rather than "the walk never matched anything".
+	raw, err := os.ReadFile(filepath.Join(root, "schemas", "common.yaml"))
+	require.NoError(t, err)
+	require.Contains(t, string(raw), "enum: [active, draft, archived]",
+		"the subsets themselves must still declare their enums in common.yaml")
+}
+
+// repoBackendDir walks up to the directory holding openapi.yaml, the same way
+// specconformance locates the authored spec.
+func repoBackendDir(t *testing.T) string {
+	t.Helper()
+
+	dir, err := os.Getwd()
+	require.NoError(t, err)
+
+	for range 6 {
+		if _, statErr := os.Stat(filepath.Join(dir, "openapi.yaml")); statErr == nil {
+			return dir
+		}
+		dir = filepath.Dir(dir)
+	}
+	t.Fatal("could not locate backend/openapi.yaml from the test working directory")
+	return ""
 }
 
 // TestResourceStatusesIsTheUnionOfTheSubsets pins the Go side of the same
@@ -123,7 +201,7 @@ func TestValidateStatusRejectsOutOfSubsetValues(t *testing.T) {
 			require.Error(t, err)
 			assert.ErrorIs(t, err, ErrInvalidStatus,
 				"the handlers map ErrInvalidStatus to 400; any other error falls through to a 500")
-			assert.Contains(t, err.Error(), "status must be one of:",
+			assert.Contains(t, err.Error(), "invalid status: must be one of:",
 				"the message must name the accepted values, built from the allowlist")
 		})
 	}

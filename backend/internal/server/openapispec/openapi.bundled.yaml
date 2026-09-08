@@ -15281,7 +15281,9 @@ components:
           example: 123e4567-e89b-12d3-a456-426614174000
           description: Project identifier that this prompt belongs to
         status:
-          $ref: '#/components/schemas/PromptStatus'
+          allOf:
+            - $ref: '#/components/schemas/PromptStatus'
+          default: draft
         mcp_expose:
           type: boolean
           description: Whether this prompt should be discoverable via MCP tools. Defaults to true if not specified.
@@ -17450,7 +17452,9 @@ components:
           description: Type category of the artifact. An open string validated at runtime against the team's registered types (the system defaults work_reports, static_contexts and general, plus any custom types the team has added), not a fixed enum. Defaults to general when omitted.
           example: general
         status:
-          $ref: '#/components/schemas/ArtifactStatus'
+          allOf:
+            - $ref: '#/components/schemas/ArtifactStatus'
+          default: active
         metadata:
           type: object
           additionalProperties: true

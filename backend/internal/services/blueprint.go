@@ -451,7 +451,9 @@ func applyBlueprintUpdates(blueprint *models.Blueprint, req *models.UpdateBluepr
 	if req.Content != nil {
 		blueprint.Content = *req.Content
 	}
-	if req.Status != nil {
+	// An empty status is "unchanged", never a clear -- see applyArtifactUpdates
+	// for why writing "" into a required enum field is not an option (#912).
+	if req.Status != nil && *req.Status != "" {
 		blueprint.Status = *req.Status
 	}
 	if req.Type != nil {

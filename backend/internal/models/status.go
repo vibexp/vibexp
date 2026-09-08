@@ -25,15 +25,22 @@ import "slices"
 // only for prompts, `expired` retires a blueprint whose rules no longer apply.
 // Widening one is a product decision -- it changes what the list filters accept
 // and what the UI must render -- not a spec tidy-up.
+// The five values the vocabulary is made of. The per-type constants
+// (ArtifactStatusActive, PromptStatusDraft, ...) alias these rather than
+// respelling them, so a status means the same thing whichever type carries it.
+const (
+	StatusActive    = "active"
+	StatusDraft     = "draft"
+	StatusArchived  = "archived"
+	StatusPublished = "published"
+	StatusExpired   = "expired"
+)
+
 var (
 	// ResourceStatuses is the full vocabulary, and must stay the union of the
 	// four subsets below.
 	ResourceStatuses = []string{
-		ArtifactStatusActive,
-		ArtifactStatusDraft,
-		ArtifactStatusArchived,
-		PromptStatusPublished,
-		BlueprintStatusExpired,
+		StatusActive, StatusDraft, StatusArchived, StatusPublished, StatusExpired,
 	}
 
 	// PromptStatuses is the subset a prompt may carry.

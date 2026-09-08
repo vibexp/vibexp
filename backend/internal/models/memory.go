@@ -10,9 +10,9 @@ import (
 // hidden from default lists and search but still reachable via an explicit status
 // filter).
 const (
-	MemoryStatusActive   = "active"
-	MemoryStatusDraft    = "draft"
-	MemoryStatusArchived = "archived"
+	MemoryStatusActive   = StatusActive
+	MemoryStatusDraft    = StatusDraft
+	MemoryStatusArchived = StatusArchived
 )
 
 type Memory struct {

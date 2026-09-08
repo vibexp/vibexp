@@ -119,7 +119,12 @@ CreatePromptRequest:
       example: "123e4567-e89b-12d3-a456-426614174000"
       description: "Project identifier that this prompt belongs to"
     status:
-      $ref: './common.yaml#/PromptStatus'
+      # allOf, not a bare $ref: under OpenAPI 3.0.3 a sibling of $ref is
+      # ignored, and `default` is real API surface here (omitting status on
+      # create yields this value).
+      allOf:
+        - $ref: './common.yaml#/PromptStatus'
+      default: "draft"
     mcp_expose:
       type: boolean
       description: "Whether this prompt should be discoverable via MCP tools. Defaults to true if not specified."

@@ -27,14 +27,20 @@ import (
 var ErrInvalidStatus = errors.New("invalid status")
 
 // validateStatus rejects a status the resource type's documented subset does
-// not contain. An empty status means "not supplied" on every caller's request
-// model -- each one applies its own default -- so it is accepted here and
-// defaulted by the caller.
+// not contain.
+//
+// An empty status is accepted, because on every one of these request models ""
+// is the wire form of "not supplied" rather than a value: the create paths
+// substitute the documented default and the update paths leave the stored
+// status alone. What "" must never do is reach the column -- `status` is a
+// REQUIRED response field constrained to an enum, so a blank one is a body no
+// generated client can represent. That is the callers' job, and all four update
+// paths now do it (`req.Status != nil && *req.Status != ""`).
 func validateStatus(allowed []string, status string) error {
 	if status == "" || models.IsAllowedStatus(allowed, status) {
 		return nil
 	}
-	return fmt.Errorf("%w: status must be one of: %s",
+	return fmt.Errorf("%w: must be one of: %s",
 		ErrInvalidStatus, strings.Join(allowed, ", "))
 }
 

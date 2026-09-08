@@ -157,7 +157,7 @@ func validateMCPMemoryStatus(status string) (*string, *mcp.CallToolResult) {
 	if !isAllowedMemoryStatus(status) {
 		return nil, &mcp.CallToolResult{
 			Content: []mcp.Content{
-				&mcp.TextContent{Text: "status must be one of: active, draft, archived"},
+				&mcp.TextContent{Text: "status must be one of: " + strings.Join(models.MemoryStatuses, ", ")},
 			},
 			IsError: true,
 		}

@@ -23315,7 +23315,12 @@
             "description": "Project identifier that this prompt belongs to"
           },
           "status": {
-            "$ref": "#/components/schemas/PromptStatus"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromptStatus"
+              }
+            ],
+            "default": "draft"
           },
           "mcp_expose": {
             "type": "boolean",
@@ -26152,7 +26157,12 @@
             "example": "general"
           },
           "status": {
-            "$ref": "#/components/schemas/ArtifactStatus"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ArtifactStatus"
+              }
+            ],
+            "default": "active"
           },
           "metadata": {
             "type": "object",
