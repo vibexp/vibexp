@@ -304,9 +304,12 @@ func extractEmbeddingInput(event events.Event) (embeddingInput, bool) {
 	case *events.ArtifactUpdatedPayload:
 		return in("artifact", p.ArtifactID, p.UserID, p.Title, p.Description, p.Body)
 	case *events.MemoryCreatedPayload:
-		return in("memory", p.MemoryID, p.UserID, "", "", p.Text)
+		// A memory has no description, and an untitled one passes "" for the
+		// title too -- embedText emits no context header for an empty header,
+		// so untitled memories keep producing byte-identical embed text (#911).
+		return in("memory", p.MemoryID, p.UserID, p.Title, "", p.Text)
 	case *events.MemoryUpdatedPayload:
-		return in("memory", p.MemoryID, p.UserID, "", "", p.Text)
+		return in("memory", p.MemoryID, p.UserID, p.Title, "", p.Text)
 	case *events.BlueprintCreatedPayload:
 		return in("blueprint", p.BlueprintID, p.UserID, p.Title, p.Description, p.Body)
 	case *events.BlueprintUpdatedPayload:

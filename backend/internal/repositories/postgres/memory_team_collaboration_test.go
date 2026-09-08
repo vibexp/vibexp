@@ -62,15 +62,15 @@ func TestMemoryRepository_TeamMember_CanListOtherMembersMemories(t *testing.T) {
 
 	// Mock list query - no DISTINCT or JOINs needed with EXISTS subqueries;
 	// LIMIT/OFFSET are inlined literals, so they are no longer bound args.
-	listQuery := `SELECT m\.id, m\.user_id, m\.team_id, m\.project_id, m\.text, m\.status, m\.metadata, ` +
+	listQuery := `SELECT m\.id, m\.user_id, m\.team_id, m\.project_id, m\.title, m\.text, m\.status, m\.metadata, ` +
 		`m\.created_at, m\.updated_at, m\.labels FROM memories m WHERE .* LIMIT 20 OFFSET 0`
 	mock.ExpectQuery(listQuery).
 		WithArgs(memoryListArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "user_id", "team_id", "project_id", "text", "status", "metadata", "created_at", "updated_at",
-			"labels",
+			"id", "user_id", "team_id", "project_id", "title", "text", "status", "metadata", "created_at",
+			"updated_at", "labels",
 		}).AddRow(
-			aliceMemoryID, aliceUserID, teamID, "project-123", "Machine learning best practices",
+			aliceMemoryID, aliceUserID, teamID, "project-123", nil, "Machine learning best practices",
 			"active", []byte(`{"project": "ml-research"}`), now, now, pq.StringArray{},
 		))
 
@@ -111,15 +111,15 @@ func TestMemoryRepository_TeamMember_CanGetOtherMembersMemories(t *testing.T) {
 	aliceUserID := "user-alice"
 	aliceMemoryID := "memory-alice"
 
-	getQuery := `SELECT m\.id, m\.user_id, m\.team_id, m\.project_id, m\.text, m\.status, ` +
+	getQuery := `SELECT m\.id, m\.user_id, m\.team_id, m\.project_id, m\.title, m\.text, m\.status, ` +
 		`m\.metadata, m\.created_at, m\.updated_at, m\.version, m\.labels`
 	mock.ExpectQuery(getQuery).
 		WithArgs(aliceMemoryID, teamID, bobUserID).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "user_id", "team_id", "project_id", "text", "status", "metadata", "created_at", "updated_at",
-			"version", "labels",
+			"id", "user_id", "team_id", "project_id", "title", "text", "status", "metadata", "created_at",
+			"updated_at", "version", "labels",
 		}).AddRow(
-			aliceMemoryID, aliceUserID, teamID, "project-123", "Machine learning best practices",
+			aliceMemoryID, aliceUserID, teamID, "project-123", nil, "Machine learning best practices",
 			"active", []byte(`{"project": "ml-research"}`), now, now, 1, pq.StringArray{},
 		))
 
@@ -175,13 +175,13 @@ func TestMemoryRepository_TeamMember_CanUpdateOtherMembersMemories(t *testing.T)
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Mock update query
-	// (args: id, text, status, metadata, project_id, team_id, updated_at, team_id, version, labels).
+	// (args: id, text, status, metadata, project_id, team_id, updated_at, team_id, version, labels, title).
 	// The memory carries no status, so the repository defaults it to "active".
 	updateQuery := `UPDATE memories`
 	mock.ExpectQuery(updateQuery).
 		WithArgs(
 			aliceMemoryID, "Machine learning best practices - Updated by Bob",
-			"active", sqlmock.AnyArg(), "", teamID, now, teamID, 1, sqlmock.AnyArg(),
+			"active", sqlmock.AnyArg(), "", teamID, now, teamID, 1, sqlmock.AnyArg(), nil,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 

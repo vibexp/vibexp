@@ -191,7 +191,7 @@ func TestProcessEvent_NoProvider_NoOp(t *testing.T) {
 	svc := &fakeEmbeddingService{}
 	p := newProcessor(resolver, svc)
 
-	event := events.NewMemoryCreatedEvent("mem-1", "user-1", "proj", "some memory", time.Now())
+	event := events.NewMemoryCreatedEvent("mem-1", "user-1", "proj", "", "some memory", time.Now())
 
 	require.NoError(t, p.ProcessEvent(context.Background(), event))
 	assert.Equal(t, 1, resolver.calls)
@@ -215,7 +215,7 @@ func TestProcessEvent_EmptyText_NoOp(t *testing.T) {
 	svc := &fakeEmbeddingService{}
 	p := newProcessor(resolver, svc)
 
-	event := events.NewMemoryCreatedEvent("mem-1", "user-1", "proj", "   ", time.Now())
+	event := events.NewMemoryCreatedEvent("mem-1", "user-1", "proj", "", "   ", time.Now())
 
 	require.NoError(t, p.ProcessEvent(context.Background(), event))
 	assert.Equal(t, 0, resolver.calls)
@@ -321,13 +321,49 @@ func TestProcessEvent_UntitledMemory_ByteIdentical_NoHeader(t *testing.T) {
 	svc := &fakeEmbeddingService{team: "team-1"}
 	p := newProcessor(resolver, svc)
 
-	event := events.NewMemoryCreatedEvent("mem-1", "user-1", "proj", "just the memory text", time.Now())
+	event := events.NewMemoryCreatedEvent("mem-1", "user-1", "proj", "", "just the memory text", time.Now())
 
 	require.NoError(t, p.ProcessEvent(context.Background(), event))
 
 	require.Len(t, svc.chunks, 1)
 	// Untitled/undescribed entities carry no header — stored content is the raw body.
 	assert.Equal(t, "just the memory text", svc.chunks[0].Content)
+}
+
+// A titled memory now carries the context header every other entity type has
+// had all along (issue #911). Memory has no description, so the header is the
+// title alone -- and the untitled case above stays byte-identical, which is
+// what keeps existing memories out of a re-indexing churn.
+func TestProcessEvent_TitledMemory_EmbedsTitleAsHeader(t *testing.T) {
+	provider := &echoCountProvider{}
+	resolver := &fakeResolver{provider: provider}
+	svc := &fakeEmbeddingService{team: "team-1"}
+	p := newProcessor(resolver, svc)
+
+	event := events.NewMemoryCreatedEvent(
+		"mem-1", "user-1", "proj", "Deploy checklist", "just the memory text", time.Now())
+
+	require.NoError(t, p.ProcessEvent(context.Background(), event))
+
+	require.Len(t, svc.chunks, 1)
+	assert.Equal(t, "Deploy checklist\n\njust the memory text", svc.chunks[0].Content)
+}
+
+// The updated path feeds the same seam, so a title added to an existing memory
+// re-indexes with the header rather than silently keeping the old embed text.
+func TestProcessEvent_TitledMemoryUpdate_EmbedsTitleAsHeader(t *testing.T) {
+	provider := &echoCountProvider{}
+	resolver := &fakeResolver{provider: provider}
+	svc := &fakeEmbeddingService{team: "team-1"}
+	p := newProcessor(resolver, svc)
+
+	event := events.NewMemoryUpdatedEvent(
+		"mem-1", "user-1", "proj", "Deploy checklist", "just the memory text", time.Now())
+
+	require.NoError(t, p.ProcessEvent(context.Background(), event))
+
+	require.Len(t, svc.chunks, 1)
+	assert.Equal(t, "Deploy checklist\n\njust the memory text", svc.chunks[0].Content)
 }
 
 func TestEmbeddingInputHeader_Truncation(t *testing.T) {
@@ -350,7 +386,7 @@ func TestProcessEvent_ResolverError_Propagates(t *testing.T) {
 	svc := &fakeEmbeddingService{}
 	p := newProcessor(resolver, svc)
 
-	event := events.NewMemoryCreatedEvent("mem-1", "user-1", "proj", "text", time.Now())
+	event := events.NewMemoryCreatedEvent("mem-1", "user-1", "proj", "", "text", time.Now())
 
 	err := p.ProcessEvent(context.Background(), event)
 	require.Error(t, err)
@@ -362,7 +398,7 @@ func TestProcessEvent_ProviderError_Propagates(t *testing.T) {
 	svc := &fakeEmbeddingService{}
 	p := newProcessor(resolver, svc)
 
-	event := events.NewMemoryCreatedEvent("mem-1", "user-1", "proj", "text", time.Now())
+	event := events.NewMemoryCreatedEvent("mem-1", "user-1", "proj", "", "text", time.Now())
 
 	err := p.ProcessEvent(context.Background(), event)
 	require.Error(t, err)

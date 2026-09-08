@@ -386,7 +386,7 @@ func (s *EmbeddingBackfillService) buildCreatedEvent(e *models.BackfillEntity) (
 			CreatedAt:   e.CreatedAt,
 		}), nil
 	case "memory":
-		return events.NewMemoryCreatedEvent(e.EntityID, e.UserID, e.ProjectName, e.Body, e.CreatedAt), nil
+		return events.NewMemoryCreatedEvent(e.EntityID, e.UserID, e.ProjectName, e.Title, e.Body, e.CreatedAt), nil
 	case "blueprint":
 		return events.NewBlueprintCreatedEvent(events.BlueprintCreatedPayload{
 			BlueprintID: e.EntityID,

@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
@@ -479,4 +481,60 @@ func TestListMemoriesByProject_InvalidStatus(t *testing.T) {
 	}
 	assertValidationFailure(t, result, []string{"active", "draft", "archived"})
 	mockMemoryService.AssertNotCalled(t, "ListMemories")
+}
+
+// The optional memory title over MCP (issue #911). The MCP wire format has no
+// null for a scalar argument, so "" means "not supplied" on both tools -- the
+// same rule text and status already follow. Clearing a title stays a REST-only
+// operation.
+
+func TestStoreMemory_PersistsTitle(t *testing.T) {
+	srv, mockMemoryService := newMemoryTestServer(t)
+
+	expectedMemory := buildTestMemory()
+	mockMemoryService.On(
+		"CreateMemory", testMemberUserID, testTeamUUID,
+		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool {
+			return req.Title != nil && *req.Title == "Deploy checklist"
+		}),
+	).Return(expectedMemory, nil)
+
+	params := &StoreMemoryParams{
+		TeamID:    testTeamUUID,
+		ProjectID: testProjectID,
+		Title:     "Deploy checklist",
+		Text:      "Test memory content",
+	}
+
+	result, structuredResult, err := srv.storeMemory(context.Background(), nil, params, testMemberUserID)
+	assertStoreMemoryResult(t, result, structuredResult, err, expectedMemory)
+}
+
+func TestStoreMemory_OmittedTitleStaysNil(t *testing.T) {
+	srv, mockMemoryService := newMemoryTestServer(t)
+
+	expectedMemory := buildTestMemory()
+	mockMemoryService.On(
+		"CreateMemory", testMemberUserID, testTeamUUID,
+		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool { return req.Title == nil }),
+	).Return(expectedMemory, nil)
+
+	params := &StoreMemoryParams{TeamID: testTeamUUID, ProjectID: testProjectID, Text: "Test memory content"}
+
+	result, structuredResult, err := srv.storeMemory(context.Background(), nil, params, testMemberUserID)
+	assertStoreMemoryResult(t, result, structuredResult, err, expectedMemory)
+}
+
+func TestBuildMemoryUpdateRequest_Title(t *testing.T) {
+	t.Run("a title is set", func(t *testing.T) {
+		req := buildMemoryUpdateRequest(&UpdateMemoryParams{Title: "Deploy checklist"}, nil)
+		require.True(t, req.Title.Set)
+		require.NotNil(t, req.Title.Value)
+		assert.Equal(t, "Deploy checklist", *req.Title.Value)
+	})
+
+	t.Run("an omitted title leaves the field unset, not cleared", func(t *testing.T) {
+		req := buildMemoryUpdateRequest(&UpdateMemoryParams{Text: "new text"}, nil)
+		assert.False(t, req.Title.Set, `"" must mean "unchanged", never "clear it"`)
+	})
 }

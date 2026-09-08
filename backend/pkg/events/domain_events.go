@@ -208,8 +208,13 @@ type MemoryCreatedPayload struct {
 	MemoryID    string
 	UserID      string
 	ProjectName string
-	Text        string
-	CreatedAt   time.Time
+	// Title is the memory's optional title (issue #911), empty when it has
+	// none. It feeds the embedding context header, which treats "" as "no
+	// header" -- so an untitled memory embeds exactly as it did before the
+	// field existed.
+	Title     string
+	Text      string
+	CreatedAt time.Time
 }
 
 // MemoryCreatedEvent represents a memory creation event
@@ -218,11 +223,12 @@ type MemoryCreatedEvent struct {
 }
 
 // NewMemoryCreatedEvent creates a new memory created event
-func NewMemoryCreatedEvent(memoryID, userID, projectName, text string, createdAt time.Time) Event {
+func NewMemoryCreatedEvent(memoryID, userID, projectName, title, text string, createdAt time.Time) Event {
 	payload := &MemoryCreatedPayload{
 		MemoryID:    memoryID,
 		UserID:      userID,
 		ProjectName: projectName,
+		Title:       title,
 		Text:        text,
 		CreatedAt:   createdAt,
 	}
@@ -236,8 +242,10 @@ type MemoryUpdatedPayload struct {
 	MemoryID    string
 	UserID      string
 	ProjectName string
-	Text        string
-	UpdatedAt   time.Time
+	// Title mirrors MemoryCreatedPayload.Title (issue #911).
+	Title     string
+	Text      string
+	UpdatedAt time.Time
 }
 
 // MemoryUpdatedEvent represents a memory update event
@@ -246,11 +254,12 @@ type MemoryUpdatedEvent struct {
 }
 
 // NewMemoryUpdatedEvent creates a new memory updated event
-func NewMemoryUpdatedEvent(memoryID, userID, projectName, text string, updatedAt time.Time) Event {
+func NewMemoryUpdatedEvent(memoryID, userID, projectName, title, text string, updatedAt time.Time) Event {
 	payload := &MemoryUpdatedPayload{
 		MemoryID:    memoryID,
 		UserID:      userID,
 		ProjectName: projectName,
+		Title:       title,
 		Text:        text,
 		UpdatedAt:   updatedAt,
 	}

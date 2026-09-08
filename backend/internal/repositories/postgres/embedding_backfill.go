@@ -72,7 +72,7 @@ var backfillQueries = map[string]backfillQuery{
 	"memory": {
 		selectFrom: `
 		SELECT m.id, m.user_id, COALESCE(m.team_id::text, ''), COALESCE(m.project_id::text, ''),
-		       '' AS feed_id, '' AS slug, '' AS title, '' AS description, m.text AS body, '' AS type,
+		       '' AS feed_id, '' AS slug, COALESCE(m.title, '') AS title, '' AS description, m.text AS body, '' AS type,
 		       '' AS email, '' AS excerpt, m.created_at
 		FROM memories m`,
 		orderBy: "m.created_at, m.id",

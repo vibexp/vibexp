@@ -42,7 +42,7 @@ func (s *Server) handleCreateMemoryError(w http.ResponseWriter, userID string, e
 		return
 	}
 
-	if errors.Is(err, services.ErrInvalidLabels) {
+	if errors.Is(err, services.ErrInvalidLabels) || errors.Is(err, services.ErrInvalidMemoryTitle) {
 		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -189,11 +189,23 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, memory, s.logger)
 }
 
+// updateMemoryRequestIsEmpty reports whether the body carries no edit at all.
+//
+// `title` counts as a field on its own: renaming a memory without touching its
+// text is a normal edit, and `{"title": null}` (clear it) is one too -- which
+// is exactly why Title is an OptionalString rather than a *string (issue #911).
+// Split out of validateUpdateMemoryRequest to keep it inside golangci's
+// cyclomatic-complexity budget.
+func updateMemoryRequestIsEmpty(req *models.UpdateMemoryRequest) bool {
+	return req.Text == nil && req.Metadata == nil && req.ProjectID == nil &&
+		req.Status == nil && !req.Title.Set
+}
+
 func (s *Server) validateUpdateMemoryRequest(w http.ResponseWriter, req *models.UpdateMemoryRequest) bool {
-	if req.Text == nil && req.Metadata == nil && req.ProjectID == nil && req.Status == nil {
+	if updateMemoryRequestIsEmpty(req) {
 		writeErrorResponse(
 			w, nil, "validation_error",
-			"At least one field (text, metadata, project_id, or status) must be provided",
+			"At least one field (title, text, metadata, project_id, or status) must be provided",
 			http.StatusBadRequest,
 		)
 		return false
@@ -231,7 +243,7 @@ func (s *Server) handleUpdateMemoryError(w http.ResponseWriter, userID, memoryID
 		return
 	}
 
-	if errors.Is(err, services.ErrInvalidLabels) {
+	if errors.Is(err, services.ErrInvalidLabels) || errors.Is(err, services.ErrInvalidMemoryTitle) {
 		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return
 	}
