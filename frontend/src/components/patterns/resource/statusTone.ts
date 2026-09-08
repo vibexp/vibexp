@@ -77,7 +77,7 @@ export function roleValues(
   descriptor: ResourceDescriptor,
   role: FieldSpec['role']
 ): ReadonlySet<string> {
-  return new Set(fieldValues(descriptor.fields.find(f => f.role === role)))
+  return new Set(fieldValues(fieldOfRole(descriptor, role)))
 }
 
 /**
