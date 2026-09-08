@@ -57,9 +57,10 @@ type StoreMemoryParams struct {
 
 // UpdateMemoryParams defines the parameters for updating a specific memory
 type UpdateMemoryParams struct {
-	TeamID   string                 `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
-	MemoryID string                 `json:"memory_id" jsonschema:"Memory identifier"`
-	Title    string                 `json:"title,omitempty" jsonschema:"New short title for the memory (max 255 chars)"`
+	TeamID   string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
+	MemoryID string `json:"memory_id" jsonschema:"Memory identifier"`
+	// Clearing a title is REST-only; see buildMemoryUpdateRequest.
+	Title    string                 `json:"title,omitempty" jsonschema:"New short title (max 255); omit to keep it"`
 	Text     string                 `json:"text,omitempty" jsonschema:"New memory text"`
 	Status   string                 `json:"status,omitempty" jsonschema:"New lifecycle status: active, draft, or archived"`
 	Metadata map[string]interface{} `json:"metadata,omitempty" jsonschema:"New metadata"`

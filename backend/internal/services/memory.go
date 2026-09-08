@@ -176,8 +176,10 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 
 	// Publish memory created event using project_id as project identifier
 	if s.eventManager != nil {
+		// The event payloads carry a plain string; "" means untitled, which is
+		// exactly what the embedding context header treats as "no header".
 		event := events.NewMemoryCreatedEvent(
-			memory.ID, memory.UserID, memory.ProjectID, memoryTitleValue(memory), memory.Text, memory.CreatedAt)
+			memory.ID, memory.UserID, memory.ProjectID, derefString(memory.Title), memory.Text, memory.CreatedAt)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish memory created event")
 		}
@@ -345,7 +347,7 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 	// Publish memory updated event using project_id as project identifier
 	if s.eventManager != nil {
 		event := events.NewMemoryUpdatedEvent(
-			memory.ID, memory.UserID, memory.ProjectID, memoryTitleValue(memory), memory.Text, memory.UpdatedAt)
+			memory.ID, memory.UserID, memory.ProjectID, derefString(memory.Title), memory.Text, memory.UpdatedAt)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish memory updated event")
 		}
@@ -496,14 +498,4 @@ func (s *MemoryService) deleteMemoryFreshness(ctx context.Context, teamID, memor
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to clear freshness state for deleted memory")
 	}
-}
-
-// memoryTitleValue flattens the optional title for the event payloads, which
-// carry plain strings. "" means untitled, which is exactly what the embedding
-// context header treats as "no header".
-func memoryTitleValue(memory *models.Memory) string {
-	if memory == nil || memory.Title == nil {
-		return ""
-	}
-	return *memory.Title
 }
