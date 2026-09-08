@@ -157,14 +157,14 @@ export const PromptMentionTextarea = forwardRef<
         disabled={disabled}
         placeholder={placeholder}
         rows={rows}
-        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent font-mono text-sm resize-y ${
+        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent font-mono text-sm resize-y disabled:cursor-not-allowed disabled:opacity-50 ${
           error ? 'border-destructive' : 'border-input'
         } ${className}`}
       />
 
       {error && (
-        <p className="mt-1 text-sm text-destructive flex items-center">
-          <AlertCircle className="h-4 w-4 mr-1" />
+        <p className="text-destructive mt-2 flex items-center gap-1 text-sm">
+          <AlertCircle className="size-4" />
           {error}
         </p>
       )}

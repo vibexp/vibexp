@@ -256,7 +256,6 @@ export function ResourceFormControl({
           disabled={disabled}
           placeholder={spec.placeholder}
           data-testid={spec.testId}
-          aria-label={label}
           onChange={onChange}
         />
       )

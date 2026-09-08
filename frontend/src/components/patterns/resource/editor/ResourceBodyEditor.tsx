@@ -223,9 +223,11 @@ export const ResourceBodyEditor = forwardRef<
           <CardContent className="p-6">
             {/*
               The mention textarea renders the invalid border AND the message
-              itself, from its own `error` prop — its class list is a template
+              itself, from its own `error` prop. Its class list is a template
               literal with no tailwind-merge, so an appended `border-destructive`
-              loses to the `border-input` it always emits. Hence: hand it the
+              does not REPLACE the `border-input` it always emits — both survive,
+              and which one paints is decided by their order in the generated
+              stylesheet, not by their order in the attribute. Hence: hand it the
               error, and do not render a second message beside it.
             */}
             {extensions?.mentions ? (
