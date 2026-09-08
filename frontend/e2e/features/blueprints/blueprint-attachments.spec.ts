@@ -29,11 +29,15 @@ async function createBlueprint(
   await page.getByLabel('Slug').fill(blueprint.slug)
   await page.getByLabel('Content', { exact: true }).fill(blueprint.content)
 
-  // Project is a searchable ProjectPicker with no default — pick the first project.
+  // The picker has no default — pick the first project. Its option list is
+  // fetched, so wait for it rather than clicking blind, exactly as
+  // `e2e/helpers/artifacts.ts` does for the identical control.
   // (Targeted by testid: the header project switcher's accessible name also
   // contains "Project", so a role+name lookup is ambiguous since #78.)
   await page.getByTestId('blueprint-project-select').click()
-  await page.getByRole('option').first().click()
+  const firstProject = page.getByRole('option').first()
+  await firstProject.waitFor({ state: 'visible', timeout: 10000 })
+  await firstProject.click()
 
   await page.getByRole('button', { name: 'Create blueprint' }).click()
 
