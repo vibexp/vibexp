@@ -15,7 +15,7 @@ import { formSaveLabel } from './formLabels'
 import type { ResourceFormPageProps } from './ResourceFormPage'
 import { useResourceForm } from './useResourceForm'
 
-/** Section ids, exported so tests and rail deep-links can address them. */
+/** Section ids, exported for the tests that assert the `data-section` anchors. */
 export const RESOURCE_FORM_SECTION_IDS = {
   details: 'form-details',
   taxonomy: 'form-taxonomy',

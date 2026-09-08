@@ -407,6 +407,48 @@ describe('ReadingPage', () => {
       expect(chips.getByTestId('cancel-button')).toBeInTheDocument()
     })
 
+    // The chip row and the sheet's action grid must never both render: at
+    // md–lg the widened chip rule and the sheet's own `isTablet` gate would
+    // otherwise put two Save buttons (and two of its testid) on the page.
+    it('does not repeat the actions in the sheet between md and lg', async () => {
+      const user = userEvent.setup()
+      viewport.setWidth(900)
+      renderPage(
+        <ReadingPage
+          title="Edit doc"
+          presentation="editing"
+          actions={EDIT_ACTIONS}
+          sections={SECTIONS}
+        >
+          body
+        </ReadingPage>
+      )
+      await user.click(screen.getByRole('button', { name: 'open sheet' }))
+      expect(await screen.findByTestId('reading-details-sheet')).toBeVisible()
+      expect(screen.getAllByTestId('save-button')).toHaveLength(1)
+      expect(
+        within(screen.getByTestId('reading-details-sheet')).queryByTestId(
+          'reading-actions-grid'
+        )
+      ).not.toBeInTheDocument()
+    })
+
+    it('still shows the sheet action grid at md–lg while reading', async () => {
+      const user = userEvent.setup()
+      viewport.setWidth(900)
+      renderPage(
+        <ReadingPage title="Doc" actions={ACTIONS} sections={SECTIONS}>
+          body
+        </ReadingPage>
+      )
+      await user.click(screen.getByRole('button', { name: 'open sheet' }))
+      expect(
+        within(await screen.findByTestId('reading-details-sheet')).getByTestId(
+          'reading-actions-grid'
+        )
+      ).toBeInTheDocument()
+    })
+
     it('leaves the reading presentation without chips between md and lg', () => {
       viewport.setWidth(900)
       renderPage(

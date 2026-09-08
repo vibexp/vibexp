@@ -242,7 +242,9 @@ export function ReadingPage({
             <DetailsColumn
               actions={actions}
               sections={visibleSections}
-              showActions={isTablet}
+              // Never twice: the grid exists for the widths the chip row does
+              // not cover, and while editing that row now reaches up to `lg`.
+              showActions={isTablet && !actionsAsChips}
             />
           </SheetContent>
         </Sheet>
