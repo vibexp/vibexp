@@ -1,5 +1,8 @@
 import { ChevronDown, History } from 'lucide-react'
 
+import { TABLE_HEAD_CLASS } from '@/components/patterns/list-page'
+import { cn } from '@/lib/utils'
+
 import type { VersionTimelineEntry } from './types'
 import { VersionRow } from './VersionRow'
 
@@ -43,10 +46,12 @@ export function VersionTable({
     <div className="vhc-tablewrap">
       <table className="vhc-table">
         <thead>
+          {/* Every head cell carries TABLE_HEAD_CLASS so this table's header
+              reads exactly like a `ListTable`'s (#909). */}
           <tr>
-            <th style={{ width: 40 }} />
+            <th className={TABLE_HEAD_CLASS} style={{ width: 40 }} />
             <th
-              className="vhc-sort"
+              className={cn(TABLE_HEAD_CLASS, 'vhc-sort')}
               style={{ width: 150 }}
               onClick={() => {
                 onToggleSort('version')
@@ -57,10 +62,12 @@ export function VersionTable({
                 <ChevronDown />
               </span>
             </th>
-            <th>Change summary</th>
-            <th style={{ width: 150 }}>Changed by</th>
+            <th className={TABLE_HEAD_CLASS}>Change summary</th>
+            <th className={TABLE_HEAD_CLASS} style={{ width: 150 }}>
+              Changed by
+            </th>
             <th
-              className="vhc-sort"
+              className={cn(TABLE_HEAD_CLASS, 'vhc-sort')}
               style={{ width: 150 }}
               onClick={() => {
                 onToggleSort('when')
@@ -71,8 +78,10 @@ export function VersionTable({
                 <ChevronDown />
               </span>
             </th>
-            <th style={{ width: 130 }}>Changes</th>
-            <th style={{ width: 120 }} />
+            <th className={TABLE_HEAD_CLASS} style={{ width: 130 }}>
+              Changes
+            </th>
+            <th className={TABLE_HEAD_CLASS} style={{ width: 120 }} />
           </tr>
         </thead>
         <tbody>

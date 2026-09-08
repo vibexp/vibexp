@@ -5,6 +5,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { ListTable } from './ListTable'
+import { TABLE_HEAD_CLASS } from './tableHeaderStyle'
 
 interface Row {
   id: string
@@ -313,5 +314,18 @@ describe('<ListTable> rendering edge cases', () => {
     expect(screen.getByText('Name')).toBeInTheDocument()
     // No data rows
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
+  })
+})
+
+describe('<ListTable> header style', () => {
+  it('gives every head cell the shared header style', () => {
+    render(<ListTable rows={ROWS} columns={BASIC_COLUMNS} />)
+
+    // The same constant the version-history table reads (#909) — asserting it
+    // here is what makes "one header style" a property of one source.
+    const headClasses = TABLE_HEAD_CLASS.split(' ')
+    for (const cell of screen.getAllByRole('columnheader')) {
+      expect(cell).toHaveClass(...headClasses)
+    }
   })
 })

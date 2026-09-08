@@ -236,11 +236,11 @@ table.vhc-table {
   z-index: 1;
   background: var(--muted);
   text-align: left;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
+  /* No type treatment here: size, weight and colour come from TABLE_HEAD_CLASS
+   * on the `<th>` itself, so this table and the list tables share one header
+   * style (#909). These rules are UNLAYERED, and an unlayered declaration beats
+   * every `@layer`ed Tailwind utility (#666) — restating font-size or colour
+   * here would silently win over the shared class. */
   padding: 11px 16px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
