@@ -940,3 +940,52 @@ describe('Memories page — stale filter wiring (#738)', () => {
     expect(screen.queryByTestId('freshness-badge')).not.toBeInTheDocument()
   })
 })
+
+describe('Memories page — descriptor-driven sorting (#908)', () => {
+  const lastQuery = () => {
+    const { calls } = (memoryService.getMemories as Mock).mock
+    return calls[calls.length - 1][1] as Record<string, unknown>
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions([])
+    mockProjectState.currentProject = null
+    mockProjectState.isLoading = false
+    ;(memoryService.getMemories as Mock).mockResolvedValue(
+      buildListResponse([buildMemory()])
+    )
+    ;(projectService.getProjects as Mock).mockResolvedValue({
+      projects: [],
+      total_count: 0,
+      page: 1,
+      per_page: 100,
+      total_pages: 0,
+    })
+  })
+
+  it('sorts by text — the memory name field, and what its endpoint accepts', async () => {
+    renderMemories()
+    await screen.findByText('Remember the deploy checklist')
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Content/ }))
+
+    await waitFor(() => {
+      expect(lastQuery()).toEqual(
+        expect.objectContaining({ sort_by: 'text', sort_order: 'asc' })
+      )
+    })
+  })
+
+  it('falls back to updated_at when the URL names an undeclared sort column', async () => {
+    renderMemories('/memories?sort_by=title')
+
+    await waitFor(() => {
+      expect(memoryService.getMemories).toHaveBeenCalled()
+    })
+    // `title` is what artifacts and blueprints call it; memories have no such
+    // field and the endpoint 400s on it.
+    expect(lastQuery().sort_by).toBe('updated_at')
+  })
+})

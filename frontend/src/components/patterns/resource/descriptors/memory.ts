@@ -28,6 +28,33 @@ export const memoryDescriptor = defineResource({
     // row for it — `ResourceTaxonomySection` owns it (and lifts its `tags`).
     { key: 'metadata', role: 'meta', label: 'Metadata', optional: true },
   ],
+  list: {
+    filters: [
+      { key: 'search', control: 'search', label: 'Search memories' },
+      {
+        key: 'status',
+        control: 'select',
+        label: 'Filter by status',
+        allLabel: 'All statuses',
+        optionsFrom: 'field',
+        testId: 'memory-status-filter',
+      },
+      {
+        key: 'freshness',
+        control: 'freshness',
+        label: 'Filter memories by freshness',
+        testId: 'memory-freshness-filter',
+      },
+      {
+        key: 'metadata',
+        control: 'metadata',
+        label: 'Filter memories by metadata',
+      },
+    ],
+    // `text` is the memory's name field, and the list endpoint's `sort_by`
+    // enum is [text, updated_at, created_at] (backend/paths/memories.yaml).
+    sortable: ['text', 'updated_at'],
+  },
   capabilities: {
     attachments: false,
     versions: true,

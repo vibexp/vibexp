@@ -25,6 +25,10 @@ export type {
   FieldRole,
   FieldSpec,
   FieldTone,
+  FilterControl,
+  FilterOptionsSource,
+  FilterSpec,
   ResourceAddressShape,
   ResourceDescriptor,
+  ResourceListSpec,
 } from './types'

@@ -39,6 +39,38 @@ export const promptDescriptor = defineResource({
     },
     { key: 'project_id', role: 'meta', label: 'Project' },
   ],
+  list: {
+    // The prompt-only "Shared" tri-state is not here: it is not a field of the
+    // resource but a fact about an active share, so the page contributes it to
+    // the bar as an extra control.
+    filters: [
+      { key: 'search', control: 'search', label: 'Search prompts' },
+      {
+        key: 'status',
+        control: 'select',
+        label: 'Filter by status',
+        allLabel: 'All statuses',
+        optionsFrom: 'field',
+        testId: 'prompt-status-filter',
+      },
+      {
+        key: 'labels',
+        control: 'taxonomy',
+        label: 'Filter by labels',
+        optionsFrom: 'labels',
+        testId: 'prompt-labels-filter',
+      },
+      {
+        key: 'freshness',
+        control: 'freshness',
+        label: 'Filter prompts by freshness',
+        testId: 'prompt-freshness-filter',
+      },
+    ],
+    // Prompts are the one list whose endpoint accepts `status` as a sort field
+    // (backend/paths/prompts.yaml: [name, status, updated_at, created_at]).
+    sortable: ['name', 'status', 'updated_at'],
+  },
   capabilities: {
     attachments: true,
     versions: true,

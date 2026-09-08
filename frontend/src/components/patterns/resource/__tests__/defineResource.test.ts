@@ -313,4 +313,182 @@ describe('defineResource', () => {
       expect(defineResource(valid)).toBe(valid)
     })
   })
+  describe('list spec', () => {
+    const STATUS: FieldSpec = {
+      key: 'status',
+      role: 'status',
+      label: 'Status',
+      statusValues: ['active', 'archived'],
+    }
+    const LABELS: FieldSpec = {
+      key: 'labels',
+      role: 'taxonomy',
+      label: 'Labels',
+    }
+
+    function withList(list: ResourceDescriptor['list']): ResourceDescriptor {
+      return descriptor([NAME, SLUG, STATUS, LABELS], { list })
+    }
+
+    it('accepts a descriptor with no list section at all', () => {
+      const valid = descriptor([NAME, SLUG])
+      expect(defineResource(valid)).toBe(valid)
+    })
+
+    it('accepts a list section naming declared fields', () => {
+      const valid = withList({
+        filters: [
+          { key: 'search', control: 'search', label: 'Search widgets' },
+          {
+            key: 'status',
+            control: 'select',
+            label: 'Filter by status',
+            optionsFrom: 'field',
+          },
+          {
+            key: 'labels',
+            control: 'taxonomy',
+            label: 'Filter by labels',
+            optionsFrom: 'labels',
+          },
+        ],
+        sortable: ['title', 'updated_at'],
+      })
+      expect(defineResource(valid)).toBe(valid)
+    })
+
+    it('throws when a select filter names no declared field', () => {
+      expect(() =>
+        defineResource(
+          withList({
+            filters: [
+              {
+                key: 'severity',
+                control: 'select',
+                label: 'Filter by severity',
+                optionsFrom: 'field',
+              },
+            ],
+            sortable: ['title'],
+          })
+        )
+      ).toThrow(/filter 'severity' names no declared field/)
+    })
+
+    it('throws when a select filter declares no options source', () => {
+      expect(() =>
+        defineResource(
+          withList({
+            filters: [
+              { key: 'status', control: 'select', label: 'Filter by status' },
+            ],
+            sortable: ['title'],
+          })
+        )
+      ).toThrow(/needs optionsFrom \["field","types"\], found null/)
+    })
+
+    it('throws when a taxonomy filter reads options from the field', () => {
+      expect(() =>
+        defineResource(
+          withList({
+            filters: [
+              {
+                key: 'labels',
+                control: 'taxonomy',
+                label: 'Filter by labels',
+                optionsFrom: 'field',
+              },
+            ],
+            sortable: ['title'],
+          })
+        )
+      ).toThrow(/needs optionsFrom \["labels"\], found "field"/)
+    })
+
+    it('throws when a field-read select has nothing to enumerate', () => {
+      expect(() =>
+        defineResource(
+          descriptor(
+            [NAME, SLUG, { key: 'owner', role: 'meta', label: 'Owner' }],
+            {
+              list: {
+                filters: [
+                  {
+                    key: 'owner',
+                    control: 'select',
+                    label: 'Filter by owner',
+                    optionsFrom: 'field',
+                  },
+                ],
+                sortable: ['title'],
+              },
+            }
+          )
+        )
+      ).toThrow(/reads options from its field, which enumerates none/)
+    })
+
+    it('throws when a list-level control declares an options source', () => {
+      expect(() =>
+        defineResource(
+          withList({
+            filters: [
+              {
+                key: 'search',
+                control: 'search',
+                label: 'Search widgets',
+                optionsFrom: 'types',
+              },
+            ],
+            sortable: ['title'],
+          })
+        )
+      ).toThrow(/has control 'search' but declares 'optionsFrom'/)
+    })
+
+    it('throws on a duplicate filter key', () => {
+      expect(() =>
+        defineResource(
+          withList({
+            filters: [
+              {
+                key: 'status',
+                control: 'select',
+                label: 'Filter by status',
+                optionsFrom: 'field',
+              },
+              {
+                key: 'status',
+                control: 'select',
+                label: 'Filter by status again',
+                optionsFrom: 'field',
+              },
+            ],
+            sortable: ['title'],
+          })
+        )
+      ).toThrow(/duplicate filter key 'status'/)
+    })
+
+    it('throws when a sortable key names no declared field', () => {
+      expect(() =>
+        defineResource(withList({ filters: [], sortable: ['headline'] }))
+      ).toThrow(/sortable key 'headline' names no declared field/)
+    })
+
+    it('throws on a duplicate sortable key', () => {
+      expect(() =>
+        defineResource(withList({ filters: [], sortable: ['title', 'title'] }))
+      ).toThrow(/duplicate sortable key 'title'/)
+    })
+
+    it('accepts the timestamps no descriptor declares as fields', () => {
+      const valid = withList({
+        filters: [],
+        sortable: ['created_at', 'updated_at'],
+      })
+      expect(defineResource(valid)).toBe(valid)
+    })
+  })
 })

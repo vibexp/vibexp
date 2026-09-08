@@ -107,6 +107,40 @@ export const blueprintDescriptor = defineResource({
     // row for it — `ResourceTaxonomySection` owns it.
     { key: 'metadata', role: 'meta', label: 'Metadata', optional: true },
   ],
+  list: {
+    filters: [
+      { key: 'search', control: 'search', label: 'Search blueprints' },
+      {
+        key: 'type',
+        control: 'select',
+        label: 'Filter by type',
+        allLabel: 'All types',
+        optionsFrom: 'field',
+      },
+      {
+        key: 'status',
+        control: 'select',
+        label: 'Filter by status',
+        allLabel: 'All statuses',
+        optionsFrom: 'field',
+        testId: 'blueprint-status-filter',
+      },
+      {
+        key: 'freshness',
+        control: 'freshness',
+        label: 'Filter blueprints by freshness',
+        testId: 'blueprint-freshness-filter',
+      },
+      {
+        key: 'metadata',
+        control: 'metadata',
+        label: 'Filter blueprints by metadata',
+      },
+    ],
+    // The list endpoint's `sort_by` enum is [created_at, updated_at, title]
+    // (backend/paths/blueprints.yaml), so status is not sortable here.
+    sortable: ['title', 'updated_at'],
+  },
   capabilities: {
     attachments: true,
     versions: true,
