@@ -191,10 +191,8 @@ func TestMemoryService_RejectsOutOfSubsetStatus(t *testing.T) {
 // solely responsible for not writing it -- so each one is pinned here (#912).
 func TestServicesTreatEmptyStatusAsUnchanged(t *testing.T) {
 	const (
-		userID    = "user-1"
-		teamID    = "team-1"
-		projectID = testServiceProjectID
-		slug      = "s"
+		userID = "user-1"
+		teamID = "team-1"
 	)
 	empty := ""
 
