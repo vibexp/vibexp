@@ -109,22 +109,21 @@ export function Prompts() {
 
   const projectId = currentProject?.id
 
-  const {
-    filters,
-    setFilters,
-    searchInput,
-    setSearchInput,
-    page,
-    setPage,
-    sortOrder,
-    hasActiveFilters,
-    handleClear,
-  } = useResourceListFilters({
+  const listFilters = useResourceListFilters({
     defaults: FILTER_DEFAULTS,
     filterKeys: ['status', 'labels', 'shared', 'freshness'],
     projectId,
     isProjectLoading,
   })
+  const {
+    filters,
+    setFilters,
+    page,
+    setPage,
+    sortOrder,
+    hasActiveFilters,
+    handleClear,
+  } = listFilters
 
   const [promptToDelete, setPromptToDelete] = useState<Prompt | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -251,12 +250,7 @@ export function Prompts() {
         <ListPage.Filters>
           <ResourceFilterBar
             descriptor={PROMPT}
-            searchInput={searchInput}
-            onSearchInputChange={setSearchInput}
-            values={filters}
-            onChange={(key, value) => {
-              setFilters({ [key]: value })
-            }}
+            filters={listFilters}
             extras={
               <PromptSharedFilter
                 value={toSharedFilter(shared)}
@@ -265,8 +259,6 @@ export function Prompts() {
                 }}
               />
             }
-            onClear={handleClear}
-            hasActiveFilters={hasActiveFilters}
           />
         </ListPage.Filters>
 

@@ -80,25 +80,22 @@ export function Artifacts() {
 
   const projectId = currentProject?.id
 
-  const {
-    filters,
-    setFilters,
-    searchInput,
-    setSearchInput,
-    page,
-    setPage,
-    sortOrder,
-    metadata,
-    metadataParam,
-    setMetadata,
-    hasActiveFilters,
-    handleClear,
-  } = useResourceListFilters({
+  const listFilters = useResourceListFilters({
     defaults: FILTER_DEFAULTS,
     filterKeys: ['type', 'status', 'freshness'],
     projectId,
     isProjectLoading,
   })
+  const {
+    filters,
+    setFilters,
+    page,
+    setPage,
+    sortOrder,
+    metadataParam,
+    hasActiveFilters,
+    handleClear,
+  } = listFilters
 
   const [artifactToDelete, setArtifactToDelete] = useState<Artifact | null>(
     null
@@ -240,17 +237,8 @@ export function Artifacts() {
         <ListPage.Filters>
           <ResourceFilterBar
             descriptor={ARTIFACT}
-            searchInput={searchInput}
-            onSearchInputChange={setSearchInput}
-            values={filters}
-            onChange={(key, value) => {
-              setFilters({ [key]: value })
-            }}
-            metadata={metadata}
-            onMetadataChange={setMetadata}
+            filters={listFilters}
             projectId={projectId}
-            onClear={handleClear}
-            hasActiveFilters={hasActiveFilters}
           />
         </ListPage.Filters>
 

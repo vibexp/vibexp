@@ -92,25 +92,22 @@ export function Blueprints() {
 
   const projectId = currentProject?.id
 
-  const {
-    filters,
-    setFilters,
-    searchInput,
-    setSearchInput,
-    page,
-    setPage,
-    sortOrder,
-    metadata,
-    metadataParam,
-    setMetadata,
-    hasActiveFilters,
-    handleClear,
-  } = useResourceListFilters({
+  const listFilters = useResourceListFilters({
     defaults: FILTER_DEFAULTS,
     filterKeys: ['type', 'status', 'freshness'],
     projectId,
     isProjectLoading,
   })
+  const {
+    filters,
+    setFilters,
+    page,
+    setPage,
+    sortOrder,
+    metadataParam,
+    hasActiveFilters,
+    handleClear,
+  } = listFilters
 
   const [blueprintToDelete, setBlueprintToDelete] = useState<Blueprint | null>(
     null
@@ -244,17 +241,8 @@ export function Blueprints() {
         <ListPage.Filters>
           <ResourceFilterBar
             descriptor={BLUEPRINT}
-            searchInput={searchInput}
-            onSearchInputChange={setSearchInput}
-            values={filters}
-            onChange={(key, value) => {
-              setFilters({ [key]: value })
-            }}
-            metadata={metadata}
-            onMetadataChange={setMetadata}
+            filters={listFilters}
             projectId={projectId}
-            onClear={handleClear}
-            hasActiveFilters={hasActiveFilters}
           />
         </ListPage.Filters>
 

@@ -57,6 +57,15 @@ export interface UseResourceListFiltersOptions {
  *   is not enough, because the project is still undefined at that point and the
  *   restore itself then looks like a change.
  */
+/**
+ * Everything a list page gets back from the hook — and, as one object, exactly
+ * what `ResourceFilterBar` needs. Declared as `ReturnType` so the bar's
+ * contract cannot drift from the hook's.
+ */
+export type UseResourceListFiltersResult = ReturnType<
+  typeof useResourceListFilters
+>
+
 export function useResourceListFilters({
   defaults,
   filterKeys,

@@ -47,39 +47,60 @@ beforeAll(() => {
   Element.prototype.releasePointerCapture = vi.fn()
 })
 
+import type { UseResourceListFiltersResult } from '@/hooks/useResourceListFilters'
+
 import { ResourceFilterBar } from '../ResourceFilterBar'
 
 interface Overrides {
   kind?: ResourceKindKey
   values?: Record<string, string>
   hasActiveFilters?: boolean
-  withMetadata?: boolean
   extras?: React.ReactNode
 }
 
-const onChange = vi.fn()
-const onSearchInputChange = vi.fn()
-const onClear = vi.fn()
+const setFilters = vi.fn()
+const setSearchInput = vi.fn()
+const setMetadata = vi.fn()
+const handleClear = vi.fn()
+
+/** A stand-in for what `useResourceListFilters` hands the bar. */
+function filtersState(
+  values: Record<string, string>,
+  hasActiveFilters: boolean
+): UseResourceListFiltersResult {
+  return {
+    filters: {
+      page: '1',
+      search: '',
+      metadata: '',
+      sort_order: 'desc',
+      ...values,
+    },
+    setFilters,
+    searchInput: '',
+    setSearchInput,
+    page: 1,
+    setPage: vi.fn(),
+    sortOrder: 'desc',
+    metadata: {},
+    metadataParam: undefined,
+    setMetadata,
+    hasActiveFilters,
+    handleClear,
+  }
+}
 
 function renderBar({
   kind = 'artifact',
   values = {},
   hasActiveFilters = false,
-  withMetadata = true,
   extras,
 }: Overrides = {}) {
   return render(
     <ResourceFilterBar
       descriptor={getResourceDescriptor(kind)}
-      searchInput=""
-      onSearchInputChange={onSearchInputChange}
-      values={values}
-      onChange={onChange}
-      metadata={withMetadata ? {} : undefined}
-      onMetadataChange={withMetadata ? vi.fn() : undefined}
+      filters={filtersState(values, hasActiveFilters)}
       extras={extras}
-      onClear={onClear}
-      hasActiveFilters={hasActiveFilters}
     />
   )
 }
@@ -111,8 +132,8 @@ describe('ResourceFilterBar', () => {
     const user = userEvent.setup()
     renderBar()
     await user.type(screen.getByLabelText('Search artifacts'), 'x')
-    expect(onSearchInputChange).toHaveBeenCalledWith('x')
-    expect(onChange).not.toHaveBeenCalled()
+    expect(setSearchInput).toHaveBeenCalledWith('x')
+    expect(setFilters).not.toHaveBeenCalled()
   })
 
   it('emits the filter key and the raw value when a status is picked', async () => {
@@ -120,7 +141,7 @@ describe('ResourceFilterBar', () => {
     renderBar({ kind: 'blueprint' })
     await user.click(screen.getByLabelText('Filter by status'))
     await user.click(await screen.findByRole('option', { name: 'Expired' }))
-    expect(onChange).toHaveBeenCalledWith('status', 'expired')
+    expect(setFilters).toHaveBeenCalledWith({ status: 'expired' })
   })
 
   it('offers exactly the status values the descriptor declares', async () => {
@@ -160,7 +181,7 @@ describe('ResourceFilterBar', () => {
     await user.click(
       await screen.findByRole('option', { name: 'All statuses' })
     )
-    expect(onChange).toHaveBeenCalledWith('status', 'all')
+    expect(setFilters).toHaveBeenCalledWith({ status: 'all' })
   })
 
   it('clears freshness back to the sentinel too', async () => {
@@ -170,12 +191,12 @@ describe('ResourceFilterBar', () => {
     await user.click(
       await screen.findByRole('option', { name: 'All freshness' })
     )
-    expect(onChange).toHaveBeenCalledWith('freshness', 'all')
+    expect(setFilters).toHaveBeenCalledWith({ freshness: 'all' })
   })
 
   it('loads the label catalog only when the taxonomy popover opens', async () => {
     const user = userEvent.setup()
-    renderBar({ kind: 'prompt', withMetadata: false })
+    renderBar({ kind: 'prompt' })
     expect(getPromptLabels).not.toHaveBeenCalled()
 
     await user.click(screen.getByLabelText('Filter by labels'))
@@ -189,23 +210,18 @@ describe('ResourceFilterBar', () => {
 
   it('serializes picked labels as the comma-separated list the API takes', async () => {
     const user = userEvent.setup()
-    renderBar({
-      kind: 'prompt',
-      values: { labels: 'api' },
-      withMetadata: false,
-    })
+    renderBar({ kind: 'prompt', values: { labels: 'api' } })
     await user.click(screen.getByLabelText('Filter by labels'))
     await user.click(await screen.findByRole('option', { name: /review/ }))
-    expect(onChange).toHaveBeenCalledWith('labels', 'api,review')
+    expect(setFilters).toHaveBeenCalledWith({ labels: 'api,review' })
   })
 
-  it('renders no metadata control when the page has no metadata state', () => {
-    renderBar({ withMetadata: false })
-    expect(
-      screen.queryByLabelText('Filter artifacts by metadata')
-    ).not.toBeInTheDocument()
-    // The rest of the bar still renders.
-    expect(screen.getByLabelText('Search artifacts')).toBeInTheDocument()
+  it('renders no metadata control for a kind whose descriptor declares none', () => {
+    // The prompts list endpoint has no `metadata` parameter, so the prompt
+    // descriptor declares no such filter and the bar must not invent one.
+    renderBar({ kind: 'prompt' })
+    expect(screen.queryByLabelText(/by metadata/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Search prompts')).toBeInTheDocument()
   })
 
   it('renders resource-specific extras alongside the generated controls', () => {
@@ -223,18 +239,11 @@ describe('ResourceFilterBar', () => {
     rerender(
       <ResourceFilterBar
         descriptor={getResourceDescriptor('artifact')}
-        searchInput=""
-        onSearchInputChange={onSearchInputChange}
-        values={{ status: 'draft' }}
-        onChange={onChange}
-        metadata={{}}
-        onMetadataChange={vi.fn()}
-        onClear={onClear}
-        hasActiveFilters
+        filters={filtersState({ status: 'draft' }, true)}
       />
     )
     await user.click(screen.getByRole('button', { name: 'Clear filters' }))
-    expect(onClear).toHaveBeenCalledTimes(1)
+    expect(handleClear).toHaveBeenCalledTimes(1)
   })
 
   it('renders every control at the one shared width', () => {

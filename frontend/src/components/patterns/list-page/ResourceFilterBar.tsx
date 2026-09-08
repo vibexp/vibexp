@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { usePromptLabels } from '@/hooks/usePromptLabels'
+import type { UseResourceListFiltersResult } from '@/hooks/useResourceListFilters'
 import { useTypes } from '@/hooks/useTypes'
 import type {
   MetadataFilterValue,
@@ -45,23 +46,20 @@ import { FILTER_ALL, FILTER_CONTROL_WIDTH } from './filterControls'
  *
  * ## The value contract
  *
- * `values` holds the raw URL strings, and `onChange` emits raw URL strings:
+ * The bar reads and writes the RAW URL strings the hook holds:
  * {@link FILTER_ALL} for a cleared `select`/`freshness`, `''` for a cleared
  * `taxonomy`. Coercing a value to what the API accepts stays with the page,
  * which is where the enum allowlists live — a junk `?status=bogus` must be
  * dropped from the request rather than forwarded into a 400.
+ *
+ * It takes the hook's whole result rather than a dozen unpacked props: the
+ * three metadata-filterable pages would otherwise repeat the same thirteen-line
+ * call site, which is the duplication this component exists to remove.
  */
 export interface ResourceFilterBarProps {
   descriptor: ResourceDescriptor
-  /** Uncommitted search text; the page debounces it into the URL. */
-  searchInput: string
-  onSearchInputChange: (value: string) => void
-  /** Committed filter values, keyed by filter key. */
-  values: Readonly<Record<string, string>>
-  onChange: (key: string, value: string) => void
-  /** Required when the descriptor declares a `metadata` filter. */
-  metadata?: MetadataFilterValue
-  onMetadataChange?: (value: MetadataFilterValue) => void
+  /** Whatever `useResourceListFilters` returned for this page. */
+  filters: UseResourceListFiltersResult
   /** Narrows the metadata catalog to the globally selected project. */
   projectId?: string
   /**
@@ -69,9 +67,6 @@ export interface ResourceFilterBarProps {
    * tri-state, which describes an active share rather than the prompt.
    */
   extras?: ReactNode
-  /** Shown only while at least one filter is applied. */
-  onClear?: () => void
-  hasActiveFilters: boolean
 }
 
 interface SelectOption {
@@ -200,8 +195,8 @@ interface ResourceFilterControlProps extends FilterControlProps {
   descriptor: ResourceDescriptor
   searchInput: string
   onSearchInputChange: (value: string) => void
-  metadata: MetadataFilterValue | undefined
-  onMetadataChange: ((value: MetadataFilterValue) => void) | undefined
+  metadata: MetadataFilterValue
+  onMetadataChange: (value: MetadataFilterValue) => void
   projectId: string | undefined
 }
 
@@ -247,9 +242,6 @@ function ResourceFilterControl({
   }
 
   if (spec.control === 'metadata') {
-    // A descriptor may declare the filter while a particular page has no
-    // metadata state to give it; render nothing rather than a dead control.
-    if (!metadata || !onMetadataChange) return null
     return (
       <MetadataFilterField
         resourceType={descriptor.plural as MetadataResourceType}
@@ -288,45 +280,38 @@ function ResourceFilterControl({
 
 export function ResourceFilterBar({
   descriptor,
-  searchInput,
-  onSearchInputChange,
-  values,
-  onChange,
-  metadata,
-  onMetadataChange,
+  filters,
   projectId,
   extras,
-  onClear,
-  hasActiveFilters,
 }: Readonly<ResourceFilterBarProps>) {
-  const filters = descriptor.list?.filters ?? []
+  const specs = descriptor.list?.filters ?? []
   // A runtime key lookup; a computed index would trip
   // `security/detect-object-injection`, which cannot be suppressed here.
-  const valueOf = new Map(Object.entries(values))
+  const valueOf = new Map(Object.entries(filters.filters))
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {filters.map(spec => (
+      {specs.map(spec => (
         <ResourceFilterControl
           key={spec.key}
           spec={spec}
           value={valueOf.get(spec.key) ?? ''}
           onChange={next => {
-            onChange(spec.key, next)
+            filters.setFilters({ [spec.key]: next })
           }}
           descriptor={descriptor}
-          searchInput={searchInput}
-          onSearchInputChange={onSearchInputChange}
-          metadata={metadata}
-          onMetadataChange={onMetadataChange}
+          searchInput={filters.searchInput}
+          onSearchInputChange={filters.setSearchInput}
+          metadata={filters.metadata}
+          onMetadataChange={filters.setMetadata}
           projectId={projectId}
         />
       ))}
 
       {extras}
 
-      {hasActiveFilters && onClear && (
-        <Button variant="outline" onClick={onClear}>
+      {filters.hasActiveFilters && (
+        <Button variant="outline" onClick={filters.handleClear}>
           Clear filters
         </Button>
       )}
