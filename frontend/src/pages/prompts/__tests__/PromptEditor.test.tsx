@@ -110,22 +110,30 @@ vi.mock('@/components/ui/tabs', async () => {
 })
 
 // The mention textarea pulls in prompt search + a Radix popover; a plain
-// textarea keeps the body editable without any of that.
+// textarea keeps the body editable without any of that. It renders `error`
+// itself — the shared editor hands the message over rather than rendering a
+// second one beside it (#914), so a mock that dropped it would hide the
+// body's validation message from every assertion here.
 vi.mock('@/components/PromptMentionTextarea', () => ({
   PromptMentionTextarea: ({
     value,
     onChange,
+    error,
   }: {
     value: string
     onChange: (v: string) => void
+    error?: string
   }) => (
-    <textarea
-      data-testid="prompt-body-textarea"
-      value={value}
-      onChange={e => {
-        onChange(e.target.value)
-      }}
-    />
+    <>
+      <textarea
+        data-testid="prompt-body-textarea"
+        value={value}
+        onChange={e => {
+          onChange(e.target.value)
+        }}
+      />
+      {error && <p>{error}</p>}
+    </>
   ),
 }))
 

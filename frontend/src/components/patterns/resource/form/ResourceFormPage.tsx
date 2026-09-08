@@ -55,7 +55,10 @@ export interface ResourceFormPageProps {
    * simply not rendered — a page may fill one slot and not another.
    */
   extensions?: Readonly<Record<string, ReactNode>>
-  /** Replaces the default body textarea with a richer editor (#914). */
+  /**
+   * Replaces the shared `ResourceBodyEditor` the body control renders by
+   * default — how a page opts into the prompt-only extensions (#914).
+   */
   renderBody?: (props: BodySlotProps) => ReactNode
   /** Forwarded to the `metadata` control. Must be a stable reference. */
   metadataRequiredKeys?: string[]

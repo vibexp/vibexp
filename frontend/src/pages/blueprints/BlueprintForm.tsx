@@ -10,6 +10,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { MetadataEditor } from '@/components/metadata/MetadataEditor'
+import { ResourceBodyEditor } from '@/components/patterns/resource'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -151,12 +152,14 @@ export const BlueprintForm = forwardRef<
               <FormItem>
                 <FormLabel className="sr-only">Content</FormLabel>
                 <FormControl>
-                  <Textarea
-                    {...field}
+                  <ResourceBodyEditor
+                    data-testid="blueprint-content-textarea"
+                    ref={field.ref}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
                     disabled={isLoading}
-                    rows={22}
                     placeholder="Enter blueprint content…"
-                    className="font-mono text-sm"
                   />
                 </FormControl>
                 <FormMessage />

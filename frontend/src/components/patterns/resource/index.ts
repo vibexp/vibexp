@@ -1,4 +1,14 @@
 export { defineResource } from './defineResource'
+export {
+  BODY_EDITOR_MIN_HEIGHT,
+  BODY_EDITOR_MIN_ROWS,
+  type BodyEditorMentionsExtension,
+  type BodyEditorRenderExtension,
+  type BodyEditorView,
+  ResourceBodyEditor,
+  type ResourceBodyEditorExtensions,
+  type ResourceBodyEditorProps,
+} from './editor'
 export { fieldOfRole } from './fieldOfRole'
 export {
   type BodySlotProps,
