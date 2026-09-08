@@ -110,6 +110,19 @@ describe('PromptGalleryDetail page', () => {
     expect(screen.getByTestId('copy-button')).toBeInTheDocument()
   })
 
+  it('renders Category and Tags through the descriptor taxonomy section (#917)', async () => {
+    renderDetail()
+
+    // Both are `taxonomy` fields on the `gallery-prompt` descriptor, so they
+    // arrive as one generated block — the page hand-builds no Panel.
+    const taxonomy = await screen.findByTestId('taxonomy-section')
+    expect(within(taxonomy).getByText('Category')).toBeInTheDocument()
+    expect(within(taxonomy).getByText('Engineering')).toBeInTheDocument()
+    expect(within(taxonomy).getByText('Tags')).toBeInTheDocument()
+    expect(within(taxonomy).getByText('security')).toBeInTheDocument()
+    expect(within(taxonomy).getByText('quality')).toBeInTheDocument()
+  })
+
   it('renders the standard header: description and updated time (#902)', async () => {
     renderDetail()
 

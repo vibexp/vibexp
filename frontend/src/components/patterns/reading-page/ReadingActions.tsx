@@ -57,7 +57,16 @@ export function ReadingActions({
           disabled={action.disabled}
           onClick={action.onClick}
           data-testid={action.testId}
-          className={layout === 'grid' ? 'w-full' : undefined}
+          className={
+            layout === 'grid'
+              ? cn(
+                  'w-full',
+                  // A long label clips inside a half-width cell, so an action
+                  // may ask for the whole row.
+                  action.span === 'full' && 'col-span-2'
+                )
+              : undefined
+          }
         >
           <action.icon className="size-4" aria-hidden />
           {action.label}

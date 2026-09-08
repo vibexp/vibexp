@@ -17,6 +17,13 @@ export interface ReadingAction {
   tone?: 'default' | 'destructive'
   /** `primary` renders as the solid call-to-action ("Use this prompt"). */
   emphasis?: 'primary' | 'secondary'
+  /**
+   * `full` spans both columns of the grid layout. Declared per action rather
+   * than derived from `emphasis`, because a primary action is not always the
+   * only one on its row — a form's rail is `[Save (primary), Cancel]`, and
+   * spanning Save would strand Cancel in a half-width cell on the next row.
+   */
+  span?: 'full'
   disabled?: boolean
   /** Forwarded as `data-testid`; the same id follows the action across layouts. */
   testId?: string
