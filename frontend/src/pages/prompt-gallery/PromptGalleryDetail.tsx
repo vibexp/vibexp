@@ -5,7 +5,6 @@ import { useNavigate, useParams } from 'react-router'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import {
   type ReadingAction,
-  ReadingPage,
   ResourceBody,
   useCopyAction,
 } from '@/components/patterns/reading-page'
@@ -92,17 +91,17 @@ export function PromptGalleryDetail() {
 
   if (loading) {
     return (
-      <ReadingPage title="Loading prompt…">
+      <ResourceReadingPage title="Loading prompt…">
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
-      </ReadingPage>
+      </ResourceReadingPage>
     )
   }
 
   if (!prompt) {
     return (
-      <ReadingPage title="Prompt not found" actions={[backAction]}>
+      <ResourceReadingPage title="Prompt not found" actions={[backAction]}>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Prompt not found</AlertTitle>
@@ -111,7 +110,7 @@ export function PromptGalleryDetail() {
             removed.
           </AlertDescription>
         </Alert>
-      </ReadingPage>
+      </ResourceReadingPage>
     )
   }
 
@@ -123,6 +122,8 @@ export function PromptGalleryDetail() {
       label: 'Use this prompt',
       icon: Wand2,
       emphasis: 'primary',
+      // The longest label in the rail; at half width it clips.
+      span: 'full',
       onClick: () => {
         void handleUsePrompt()
       },
@@ -138,7 +139,6 @@ export function PromptGalleryDetail() {
       // A gallery prompt is served by the public gallery API and has no
       // team-scoped resource id, so it passes no `resource`: Attachments,
       // Access activity, Comments and Relations all drop out on their own.
-      attachments={false}
       metadata={
         <div className="space-y-5">
           <ResourceMetadataSection

@@ -61,9 +61,9 @@ export function ReadingActions({
             layout === 'grid'
               ? cn(
                   'w-full',
-                  // The primary action carries the longest label on the page
-                  // ("Use this prompt"), which clips inside a half-width cell.
-                  action.emphasis === 'primary' && 'col-span-2'
+                  // A long label clips inside a half-width cell, so an action
+                  // may ask for the whole row.
+                  action.span === 'full' && 'col-span-2'
                 )
               : undefined
           }

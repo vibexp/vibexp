@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
@@ -307,7 +307,12 @@ describe('PromptGalleryCategory page', () => {
     )
 
     // And it settles there — no trailing per-keystroke fetches arrive late.
-    await new Promise(resolve => setTimeout(resolve, 600))
+    vi.useFakeTimers()
+    await act(async () => {
+      vi.advanceTimersByTime(600)
+      await Promise.resolve()
+    })
+    vi.useRealTimers()
     expect(getPromptsMock).toHaveBeenCalledTimes(2)
   })
 

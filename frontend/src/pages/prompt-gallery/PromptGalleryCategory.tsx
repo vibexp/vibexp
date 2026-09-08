@@ -104,7 +104,7 @@ function CategoryList({ category }: Readonly<CategoryListProps>) {
     const data = await promptGalleryService.getPrompts({
       category: categoryLabel,
       search: filters.search || undefined,
-      tags: tagsParam ? tagsParam.split(',').filter(Boolean) : undefined,
+      tags: selectedTags.length > 0 ? selectedTags : undefined,
       page,
       limit: PER_PAGE,
     })
@@ -113,7 +113,9 @@ function CategoryList({ category }: Readonly<CategoryListProps>) {
       totalPages: data.total_pages,
       total: data.total_count,
     }
-  }, [categoryLabel, filters.search, tagsParam, page])
+    // `selectedTags` is memoized on the raw URL param, so it is referentially
+    // stable and safe as a dependency of this memoized loader.
+  }, [categoryLabel, filters.search, selectedTags, page])
 
   const state = useResourceListQuery({
     ready: category !== '',
