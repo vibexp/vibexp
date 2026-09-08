@@ -1,8 +1,9 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import type { Mock } from 'vitest'
 
+import type { Project } from '@/services/projectService'
 import type { Prompt, PromptListResponse } from '@/services/promptService'
 
 // Mock Radix Select — it can loop in JSDOM (same approach as Artifacts.test.tsx)
@@ -59,12 +60,18 @@ vi.mock('@/contexts/TeamContext', () => ({
   }),
 }))
 
+// Mutable so tests can drive the global project selector and its restore.
+const projectContextValue: {
+  currentProject: Project | null
+  setCurrentProject: Mock
+  isLoading: boolean
+} = {
+  currentProject: null,
+  setCurrentProject: vi.fn(),
+  isLoading: false,
+}
 vi.mock('@/contexts/ProjectContext', () => ({
-  useProject: () => ({
-    currentProject: null,
-    setCurrentProject: vi.fn(),
-    isLoading: false,
-  }),
+  useProject: () => projectContextValue,
 }))
 
 vi.mock('@/hooks', () => {
@@ -129,9 +136,37 @@ function setTeamPermissions(permissions: string[]) {
   }
 }
 
-function renderPrompts() {
-  return render(
-    <MemoryRouter initialEntries={['/prompts']}>
+const alpha: Project = {
+  id: 'p1',
+  user_id: 'user-1',
+  team_id: 'team-1',
+  name: 'Alpha Project',
+  slug: 'alpha-project',
+  description: '',
+  git_url: '',
+  homepage: '',
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
+  version: 1,
+  github_connected: false,
+}
+
+let currentSearch = ''
+
+function LocationProbe() {
+  currentSearch = useLocation().search
+  return null
+}
+
+/** The filter object of the most recent getPrompts call. */
+const lastQuery = () => {
+  const { calls } = (promptService.getPrompts as Mock).mock
+  return calls[calls.length - 1][1] as Record<string, unknown>
+}
+
+function promptsTree(initialEntry: string) {
+  return (
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/prompts" element={<Prompts />} />
         <Route
@@ -143,14 +178,22 @@ function renderPrompts() {
           element={<div data-testid="detail-probe">Prompt detail probe</div>}
         />
       </Routes>
+      <LocationProbe />
     </MemoryRouter>
   )
+}
+
+function renderPrompts(initialEntry = '/prompts') {
+  currentSearch = ''
+  return render(promptsTree(initialEntry))
 }
 
 describe('Prompts page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setTeamPermissions([])
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
     ;(promptService.getPrompts as Mock).mockResolvedValue(buildListResponse([]))
   })
 
@@ -461,5 +504,227 @@ describe('Prompts page — stale badge (#738)', () => {
     const { calls } = (promptService.getPrompts as Mock).mock
     const query = calls[calls.length - 1][1] as Record<string, unknown>
     expect(query.freshness).toBeUndefined()
+  })
+})
+
+describe('Prompts page — URL-synced filters (#906)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions([])
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
+    ;(promptService.getPrompts as Mock).mockResolvedValue(buildListResponse([]))
+  })
+
+  it('keeps defaults out of the URL and sends no filter params', async () => {
+    renderPrompts()
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    expect(lastQuery()).toEqual(
+      expect.objectContaining({
+        page: 1,
+        limit: 20,
+        search: undefined,
+        status: undefined,
+        shared: undefined,
+        freshness: undefined,
+        sort_by: 'updated_at',
+        sort_order: 'desc',
+      })
+    )
+    expect(currentSearch).toBe('')
+  })
+
+  it('rehydrates search, status, shared, sort and page from the URL on mount', async () => {
+    renderPrompts(
+      '/prompts?search=review&status=draft&shared=shared&sort_by=name&sort_order=asc&page=2'
+    )
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    const query = lastQuery()
+    expect(query.search).toBe('review')
+    expect(query.status).toBe('draft')
+    // The tri-state stays a string in the URL; only the request sees a boolean.
+    expect(query.shared).toBe(true)
+    expect(query.sort_by).toBe('name')
+    expect(query.sort_order).toBe('asc')
+    expect(query.page).toBe(2)
+    expect(screen.getByPlaceholderText('Search prompts…')).toHaveValue('review')
+  })
+
+  it('maps ?shared=not_shared to shared: false', async () => {
+    renderPrompts('/prompts?shared=not_shared')
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    expect(lastQuery().shared).toBe(false)
+  })
+
+  it('drops a status outside the enum rather than forwarding a 400', async () => {
+    renderPrompts('/prompts?status=nonsense')
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBeUndefined()
+  })
+
+  it('falls back to the default sort key for an unknown sort_by', async () => {
+    // The API 400s on a sort field outside its enum.
+    renderPrompts('/prompts?sort_by=whatever')
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    expect(lastQuery().sort_by).toBe('updated_at')
+  })
+
+  it('drops a junk freshness value rather than forwarding it', async () => {
+    renderPrompts('/prompts?freshness=bogus')
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    expect(lastQuery().freshness).toBeUndefined()
+  })
+
+  it('writes the debounced search term to the URL in a single request', async () => {
+    renderPrompts()
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    const before = (promptService.getPrompts as Mock).mock.calls.length
+
+    const user = userEvent.setup()
+    await user.type(screen.getByPlaceholderText('Search prompts…'), 'api')
+
+    await waitFor(
+      () => {
+        expect(lastQuery().search).toBe('api')
+      },
+      { timeout: 2000 }
+    )
+    expect((promptService.getPrompts as Mock).mock.calls).toHaveLength(
+      before + 1
+    )
+    expect(currentSearch).toContain('search=api')
+  })
+
+  it('writes a sort change to the URL so it round-trips', async () => {
+    ;(promptService.getPrompts as Mock).mockResolvedValue(
+      buildListResponse([buildPrompt()])
+    )
+    renderPrompts()
+    await screen.findByText('Code Review Template')
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Name/ }))
+
+    await waitFor(() => {
+      expect(lastQuery().sort_by).toBe('name')
+    })
+    expect(currentSearch).toContain('sort_by=name')
+    expect(currentSearch).toContain('sort_order=asc')
+  })
+
+  it('a restoring persisted project does not clobber a shared link’s page', async () => {
+    projectContextValue.isLoading = true
+    projectContextValue.currentProject = null
+
+    const { rerender } = renderPrompts('/prompts?page=3')
+    expect(promptService.getPrompts).not.toHaveBeenCalled()
+
+    projectContextValue.isLoading = false
+    projectContextValue.currentProject = alpha
+    rerender(promptsTree('/prompts?page=3'))
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    expect(lastQuery().page).toBe(3)
+    expect(lastQuery().project_id).toBe('p1')
+  })
+})
+
+describe('Prompts page — Clear filters and the two-branch empty state (#906)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions([])
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
+    ;(promptService.getPrompts as Mock).mockResolvedValue(buildListResponse([]))
+  })
+
+  it('offers New prompt, and no Clear filters, when nothing is filtered', async () => {
+    renderPrompts()
+
+    await screen.findByText('No prompts yet')
+    expect(
+      screen.queryByRole('button', { name: 'Clear filters' })
+    ).not.toBeInTheDocument()
+    // Header button plus the empty-state action.
+    expect(screen.getAllByRole('button', { name: /New prompt/ })).toHaveLength(
+      2
+    )
+  })
+
+  it('a selected project alone is NOT a page filter', async () => {
+    // It comes from the global header selector, so counting it would promise a
+    // `Clear filters` that cannot clear it.
+    projectContextValue.currentProject = alpha
+    renderPrompts()
+
+    await screen.findByText('No prompts yet')
+    expect(
+      screen.queryByRole('button', { name: 'Clear filters' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('the status filter alone flips the empty state to the filtered branch', async () => {
+    // The old empty state branched on `search` only, so filtering by status
+    // alone showed "No prompts yet" with a create button.
+    renderPrompts('/prompts?status=draft')
+
+    await screen.findByText('No prompts match your filters')
+    expect(
+      screen.getAllByRole('button', { name: 'Clear filters' }).length
+    ).toBeGreaterThan(0)
+    // Only the page header's create button survives; the empty state offers
+    // Clear filters instead.
+    expect(screen.getAllByRole('button', { name: /New prompt/ })).toHaveLength(
+      1
+    )
+  })
+
+  it('the shared filter alone also counts as filtered', async () => {
+    renderPrompts('/prompts?shared=not_shared')
+
+    expect(
+      await screen.findByText('No prompts match your filters')
+    ).toBeInTheDocument()
+  })
+
+  it('Clear filters empties the URL, the search box and the request', async () => {
+    renderPrompts('/prompts?search=nope&status=draft&shared=shared')
+    await screen.findByText('No prompts match your filters')
+
+    const user = userEvent.setup()
+    const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
+    await user.click(clear)
+
+    await waitFor(() => {
+      expect(lastQuery().search).toBeUndefined()
+    })
+    expect(lastQuery().status).toBeUndefined()
+    expect(lastQuery().shared).toBeUndefined()
+    expect(lastQuery().page).toBe(1)
+    expect(currentSearch).toBe('')
+    expect(screen.getByPlaceholderText('Search prompts…')).toHaveValue('')
+    await screen.findByText('No prompts yet')
   })
 })

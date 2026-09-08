@@ -13,33 +13,95 @@ import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useResourceListFilters } from '@/hooks/useResourceListFilters'
+import { useResourceListQuery } from '@/hooks/useResourceListQuery'
 import { toast } from '@/lib/toast'
 import type {
   Agent,
   AgentFilters as AgentFiltersType,
 } from '@/services/agentService'
 import { agentService } from '@/services/agentService'
-import { getErrorMessage } from '@/utils/errorHandling'
 
-import { AgentFilters, type StatusFilter } from './AgentFilters'
+import { AgentFilters } from './AgentFilters'
 import { buildAgentsColumns } from './agentsColumns'
 import { AgentStats } from './AgentStats'
 
-interface AgentsState {
-  agents: Agent[]
-  loading: boolean
-  error: string | null
-  totalPages: number
-  currentPage: number
-  total: number
-  stats: {
-    totalAgents: number
-    activeAgents: number
-    pausedAgents: number
-    errorAgents: number
-    totalRuns: number
-    avgSuccessRate: number
-  } | null
+type AgentStatus = NonNullable<AgentFiltersType['status']>
+type AgentSortKey = NonNullable<AgentFiltersType['sort_by']>
+
+interface AgentStatsSummary {
+  totalAgents: number
+  activeAgents: number
+  pausedAgents: number
+  errorAgents: number
+  totalRuns: number
+  avgSuccessRate: number
+}
+
+const AGENT_STATUSES: ReadonlySet<AgentStatus> = new Set([
+  'active',
+  'paused',
+  'error',
+])
+
+/**
+ * `agentService.getAgents` does not forward `sort_by`/`sort_order` today and no
+ * agent column is sortable, so these keys only pin the URL contract — validated
+ * here so #908 can wire the sort up without a junk value reaching the API.
+ */
+const AGENT_SORT_KEYS: ReadonlySet<AgentSortKey> = new Set([
+  'name',
+  'status',
+  'total_runs',
+  'success_rate',
+  'last_run',
+  'created_at',
+])
+
+const PAGE_SIZE = 20
+
+/**
+ * Filter defaults. Every value here is omitted from the URL, so an unfiltered
+ * page has a clean address bar (see `useUrlFilters`).
+ *
+ * Agents are not project-scoped and have no metadata filter, so `metadata` — a
+ * base key of `useResourceListFilters` — stays at its default and is never sent
+ * (#906; adding either is out of scope).
+ */
+const FILTER_DEFAULTS = {
+  page: '1',
+  search: '',
+  metadata: '',
+  status: 'all',
+  sort_by: 'created_at',
+  sort_order: 'desc',
+}
+
+function coerceStatus(value: string): AgentStatus | undefined {
+  return AGENT_STATUSES.has(value as AgentStatus)
+    ? (value as AgentStatus)
+    : undefined
+}
+
+function coerceSortKey(value: string): AgentSortKey {
+  return AGENT_SORT_KEYS.has(value as AgentSortKey)
+    ? (value as AgentSortKey)
+    : 'created_at'
+}
+
+/** Fallback stats derived from the loaded page when the stats call fails. */
+function summarizeAgents(agents: Agent[]): AgentStatsSummary {
+  return {
+    totalAgents: agents.length,
+    activeAgents: agents.filter(a => a.status === 'active').length,
+    pausedAgents: agents.filter(a => a.status === 'paused').length,
+    errorAgents: agents.filter(a => a.status === 'error').length,
+    totalRuns: agents.reduce((sum, a) => sum + a.total_runs, 0),
+    avgSuccessRate:
+      agents.length > 0
+        ? agents.reduce((sum, a) => sum + a.success_rate, 0) / agents.length
+        : 0,
+  }
 }
 
 export function Agents() {
@@ -47,133 +109,96 @@ export function Agents() {
   const { currentTeam } = useTeam()
   const { canDeleteResource } = usePermissions()
   const { handleError } = useErrorHandler()
+  const handleErrorRef = useCallback(
+    (error: unknown) => {
+      handleError(error, 'Failed to load agents')
+    },
+    [handleError]
+  )
 
-  const [state, setState] = useState<AgentsState>({
-    agents: [],
-    loading: true,
-    error: null,
-    totalPages: 0,
-    currentPage: 1,
-    total: 0,
-    stats: null,
+  const {
+    filters,
+    setFilters,
+    searchInput,
+    setSearchInput,
+    page,
+    setPage,
+    sortOrder,
+    hasActiveFilters,
+    handleClear,
+  } = useResourceListFilters({
+    defaults: FILTER_DEFAULTS,
+    filterKeys: ['status'],
+    // Agents are team-scoped, not project-scoped, so the hook's project guard
+    // is inert: with no project it never arms a reset.
+    projectId: undefined,
+    isProjectLoading: false,
   })
 
-  const [filters, setFilters] = useState<AgentFiltersType>({
-    status: undefined,
-    search: '',
-    page: 1,
-    limit: 20,
-    sort_by: 'created_at',
-    sort_order: 'desc',
-  })
-
-  const [searchInput, setSearchInput] = useState('')
-
+  const [stats, setStats] = useState<AgentStatsSummary | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [deleting, setDeleting] = useState(false)
+  // Bumped after a delete to re-run the fetch effect without duplicating it.
+  const [reloadToken, setReloadToken] = useState(0)
 
-  const fetchAgents = useCallback(
-    async (currentFilters: AgentFiltersType) => {
-      if (!currentTeam) return
+  const status =
+    filters.status === 'all' ? undefined : coerceStatus(filters.status)
+  const sortKey = coerceSortKey(filters.sort_by)
 
-      setState(prev => ({ ...prev, loading: true, error: null }))
-      const response = await agentService.getAgents(
-        currentTeam.id,
-        currentFilters
-      )
-
-      const responseData = response
-      const agents = Array.isArray(responseData.agents)
-        ? responseData.agents
-        : []
-
-      setState(prev => ({
-        ...prev,
-        agents,
-        totalPages: responseData.total_pages,
-        currentPage: responseData.page,
-        total: responseData.total_count || agents.length,
-        loading: false,
-      }))
-    },
-    [currentTeam]
-  )
-
-  const fetchAgentStats = useCallback(
-    async (agents: Agent[]) => {
-      if (!currentTeam) return
-
-      try {
-        const response = await agentService.getAgentStats(currentTeam.id)
-        const statsData = response
-
-        setState(prev => ({
-          ...prev,
-          stats: {
-            totalAgents: statsData.total_agents || 0,
-            activeAgents: statsData.active_agents || 0,
-            pausedAgents: statsData.paused_agents || 0,
-            errorAgents: statsData.error_agents || 0,
-            totalRuns: statsData.total_runs || 0,
-            avgSuccessRate: statsData.avg_success_rate || 0,
-          },
-        }))
-      } catch {
-        setState(prev => ({
-          ...prev,
-          stats: {
-            totalAgents: agents.length,
-            activeAgents: agents.filter(a => a.status === 'active').length,
-            pausedAgents: agents.filter(a => a.status === 'paused').length,
-            errorAgents: agents.filter(a => a.status === 'error').length,
-            totalRuns: agents.reduce((sum, a) => sum + a.total_runs, 0),
-            avgSuccessRate:
-              agents.length > 0
-                ? agents.reduce((sum, a) => sum + a.success_rate, 0) /
-                  agents.length
-                : 0,
-          },
-        }))
-      }
-    },
-    [currentTeam]
-  )
-
-  useEffect(() => {
-    fetchAgents(filters).catch((error: unknown) => {
-      const errorMessage = getErrorMessage(error, 'Failed to fetch agents')
-      setState(prev => ({ ...prev, loading: false, error: errorMessage }))
-      handleError(error, 'Failed to load agents')
+  const load = useCallback(async () => {
+    const response = await agentService.getAgents(currentTeam?.id ?? '', {
+      page,
+      limit: PAGE_SIZE,
+      search: filters.search || undefined,
+      status,
+      // Dropped by the service until #908 wires agent sorting; sent so the
+      // request shape does not have to change when it does.
+      sort_by: sortKey,
+      sort_order: sortOrder,
     })
-  }, [fetchAgents, filters, handleError])
-
-  useEffect(() => {
-    if (state.agents.length > 0) {
-      void fetchAgentStats(state.agents)
+    const agents = Array.isArray(response.agents) ? response.agents : []
+    return {
+      items: agents,
+      totalPages: response.total_pages,
+      total: response.total_count || agents.length,
     }
-  }, [state.agents, fetchAgentStats])
+  }, [currentTeam?.id, page, filters.search, status, sortKey, sortOrder])
 
+  const state = useResourceListQuery({
+    ready: !!currentTeam,
+    load,
+    reloadToken,
+    errorFallback: 'Failed to fetch agents',
+    onError: handleErrorRef,
+  })
+
+  const teamId = currentTeam?.id
+  const agents = state.items
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setFilters(prev =>
-        prev.search === searchInput
-          ? prev
-          : { ...prev, search: searchInput, page: 1 }
-      )
-    }, 500)
+    if (!teamId || agents.length === 0) return
+    let cancelled = false
+    agentService
+      .getAgentStats(teamId)
+      .then(response => {
+        if (cancelled) return
+        setStats({
+          totalAgents: response.total_agents || 0,
+          activeAgents: response.active_agents || 0,
+          pausedAgents: response.paused_agents || 0,
+          errorAgents: response.error_agents || 0,
+          totalRuns: response.total_runs || 0,
+          avgSuccessRate: response.avg_success_rate || 0,
+        })
+      })
+      .catch(() => {
+        if (cancelled) return
+        setStats(summarizeAgents(agents))
+      })
     return () => {
-      clearTimeout(timeout)
+      cancelled = true
     }
-  }, [searchInput])
-
-  const handleStatusFilter = (status: StatusFilter) => {
-    setFilters(prev => ({
-      ...prev,
-      status: status === 'all' ? undefined : status,
-      page: 1,
-    }))
-  }
+  }, [teamId, agents])
 
   const handleDeleteAgent = async () => {
     if (!selectedAgent || !currentTeam) return
@@ -183,7 +208,7 @@ export function Agents() {
       await agentService.deleteAgent(currentTeam.id, selectedAgent.id)
       setIsDeleteDialogOpen(false)
       setSelectedAgent(null)
-      void fetchAgents(filters)
+      setReloadToken(token => token + 1)
       toast.success('Agent deleted successfully')
     } catch (error) {
       handleError(error, 'Failed to delete agent')
@@ -191,8 +216,6 @@ export function Agents() {
       setDeleting(false)
     }
   }
-
-  const currentStatusFilter: StatusFilter = filters.status ?? 'all'
 
   const columns = useMemo(
     () =>
@@ -207,10 +230,10 @@ export function Agents() {
     [navigate, canDeleteResource]
   )
 
-  const status = listPageStatus(
+  const listStatus = listPageStatus(
     state.loading,
     state.error,
-    state.agents.length === 0
+    state.items.length === 0
   )
 
   return (
@@ -230,52 +253,62 @@ export function Agents() {
         }
       />
 
-      {state.stats && !state.loading && !state.error && (
-        <AgentStats stats={state.stats} />
-      )}
+      {stats && !state.loading && !state.error && <AgentStats stats={stats} />}
 
       <ListPage.Container>
         <ListPage.Filters>
           <AgentFilters
             searchInput={searchInput}
             onSearchInputChange={setSearchInput}
-            currentStatusFilter={currentStatusFilter}
-            onStatusFilterChange={handleStatusFilter}
+            currentStatusFilter={status ?? 'all'}
+            onStatusFilterChange={value => {
+              setFilters({ status: value })
+            }}
+            onClear={handleClear}
+            hasActiveFilters={hasActiveFilters}
           />
         </ListPage.Filters>
 
         <ListPage.Body
-          status={status}
+          status={listStatus}
           errorTitle="Failed to load agents"
           errorMessage={state.error}
           empty={
-            <EmptyState
-              icon={Bot}
-              title={
-                filters.search
-                  ? 'No agents match your filters'
-                  : 'No agents yet'
-              }
-              description={
-                filters.search
-                  ? 'Try different search or filter settings.'
-                  : 'Create your first agent to start automating tasks.'
-              }
-              actions={
-                <Button
-                  onClick={() => {
-                    void navigate('/agents/add')
-                  }}
-                >
-                  <Plus className="mr-2 size-4" />
-                  Add agent
-                </Button>
-              }
-            />
+            // Two distinct empty states: "nothing exists" is a fact about the
+            // team, "nothing matches" is a fact about the filters, and only the
+            // second one has a way out.
+            hasActiveFilters ? (
+              <EmptyState
+                icon={Bot}
+                title="No agents match your filters"
+                description="Try different search or status settings."
+                actions={
+                  <Button variant="outline" onClick={handleClear}>
+                    Clear filters
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={Bot}
+                title="No agents yet"
+                description="Create your first agent to start automating tasks."
+                actions={
+                  <Button
+                    onClick={() => {
+                      void navigate('/agents/add')
+                    }}
+                  >
+                    <Plus className="mr-2 size-4" />
+                    Add agent
+                  </Button>
+                }
+              />
+            )
           }
         >
           <ListTable
-            rows={state.agents}
+            rows={state.items}
             columns={columns}
             onRowClick={agent => {
               void navigate(`/agents/${agent.id}`)
@@ -285,22 +318,20 @@ export function Agents() {
 
         <ListPage.Footer
           count={
-            status === 'loading' || status === 'error'
+            listStatus === 'loading' || listStatus === 'error'
               ? undefined
               : {
-                  visible: state.agents.length,
+                  visible: state.items.length,
                   total: state.total,
                   noun: 'agent',
                 }
           }
           pagination={{
-            page: state.currentPage,
+            page,
             totalPages: state.totalPages,
-            onPageChange: page => {
-              setFilters(prev => ({ ...prev, page }))
-            },
+            onPageChange: setPage,
           }}
-          hideCount={status === 'loading'}
+          hideCount={listStatus === 'loading'}
         />
       </ListPage.Container>
 

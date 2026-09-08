@@ -22,6 +22,8 @@ function renderFilters(
     onSharedChange: vi.fn(),
     freshness: undefined,
     onFreshnessChange: vi.fn(),
+    onClear: vi.fn(),
+    hasActiveFilters: false,
     ...overrides,
   }
   render(<PromptFilters {...props} />)
