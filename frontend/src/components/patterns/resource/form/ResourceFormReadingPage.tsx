@@ -134,7 +134,9 @@ export function ResourceFormReadingPage({
   // writes `DETAILS_COLLAPSED`, a persisted app-wide preference, so without
   // this one mistyped field would silently un-fold every reading page from now
   // on — the preference #916 exists to stop edit mode throwing away. Skipped
-  // when they reopened or refolded it themselves in the meantime.
+  // when the column is already folded at exit; a reader who refolds it and then
+  // reopens it deliberately is indistinguishable from one who left it as we
+  // forced it, and erring towards their stored preference is the safer half.
   useEffect(
     () => () => {
       if (forcedColumnOpen.current && detailsOpenNow.current) {
