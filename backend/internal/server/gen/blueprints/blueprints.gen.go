@@ -21,24 +21,6 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "BearerAuth.Scopes"
 )
 
-// Defines values for BlueprintStatus.
-const (
-	BlueprintStatusActive  BlueprintStatus = "active"
-	BlueprintStatusExpired BlueprintStatus = "expired"
-)
-
-// Valid indicates whether the value is a known member of the BlueprintStatus enum.
-func (e BlueprintStatus) Valid() bool {
-	switch e {
-	case BlueprintStatusActive:
-		return true
-	case BlueprintStatusExpired:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for BlueprintSubtype.
 const (
 	BlueprintSubtypeAgents        BlueprintSubtype = "agents"
@@ -108,24 +90,6 @@ func (e BlueprintType) Valid() bool {
 	}
 }
 
-// Defines values for BlueprintDetailStatus.
-const (
-	BlueprintDetailStatusActive  BlueprintDetailStatus = "active"
-	BlueprintDetailStatusExpired BlueprintDetailStatus = "expired"
-)
-
-// Valid indicates whether the value is a known member of the BlueprintDetailStatus enum.
-func (e BlueprintDetailStatus) Valid() bool {
-	switch e {
-	case BlueprintDetailStatusActive:
-		return true
-	case BlueprintDetailStatusExpired:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for BlueprintDetailSubtype.
 const (
 	BlueprintDetailSubtypeAgents        BlueprintDetailSubtype = "agents"
@@ -189,6 +153,24 @@ func (e BlueprintDetailType) Valid() bool {
 	case BlueprintDetailTypeCursor:
 		return true
 	case BlueprintDetailTypeGeneral:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BlueprintStatus.
+const (
+	Active  BlueprintStatus = "active"
+	Expired BlueprintStatus = "expired"
+)
+
+// Valid indicates whether the value is a known member of the BlueprintStatus enum.
+func (e BlueprintStatus) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case Expired:
 		return true
 	default:
 		return false
@@ -324,24 +306,6 @@ func (e ListSpecLibrariesParamsFreshness) Valid() bool {
 	}
 }
 
-// Defines values for ListSpecLibrariesParamsStatus.
-const (
-	ListSpecLibrariesParamsStatusActive  ListSpecLibrariesParamsStatus = "active"
-	ListSpecLibrariesParamsStatusExpired ListSpecLibrariesParamsStatus = "expired"
-)
-
-// Valid indicates whether the value is a known member of the ListSpecLibrariesParamsStatus enum.
-func (e ListSpecLibrariesParamsStatus) Valid() bool {
-	switch e {
-	case ListSpecLibrariesParamsStatusActive:
-		return true
-	case ListSpecLibrariesParamsStatusExpired:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ListSpecLibrariesParamsType.
 const (
 	ListSpecLibrariesParamsTypeClaude     ListSpecLibrariesParamsType = "claude"
@@ -459,24 +423,6 @@ const (
 func (e ListSpecLibrariesByProjectParamsFreshness) Valid() bool {
 	switch e {
 	case Stale:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListSpecLibrariesByProjectParamsStatus.
-const (
-	ListSpecLibrariesByProjectParamsStatusActive  ListSpecLibrariesByProjectParamsStatus = "active"
-	ListSpecLibrariesByProjectParamsStatusExpired ListSpecLibrariesByProjectParamsStatus = "expired"
-)
-
-// Valid indicates whether the value is a known member of the ListSpecLibrariesByProjectParamsStatus enum.
-func (e ListSpecLibrariesByProjectParamsStatus) Valid() bool {
-	switch e {
-	case ListSpecLibrariesByProjectParamsStatusActive:
-		return true
-	case ListSpecLibrariesByProjectParamsStatusExpired:
 		return true
 	default:
 		return false
@@ -635,7 +581,7 @@ type Blueprint struct {
 	// Source Read-only import provenance; present only for imported blueprints.
 	Source *BlueprintSource `json:"source,omitempty"`
 
-	// Status Current status of the spec library
+	// Status Lifecycle status of a blueprint. `expired` marks a blueprint whose rules no longer apply but whose content is kept for reference.
 	Status BlueprintStatus `json:"status"`
 
 	// Subtype Subtype category for specific type spec libraries
@@ -653,9 +599,6 @@ type Blueprint struct {
 	// UserId ID of the user who owns this spec library
 	UserId string `json:"user_id"`
 }
-
-// BlueprintStatus Current status of the spec library
-type BlueprintStatus string
 
 // BlueprintSubtype Subtype category for specific type spec libraries
 type BlueprintSubtype string
@@ -710,8 +653,8 @@ type BlueprintDetail struct {
 	// Source Read-only import provenance; present only for imported blueprints.
 	Source *BlueprintSource `json:"source,omitempty"`
 
-	// Status Current status of the spec library
-	Status BlueprintDetailStatus `json:"status"`
+	// Status Lifecycle status of a blueprint. `expired` marks a blueprint whose rules no longer apply but whose content is kept for reference.
+	Status BlueprintStatus `json:"status"`
 
 	// Subtype Subtype category for specific type spec libraries
 	Subtype *BlueprintDetailSubtype `json:"subtype,omitempty"`
@@ -728,9 +671,6 @@ type BlueprintDetail struct {
 	// UserId ID of the user who owns this spec library
 	UserId string `json:"user_id"`
 }
-
-// BlueprintDetailStatus Current status of the spec library
-type BlueprintDetailStatus string
 
 // BlueprintDetailSubtype Subtype category for specific type spec libraries
 type BlueprintDetailSubtype string
@@ -770,6 +710,9 @@ type BlueprintSource struct {
 	// Repo Source repository URL the blueprint was imported from.
 	Repo *string `json:"repo,omitempty"`
 }
+
+// BlueprintStatus Lifecycle status of a blueprint. `expired` marks a blueprint whose rules no longer apply but whose content is kept for reference.
+type BlueprintStatus string
 
 // ErrorResponse RFC 9457 Problem Details for HTTP APIs
 type ErrorResponse struct {
@@ -924,7 +867,7 @@ type ListSpecLibrariesParams struct {
 	ProjectId *openapi_types.UUID `form:"project_id,omitempty" json:"project_id,omitempty"`
 
 	// Status Filter by status
-	Status *ListSpecLibrariesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Status *BlueprintStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// Type Filter by type
 	Type *ListSpecLibrariesParamsType `form:"type,omitempty" json:"type,omitempty"`
@@ -957,9 +900,6 @@ type ListSpecLibrariesParams struct {
 // ListSpecLibrariesParamsFreshness defines parameters for ListSpecLibraries.
 type ListSpecLibrariesParamsFreshness string
 
-// ListSpecLibrariesParamsStatus defines parameters for ListSpecLibraries.
-type ListSpecLibrariesParamsStatus string
-
 // ListSpecLibrariesParamsType defines parameters for ListSpecLibraries.
 type ListSpecLibrariesParamsType string
 
@@ -978,7 +918,7 @@ type ListSpecLibrariesByProjectParams struct {
 	Freshness *ListSpecLibrariesByProjectParamsFreshness `form:"freshness,omitempty" json:"freshness,omitempty"`
 
 	// Status Filter by status
-	Status *ListSpecLibrariesByProjectParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Status *BlueprintStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// Type Filter by type
 	Type *ListSpecLibrariesByProjectParamsType `form:"type,omitempty" json:"type,omitempty"`
@@ -1010,9 +950,6 @@ type ListSpecLibrariesByProjectParams struct {
 
 // ListSpecLibrariesByProjectParamsFreshness defines parameters for ListSpecLibrariesByProject.
 type ListSpecLibrariesByProjectParamsFreshness string
-
-// ListSpecLibrariesByProjectParamsStatus defines parameters for ListSpecLibrariesByProject.
-type ListSpecLibrariesByProjectParamsStatus string
 
 // ListSpecLibrariesByProjectParamsType defines parameters for ListSpecLibrariesByProject.
 type ListSpecLibrariesByProjectParamsType string

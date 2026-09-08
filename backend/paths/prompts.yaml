@@ -102,8 +102,7 @@ api-v1-team_id-prompts:
       - name: status
         in: query
         schema:
-          type: string
-          enum: [draft, published]
+          $ref: '../openapi.yaml#/components/schemas/PromptStatus'
         description: Filter by prompt status
       - name: labels
         in: query

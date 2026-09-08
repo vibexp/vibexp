@@ -23,16 +23,16 @@ const (
 
 // Defines values for PromptStatus.
 const (
-	PromptStatusDraft     PromptStatus = "draft"
-	PromptStatusPublished PromptStatus = "published"
+	Draft     PromptStatus = "draft"
+	Published PromptStatus = "published"
 )
 
 // Valid indicates whether the value is a known member of the PromptStatus enum.
 func (e PromptStatus) Valid() bool {
 	switch e {
-	case PromptStatusDraft:
+	case Draft:
 		return true
-	case PromptStatusPublished:
+	case Published:
 		return true
 	default:
 		return false
@@ -168,24 +168,6 @@ func (e ListPromptsParamsFreshness) Valid() bool {
 	}
 }
 
-// Defines values for ListPromptsParamsStatus.
-const (
-	ListPromptsParamsStatusDraft     ListPromptsParamsStatus = "draft"
-	ListPromptsParamsStatusPublished ListPromptsParamsStatus = "published"
-)
-
-// Valid indicates whether the value is a known member of the ListPromptsParamsStatus enum.
-func (e ListPromptsParamsStatus) Valid() bool {
-	switch e {
-	case ListPromptsParamsStatusDraft:
-		return true
-	case ListPromptsParamsStatusPublished:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ListPromptsParamsSortBy.
 const (
 	CreatedAt ListPromptsParamsSortBy = "created_at"
@@ -287,7 +269,9 @@ type Prompt struct {
 	// Similar Computed embedding-similarity neighborhood of this resource (up to 5), derived live at read time from vector similarity — NOT stored edges and distinct from `related`. Populated on the detail GET; empty otherwise.
 	Similar *[]SimilarResource `json:"similar,omitempty"`
 	Slug    string             `json:"slug"`
-	Status  PromptStatus       `json:"status"`
+
+	// Status Publication status of a prompt. A prompt is only exposed over MCP once it is `published`.
+	Status PromptStatus `json:"status"`
 
 	// TeamId Team identifier that owns this prompt
 	TeamId    openapi_types.UUID `json:"team_id"`
@@ -297,9 +281,6 @@ type Prompt struct {
 	// Version Version number for optimistic concurrency control
 	Version int64 `json:"version"`
 }
-
-// PromptStatus defines model for Prompt.Status.
-type PromptStatus string
 
 // PromptListEnvelope defines model for PromptListEnvelope.
 type PromptListEnvelope struct {
@@ -316,6 +297,9 @@ type PromptListResponse struct {
 	TotalCount int      `json:"total_count"`
 	TotalPages int      `json:"total_pages"`
 }
+
+// PromptStatus Publication status of a prompt. A prompt is only exposed over MCP once it is `published`.
+type PromptStatus string
 
 // RelatedResource One endpoint of a relation as seen from the other endpoint, enriched with the related resource's resolved title and link fields. project_id is present for every type; slug is present for artifact/blueprint/prompt and absent for memory.
 type RelatedResource struct {
@@ -450,7 +434,7 @@ type ListPromptsParams struct {
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
 
 	// Status Filter by prompt status
-	Status *ListPromptsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Status *PromptStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// Labels Comma-separated list of labels to filter by
 	Labels *string `form:"labels,omitempty" json:"labels,omitempty"`
@@ -473,9 +457,6 @@ type ListPromptsParams struct {
 
 // ListPromptsParamsFreshness defines parameters for ListPrompts.
 type ListPromptsParamsFreshness string
-
-// ListPromptsParamsStatus defines parameters for ListPrompts.
-type ListPromptsParamsStatus string
 
 // ListPromptsParamsSortBy defines parameters for ListPrompts.
 type ListPromptsParamsSortBy string

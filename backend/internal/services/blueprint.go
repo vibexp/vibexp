@@ -194,7 +194,7 @@ type BlueprintFilters struct {
 func buildBlueprintFromRequest(userID, teamID string, req *models.CreateBlueprintRequest) *models.Blueprint {
 	status := req.Status
 	if status == "" {
-		status = "active"
+		status = models.BlueprintStatusActive
 	}
 
 	blueprintType := req.Type
@@ -233,6 +233,11 @@ func (s *BlueprintService) CreateBlueprint(
 	// Reject an over-limit label list before anything else: the documented
 	// maxItems/maxLength are enforced nowhere else (issue #910).
 	if err := validateLabels(req.Labels); err != nil {
+		return nil, err
+	}
+
+	// Status is checked here so the MCP tools get the REST answer (#912).
+	if err := validateStatus(models.BlueprintStatuses, req.Status); err != nil {
 		return nil, err
 	}
 
@@ -555,6 +560,11 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 	// Reject an over-limit label list before anything else: the documented
 	// maxItems/maxLength are enforced nowhere else (issue #910).
 	if err := validateLabels(req.Labels); err != nil {
+		return nil, err
+	}
+
+	// Status is checked here so the MCP tools get the REST answer (#912).
+	if err := validateOptionalStatus(models.BlueprintStatuses, req.Status); err != nil {
 		return nil, err
 	}
 

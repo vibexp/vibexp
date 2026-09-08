@@ -37,10 +37,7 @@ Blueprint:
       description: Timestamp when the spec library was last updated
       example: "2024-01-15T14:30:00Z"
     status:
-      type: string
-      enum: [active, expired]
-      description: Current status of the spec library
-      example: "active"
+      $ref: './common.yaml#/BlueprintStatus'
     title:
       type: string
       description: Human-readable title for the spec library
@@ -205,11 +202,12 @@ CreateBlueprintRequest:
       description: Subtype category for specific type spec libraries
       example: "sub-agents"
     status:
-      type: string
-      enum: [active, expired]
-      description: Initial status of the spec library
+      # allOf, not a bare $ref: under OpenAPI 3.0.3 a sibling of $ref is
+      # ignored, and `default` is real API surface here (omitting status on
+      # create yields "active").
+      allOf:
+        - $ref: './common.yaml#/BlueprintStatus'
       default: "active"
-      example: "active"
     metadata:
       type: object
       additionalProperties: true
@@ -280,10 +278,7 @@ UpdateBlueprintRequest:
       description: Updated subtype category for specific type spec libraries
       example: "sub-agents"
     status:
-      type: string
-      enum: [active, expired]
-      description: Updated status of the spec library
-      example: "active"
+      $ref: './common.yaml#/BlueprintStatus'
     metadata:
       type: object
       additionalProperties: true

@@ -23,19 +23,19 @@ const (
 
 // Defines values for MemoryStatus.
 const (
-	MemoryStatusActive   MemoryStatus = "active"
-	MemoryStatusArchived MemoryStatus = "archived"
-	MemoryStatusDraft    MemoryStatus = "draft"
+	Active   MemoryStatus = "active"
+	Archived MemoryStatus = "archived"
+	Draft    MemoryStatus = "draft"
 )
 
 // Valid indicates whether the value is a known member of the MemoryStatus enum.
 func (e MemoryStatus) Valid() bool {
 	switch e {
-	case MemoryStatusActive:
+	case Active:
 		return true
-	case MemoryStatusArchived:
+	case Archived:
 		return true
-	case MemoryStatusDraft:
+	case Draft:
 		return true
 	default:
 		return false
@@ -171,27 +171,6 @@ func (e ListMemoriesParamsFreshness) Valid() bool {
 	}
 }
 
-// Defines values for ListMemoriesParamsStatus.
-const (
-	ListMemoriesParamsStatusActive   ListMemoriesParamsStatus = "active"
-	ListMemoriesParamsStatusArchived ListMemoriesParamsStatus = "archived"
-	ListMemoriesParamsStatusDraft    ListMemoriesParamsStatus = "draft"
-)
-
-// Valid indicates whether the value is a known member of the ListMemoriesParamsStatus enum.
-func (e ListMemoriesParamsStatus) Valid() bool {
-	switch e {
-	case ListMemoriesParamsStatusActive:
-		return true
-	case ListMemoriesParamsStatusArchived:
-		return true
-	case ListMemoriesParamsStatusDraft:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ListMemoriesParamsSortBy.
 const (
 	CreatedAt ListMemoriesParamsSortBy = "created_at"
@@ -287,7 +266,7 @@ type Memory struct {
 	// Similar Computed embedding-similarity neighborhood of this resource (up to 5), derived live at read time from vector similarity — NOT stored edges and distinct from `related`. Populated on the detail GET; empty otherwise.
 	Similar *[]SimilarResource `json:"similar,omitempty"`
 
-	// Status Current lifecycle status of the memory
+	// Status Lifecycle status of a memory.
 	Status MemoryStatus `json:"status"`
 
 	// TeamId ID of the team this memory belongs to
@@ -309,9 +288,6 @@ type Memory struct {
 	Version int64 `json:"version"`
 }
 
-// MemoryStatus Current lifecycle status of the memory
-type MemoryStatus string
-
 // MemoryListResponse defines model for MemoryListResponse.
 type MemoryListResponse struct {
 	// Memories List of memories
@@ -329,6 +305,9 @@ type MemoryListResponse struct {
 	// TotalPages Total number of pages
 	TotalPages int `json:"total_pages"`
 }
+
+// MemoryStatus Lifecycle status of a memory.
+type MemoryStatus string
 
 // RelatedResource One endpoint of a relation as seen from the other endpoint, enriched with the related resource's resolved title and link fields. project_id is present for every type; slug is present for artifact/blueprint/prompt and absent for memory.
 type RelatedResource struct {
@@ -459,7 +438,7 @@ type ListMemoriesParams struct {
 	Metadata *string `form:"metadata,omitempty" json:"metadata,omitempty"`
 
 	// Status Filter by lifecycle status. When omitted, archived memories are hidden (active and draft are returned); an explicit value returns only that status. Returns 400 for unknown values.
-	Status *ListMemoriesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Status *MemoryStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// SortBy Field to sort results by. Allowed: text, updated_at, created_at. Returns 400 for unknown values.
 	SortBy *ListMemoriesParamsSortBy `form:"sort_by,omitempty" json:"sort_by,omitempty"`
@@ -476,9 +455,6 @@ type ListMemoriesParams struct {
 
 // ListMemoriesParamsFreshness defines parameters for ListMemories.
 type ListMemoriesParamsFreshness string
-
-// ListMemoriesParamsStatus defines parameters for ListMemories.
-type ListMemoriesParamsStatus string
 
 // ListMemoriesParamsSortBy defines parameters for ListMemories.
 type ListMemoriesParamsSortBy string

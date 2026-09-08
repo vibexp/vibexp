@@ -162,6 +162,11 @@ func (s *ArtifactService) CreateArtifact(
 		return nil, err
 	}
 
+	// Status is checked here so the MCP tools get the REST answer (#912).
+	if err := validateStatus(models.ArtifactStatuses, req.Status); err != nil {
+		return nil, err
+	}
+
 	// Validate and resolve team ID
 	finalTeamID, err := s.validateAndResolveTeamID(ctx, userID, teamID, nil)
 	if err != nil {
@@ -464,6 +469,11 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 	// Reject an over-limit label list before anything else: the documented
 	// maxItems/maxLength are enforced nowhere else (issue #910).
 	if err := validateLabels(req.Labels); err != nil {
+		return nil, err
+	}
+
+	// Status is checked here so the MCP tools get the REST answer (#912).
+	if err := validateOptionalStatus(models.ArtifactStatuses, req.Status); err != nil {
 		return nil, err
 	}
 

@@ -148,3 +148,54 @@ func scalarEnum(proxy *base.SchemaProxy, subject string) ([]string, error) {
 	}
 	return out, nil
 }
+
+// ComponentsWithExtension returns every component schema carrying the given
+// specification extension, mapped to that extension's scalar value — e.g.
+// ComponentsWithExtension("x-subset-of") returns
+// {"PromptStatus": "ResourceStatus", …}.
+//
+// It exists so a gate over a FAMILY of schemas can discover its members from
+// the spec instead of restating them in Go. A hand-written list is the failure
+// mode being avoided: the fifth subset added to common.yaml would simply not be
+// checked, and nothing would say so. Discovering them by extension means a
+// schema is in the gate the moment it claims to be.
+//
+// A non-scalar extension value is an error rather than a skip: the extension is
+// a machine-read declaration, so a shape nobody can read is a spec bug.
+//
+// Access is guarded by validateMu because resolving schema proxies mutates the
+// shared *v3.Document (see RequiredArrayFields).
+func ComponentsWithExtension(extension string) (map[string]string, error) {
+	s, err := load()
+	if err != nil {
+		return nil, err
+	}
+
+	validateMu.Lock()
+	defer validateMu.Unlock()
+
+	out := map[string]string{}
+	if s.model.Components == nil || s.model.Components.Schemas == nil {
+		return out, nil
+	}
+
+	for pair := s.model.Components.Schemas.First(); pair != nil; pair = pair.Next() {
+		proxy := pair.Value()
+		if proxy == nil {
+			continue
+		}
+		sch := proxy.Schema()
+		if sch == nil || sch.Extensions == nil {
+			continue
+		}
+		node, ok := sch.Extensions.Get(extension)
+		if !ok || node == nil {
+			continue
+		}
+		if node.Value == "" {
+			return nil, fmt.Errorf("component schema %q: %s is not a scalar value", pair.Key(), extension)
+		}
+		out[pair.Key()] = node.Value
+	}
+	return out, nil
+}

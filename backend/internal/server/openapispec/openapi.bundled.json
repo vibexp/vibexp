@@ -1093,12 +1093,7 @@
             "in": "query",
             "description": "Filter by status",
             "schema": {
-              "type": "string",
-              "enum": [
-                "active",
-                "draft",
-                "archived"
-              ]
+              "$ref": "#/components/schemas/ArtifactStatus"
             }
           },
           {
@@ -1325,12 +1320,7 @@
             "in": "query",
             "description": "Filter by status",
             "schema": {
-              "type": "string",
-              "enum": [
-                "active",
-                "draft",
-                "archived"
-              ]
+              "$ref": "#/components/schemas/ArtifactStatus"
             }
           },
           {
@@ -3085,12 +3075,7 @@
             "in": "query",
             "description": "Filter by lifecycle status. When omitted, archived memories are hidden (active and draft are returned); an explicit value returns only that status. Returns 400 for unknown values.",
             "schema": {
-              "type": "string",
-              "enum": [
-                "active",
-                "draft",
-                "archived"
-              ]
+              "$ref": "#/components/schemas/MemoryStatus"
             }
           },
           {
@@ -3989,12 +3974,7 @@
             "in": "query",
             "description": "Filter by status",
             "schema": {
-              "type": "string",
-              "enum": [
-                "active",
-                "expired"
-              ],
-              "example": "active"
+              "$ref": "#/components/schemas/BlueprintStatus"
             }
           },
           {
@@ -4265,11 +4245,7 @@
             "in": "query",
             "description": "Filter by status",
             "schema": {
-              "type": "string",
-              "enum": [
-                "active",
-                "expired"
-              ]
+              "$ref": "#/components/schemas/BlueprintStatus"
             }
           },
           {
@@ -5195,11 +5171,7 @@
             "name": "status",
             "in": "query",
             "schema": {
-              "type": "string",
-              "enum": [
-                "draft",
-                "published"
-              ]
+              "$ref": "#/components/schemas/PromptStatus"
             },
             "description": "Filter by prompt status"
           },
@@ -22697,6 +22669,60 @@
           "total_pages"
         ]
       },
+      "ResourceStatus": {
+        "type": "string",
+        "description": "The complete status vocabulary shared by prompts, artifacts, blueprints and memories. Each resource type accepts a named subset of these values, never the whole set; see PromptStatus, ArtifactStatus, BlueprintStatus and MemoryStatus.",
+        "enum": [
+          "active",
+          "draft",
+          "archived",
+          "published",
+          "expired"
+        ],
+        "example": "active"
+      },
+      "PromptStatus": {
+        "type": "string",
+        "description": "Publication status of a prompt. A prompt is only exposed over MCP once it is `published`.",
+        "enum": [
+          "draft",
+          "published"
+        ],
+        "example": "published",
+        "x-subset-of": "ResourceStatus"
+      },
+      "ArtifactStatus": {
+        "type": "string",
+        "description": "Lifecycle status of an artifact.",
+        "enum": [
+          "active",
+          "draft",
+          "archived"
+        ],
+        "example": "active",
+        "x-subset-of": "ResourceStatus"
+      },
+      "BlueprintStatus": {
+        "type": "string",
+        "description": "Lifecycle status of a blueprint. `expired` marks a blueprint whose rules no longer apply but whose content is kept for reference.",
+        "enum": [
+          "active",
+          "expired"
+        ],
+        "example": "active",
+        "x-subset-of": "ResourceStatus"
+      },
+      "MemoryStatus": {
+        "type": "string",
+        "description": "Lifecycle status of a memory.",
+        "enum": [
+          "active",
+          "draft",
+          "archived"
+        ],
+        "example": "active",
+        "x-subset-of": "ResourceStatus"
+      },
       "ResourceAccessDailyCount": {
         "type": "object",
         "description": "Per-source access counts for a single calendar day (UTC), zero-filled.",
@@ -23185,12 +23211,7 @@
             "description": "Project identifier that this prompt belongs to"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "draft",
-              "published"
-            ],
-            "example": "published"
+            "$ref": "#/components/schemas/PromptStatus"
           },
           "mcp_expose": {
             "type": "boolean",
@@ -23294,12 +23315,7 @@
             "description": "Project identifier that this prompt belongs to"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "draft",
-              "published"
-            ],
-            "example": "draft"
+            "$ref": "#/components/schemas/PromptStatus"
           },
           "mcp_expose": {
             "type": "boolean",
@@ -23353,11 +23369,7 @@
             "description": "Project identifier to move this prompt to a different project"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "draft",
-              "published"
-            ]
+            "$ref": "#/components/schemas/PromptStatus"
           },
           "mcp_expose": {
             "type": "boolean",
@@ -26024,14 +26036,7 @@
             "example": "2024-01-15T14:30:00Z"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "draft",
-              "archived"
-            ],
-            "description": "Current status of the artifact",
-            "example": "active"
+            "$ref": "#/components/schemas/ArtifactStatus"
           },
           "title": {
             "type": "string",
@@ -26147,14 +26152,7 @@
             "example": "general"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "draft",
-              "archived"
-            ],
-            "description": "Initial status of the artifact",
-            "example": "active"
+            "$ref": "#/components/schemas/ArtifactStatus"
           },
           "metadata": {
             "type": "object",
@@ -26229,14 +26227,7 @@
             "example": "general"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "draft",
-              "archived"
-            ],
-            "description": "Updated status of the artifact",
-            "example": "active"
+            "$ref": "#/components/schemas/ArtifactStatus"
           },
           "metadata": {
             "type": "object",
@@ -27178,14 +27169,7 @@
             "example": "Remember to update the API documentation when adding new endpoints"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "draft",
-              "archived"
-            ],
-            "description": "Current lifecycle status of the memory",
-            "example": "active"
+            "$ref": "#/components/schemas/MemoryStatus"
           },
           "metadata": {
             "type": "object",
@@ -27283,14 +27267,12 @@
             "example": "Remember to update the API documentation when adding new endpoints"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "draft",
-              "archived"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MemoryStatus"
+              }
             ],
-            "description": "Initial lifecycle status of the memory (defaults to active)",
-            "example": "active"
+            "default": "active"
           },
           "metadata": {
             "type": "object",
@@ -27344,14 +27326,7 @@
             "example": "Updated reminder to include versioning in API documentation"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "draft",
-              "archived"
-            ],
-            "description": "Updated lifecycle status of the memory",
-            "example": "archived"
+            "$ref": "#/components/schemas/MemoryStatus"
           },
           "metadata": {
             "type": "object",
@@ -27643,13 +27618,7 @@
             "example": "2024-01-15T14:30:00Z"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "expired"
-            ],
-            "description": "Current status of the spec library",
-            "example": "active"
+            "$ref": "#/components/schemas/BlueprintStatus"
           },
           "title": {
             "type": "string",
@@ -27875,14 +27844,12 @@
             "example": "sub-agents"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "expired"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BlueprintStatus"
+              }
             ],
-            "description": "Initial status of the spec library",
-            "default": "active",
-            "example": "active"
+            "default": "active"
           },
           "metadata": {
             "type": "object",
@@ -27988,13 +27955,7 @@
             "example": "sub-agents"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "expired"
-            ],
-            "description": "Updated status of the spec library",
-            "example": "active"
+            "$ref": "#/components/schemas/BlueprintStatus"
           },
           "metadata": {
             "type": "object",

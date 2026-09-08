@@ -435,8 +435,11 @@ func (s *Server) validateBlueprintStatus(w http.ResponseWriter, status *string) 
 	if status == nil || *status == "" {
 		return true
 	}
-	if *status != "active" && *status != "expired" {
-		writeErrorResponse(w, nil, "validation_error", "Status must be one of: active, expired", http.StatusBadRequest)
+	if !models.IsAllowedStatus(models.BlueprintStatuses, *status) {
+		// Message built from the allowlist, not restated: the two must never
+		// disagree about what is accepted (#912).
+		writeErrorResponse(w, nil, "validation_error",
+			"Status must be one of: "+strings.Join(models.BlueprintStatuses, ", "), http.StatusBadRequest)
 		return false
 	}
 	return true
@@ -462,7 +465,7 @@ func (s *Server) handleCreateBlueprintError(w http.ResponseWriter, userID string
 		return
 	}
 
-	if errors.Is(err, services.ErrInvalidLabels) {
+	if errors.Is(err, services.ErrInvalidLabels) || errors.Is(err, services.ErrInvalidStatus) {
 		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -554,7 +557,8 @@ func (s *Server) handleUpdateBlueprintError(w http.ResponseWriter, userID, proje
 		return
 	}
 
-	if errors.Is(err, services.ErrInvalidBlueprintPath) || errors.Is(err, services.ErrInvalidLabels) {
+	if errors.Is(err, services.ErrInvalidBlueprintPath) || errors.Is(err, services.ErrInvalidLabels) ||
+		errors.Is(err, services.ErrInvalidStatus) {
 		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return
 	}

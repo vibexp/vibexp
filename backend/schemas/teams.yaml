@@ -367,9 +367,11 @@ TeamDeleteConflictError:
     - timestamp
 
 # RFC 9457 problem-details payload for invitation 409s (code DUPLICATE_MEMBERS).
-# Self-contained (schema files do not cross-reference common.yaml) and extends
-# the standard error shape with the top-level duplicate_emails array the
+# Spelled out in full rather than composed from common.yaml's ErrorResponse: it
+# extends the standard error shape with the top-level duplicate_emails array the
 # handler emits (internal/errors/builder.go BuildDuplicateMembersError).
+# (Schema files MAY cross-reference common.yaml -- the resource status subsets
+# do, see #912 -- so the old "self-contained" note here no longer applies.)
 InvitationDuplicateMembersError:
   type: object
   properties:

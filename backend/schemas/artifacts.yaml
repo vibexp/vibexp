@@ -37,10 +37,7 @@ Artifact:
       description: Timestamp when the artifact was last updated
       example: "2024-01-15T14:30:00Z"
     status:
-      type: string
-      enum: [active, draft, archived]
-      description: Current status of the artifact
-      example: "active"
+      $ref: './common.yaml#/ArtifactStatus'
     title:
       type: string
       description: Human-readable title for the artifact
@@ -145,10 +142,7 @@ CreateArtifactRequest:
         to general when omitted.
       example: "general"
     status:
-      type: string
-      enum: [active, draft, archived]
-      description: Initial status of the artifact
-      example: "active"
+      $ref: './common.yaml#/ArtifactStatus'
     metadata:
       type: object
       additionalProperties: true
@@ -209,10 +203,7 @@ UpdateArtifactRequest:
         fixed enum.
       example: "general"
     status:
-      type: string
-      enum: [active, draft, archived]
-      description: Updated status of the artifact
-      example: "active"
+      $ref: './common.yaml#/ArtifactStatus'
     metadata:
       type: object
       additionalProperties: true

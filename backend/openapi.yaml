@@ -87,6 +87,18 @@ components:
     PaginatedResponse:
       $ref: "./schemas/common.yaml#/PaginatedResponse"
 
+    # Shared status vocabulary and the per-resource-type subsets drawn from it (#912)
+    ResourceStatus:
+      $ref: "./schemas/common.yaml#/ResourceStatus"
+    PromptStatus:
+      $ref: "./schemas/common.yaml#/PromptStatus"
+    ArtifactStatus:
+      $ref: "./schemas/common.yaml#/ArtifactStatus"
+    BlueprintStatus:
+      $ref: "./schemas/common.yaml#/BlueprintStatus"
+    MemoryStatus:
+      $ref: "./schemas/common.yaml#/MemoryStatus"
+
     ResourceAccessDailyCount:
       type: object
       description: Per-source access counts for a single calendar day (UTC), zero-filled.

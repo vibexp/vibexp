@@ -139,6 +139,20 @@ func (s *PromptService) publishPromptCreatedEvent(ctx context.Context, prompt *m
 	}
 }
 
+// resolvePromptStatus validates a create request's status against PromptStatus
+// and applies the documented default. It runs in the SERVICE so the MCP tools
+// get the same rejection the REST handlers give, and before the project lookup
+// because it needs nothing loaded (#912).
+func resolvePromptStatus(status string) (string, error) {
+	if err := validateStatus(models.PromptStatuses, status); err != nil {
+		return "", err
+	}
+	if status == "" {
+		return models.PromptStatusDraft, nil
+	}
+	return status, nil
+}
+
 func (s *PromptService) CreatePrompt(userID, teamID string, req *models.CreatePromptRequest) (*models.Prompt, error) {
 	ctx := context.Background()
 
@@ -153,13 +167,14 @@ func (s *PromptService) CreatePrompt(userID, teamID string, req *models.CreatePr
 		return nil, authzErr
 	}
 
-	// Validate that the project exists and belongs to the user
-	if err := s.validateProjectOwnership(ctx, userID, req.ProjectID); err != nil {
+	status, err := resolvePromptStatus(req.Status)
+	if err != nil {
 		return nil, err
 	}
 
-	if req.Status == "" {
-		req.Status = "draft"
+	// Validate that the project exists and belongs to the user
+	if err := s.validateProjectOwnership(ctx, userID, req.ProjectID); err != nil {
+		return nil, err
 	}
 
 	// Default mcp_expose to true if not specified
@@ -182,7 +197,7 @@ func (s *PromptService) CreatePrompt(userID, teamID string, req *models.CreatePr
 		UserID:      userID,
 		TeamID:      finalTeamID,
 		ProjectID:   req.ProjectID,
-		Status:      req.Status,
+		Status:      status,
 		MCPExpose:   mcpExpose,
 		Labels:      labels,
 		CreatedAt:   time.Now(),
@@ -340,6 +355,12 @@ func (s *PromptService) updatePromptInternal(
 	// it always passed; the rule now simply says what it does.
 	if authzErr := s.authz.Can(ctx, userID, teamID, authz.ResourceUpdateAny); authzErr != nil {
 		return nil, authzErr
+	}
+
+	if req.Status != nil {
+		if statusErr := validateStatus(models.PromptStatuses, *req.Status); statusErr != nil {
+			return nil, statusErr
+		}
 	}
 
 	// Check if there are any updates to apply
