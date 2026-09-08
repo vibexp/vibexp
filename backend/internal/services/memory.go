@@ -30,11 +30,15 @@ var ErrInvalidMemoryTitle = errors.New("invalid title")
 
 // validateMemoryTitle rejects an over-long title. A nil title (absent, or an
 // explicit null) is valid: the field is optional and nullable.
+//
+// The length is measured on the TRIMMED value, because that is what
+// normalizeMemoryTitle stores -- measuring the raw string would 400 a title
+// that fits the column perfectly well once its stray whitespace is gone.
 func validateMemoryTitle(title *string) error {
 	if title == nil {
 		return nil
 	}
-	if n := len([]rune(*title)); n > MaxMemoryTitleLength {
+	if n := len([]rune(strings.TrimSpace(*title))); n > MaxMemoryTitleLength {
 		return fmt.Errorf("%w: title may be at most %d characters, got %d",
 			ErrInvalidMemoryTitle, MaxMemoryTitleLength, n)
 	}

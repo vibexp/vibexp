@@ -537,4 +537,12 @@ func TestBuildMemoryUpdateRequest_Title(t *testing.T) {
 		req := buildMemoryUpdateRequest(&UpdateMemoryParams{Text: "new text"}, nil)
 		assert.False(t, req.Title.Set, `"" must mean "unchanged", never "clear it"`)
 	})
+
+	// The service normalises a whitespace-only title to nil, so letting "   "
+	// through here would clear the title -- the one edit this transport is
+	// documented not to be able to make.
+	t.Run("a whitespace-only title leaves the field unset, not cleared", func(t *testing.T) {
+		req := buildMemoryUpdateRequest(&UpdateMemoryParams{Title: "   "}, nil)
+		assert.False(t, req.Title.Set)
+	})
 }

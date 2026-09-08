@@ -296,7 +296,7 @@ func (r *MemoryRepository) queryList(
 	return memories, nil
 }
 
-// scanMemoryRows scans the 10-column memory projection shared by the list and
+// scanMemoryRows scans the 11-column memory projection shared by the list and
 // metadata-search queries, unmarshalling the JSON metadata column per row.
 func scanMemoryRows(rows *sql.Rows) ([]models.Memory, error) {
 	memories := make([]models.Memory, 0)

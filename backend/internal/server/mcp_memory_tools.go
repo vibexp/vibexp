@@ -100,11 +100,13 @@ func (s *Server) storeMemory(
 
 	createReq := &models.CreateMemoryRequest{
 		ProjectID: params.ProjectID,
-		Title:     optionalMCPString(params.Title),
-		Text:      params.Text,
-		Status:    statusPtr,
-		Metadata:  params.Metadata,
-		Labels:    params.Labels,
+		// "" is how the MCP wire format spells "argument omitted": there is no
+		// null for a scalar, so an absent title must not become an empty one.
+		Title:    optionalString(params.Title),
+		Text:     params.Text,
+		Status:   statusPtr,
+		Metadata: params.Metadata,
+		Labels:   params.Labels,
 	}
 
 	memory, err := s.container.MemoryService().CreateMemory(userID, teamID, createReq)
@@ -202,7 +204,10 @@ func buildMemorySearchItems(memories []models.Memory) []memorySearchItem {
 // operation (`{"title": null}`).
 func buildMemoryUpdateRequest(params *UpdateMemoryParams, statusPtr *string) *models.UpdateMemoryRequest {
 	updateReq := &models.UpdateMemoryRequest{Status: statusPtr}
-	if params.Title != "" {
+	// TrimSpace, not just != "": normalizeMemoryTitle collapses a whitespace-only
+	// title to nil downstream, so passing "   " through here would CLEAR the
+	// title -- the one thing this transport is documented not to be able to do.
+	if strings.TrimSpace(params.Title) != "" {
 		updateReq.Title = models.NewOptionalString(params.Title)
 	}
 	if params.Text != "" {
@@ -270,14 +275,4 @@ func (s *Server) updateMemory(
 		},
 		StructuredContent: result,
 	}, result, nil
-}
-
-// optionalMCPString maps an MCP string argument to the optional pointer the
-// service requests use: "" means the caller omitted it (the MCP wire format has
-// no null for a scalar argument), which is not the same as setting it empty.
-func optionalMCPString(v string) *string {
-	if v == "" {
-		return nil
-	}
-	return &v
 }

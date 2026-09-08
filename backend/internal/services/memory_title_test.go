@@ -43,6 +43,13 @@ func TestMemoryService_CreateMemory_Title(t *testing.T) {
 			want:  titlePtr(strings.Repeat("x", services.MaxMemoryTitleLength)),
 		},
 		{
+			// The limit is measured after trimming, because that is what gets
+			// stored -- rejecting this would 400 a title that fits the column.
+			name:  "the limit is measured on the trimmed value",
+			title: titlePtr("  " + strings.Repeat("x", services.MaxMemoryTitleLength) + "  "),
+			want:  titlePtr(strings.Repeat("x", services.MaxMemoryTitleLength)),
+		},
+		{
 			name:    "one rune over the limit is rejected",
 			title:   titlePtr(strings.Repeat("x", services.MaxMemoryTitleLength+1)),
 			wantErr: true,
