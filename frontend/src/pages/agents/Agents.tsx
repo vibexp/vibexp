@@ -40,6 +40,11 @@ interface AgentStatsSummary {
 
 const AGENT_STATUSES: readonly AgentStatus[] = ['active', 'paused', 'error']
 
+/**
+ * `agentService.getAgents` does not forward `sort_by`/`sort_order` today and no
+ * agent column is sortable, so these keys only pin the URL contract — validated
+ * here so #908 can wire the sort up without a junk value reaching the API.
+ */
 const AGENT_SORT_KEYS: readonly AgentSortKey[] = [
   'name',
   'status',
@@ -143,6 +148,8 @@ export function Agents() {
       limit: PAGE_SIZE,
       search: filters.search || undefined,
       status,
+      // Dropped by the service until #908 wires agent sorting; sent so the
+      // request shape does not have to change when it does.
       sort_by: sortKey,
       sort_order: sortOrder,
     })
