@@ -31,6 +31,7 @@ type migration016Fixtures struct {
 	scalarTags   string
 	objectTags   string
 	overflowTags string
+	messyTags    string
 	backdated    string
 }
 
@@ -75,6 +76,11 @@ func seedMigration016Fixtures(t *testing.T, db *sql.DB) migration016Fixtures {
 		`{"tags": ["t1","t2",` +
 			`"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",` +
 			`"t4","t5","t6","t7","t8","t9","t10","t11","t12"]}`)
+	// Untrimmed and duplicated: the write path trims and de-duplicates, so a
+	// backfill that did not would land values it could never produce -- and an
+	// untrimmed label matches no `?labels=` filter, because the query side IS
+	// trimmed.
+	fx.messyTags = insert(`{"tags": ["  api ", "api", "onboarding ", "  "]}`)
 	fx.backdated = insert(`{"tags": ["stale-check"]}`)
 
 	// updated_at is an EDIT signal: search recency ranking and resource freshness
@@ -176,6 +182,11 @@ func TestMigration016_ResourceLabels(t *testing.T) {
 	// The backfill is an UPDATE on the one table carrying an unconditional
 	// updated_at trigger. Left enabled, it would mark every migrated memory as
 	// edited just now, corrupting search recency ranking and resource freshness.
+	t.Run("the backfill normalises exactly as the write path does", func(t *testing.T) {
+		assert.Equal(t, []string{"api", "onboarding"}, memoryLabels(t, db, fx.messyTags),
+			"trimmed, de-duplicated on the first occurrence, empties dropped")
+	})
+
 	t.Run("the backfill does not look like an edit", func(t *testing.T) {
 		var updatedAt string
 		require.NoError(t, db.QueryRow(

@@ -268,6 +268,11 @@ func blueprintFiltersFromQuery(
 		return services.BlueprintFilters{}, apierrors.NewBadRequestError(err.Error())
 	}
 
+	labels, err := parseLabelsFilter(query.labels)
+	if err != nil {
+		return services.BlueprintFilters{}, err
+	}
+
 	pagination := validatePaginationParams(
 		intPtrToQueryString(query.page), intPtrToQueryString(query.limit),
 	)
@@ -283,7 +288,7 @@ func blueprintFiltersFromQuery(
 		SortBy:         query.sortBy,
 		SortOrder:      query.sortOrder,
 		MetadataFilter: metadataFilter,
-		Labels:         parseLabelsFilter(query.labels),
+		Labels:         labels,
 		Page:           pagination.Page,
 		Limit:          pagination.Limit,
 	}, nil

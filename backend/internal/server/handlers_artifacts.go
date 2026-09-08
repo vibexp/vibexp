@@ -249,6 +249,11 @@ func artifactFiltersFromQuery(
 		return services.ArtifactFilters{}, apierrors.NewBadRequestError(err.Error())
 	}
 
+	labels, err := parseLabelsFilter(query.labels)
+	if err != nil {
+		return services.ArtifactFilters{}, err
+	}
+
 	pagination := validatePaginationParams(
 		intPtrToQueryString(query.page), intPtrToQueryString(query.limit),
 	)
@@ -263,7 +268,7 @@ func artifactFiltersFromQuery(
 		SortBy:         query.sortBy,
 		SortOrder:      query.sortOrder,
 		MetadataFilter: metadataFilter,
-		Labels:         parseLabelsFilter(query.labels),
+		Labels:         labels,
 		Page:           pagination.Page,
 		Limit:          pagination.Limit,
 	}, nil

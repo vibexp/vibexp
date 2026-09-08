@@ -1120,7 +1120,7 @@
           {
             "name": "labels",
             "in": "query",
-            "description": "Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels.",
+            "description": "Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels. At most 25 labels, each at most 50 characters; beyond that the request is rejected with 400.",
             "schema": {
               "type": "string"
             },
@@ -1352,7 +1352,7 @@
           {
             "name": "labels",
             "in": "query",
-            "description": "Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels.",
+            "description": "Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels. At most 25 labels, each at most 50 characters; beyond that the request is rejected with 400.",
             "schema": {
               "type": "string"
             },
@@ -3065,7 +3065,7 @@
           {
             "name": "labels",
             "in": "query",
-            "description": "Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels.",
+            "description": "Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels. At most 25 labels, each at most 50 characters; beyond that the request is rejected with 400.",
             "schema": {
               "type": "string"
             },
@@ -4046,7 +4046,7 @@
           {
             "name": "labels",
             "in": "query",
-            "description": "Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels.",
+            "description": "Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels. At most 25 labels, each at most 50 characters; beyond that the request is rejected with 400.",
             "schema": {
               "type": "string"
             },
@@ -4318,7 +4318,7 @@
           {
             "name": "labels",
             "in": "query",
-            "description": "Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels.",
+            "description": "Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels. At most 25 labels, each at most 50 characters; beyond that the request is rejected with 400.",
             "schema": {
               "type": "string"
             },

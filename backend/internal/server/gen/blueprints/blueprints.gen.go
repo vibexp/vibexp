@@ -935,7 +935,7 @@ type ListSpecLibrariesParams struct {
 	// Search Search in title, description, and content
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
 
-	// Labels Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels.
+	// Labels Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels. At most 25 labels, each at most 50 characters; beyond that the request is rejected with 400.
 	Labels *string `form:"labels,omitempty" json:"labels,omitempty"`
 
 	// Metadata Filter by metadata as a JSON object of key to array of string values. Keys are combined with AND, values within a key with OR, and an empty array means "the key exists". Values match metadata stored as a scalar or as an array, and numeric/boolean values are matched by their string form. At most 10 keys, 25 values per key, key length 255, value length 512. Example: {"env":["prod","staging"],"team":["core"]}
@@ -989,7 +989,7 @@ type ListSpecLibrariesByProjectParams struct {
 	// Search Search in title, description, and content
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
 
-	// Labels Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels.
+	// Labels Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels. At most 25 labels, each at most 50 characters; beyond that the request is rejected with 400.
 	Labels *string `form:"labels,omitempty" json:"labels,omitempty"`
 
 	// Metadata Filter by metadata as a JSON object of key to array of string values. Keys are combined with AND, values within a key with OR, and an empty array means "the key exists". Values match metadata stored as a scalar or as an array, and numeric/boolean values are matched by their string form. At most 10 keys, 25 values per key, key length 255, value length 512. Example: {"env":["prod","staging"],"team":["core"]}

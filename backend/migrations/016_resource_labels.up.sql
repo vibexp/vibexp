@@ -29,9 +29,13 @@ CREATE INDEX idx_blueprints_labels ON public.blueprints USING gin (labels);
 CREATE INDEX idx_memories_labels   ON public.memories   USING gin (labels);
 
 -- Backfill the memory convention. Guarded by jsonb_typeof so a scalar or object
--- parked at that key cannot abort the whole migration, and capped at the same
--- 10 x 50 limits the API validates, so the backfill cannot land a row the API
--- would reject on the next edit. The key is then removed from metadata: the
+-- parked at that key cannot abort the whole migration, and normalised exactly as
+-- services.normalizeLabels does on every write -- trimmed, empties dropped,
+-- de-duplicated on the first occurrence, truncated to 50 characters and capped at
+-- 10 entries. Anything looser would land rows the write path could never produce:
+-- an untrimmed label matches no `?labels=` filter (the query side IS trimmed),
+-- and an over-long or over-full list is one the API would reject on the next
+-- edit. The key is then removed from metadata: the
 -- write path (services.MemoryService) folds any `tags` an old client still
 -- sends into labels, so nothing re-creates it.
 --
@@ -45,10 +49,17 @@ UPDATE public.memories
    SET labels = (
            SELECT COALESCE(array_agg(tag ORDER BY ord), '{}'::text[])
              FROM (
-                   SELECT left(tag, 50) AS tag, ord
-                     FROM jsonb_array_elements_text(metadata->'tags')
-                          WITH ORDINALITY AS elems(tag, ord)
-                    WHERE tag <> ''
+                   SELECT tag, ord
+                     FROM (
+                           SELECT DISTINCT ON (tag) tag, ord
+                             FROM (
+                                   SELECT left(btrim(tag), 50) AS tag, ord
+                                     FROM jsonb_array_elements_text(metadata->'tags')
+                                          WITH ORDINALITY AS elems(tag, ord)
+                                    WHERE btrim(tag) <> ''
+                                  ) AS trimmed
+                            ORDER BY tag, ord
+                          ) AS deduped
                     ORDER BY ord
                     LIMIT 10
                   ) AS capped

@@ -164,13 +164,18 @@ func memoryFiltersFromParams(
 		sortOrder = strings.ToLower(string(*params.SortOrder))
 	}
 
+	labels, err := parseLabelsFilter(optionalStringValue(params.Labels))
+	if err != nil {
+		return services.MemoryFilters{}, err
+	}
+
 	return services.MemoryFilters{
 		Freshness:      freshness,
 		TeamID:         teamID,
 		ProjectID:      projectID,
 		Search:         optionalStringValue(params.Search),
 		MetadataFilter: metadataFilter,
-		Labels:         parseLabelsFilter(optionalStringValue(params.Labels)),
+		Labels:         labels,
 		Status:         status,
 		SortBy:         sortBy,
 		SortOrder:      sortOrder,
@@ -515,27 +520,54 @@ func (s *Server) memoriesResponseErrorHandler(w http.ResponseWriter, r *http.Req
 	apierrors.WriteJSONError(w, r, apierrors.NewInternalError(memoriesMsgInternalError))
 }
 
+// MaxLabelsFilterValues bounds the `labels` query parameter. It mirrors
+// MaxMetadataFilterValues, the per-key cap on the `metadata` parameter of the
+// same five list operations: both expand into one bound array in the WHERE
+// clause, so both need the same ceiling on how much work one request can ask
+// Postgres for. It is deliberately larger than models.MaxLabels -- a resource
+// carries at most 10 labels, but a filter legitimately unions labels across
+// many resources.
+const MaxLabelsFilterValues = 25
+
 // parseLabelsFilter splits the comma-separated `labels` query parameter into the
-// list the repositories match with an array-overlap predicate (issue #910).
+// list the repositories match with an array-overlap predicate (issue #910), and
+// enforces the documented limits.
+//
 // Empty entries are dropped so "a,,b" and a trailing comma mean what a reader
 // expects rather than filtering on a label that cannot exist; a parameter that
-// is empty or all separators yields nil, i.e. no filtering at all.
+// is empty or all separators yields nil, i.e. no filtering at all. Entries are
+// trimmed to match how labels are normalised on write.
+//
+// Over-limit input is REJECTED rather than truncated, mirroring the sibling
+// `metadata` parameter: a silently narrowed filter returns rows that do not
+// answer the question that was asked. A label longer than models.MaxLabelLength
+// could not match any stored label either, so it is a client bug worth naming.
 //
 // It is a free function, not a method: the four resource list handlers build
 // their filters through two methods and two free functions, so only a free
 // function can be shared by all of them.
-func parseLabelsFilter(raw string) []string {
+func parseLabelsFilter(raw string) ([]string, error) {
 	if raw == "" {
-		return nil
+		return nil, nil
 	}
 	out := make([]string, 0, strings.Count(raw, ",")+1)
 	for _, label := range strings.Split(raw, ",") {
-		if trimmed := strings.TrimSpace(label); trimmed != "" {
-			out = append(out, trimmed)
+		trimmed := strings.TrimSpace(label)
+		if trimmed == "" {
+			continue
 		}
+		if len([]rune(trimmed)) > models.MaxLabelLength {
+			return nil, apierrors.NewBadRequestError(fmt.Sprintf(
+				"labels: each label may be at most %d characters", models.MaxLabelLength))
+		}
+		out = append(out, trimmed)
+	}
+	if len(out) > MaxLabelsFilterValues {
+		return nil, apierrors.NewBadRequestError(fmt.Sprintf(
+			"labels: at most %d labels may be filtered on, got %d", MaxLabelsFilterValues, len(out)))
 	}
 	if len(out) == 0 {
-		return nil
+		return nil, nil
 	}
-	return out
+	return out, nil
 }
