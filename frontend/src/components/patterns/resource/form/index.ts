@@ -33,4 +33,13 @@ export {
   ResourceFormPage,
   type ResourceFormPageProps,
 } from './ResourceFormPage'
+export {
+  ResourceFormReadingPage,
+  type ResourceFormReadingPageProps,
+} from './ResourceFormReadingPage'
 export { TaxonomyInput, type TaxonomyInputProps } from './TaxonomyInput'
+export {
+  type ResourceFormSlots,
+  useResourceForm,
+  type UseResourceFormOptions,
+} from './useResourceForm'

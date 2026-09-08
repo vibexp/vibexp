@@ -24,6 +24,9 @@ export {
   type ResourceFormMode,
   ResourceFormPage,
   type ResourceFormPageProps,
+  ResourceFormReadingPage,
+  type ResourceFormReadingPageProps,
+  type ResourceFormSlots,
   type ResourceFormValues,
   SLUG_MESSAGE,
   SLUG_PATTERN,
@@ -32,6 +35,8 @@ export {
   stringValue,
   TaxonomyInput,
   type TaxonomyInputProps,
+  useResourceForm,
+  type UseResourceFormOptions,
 } from './form'
 export {
   getResourceDescriptor,

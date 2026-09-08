@@ -33,6 +33,14 @@ const READING_MEASURE = 'max-w-[72ch]'
  */
 const EXPAND_SCROLL_FALLBACK_MS = 300
 
+/**
+ * How the article is being consumed. `editing` is the same shell — same
+ * measure, same gutters, same folding details column — hosting a form rather
+ * than a document (#916); it is deliberately a small branch and never a second
+ * layout.
+ */
+export type ReadingPresentation = 'reading' | 'editing'
+
 export interface ReadingPageProps {
   title: string
   /** Lead paragraph or a row of badges under the title. */
@@ -43,6 +51,8 @@ export interface ReadingPageProps {
   sections?: readonly ReadingSection[]
   /** The article body. */
   children: ReactNode
+  /** `editing` hosts a form in the article; defaults to `reading`. */
+  presentation?: ReadingPresentation
   className?: string
 }
 
@@ -61,6 +71,11 @@ export interface ReadingPageProps {
  * - `md–lg`: the details open as a right-side sheet from the header toggle.
  * - `< md`: actions render as chips under the title; the details open as a
  *   bottom sheet.
+ * - `presentation="editing"` is the identical layout hosting an edit form
+ *   (#916). It changes nothing structural — the whole point is that leaving
+ *   edit mode is not a visual jump — and only keeps the details panel
+ *   registered while the page is still loading its resource, so the header
+ *   toggle and the column do not appear late.
  *
  * Domain-free: no data fetching, no resource knowledge. Resource pages go
  * through `ResourceReadingPage`, which adds the standard sections.
@@ -71,12 +86,21 @@ export function ReadingPage({
   actions = [],
   sections = [],
   children,
+  presentation = 'reading',
   className,
 }: Readonly<ReadingPageProps>) {
   const visibleSections = sections.filter(
     s => s.content !== null && s.content !== undefined && s.content !== false
   )
-  const hasDetails = visibleSections.length > 0 || actions.length > 0
+  // An edit page paints the shell before its resource resolves, so it has no
+  // sections and no Save/Cancel yet. Registering the panel anyway keeps the
+  // header toggle and the column present across that fetch instead of having
+  // them pop in — the detail pages have nothing to load into the shell, so
+  // this only applies while editing.
+  const hasDetails =
+    visibleSections.length > 0 ||
+    actions.length > 0 ||
+    presentation === 'editing'
 
   useReadingShell({ details: hasDetails })
 
@@ -92,6 +116,13 @@ export function ReadingPage({
   // Whether the sticky details rail is rendered — it only exists at lg+;
   // below that the details are a sheet.
   const railRendered = hasDetails && isDesktop
+
+  // Reading actions are a convenience, so below `md` they become chips and in
+  // between they live in the sheet. A form's Save is not a convenience: at
+  // 768–1023px there is no rail and no chip row, which would leave the primary
+  // action reachable only by first opening the details sheet. So while editing,
+  // the chips cover every width the rail does not.
+  const actionsAsChips = presentation === 'editing' ? !isDesktop : !isTablet
 
   const asideRef = useRef<HTMLElement>(null)
   const [pendingSection, setPendingSection] = useState<string | null>(null)
@@ -137,6 +168,7 @@ export function ReadingPage({
       <div
         className={cn('min-w-0 flex-1', className)}
         data-testid="reading-page"
+        data-presentation={presentation}
       >
         <article
           className={cn(
@@ -151,7 +183,7 @@ export function ReadingPage({
                 {description}
               </div>
             )}
-            {!isTablet && (
+            {actionsAsChips && (
               <ReadingActions
                 actions={actions}
                 layout="chips"
@@ -168,6 +200,7 @@ export function ReadingPage({
           ref={asideRef}
           aria-label="Details"
           data-testid="reading-details"
+          data-presentation={presentation}
           data-state={detailsOpen ? 'open' : 'collapsed'}
           onTransitionEnd={handleTransitionEnd}
           className={cn(
@@ -196,17 +229,22 @@ export function ReadingPage({
               isTablet ? 'w-80 sm:max-w-sm' : 'h-[78dvh] rounded-t-xl'
             )}
             data-testid="reading-details-sheet"
+            data-presentation={presentation}
           >
             <SheetHeader className="border-b px-5 py-4 text-left">
               <SheetTitle>Details</SheetTitle>
               <SheetDescription className="sr-only">
-                Metadata and activity for {title}
+                {presentation === 'editing'
+                  ? `Fields and actions for ${title}`
+                  : `Metadata and activity for ${title}`}
               </SheetDescription>
             </SheetHeader>
             <DetailsColumn
               actions={actions}
               sections={visibleSections}
-              showActions={isTablet}
+              // Never twice: the grid exists for the widths the chip row does
+              // not cover, and while editing that row now reaches up to `lg`.
+              showActions={isTablet && !actionsAsChips}
             />
           </SheetContent>
         </Sheet>

@@ -1,18 +1,14 @@
-import { AlertCircle, ArrowLeft, Save } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertCircle, ArrowLeft } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { PageHeader } from '@/components/PageHeader'
-import type {
-  ResourceFormHandle,
-  ResourceFormValues,
-} from '@/components/patterns/resource'
+import { ReadingPage } from '@/components/patterns/reading-page'
+import type { ResourceFormValues } from '@/components/patterns/resource'
 import {
   formHeading,
-  formSaveLabel,
   getResourceDescriptor,
-  ResourceFormPage,
+  ResourceFormReadingPage,
 } from '@/components/patterns/resource'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -33,6 +29,11 @@ import { getErrorMessage } from '@/utils/errorHandling'
 
 const descriptor = getResourceDescriptor('memory')
 
+/** Order-sensitive: the tag list is a sequence the reader can reorder. */
+function sameTags(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((tag, index) => tag === b[index])
+}
+
 export function MemoryEdit() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -46,7 +47,6 @@ export function MemoryEdit() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updating, setUpdating] = useState(false)
-  const formRef = useRef<ResourceFormHandle>(null)
 
   const loadAll = useCallback(async () => {
     if (isLoadingTeam) return
@@ -119,21 +119,24 @@ export function MemoryEdit() {
     [memory]
   )
 
+  // Loading and not-found render in the reading shell too, so the layout is
+  // in place before the fetch resolves rather than arriving with the data.
   if (isLoadingTeam || loading) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Loading memory…" />
+      <ReadingPage title="Loading memory…" presentation="editing">
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
-      </div>
+      </ReadingPage>
     )
   }
 
   if (error || !memory) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Memory not found" />
+      // A terminal error state, not a page waiting on a fetch: there is no
+      // form coming, so the editing presentation would only add an empty
+      // details column and a toggle that opens nothing.
+      <ReadingPage title="Memory not found">
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Could not load memory</AlertTitle>
@@ -143,6 +146,7 @@ export function MemoryEdit() {
         </Alert>
         <Button
           variant="outline"
+          className="mt-6"
           onClick={() => {
             void navigate('/memories')
           }}
@@ -150,56 +154,31 @@ export function MemoryEdit() {
           <ArrowLeft className="mr-2 size-4" />
           Back to memories
         </Button>
-      </div>
+      </ReadingPage>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={formHeading(descriptor, 'edit')}
-        description="Update the content or tags."
-        actions={
-          <>
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate('/memories')
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-            <Button
-              onClick={() => {
-                formRef.current?.submit()
-              }}
-              disabled={updating}
-            >
-              <Save className="mr-2 size-4" />
-              {updating ? 'Saving…' : formSaveLabel(descriptor, 'edit')}
-            </Button>
-          </>
-        }
-      />
-      <ResourceFormPage
-        ref={formRef}
-        descriptor={descriptor}
-        mode="edit"
-        initialValues={initialValues}
-        onSubmit={handleSubmit}
-        isLoading={updating}
-        metadataReservedKeys={RESERVED_METADATA_KEYS}
-        extensions={{
-          tags: (
-            <MemoryTagsCard
-              value={tags}
-              onChange={setTags}
-              disabled={updating}
-            />
-          ),
-        }}
-      />
-    </div>
+    <ResourceFormReadingPage
+      title={formHeading(descriptor, 'edit')}
+      description="Update the content or tags."
+      descriptor={descriptor}
+      mode="edit"
+      initialValues={initialValues}
+      onSubmit={handleSubmit}
+      isLoading={updating}
+      metadataReservedKeys={RESERVED_METADATA_KEYS}
+      // The tags card is page state, invisible to react-hook-form: without
+      // this, adding a tag and hitting Cancel discards it with no prompt.
+      extraDirty={!sameTags(tags, extractTags(memory.metadata))}
+      extensions={{
+        tags: (
+          <MemoryTagsCard value={tags} onChange={setTags} disabled={updating} />
+        ),
+      }}
+      onCancel={() => {
+        void navigate(`/memories/${memory.id}`)
+      }}
+    />
   )
 }
