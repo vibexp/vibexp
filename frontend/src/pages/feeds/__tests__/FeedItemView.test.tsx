@@ -177,8 +177,11 @@ describe('FeedItemView page', () => {
   it('renders the item with author, feed, project, and content', async () => {
     renderFeedItemView()
     expect(
-      (await screen.findAllByText('Sprint Retro Summary')).length
-    ).toBeGreaterThan(0)
+      await screen.findByRole('heading', {
+        name: 'Sprint Retro Summary',
+        level: 1,
+      })
+    ).toBeInTheDocument()
     expect(feedService.getFeedItem).toHaveBeenCalledWith('team-1', 'item-1')
 
     // Human post: author resolved from the team member list
@@ -186,7 +189,7 @@ describe('FeedItemView page', () => {
     expect(screen.queryByText('AI')).not.toBeInTheDocument()
     // Feed + project metadata
     expect(
-      await screen.findByRole('button', { name: 'Product Updates' })
+      await screen.findByRole('link', { name: 'Product Updates' })
     ).toBeInTheDocument()
     expect(await screen.findByText('Apollo Project')).toBeInTheDocument()
     // Markdown content (mocked renderer prints it verbatim)
@@ -196,6 +199,34 @@ describe('FeedItemView page', () => {
         properties: expect.objectContaining({ feed_item_id: 'item-1' }),
       })
     )
+  })
+
+  it('renders the title once, on the reading shell', async () => {
+    renderFeedItemView()
+    await screen.findByRole('heading', { name: 'Sprint Retro Summary' })
+    // The pre-#919 page printed the title in both the PageHeader and the card.
+    expect(screen.getAllByText('Sprint Retro Summary')).toHaveLength(1)
+    expect(screen.getByTestId('reading-page')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-header-meta')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-body')).toBeInTheDocument()
+  })
+
+  it('puts the feed and project metadata in the details column', async () => {
+    renderFeedItemView()
+    const metadata = await screen.findByRole('region', { name: 'Metadata' })
+    expect(
+      within(metadata).getByRole('link', { name: 'Product Updates' })
+    ).toHaveAttribute('href', '/feeds/feed-1')
+    expect(within(metadata).getByText('Apollo Project')).toBeInTheDocument()
+    // The details column is a sibling of the article, never inside it.
+    expect(screen.getByTestId('reading-page')).not.toContainElement(metadata)
+  })
+
+  it('renders the replies thread as a details section, not in the article', async () => {
+    renderFeedItemView()
+    const replies = await screen.findByRole('region', { name: 'Replies' })
+    expect(within(replies).getByTestId('feed-item-replies')).toBeInTheDocument()
+    expect(screen.getByTestId('reading-page')).not.toContainElement(replies)
   })
 
   it('passes the loaded item to the replies thread', async () => {
@@ -227,7 +258,7 @@ describe('FeedItemView page', () => {
     expect(screen.getByText('Network error')).toBeInTheDocument()
     expect(mockHandleError).toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: /back to feeds/i }))
+    await user.click(screen.getByRole('button', { name: 'Back' }))
     expect(mockNavigate).toHaveBeenCalledWith('/feeds')
   })
 
@@ -249,7 +280,7 @@ describe('FeedItemView page', () => {
       (await screen.findAllByText('Sprint Retro Summary')).length
     ).toBeGreaterThan(0)
     expect(
-      screen.queryByRole('button', { name: 'Product Updates' })
+      screen.queryByRole('link', { name: 'Product Updates' })
     ).not.toBeInTheDocument()
   })
 
@@ -371,9 +402,10 @@ describe('FeedItemView page', () => {
     await user.click(screen.getByRole('button', { name: 'Back' }))
     expect(mockNavigate).toHaveBeenCalledWith('/feeds/feed-1')
 
-    await user.click(
-      await screen.findByRole('button', { name: 'Product Updates' })
-    )
-    expect(mockNavigate).toHaveBeenLastCalledWith('/feeds/feed-1')
+    // The feed name is a real link now, so it is the href that has to be right
+    // — it is what makes open-in-new-tab work.
+    expect(
+      await screen.findByRole('link', { name: 'Product Updates' })
+    ).toHaveAttribute('href', '/feeds/feed-1')
   })
 })

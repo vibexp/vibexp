@@ -1,11 +1,9 @@
-import { MessageSquare } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { formatRelativeTime } from '@/lib/time'
@@ -127,53 +125,48 @@ export function FeedItemReplies({
       </div>
     )
 
+  // No card chrome and no "Replies" heading of its own: this renders inside the
+  // reading page's details column, which already provides the panel surface and
+  // labels the section (#919).
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MessageSquare className="size-4" />
-          Replies
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Replies list */}
-        {repliesLoading ? (
-          <div className="flex justify-center py-4">
-            <LoadingSpinner size="sm" />
-          </div>
-        ) : (
-          repliesContent
-        )}
-
-        {/* Compose form — at the bottom of the thread */}
-        <div className="flex items-end gap-2 pt-2">
-          <Textarea
-            rows={2}
-            className="min-h-[60px] flex-1 resize-none"
-            placeholder="Write a reply..."
-            value={replyContent}
-            onChange={e => {
-              setReplyContent(e.target.value)
-            }}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                void handleSubmitReply()
-              }
-            }}
-            disabled={submittingReply}
-          />
-          <Button
-            onClick={() => {
-              void handleSubmitReply()
-            }}
-            disabled={submittingReply || !replyContent.trim()}
-            size="sm"
-          >
-            {submittingReply ? 'Posting...' : 'Reply'}
-          </Button>
+    <div className="space-y-4">
+      {/* Replies list */}
+      {repliesLoading ? (
+        <div className="flex justify-center py-4">
+          <LoadingSpinner size="sm" />
         </div>
-      </CardContent>
-    </Card>
+      ) : (
+        repliesContent
+      )}
+
+      {/* Compose form — at the bottom of the thread */}
+      <div className="flex items-end gap-2 pt-2">
+        <Textarea
+          rows={2}
+          className="min-h-[60px] flex-1 resize-none"
+          placeholder="Write a reply..."
+          value={replyContent}
+          onChange={e => {
+            setReplyContent(e.target.value)
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              void handleSubmitReply()
+            }
+          }}
+          disabled={submittingReply}
+        />
+        <Button
+          onClick={() => {
+            void handleSubmitReply()
+          }}
+          disabled={submittingReply || !replyContent.trim()}
+          size="sm"
+        >
+          {submittingReply ? 'Posting...' : 'Reply'}
+        </Button>
+      </div>
+    </div>
   )
 }

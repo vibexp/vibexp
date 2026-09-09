@@ -3,24 +3,30 @@ import {
   Archive,
   ArchiveRestore,
   ArrowLeft,
+  FolderOpen,
+  MessageSquare,
+  Rss,
   Trash2,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { MarkdownRenderer } from '@/components/MarkdownRenderer'
-import { PageHeader } from '@/components/PageHeader'
+import { MetadataPanel, MetaRow } from '@/components/metadata/MetadataPanel'
+import {
+  type ReadingAction,
+  type ReadingSection,
+  ResourceBody,
+} from '@/components/patterns/reading-page'
+import { RelativeTime } from '@/components/RelativeTime'
+import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import { formatRelativeTime } from '@/lib/time'
 import { FeedActorAvatar, resolveFeedActor } from '@/pages/feeds/feedActor'
 import { FeedItemReplies } from '@/pages/feeds/FeedItemReplies'
 import type { Feed, FeedItem } from '@/services/feedService'
@@ -174,21 +180,34 @@ export function FeedItemView() {
     }
   }
 
+  // Declared before the early returns so the not-found branch can offer it too.
+  // `feed` is what decides the target: without it there is no feed to go back
+  // to, only the feed list.
+  const backAction: ReadingAction = useMemo(
+    () => ({
+      id: 'back',
+      label: 'Back',
+      icon: ArrowLeft,
+      onClick: () => {
+        void navigate(feed ? `/feeds/${encodeURIComponent(feed.id)}` : '/feeds')
+      },
+    }),
+    [navigate, feed]
+  )
+
   if (teamLoading || loading) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Loading feed item…" />
+      <ResourceReadingPage title="Loading feed item…">
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
-      </div>
+      </ResourceReadingPage>
     )
   }
 
   if (error ?? !item) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Feed item not found" />
+      <ResourceReadingPage title="Feed item not found" actions={[backAction]}>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Feed item not found</AlertTitle>
@@ -196,135 +215,131 @@ export function FeedItemView() {
             {error ?? 'The feed item could not be found.'}
           </AlertDescription>
         </Alert>
-        <Button
-          variant="outline"
-          onClick={() => {
-            void navigate('/feeds')
-          }}
-        >
-          <ArrowLeft className="mr-2 size-4" />
-          Back to feeds
-        </Button>
-      </div>
+      </ResourceReadingPage>
     )
   }
 
   const isArchived = !!item.archived_at
   const actor = resolveFeedActor(item, author)
 
+  const actions: ReadingAction[] = [
+    backAction,
+    isArchived
+      ? {
+          id: 'archive',
+          label: archiving ? 'Restoring…' : 'Unarchive',
+          icon: ArchiveRestore,
+          disabled: archiving,
+          onClick: () => {
+            void handleUnarchive()
+          },
+        }
+      : {
+          id: 'archive',
+          label: archiving ? 'Archiving…' : 'Archive',
+          icon: Archive,
+          disabled: archiving,
+          onClick: () => {
+            void handleArchive()
+          },
+        },
+  ]
+  if (canDeleteFeedContent(item.posted_by_user_id)) {
+    actions.push({
+      id: 'delete',
+      // Outlined, like every other reading action — not the solid red button
+      // this page used before #890.
+      tone: 'destructive',
+      label: 'Delete',
+      icon: Trash2,
+      onClick: () => {
+        setDeleteOpen(true)
+      },
+    })
+  }
+
+  // Feed and project are resolved from separately-fetched objects rather than
+  // read off the item payload, so the rows are composed here instead of through
+  // a descriptor (a feed item has no status, slug or versions to describe).
+  const metadataRows: ReactNode[] = []
+  if (feed) {
+    metadataRows.push(
+      <MetaRow key="feed" label="Feed">
+        <Link
+          to={`/feeds/${encodeURIComponent(feed.id)}`}
+          className="flex items-center gap-1 hover:underline"
+        >
+          <Rss className="size-3" />
+          {feed.name}
+        </Link>
+      </MetaRow>
+    )
+  }
+  if (project) {
+    metadataRows.push(
+      <MetaRow key="project" label="Project">
+        <span className="flex items-center gap-1">
+          <FolderOpen className="size-3" />
+          {project.name}
+        </span>
+      </MetaRow>
+    )
+  }
+
+  // Replies are their own API and their own thread, so they arrive as an extra
+  // section rather than through the shared `CommentsPanel`. A feed item has no
+  // team-scoped resource id either, so this page passes no `resource` and every
+  // standard panel (attachments, activity, comments, relations) drops out on
+  // its own.
+  const extraSections: ReadingSection[] = []
+  if (currentTeam) {
+    extraSections.push({
+      id: 'replies',
+      label: 'Replies',
+      icon: MessageSquare,
+      content: <FeedItemReplies teamId={currentTeam.id} itemId={item.id} />,
+    })
+  }
+
   return (
-    <div className="space-y-6">
-      <PageHeader
+    <>
+      <ResourceReadingPage
         title={item.title}
-        actions={
+        // Not `updatedAt`: the shared header prefixes that with "Updated", and
+        // a feed item is posted, never edited.
+        headerExtra={
           <>
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate(
-                  feed ? `/feeds/${encodeURIComponent(item.feed_id)}` : '/feeds'
-                )
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-            {isArchived ? (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  void handleUnarchive()
-                }}
-                disabled={archiving}
-              >
-                <ArchiveRestore className="mr-2 size-4" />
-                {archiving ? 'Restoring…' : 'Unarchive'}
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  void handleArchive()
-                }}
-                disabled={archiving}
-              >
-                <Archive className="mr-2 size-4" />
-                {archiving ? 'Archiving…' : 'Archive'}
-              </Button>
+            <span className="inline-flex items-center gap-1.5">
+              <FeedActorAvatar actor={actor} size="sm" />
+              <span className="text-foreground font-semibold">
+                {actor.displayName}
+              </span>
+            </span>
+            {actor.isAi && (
+              <Badge variant="outline" className="text-xs">
+                AI
+              </Badge>
             )}
-            {canDeleteFeedContent(item.posted_by_user_id) && (
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setDeleteOpen(true)
-                }}
-              >
-                <Trash2 className="mr-2 size-4" />
-                Delete
-              </Button>
+            {isArchived && (
+              <Badge variant="secondary" className="text-xs">
+                Archived
+              </Badge>
             )}
+            <span className="text-muted-foreground inline-flex items-center gap-1">
+              Posted <RelativeTime value={item.posted_at} />
+            </span>
           </>
         }
-      />
-
-      {/* Single full-width column layout */}
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-start gap-3">
-              <FeedActorAvatar actor={actor} size="md" />
-              <div className="min-w-0 flex-1">
-                <CardTitle>{item.title}</CardTitle>
-                {/* Inline metadata strip — mirrors FeedItemCard social-feed pattern */}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground mt-2">
-                  <span className="font-semibold text-foreground">
-                    {actor.displayName}
-                  </span>
-                  {actor.isAi && (
-                    <Badge variant="outline" className="text-xs">
-                      AI
-                    </Badge>
-                  )}
-                  <span>{formatRelativeTime(item.posted_at)}</span>
-                  {feed && (
-                    <button
-                      type="button"
-                      className="hover:text-primary underline-offset-2 hover:underline"
-                      onClick={() => {
-                        void navigate(
-                          `/feeds/${encodeURIComponent(item.feed_id)}`
-                        )
-                      }}
-                    >
-                      {feed.name}
-                    </button>
-                  )}
-                  {project && (
-                    <span className="inline-flex items-center gap-1">
-                      <span>📁</span>
-                      <span>{project.name}</span>
-                    </span>
-                  )}
-                  {isArchived && (
-                    <Badge variant="secondary" className="text-xs">
-                      Archived
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="max-w-3xl">
-              <MarkdownRenderer content={item.content} syntaxTheme="auto" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {currentTeam && (
-          <FeedItemReplies teamId={currentTeam.id} itemId={item.id} />
-        )}
-      </div>
+        actions={actions}
+        metadata={
+          metadataRows.length > 0 ? (
+            <MetadataPanel>{metadataRows}</MetadataPanel>
+          ) : undefined
+        }
+        extraSections={extraSections}
+      >
+        <ResourceBody content={item.content} />
+      </ResourceReadingPage>
 
       <ConfirmDialog
         open={deleteOpen}
@@ -336,6 +351,6 @@ export function FeedItemView() {
         loading={deleting}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   )
 }
