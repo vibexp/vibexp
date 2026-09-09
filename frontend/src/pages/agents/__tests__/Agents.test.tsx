@@ -202,7 +202,7 @@ function renderAgents(initialEntry = '/agents') {
       <Routes>
         <Route path="/agents" element={<Agents />} />
         <Route
-          path="/agents/add"
+          path="/agents/new"
           element={<div data-testid="editor-probe">Agent editor probe</div>}
         />
         <Route

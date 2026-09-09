@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useParams } from 'react-router'
 import type { Mock } from 'vitest'
 
 import type {
@@ -56,6 +56,12 @@ function buildListResponse(
   }
 }
 
+/** Echoes the detail URL's segments so the card link can be asserted. */
+function DetailProbe() {
+  const { category, id } = useParams<{ category: string; id: string }>()
+  return <div data-testid="detail-probe">{`${category ?? ''}/${id ?? ''}`}</div>
+}
+
 function renderCategory(initialEntry = '/prompt-gallery/Engineering') {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -65,13 +71,10 @@ function renderCategory(initialEntry = '/prompt-gallery/Engineering') {
           element={<div data-testid="gallery-probe">Gallery probe</div>}
         />
         <Route
-          path="/prompt-gallery/prompt/:id"
-          element={<div data-testid="detail-probe">Detail probe</div>}
-        />
-        <Route
           path="/prompt-gallery/:category"
           element={<PromptGalleryCategory />}
         />
+        <Route path="/prompt-gallery/:category/:id" element={<DetailProbe />} />
       </Routes>
     </MemoryRouter>
   )
@@ -341,7 +344,12 @@ describe('PromptGalleryCategory page', () => {
     const user = userEvent.setup()
     await user.click(await screen.findByTestId('gallery-prompt-card'))
 
-    expect(screen.getByTestId('detail-probe')).toBeInTheDocument()
+    // The detail nests under its category since #920, so the card link has to
+    // carry the segment - a bare `/prompt-gallery/<id>` would resolve to the
+    // CATEGORY route instead and silently render the wrong page.
+    expect(screen.getByTestId('detail-probe')).toHaveTextContent(
+      'Engineering/gallery-1'
+    )
   })
 
   it('navigates back to the gallery from the Back button', async () => {

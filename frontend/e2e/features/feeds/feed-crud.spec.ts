@@ -6,7 +6,7 @@ import { generateFeedData } from '../../fixtures/test-data'
  *
  * Covers the feeds list (/feeds), feed creation (/feeds/new), the feed view
  * with its post composer (/feeds/:feedId), feed editing (/feeds/:feedId/edit),
- * and the feed item detail page (/feed-items/:itemId). Feed items are seeded
+ * and the feed item detail page (/feeds/items/:itemId). Feed items are seeded
  * through the UI via the post composer ("user post"), not via API mocks.
  */
 
@@ -144,7 +144,7 @@ test.describe('Feed CRUD Operations', () => {
       .getByRole('link', { name: `Open feed item: ${itemTitle}` })
       .click()
 
-    await authenticatedPage.waitForURL(/\/feed-items\/[^/]+$/, {
+    await authenticatedPage.waitForURL(/\/feeds\/items\/[^/]+$/, {
       timeout: 15000,
     })
     await expect(authenticatedPage.getByText(itemTitle).first()).toBeVisible({

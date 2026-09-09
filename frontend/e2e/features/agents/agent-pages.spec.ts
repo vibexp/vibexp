@@ -44,7 +44,7 @@ test.describe('Agents', () => {
   })
 
   test('should render the add-agent form', async ({ authenticatedPage }) => {
-    await authenticatedPage.goto('/agents/add')
+    await authenticatedPage.goto('/agents/new')
 
     await expect(
       authenticatedPage.getByRole('heading', { name: 'Add agent' })

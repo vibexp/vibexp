@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router'
+import { Navigate, Route, Routes, useParams } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import { Activities } from '@/pages/activities/Activities'
@@ -55,6 +55,32 @@ function ComingSoon({ title }: Readonly<{ title: string }>) {
   )
 }
 
+/**
+ * Redirects for the resource paths retired by #920.
+ *
+ * They are permanent, not transitional. `/feed-items/:itemId` in particular is
+ * baked into notification emails already sent and into MCP responses already
+ * handed to an agent (the backend still mints that shape in
+ * `internal/services/notifications/event_listener.go` and `mcp_feed_tools.go`),
+ * so it has to keep resolving — deleting it breaks links we do not own.
+ *
+ * `<Navigate>` does not interpolate route params, so a redirect that carries
+ * one needs a wrapper that reads it with `useParams` and rebuilds the target.
+ * `replace` on both keeps the old URL out of the history stack, so Back leaves
+ * the page instead of bouncing back through the redirect.
+ */
+export function AgentsAddRedirect() {
+  return <Navigate to="/agents/new" replace />
+}
+
+export function FeedItemRedirect() {
+  const { itemId } = useParams<{ itemId: string }>()
+  // `useParams` hands back a decoded segment, so re-encode when rebuilding.
+  return (
+    <Navigate to={`/feeds/items/${encodeURIComponent(itemId ?? '')}`} replace />
+  )
+}
+
 export function AppRoutes() {
   return (
     <Routes>
@@ -68,12 +94,19 @@ export function AppRoutes() {
       <Route path="prompts/:slug/versions" element={<PromptVersions />} />
       <Route path="prompt-gallery" element={<PromptGallery />} />
       <Route
-        path="prompt-gallery/prompt/:id"
-        element={<PromptGalleryDetail />}
-      />
-      <Route
         path="prompt-gallery/:category"
         element={<PromptGalleryCategory />}
+      />
+      {/* The gallery detail nests under its category. The retired
+          `/prompt-gallery/prompt/:id` needs no redirect route of its own: it is
+          already an instance of this pattern (`:category` = "prompt"), and
+          `PromptGalleryDetail` rewrites the segment to the real category once
+          the payload arrives. A `<Navigate>` could not do that job — the old
+          URL does not carry the category, so nothing can build the target
+          without the fetch. */}
+      <Route
+        path="prompt-gallery/:category/:id"
+        element={<PromptGalleryDetail />}
       />
       <Route path="artifacts" element={<Artifacts />} />
       <Route path="artifacts/new" element={<ArtifactCreate />} />
@@ -98,14 +131,16 @@ export function AppRoutes() {
       <Route path="feeds/new" element={<FeedNew />} />
       <Route path="feeds/:feedId" element={<FeedView />} />
       <Route path="feeds/:feedId/edit" element={<FeedEdit />} />
-      <Route path="feed-items/:itemId" element={<FeedItemView />} />
+      <Route path="feeds/items/:itemId" element={<FeedItemView />} />
+      <Route path="feed-items/:itemId" element={<FeedItemRedirect />} />
       <Route path="memories" element={<Memories />} />
       <Route path="memories/new" element={<MemoryCreate />} />
       <Route path="memories/:id" element={<MemoryView />} />
       <Route path="memories/:id/edit" element={<MemoryEdit />} />
       <Route path="memories/:id/versions" element={<MemoryVersions />} />
       <Route path="agents" element={<Agents />} />
-      <Route path="agents/add" element={<AgentEditor />} />
+      <Route path="agents/new" element={<AgentEditor />} />
+      <Route path="agents/add" element={<AgentsAddRedirect />} />
       <Route path="agents/:id" element={<AgentDetails />} />
       <Route path="agents/:id/edit" element={<AgentEditor />} />
       <Route path="agents/:id/chat" element={<AgentChat />} />

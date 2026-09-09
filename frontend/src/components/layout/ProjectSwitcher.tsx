@@ -14,8 +14,9 @@ const PROJECT_SCOPED_PREFIXES = [
   '/artifacts',
   '/blueprints',
   '/memories',
+  // `/feeds` covers the feed item detail too, since #920 moved it under
+  // `/feeds/items/:itemId`.
   '/feeds',
-  '/feed-items',
 ]
 
 function isProjectScopedPath(pathname: string): boolean {

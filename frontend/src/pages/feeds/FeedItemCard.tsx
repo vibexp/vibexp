@@ -136,7 +136,7 @@ function FeedItemCardImpl({
   }, [item.title, item.content, item.excerpt])
 
   const detailHref = useMemo(
-    () => `/feed-items/${encodeURIComponent(item.id)}`,
+    () => `/feeds/items/${encodeURIComponent(item.id)}`,
     [item.id]
   )
 

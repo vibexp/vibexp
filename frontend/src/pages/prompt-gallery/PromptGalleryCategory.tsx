@@ -140,7 +140,12 @@ function CategoryList({ category }: Readonly<CategoryListProps>) {
   }
 
   const openPrompt = (id: string) => {
-    void navigate(`/prompt-gallery/prompt/${id}`)
+    // The detail lives under its category since #920. `categoryLabel` is the
+    // decoded segment this list is already filtered by, so re-encoding it
+    // round-trips to the URL the user arrived on.
+    void navigate(
+      `/prompt-gallery/${encodeURIComponent(categoryLabel)}/${encodeURIComponent(id)}`
+    )
   }
 
   const listStatus = listPageStatus(

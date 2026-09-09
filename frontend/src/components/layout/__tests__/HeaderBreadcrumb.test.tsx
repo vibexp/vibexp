@@ -92,6 +92,27 @@ describe('HeaderBreadcrumb', () => {
     expect(screen.queryByText('Prompts')).not.toBeInTheDocument()
   })
 
+  // #920 normalised three resource routes. The point of moving the feed item
+  // detail under `/feeds` was this very crumb: `/feed-items/:itemId` matched no
+  // nav href at all (the match requires `href + '/'`), so the page rendered a
+  // bare "VibeXP" with no label.
+  it.each([
+    ['/agents/new', 'Agents'],
+    ['/feeds/items/item-1', 'AI Feeds'],
+    ['/prompt-gallery/Engineering/gallery-1', 'Prompt Gallery'],
+  ])('resolves the normalised %s to "%s"', (path, label) => {
+    renderAt(path)
+    expect(screen.getByText(label)).toBeInTheDocument()
+  })
+
+  it('rendered no label for the pre-#920 feed item path', () => {
+    // Pins the bug the move fixed: `/feeds` is not a prefix of `/feed-items`,
+    // so nothing matched. The path only reaches the app as a redirect now.
+    renderAt('/feed-items/item-1')
+    expect(screen.getByText('VibeXP')).toBeInTheDocument()
+    expect(screen.queryByText('AI Feeds')).not.toBeInTheDocument()
+  })
+
   it('renders only the root crumb for an unknown route', () => {
     renderAt('/totally-unknown')
     expect(screen.getByText('VibeXP')).toBeInTheDocument()
