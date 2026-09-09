@@ -81,12 +81,18 @@ export function PromptGalleryDetail() {
   // in the route table. `replace` keeps the stale URL out of the history stack.
   // It also self-heals a hand-edited or renamed category segment.
   const canonicalCategory = prompt?.category
+  // `prompt.id === id` guards the window where `:id` has changed but the
+  // previous payload is still in state: without it the effect would rewrite to
+  // the OLD prompt's category before the new fetch corrects it.
   const needsCanonicalUrl =
-    !!id && !!canonicalCategory && category !== canonicalCategory
+    !!id &&
+    !!canonicalCategory &&
+    prompt.id === id &&
+    category !== canonicalCategory
   useEffect(() => {
     if (!needsCanonicalUrl) return
     void navigate(
-      `/prompt-gallery/${encodeURIComponent(canonicalCategory)}/${id}`,
+      `/prompt-gallery/${encodeURIComponent(canonicalCategory)}/${encodeURIComponent(id)}`,
       { replace: true }
     )
   }, [needsCanonicalUrl, canonicalCategory, id, navigate])
