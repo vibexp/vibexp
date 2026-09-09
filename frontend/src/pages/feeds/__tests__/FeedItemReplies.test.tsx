@@ -497,6 +497,38 @@ describe('FeedItemReplies', () => {
     )
   })
 
+  it('bumps the reply count when a reply is posted', async () => {
+    mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
+    mockedFeedService.createReply.mockResolvedValue({
+      id: 'reply-counted',
+      team_id: 'team-1',
+      feed_item_id: 'item-1',
+      content: 'Counted reply',
+      posted_by_user_id: 'user-1',
+      ai_assistant_name: null,
+      posted_at: new Date().toISOString(),
+    })
+
+    renderReplies()
+    const panel = await screen.findByTestId('feed-item-replies-panel')
+    // The chip is gated on a non-zero total, so an empty thread shows none.
+    expect(within(panel).queryByText('1')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Write a reply...'), {
+      target: { value: 'Counted reply' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+
+    // The total is seeded from the response and only this optimistic bump can
+    // move it — the list is never refetched after a post.
+    await waitFor(
+      () => {
+        expect(within(panel).getByText('1')).toBeInTheDocument()
+      },
+      { timeout: 3000 }
+    )
+  })
+
   it('clears textarea after successful submit', async () => {
     mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
     const newReply: FeedItemReply = {
