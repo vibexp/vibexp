@@ -5,7 +5,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Panel, PanelHeader, PanelTitle } from '@/components/ui/panel'
 import { Textarea } from '@/components/ui/textarea'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { formatRelativeTime } from '@/lib/time'
@@ -65,6 +65,11 @@ export function FeedItemReplies({
   const { handleError } = useErrorHandler()
 
   const [replies, setReplies] = useState<FeedItemReply[]>([])
+  // The list is one page (the API defaults to 20 and this component does not
+  // paginate), so the count has to come from the response's `total_count` —
+  // `replies.length` would read "20" beside a thread of 57. Same reason
+  // `CommentsPanel` counts off its own total rather than its loaded array.
+  const [totalReplies, setTotalReplies] = useState(0)
   const [members, setMembers] = useState<Map<string, TeamMember>>(new Map())
   const [repliesLoading, setRepliesLoading] = useState(false)
   const [replyContent, setReplyContent] = useState('')
@@ -80,6 +85,7 @@ export function FeedItemReplies({
         ])
         if (repliesResult.status === 'fulfilled') {
           setReplies(repliesResult.value.replies)
+          setTotalReplies(repliesResult.value.total_count)
         }
         if (membersResult.status === 'fulfilled') {
           const map = new Map(membersResult.value.map(m => [m.user_id, m]))
@@ -102,6 +108,7 @@ export function FeedItemReplies({
         content: replyContent.trim(),
       })
       setReplies(prev => [newReply, ...prev])
+      setTotalReplies(prev => prev + 1)
       setReplyContent('')
     } catch (err) {
       handleError(err, 'Failed to post reply')
@@ -127,53 +134,65 @@ export function FeedItemReplies({
       </div>
     )
 
+  // Built on `ui/panel`, not `Card` (#890/#919): inside the reading page's
+  // details column `PanelPresentationProvider value="flat"` strips the border,
+  // shadow and inset. Only that surface renders this today — the rows below do
+  // not apply `usePanelInset()`, so moving it onto a `card` surface would need
+  // the 20px gutter adding first. The heading stays: the section's `aria-label`
+  // is invisible and the rail tooltip only exists while the column is
+  // collapsed, so `CommentsPanel` (the same thing in the same column) labels
+  // itself too.
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MessageSquare className="size-4" />
-          Replies
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Replies list */}
-        {repliesLoading ? (
-          <div className="flex justify-center py-4">
-            <LoadingSpinner size="sm" />
-          </div>
-        ) : (
-          repliesContent
-        )}
-
-        {/* Compose form — at the bottom of the thread */}
-        <div className="flex items-end gap-2 pt-2">
-          <Textarea
-            rows={2}
-            className="min-h-[60px] flex-1 resize-none"
-            placeholder="Write a reply..."
-            value={replyContent}
-            onChange={e => {
-              setReplyContent(e.target.value)
-            }}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                void handleSubmitReply()
-              }
-            }}
-            disabled={submittingReply}
-          />
-          <Button
-            onClick={() => {
-              void handleSubmitReply()
-            }}
-            disabled={submittingReply || !replyContent.trim()}
-            size="sm"
-          >
-            {submittingReply ? 'Posting...' : 'Reply'}
-          </Button>
+    <Panel className="space-y-4" data-testid="feed-item-replies-panel">
+      <PanelHeader>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <MessageSquare className="text-muted-foreground size-[17px] shrink-0" />
+          <PanelTitle>Replies</PanelTitle>
         </div>
-      </CardContent>
-    </Card>
+        {totalReplies > 0 && (
+          <span className="bg-secondary text-secondary-foreground rounded-full px-[7px] py-[3px] font-mono text-xs leading-none">
+            {totalReplies}
+          </span>
+        )}
+      </PanelHeader>
+
+      {/* Replies list */}
+      {repliesLoading ? (
+        <div className="flex justify-center py-4">
+          <LoadingSpinner size="sm" />
+        </div>
+      ) : (
+        repliesContent
+      )}
+
+      {/* Compose form — at the bottom of the thread */}
+      <div className="flex items-end gap-2 pt-2">
+        <Textarea
+          rows={2}
+          className="min-h-[60px] flex-1 resize-none"
+          placeholder="Write a reply..."
+          value={replyContent}
+          onChange={e => {
+            setReplyContent(e.target.value)
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              void handleSubmitReply()
+            }
+          }}
+          disabled={submittingReply}
+        />
+        <Button
+          onClick={() => {
+            void handleSubmitReply()
+          }}
+          disabled={submittingReply || !replyContent.trim()}
+          size="sm"
+        >
+          {submittingReply ? 'Posting...' : 'Reply'}
+        </Button>
+      </div>
+    </Panel>
   )
 }

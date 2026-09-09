@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 
 import type {
   FeedItemReply,
@@ -86,7 +92,9 @@ const aiReply: FeedItemReply = {
 
 const repliesResponse: FeedItemReplyListResponse = {
   replies: [humanReply, aiReply],
-  total_count: 2,
+  // Deliberately larger than `replies.length`: the list is one page, so a chip
+  // reading the array length instead of the total has to fail the count test.
+  total_count: 7,
   page: 1,
   per_page: 20,
   total_pages: 1,
@@ -149,6 +157,20 @@ describe('FeedItemReplies', () => {
       target: { value: 'Hello world' },
     })
     expect(screen.getByRole('button', { name: 'Reply' })).not.toBeDisabled()
+  })
+
+  it('labels itself with a heading and the reply count', async () => {
+    mockedFeedService.listReplies.mockResolvedValue(repliesResponse)
+    renderReplies()
+    // The details column's section aria-label is invisible and the rail tooltip
+    // only exists while the column is collapsed, so the panel labels itself —
+    // as CommentsPanel does in the same column (#919).
+    const panel = await screen.findByTestId('feed-item-replies-panel')
+    expect(
+      within(panel).getByRole('heading', { name: 'Replies' })
+    ).toBeInTheDocument()
+    // The total, not the two loaded rows.
+    expect(within(panel).getByText('7')).toBeInTheDocument()
   })
 
   it('shows "No replies yet" when there are no replies', async () => {
@@ -472,6 +494,38 @@ describe('FeedItemReplies', () => {
       {
         content: 'New reply text',
       }
+    )
+  })
+
+  it('bumps the reply count when a reply is posted', async () => {
+    mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
+    mockedFeedService.createReply.mockResolvedValue({
+      id: 'reply-counted',
+      team_id: 'team-1',
+      feed_item_id: 'item-1',
+      content: 'Counted reply',
+      posted_by_user_id: 'user-1',
+      ai_assistant_name: null,
+      posted_at: new Date().toISOString(),
+    })
+
+    renderReplies()
+    const panel = await screen.findByTestId('feed-item-replies-panel')
+    // The chip is gated on a non-zero total, so an empty thread shows none.
+    expect(within(panel).queryByText('1')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Write a reply...'), {
+      target: { value: 'Counted reply' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+
+    // The total is seeded from the response and only this optimistic bump can
+    // move it — the list is never refetched after a post.
+    await waitFor(
+      () => {
+        expect(within(panel).getByText('1')).toBeInTheDocument()
+      },
+      { timeout: 3000 }
     )
   })
 
