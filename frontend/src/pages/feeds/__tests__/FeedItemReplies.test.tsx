@@ -151,6 +151,18 @@ describe('FeedItemReplies', () => {
     expect(screen.getByRole('button', { name: 'Reply' })).not.toBeDisabled()
   })
 
+  it('labels itself with a heading and the reply count', async () => {
+    mockedFeedService.listReplies.mockResolvedValue(repliesResponse)
+    renderReplies()
+    // The details column's section aria-label is invisible and the rail tooltip
+    // only exists while the column is collapsed, so the panel labels itself —
+    // as CommentsPanel does in the same column (#919).
+    expect(
+      await screen.findByRole('heading', { name: 'Replies' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+  })
+
   it('shows "No replies yet" when there are no replies', async () => {
     mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
     renderReplies()

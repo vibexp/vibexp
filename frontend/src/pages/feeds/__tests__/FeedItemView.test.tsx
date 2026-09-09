@@ -217,7 +217,11 @@ describe('FeedItemView page', () => {
     expect(
       within(metadata).getByRole('link', { name: 'Product Updates' })
     ).toHaveAttribute('href', '/feeds/feed-1')
-    expect(within(metadata).getByText('Apollo Project')).toBeInTheDocument()
+    // The same clickable Project row the four resource detail pages render
+    // (#903), through the same `buildProjectEditUrl` helper.
+    expect(
+      within(metadata).getByRole('link', { name: 'Apollo Project' })
+    ).toHaveAttribute('href', '/teams/team-1/projects/apollo-project/edit')
     // The details column is a sibling of the article, never inside it.
     expect(screen.getByTestId('reading-page')).not.toContainElement(metadata)
   })

@@ -1,9 +1,11 @@
+import { MessageSquare } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Panel, PanelHeader, PanelTitle } from '@/components/ui/panel'
 import { Textarea } from '@/components/ui/textarea'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { formatRelativeTime } from '@/lib/time'
@@ -125,11 +127,26 @@ export function FeedItemReplies({
       </div>
     )
 
-  // No card chrome and no "Replies" heading of its own: this renders inside the
-  // reading page's details column, which already provides the panel surface and
-  // labels the section (#919).
+  // Built on `ui/panel`, not `Card` (#890/#919): inside the reading page's
+  // details column `PanelPresentationProvider value="flat"` strips the border,
+  // shadow and inset, while the same markup still paints as a card anywhere
+  // else. The heading stays — the section's `aria-label` is invisible and the
+  // rail tooltip only exists while the column is collapsed, so `CommentsPanel`
+  // (the same thing in the same column) labels itself too.
   return (
-    <div className="space-y-4">
+    <Panel className="space-y-4" data-testid="feed-item-replies-panel">
+      <PanelHeader>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <MessageSquare className="text-muted-foreground size-[17px] shrink-0" />
+          <PanelTitle>Replies</PanelTitle>
+        </div>
+        {replies.length > 0 && (
+          <span className="bg-secondary text-secondary-foreground rounded-full px-[7px] py-[3px] font-mono text-xs leading-none">
+            {replies.length}
+          </span>
+        )}
+      </PanelHeader>
+
       {/* Replies list */}
       {repliesLoading ? (
         <div className="flex justify-center py-4">
@@ -167,6 +184,6 @@ export function FeedItemReplies({
           {submittingReply ? 'Posting...' : 'Reply'}
         </Button>
       </div>
-    </div>
+    </Panel>
   )
 }

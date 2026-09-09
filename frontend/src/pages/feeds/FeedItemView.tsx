@@ -27,7 +27,8 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import { FeedActorAvatar, resolveFeedActor } from '@/pages/feeds/feedActor'
+import { buildProjectEditUrl } from '@/lib/resourceUrl'
+import { resolveFeedActor } from '@/pages/feeds/feedActor'
 import { FeedItemReplies } from '@/pages/feeds/FeedItemReplies'
 import type { Feed, FeedItem } from '@/services/feedService'
 import { feedService } from '@/services/feedService'
@@ -275,13 +276,22 @@ export function FeedItemView() {
       </MetaRow>
     )
   }
-  if (project) {
+  // The same Project row the four resource detail pages render, through the
+  // same helper (#903) — a feed item is the fifth page showing it, and an
+  // identical-looking row that is not clickable is worse than no row.
+  const projectTo = project
+    ? buildProjectEditUrl(currentTeam?.id, project.slug)
+    : null
+  if (project && projectTo) {
     metadataRows.push(
       <MetaRow key="project" label="Project">
-        <span className="flex items-center gap-1">
+        <Link
+          to={projectTo}
+          className="flex items-center gap-1 hover:underline"
+        >
           <FolderOpen className="size-3" />
           {project.name}
-        </span>
+        </Link>
       </MetaRow>
     )
   }
@@ -309,11 +319,8 @@ export function FeedItemView() {
         // a feed item is posted, never edited.
         headerExtra={
           <>
-            <span className="inline-flex items-center gap-1.5">
-              <FeedActorAvatar actor={actor} size="sm" />
-              <span className="text-foreground font-semibold">
-                {actor.displayName}
-              </span>
+            <span className="text-foreground font-semibold">
+              {actor.displayName}
             </span>
             {actor.isAi && (
               <Badge variant="outline" className="text-xs">
