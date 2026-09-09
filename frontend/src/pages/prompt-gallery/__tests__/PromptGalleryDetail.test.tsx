@@ -1,6 +1,12 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router'
 import type { Mock } from 'vitest'
 
 import type { PromptGalleryTemplate } from '@/services/promptGalleryService'
@@ -47,21 +53,46 @@ function buildTemplate(
   }
 }
 
-function renderDetail() {
+/** Surfaces the live URL so a `replace` redirect can be asserted. */
+function LocationProbe() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  return (
+    <>
+      <div data-testid="location">{location.pathname}</div>
+      <button
+        type="button"
+        onClick={() => {
+          void navigate(-1)
+        }}
+      >
+        history back
+      </button>
+    </>
+  )
+}
+
+const CANONICAL_ENTRY = '/prompt-gallery/Engineering/gallery-1'
+
+function renderDetail(initialEntries: string[] = [CANONICAL_ENTRY]) {
   return render(
-    <MemoryRouter initialEntries={['/prompt-gallery/prompt/gallery-1']}>
+    <MemoryRouter
+      initialEntries={initialEntries}
+      initialIndex={initialEntries.length - 1}
+    >
+      <LocationProbe />
       <Routes>
         <Route
           path="/prompt-gallery"
           element={<div data-testid="gallery-probe">Gallery probe</div>}
         />
         <Route
-          path="/prompt-gallery/prompt/:id"
-          element={<PromptGalleryDetail />}
-        />
-        <Route
           path="/prompt-gallery/:category"
           element={<div data-testid="category-probe">Category probe</div>}
+        />
+        <Route
+          path="/prompt-gallery/:category/:id"
+          element={<PromptGalleryDetail />}
         />
         <Route
           path="/prompts/new"
@@ -199,6 +230,63 @@ describe('PromptGalleryDetail page', () => {
       vi.advanceTimersByTime(2000)
     })
     expect(screen.getByTestId('gallery-probe')).toBeInTheDocument()
+  })
+
+  describe('the retired /prompt-gallery/prompt/:id path (#920)', () => {
+    it('rewrites itself onto the category-nested URL once the prompt loads', async () => {
+      renderDetail(['/prompt-gallery/prompt/gallery-1'])
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe(CANONICAL_ENTRY)
+      })
+      // Same page, same fetch - only the URL was normalised.
+      expect(getPromptByIdMock).toHaveBeenCalledWith('gallery-1')
+      expect(screen.getByText('Code Review Request')).toBeInTheDocument()
+    })
+
+    it('replaces the legacy entry so Back skips past it', async () => {
+      renderDetail([
+        '/prompt-gallery/Engineering',
+        '/prompt-gallery/prompt/gallery-1',
+      ])
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe(CANONICAL_ENTRY)
+      })
+
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('button', { name: 'history back' }))
+
+      // Not `/prompt-gallery/prompt/gallery-1`: `replace` dropped it, so one
+      // Back leaves the detail page instead of bouncing through the redirect.
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe(
+          '/prompt-gallery/Engineering'
+        )
+      })
+      expect(screen.getByTestId('category-probe')).toBeInTheDocument()
+    })
+
+    it('encodes a category that needs it', async () => {
+      getPromptByIdMock.mockResolvedValue(
+        buildTemplate({ category: 'Code Review' })
+      )
+
+      renderDetail(['/prompt-gallery/prompt/gallery-1'])
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe(
+          '/prompt-gallery/Code%20Review/gallery-1'
+        )
+      })
+    })
+
+    it('leaves an already-canonical URL alone', async () => {
+      renderDetail()
+
+      await screen.findByText('Code Review Request')
+      expect(screen.getByTestId('location').textContent).toBe(CANONICAL_ENTRY)
+    })
   })
 
   describe('body view switch (#901)', () => {

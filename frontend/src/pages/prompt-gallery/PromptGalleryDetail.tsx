@@ -23,7 +23,7 @@ import { getErrorMessage } from '@/utils/errorHandling'
 const GALLERY_PROMPT = getResourceDescriptor('gallery-prompt')
 
 export function PromptGalleryDetail() {
-  const { id } = useParams<{ id: string }>()
+  const { category, id } = useParams<{ category: string; id: string }>()
   const navigate = useNavigate()
   const { showAlert } = useAlertContext()
   const [prompt, setPrompt] = useState<PromptGalleryTemplate | null>(null)
@@ -73,6 +73,23 @@ export function PromptGalleryDetail() {
       })
     }
   }
+
+  // Canonicalise the `:category` segment. This is what redirects the retired
+  // `/prompt-gallery/prompt/:id` onto `/prompt-gallery/:category/:id` (#920):
+  // that path is already an instance of this route with `:category` = "prompt",
+  // and only the payload knows the real category, so the rewrite cannot happen
+  // in the route table. `replace` keeps the stale URL out of the history stack.
+  // It also self-heals a hand-edited or renamed category segment.
+  const canonicalCategory = prompt?.category
+  const needsCanonicalUrl =
+    !!id && !!canonicalCategory && category !== canonicalCategory
+  useEffect(() => {
+    if (!needsCanonicalUrl) return
+    void navigate(
+      `/prompt-gallery/${encodeURIComponent(canonicalCategory)}/${id}`,
+      { replace: true }
+    )
+  }, [needsCanonicalUrl, canonicalCategory, id, navigate])
 
   const handleBack = () => {
     if (prompt?.category) {

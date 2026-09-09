@@ -95,7 +95,10 @@ test.describe('Prompt Gallery', () => {
         .locator('[data-testid="gallery-prompt-card"]')
         .first()
         .click()
-      await expect(authenticatedPage).toHaveURL(/\/prompt-gallery\/prompt\//)
+      // The detail nests under its category since #920.
+      await expect(authenticatedPage).toHaveURL(
+        /\/prompt-gallery\/Marketing\/[^/]+$/
+      )
 
       // Navigate back to category (detail page Back button)
       const backButton = authenticatedPage.getByRole('button', {
@@ -103,7 +106,9 @@ test.describe('Prompt Gallery', () => {
       })
       await expect(backButton).toBeVisible({ timeout: 5000 })
       await backButton.click()
-      await expect(authenticatedPage).toHaveURL(/\/prompt-gallery\/Marketing/)
+      // Anchored: the detail URL is now `/prompt-gallery/Marketing/<id>`, so an
+      // unanchored match would pass without Back ever having been clicked.
+      await expect(authenticatedPage).toHaveURL(/\/prompt-gallery\/Marketing$/)
 
       // Navigate back to gallery home (category page Back button)
       const backToCategories = authenticatedPage.getByRole('button', {
@@ -191,8 +196,10 @@ test.describe('Prompt Gallery', () => {
         .first()
         .click()
 
-      // Verify detail page
-      await expect(authenticatedPage).toHaveURL(/\/prompt-gallery\/prompt\//)
+      // Verify detail page (nested under its category since #920)
+      await expect(authenticatedPage).toHaveURL(
+        /\/prompt-gallery\/Customer%20Support\/[^/]+$/
+      )
       await expect(
         authenticatedPage.getByRole('heading', { level: 1 })
       ).toBeVisible()

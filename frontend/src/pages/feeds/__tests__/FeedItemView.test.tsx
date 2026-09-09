@@ -131,9 +131,9 @@ function setTeamPermissions(permissions: string[]) {
 
 function renderFeedItemView() {
   return render(
-    <MemoryRouter initialEntries={['/feed-items/item-1']}>
+    <MemoryRouter initialEntries={['/feeds/items/item-1']}>
       <Routes>
-        <Route path="/feed-items/:itemId" element={<FeedItemView />} />
+        <Route path="/feeds/items/:itemId" element={<FeedItemView />} />
       </Routes>
     </MemoryRouter>
   )

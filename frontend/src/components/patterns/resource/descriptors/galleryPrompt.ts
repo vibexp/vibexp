@@ -1,7 +1,7 @@
 import { defineResource } from '../defineResource'
 
 /**
- * Gallery prompt — the public prompt gallery (`/prompt-gallery/prompt/:id`).
+ * Gallery prompt — the public prompt gallery (`/prompt-gallery/:category/:id`).
  * It is served by the public gallery API, not the team resource API, so it has
  * no team-scoped resource id: every shared side panel is unavailable and the
  * kind is read-only. It has no status either.

@@ -244,7 +244,7 @@ export function Agents() {
         actions={
           <Button
             onClick={() => {
-              void navigate('/agents/add')
+              void navigate('/agents/new')
             }}
           >
             <Plus className="mr-2 size-4" />
@@ -296,7 +296,7 @@ export function Agents() {
                 actions={
                   <Button
                     onClick={() => {
-                      void navigate('/agents/add')
+                      void navigate('/agents/new')
                     }}
                   >
                     <Plus className="mr-2 size-4" />

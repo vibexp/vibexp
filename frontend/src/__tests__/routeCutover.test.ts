@@ -325,3 +325,89 @@ describe('no `settings/*` catch-all shadows NotFound (#593)', () => {
     })
   })
 })
+
+/**
+ * Route normalisation (#920): every resource creates at `/{resource}/new` and
+ * every detail lives under its resource root, with the pre-#920 paths still
+ * resolving.
+ *
+ * Structural, for the same reason as the block above: mounting `AppRoutes`
+ * needs stubs for ~40 pages, while `matchRoutes` over the scraped path list
+ * proves what `routes.tsx` actually declares. What it CANNOT prove is that the
+ * old declarations point at a redirect rather than at a page — that half is
+ * asserted against the source text here, and the redirect BEHAVIOUR (including
+ * `replace`) is covered by `src/__tests__/routeRedirects.test.tsx` and
+ * `pages/prompt-gallery/__tests__/PromptGalleryDetail.test.tsx`.
+ */
+describe('resource routes are normalised (#920)', () => {
+  const routesSource = readFileSync(join(ROOT, 'src', 'routes.tsx'), 'utf8')
+  const declaredPaths = [...routesSource.matchAll(/\bpath="([^"]+)"/g)].map(
+    m => m[1]
+  )
+  const routeTable = declaredPaths.map(path => ({ path }))
+  const resolve = (pathname: string): string | undefined =>
+    matchRoutes(routeTable, pathname)?.at(-1)?.route.path
+
+  it('scraped a plausible route table', () => {
+    expect(declaredPaths.length).toBeGreaterThan(30)
+    expect(declaredPaths).toContain('*')
+  })
+
+  it.each([
+    ['/agents/new', 'agents/new'],
+    ['/feeds/items/item-1', 'feeds/items/:itemId'],
+    ['/prompt-gallery/Engineering/gallery-1', 'prompt-gallery/:category/:id'],
+  ])('%s resolves to its own route', (pathname, expected) => {
+    expect(resolve(pathname)).toBe(expected)
+  })
+
+  it.each([
+    // The static create segment must still outrank `agents/:id`, or
+    // `/agents/new` would open the detail page for an agent called "new".
+    ['/agents/some-id', 'agents/:id'],
+    ['/agents/some-id/edit', 'agents/:id/edit'],
+    // `feeds/items/:itemId` is one segment deeper than `feeds/:feedId`, so it
+    // cannot shadow a feed.
+    ['/feeds/feed-1', 'feeds/:feedId'],
+    ['/feeds/new', 'feeds/new'],
+    ['/prompt-gallery/Engineering', 'prompt-gallery/:category'],
+  ])('%s is not shadowed by a moved route', (pathname, expected) => {
+    expect(resolve(pathname)).toBe(expected)
+  })
+
+  it.each([
+    ['/agents/add', 'agents/add'],
+    ['/feed-items/item-1', 'feed-items/:itemId'],
+    // No redirect ROUTE for this one: the retired path is already an instance
+    // of the new pattern, and the page rewrites the segment once it knows the
+    // category (only the payload does).
+    ['/prompt-gallery/prompt/gallery-1', 'prompt-gallery/:category/:id'],
+  ])('%s still resolves rather than 404ing', (pathname, expected) => {
+    expect(resolve(pathname)).toBe(expected)
+  })
+
+  it.each([
+    ['agents/add', 'AgentsAddRedirect'],
+    ['feed-items/:itemId', 'FeedItemRedirect'],
+  ])('%s is declared as a redirect, not as the page', (path, element) => {
+    expect(routesSource).toMatch(
+      new RegExp(
+        `path="${path.replace(/[/:]/g, m => '\\' + m)}"\\s+element=\\{<${element} />\\}`
+      )
+    )
+  })
+
+  it('routes both redirects through <Navigate ... replace>', () => {
+    // `replace` is what keeps the retired URL out of the history stack; without
+    // it Back bounces the user straight back into the redirect.
+    // Self-closing elements only, so the prose in this file's own comments
+    // (which names `<Navigate>`) is not counted.
+    const navigates = [...routesSource.matchAll(/<Navigate\s[^>]*\/>/g)].map(
+      m => m[0]
+    )
+    expect(navigates.length).toBe(2)
+    for (const tag of navigates) {
+      expect(tag).toContain('replace')
+    }
+  })
+})

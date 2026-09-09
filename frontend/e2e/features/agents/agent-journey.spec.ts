@@ -28,7 +28,7 @@ test.describe('Agent journey (real A2A agent)', () => {
     authenticatedPage: page,
   }) => {
     // 1. Add the agent by base URL; the card resolves into a live preview.
-    await page.goto('/agents/add')
+    await page.goto('/agents/new')
     await expect(page.getByRole('heading', { name: 'Add agent' })).toBeVisible({
       timeout: 10_000,
     })

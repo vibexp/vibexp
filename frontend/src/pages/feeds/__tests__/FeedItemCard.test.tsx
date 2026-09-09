@@ -107,7 +107,7 @@ describe('FeedItemCard', () => {
     renderCard()
     const link = screen.getByRole('link', { name: 'Sprint Retrospective' })
     expect(link).toBeInTheDocument()
-    expect(link).toHaveAttribute('href', '/feed-items/item-1')
+    expect(link).toHaveAttribute('href', '/feeds/items/item-1')
   })
 
   it('does not show archive button when no onArchive callback', () => {

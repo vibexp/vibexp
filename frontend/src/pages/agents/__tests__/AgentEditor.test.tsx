@@ -169,11 +169,11 @@ function buildAgent(overrides: Partial<Agent> = {}): Agent {
   }
 }
 
-function renderEditor(initialEntry = '/agents/add') {
+function renderEditor(initialEntry = '/agents/new') {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
-        <Route path="/agents/add" element={<AgentEditor />} />
+        <Route path="/agents/new" element={<AgentEditor />} />
         <Route path="/agents/:id/edit" element={<AgentEditor />} />
       </Routes>
     </MemoryRouter>

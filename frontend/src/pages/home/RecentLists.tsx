@@ -157,7 +157,7 @@ export function RecentFeedList({
         {items.slice(0, 8).map(item => (
           <li key={item.id}>
             <Link
-              to={`/feed-items/${encodeURIComponent(item.id)}`}
+              to={`/feeds/items/${encodeURIComponent(item.id)}`}
               className="hover:bg-muted/40 -mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors"
             >
               <div className="bg-muted text-foreground flex size-9 shrink-0 items-center justify-center rounded-md">
