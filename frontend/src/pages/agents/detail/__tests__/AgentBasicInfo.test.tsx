@@ -34,34 +34,37 @@ describe('AgentBasicInfo', () => {
         })}
       />
     )
-    expect(screen.getByText('Protocol: 1.0')).toBeInTheDocument()
-    expect(screen.getByText('Version: 2.0.0')).toBeInTheDocument()
+    expect(screen.getByText(/Protocol: 1.0/)).toBeInTheDocument()
+  })
+
+  it("leaves the card's version to the generated metadata row", () => {
+    // One value, one label: `agent_card.version` is a `meta` field on the agent
+    // descriptor (#918), so repeating it here would show it twice under two
+    // different names.
+    render(
+      <AgentBasicInfo
+        agent={makeAgent({
+          version: '2.0.0',
+          supportedInterfaces: [
+            { protocolBinding: 'JSONRPC', protocolVersion: '1.0' },
+          ],
+        })}
+      />
+    )
+    expect(screen.queryByText(/2\.0\.0/)).not.toBeInTheDocument()
   })
 
   it('falls back to "Not specified" when there is no interface', () => {
     render(<AgentBasicInfo agent={makeAgent({ supportedInterfaces: [] })} />)
-    expect(screen.getByText('Protocol: Not specified')).toBeInTheDocument()
+    expect(screen.getByText(/Protocol: Not specified/)).toBeInTheDocument()
   })
 
-  it.each([
-    ['active', 'Active', 'bg-success'],
-    ['paused', 'Paused', 'bg-muted'],
-    ['error', 'Error', 'bg-destructive'],
-  ] as const)(
-    'badges %s from the shared agent status field',
-    (status, label, toneClass) => {
-      // The detail page and the agents list read one `FieldSpec` (#907). A raw
-      // <Badge> here would re-fork them — same agent, different colour on
-      // /agents and /agents/:id — with agentStatus.test.ts still green, so the
-      // guard has to be on this component, not on the spec. Every status is
-      // exercised: a hardcoded map that happens to agree on `active` still
-      // diverges on the other two.
-      render(<AgentBasicInfo agent={{ ...makeAgent(null), status }} />)
-
-      // BOTH halves of the FieldSpec contract: a hardcoded label would render
-      // "Active" for an errored agent, and a hardcoded tone would colour it
-      // wrong — assert the wording and the fill together.
-      expect(screen.getByText(label)).toHaveClass(toneClass)
-    }
-  )
+  it('leaves the name, description and status to the reading shell', () => {
+    // #918 moved all three into the ResourceReadingPage header; repeating them
+    // here would put the same status badge on screen twice.
+    render(<AgentBasicInfo agent={makeAgent(null)} />)
+    expect(screen.queryByText('Code Reviewer')).not.toBeInTheDocument()
+    expect(screen.queryByText('Reviews code')).not.toBeInTheDocument()
+    expect(screen.queryByText('Active')).not.toBeInTheDocument()
+  })
 })

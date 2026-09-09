@@ -9,22 +9,25 @@ import {
   statusColumn,
   updatedColumn,
 } from '@/components/patterns/list-page'
-import type { FieldSpec } from '@/components/patterns/resource'
+import {
+  fieldOfRole,
+  getResourceDescriptor,
+} from '@/components/patterns/resource'
 import type { Agent } from '@/services/agentService'
 
 import { agentStatusField } from './agentStatus'
 import { successRateColor } from './helpers'
 
 /**
- * An agent is not a team resource, so it has no entry in the descriptor
- * registry and nothing to look a `FieldSpec` up on. Declaring the one the list
- * needs here keeps the agents list on the same factories — and therefore on the
- * same status badge, relative timestamps and action test ids — as the four
- * resource lists, without inventing a registry entry for a kind that has no
- * detail route, capabilities or address shape. Status has its own module: the
- * detail page renders the same badge from the same spec.
+ * An agent has been a registered, descriptor-only kind since #918, so the list
+ * reads its field specs off the descriptor rather than restating them: the same
+ * name and status specs drive the agents list and the agent detail page, which
+ * is what keeps one status badge, one label and one set of action test ids
+ * across both. Status still arrives through `./agentStatus`, the module the
+ * descriptor re-exports it from.
  */
-const nameField: FieldSpec = { key: 'name', role: 'name', label: 'Name' }
+const AGENT = getResourceDescriptor('agent')
+const nameField = fieldOfRole(AGENT, 'name')
 
 export function buildAgentsColumns({
   navigate,

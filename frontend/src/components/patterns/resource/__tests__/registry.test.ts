@@ -25,13 +25,14 @@ function keysWithRole(descriptor: ResourceDescriptor, role: FieldRole) {
 }
 
 describe('resourceRegistry', () => {
-  it('registers exactly the five built-in kinds', () => {
+  it('registers exactly the six built-in kinds', () => {
     expect(Object.keys(resourceRegistry)).toEqual([
       'prompt',
       'artifact',
       'blueprint',
       'memory',
       'gallery-prompt',
+      'agent',
     ])
   })
 
@@ -87,6 +88,15 @@ describe('resourceRegistry', () => {
         expect(keysWithRole(descriptor, 'address')).toEqual(address)
       }
     )
+
+    // The agent is the one kind with nothing to read: it is a configuration
+    // record, not a document, so it declares no `body` field at all.
+    it('gives the agent a name and an address but no body', () => {
+      const descriptor = getResourceDescriptor('agent')
+      expect(keysWithRole(descriptor, 'name')).toEqual(['name'])
+      expect(keysWithRole(descriptor, 'address')).toEqual(['id'])
+      expect(keysWithRole(descriptor, 'body')).toEqual([])
+    })
 
     it('declares every field key the pages read today', () => {
       const keys = Object.fromEntries(
@@ -153,6 +163,14 @@ describe('resourceRegistry', () => {
           'tags',
           'title',
         ],
+        agent: [
+          'agent_card.version',
+          'description',
+          'id',
+          'last_synced_at',
+          'name',
+          'status',
+        ],
       })
     })
   })
@@ -165,6 +183,7 @@ describe('resourceRegistry', () => {
     ['artifact', ['active', 'draft', 'archived']],
     ['blueprint', ['active', 'expired']],
     ['memory', ['active', 'draft', 'archived']],
+    ['agent', ['active', 'paused', 'error']],
   ] as const)('declares %s statuses as %j', (kind, values) => {
     const status = getResourceDescriptor(kind).fields.find(
       f => f.role === 'status'
@@ -225,6 +244,18 @@ describe('resourceRegistry', () => {
       expect(getResourceDescriptor(kind).capabilities).toEqual(capabilities)
     })
 
+    // An agent is not a team resource either: no attachments, comments,
+    // relations or versions endpoint addresses one.
+    it('agent has every capability off', () => {
+      expect(getResourceDescriptor('agent').capabilities).toEqual({
+        attachments: false,
+        versions: false,
+        comments: false,
+        relations: false,
+        mcp: false,
+      })
+    })
+
     // The gallery is served by the public API and has no team-scoped resource
     // id, so no shared side panel can address it.
     it('gallery-prompt is read-only with every capability off', () => {
@@ -239,6 +270,8 @@ describe('resourceRegistry', () => {
       ])
     })
 
+    // Descriptor-only does not imply read-only: an agent is created, edited
+    // and deleted in the app, it just has no shared side panel.
     it('marks only the gallery prompt read-only', () => {
       const readOnly = Object.entries(resourceRegistry)
         .filter(([, d]) => d.readOnly)
