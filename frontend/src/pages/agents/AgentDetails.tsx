@@ -19,10 +19,10 @@ import type {
   ReadingSection,
 } from '@/components/patterns/reading-page'
 import {
-  fieldLabel,
-  fieldTone,
   getResourceDescriptor,
   ResourceMetadataSection,
+  statusLabel,
+  statusTone,
 } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -33,7 +33,6 @@ import type { Agent, AgentExecution } from '@/services/agentService'
 import { agentService } from '@/services/agentService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
-import { agentStatusField } from './agentStatus'
 import { AgentBasicInfo } from './detail/AgentBasicInfo'
 import { AgentCardDetails } from './detail/AgentCardDetails'
 import { AgentStatsPanel } from './detail/AgentStatsPanel'
@@ -234,8 +233,8 @@ export function AgentDetails() {
       <ResourceReadingPage
         title={agent.name}
         status={{
-          value: fieldLabel(agentStatusField, agent.status),
-          tone: fieldTone(agentStatusField, agent.status),
+          value: statusLabel('agent', agent.status),
+          tone: statusTone('agent', agent.status),
         }}
         updatedAt={agent.updated_at}
         summary={agent.description}

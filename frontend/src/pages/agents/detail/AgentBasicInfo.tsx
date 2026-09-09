@@ -38,13 +38,15 @@ export function AgentBasicInfo({ agent }: Readonly<AgentBasicInfoProps>) {
         )}
       </div>
       {agent.agent_card && (
-        <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-          <span>Version: {agent.agent_card.version}</span>
-          <span>
-            Protocol:{' '}
-            {primaryInterface(agent.agent_card)?.protocolVersion ??
-              'Not specified'}
-          </span>
+        <div className="text-muted-foreground text-sm">
+          {/* The card's own version is a generated "Card version" metadata row
+              now, so repeating it here would put one value on screen under two
+              labels — exactly the drift the descriptor removes. The protocol
+              stays: it comes off `supportedInterfaces[0]`, an array index the
+              descriptor's dotted-key reader cannot address. */}
+          Protocol:{' '}
+          {primaryInterface(agent.agent_card)?.protocolVersion ??
+            'Not specified'}
         </div>
       )}
     </div>

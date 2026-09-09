@@ -34,13 +34,29 @@ describe('AgentBasicInfo', () => {
         })}
       />
     )
-    expect(screen.getByText('Protocol: 1.0')).toBeInTheDocument()
-    expect(screen.getByText('Version: 2.0.0')).toBeInTheDocument()
+    expect(screen.getByText(/Protocol: 1.0/)).toBeInTheDocument()
+  })
+
+  it("leaves the card's version to the generated metadata row", () => {
+    // One value, one label: `agent_card.version` is a `meta` field on the agent
+    // descriptor (#918), so repeating it here would show it twice under two
+    // different names.
+    render(
+      <AgentBasicInfo
+        agent={makeAgent({
+          version: '2.0.0',
+          supportedInterfaces: [
+            { protocolBinding: 'JSONRPC', protocolVersion: '1.0' },
+          ],
+        })}
+      />
+    )
+    expect(screen.queryByText(/2\.0\.0/)).not.toBeInTheDocument()
   })
 
   it('falls back to "Not specified" when there is no interface', () => {
     render(<AgentBasicInfo agent={makeAgent({ supportedInterfaces: [] })} />)
-    expect(screen.getByText('Protocol: Not specified')).toBeInTheDocument()
+    expect(screen.getByText(/Protocol: Not specified/)).toBeInTheDocument()
   })
 
   it('leaves the name, description and status to the reading shell', () => {
