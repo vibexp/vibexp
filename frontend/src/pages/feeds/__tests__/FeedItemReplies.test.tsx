@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 
 import type {
   FeedItemReply,
@@ -86,7 +92,9 @@ const aiReply: FeedItemReply = {
 
 const repliesResponse: FeedItemReplyListResponse = {
   replies: [humanReply, aiReply],
-  total_count: 2,
+  // Deliberately larger than `replies.length`: the list is one page, so a chip
+  // reading the array length instead of the total has to fail the count test.
+  total_count: 7,
   page: 1,
   per_page: 20,
   total_pages: 1,
@@ -157,10 +165,12 @@ describe('FeedItemReplies', () => {
     // The details column's section aria-label is invisible and the rail tooltip
     // only exists while the column is collapsed, so the panel labels itself —
     // as CommentsPanel does in the same column (#919).
+    const panel = await screen.findByTestId('feed-item-replies-panel')
     expect(
-      await screen.findByRole('heading', { name: 'Replies' })
+      within(panel).getByRole('heading', { name: 'Replies' })
     ).toBeInTheDocument()
-    expect(screen.getByText('2')).toBeInTheDocument()
+    // The total, not the two loaded rows.
+    expect(within(panel).getByText('7')).toBeInTheDocument()
   })
 
   it('shows "No replies yet" when there are no replies', async () => {

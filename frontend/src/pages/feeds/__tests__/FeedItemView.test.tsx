@@ -312,6 +312,31 @@ describe('FeedItemView page', () => {
     )
   })
 
+  it('disables the archive action and names the in-flight state', async () => {
+    const user = userEvent.setup()
+    let settle: () => void = () => undefined
+    ;(feedService.archiveFeedItem as Mock).mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          settle = resolve
+        })
+    )
+    renderFeedItemView()
+    await screen.findAllByText('Sprint Retro Summary')
+
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+    // The in-flight labels and the disabled state are an acceptance criterion,
+    // and they changed shape in #919 (a disabled <Button> became a
+    // ReadingAction with `disabled`), so they need pinning at the new seam.
+    const inFlight = await screen.findByRole('button', { name: 'Archiving…' })
+    expect(inFlight).toBeDisabled()
+
+    settle()
+    expect(
+      await screen.findByRole('button', { name: 'Unarchive' })
+    ).toBeEnabled()
+  })
+
   it('unarchives an archived item', async () => {
     const user = userEvent.setup()
     ;(feedService.getFeedItem as Mock).mockResolvedValue(
