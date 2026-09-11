@@ -353,6 +353,10 @@ func toGenArtifact(src *models.Artifact) (artifactsgen.Artifact, error) {
 		out.Content = &content
 	}
 
+	if out.Project, err = toGenArtifactProjectSummary(src.Project); err != nil {
+		return artifactsgen.Artifact{}, err
+	}
+
 	if err := attachGenArtifactNeighborhood(&out, src); err != nil {
 		return artifactsgen.Artifact{}, err
 	}
@@ -539,4 +543,19 @@ func (s *Server) artifactsResponseErrorHandler(w http.ResponseWriter, r *http.Re
 func genLabels(labels models.LabelList) []string {
 	out := make([]string, 0, len(labels))
 	return append(out, labels...)
+}
+
+// toGenArtifactProjectSummary converts the owning project's summary, resolved by the
+// detail read's LEFT JOIN (#929). Returns nil for nil so the generated field —
+// required+nullable in the spec, hence no omitempty — renders as `"project":
+// null` on the list reads and whenever the project row is gone.
+func toGenArtifactProjectSummary(src *models.ProjectSummary) (*artifactsgen.ProjectSummary, error) {
+	if src == nil {
+		return nil, nil
+	}
+	id, err := artifactUUID("project.id", src.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &artifactsgen.ProjectSummary{Id: id, Name: src.Name, Slug: src.Slug}, nil
 }

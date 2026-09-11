@@ -64,8 +64,9 @@ func (r *MemoryRepository) Create(ctx context.Context, memory *models.Memory) er
 func (r *MemoryRepository) GetByID(ctx context.Context, userID, teamID, memoryID string) (*models.Memory, error) {
 	query := `
 		SELECT m.id, m.user_id, m.team_id, m.project_id, m.title, m.text, m.status, m.metadata,
-		       m.created_at, m.updated_at, m.version, m.labels
-		FROM memories m
+		       m.created_at, m.updated_at, m.version, m.labels,
+		       ` + projectSummaryProjection + `
+		FROM memories m` + projectSummaryJoin("m") + `
 		WHERE m.id = $1
 			AND m.team_id = $2
 			AND (
@@ -76,15 +77,18 @@ func (r *MemoryRepository) GetByID(ctx context.Context, userID, teamID, memoryID
 
 	var memory models.Memory
 	var metadataJSON []byte
+	var project projectSummaryScan
 
 	err := r.db.QueryRowContext(ctx, query, memoryID, teamID, userID).Scan(
 		&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Title, &memory.Text, &memory.Status,
 		&metadataJSON, &memory.CreatedAt, &memory.UpdatedAt, &memory.Version, &memory.Labels,
+		&project.id, &project.name, &project.slug,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get memory by ID: %w", err), repositories.ErrMemoryNotFound)
 	}
+	memory.Project = project.value()
 
 	if err := json.Unmarshal(metadataJSON, &memory.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)

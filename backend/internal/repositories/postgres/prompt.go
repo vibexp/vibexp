@@ -121,11 +121,12 @@ func (r *PromptRepository) GetBySlug(ctx context.Context, userID, teamID, slug s
 		SELECT
 			p.id, p.name, p.slug, p.description, p.body, p.user_id, p.team_id, p.project_id,
 			p.status, p.mcp_expose, p.labels, p.created_at, p.updated_at,
-			p.version, CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared
+			p.version, CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared,
+			` + projectSummaryProjection + `
 		FROM prompts p
 		LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 			AND ps.is_active = true
-			AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
+			AND (ps.expires_at IS NULL OR ps.expires_at > NOW())` + projectSummaryJoin("p") + `
 		WHERE p.slug = $1
 			AND p.team_id = $2
 			AND (
@@ -135,15 +136,18 @@ func (r *PromptRepository) GetBySlug(ctx context.Context, userID, teamID, slug s
 	`
 
 	var prompt models.Prompt
+	var project projectSummaryScan
 	err := r.db.QueryRowContext(ctx, query, slug, teamID, userID).Scan(
 		&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description, &prompt.Body,
 		&prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose,
 		&prompt.Labels, &prompt.CreatedAt, &prompt.UpdatedAt, &prompt.Version, &prompt.IsShared,
+		&project.id, &project.name, &project.slug,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get prompt by slug: %w", err), repositories.ErrPromptNotFound)
 	}
+	prompt.Project = project.value()
 
 	return &prompt, nil
 }

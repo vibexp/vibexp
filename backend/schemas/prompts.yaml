@@ -75,6 +75,16 @@ Prompt:
         distinct from `related`. Populated on the detail GET; empty otherwise.
       items:
         $ref: './relations.yaml#/SimilarResource'
+    project:
+      # allOf, not a bare $ref: under OpenAPI 3.0.3 a sibling of $ref is
+      # ignored, and `nullable` is real API surface here.
+      allOf:
+        - $ref: './projects.yaml#/ProjectSummary'
+      nullable: true
+      description: >-
+        Identity of the project this resource belongs to, so a client can render
+        a project label without a second request (issue #929). Populated on the
+        detail GET; null in list responses and when the project row is gone.
     freshness:
       $ref: '../openapi.yaml#/components/schemas/ResourceFreshnessState'
   required:
@@ -92,6 +102,7 @@ Prompt:
     - created_at
     - updated_at
     - version
+    - project
 
 CreatePromptRequest:
   type: object

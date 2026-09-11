@@ -307,6 +307,10 @@ func toGenPrompt(src *models.Prompt) (promptsgen.Prompt, error) {
 		Version:     src.Version,
 	}
 
+	if out.Project, err = toGenPromptProjectSummary(src.Project); err != nil {
+		return promptsgen.Prompt{}, err
+	}
+
 	if err := attachGenPromptNeighborhood(&out, src); err != nil {
 		return promptsgen.Prompt{}, err
 	}
@@ -514,4 +518,19 @@ func withoutUnparseableBools(query url.Values, names []string) (url.Values, bool
 		query[name] = kept
 	}
 	return query, stripped
+}
+
+// toGenPromptProjectSummary converts the owning project's summary, resolved by the
+// detail read's LEFT JOIN (#929). Returns nil for nil so the generated field —
+// required+nullable in the spec, hence no omitempty — renders as `"project":
+// null` on the list reads and whenever the project row is gone.
+func toGenPromptProjectSummary(src *models.ProjectSummary) (*promptsgen.ProjectSummary, error) {
+	if src == nil {
+		return nil, nil
+	}
+	id, err := promptUUID("project.id", src.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &promptsgen.ProjectSummary{Id: id, Name: src.Name, Slug: src.Slug}, nil
 }

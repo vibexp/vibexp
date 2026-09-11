@@ -15238,6 +15238,11 @@ components:
           description: Computed embedding-similarity neighborhood of this resource (up to 5), derived live at read time from vector similarity — NOT stored edges and distinct from `related`. Populated on the detail GET; empty otherwise.
           items:
             $ref: '#/components/schemas/SimilarResource'
+        project:
+          allOf:
+            - $ref: '#/components/schemas/ProjectSummary'
+          nullable: true
+          description: 'Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Populated on the detail GET; null in list responses and when the project row is gone.'
         freshness:
           $ref: '#/components/schemas/ResourceFreshnessState'
       required:
@@ -15255,6 +15260,7 @@ components:
         - created_at
         - updated_at
         - version
+        - project
     CreatePromptRequest:
       type: object
       properties:
@@ -17404,6 +17410,11 @@ components:
           description: Computed embedding-similarity neighborhood of this resource (up to 5), derived live at read time from vector similarity — NOT stored edges and distinct from `related`. Populated on the detail GET; empty otherwise.
           items:
             $ref: '#/components/schemas/SimilarResource'
+        project:
+          allOf:
+            - $ref: '#/components/schemas/ProjectSummary'
+          nullable: true
+          description: 'Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Populated on the detail GET; null in list responses and when the project row is gone.'
         freshness:
           $ref: '#/components/schemas/ResourceFreshnessState'
       required:
@@ -17417,6 +17428,7 @@ components:
         - title
         - type
         - labels
+        - project
     CreateArtifactRequest:
       type: object
       properties:
@@ -18087,6 +18099,26 @@ components:
         - created_at
         - updated_at
         - version
+    ProjectSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the project
+          example: 01234567-89ab-cdef-0123-456789abcdef
+        name:
+          type: string
+          description: Human-readable project name
+          example: My Project
+        slug:
+          type: string
+          description: URL-friendly project identifier
+          example: my-project
+      required:
+        - id
+        - name
+        - slug
     CreateProjectRequest:
       type: object
       properties:
@@ -18308,6 +18340,11 @@ components:
           description: Computed embedding-similarity neighborhood of this resource (up to 5), derived live at read time from vector similarity — NOT stored edges and distinct from `related`. Populated on the detail GET; empty otherwise.
           items:
             $ref: '#/components/schemas/SimilarResource'
+        project:
+          allOf:
+            - $ref: '#/components/schemas/ProjectSummary'
+          nullable: true
+          description: 'Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Populated on the detail GET; null in list responses and when the project row is gone.'
         freshness:
           $ref: '#/components/schemas/ResourceFreshnessState'
       required:
@@ -18322,6 +18359,7 @@ components:
         - updated_at
         - version
         - labels
+        - project
     CreateMemoryRequest:
       type: object
       properties:
@@ -18696,6 +18734,11 @@ components:
           description: Computed embedding-similarity neighborhood of this resource (up to 5), derived live at read time from vector similarity — NOT stored edges and distinct from `related`. Populated on the detail GET; empty otherwise.
           items:
             $ref: '#/components/schemas/SimilarResource'
+        project:
+          allOf:
+            - $ref: '#/components/schemas/ProjectSummary'
+          nullable: true
+          description: 'Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Populated on the detail GET; null in list responses and when the project row is gone.'
         freshness:
           $ref: '#/components/schemas/ResourceFreshnessState'
       required:
@@ -18711,6 +18754,7 @@ components:
         - type
         - path
         - labels
+        - project
     BlueprintSource:
       type: object
       description: Read-only import provenance; present only for imported blueprints.

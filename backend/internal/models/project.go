@@ -17,6 +17,17 @@ type Project struct {
 	Version     int64     `json:"version" db:"version"`
 }
 
+// ProjectSummary is the minimal identity of the project a resource belongs to,
+// embedded on the four resource detail payloads so a client can render a project
+// label without a second request (issue #929). Populated by the detail read's
+// LEFT JOIN; nil (and therefore `null` on the wire) when the resource has no
+// project or the project row is gone.
+type ProjectSummary struct {
+	ID   string `json:"id" db:"id"`
+	Name string `json:"name" db:"name"`
+	Slug string `json:"slug" db:"slug"`
+}
+
 // CreateProjectRequest represents the request to create a new project
 type CreateProjectRequest struct {
 	Name        string  `json:"name" validate:"required,min=1,max=255"`

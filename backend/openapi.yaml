@@ -384,6 +384,8 @@ components:
       $ref: "./schemas/github.yaml#/GitHubImportProjectResultResponse"
     Project:
       $ref: "./schemas/projects.yaml#/Project"
+    ProjectSummary:
+      $ref: "./schemas/projects.yaml#/ProjectSummary"
     CreateProjectRequest:
       $ref: "./schemas/projects.yaml#/CreateProjectRequest"
     UpdateProjectRequest:

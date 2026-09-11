@@ -139,8 +139,9 @@ func (r *ArtifactRepository) GetByProjectIDAndSlug(
 ) (*models.Artifact, error) {
 	query := `
 		SELECT a.id, a.project_id, a.slug, a.user_id, a.team_id, a.title, a.description, a.content,
-		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels
-		FROM artifacts a
+		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels,
+		` + projectSummaryProjection + `
+		FROM artifacts a` + projectSummaryJoin("a") + `
 		WHERE a.project_id = $1
 			AND a.slug = $2
 			AND a.team_id = $3
@@ -152,11 +153,13 @@ func (r *ArtifactRepository) GetByProjectIDAndSlug(
 
 	var artifact models.Artifact
 	var metadataJSON []byte
+	var project projectSummaryScan
 	err := r.db.QueryRowContext(ctx, query, projectID, slug, teamID, userID).Scan(
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
 		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
+		&project.id, &project.name, &project.slug,
 	)
 
 	if err != nil {
@@ -165,6 +168,7 @@ func (r *ArtifactRepository) GetByProjectIDAndSlug(
 			repositories.ErrArtifactNotFound,
 		)
 	}
+	artifact.Project = project.value()
 
 	if err := json.Unmarshal(metadataJSON, &artifact.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)

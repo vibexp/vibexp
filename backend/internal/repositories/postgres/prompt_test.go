@@ -428,9 +428,11 @@ func TestPromptRepository_GetBySlug(t *testing.T) {
 		rows := sqlmock.NewRows([]string{
 			"id", "name", "slug", "description", "body", "user_id", "team_id", "project_id", "status", "mcp_expose",
 			"labels", "created_at", "updated_at", "version", "is_shared",
+			"proj_id", "proj_name", "proj_slug",
 		}).AddRow(
 			"prompt-123", "Test Prompt", "test-prompt", "Test description",
 			"Test body", "user-123", "team-123", "project-123", "published", true, "{}", now, now, int64(1), false,
+			"project-123", "Test Project", "test-project",
 		)
 
 		mock.ExpectQuery("SELECT (.+) FROM prompts p.*EXISTS.*teams").
@@ -443,6 +445,11 @@ func TestPromptRepository_GetBySlug(t *testing.T) {
 		assert.Equal(t, "test-prompt", prompt.Slug)
 		assert.True(t, prompt.MCPExpose)
 		assert.Equal(t, int64(1), prompt.Version)
+		// The #929 project LEFT JOIN rides on this same read.
+		require.NotNil(t, prompt.Project)
+		assert.Equal(t, "project-123", prompt.Project.ID)
+		assert.Equal(t, "Test Project", prompt.Project.Name)
+		assert.Equal(t, "test-project", prompt.Project.Slug)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

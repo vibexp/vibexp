@@ -72,6 +72,12 @@ type Blueprint struct {
 	// attached by the handler from resource_freshness, and it is OPTIONAL in
 	// the spec so adding it cannot break an existing client.
 	Freshness *ResourceFreshnessState `json:"freshness,omitempty" db:"-"`
+	// Project is the owning project's minimal identity, resolved by the detail
+	// read's LEFT JOIN on projects (issue #929) so a client can render a project
+	// label without a second request. Not a stored column (db:"-"); the json tag
+	// carries NO omitempty because the spec declares it required+nullable, i.e.
+	// the key is always present and `null` when the project is unknown.
+	Project *ProjectSummary `json:"project" db:"-"`
 }
 
 // BlueprintSource is the read-only import provenance exposed as the spec's

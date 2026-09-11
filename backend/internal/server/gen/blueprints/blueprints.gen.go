@@ -566,6 +566,9 @@ type Blueprint struct {
 	// Path Canonical repo-relative path this blueprint materializes to. Derived from (type, subtype, slug) for VibeXP-authored blueprints, or the verbatim source path for imported ones.
 	Path string `json:"path"`
 
+	// Project Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Populated on the detail GET; null in list responses and when the project row is gone.
+	Project *ProjectSummary `json:"project"`
+
 	// ProjectId UUID of the project this spec library belongs to
 	ProjectId openapi_types.UUID `json:"project_id"`
 
@@ -634,6 +637,9 @@ type BlueprintDetail struct {
 
 	// Path Canonical repo-relative path this blueprint materializes to. Derived from (type, subtype, slug) for VibeXP-authored blueprints, or the verbatim source path for imported ones.
 	Path string `json:"path"`
+
+	// Project Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Populated on the detail GET; null in list responses and when the project row is gone.
+	Project *ProjectSummary `json:"project"`
 
 	// ProjectId UUID of the project this spec library belongs to
 	ProjectId openapi_types.UUID `json:"project_id"`
@@ -742,6 +748,18 @@ type ErrorResponse struct {
 
 	// ValidationErrors Field-level validation errors (present for validation failures)
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
+}
+
+// ProjectSummary defines model for ProjectSummary.
+type ProjectSummary struct {
+	// Id Unique identifier for the project
+	Id openapi_types.UUID `json:"id"`
+
+	// Name Human-readable project name
+	Name string `json:"name"`
+
+	// Slug URL-friendly project identifier
+	Slug string `json:"slug"`
 }
 
 // RelatedResource One endpoint of a relation as seen from the other endpoint, enriched with the related resource's resolved title and link fields. project_id is present for every type; slug is present for artifact/blueprint/prompt and absent for memory.
