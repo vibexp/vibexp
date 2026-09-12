@@ -5,9 +5,18 @@ const EXPECTED_TOOL_NAMES = new Set([
   'vibexp_io_update_artifact',
   'vibexp_io_create_memory',
   'vibexp_io_update_memory',
+  'vibexp_io_create_blueprint',
+  'vibexp_io_update_blueprint',
+  'vibexp_io_create_prompt',
+  'vibexp_io_update_prompt',
+  'vibexp_io_render_prompt',
   'vibexp_io_get_resource',
   'vibexp_io_list_resources',
   'vibexp_io_list_resource_metadata',
+  'vibexp_io_delete_resource',
+  'vibexp_io_upload_attachment',
+  'vibexp_io_list_attachments',
+  'vibexp_io_delete_attachment',
   'vibexp_io_link_resources',
   'vibexp_io_list_projects',
   'vibexp_io_list_feeds',
@@ -22,7 +31,7 @@ const EXPECTED_TOOL_NAMES = new Set([
 ])
 
 describe('mcpTools catalog', () => {
-  it('contains exactly the 18 expected tool names', () => {
+  it('contains exactly the 27 expected tool names', () => {
     const actualNames = new Set(mcpTools.map(t => t.name))
     expect(actualNames).toEqual(EXPECTED_TOOL_NAMES)
   })
@@ -62,6 +71,39 @@ describe('mcpTools catalog', () => {
         expect.arrayContaining(['title', 'text', 'metadata', 'labels'])
       )
     }
+  })
+
+  // #937 added `labels` to the blueprint write tools, and #939 is what put
+  // those tools in the catalog at all. `subtype` and `path`-shaped extras are
+  // the ones most easily dropped when transcribing a Go param struct by hand,
+  // so they are pinned rather than trusted.
+  it('documents labels, subtype and metadata on both blueprint write tools', () => {
+    for (const name of [
+      'vibexp_io_create_blueprint',
+      'vibexp_io_update_blueprint',
+    ]) {
+      const tool = mcpTools.find(t => t.name === name)
+      expect(tool).toBeDefined()
+      const properties = tool?.inputSchema.properties ?? {}
+      expect(Object.keys(properties)).toEqual(
+        expect.arrayContaining(['labels', 'subtype', 'metadata', 'content'])
+      )
+    }
+  })
+
+  it('documents relative_path on the attachment upload tool', () => {
+    const tool = mcpTools.find(t => t.name === 'vibexp_io_upload_attachment')
+    expect(tool).toBeDefined()
+    expect(Object.keys(tool?.inputSchema.properties ?? {})).toEqual(
+      expect.arrayContaining([
+        'owner_type',
+        'owner_id',
+        'file_name',
+        'file_content_base64',
+        'relative_path',
+      ])
+    )
+    expect(tool?.inputSchema.required).not.toContain('relative_path')
   })
 
   it('every entry has non-empty name and description', () => {

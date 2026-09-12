@@ -1,7 +1,11 @@
 import type { MCPTool } from './mcp-tool-shared'
 import { TEAM_ID_DESCRIPTION } from './mcp-tool-shared'
+import { attachmentTools } from './mcp-tools-attachment'
+import { blueprintTools } from './mcp-tools-blueprint'
 import { memoryTools } from './mcp-tools-memory'
 import { metadataTools } from './mcp-tools-metadata'
+import { promptTools } from './mcp-tools-prompt'
+import { resourceTools } from './mcp-tools-resource'
 
 export type { MCPTool } from './mcp-tool-shared'
 
@@ -129,6 +133,8 @@ export const mcpTools: MCPTool[] = [
     },
   },
   ...memoryTools,
+  ...blueprintTools,
+  ...promptTools,
   {
     name: 'vibexp_io_get_resource',
     description:
@@ -217,6 +223,8 @@ export const mcpTools: MCPTool[] = [
     },
   },
   ...metadataTools,
+  ...resourceTools,
+  ...attachmentTools,
   {
     name: 'vibexp_io_link_resources',
     description:
