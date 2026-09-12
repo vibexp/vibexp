@@ -204,6 +204,23 @@ func TestMigration016_ResourceLabels(t *testing.T) {
 	})
 
 	t.Run("down restores metadata.tags and re-runs clean", func(t *testing.T) {
+		// Give the rows whose non-array `tags` 016 up preserved some labels, the way
+		// the API would, plus a row with no `tags` key at all. `||` is a shallow
+		// merge, so an unguarded down would replace the preserved value.
+		for _, id := range []string{fx.scalarTags, fx.objectTags, fx.noTags} {
+			_, err := db.Exec("UPDATE memories SET labels = $1 WHERE id = $2", pq.StringArray{"a", "b"}, id)
+			require.NoError(t, err)
+		}
+		// An array still parked at `tags` after 016 (the write-path shim leaves one
+		// with a non-string entry alone) is the value 016 up would have moved, so the
+		// down overwrites it from labels.
+		arrayTags := uuid.New().String()
+		_, err := db.Exec(
+			`INSERT INTO memories (id, user_id, team_id, project_id, text, status, metadata, labels)
+			 VALUES ($1, $2, $3, $4, $5, 'active', '{"tags": [1, 2]}'::jsonb, $6)`,
+			arrayTags, fx.userID, fx.teamID, fx.projectID, "memory "+arrayTags[:8], pq.StringArray{"x"})
+		require.NoError(t, err)
+
 		require.NoError(t, m.Migrate(15), "migrate down to 015")
 
 		for _, table := range []string{"artifacts", "blueprints", "memories"} {
@@ -213,6 +230,22 @@ func TestMigration016_ResourceLabels(t *testing.T) {
 			`SELECT count(*) FROM memories
 			  WHERE id = $1 AND metadata->'tags' = '["onboarding","api"]'::jsonb`, fx.withTags),
 			"rolling back must not lose the taxonomy the up migration moved")
+		assert.Equal(t, 1, countRows(t, db,
+			`SELECT count(*) FROM memories WHERE id = $1 AND metadata->'tags' = '"not-an-array"'::jsonb`,
+			fx.scalarTags), "a preserved scalar tags value must survive the rollback")
+		assert.Equal(t, 1, countRows(t, db,
+			`SELECT count(*) FROM memories WHERE id = $1 AND metadata->'tags' = '{"nested": true}'::jsonb`,
+			fx.objectTags), "a preserved object tags value must survive the rollback")
+		assert.Equal(t, 1, countRows(t, db,
+			`SELECT count(*) FROM memories
+			  WHERE id = $1 AND metadata->'tags' = '["a","b"]'::jsonb AND metadata->>'priority' = 'low'`,
+			fx.noTags), "an absent tags key is still written from labels")
+		assert.Equal(t, 1, countRows(t, db,
+			`SELECT count(*) FROM memories WHERE id = $1 AND metadata->'tags' = '["x"]'::jsonb`, arrayTags),
+			"an array tags value is still overwritten from labels")
+		assert.Equal(t, 0, countRows(t, db,
+			"SELECT count(*) FROM memories WHERE id = $1 AND metadata ? 'tags'", fx.emptyTags),
+			"empty labels write no tags key")
 
 		require.NoError(t, m.Migrate(16), "migrate back up to 016")
 		assert.Equal(t, []string{"onboarding", "api"}, memoryLabels(t, db, fx.withTags))
