@@ -112,11 +112,11 @@ describe('mcpTools catalog', () => {
     expect(tool?.inputSchema.required).not.toContain('relative_path')
   })
 
-  // The Go parity gate (backend/internal/server/mcp_catalog_parity_test.go)
-  // reads the catalog modules as TEXT, so a module that is written but never
-  // spread into `mcpTools` satisfies it while /mcp still omits the tool. This
-  // is the assertion that closes that gap: it reads the exported arrays, so it
-  // can only pass if the spread is really there.
+  // Belt and braces alongside `TestMCPCatalogModulesAreAllSpread`, which makes
+  // the same assertion on the Go side. That one reads the modules as TEXT and
+  // so covers every module by construction; this one reads the RUNTIME arrays,
+  // so it is the half that would notice a spread that parses but resolves to
+  // something else.
   it('spreads every per-domain module into the rendered catalog', () => {
     const names = new Set(mcpTools.map(t => t.name))
     const modules = {

@@ -102,7 +102,15 @@ func TestMCPCatalogModulesAreAllSpread(t *testing.T) {
 	require.NotEmpty(t, modules, "no per-domain catalog modules found under %s", mcpDir)
 
 	for _, path := range modules {
-		for _, match := range moduleExportPattern.FindAllStringSubmatch(readCatalogFile(t, path), -1) {
+		matches := moduleExportPattern.FindAllStringSubmatch(readCatalogFile(t, path), -1)
+		// Zero matches would mean zero assertions for this file, which is the
+		// same silent pass one layer down: a module declared some other way
+		// (`satisfies MCPTool[]`, a re-export) would go uninspected.
+		require.NotEmpty(t, matches,
+			"%s matched the catalog glob but exports no `export const X: MCPTool[]` this check can see; "+
+				"declare it that way or widen moduleExportPattern", filepath.Base(path))
+
+		for _, match := range matches {
 			assert.Contains(t, spread, match[1],
 				"%s exports %s but mcp-tools.ts never spreads it, so the /mcp page renders none of its tools",
 				filepath.Base(path), match[1])

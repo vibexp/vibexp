@@ -127,7 +127,6 @@ jobs:
             # description has nothing to say to Postgres, gosec or golangci.
             mcp_catalog:
               - 'frontend/src/pages/mcp/**'
-              - 'backend/internal/server/mcp_*.go'
             migrations:
               - 'backend/migrations/**'
               - '.github/scripts/check-duplicate-migrations.sh'
