@@ -1,4 +1,10 @@
 import { mcpTools } from '../mcp-tools'
+import { attachmentTools } from '../mcp-tools-attachment'
+import { blueprintTools } from '../mcp-tools-blueprint'
+import { memoryTools } from '../mcp-tools-memory'
+import { metadataTools } from '../mcp-tools-metadata'
+import { promptTools } from '../mcp-tools-prompt'
+import { resourceTools } from '../mcp-tools-resource'
 
 const EXPECTED_TOOL_NAMES = new Set([
   'vibexp_io_create_artifact',
@@ -74,9 +80,9 @@ describe('mcpTools catalog', () => {
   })
 
   // #937 added `labels` to the blueprint write tools, and #939 is what put
-  // those tools in the catalog at all. `subtype` and `path`-shaped extras are
-  // the ones most easily dropped when transcribing a Go param struct by hand,
-  // so they are pinned rather than trusted.
+  // those tools in the catalog at all. `subtype` and `metadata` are the extras
+  // most easily dropped when transcribing a Go param struct by hand, so they
+  // are pinned rather than trusted.
   it('documents labels, subtype and metadata on both blueprint write tools', () => {
     for (const name of [
       'vibexp_io_create_blueprint',
@@ -104,6 +110,32 @@ describe('mcpTools catalog', () => {
       ])
     )
     expect(tool?.inputSchema.required).not.toContain('relative_path')
+  })
+
+  // The Go parity gate (backend/internal/server/mcp_catalog_parity_test.go)
+  // reads the catalog modules as TEXT, so a module that is written but never
+  // spread into `mcpTools` satisfies it while /mcp still omits the tool. This
+  // is the assertion that closes that gap: it reads the exported arrays, so it
+  // can only pass if the spread is really there.
+  it('spreads every per-domain module into the rendered catalog', () => {
+    const names = new Set(mcpTools.map(t => t.name))
+    const modules = {
+      memoryTools,
+      metadataTools,
+      blueprintTools,
+      promptTools,
+      attachmentTools,
+      resourceTools,
+    }
+    for (const [moduleName, tools] of Object.entries(modules)) {
+      expect(tools.length).toBeGreaterThan(0)
+      for (const tool of tools) {
+        expect(
+          names.has(tool.name),
+          `${tool.name} is exported by ${moduleName} but is not spread into mcpTools`
+        ).toBe(true)
+      }
+    }
   })
 
   it('every entry has non-empty name and description', () => {

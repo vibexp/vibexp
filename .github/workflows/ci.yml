@@ -114,6 +114,10 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/linters/golangci.yml'
               - '.github/linters/spectral.yml'
+              # The MCP catalog parity gate lives in the Go suite but reads the
+              # SPA's curated catalog (#939). Without this, a PR that drops a
+              # tool from the catalog skips the `unit` job and merges green.
+              - 'frontend/src/pages/mcp/**'
             frontend:
               - 'frontend/**'
               - 'Makefile'
@@ -297,6 +301,14 @@ jobs:
       # `-tags=integration`), so no database is reachable or needed here.
       - name: Test (unit, with coverage)
         run: make backend-test-unit-coverage
+
+      # The MCP catalog parity gate reads files OUTSIDE the Go module
+      # (frontend/src/pages/mcp), which are therefore not part of Go's
+      # content-addressed test-cache key: with a warm build cache the step above
+      # answers `ok (cached)` for an unchanged Go package even when the catalog
+      # has drifted. `-count=1` is what forces it to actually run (#939).
+      - name: Check MCP catalog parity
+        run: make backend-check-mcp-catalog
 
       # Guard against reintroducing WorkOS-specific coupling (removed in #30).
       # WorkOS may return only as generic OIDC_* configuration, never as

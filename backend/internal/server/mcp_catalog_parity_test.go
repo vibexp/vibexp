@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -130,7 +129,6 @@ func documentedMCPToolNames(t *testing.T) map[string]struct{} {
 	require.NoError(t, err)
 	require.NotEmpty(t, matches, "no catalog modules matched %s under %s", catalogGlob, repoRoot)
 
-	sort.Strings(matches)
 	names := make(map[string]struct{})
 	for _, path := range matches {
 		content, readErr := os.ReadFile(filepath.Clean(path)) // #nosec G304 -- path comes from a constant glob inside the repo, not from user input.
