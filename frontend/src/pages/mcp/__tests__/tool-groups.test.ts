@@ -131,6 +131,22 @@ describe('groupTools', () => {
     ])
   })
 
+  it('leads the Resources group with the two primary read tools', () => {
+    // Groups render in mcpTools order and nothing sorts them, so the order the
+    // modules are spread in IS the page's reading order. Pinned because it is
+    // otherwise incidental: moving `...resourceTools` after `...metadataTools`
+    // silently promotes the niche list_resource_metadata above get/list
+    // (caught in review on #939).
+    const resources = groupTools(mcpTools).find(g => g.id === 'resources')
+    expect(resources?.tools.map(t => t.name)).toEqual([
+      'vibexp_io_get_resource',
+      'vibexp_io_list_resources',
+      'vibexp_io_delete_resource',
+      'vibexp_io_list_resource_metadata',
+      'vibexp_io_link_resources',
+    ])
+  })
+
   it('omits groups with no matching tools', () => {
     const groups = groupTools([makeTool('vibexp_io_list_teams')])
     expect(groups.map(g => g.id)).toEqual(['teams'])

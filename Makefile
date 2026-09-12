@@ -169,7 +169,12 @@ backend-test-integration:
 # so outside Go's test-cache key, meaning a cached `ok` would hide real drift.
 backend-check-mcp-catalog:
 	@echo "🔗 Checking the frontend MCP catalog against the registered tools..."
-	cd backend && go test -count=1 -run TestFrontendMCPCatalogMatchesRegisteredTools ./internal/server/
+	@cd backend && out=$$(go test -count=1 -v -run '^TestMCPCatalog' ./internal/server/ 2>&1); status=$$?; \
+		echo "$$out"; \
+		[ $$status -eq 0 ] || exit 1; \
+		echo "$$out" | grep -q '^--- PASS: TestMCPCatalog' || { \
+			echo "No MCP catalog parity test ran. 'go test -run' exits 0 when the filter matches nothing, so a rename would have made this gate a silent no-op."; \
+			exit 1; }
 
 backend-mock-generate:
 	@echo "🎭 Regenerating mocks (mockery $(MOCKERY_VERSION))..."

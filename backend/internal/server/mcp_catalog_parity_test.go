@@ -40,6 +40,14 @@ const catalogGlob = "frontend/src/pages/mcp/mcp-tools*.ts"
 // first..."), and a looser pattern would read those references as entries.
 var catalogNamePattern = regexp.MustCompile(`name:\s*'(vibexp_io_[a-z0-9_]+)'`)
 
+// A per-domain module exports one `MCPTool[]`, and mcp-tools.ts renders it only
+// if it also spreads it. These two pin that second half -- see
+// TestMCPCatalogModulesAreAllSpread.
+var (
+	moduleExportPattern  = regexp.MustCompile(`export const (\w+): MCPTool\[\]`)
+	catalogSpreadPattern = regexp.MustCompile(`\.\.\.(\w+),`)
+)
+
 // catalogOmissions lists tools that are registered on the MCP server but are
 // deliberately NOT documented on the /mcp page. It is empty on purpose: every
 // registered tool is currently documented. Adding an entry here is how an
@@ -47,7 +55,7 @@ var catalogNamePattern = regexp.MustCompile(`name:\s*'(vibexp_io_[a-z0-9_]+)'`)
 // than silently absent.
 var catalogOmissions = map[string]string{}
 
-func TestFrontendMCPCatalogMatchesRegisteredTools(t *testing.T) {
+func TestMCPCatalogMatchesRegisteredTools(t *testing.T) {
 	registered := registeredMCPToolNames(t)
 	require.NotEmpty(t, registered, "AddAllTools registered no tools")
 
@@ -70,6 +78,35 @@ func TestFrontendMCPCatalogMatchesRegisteredTools(t *testing.T) {
 		assert.Contains(t, registered, name,
 			"%s is documented in the frontend MCP catalog (%s) but is not registered by AddAllTools; "+
 				"remove it from the catalog", name, catalogGlob)
+	}
+}
+
+// TestMCPCatalogModulesAreAllSpread closes the gap the name diff
+// above cannot see. That test reads the modules as TEXT, so a module that is
+// written but never spread into `mcpTools` satisfies it while the /mcp page
+// still omits every tool in it. Deriving the module list from the same glob
+// (rather than restating it) is what makes this keep holding for the next
+// module somebody adds.
+func TestMCPCatalogModulesAreAllSpread(t *testing.T) {
+	repoRoot := repoRootFromServerPackage(t)
+	mcpDir := filepath.Join(repoRoot, "frontend", "src", "pages", "mcp")
+
+	spread := make(map[string]struct{})
+	for _, match := range catalogSpreadPattern.FindAllStringSubmatch(readCatalogFile(t, filepath.Join(mcpDir, "mcp-tools.ts")), -1) {
+		spread[match[1]] = struct{}{}
+	}
+	require.NotEmpty(t, spread, "mcp-tools.ts spreads no per-domain module at all")
+
+	modules, err := filepath.Glob(filepath.Join(mcpDir, "mcp-tools-*.ts"))
+	require.NoError(t, err)
+	require.NotEmpty(t, modules, "no per-domain catalog modules found under %s", mcpDir)
+
+	for _, path := range modules {
+		for _, match := range moduleExportPattern.FindAllStringSubmatch(readCatalogFile(t, path), -1) {
+			assert.Contains(t, spread, match[1],
+				"%s exports %s but mcp-tools.ts never spreads it, so the /mcp page renders none of its tools",
+				filepath.Base(path), match[1])
+		}
 	}
 }
 
@@ -117,13 +154,11 @@ func registeredMCPToolNames(t *testing.T) map[string]struct{} {
 }
 
 // documentedMCPToolNames parses the curated catalog modules in the frontend
-// tree. The backend module lives at backend/, so the repo root is three levels
-// up from internal/server.
+// tree.
 func documentedMCPToolNames(t *testing.T) map[string]struct{} {
 	t.Helper()
 
-	repoRoot, err := filepath.Abs(filepath.Join("..", "..", ".."))
-	require.NoError(t, err)
+	repoRoot := repoRootFromServerPackage(t)
 
 	matches, err := filepath.Glob(filepath.Join(repoRoot, filepath.FromSlash(catalogGlob)))
 	require.NoError(t, err)
@@ -131,11 +166,27 @@ func documentedMCPToolNames(t *testing.T) map[string]struct{} {
 
 	names := make(map[string]struct{})
 	for _, path := range matches {
-		content, readErr := os.ReadFile(filepath.Clean(path)) // #nosec G304 -- path comes from a constant glob inside the repo, not from user input.
-		require.NoError(t, readErr)
-		for _, match := range catalogNamePattern.FindAllStringSubmatch(string(content), -1) {
+		for _, match := range catalogNamePattern.FindAllStringSubmatch(readCatalogFile(t, path), -1) {
 			names[match[1]] = struct{}{}
 		}
 	}
 	return names
+}
+
+// repoRootFromServerPackage resolves the monorepo root: the backend module
+// lives at backend/, so the root is three levels up from internal/server.
+func repoRootFromServerPackage(t *testing.T) string {
+	t.Helper()
+
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	require.NoError(t, err)
+	return root
+}
+
+func readCatalogFile(t *testing.T, path string) string {
+	t.Helper()
+
+	content, err := os.ReadFile(filepath.Clean(path)) // #nosec G304 -- path comes from a constant glob inside the repo, not from user input.
+	require.NoError(t, err)
+	return string(content)
 }

@@ -135,8 +135,8 @@ export const mcpTools: MCPTool[] = [
   ...memoryTools,
   ...blueprintTools,
   ...promptTools,
-  ...metadataTools,
   ...resourceTools,
+  ...metadataTools,
   ...attachmentTools,
   {
     name: 'vibexp_io_link_resources',
