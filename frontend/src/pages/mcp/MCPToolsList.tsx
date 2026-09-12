@@ -1,11 +1,14 @@
 import {
+  BookOpen,
   ChevronRight,
   Compass,
   Database,
   Layout,
   type LucideIcon,
   Package,
+  Paperclip,
   Search,
+  Sparkles,
   Users,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -33,6 +36,9 @@ const GROUP_ICONS: Record<ToolGroup['icon'], LucideIcon> = {
   layout: Layout,
   users: Users,
   compass: Compass,
+  'book-open': BookOpen,
+  sparkles: Sparkles,
+  paperclip: Paperclip,
 }
 
 function KindBadge({ kind }: Readonly<{ kind: 'read' | 'write' }>) {
