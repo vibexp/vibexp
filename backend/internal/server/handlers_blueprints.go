@@ -372,6 +372,9 @@ func toGenBlueprint(src *models.Blueprint) (blueprintsgen.Blueprint, error) {
 	if src.Source != nil {
 		out.Source = toGenBlueprintSource(src.Source)
 	}
+	if out.Project, err = toGenBlueprintProjectSummary(src.Project); err != nil {
+		return blueprintsgen.Blueprint{}, err
+	}
 
 	if err := attachGenBlueprintNeighborhood(&out, src); err != nil {
 		return blueprintsgen.Blueprint{}, err
@@ -407,6 +410,7 @@ func toGenBlueprintDetail(src *models.Blueprint) (blueprintsgen.BlueprintDetail,
 		Related:     base.Related,
 		Similar:     base.Similar,
 		Freshness:   base.Freshness,
+		Project:     base.Project,
 		CreatedAt:   base.CreatedAt,
 		UpdatedAt:   base.UpdatedAt,
 	}
@@ -618,4 +622,19 @@ func (s *Server) blueprintsResponseErrorHandler(w http.ResponseWriter, r *http.R
 	}
 	s.logger.With("error", err).Error("Unhandled blueprints handler error")
 	apierrors.WriteJSONError(w, r, apierrors.NewInternalError(blueprintsMsgInternalError))
+}
+
+// toGenBlueprintProjectSummary converts the owning project's summary, resolved by the
+// detail read's LEFT JOIN (#929). Returns nil for nil so the generated field —
+// required+nullable in the spec, hence no omitempty — renders as `"project":
+// null` on the list reads and whenever the project row is gone.
+func toGenBlueprintProjectSummary(src *models.ProjectSummary) (*blueprintsgen.ProjectSummary, error) {
+	if src == nil {
+		return nil, nil
+	}
+	id, err := blueprintUUID("project.id", src.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &blueprintsgen.ProjectSummary{Id: id, Name: src.Name, Slug: src.Slug}, nil
 }

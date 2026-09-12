@@ -300,6 +300,12 @@ func toGenMemory(src *models.Memory) (memoriesgen.Memory, error) {
 	metadata := map[string]interface{}(src.Metadata)
 	out.Metadata = &metadata
 
+	project, err := toGenMemoryProjectSummary(src.Project)
+	if err != nil {
+		return memoriesgen.Memory{}, err
+	}
+	out.Project = project
+
 	if err := attachGenMemoryNeighborhood(&out, src); err != nil {
 		return memoriesgen.Memory{}, err
 	}
@@ -574,4 +580,19 @@ func parseLabelsFilter(raw string) ([]string, error) {
 		return nil, nil
 	}
 	return out, nil
+}
+
+// toGenMemoryProjectSummary converts the owning project's summary, resolved by the
+// detail read's LEFT JOIN (#929). Returns nil for nil so the generated field —
+// required+nullable in the spec, hence no omitempty — renders as `"project":
+// null` on the list reads and whenever the project row is gone.
+func toGenMemoryProjectSummary(src *models.ProjectSummary) (*memoriesgen.ProjectSummary, error) {
+	if src == nil {
+		return nil, nil
+	}
+	id, err := memoryUUID("project.id", src.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &memoriesgen.ProjectSummary{Id: id, Name: src.Name, Slug: src.Slug}, nil
 }

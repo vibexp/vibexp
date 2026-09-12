@@ -23263,6 +23263,15 @@
               "$ref": "#/components/schemas/SimilarResource"
             }
           },
+          "project": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProjectSummary"
+              }
+            ],
+            "nullable": true,
+            "description": "Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Guaranteed on the single-resource detail GET; null in list responses, and null wherever the server has not resolved it — a project that no longer exists, or one belonging to another team. `project_id` remains the authoritative field: a client must not read a null here as \"this resource has no project\"."
+          },
           "freshness": {
             "$ref": "#/components/schemas/ResourceFreshnessState"
           }
@@ -23281,7 +23290,8 @@
           "is_shared",
           "created_at",
           "updated_at",
-          "version"
+          "version",
+          "project"
         ]
       },
       "CreatePromptRequest": {
@@ -26099,6 +26109,15 @@
               "$ref": "#/components/schemas/SimilarResource"
             }
           },
+          "project": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProjectSummary"
+              }
+            ],
+            "nullable": true,
+            "description": "Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Guaranteed on the single-resource detail GET; null in list responses, and null wherever the server has not resolved it — a project that no longer exists, or one belonging to another team. `project_id` remains the authoritative field: a client must not read a null here as \"this resource has no project\"."
+          },
           "freshness": {
             "$ref": "#/components/schemas/ResourceFreshnessState"
           }
@@ -26113,7 +26132,8 @@
           "status",
           "title",
           "type",
-          "labels"
+          "labels",
+          "project"
         ]
       },
       "CreateArtifactRequest": {
@@ -26957,6 +26977,32 @@
           "version"
         ]
       },
+      "ProjectSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the project",
+            "example": "01234567-89ab-cdef-0123-456789abcdef"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable project name",
+            "example": "My Project"
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-friendly project identifier",
+            "example": "my-project"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ]
+      },
       "CreateProjectRequest": {
         "type": "object",
         "properties": {
@@ -27236,6 +27282,15 @@
               "$ref": "#/components/schemas/SimilarResource"
             }
           },
+          "project": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProjectSummary"
+              }
+            ],
+            "nullable": true,
+            "description": "Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Guaranteed on the single-resource detail GET; null in list responses, and null wherever the server has not resolved it — a project that no longer exists, or one belonging to another team. `project_id` remains the authoritative field: a client must not read a null here as \"this resource has no project\"."
+          },
           "freshness": {
             "$ref": "#/components/schemas/ResourceFreshnessState"
           }
@@ -27251,7 +27306,8 @@
           "created_at",
           "updated_at",
           "version",
-          "labels"
+          "labels",
+          "project"
         ]
       },
       "CreateMemoryRequest": {
@@ -27725,6 +27781,15 @@
               "$ref": "#/components/schemas/SimilarResource"
             }
           },
+          "project": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProjectSummary"
+              }
+            ],
+            "nullable": true,
+            "description": "Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Guaranteed on the single-resource detail GET; null in list responses, and null wherever the server has not resolved it — a project that no longer exists, or one belonging to another team. `project_id` remains the authoritative field: a client must not read a null here as \"this resource has no project\"."
+          },
           "freshness": {
             "$ref": "#/components/schemas/ResourceFreshnessState"
           }
@@ -27741,7 +27806,8 @@
           "title",
           "type",
           "path",
-          "labels"
+          "labels",
+          "project"
         ]
       },
       "BlueprintSource": {

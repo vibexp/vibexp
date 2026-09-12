@@ -74,6 +74,30 @@ Project:
     - updated_at
     - version
 
+# Minimal identity of the project a resource belongs to, embedded on the four
+# resource detail payloads so a client can render a project label without a
+# second request (issue #929).
+ProjectSummary:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the project
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    name:
+      type: string
+      description: Human-readable project name
+      example: "My Project"
+    slug:
+      type: string
+      description: URL-friendly project identifier
+      example: "my-project"
+  required:
+    - id
+    - name
+    - slug
+
 # CORRECTED: added optional team_id field (present in Go struct).
 CreateProjectRequest:
   type: object

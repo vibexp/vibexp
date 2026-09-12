@@ -287,6 +287,9 @@ type Artifact struct {
 	// Metadata Additional metadata as key-value pairs
 	Metadata *map[string]interface{} `json:"metadata,omitempty"`
 
+	// Project Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Guaranteed on the single-resource detail GET; null in list responses, and null wherever the server has not resolved it — a project that no longer exists, or one belonging to another team. `project_id` remains the authoritative field: a client must not read a null here as "this resource has no project".
+	Project *ProjectSummary `json:"project"`
+
 	// ProjectId UUID of the project this artifact belongs to
 	ProjectId openapi_types.UUID `json:"project_id"`
 
@@ -364,6 +367,18 @@ type ErrorResponse struct {
 
 	// ValidationErrors Field-level validation errors (present for validation failures)
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
+}
+
+// ProjectSummary defines model for ProjectSummary.
+type ProjectSummary struct {
+	// Id Unique identifier for the project
+	Id openapi_types.UUID `json:"id"`
+
+	// Name Human-readable project name
+	Name string `json:"name"`
+
+	// Slug URL-friendly project identifier
+	Slug string `json:"slug"`
 }
 
 // RelatedResource One endpoint of a relation as seen from the other endpoint, enriched with the related resource's resolved title and link fields. project_id is present for every type; slug is present for artifact/blueprint/prompt and absent for memory.

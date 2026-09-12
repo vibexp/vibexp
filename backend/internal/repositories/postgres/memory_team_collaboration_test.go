@@ -118,9 +118,11 @@ func TestMemoryRepository_TeamMember_CanGetOtherMembersMemories(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "team_id", "project_id", "title", "text", "status", "metadata", "created_at",
 			"updated_at", "version", "labels",
+			"proj_id", "proj_name", "proj_slug",
 		}).AddRow(
 			aliceMemoryID, aliceUserID, teamID, "project-123", nil, "Machine learning best practices",
 			"active", []byte(`{"project": "ml-research"}`), now, now, 1, pq.StringArray{},
+			"project-123", "ML Research", "ml-research",
 		))
 
 	// Bob gets Alice's memory
@@ -131,6 +133,8 @@ func TestMemoryRepository_TeamMember_CanGetOtherMembersMemories(t *testing.T) {
 	assert.Equal(t, aliceMemoryID, memory.ID)
 	assert.Equal(t, aliceUserID, memory.UserID)
 	assert.Equal(t, "Machine learning best practices", memory.Text)
+	require.NotNil(t, memory.Project)
+	assert.Equal(t, "ML Research", memory.Project.Name)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

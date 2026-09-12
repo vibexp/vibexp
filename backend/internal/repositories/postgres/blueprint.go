@@ -272,8 +272,9 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
 		s.path, s.path_derived, s.raw_content, s.content_sha,
 		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at,
-		s.labels
-		FROM blueprints s
+		s.labels,
+		` + projectSummaryProjection + `
+		FROM blueprints s` + projectSummaryJoin("s") + `
 		WHERE s.project_id = $1
 			AND s.slug = $2
 			AND s.team_id = $3
@@ -286,6 +287,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 	var blueprint models.Blueprint
 	var metadataJSON []byte
 	var sync blueprintSyncScan
+	var project projectSummaryScan
 	err := r.db.QueryRowContext(ctx, query, projectID, slug, teamID, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
@@ -294,6 +296,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 		&blueprint.Labels,
+		&project.id, &project.name, &project.slug,
 	)
 
 	if err != nil {
@@ -303,6 +306,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 		)
 	}
 	sync.apply(&blueprint)
+	blueprint.Project = project.value()
 
 	// Initialize metadata if JSON is nil or empty
 	if len(metadataJSON) == 0 {

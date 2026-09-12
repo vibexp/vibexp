@@ -447,7 +447,13 @@ func buildUpdatedPrompt(existingPrompt *models.Prompt, req *models.UpdatePromptR
 		updatedPrompt.Body = *req.Body
 	}
 	if req.ProjectID != nil {
+		// Defensive, unlike its three siblings: this path loads through
+		// PromptRepository.GetByID, which did NOT gain #929's project LEFT JOIN
+		// (only GetBySlug, the one the detail GET uses, did), so `Project` is
+		// already nil here. Kept so the invariant holds if GetByID is ever joined
+		// too — a moved prompt must never answer with the project it left.
 		updatedPrompt.ProjectID = *req.ProjectID
+		updatedPrompt.Project = nil
 	}
 	// An empty status is "unchanged", never a clear -- see applyArtifactUpdates
 	// for why writing "" into a required enum field is not an option (#912).

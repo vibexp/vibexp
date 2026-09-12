@@ -85,12 +85,16 @@ func TestGetByProjectIDAndSlug_NilMetadata(t *testing.T) {
 		"path", "path_derived", "raw_content", "content_sha",
 		"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
 		"labels",
+		// The #929 project LEFT JOIN: NULL here stands for a resource whose
+		// project row is gone, which must still return the blueprint.
+		"proj_id", "proj_name", "proj_slug",
 	}).AddRow(
 		"spec-lib-456", projectID, slug, userID, "team-123", "Test Title", "Test Description",
 		"Test Content", "active", "general", nil, nil, // NULL subtype and metadata
 		time.Now(), time.Now(), 1,
 		"test.md", true, nil, nil, nil, nil, nil, nil, nil, // path, path_derived, NULL sync+source_content_sha/provenance
 		pq.StringArray{},
+		nil, nil, nil,
 	)
 
 	query := "SELECT (.+) FROM blueprints s.*"
