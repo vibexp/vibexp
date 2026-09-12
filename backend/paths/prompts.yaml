@@ -106,9 +106,13 @@ api-v1-team_id-prompts:
         description: Filter by prompt status
       - name: labels
         in: query
+        description: >-
+          Comma-separated list of labels to filter by. A resource matches when it
+          carries at least one of the listed labels. At most 25 labels, each at
+          most 50 characters; beyond that the request is rejected with 400.
         schema:
           type: string
-        description: Comma-separated list of labels to filter by
+        example: "onboarding,api"
       - name: project_id
         in: query
         schema:
@@ -148,6 +152,14 @@ api-v1-team_id-prompts:
               # (writeOK with {status, message, data}); the named envelope
               # component documents the wire shape.
               $ref: '../openapi.yaml#/components/schemas/PromptListEnvelope'
+      '400':
+        description: >-
+          Invalid query parameter (for example an unknown `freshness` or
+          `sort_by` value, or a `labels` filter over the documented limits)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
         content:

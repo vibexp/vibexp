@@ -451,7 +451,7 @@ type ListPromptsParams struct {
 	// Status Filter by prompt status
 	Status *PromptStatus `form:"status,omitempty" json:"status,omitempty"`
 
-	// Labels Comma-separated list of labels to filter by
+	// Labels Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels. At most 25 labels, each at most 50 characters; beyond that the request is rejected with 400.
 	Labels *string `form:"labels,omitempty" json:"labels,omitempty"`
 
 	// ProjectId Filter by project ID
@@ -875,6 +875,20 @@ func (response ListPrompts200JSONResponse) VisitListPromptsResponse(w http.Respo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPrompts400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListPrompts400ApplicationProblemPlusJSONResponse) VisitListPromptsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
 	_, err := buf.WriteTo(w)
 	return err
 }

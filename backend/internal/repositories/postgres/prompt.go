@@ -266,9 +266,7 @@ func buildListWhereClause(userID string, filters repositories.PromptFilters) squ
 		))
 	}
 
-	if len(filters.Labels) > 0 {
-		where = append(where, squirrel.Expr("p.labels @> ?", pq.Array(filters.Labels)))
-	}
+	where = applyLabelsFilter(where, "p.labels", filters.Labels)
 
 	if filters.ProjectID != nil && *filters.ProjectID != "" {
 		where = append(where, squirrel.Eq{"p.project_id": *filters.ProjectID})

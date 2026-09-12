@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -301,4 +302,68 @@ func TestCreateMemory_MapsInvalidLabelsTo400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "VALIDATION_FAILED")
 	assert.Contains(t, w.Body.String(), "invalid labels")
+}
+
+// Prompts converged on the same parser and the same overlap semantics in #938.
+// Before that the handler did a bare strings.Split, so a trailing or doubled
+// comma produced an empty-string entry that no stored label can equal —
+// silently emptying the result set rather than filtering on the labels asked
+// for. The filter reaching the service NORMALISED is the property.
+func TestListPrompts_LabelsFilterIsParsedNotSplit(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{name: "drops empty entries", raw: "onboarding,,api", want: []string{"onboarding", "api"}},
+		{name: "drops a trailing separator", raw: "onboarding,", want: []string{"onboarding"}},
+		{name: "trims whitespace around entries", raw: " onboarding , api ", want: []string{"onboarding", "api"}},
+		{name: "all separators means no filter", raw: ",,,", want: nil},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, container := strictPromptServer(t)
+			container.promptService.On("ListPrompts", strictPrUserID,
+				mock.MatchedBy(func(f services.PromptFilters) bool {
+					return assert.ObjectsAreEqual(tc.want, f.Labels)
+				}),
+			).Return(&models.PromptListResponse{Page: 1, PerPage: 10}, nil)
+
+			_, w := strictPromptRequest(t, srv,
+				"/api/v1/"+strictPrTeamID+"/prompts?labels="+url.QueryEscape(tc.raw))
+
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			container.promptService.AssertExpectations(t)
+		})
+	}
+}
+
+// The documented caps have to reach the wire as a 400 on prompts too, not only
+// on the three resources #910 shipped: an over-limit filter that reaches
+// Postgres answers a question nobody asked.
+func TestListPrompts_RejectsAnOverLimitLabelsFilter(t *testing.T) {
+	t.Run("a label longer than a stored label can be", func(t *testing.T) {
+		srv, _ := strictPromptServer(t)
+		// No ListPrompts expectation: reaching the service is the failure.
+		req, w := strictPromptRequest(t, srv,
+			"/api/v1/"+strictPrTeamID+"/prompts?labels="+strings.Repeat("x", models.MaxLabelLength+1))
+
+		require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+		specconformance.AssertConformsToSpec(t, req, w)
+	})
+
+	t.Run("more labels than the documented cap", func(t *testing.T) {
+		labels := make([]string, MaxLabelsFilterValues+1)
+		for i := range labels {
+			labels[i] = "l" + strconv.Itoa(i)
+		}
+
+		srv, _ := strictPromptServer(t)
+		req, w := strictPromptRequest(t, srv,
+			"/api/v1/"+strictPrTeamID+"/prompts?labels="+url.QueryEscape(strings.Join(labels, ",")))
+
+		require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+		specconformance.AssertConformsToSpec(t, req, w)
+	})
 }
