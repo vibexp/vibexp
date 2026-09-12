@@ -394,7 +394,12 @@ func (s *ArtifactService) ListArtifactsByProjectCrossTeam(
 // applyArtifactUpdates applies update request fields to the artifact
 func applyArtifactUpdates(artifact *models.Artifact, req *models.UpdateArtifactRequest) {
 	if req.ProjectID != nil {
+		// The loaded resource came from the DETAIL read, which resolves `project`
+		// via a LEFT JOIN (#929). Moving the resource to another project invalidates
+		// that summary, so drop it rather than answer with a `project` that
+		// contradicts the `project_id` beside it. The next detail GET re-resolves it.
 		artifact.ProjectID = *req.ProjectID
+		artifact.Project = nil
 	}
 	if req.Slug != nil {
 		artifact.Slug = *req.Slug

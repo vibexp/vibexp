@@ -272,7 +272,7 @@ type Prompt struct {
 	McpExpose bool   `json:"mcp_expose"`
 	Name      string `json:"name"`
 
-	// Project Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Populated on the single-resource detail GET; null otherwise — in list, create, update and version-restore responses, and whenever the project row is gone.
+	// Project Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Guaranteed on the single-resource detail GET; null in list responses, and null wherever the server has not resolved it — a project that no longer exists, or one belonging to another team. `project_id` remains the authoritative field: a client must not read a null here as "this resource has no project".
 	Project *ProjectSummary `json:"project"`
 
 	// ProjectId Project identifier that this prompt belongs to

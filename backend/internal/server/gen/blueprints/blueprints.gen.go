@@ -566,7 +566,7 @@ type Blueprint struct {
 	// Path Canonical repo-relative path this blueprint materializes to. Derived from (type, subtype, slug) for VibeXP-authored blueprints, or the verbatim source path for imported ones.
 	Path string `json:"path"`
 
-	// Project Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Populated on the single-resource detail GET; null otherwise — in list, create, update and version-restore responses, and whenever the project row is gone.
+	// Project Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Guaranteed on the single-resource detail GET; null in list responses, and null wherever the server has not resolved it — a project that no longer exists, or one belonging to another team. `project_id` remains the authoritative field: a client must not read a null here as "this resource has no project".
 	Project *ProjectSummary `json:"project"`
 
 	// ProjectId UUID of the project this spec library belongs to
@@ -638,7 +638,7 @@ type BlueprintDetail struct {
 	// Path Canonical repo-relative path this blueprint materializes to. Derived from (type, subtype, slug) for VibeXP-authored blueprints, or the verbatim source path for imported ones.
 	Path string `json:"path"`
 
-	// Project Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Populated on the single-resource detail GET; null otherwise — in list, create, update and version-restore responses, and whenever the project row is gone.
+	// Project Identity of the project this resource belongs to, so a client can render a project label without a second request (issue #929). Guaranteed on the single-resource detail GET; null in list responses, and null wherever the server has not resolved it — a project that no longer exists, or one belonging to another team. `project_id` remains the authoritative field: a client must not read a null here as "this resource has no project".
 	Project *ProjectSummary `json:"project"`
 
 	// ProjectId UUID of the project this spec library belongs to

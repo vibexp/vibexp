@@ -447,7 +447,12 @@ func buildUpdatedPrompt(existingPrompt *models.Prompt, req *models.UpdatePromptR
 		updatedPrompt.Body = *req.Body
 	}
 	if req.ProjectID != nil {
+		// The loaded resource came from the DETAIL read, which resolves `project`
+		// via a LEFT JOIN (#929). Moving the resource to another project invalidates
+		// that summary, so drop it rather than answer with a `project` that
+		// contradicts the `project_id` beside it. The next detail GET re-resolves it.
 		updatedPrompt.ProjectID = *req.ProjectID
+		updatedPrompt.Project = nil
 	}
 	// An empty status is "unchanged", never a clear -- see applyArtifactUpdates
 	// for why writing "" into a required enum field is not an option (#912).

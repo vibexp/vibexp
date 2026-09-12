@@ -14,17 +14,25 @@ const (
 	// projectSummaryProjection is the column list the join contributes. `id` is
 	// cast to text because the column is a uuid and the scan target is a string.
 	projectSummaryProjection = "proj.id::text, proj.name, proj.slug"
-	// projectSummaryJoinOn is the join predicate, parameterised by the source
-	// table's alias. LEFT so a resource with no project — or one whose project
-	// row is gone — still returns its row, with a nil summary. `projects.id` is
-	// the primary key, so the join matches at most one row and cannot duplicate
-	// the source row.
-	projectSummaryJoinOn = " LEFT JOIN projects proj ON proj.id = "
+	// projectSummaryJoinPrefix opens the join predicate; projectSummaryJoin fills
+	// in the source table's alias. LEFT so a resource with no project — or one
+	// whose project row is gone — still returns its row, with a nil summary.
+	// `projects.id` is the primary key, so the join matches at most one row and
+	// cannot duplicate the source row.
+	projectSummaryJoinPrefix = " LEFT JOIN projects proj ON proj.id = "
 )
 
 // projectSummaryJoin renders the LEFT JOIN for a source table aliased as alias.
+//
+// The team predicate is not redundant. Only the memories handler validates that
+// an updated `project_id` belongs to the caller's team; artifacts and blueprints
+// check the UUID's FORMAT only, so a resource can end up pointing at another
+// team's project. Echoing back the opaque uuid the caller themselves supplied is
+// one thing — resolving it to that team's project NAME and SLUG is another, and
+// this join would otherwise do exactly that. Matching on team_id as well sends a
+// cross-team reference down the already-tested NULL branch instead.
 func projectSummaryJoin(alias string) string {
-	return projectSummaryJoinOn + alias + ".project_id"
+	return projectSummaryJoinPrefix + alias + ".project_id AND proj.team_id = " + alias + ".team_id"
 }
 
 // projectSummaryScan holds the join's three nullable columns. Every column is

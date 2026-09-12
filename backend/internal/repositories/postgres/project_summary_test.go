@@ -60,6 +60,19 @@ func projectSummaryMockDB(t *testing.T) (*database.DB, sqlmock.Sqlmock) {
 	return &database.DB{DB: sqlDB}, mock
 }
 
+// The join matches on team_id as well as id. Only the memories handler
+// validates that an updated project_id belongs to the caller's team — artifacts
+// and blueprints check the UUID's format only — so a resource CAN point at
+// another team's project, and resolving that to a name and slug would leak it.
+func TestProjectSummaryJoin_MatchesOnTeamAsWellAsID(t *testing.T) {
+	joined := projectSummaryJoin("a")
+
+	assert.Contains(t, joined, "LEFT JOIN projects proj")
+	assert.Contains(t, joined, "proj.id = a.project_id")
+	assert.Contains(t, joined, "proj.team_id = a.team_id",
+		"without the team predicate the join resolves another team's project name and slug")
+}
+
 func TestPromptGetBySlug_ProjectSummary(t *testing.T) {
 	now := time.Now()
 	base := []driverValue{

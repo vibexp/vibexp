@@ -437,7 +437,12 @@ func (s *BlueprintService) ListBlueprintsByProject(
 // applyBlueprintUpdates applies the update request fields to the blueprint
 func applyBlueprintUpdates(blueprint *models.Blueprint, req *models.UpdateBlueprintRequest) {
 	if req.ProjectID != nil {
+		// The loaded resource came from the DETAIL read, which resolves `project`
+		// via a LEFT JOIN (#929). Moving the resource to another project invalidates
+		// that summary, so drop it rather than answer with a `project` that
+		// contradicts the `project_id` beside it. The next detail GET re-resolves it.
 		blueprint.ProjectID = *req.ProjectID
+		blueprint.Project = nil
 	}
 	if req.Slug != nil {
 		blueprint.Slug = *req.Slug
