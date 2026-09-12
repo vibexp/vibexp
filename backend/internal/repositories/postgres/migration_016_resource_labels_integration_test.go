@@ -211,6 +211,15 @@ func TestMigration016_ResourceLabels(t *testing.T) {
 			_, err := db.Exec("UPDATE memories SET labels = $1 WHERE id = $2", pq.StringArray{"a", "b"}, id)
 			require.NoError(t, err)
 		}
+		// An array still parked at `tags` after 016 (the write-path shim leaves one
+		// with a non-string entry alone) is the value 016 up would have moved, so the
+		// down overwrites it from labels.
+		arrayTags := uuid.New().String()
+		_, err := db.Exec(
+			`INSERT INTO memories (id, user_id, team_id, project_id, text, status, metadata, labels)
+			 VALUES ($1, $2, $3, $4, $5, 'active', '{"tags": [1, 2]}'::jsonb, $6)`,
+			arrayTags, fx.userID, fx.teamID, fx.projectID, "memory "+arrayTags[:8], pq.StringArray{"x"})
+		require.NoError(t, err)
 
 		require.NoError(t, m.Migrate(15), "migrate down to 015")
 
@@ -231,6 +240,9 @@ func TestMigration016_ResourceLabels(t *testing.T) {
 			`SELECT count(*) FROM memories
 			  WHERE id = $1 AND metadata->'tags' = '["a","b"]'::jsonb AND metadata->>'priority' = 'low'`,
 			fx.noTags), "an absent tags key is still written from labels")
+		assert.Equal(t, 1, countRows(t, db,
+			`SELECT count(*) FROM memories WHERE id = $1 AND metadata->'tags' = '["x"]'::jsonb`, arrayTags),
+			"an array tags value is still overwritten from labels")
 		assert.Equal(t, 0, countRows(t, db,
 			"SELECT count(*) FROM memories WHERE id = $1 AND metadata ? 'tags'", fx.emptyTags),
 			"empty labels write no tags key")
