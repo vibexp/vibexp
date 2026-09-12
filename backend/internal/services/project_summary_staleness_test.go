@@ -9,11 +9,15 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// The four update paths load the resource through the DETAIL read, which since
-// #929 resolves `project` via a LEFT JOIN. `project_id` is a settable field, so
-// an update that MOVES the resource would otherwise answer with the new
-// `project_id` beside the OLD project's summary — a payload that contradicts
-// itself, and which the detail page renders as the wrong project name.
+// The artifact, blueprint and memory update paths load the resource through the
+// DETAIL read, which since #929 resolves `project` via a LEFT JOIN. `project_id`
+// is a settable field, so an update that MOVES the resource would otherwise
+// answer with the new `project_id` beside the OLD project's summary — a payload
+// that contradicts itself, and which the detail page renders as the wrong
+// project name.
+//
+// Prompts are deliberately absent here: that path loads through GetByID, which
+// has no join, so its identical clear is defensive only (see updatePromptInternal).
 //
 // Nothing else catches this: the summary is loaded by the repository and the
 // spec cannot express "these two fields agree", so the assertion has to be here.
