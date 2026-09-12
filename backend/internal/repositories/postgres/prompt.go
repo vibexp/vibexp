@@ -126,7 +126,8 @@ func (r *PromptRepository) GetBySlug(ctx context.Context, userID, teamID, slug s
 		FROM prompts p
 		LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 			AND ps.is_active = true
-			AND (ps.expires_at IS NULL OR ps.expires_at > NOW())` + projectSummaryJoin("p") + `
+			AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
+		` + projectSummaryJoin("p") + `
 		WHERE p.slug = $1
 			AND p.team_id = $2
 			AND (

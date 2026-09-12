@@ -23,9 +23,9 @@ type Project struct {
 // LEFT JOIN; nil (and therefore `null` on the wire) when the resource has no
 // project or the project row is gone.
 type ProjectSummary struct {
-	ID   string `json:"id" db:"id"`
-	Name string `json:"name" db:"name"`
-	Slug string `json:"slug" db:"slug"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
 }
 
 // CreateProjectRequest represents the request to create a new project
