@@ -1,13 +1,28 @@
 import { mcpTools } from '../mcp-tools'
+import { attachmentTools } from '../mcp-tools-attachment'
+import { blueprintTools } from '../mcp-tools-blueprint'
+import { memoryTools } from '../mcp-tools-memory'
+import { metadataTools } from '../mcp-tools-metadata'
+import { promptTools } from '../mcp-tools-prompt'
+import { resourceTools } from '../mcp-tools-resource'
 
 const EXPECTED_TOOL_NAMES = new Set([
   'vibexp_io_create_artifact',
   'vibexp_io_update_artifact',
   'vibexp_io_create_memory',
   'vibexp_io_update_memory',
+  'vibexp_io_create_blueprint',
+  'vibexp_io_update_blueprint',
+  'vibexp_io_create_prompt',
+  'vibexp_io_update_prompt',
+  'vibexp_io_render_prompt',
   'vibexp_io_get_resource',
   'vibexp_io_list_resources',
   'vibexp_io_list_resource_metadata',
+  'vibexp_io_delete_resource',
+  'vibexp_io_upload_attachment',
+  'vibexp_io_list_attachments',
+  'vibexp_io_delete_attachment',
   'vibexp_io_link_resources',
   'vibexp_io_list_projects',
   'vibexp_io_list_feeds',
@@ -22,7 +37,7 @@ const EXPECTED_TOOL_NAMES = new Set([
 ])
 
 describe('mcpTools catalog', () => {
-  it('contains exactly the 18 expected tool names', () => {
+  it('contains exactly the 27 expected tool names', () => {
     const actualNames = new Set(mcpTools.map(t => t.name))
     expect(actualNames).toEqual(EXPECTED_TOOL_NAMES)
   })
@@ -61,6 +76,65 @@ describe('mcpTools catalog', () => {
       expect(Object.keys(properties)).toEqual(
         expect.arrayContaining(['title', 'text', 'metadata', 'labels'])
       )
+    }
+  })
+
+  // #937 added `labels` to the blueprint write tools, and #939 is what put
+  // those tools in the catalog at all. `subtype` and `metadata` are the extras
+  // most easily dropped when transcribing a Go param struct by hand, so they
+  // are pinned rather than trusted.
+  it('documents labels, subtype and metadata on both blueprint write tools', () => {
+    for (const name of [
+      'vibexp_io_create_blueprint',
+      'vibexp_io_update_blueprint',
+    ]) {
+      const tool = mcpTools.find(t => t.name === name)
+      expect(tool).toBeDefined()
+      const properties = tool?.inputSchema.properties ?? {}
+      expect(Object.keys(properties)).toEqual(
+        expect.arrayContaining(['labels', 'subtype', 'metadata', 'content'])
+      )
+    }
+  })
+
+  it('documents relative_path on the attachment upload tool', () => {
+    const tool = mcpTools.find(t => t.name === 'vibexp_io_upload_attachment')
+    expect(tool).toBeDefined()
+    expect(Object.keys(tool?.inputSchema.properties ?? {})).toEqual(
+      expect.arrayContaining([
+        'owner_type',
+        'owner_id',
+        'file_name',
+        'file_content_base64',
+        'relative_path',
+      ])
+    )
+    expect(tool?.inputSchema.required).not.toContain('relative_path')
+  })
+
+  // Belt and braces alongside `TestMCPCatalogModulesAreAllSpread`, which makes
+  // the same assertion on the Go side. That one reads the modules as TEXT and
+  // so covers every module by construction; this one reads the RUNTIME arrays,
+  // so it is the half that would notice a spread that parses but resolves to
+  // something else.
+  it('spreads every per-domain module into the rendered catalog', () => {
+    const names = new Set(mcpTools.map(t => t.name))
+    const modules = {
+      memoryTools,
+      metadataTools,
+      blueprintTools,
+      promptTools,
+      attachmentTools,
+      resourceTools,
+    }
+    for (const [moduleName, tools] of Object.entries(modules)) {
+      expect(tools.length).toBeGreaterThan(0)
+      for (const tool of tools) {
+        expect(
+          names.has(tool.name),
+          `${tool.name} is exported by ${moduleName} but is not spread into mcpTools`
+        ).toBe(true)
+      }
     }
   })
 

@@ -7,7 +7,15 @@ export interface ToolGroup {
   id: string
   label: string
   /** lucide-react icon name resolved by the caller. */
-  icon: 'package' | 'database' | 'layout' | 'users' | 'compass'
+  icon:
+    | 'package'
+    | 'database'
+    | 'layout'
+    | 'users'
+    | 'compass'
+    | 'book-open'
+    | 'sparkles'
+    | 'paperclip'
   tools: MCPTool[]
 }
 
@@ -21,6 +29,13 @@ const WRITE_TOOLS = new Set([
   'vibexp_io_update_artifact',
   'vibexp_io_create_memory',
   'vibexp_io_update_memory',
+  'vibexp_io_create_blueprint',
+  'vibexp_io_update_blueprint',
+  'vibexp_io_create_prompt',
+  'vibexp_io_update_prompt',
+  'vibexp_io_upload_attachment',
+  'vibexp_io_delete_attachment',
+  'vibexp_io_delete_resource',
   'vibexp_io_link_resources',
   'vibexp_io_post_to_feed',
   'vibexp_io_reply_to_feed_item',
@@ -70,10 +85,28 @@ const GROUP_DEFS: GroupDef[] = [
     match: name => name.includes('_memor'),
   },
   {
+    id: 'blueprints',
+    label: 'Blueprints',
+    icon: 'book-open',
+    match: name => name.includes('_blueprint'),
+  },
+  {
+    id: 'prompts',
+    label: 'Prompts',
+    icon: 'sparkles',
+    match: name => name.includes('_prompt'),
+  },
+  {
     id: 'resources',
     label: 'Resources',
     icon: 'package',
     match: name => name.includes('_resource'),
+  },
+  {
+    id: 'attachments',
+    label: 'Attachments',
+    icon: 'paperclip',
+    match: name => name.includes('_attachment'),
   },
   {
     id: 'projects-feeds',

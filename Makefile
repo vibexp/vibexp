@@ -1,4 +1,4 @@
-.PHONY: lint-workflows backend-test backend-test-coverage backend-test-coverage-integration backend-test-unit-coverage backend-test-integration-coverage backend-check-integration-shard backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-openapi-server-check backend-mock-check backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-ci-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-audit frontend-build frontend-run-dev build-combined e2e-up e2e-down frontend-deps e2e-browsers e2e-test e2e
+.PHONY: lint-workflows backend-test backend-test-coverage backend-test-coverage-integration backend-test-unit-coverage backend-test-integration-coverage backend-check-integration-shard backend-test-integration backend-check-mcp-catalog backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-openapi-server-check backend-mock-check backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-ci-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-audit frontend-build frontend-run-dev build-combined e2e-up e2e-down frontend-deps e2e-browsers e2e-test e2e
 
 # ============================================
 # Toolchain Pinning
@@ -164,6 +164,25 @@ backend-test-integration:
 # committed. Runs WITHOUT --all (#678): the per-package `interfaces:` lists in
 # backend/.mockery.yaml are authoritative — mockery emits exactly those
 # interfaces, so adding a mockable interface means adding its entry there first.
+# The MCP catalog parity gate (#939). Run separately from backend-test-* with
+# -count=1: it reads frontend/src/pages/mcp, which is outside the Go module and
+# so outside Go's test-cache key, meaning a cached `ok` would hide real drift.
+# The count comparison is the gate's own gate: `go test -run` exits 0 when its
+# filter matches nothing, so without it a test renamed off the TestMCPCatalog
+# prefix would leave a permanently green step running nothing. `expected` counts
+# EVERY test func in the file, deliberately -- deriving it from the prefix too
+# would move with the rename and defeat the check.
+backend-check-mcp-catalog:
+	@echo "🔗 Checking the frontend MCP catalog against the registered tools..."
+	@cd backend && out=$$(go test -count=1 -v -run '^TestMCPCatalog' ./internal/server/ 2>&1); status=$$?; \
+		echo "$$out"; \
+		[ $$status -eq 0 ] || exit 1; \
+		expected=$$(grep -c '^func Test' internal/server/mcp_catalog_parity_test.go); \
+		actual=$$(echo "$$out" | grep -c '^--- PASS: TestMCPCatalog'); \
+		[ "$$expected" = "$$actual" ] || { \
+			echo "Expected $$expected MCP catalog parity test(s) to run, saw $$actual. 'go test -run' exits 0 when the filter matches nothing, so a rename off the TestMCPCatalog prefix would have made this gate a silent no-op."; \
+			exit 1; }
+
 backend-mock-generate:
 	@echo "🎭 Regenerating mocks (mockery $(MOCKERY_VERSION))..."
 	@cd backend && go run github.com/vektra/mockery/v2@$(MOCKERY_VERSION)

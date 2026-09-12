@@ -24,6 +24,24 @@ describe('getToolKind', () => {
     expect(getToolKind(makeTool('vibexp_io_link_resources'))).toBe('write')
   })
 
+  it('classifies the blueprint, prompt and attachment mutations as writes', () => {
+    expect(getToolKind(makeTool('vibexp_io_create_blueprint'))).toBe('write')
+    expect(getToolKind(makeTool('vibexp_io_update_blueprint'))).toBe('write')
+    expect(getToolKind(makeTool('vibexp_io_create_prompt'))).toBe('write')
+    expect(getToolKind(makeTool('vibexp_io_update_prompt'))).toBe('write')
+    expect(getToolKind(makeTool('vibexp_io_upload_attachment'))).toBe('write')
+    expect(getToolKind(makeTool('vibexp_io_delete_attachment'))).toBe('write')
+    expect(getToolKind(makeTool('vibexp_io_delete_resource'))).toBe('write')
+  })
+
+  it('classifies render_prompt and list_attachments as reads', () => {
+    // Both sit in a domain whose other tools mutate, so the allow-list is what
+    // keeps them labelled correctly -- a name heuristic over the domain would
+    // not.
+    expect(getToolKind(makeTool('vibexp_io_render_prompt'))).toBe('read')
+    expect(getToolKind(makeTool('vibexp_io_list_attachments'))).toBe('read')
+  })
+
   it('classifies search/get/list tools as reads', () => {
     expect(getToolKind(makeTool('vibexp_io_get_resource'))).toBe('read')
     expect(getToolKind(makeTool('vibexp_io_list_resources'))).toBe('read')
@@ -55,7 +73,10 @@ describe('groupTools', () => {
     expect(groups.map(g => g.id)).toEqual([
       'artifacts',
       'memories',
+      'blueprints',
+      'prompts',
       'resources',
+      'attachments',
       'projects-feeds',
       'teams',
       'account',
@@ -86,6 +107,44 @@ describe('groupTools', () => {
     expect(groups.find(g => g.id === 'artifacts')?.tools).not.toContain(
       'vibexp_io_link_resources'
     )
+  })
+
+  it('gives the blueprint, prompt and attachment tools named groups', () => {
+    // Without a dedicated GROUP_DEF each of these falls through to the
+    // "Account & Search" catch-all, which is exactly the drift #939 fixed.
+    const groups = groupTools(mcpTools)
+    const idOf = (name: string) =>
+      groups.find(g => g.tools.some(t => t.name === name))?.id
+
+    expect(idOf('vibexp_io_create_blueprint')).toBe('blueprints')
+    expect(idOf('vibexp_io_update_blueprint')).toBe('blueprints')
+    expect(idOf('vibexp_io_create_prompt')).toBe('prompts')
+    expect(idOf('vibexp_io_render_prompt')).toBe('prompts')
+    expect(idOf('vibexp_io_upload_attachment')).toBe('attachments')
+    expect(idOf('vibexp_io_delete_attachment')).toBe('attachments')
+    expect(idOf('vibexp_io_delete_resource')).toBe('resources')
+
+    const account = groups.find(g => g.id === 'account')
+    expect(account?.tools.map(t => t.name)).toEqual([
+      'vibexp_io_get_user',
+      'vibexp_io_search',
+    ])
+  })
+
+  it('leads the Resources group with the two primary read tools', () => {
+    // Groups render in mcpTools order and nothing sorts them, so the order the
+    // modules are spread in IS the page's reading order. Pinned because it is
+    // otherwise incidental: moving `...resourceTools` after `...metadataTools`
+    // silently promotes the niche list_resource_metadata above get/list
+    // (caught in review on #939).
+    const resources = groupTools(mcpTools).find(g => g.id === 'resources')
+    expect(resources?.tools.map(t => t.name)).toEqual([
+      'vibexp_io_get_resource',
+      'vibexp_io_list_resources',
+      'vibexp_io_delete_resource',
+      'vibexp_io_list_resource_metadata',
+      'vibexp_io_link_resources',
+    ])
   })
 
   it('omits groups with no matching tools', () => {

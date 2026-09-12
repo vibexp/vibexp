@@ -97,6 +97,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       migrations: ${{ steps.filter.outputs.migrations }}
+      mcp_catalog: ${{ steps.filter.outputs.mcp_catalog }}
       workflows: ${{ steps.filter.outputs.workflows }}
     steps:
       - name: Checkout
@@ -119,6 +120,13 @@ jobs:
               - 'Makefile'
               - 'sonar-project.properties'
               - '.github/workflows/ci.yml'
+            # The MCP catalog parity gate lives in the Go suite but reads the
+            # SPA's curated catalog (#939), so a catalog-only PR must still run
+            # it. Deliberately its OWN filter rather than a widened `backend`:
+            # that output gates five jobs, and a prose edit to a tool
+            # description has nothing to say to Postgres, gosec or golangci.
+            mcp_catalog:
+              - 'frontend/src/pages/mcp/**'
             migrations:
               - 'backend/migrations/**'
               - '.github/scripts/check-duplicate-migrations.sh'
@@ -232,7 +240,10 @@ jobs:
     name: Build & Unit Test
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.backend == 'true' || github.event_name == 'push'
+    if: >-
+      needs.changes.outputs.backend == 'true' ||
+      needs.changes.outputs.mcp_catalog == 'true' ||
+      github.event_name == 'push'
 
     # No `services:` block — the untagged suite touches no database, so this job
     # skips the ~16s `Initialize containers` step the old combined job paid.
@@ -297,6 +308,14 @@ jobs:
       # `-tags=integration`), so no database is reachable or needed here.
       - name: Test (unit, with coverage)
         run: make backend-test-unit-coverage
+
+      # The MCP catalog parity gate reads files OUTSIDE the Go module
+      # (frontend/src/pages/mcp), which are therefore not part of Go's
+      # content-addressed test-cache key: with a warm build cache the step above
+      # answers `ok (cached)` for an unchanged Go package even when the catalog
+      # has drifted. `-count=1` is what forces it to actually run (#939).
+      - name: Check MCP catalog parity
+        run: make backend-check-mcp-catalog
 
       # Guard against reintroducing WorkOS-specific coupling (removed in #30).
       # WorkOS may return only as generic OIDC_* configuration, never as
