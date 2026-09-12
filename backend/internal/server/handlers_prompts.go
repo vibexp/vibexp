@@ -196,8 +196,14 @@ func promptFiltersFromParams(
 		return services.PromptFilters{}, apierrors.NewBadRequestError("invalid sort_by value: " + sortBy)
 	}
 
+	labels, err := parseLabelsFilter(optionalStringValue(params.Labels))
+	if err != nil {
+		return services.PromptFilters{}, err
+	}
+
 	filters := services.PromptFilters{
 		Freshness: freshness,
+		Labels:    labels,
 		Status:    optionalEnumValue(params.Status),
 		Search:    optionalStringValue(params.Search),
 		UserID:    userID,
@@ -208,9 +214,6 @@ func promptFiltersFromParams(
 		IsShared:  params.Shared,
 	}
 
-	if labels := optionalStringValue(params.Labels); labels != "" {
-		filters.Labels = strings.Split(labels, ",")
-	}
 	if params.ProjectId != nil {
 		projectID := params.ProjectId.String()
 		filters.ProjectID = &projectID

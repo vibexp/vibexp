@@ -119,3 +119,33 @@ func TestMemoryRepository_LabelsFilterNarrowsCountAndPage(t *testing.T) {
 	assert.Equal(t, []string{"onboarding"}, []string(memories[0].Labels))
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
+
+// Prompts joined the shared helper in #938. Its filter used to be containment
+// (`@>`), so this pins BOTH properties at once: the operator is now overlap, and
+// the predicate still reaches the COUNT query as well as the page query.
+func TestPromptRepository_LabelsFilterNarrowsCountAndPage(t *testing.T) {
+	repo, mock, mockDB := setupPromptListTest(t)
+	defer closeMockDB(t, mockDB)
+
+	now := time.Now()
+	labelArgs := append(promptListBaseArgs(), pq.StringArray{"onboarding", "api"})
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM prompts p .*p\.labels && \$`).
+		WithArgs(labelArgs...).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(`FROM prompts p .*p\.labels && \$`).
+		WithArgs(labelArgs...).
+		WillReturnRows(sqlmock.NewRows(promptListColumns).AddRow(
+			"prompt-1", "Prompt 1", "prompt-1", "Desc 1", "Body 1", "user-123", "team-123",
+			"project-123", "published", true, pq.StringArray{"onboarding"}, now, now, false,
+		))
+
+	prompts, total, err := repo.List(context.Background(), "user-123", repositories.PromptFilters{
+		TeamID: "team-123", Page: 1, Limit: 10, Labels: []string{"onboarding", "api"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+	require.Len(t, prompts, 1)
+	assert.Equal(t, []string{"onboarding"}, []string(prompts[0].Labels))
+	assert.NoError(t, mock.ExpectationsWereMet())
+}

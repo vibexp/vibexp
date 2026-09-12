@@ -147,15 +147,15 @@ func TestPromptRepository_List_SquirrelMigration(t *testing.T) {
 			expectCount: 1,
 		},
 		{
-			name: "Labels filter binds a pq.Array via @> operator",
+			name: "Labels filter binds a pq.Array via the && overlap operator",
 			filters: repositories.PromptFilters{
 				TeamID: "team-123", Labels: []string{"go", "sql"}, Page: 1, Limit: 10,
 			},
 			setupMock: func() {
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM prompts p .* AND p\.labels @> \$6`).
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM prompts p .* AND p\.labels && \$6`).
 					WithArgs(append(promptListBaseArgs(), sqlmock.AnyArg())...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM prompts p .* AND p\.labels @> \$6`).
+				mock.ExpectQuery(`FROM prompts p .* AND p\.labels && \$6`).
 					WithArgs(append(promptListBaseArgs(), sqlmock.AnyArg())...).
 					WillReturnRows(oneRow())
 			},

@@ -12,11 +12,11 @@ import (
 // and a multi-select label filter that narrowed on every additional selection
 // would return nothing as soon as two labels are combined.
 //
-// Note this differs from prompts, whose older `labels` filter uses containment
-// (`@>`, i.e. AND-of-all-labels). Both are served by the same default
-// `array_ops` GIN opclass, so the index applies either way; the prompt
-// behaviour is left alone because changing it is a wire-visible change to a
-// shipped endpoint.
+// All four resources share it, prompts included since #938 — its older
+// containment filter (`@>`, AND-of-all-labels) was the last place one query
+// parameter name meant two things. Both operators are served by the same
+// default `array_ops` GIN opclass, so the per-table GIN index applies either
+// way and the plan shape is unchanged.
 //
 // It belongs in the SHARED where-clause builder, never in the page query alone:
 // each resource repository hard-codes its count query and its page query
