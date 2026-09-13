@@ -54,6 +54,7 @@ describe('PromptService', () => {
     user_id: 'user-1',
     team_id: teamId,
     project_id: 'project-1',
+    project: null,
     status: 'published',
     mcp_expose: true,
     is_shared: false,

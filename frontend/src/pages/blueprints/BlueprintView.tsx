@@ -22,7 +22,6 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useResourceProject } from '@/hooks/useResourceProject'
 import { useResourceVersions } from '@/hooks/useResourceVersions'
 import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import type { Blueprint } from '@/services/blueprintService'
@@ -52,9 +51,6 @@ export function BlueprintView() {
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  // Supplemental — the Project metadata row needs the project's name, and the
-  // blueprint payload carries only its id.
-  const projectRef = useResourceProject(currentTeam?.id, blueprint?.project_id)
 
   const backAction: ReadingAction = {
     id: 'back',
@@ -222,7 +218,7 @@ export function BlueprintView() {
               descriptor={resourceRegistry.blueprint}
               resource={blueprint}
               versionHistory={versionHistory}
-              project={projectRef}
+              project={blueprint.project}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />
             <ResourceTaxonomySection

@@ -148,6 +148,8 @@ function resetRenderer() {
   mockRenderer.fetchPlaceholders.mockResolvedValue(undefined)
 }
 
+// Mocked only to prove it is never called: the Project row reads the payload's
+// `project` summary (#956), where a list lookup was capped at 100 projects.
 vi.mock('@/services/projectService', () => ({
   projectService: {
     getProjects: vi.fn(),
@@ -187,6 +189,7 @@ function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
     user_id: 'user-1',
     team_id: 'team-1',
     project_id: 'proj-1',
+    project: { id: 'proj-1', name: 'My Project', slug: 'my-project-slug' },
     status: 'published',
     mcp_expose: true,
     is_shared: false,
@@ -223,10 +226,6 @@ describe('PromptDetail page', () => {
     storage.clear()
     setTeamPermissions([])
     ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
-    // The Project metadata row (#903) resolves the owning project by id.
-    ;(projectService.getProjects as Mock).mockResolvedValue({
-      projects: [{ id: 'proj-1', name: 'My Project', slug: 'my-project-slug' }],
-    })
     ;(promptService.getPromptDependencies as Mock).mockResolvedValue({
       used_by: [],
       uses: [],
@@ -260,6 +259,17 @@ describe('PromptDetail page', () => {
       expect(screen.getByRole('tabpanel')).toHaveTextContent(
         'Please review this code for: {{criteria}}'
       )
+    })
+
+    it('links the Metadata Project row from the payload summary without listing projects (#956)', async () => {
+      renderPromptDetail()
+
+      const link = await screen.findByRole('link', { name: /My Project/ })
+      expect(link).toHaveAttribute(
+        'href',
+        '/teams/team-1/projects/my-project-slug/edit'
+      )
+      expect(projectService.getProjects).not.toHaveBeenCalled()
     })
 
     it('shows a loading header while the fetch is in flight', () => {

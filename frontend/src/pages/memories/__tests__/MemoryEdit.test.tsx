@@ -46,6 +46,7 @@ const memory: Memory = {
   user_id: 'user-1',
   team_id: 'team-1',
   project_id: 'project-1',
+  project: null,
   title: 'Deploy checklist',
   text: 'Drain the node first.',
   status: 'active',

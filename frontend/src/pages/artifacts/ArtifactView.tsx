@@ -22,7 +22,6 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useResourceProject } from '@/hooks/useResourceProject'
 import { useResourceVersions } from '@/hooks/useResourceVersions'
 import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import type { Artifact } from '@/services/artifactService'
@@ -52,9 +51,6 @@ export function ArtifactView() {
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  // Supplemental — the Project metadata row needs the project's name, and the
-  // artifact payload carries only its id.
-  const projectRef = useResourceProject(currentTeam?.id, artifact?.project_id)
 
   const backAction: ReadingAction = {
     id: 'back',
@@ -224,7 +220,7 @@ export function ArtifactView() {
               descriptor={resourceRegistry.artifact}
               resource={artifact}
               versionHistory={versionHistory}
-              project={projectRef}
+              project={artifact.project}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />
             <ResourceTaxonomySection

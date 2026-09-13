@@ -59,6 +59,7 @@ import { ArtifactCreate } from '../ArtifactCreate'
 const created: Artifact = {
   id: 'artifact-1',
   project_id: 'project-1',
+  project: null,
   slug: 'my-artifact',
   user_id: 'user-1',
   content: 'Body',

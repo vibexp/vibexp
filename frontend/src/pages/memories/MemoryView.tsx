@@ -22,7 +22,6 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useResourceProject } from '@/hooks/useResourceProject'
 import { useResourceVersions } from '@/hooks/useResourceVersions'
 import { deriveMemoryTitle } from '@/lib/memoryTitle'
 import { buildProjectEditUrl } from '@/lib/resourceUrl'
@@ -45,9 +44,6 @@ export function MemoryView() {
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  // Supplemental — the Project metadata row needs the project's name, and the
-  // memory payload carries only its id.
-  const project = useResourceProject(currentTeam?.id, memory?.project_id)
 
   const backAction: ReadingAction = {
     id: 'back',
@@ -214,7 +210,7 @@ export function MemoryView() {
               descriptor={resourceRegistry.memory}
               resource={memory}
               versionHistory={versionHistory}
-              project={project}
+              project={memory.project}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />
 

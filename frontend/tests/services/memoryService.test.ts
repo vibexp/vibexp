@@ -40,6 +40,7 @@ describe('MemoryService', () => {
     user_id: 'user-123',
     team_id: teamId,
     project_id: projectId,
+    project: null,
     text: 'remember this',
     title: null,
     labels: [],

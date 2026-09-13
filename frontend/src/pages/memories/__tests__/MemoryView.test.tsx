@@ -4,7 +4,6 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
 
 import type { Memory } from '@/services/memoryService'
-import type { Project } from '@/services/projectService'
 import { storage } from '@/utils/storage'
 
 // Mock TeamContext — stable references to prevent effect re-runs
@@ -26,6 +25,8 @@ vi.mock('@/services/memoryService', () => ({
   },
 }))
 
+// Mocked only to prove it is never called: the Project row reads the payload's
+// `project` summary (#956), where a list lookup was capped at 100 projects.
 vi.mock('@/services/projectService', () => ({
   projectService: {
     getProjects: vi.fn(),
@@ -65,6 +66,7 @@ const mockMemory: Memory = {
   user_id: 'user-1',
   team_id: 'team-1',
   project_id: 'project-1',
+  project: { id: 'project-1', name: 'Test Project', slug: 'test-project' },
   text: 'This is memory text content',
   title: null,
   labels: [],
@@ -73,21 +75,6 @@ const mockMemory: Memory = {
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-02T00:00:00Z',
   version: 1,
-}
-
-const mockProject: Project = {
-  id: 'project-1',
-  user_id: 'user-1',
-  team_id: 'team-1',
-  name: 'Test Project',
-  slug: 'test-project',
-  description: '',
-  git_url: '',
-  homepage: '',
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z',
-  version: 1,
-  github_connected: false,
 }
 
 function renderMemoryView(id = 'memory-1') {
@@ -146,14 +133,6 @@ describe('MemoryView', () => {
         refreshTeams: vi.fn() as () => Promise<void>,
       })
       ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
-      ;(projectService.getProjects as Mock).mockResolvedValue({
-        projects: [mockProject],
-        page: 1,
-        per_page: 100,
-        total_count: 1,
-        total_pages: 1,
-      })
-
       renderMemoryView()
 
       await waitFor(() => {
@@ -179,14 +158,6 @@ describe('MemoryView', () => {
         refreshTeams: vi.fn() as () => Promise<void>,
       })
       ;(memoryService.getMemory as Mock).mockResolvedValue(memoryWithMarkdown)
-      ;(projectService.getProjects as Mock).mockResolvedValue({
-        projects: [mockProject],
-        page: 1,
-        per_page: 100,
-        total_count: 1,
-        total_pages: 1,
-      })
-
       renderMemoryView()
 
       await waitFor(() => {
@@ -230,14 +201,6 @@ describe('MemoryView', () => {
         refreshTeams: vi.fn() as () => Promise<void>,
       })
       ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
-      ;(projectService.getProjects as Mock).mockResolvedValue({
-        projects: [mockProject],
-        page: 1,
-        per_page: 100,
-        total_count: 1,
-        total_pages: 1,
-      })
-
       renderMemoryView()
 
       await waitFor(() => {
@@ -279,7 +242,7 @@ describe('MemoryView', () => {
       })
     })
 
-    it('shows the project name in the sidebar when project loads', async () => {
+    it('links the Project row from the payload summary without listing projects (#956)', async () => {
       mockUseTeam.mockReturnValue({
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
@@ -288,23 +251,14 @@ describe('MemoryView', () => {
         refreshTeams: vi.fn() as () => Promise<void>,
       })
       ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
-      ;(projectService.getProjects as Mock).mockResolvedValue({
-        projects: [mockProject],
-        page: 1,
-        per_page: 100,
-        total_count: 1,
-        total_pages: 1,
-      })
-
       renderMemoryView()
 
-      await waitFor(() => {
-        expect(screen.getByText('Test Project')).toBeInTheDocument()
-      })
-      // getProjects is called with the team id; the component resolves by id from the list
-      expect(projectService.getProjects).toHaveBeenCalledWith('team-1', {
-        limit: 100,
-      })
+      const link = await screen.findByRole('link', { name: /Test Project/ })
+      expect(link).toHaveAttribute(
+        'href',
+        '/teams/team-1/projects/test-project/edit'
+      )
+      expect(projectService.getProjects).not.toHaveBeenCalled()
     })
 
     it('renders Copy content button', async () => {
@@ -316,14 +270,6 @@ describe('MemoryView', () => {
         refreshTeams: vi.fn() as () => Promise<void>,
       })
       ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
-      ;(projectService.getProjects as Mock).mockResolvedValue({
-        projects: [mockProject],
-        page: 1,
-        per_page: 100,
-        total_count: 1,
-        total_pages: 1,
-      })
-
       renderMemoryView()
 
       await waitFor(() => {
@@ -346,14 +292,6 @@ describe('MemoryView', () => {
         refreshTeams: vi.fn() as () => Promise<void>,
       })
       ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
-      ;(projectService.getProjects as Mock).mockResolvedValue({
-        projects: [mockProject],
-        page: 1,
-        per_page: 100,
-        total_count: 1,
-        total_pages: 1,
-      })
-
       const { rerender } = renderMemoryView()
 
       // Team still loading — service must not be called
