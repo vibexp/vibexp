@@ -19,7 +19,6 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics, usePromptRenderer } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useResourceProject } from '@/hooks/useResourceProject'
 import { useResourceVersions } from '@/hooks/useResourceVersions'
 import { buildProjectEditUrl } from '@/lib/resourceUrl'
 import {
@@ -99,9 +98,6 @@ export function PromptDetail() {
   const [dependencies, setDependencies] =
     useState<PromptDependenciesResponse | null>(null)
   const [loadingDependencies, setLoadingDependencies] = useState(false)
-  // Supplemental — the Project metadata row needs the project's name, and the
-  // prompt payload carries only its id.
-  const project = useResourceProject(currentTeam?.id, prompt?.project_id)
   // Owned here rather than by `ResourceBody` because the render and
   // placeholder effects below key off it; persisted under the same shared
   // key so the choice follows the reader across resources (#901).
@@ -346,7 +342,7 @@ export function PromptDetail() {
           <PromptMetadata
             prompt={prompt}
             versionHistory={versionHistory}
-            project={project}
+            project={prompt.project}
             projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
           />
         }

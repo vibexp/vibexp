@@ -52,6 +52,7 @@ describe('createBlueprintVersionSource', () => {
   const blueprint: Blueprint = {
     id: 'bp-1',
     project_id: projectId,
+    project: null,
     slug,
     path: 'my-blueprint.md',
     user_id: 'user-123',
@@ -158,6 +159,7 @@ describe('createMemoryVersionSource', () => {
     user_id: 'user-123',
     team_id: teamId,
     project_id: 'proj-1',
+    project: null,
     text: 'live text',
     title: null,
     labels: [],
@@ -240,6 +242,7 @@ describe('createPromptVersionSource', () => {
     user_id: 'user-123',
     team_id: teamId,
     project_id: 'proj-1',
+    project: null,
     status: 'published',
     mcp_expose: false,
     is_shared: false,

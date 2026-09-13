@@ -44,6 +44,7 @@ function buildSharedResponse(
       user_id: 'user-1',
       team_id: 'team-1',
       project_id: 'proj-1',
+      project: null,
       status: 'published',
       mcp_expose: true,
       is_shared: true,

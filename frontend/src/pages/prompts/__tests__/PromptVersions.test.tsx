@@ -64,6 +64,7 @@ function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
     user_id: 'user-1',
     team_id: 'team-1',
     project_id: 'p1',
+    project: null,
     status: 'published',
     mcp_expose: true,
     is_shared: false,

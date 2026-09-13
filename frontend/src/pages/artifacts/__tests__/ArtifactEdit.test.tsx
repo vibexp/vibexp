@@ -39,6 +39,7 @@ import { ArtifactEdit } from '../ArtifactEdit'
 const mockArtifact: Artifact = {
   id: 'artifact-1',
   project_id: 'my-project',
+  project: null,
   slug: 'my-artifact',
   user_id: 'user-1',
   content: 'Hello world content',

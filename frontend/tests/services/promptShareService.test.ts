@@ -170,6 +170,7 @@ describe('PromptShareService', () => {
           body: 'Prompt content',
           user_id: 'user-123',
           project_id: 'project-123',
+          project: null,
           team_id: 'team-123',
           status: 'published',
           mcp_expose: false,

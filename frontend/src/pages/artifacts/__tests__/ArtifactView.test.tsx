@@ -46,6 +46,8 @@ vi.mock('@/services/attachmentService', () => ({
   },
 }))
 
+// Mocked only to prove it is never called: the Project row reads the payload's
+// `project` summary (#956), where a list lookup was capped at 100 projects.
 vi.mock('@/services/projectService', () => ({
   projectService: {
     getProjects: vi.fn(),
@@ -77,6 +79,7 @@ import { ArtifactView } from '../ArtifactView'
 const mockArtifact: Artifact = vi.hoisted(() => ({
   id: 'artifact-1',
   project_id: 'my-project',
+  project: { id: 'my-project', name: 'My Project', slug: 'my-project-slug' },
   slug: 'my-artifact',
   user_id: 'user-1',
   content: 'Hello world content',
@@ -103,12 +106,6 @@ function renderArtifactView(project = 'my-project', slug = 'my-artifact') {
 describe('ArtifactView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // The Project metadata row (#903) resolves the owning project by id.
-    ;(projectService.getProjects as Mock).mockResolvedValue({
-      projects: [
-        { id: 'my-project', name: 'My Project', slug: 'my-project-slug' },
-      ],
-    })
   })
 
   describe('when TeamContext is still loading (isLoadingTeam = true)', () => {
@@ -250,7 +247,7 @@ describe('ArtifactView', () => {
       expect(screen.queryByText('Artifact not found')).not.toBeInTheDocument()
     })
 
-    it('links the Metadata Project row to the owning project (#903)', async () => {
+    it('links the Metadata Project row from the payload summary without listing projects (#903, #956)', async () => {
       mockUseTeam.mockReturnValue({
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
@@ -267,9 +264,7 @@ describe('ArtifactView', () => {
         'href',
         '/teams/team-1/projects/my-project-slug/edit'
       )
-      expect(projectService.getProjects).toHaveBeenCalledWith('team-1', {
-        limit: 100,
-      })
+      expect(projectService.getProjects).not.toHaveBeenCalled()
     })
   })
 

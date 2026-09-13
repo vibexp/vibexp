@@ -68,6 +68,7 @@ const mockCreatedMemory: Memory = {
   user_id: 'user-1',
   team_id: 'team-1',
   project_id: 'project-1',
+  project: null,
   text: 'My new memory',
   title: null,
   labels: [],

@@ -47,6 +47,7 @@ import { BlueprintEdit } from '../BlueprintEdit'
 const mockBlueprint: Blueprint = {
   id: 'blueprint-1',
   project_id: 'my-project',
+  project: null,
   slug: 'my-blueprint',
   path: 'my-blueprint.md',
   user_id: 'user-1',

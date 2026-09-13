@@ -54,6 +54,7 @@ const mockPrompt: Prompt = vi.hoisted(() => ({
   user_id: 'user-1',
   team_id: 'team-123',
   project_id: 'project-1',
+  project: null,
   status: 'published',
   mcp_expose: true,
   is_shared: false,

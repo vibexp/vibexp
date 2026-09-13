@@ -164,6 +164,7 @@ function buildMemory(overrides: Partial<Memory> = {}): Memory {
     user_id: 'user-1',
     team_id: 'team-1',
     project_id: 'proj-1',
+    project: null,
     text: 'Remember the deploy checklist',
     title: null,
     labels: [],

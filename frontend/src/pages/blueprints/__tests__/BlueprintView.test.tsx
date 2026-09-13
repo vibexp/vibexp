@@ -46,6 +46,8 @@ vi.mock('@/services/attachmentService', () => ({
   },
 }))
 
+// Mocked only to prove it is never called: the Project row reads the payload's
+// `project` summary (#956), where a list lookup was capped at 100 projects.
 vi.mock('@/services/projectService', () => ({
   projectService: {
     getProjects: vi.fn(),
@@ -77,6 +79,7 @@ import { BlueprintView } from '../BlueprintView'
 const mockBlueprint: Blueprint = vi.hoisted(() => ({
   id: 'blueprint-1',
   project_id: 'my-project',
+  project: { id: 'my-project', name: 'My Project', slug: 'my-project-slug' },
   slug: 'my-blueprint',
   path: '.claude/commands/my-blueprint.md',
   user_id: 'user-1',
@@ -104,12 +107,6 @@ function renderBlueprintView(project = 'my-project', slug = 'my-blueprint') {
 describe('BlueprintView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // The Project metadata row (#903) resolves the owning project by id.
-    ;(projectService.getProjects as Mock).mockResolvedValue({
-      projects: [
-        { id: 'my-project', name: 'My Project', slug: 'my-project-slug' },
-      ],
-    })
   })
 
   describe('when TeamContext is still loading (isLoadingTeam = true)', () => {
@@ -197,7 +194,7 @@ describe('BlueprintView', () => {
       })
     })
 
-    it('links the Metadata Project row to the owning project (#903)', async () => {
+    it('links the Metadata Project row from the payload summary without listing projects (#903, #956)', async () => {
       mockUseTeam.mockReturnValue({
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
@@ -214,6 +211,7 @@ describe('BlueprintView', () => {
         'href',
         '/teams/team-1/projects/my-project-slug/edit'
       )
+      expect(projectService.getProjects).not.toHaveBeenCalled()
     })
 
     it('shows the canonical path and no provenance when source is absent (#345)', async () => {

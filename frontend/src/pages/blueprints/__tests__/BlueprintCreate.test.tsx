@@ -57,6 +57,7 @@ beforeAll(() => {
 const created: Blueprint = {
   id: 'bp-1',
   project_id: 'project-1',
+  project: null,
   slug: 'my-blueprint',
   path: 'my-blueprint.md',
   user_id: 'user-1',

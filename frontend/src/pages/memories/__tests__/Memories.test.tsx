@@ -20,6 +20,7 @@ const makeMemory = (overrides: Partial<Memory> = {}): Memory => ({
   user_id: 'user-1',
   team_id: 'team-1',
   project_id: 'project-alpha',
+  project: null,
   text: 'Sample memory',
   title: null,
   status: 'active',
