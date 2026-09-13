@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils'
    colours, so it flips with `.dark` for free. Rows are a hairline-divided
    list: key on the left, value on the right. Created / Updated relative-time
    rows are rendered automatically; pass any leading rows (Type, Status, Slug,
-   …) as `MetaRow` / `MetaSlugRow` children. Reusable across every resource
+   …) as `MetaRow` / `MetaSlugRow` / `MetaLinkRow` children. Reusable across every resource
    detail view. */
 
 type IconType = ComponentType<{ className?: string }>
@@ -63,6 +63,34 @@ export function MetaSlugRow({
       <span className="text-muted-foreground shrink-0">{label}</span>
       <CopyChip label={label} value={value} />
     </PanelRow>
+  )
+}
+
+/**
+ * A key/value row whose value is an icon-led in-app link — the Project row on
+ * every resource detail page and the feed item's Feed row. The one place that
+ * link's markup lives, so a change to it cannot miss a page. Callers keep their
+ * own guard and render no row when `to` cannot be resolved; the `key` stays
+ * with the caller too, since these rows are pushed into arrays.
+ */
+export function MetaLinkRow({
+  icon: Icon,
+  label,
+  to,
+  children,
+}: Readonly<{
+  icon: IconType
+  label: string
+  to: string
+  children: ReactNode
+}>) {
+  return (
+    <MetaRow label={label}>
+      <Link to={to} className="flex items-center gap-1 hover:underline">
+        <Icon className="size-3" />
+        {children}
+      </Link>
+    </MetaRow>
   )
 }
 

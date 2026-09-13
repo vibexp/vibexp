@@ -9,11 +9,11 @@ import {
   Trash2,
 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { MetadataPanel, MetaRow } from '@/components/metadata/MetadataPanel'
+import { MetadataPanel, MetaLinkRow } from '@/components/metadata/MetadataPanel'
 import {
   type ReadingAction,
   type ReadingSection,
@@ -265,34 +265,33 @@ export function FeedItemView() {
   const metadataRows: ReactNode[] = []
   if (feed) {
     metadataRows.push(
-      <MetaRow key="feed" label="Feed">
-        <Link
-          to={`/feeds/${encodeURIComponent(feed.id)}`}
-          className="flex items-center gap-1 hover:underline"
-        >
-          <Rss className="size-3" />
-          {feed.name}
-        </Link>
-      </MetaRow>
+      <MetaLinkRow
+        key="feed"
+        icon={Rss}
+        label="Feed"
+        to={`/feeds/${encodeURIComponent(feed.id)}`}
+      >
+        {feed.name}
+      </MetaLinkRow>
     )
   }
   // The same Project row the four resource detail pages render, through the
-  // same helper (#903) — a feed item is the fifth page showing it, and an
-  // identical-looking row that is not clickable is worse than no row.
+  // same helper and component (#903, #953) — a feed item is the fifth page
+  // showing it, and an identical-looking row that is not clickable is worse
+  // than no row.
   const projectTo = project
     ? buildProjectEditUrl(currentTeam?.id, project.slug)
     : null
   if (project && projectTo) {
     metadataRows.push(
-      <MetaRow key="project" label="Project">
-        <Link
-          to={projectTo}
-          className="flex items-center gap-1 hover:underline"
-        >
-          <FolderOpen className="size-3" />
-          {project.name}
-        </Link>
-      </MetaRow>
+      <MetaLinkRow
+        key="project"
+        icon={FolderOpen}
+        label="Project"
+        to={projectTo}
+      >
+        {project.name}
+      </MetaLinkRow>
     )
   }
 

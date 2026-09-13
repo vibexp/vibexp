@@ -1,5 +1,13 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { FolderOpen } from 'lucide-react'
 import { type ReactElement } from 'react'
 import { MemoryRouter } from 'react-router'
 
@@ -8,7 +16,12 @@ import {
   FlatSurface,
 } from '@/lib/testing/panelPresentation'
 
-import { MetadataPanel, MetaRow, MetaSlugRow } from '../MetadataPanel'
+import {
+  MetadataPanel,
+  MetaLinkRow,
+  MetaRow,
+  MetaSlugRow,
+} from '../MetadataPanel'
 
 const CREATED = '2024-01-01T00:00:00Z'
 const UPDATED = '2024-01-02T00:00:00Z'
@@ -31,6 +44,43 @@ describe('MetaRow', () => {
       </ul>
     )
     expect(screen.getByRole('listitem')).toBeInTheDocument()
+  })
+})
+
+describe('MetaLinkRow', () => {
+  function renderLinkRow() {
+    return render(
+      <MemoryRouter>
+        <ul>
+          <MetaLinkRow
+            icon={FolderOpen}
+            label="Project"
+            to="/teams/t1/projects/apollo/edit"
+          >
+            Apollo
+          </MetaLinkRow>
+        </ul>
+      </MemoryRouter>
+    )
+  }
+
+  it('renders the label and a link to the target', () => {
+    renderLinkRow()
+    expect(screen.getByRole('listitem')).toHaveTextContent('Project')
+    expect(screen.getByRole('link', { name: 'Apollo' })).toHaveAttribute(
+      'href',
+      '/teams/t1/projects/apollo/edit'
+    )
+  })
+
+  it('puts the icon inside the link with the shared row treatment', () => {
+    renderLinkRow()
+    const link = screen.getByRole('link', { name: 'Apollo' })
+    // The one copy of this class string in the frontend (#953): every page's
+    // Project row and the feed item's Feed row render through here.
+    expect(link).toHaveClass('flex', 'items-center', 'gap-1', 'hover:underline')
+    const icon = within(link).getByTestId('folderopen-icon')
+    expect(icon).toHaveClass('size-3')
   })
 })
 
