@@ -1249,3 +1249,59 @@ func TestArtifactService_UpdateArtifact_PreservesTeamID(t *testing.T) {
 	assert.Equal(t, "team-999", artifact.TeamID, "TeamID should be preserved during update")
 	mockRepo.AssertExpectations(t)
 }
+
+// TestArtifactService_UpdateArtifact_MetadataNilVsEmpty pins the metadata
+// contract the frontend relies on since #963: an omitted bag (nil) leaves the
+// stored metadata untouched, while an explicit empty bag clears it. Collapsing
+// the two silently reintroduces #947 (clearing the last key never persisted).
+func TestArtifactService_UpdateArtifact_MetadataNilVsEmpty(t *testing.T) {
+	tests := []struct {
+		name           string
+		reqMetadata    map[string]interface{}
+		expectMetadata map[string]interface{}
+	}{
+		{name: "nil leaves unchanged", reqMetadata: nil, expectMetadata: map[string]interface{}{"env": "prod"}},
+		{name: "empty map clears", reqMetadata: map[string]interface{}{}, expectMetadata: map[string]interface{}{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := &MockArtifactRepository{}
+			service := NewArtifactService(ArtifactServiceDeps{
+				Repo:   mockRepo,
+				Authz:  allowAllAuthz{},
+				Logger: func() *slog.Logger { l, _ := logtest.New(); return l }(),
+			})
+
+			existingArtifact := &models.Artifact{
+				ID:        "artifact-123",
+				ProjectID: "project-456",
+				Slug:      "test-artifact",
+				Title:     "Original Title",
+				UserID:    "user-123",
+				TeamID:    "team-999",
+				Metadata:  map[string]interface{}{"env": "prod"},
+			}
+			mockRepo.On("GetByProjectIDAndSlugCrossTeam", mock.Anything, "user-123", "project-456", "test-artifact").
+				Return(existingArtifact, nil)
+
+			var persisted *models.Artifact
+			mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.Artifact")).
+				Run(func(args mock.Arguments) { persisted = args.Get(1).(*models.Artifact) }).
+				Return(nil)
+
+			artifact, err := service.UpdateArtifactByProjectIDAndSlug(
+				"user-123", "project-456", "test-artifact",
+				&models.UpdateArtifactRequest{Metadata: tt.reqMetadata},
+			)
+
+			require.NoError(t, err)
+			require.NotNil(t, persisted)
+			// assert.Equal distinguishes a nil map from an empty one, so the
+			// "clears" row fails if the bag is dropped instead of written as {}.
+			assert.Equal(t, tt.expectMetadata, persisted.Metadata)
+			assert.Equal(t, tt.expectMetadata, artifact.Metadata)
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}

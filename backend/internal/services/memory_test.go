@@ -573,6 +573,55 @@ func TestMemoryService_UpdateMemory_PreservesTeamID(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
+// TestMemoryService_UpdateMemory_MetadataNilVsEmpty pins the metadata contract
+// the frontend relies on since #963: an omitted bag (nil) leaves the stored
+// metadata untouched, while an explicit empty bag clears it. Collapsing the two
+// silently reintroduces #947 (clearing the last key never persisted).
+func TestMemoryService_UpdateMemory_MetadataNilVsEmpty(t *testing.T) {
+	tests := []struct {
+		name           string
+		reqMetadata    map[string]interface{}
+		expectMetadata map[string]interface{}
+	}{
+		{name: "nil leaves unchanged", reqMetadata: nil, expectMetadata: map[string]interface{}{"category": "work"}},
+		{name: "empty map clears", reqMetadata: map[string]interface{}{}, expectMetadata: map[string]interface{}{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mocks.NewMockMemoryRepository(t)
+			// No legacy "tags" key: that would route the bag through
+			// foldLegacyMemoryTags' copy and test the folding, not the guard.
+			existing := &models.Memory{
+				ID: "memory-123", UserID: "user-123", TeamID: "team-123",
+				ProjectID: testServiceProjectID, Text: "original",
+				Metadata: map[string]interface{}{"category": "work"},
+			}
+			mockRepo.EXPECT().GetByID(mock.Anything, "user-123", "team-123", "memory-123").
+				Return(existing, nil)
+
+			var persisted *models.Memory
+			mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.Memory")).
+				Run(func(args mock.Arguments) { persisted = args.Get(1).(*models.Memory) }).
+				Return(nil)
+
+			svc := createTestMemoryService(mockRepo)
+			memory, err := svc.UpdateMemory("user-123", "team-123", "memory-123",
+				&models.UpdateMemoryRequest{Metadata: tt.reqMetadata})
+
+			assert.NoError(t, err)
+			if assert.NotNil(t, persisted) {
+				// assert.Equal distinguishes a nil map from an empty one, so the
+				// "clears" row fails if the bag is dropped instead of written as {}.
+				assert.Equal(t, tt.expectMetadata, persisted.Metadata)
+			}
+			if assert.NotNil(t, memory) {
+				assert.Equal(t, tt.expectMetadata, memory.Metadata)
+			}
+		})
+	}
+}
+
 // TestMemoryService_CreateMemory_StatusDefaulting verifies that create defaults
 // the status to active when none is supplied, and threads an explicit status
 // through to the persisted memory.
