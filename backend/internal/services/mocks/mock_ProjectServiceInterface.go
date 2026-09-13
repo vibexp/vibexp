@@ -192,6 +192,66 @@ func (_c *MockProjectServiceInterface_GetProjectBySlug_Call) RunAndReturn(run fu
 	return _c
 }
 
+// GetProjectBySlugOrID provides a mock function with given fields: teamID, userID, ref
+func (_m *MockProjectServiceInterface) GetProjectBySlugOrID(teamID string, userID string, ref string) (*models.Project, error) {
+	ret := _m.Called(teamID, userID, ref)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProjectBySlugOrID")
+	}
+
+	var r0 *models.Project
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string, string, string) (*models.Project, error)); ok {
+		return rf(teamID, userID, ref)
+	}
+	if rf, ok := ret.Get(0).(func(string, string, string) *models.Project); ok {
+		r0 = rf(teamID, userID, ref)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Project)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string, string, string) error); ok {
+		r1 = rf(teamID, userID, ref)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProjectServiceInterface_GetProjectBySlugOrID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProjectBySlugOrID'
+type MockProjectServiceInterface_GetProjectBySlugOrID_Call struct {
+	*mock.Call
+}
+
+// GetProjectBySlugOrID is a helper method to define mock.On call
+//   - teamID string
+//   - userID string
+//   - ref string
+func (_e *MockProjectServiceInterface_Expecter) GetProjectBySlugOrID(teamID interface{}, userID interface{}, ref interface{}) *MockProjectServiceInterface_GetProjectBySlugOrID_Call {
+	return &MockProjectServiceInterface_GetProjectBySlugOrID_Call{Call: _e.mock.On("GetProjectBySlugOrID", teamID, userID, ref)}
+}
+
+func (_c *MockProjectServiceInterface_GetProjectBySlugOrID_Call) Run(run func(teamID string, userID string, ref string)) *MockProjectServiceInterface_GetProjectBySlugOrID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockProjectServiceInterface_GetProjectBySlugOrID_Call) Return(_a0 *models.Project, _a1 error) *MockProjectServiceInterface_GetProjectBySlugOrID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProjectServiceInterface_GetProjectBySlugOrID_Call) RunAndReturn(run func(string, string, string) (*models.Project, error)) *MockProjectServiceInterface_GetProjectBySlugOrID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetProjectResourceCreationMetrics provides a mock function with given fields: teamID, userID, slug, since
 func (_m *MockProjectServiceInterface) GetProjectResourceCreationMetrics(teamID string, userID string, slug string, since time.Time) ([]models.ProjectResourceCreationCount, error) {
 	ret := _m.Called(teamID, userID, slug, since)

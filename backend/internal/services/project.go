@@ -2,10 +2,13 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
@@ -176,6 +179,52 @@ func (s *ProjectService) GetProjectBySlug(teamID, userID, slug string) (*models.
 	}
 
 	return project, nil
+}
+
+// GetProjectBySlugOrID retrieves a project by slug, falling back to its ID when
+// ref matches no slug but is a UUID (issue #957: clients persist a project's ID
+// and must validate it without scanning a capped project list). A slug match
+// always wins, so existing slug addressing is unchanged. The ID fallback is
+// confined to teamID: a project of another team the caller also belongs to is
+// reported as not found, exactly as a slug lookup scoped to teamID would be.
+func (s *ProjectService) GetProjectBySlugOrID(teamID, userID, ref string) (*models.Project, error) {
+	ctx := context.Background()
+	project, err := s.repo.GetBySlug(ctx, teamID, userID, ref)
+	if err != nil && errors.Is(err, repositories.ErrProjectNotFoundForRepo) {
+		// uuid.Parse accepts spellings Postgres rejects (urn:uuid:…), so query by
+		// the canonical form and compare team ids as UUIDs, not strings.
+		if id, parseErr := uuid.Parse(ref); parseErr == nil {
+			project, err = s.repo.GetByID(ctx, userID, id.String())
+			if err == nil && !sameUUID(project.TeamID, teamID) {
+				project = nil
+				err = fmt.Errorf("%w: id=%s team=%s", repositories.ErrProjectNotFoundForRepo, ref, teamID)
+			}
+		}
+	}
+	if err != nil {
+		s.logger.With(
+			"service", "project",
+			"team_id", teamID,
+			"user_id", userID,
+			"ref", ref,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get project")
+		return nil, err
+	}
+
+	return project, nil
+}
+
+// sameUUID reports whether a and b name the same UUID whatever their spelling
+// (case, braces, hyphens), falling back to string equality when either is not
+// a UUID.
+func sameUUID(a, b string) bool {
+	ua, errA := uuid.Parse(a)
+	ub, errB := uuid.Parse(b)
+	if errA != nil || errB != nil {
+		return a == b
+	}
+	return ua == ub
 }
 
 // ListProjects retrieves projects with filtering and pagination

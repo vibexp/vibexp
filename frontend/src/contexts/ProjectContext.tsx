@@ -13,6 +13,7 @@ import type { Project } from '@/services/projectService'
 
 import { STORAGE_KEYS } from '../constants/storageKeys'
 import { projectService } from '../services/projectService'
+import { ApiError } from '../types/errors'
 import { sessionStore, storage } from '../utils/storage'
 import { useTeam } from './TeamContext'
 
@@ -76,22 +77,27 @@ export function ProjectProvider({ children }: Readonly<ProjectProviderProps>) {
     }
 
     // First team resolution: restore the persisted selection, validating it
-    // against the team's projects so a deleted project (or one stored for a
-    // different team) is dropped instead of silently filtering everything out.
+    // with a lookup of that one project in the current team so a deleted
+    // project (or one stored for a different team) is dropped instead of
+    // silently filtering everything out. getProject resolves an ID as well as
+    // a slug; scanning the (server-capped) project list instead would drop
+    // any selection past its first page (#957).
     let cancelled = false
     const restore = async () => {
       try {
-        const response = await projectService.getProjects(currentTeam.id, {
-          limit: 100,
-        })
+        const stored = await projectService.getProject(currentTeam.id, storedId)
         if (cancelled || userSelectedRef.current) return
-        const stored = response.projects.find(p => p.id === storedId)
-        if (stored) {
+        // A slug that happens to equal the stored id is a different project.
+        if (stored.id === storedId) {
           setCurrentProjectState(stored)
         } else {
           clearProjectId()
         }
       } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          if (!cancelled && !userSelectedRef.current) clearProjectId()
+          return
+        }
         console.error('Failed to restore current project:', error)
       } finally {
         if (!cancelled) setIsLoading(false)

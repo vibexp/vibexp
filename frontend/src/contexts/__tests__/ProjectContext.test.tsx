@@ -8,12 +8,14 @@ import {
 import type { Mock, Mocked } from 'vitest'
 
 import type { Project } from '@/services/projectService'
+import { ApiError } from '@/types/errors'
 
 import { ProjectProvider, useProject } from '../ProjectContext'
 
 // Mock the projectService
 vi.mock('../../services/projectService', () => ({
   projectService: {
+    getProject: vi.fn(),
     getProjects: vi.fn(),
   },
 }))
@@ -70,6 +72,18 @@ const mockProjects: Project[] = [
   makeProject('project-2', 'Project Beta'),
 ]
 
+function notFound(): ApiError {
+  return new ApiError({
+    type: 'about:blank',
+    title: 'Not Found',
+    status: 404,
+    detail: 'Project not found',
+    code: 'not_found',
+    request_id: '',
+    timestamp: '2023-01-01T00:00:00Z',
+  })
+}
+
 function teamValue(teamId: string | null) {
   return {
     currentTeam: teamId ? { id: teamId, name: `Team ${teamId}` } : null,
@@ -115,13 +129,12 @@ describe('ProjectContext', () => {
     mockStorage.set.mockImplementation(() => {})
     mockStorage.remove.mockImplementation(() => {})
     mockUseTeam.mockReturnValue(teamValue('team-1'))
-    mockProjectService.getProjects.mockResolvedValue({
-      projects: mockProjects,
-      total_count: mockProjects.length,
-      page: 1,
-      per_page: 100,
-      total_pages: 1,
-    })
+    mockProjectService.getProject.mockImplementation(
+      (_teamId: string, ref: string) => {
+        const project = mockProjects.find(p => p.id === ref)
+        return project ? Promise.resolve(project) : Promise.reject(notFound())
+      }
+    )
   })
 
   it('defaults to "All projects" (null) when nothing is stored', async () => {
@@ -136,7 +149,8 @@ describe('ProjectContext', () => {
     })
 
     expect(screen.getByTestId('current-project')).toHaveTextContent('null')
-    // No stored id — no need to fetch projects to validate anything
+    // No stored id — no need to fetch anything to validate it
+    expect(mockProjectService.getProject).not.toHaveBeenCalled()
     expect(mockProjectService.getProjects).not.toHaveBeenCalled()
   })
 
@@ -156,6 +170,45 @@ describe('ProjectContext', () => {
     expect(screen.getByTestId('current-project')).toHaveTextContent(
       'Project Beta'
     )
+    expect(mockProjectService.getProject).toHaveBeenCalledWith(
+      'team-1',
+      'project-2'
+    )
+  })
+
+  it('restores a stored project that falls outside the first 100-project page (#957)', async () => {
+    // The team has more than 100 projects, and the selection is not on the
+    // first (server-capped) page of the list — it must still be restored,
+    // via the targeted lookup rather than a scan of that page.
+    const firstPage = Array.from({ length: 100 }, (_, i) =>
+      makeProject(`project-page-${String(i)}`, `Paged ${String(i)}`)
+    )
+    mockProjectService.getProjects.mockResolvedValue({
+      projects: firstPage,
+      total_count: 150,
+      page: 1,
+      per_page: 100,
+      total_pages: 2,
+    })
+    const beyondFirstPage = makeProject('project-150', 'Project 150')
+    mockProjectService.getProject.mockResolvedValue(beyondFirstPage)
+    mockStorage.get.mockReturnValue('project-150')
+
+    render(
+      <ProjectProvider>
+        <TestComponent />
+      </ProjectProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false')
+    })
+
+    expect(screen.getByTestId('current-project')).toHaveTextContent(
+      'Project 150'
+    )
+    expect(mockStorage.remove).not.toHaveBeenCalled()
+    expect(mockProjectService.getProjects).not.toHaveBeenCalled()
   })
 
   it('drops a stored project that is not in the current team', async () => {
@@ -175,6 +228,25 @@ describe('ProjectContext', () => {
     expect(mockStorage.remove).toHaveBeenCalledWith(
       expect.any(String) // STORAGE_KEYS.CURRENT_PROJECT_ID
     )
+  })
+
+  it('drops the stored id when the lookup answers with a different project', async () => {
+    // A project whose slug equals the stored id is not the stored project.
+    mockStorage.get.mockReturnValue('project-2')
+    mockProjectService.getProject.mockResolvedValue(mockProjects[0])
+
+    render(
+      <ProjectProvider>
+        <TestComponent />
+      </ProjectProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false')
+    })
+
+    expect(screen.getByTestId('current-project')).toHaveTextContent('null')
+    expect(mockStorage.remove).toHaveBeenCalled()
   })
 
   it('persists the selection via setCurrentProject and clears it on "All projects"', async () => {
@@ -242,14 +314,8 @@ describe('ProjectContext', () => {
 
   it('does not clobber a selection made while the restore is in flight', async () => {
     mockStorage.get.mockReturnValue('project-1')
-    let resolveFetch!: (value: {
-      projects: Project[]
-      total_count: number
-      page: number
-      per_page: number
-      total_pages: number
-    }) => void
-    mockProjectService.getProjects.mockReturnValue(
+    let resolveFetch!: (value: Project) => void
+    mockProjectService.getProject.mockReturnValue(
       new Promise(resolve => {
         resolveFetch = resolve
       })
@@ -270,13 +336,7 @@ describe('ProjectContext', () => {
     )
 
     await act(async () => {
-      resolveFetch({
-        projects: mockProjects,
-        total_count: mockProjects.length,
-        page: 1,
-        per_page: 100,
-        total_pages: 1,
-      })
+      resolveFetch(mockProjects[0])
       // Flush the resolved restore promise chain
       await Promise.resolve()
     })
@@ -288,9 +348,9 @@ describe('ProjectContext', () => {
     expect(screen.getByTestId('loading')).toHaveTextContent('false')
   })
 
-  it('keeps the selection when storage restore fails but logs the error', async () => {
+  it('keeps the stored id when the restore fails for a reason other than 404, and logs it', async () => {
     mockStorage.get.mockReturnValue('project-1')
-    mockProjectService.getProjects.mockRejectedValue(new Error('network down'))
+    mockProjectService.getProject.mockRejectedValue(new Error('network down'))
     const consoleErrorSpy = vi
       .spyOn(console, 'error')
       .mockImplementation(() => {})
@@ -307,6 +367,8 @@ describe('ProjectContext', () => {
 
     expect(screen.getByTestId('current-project')).toHaveTextContent('null')
     expect(consoleErrorSpy).toHaveBeenCalled()
+    // A transient failure is not evidence the project is gone
+    expect(mockStorage.remove).not.toHaveBeenCalled()
 
     consoleErrorSpy.mockRestore()
   })

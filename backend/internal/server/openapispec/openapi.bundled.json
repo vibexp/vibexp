@@ -21163,8 +21163,8 @@
     },
     "/api/v1/{team_id}/projects/{slug}": {
       "get": {
-        "summary": "Get project by slug",
-        "description": "Returns a single project identified by its URL-encoded slug within the specified team.",
+        "summary": "Get project by slug or ID",
+        "description": "Returns a single project within the specified team, identified by its\nURL-encoded slug. When no project has that slug and the value is a UUID,\nit is resolved as the project ID instead, so a client that persisted a\nproject's ID can look it up directly. A slug match always takes\nprecedence, and a project ID belonging to another team returns 404.\n",
         "operationId": "getProject",
         "security": [
           {
@@ -21192,7 +21192,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Project slug (URL-encoded)"
+            "description": "Project slug (URL-encoded), or the project ID (UUID) when no project has that slug"
           }
         ],
         "responses": {
