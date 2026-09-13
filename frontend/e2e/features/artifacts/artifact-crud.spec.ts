@@ -415,7 +415,10 @@ test.describe('Artifact CRUD Operations', () => {
       await authenticatedPage.waitForURL(DETAIL_URL_END, { timeout: 10000 })
 
       // Navigate to edit
-      await authenticatedPage.locator('button:has-text("Edit")').first().click()
+      // A loose text locator collides with the "Copy slug" button whenever the
+      // artifact's own slug contains "edit" as a substring (#973) — the
+      // testid is unambiguous.
+      await authenticatedPage.getByTestId('edit-artifact-button').click()
       await expect(authenticatedPage).toHaveURL(
         /artifacts\/[^/]+\/[^/]+\/edit/,
         { timeout: 10000 }
@@ -467,7 +470,10 @@ test.describe('Artifact CRUD Operations', () => {
       await authenticatedPage.waitForURL(DETAIL_URL_END, { timeout: 10000 })
 
       // Edit
-      await authenticatedPage.locator('button:has-text("Edit")').first().click()
+      // A loose text locator collides with the "Copy slug" button whenever the
+      // artifact's own slug contains "edit" as a substring (#973) — the
+      // testid is unambiguous.
+      await authenticatedPage.getByTestId('edit-artifact-button').click()
       await expect(authenticatedPage).toHaveURL(
         /artifacts\/[^/]+\/[^/]+\/edit/,
         { timeout: 10000 }
@@ -523,7 +529,10 @@ test.describe('Artifact CRUD Operations', () => {
       await authenticatedPage.waitForURL(DETAIL_URL_END, { timeout: 10000 })
 
       // Edit and change type
-      await authenticatedPage.locator('button:has-text("Edit")').first().click()
+      // A loose text locator collides with the "Copy slug" button whenever the
+      // artifact's own slug contains "edit" as a substring (#973) — the
+      // testid is unambiguous.
+      await authenticatedPage.getByTestId('edit-artifact-button').click()
       await expect(authenticatedPage).toHaveURL(
         /artifacts\/[^/]+\/[^/]+\/edit/,
         { timeout: 10000 }

@@ -199,18 +199,15 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
       await nameField.clear()
       await nameField.fill('My Automated Test Prompt')
 
-      // STEP 3: Select project (E2E Test Project should exist from setup)
-      const projectSelect = authenticatedPage.locator('select').first()
-
-      // Wait for project dropdown to be ready
-      await authenticatedPage.waitForTimeout(1000)
-
-      // Select the first available project (or specific project if it exists)
-      const options = await projectSelect.locator('option').count()
-      if (options > 1) {
-        // Select first non-empty option
-        await projectSelect.selectOption({ index: 1 })
-      }
+      // STEP 3: Select project (E2E Test Project should exist from setup).
+      // `ProjectPicker` is a Popover+Command combobox, not a native <select> —
+      // the only native <select> on this page is Radix's hidden bubble-select
+      // mirroring the status field, which `locator('select').first()` used to
+      // grab instead, silently flipping the new prompt to Published (#974).
+      await authenticatedPage.getByTestId('prompt-project-select').click()
+      const projectOption = authenticatedPage.getByRole('option').first()
+      await projectOption.waitFor({ state: 'visible', timeout: 10000 })
+      await projectOption.click()
 
       // STEP 4: Save. The button reads "Create prompt" since #915 — the old
       // "Save as draft" / "Publish" pair was read off the form's own status,
@@ -237,10 +234,13 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
         authenticatedPage.getByText('My Automated Test Prompt')
       ).toBeVisible()
 
-      // Should show Draft status (there are multiple "Draft" elements, be more specific)
-      await expect(
-        authenticatedPage.locator('span').filter({ hasText: 'Draft' }).first()
-      ).toBeVisible()
+      // Should show Draft status. Scoped to this prompt's row rather than a
+      // tag name (the status badge is a <div>, not a <span>) — the status
+      // filter dropdown also contains the text "Draft" elsewhere on the page.
+      const promptRow = authenticatedPage.getByRole('row', {
+        name: /My Automated Test Prompt/,
+      })
+      await expect(promptRow.getByText('Draft')).toBeVisible()
     })
   })
 
