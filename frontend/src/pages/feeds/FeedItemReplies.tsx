@@ -1,134 +1,45 @@
-import { MessageSquare } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ArrowRight, MessageSquare } from 'lucide-react'
+import { useState } from 'react'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { MarkdownRenderer } from '@/components/MarkdownRenderer'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Panel, PanelHeader, PanelTitle } from '@/components/ui/panel'
-import { Textarea } from '@/components/ui/textarea'
-import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { formatRelativeTime } from '@/lib/time'
-import { FeedActorAvatar, resolveFeedActor } from '@/pages/feeds/feedActor'
-import type { FeedItemReply } from '@/services/feedService'
-import { feedService } from '@/services/feedService'
-import type { TeamMember } from '@/services/teamService'
-import { teamService } from '@/services/teamService'
+import { REPLIES_PAGE_SIZE, useFeedReplies } from '@/hooks/useFeedReplies'
+
+import { AllRepliesDialog } from './AllRepliesDialog'
+import { ReplyComposer } from './ReplyComposer'
+import { ReplyItem } from './ReplyItem'
 
 interface FeedItemRepliesProps {
   teamId: string
   itemId: string
 }
 
-interface ReplyItemProps {
-  reply: FeedItemReply
-  member?: TeamMember
-}
-
-function ReplyItem({ reply, member }: Readonly<ReplyItemProps>) {
-  const actor = resolveFeedActor(reply, member)
-
-  return (
-    <div className="flex gap-3 py-3">
-      <FeedActorAvatar actor={actor} size="sm" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 text-sm">
-          <span className="font-semibold text-foreground">
-            {actor.displayName}
-          </span>
-          {actor.isAi && (
-            <Badge variant="outline" className="text-xs ml-1">
-              AI
-            </Badge>
-          )}
-          <span aria-hidden="true" className="text-muted-foreground">
-            ·
-          </span>
-          <span className="text-muted-foreground">
-            {formatRelativeTime(reply.posted_at)}
-          </span>
-        </div>
-        <MarkdownRenderer
-          content={reply.content}
-          syntaxTheme="auto"
-          className="mt-0.5 text-sm"
-        />
-      </div>
-    </div>
-  )
-}
-
 export function FeedItemReplies({
   teamId,
   itemId,
 }: Readonly<FeedItemRepliesProps>) {
-  const { handleError } = useErrorHandler()
+  // One hook instance shared by the panel and the "all replies" popup, so the
+  // two never disagree on the list or the count (#954).
+  const state = useFeedReplies(teamId, itemId)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
-  const [replies, setReplies] = useState<FeedItemReply[]>([])
-  // The list is one page (the API defaults to 20 and this component does not
-  // paginate), so the count has to come from the response's `total_count` —
-  // `replies.length` would read "20" beside a thread of 57. Same reason
-  // `CommentsPanel` counts off its own total rather than its loaded array.
-  const [totalReplies, setTotalReplies] = useState(0)
-  const [members, setMembers] = useState<Map<string, TeamMember>>(new Map())
-  const [repliesLoading, setRepliesLoading] = useState(false)
-  const [replyContent, setReplyContent] = useState('')
-  const [submittingReply, setSubmittingReply] = useState(false)
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setRepliesLoading(true)
-        const [repliesResult, membersResult] = await Promise.allSettled([
-          feedService.listReplies(teamId, itemId),
-          teamService.getTeamMembers(teamId),
-        ])
-        if (repliesResult.status === 'fulfilled') {
-          setReplies(repliesResult.value.replies)
-          setTotalReplies(repliesResult.value.total_count)
-        }
-        if (membersResult.status === 'fulfilled') {
-          const map = new Map(membersResult.value.map(m => [m.user_id, m]))
-          setMembers(map)
-        }
-      } catch (err) {
-        handleError(err, 'Failed to load replies')
-      } finally {
-        setRepliesLoading(false)
-      }
-    }
-    void loadData()
-  }, [teamId, itemId, handleError])
-
-  const handleSubmitReply = async () => {
-    if (!replyContent.trim()) return
-    try {
-      setSubmittingReply(true)
-      const newReply = await feedService.createReply(teamId, itemId, {
-        content: replyContent.trim(),
-      })
-      setReplies(prev => [newReply, ...prev])
-      setTotalReplies(prev => prev + 1)
-      setReplyContent('')
-    } catch (err) {
-      handleError(err, 'Failed to post reply')
-    } finally {
-      setSubmittingReply(false)
-    }
-  }
+  // The panel shows the first page; the popup appends the rest. Both the chip
+  // and the footer read `totalCount` — `replies.length` would read "10" beside
+  // a thread of 57.
+  const visible = state.replies.slice(0, REPLIES_PAGE_SIZE)
 
   const repliesContent =
-    replies.length === 0 ? (
+    visible.length === 0 ? (
       <p className="py-4 text-center text-sm text-muted-foreground">
         No replies yet
       </p>
     ) : (
       <div className="divide-y divide-border">
-        {replies.map(reply => (
+        {visible.map(reply => (
           <ReplyItem
             key={reply.id}
             reply={reply}
-            member={members.get(reply.posted_by_user_id)}
+            member={state.members.get(reply.posted_by_user_id)}
           />
         ))}
       </div>
@@ -149,15 +60,18 @@ export function FeedItemReplies({
           <MessageSquare className="text-muted-foreground size-[17px] shrink-0" />
           <PanelTitle>Replies</PanelTitle>
         </div>
-        {totalReplies > 0 && (
-          <span className="bg-secondary text-secondary-foreground rounded-full px-[7px] py-[3px] font-mono text-xs leading-none">
-            {totalReplies}
+        {state.totalCount > 0 && (
+          <span
+            className="bg-secondary text-secondary-foreground rounded-full px-[7px] py-[3px] font-mono text-xs leading-none"
+            data-testid="feed-item-replies-count"
+          >
+            {state.totalCount}
           </span>
         )}
       </PanelHeader>
 
       {/* Replies list */}
-      {repliesLoading ? (
+      {state.loading ? (
         <div className="flex justify-center py-4">
           <LoadingSpinner size="sm" />
         </div>
@@ -165,34 +79,41 @@ export function FeedItemReplies({
         repliesContent
       )}
 
-      {/* Compose form — at the bottom of the thread */}
-      <div className="flex items-end gap-2 pt-2">
-        <Textarea
-          rows={2}
-          className="min-h-[60px] flex-1 resize-none"
-          placeholder="Write a reply..."
-          value={replyContent}
-          onChange={e => {
-            setReplyContent(e.target.value)
-          }}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              void handleSubmitReply()
-            }
-          }}
-          disabled={submittingReply}
-        />
-        <Button
+      {/* Footer: "See all replies (N)" — only when the thread is longer than the panel shows */}
+      {!state.loading && state.totalCount > visible.length && (
+        <button
+          type="button"
           onClick={() => {
-            void handleSubmitReply()
+            setDialogOpen(true)
           }}
-          disabled={submittingReply || !replyContent.trim()}
-          size="sm"
+          className="text-foreground hover:bg-accent border-border flex w-full items-center gap-2 border-t py-3 text-sm font-medium transition-colors"
+          data-testid="feed-item-replies-see-all"
         >
-          {submittingReply ? 'Posting...' : 'Reply'}
-        </Button>
-      </div>
+          {'See all replies'}
+          <span className="bg-secondary text-secondary-foreground rounded-full px-[7px] py-[3px] font-mono text-xs leading-none">
+            {state.totalCount}
+          </span>
+          <ArrowRight
+            aria-hidden="true"
+            className="text-muted-foreground ml-auto size-[13px] shrink-0"
+          />
+        </button>
+      )}
+
+      {/* Compose form — at the bottom of the thread */}
+      <ReplyComposer onSubmit={state.addReply} className="pt-2" />
+
+      <AllRepliesDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        replies={state.replies}
+        members={state.members}
+        totalCount={state.totalCount}
+        hasMore={state.hasMore}
+        loadingMore={state.loadingMore}
+        onLoadMore={state.loadMore}
+        onAdd={state.addReply}
+      />
     </Panel>
   )
 }
