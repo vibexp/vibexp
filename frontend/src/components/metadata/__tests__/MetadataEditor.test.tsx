@@ -56,6 +56,15 @@ describe('MetadataEditor', () => {
     expect(lastEmitted(onChange)).toEqual({ b: '2' })
   })
 
+  it('emits an empty object, not undefined, when the last pair is deleted (#947)', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<MetadataEditor value={{ a: '1' }} onChange={onChange} />)
+    await user.click(screen.getByTestId('metadata-delete-0'))
+    expect(screen.queryAllByTestId('metadata-row')).toHaveLength(0)
+    expect(lastEmitted(onChange)).toEqual({})
+  })
+
   it('shows an inline error and reports invalidity for a blank value', async () => {
     const user = userEvent.setup()
     const onValidityChange = vi.fn()

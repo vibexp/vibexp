@@ -18,7 +18,6 @@ export {
   formHeading,
   formSaveLabel,
   formSubtitle,
-  metadataOrUndefined,
   recordValue,
   type ResourceFormHandle,
   type ResourceFormMode,

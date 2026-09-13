@@ -173,6 +173,29 @@ describe('MemoryEdit', () => {
     })
   })
 
+  it('persists an emptied metadata bag rather than leaving the old value in place (#947)', async () => {
+    const user = userEvent.setup()
+    ;(memoryService.getMemory as Mock).mockResolvedValue({
+      ...memory,
+      metadata: { source: 'wiki' },
+    })
+    renderEdit()
+    await waitForForm()
+
+    await user.click(screen.getByTestId('metadata-delete-0'))
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(memoryService.updateMemory).toHaveBeenCalledWith(
+        'team-1',
+        'mem-1',
+        // An omitted `metadata` means "unchanged" on the API; the last key
+        // being deleted must still send `{}`, not drop the field entirely.
+        expect.objectContaining({ metadata: {} })
+      )
+    })
+  })
+
   it('blocks the submit while the body is blank', async () => {
     const user = userEvent.setup()
     renderEdit()

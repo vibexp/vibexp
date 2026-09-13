@@ -18,7 +18,6 @@ export {
 } from './formLabels'
 export {
   enumValue,
-  metadataOrUndefined,
   recordValue,
   stringListValue,
   stringValue,

@@ -1,7 +1,6 @@
 import type { ResourceFormValues } from '@/components/patterns/resource'
 import {
   enumValue,
-  metadataOrUndefined,
   recordValue,
   stringListValue,
   stringValue,
@@ -82,7 +81,7 @@ export function toMemoryRequest(
     text: stringValue(values, 'text'),
     status: enumValue(values, 'status', MEMORY_STATUSES),
     labels: stringListValue(values, 'labels'),
-    metadata: metadataOrUndefined(metadata),
+    metadata,
   }
   const title = stringValue(values, 'title')
   if (title !== '') request.title = title

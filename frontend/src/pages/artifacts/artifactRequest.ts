@@ -1,7 +1,6 @@
 import type { ResourceFormValues } from '@/components/patterns/resource'
 import {
   enumValue,
-  metadataOrUndefined,
   recordValue,
   stringListValue,
   stringValue,
@@ -46,6 +45,6 @@ export function toArtifactRequest(
     status: enumValue(values, 'status', ARTIFACT_STATUSES),
     content: stringValue(values, 'content'),
     labels: stringListValue(values, 'labels'),
-    metadata: metadataOrUndefined(recordValue(values, 'metadata')),
+    metadata: recordValue(values, 'metadata'),
   }
 }
