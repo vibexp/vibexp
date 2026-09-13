@@ -107,7 +107,6 @@
     "@types/react-dom": "~19.2.7",
     "@typescript-eslint/eslint-plugin": "~8.69.0",
     "@typescript-eslint/parser": "~8.69.0",
-    "@typescript/native": "npm:typescript@~7.0.2",
     "@vitejs/plugin-react": "~5.2.0",
     "@vitest/coverage-v8": "^4.1.11",
     "autoprefixer": "~10.5.4",
@@ -130,6 +129,7 @@
     "rollup-plugin-visualizer": "~7.1.1",
     "tailwindcss": "~4.3.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "@typescript/native": "npm:typescript@~7.0.2",
     "typescript-eslint": "~8.69.0",
     "vite": "~8.2.2",
     "vitest": "^4.1.11"
