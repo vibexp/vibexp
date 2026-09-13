@@ -134,7 +134,11 @@ describe('ReadingPage', () => {
         'data-state',
         'open'
       )
-      expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
+      expect(article()).toHaveClass(
+        'mx-auto',
+        'max-w-(--reading-measure)',
+        'w-full'
+      )
     })
 
     it('centers itself beside the collapsed rail', () => {
@@ -148,13 +152,21 @@ describe('ReadingPage', () => {
         'data-state',
         'collapsed'
       )
-      expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
+      expect(article()).toHaveClass(
+        'mx-auto',
+        'max-w-(--reading-measure)',
+        'w-full'
+      )
     })
 
     it('centers itself when there is no details rail at all', () => {
       renderPage(<ReadingPage title="Doc">body</ReadingPage>)
       expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
-      expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
+      expect(article()).toHaveClass(
+        'mx-auto',
+        'max-w-(--reading-measure)',
+        'w-full'
+      )
     })
 
     it('centers itself below lg, where the details are a sheet', () => {
@@ -165,7 +177,11 @@ describe('ReadingPage', () => {
         </ReadingPage>
       )
       expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
-      expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
+      expect(article()).toHaveClass(
+        'mx-auto',
+        'max-w-(--reading-measure)',
+        'w-full'
+      )
     })
 
     // AC of #916: a detail page and its edit page must share the measure and
@@ -192,7 +208,11 @@ describe('ReadingPage', () => {
         </ReadingPage>
       )
       expect(article().className).toBe(readingClasses)
-      expect(article()).toHaveClass('mx-auto', 'max-w-[72ch]', 'w-full')
+      expect(article()).toHaveClass(
+        'mx-auto',
+        'max-w-(--reading-measure)',
+        'w-full'
+      )
     })
 
     // The column and the rail are the same <aside>, so the flush-right

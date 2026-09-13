@@ -97,13 +97,17 @@ export function ResourceBody({
             {isLoading ? (
               <LoadingSpinner label={loadingLabel} />
             ) : (
-              <MarkdownRenderer content={content} syntaxTheme="auto" />
+              <MarkdownRenderer
+                content={content}
+                syntaxTheme="auto"
+                className="reading-body"
+              />
             )}
           </>
         ) : (
           <pre
             data-testid="resource-body-raw"
-            className="bg-muted text-muted-foreground overflow-x-auto rounded-md p-4 font-mono text-xs whitespace-pre-wrap"
+            className="reading-body-raw bg-muted text-muted-foreground overflow-x-auto rounded-md p-4 font-mono text-xs whitespace-pre-wrap"
           >
             {rawContent ?? content}
           </pre>

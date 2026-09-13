@@ -3,6 +3,7 @@
 @import 'tw-animate-css';
 @import '@vibexp/design-system/tokens.css';
 @import '@vibexp/design-system/typography.css';
+@import '@vibexp/design-system/scrollbar.css';
 @plugin '@tailwindcss/typography';
 
 /* -------------------------------------------------------------------------- */
@@ -213,6 +214,85 @@
 }
 
 /* -------------------------------------------------------------------------- */
+/* Reading page — prose measure, body type, and the wide-block breakout.      */
+/* The article (`ReadingPage`) is capped at the measure so prose never runs   */
+/* past a comfortable line length. Everything that is NOT prose — tables,     */
+/* code blocks, diagrams, standalone images — may grow past the column into   */
+/* the room the reading column has to spare beside it, centred on the column, */
+/* and only as far as its own content needs. The column's spare room is read  */
+/* with a container query (`@container` on the column), so the breakout is    */
+/* exactly the space a folded rail or a wide window frees and zero when the   */
+/* column is no wider than the article.                                       */
+/* -------------------------------------------------------------------------- */
+.v2-root .reading-article {
+  /* The article's max-width, gutters included. The default is the wide
+     column — GitHub-README line lengths, the shape most AI-written bodies
+     (code, tables, lists of identifiers) are read in. */
+  --reading-measure: 64rem;
+  /* How far a wide block may extend past the article on EACH side. */
+  --reading-bleed: clamp(0px, (100cqw - var(--reading-measure)) / 2, 12rem);
+}
+
+/* Long-form reading gets body type at 1rem; the 0.875rem `.prose` default
+   stays for every other surface (feed items, cards, previews outside the
+   article). */
+.v2-root .reading-article .prose {
+  font-size: 1rem;
+}
+
+/* The rendered body is widened by the bleed on both sides, and every block
+   is pushed back in by the same amount — no visible change for prose. Wide
+   blocks instead centre themselves in the widened box: at least as wide as
+   the prose column, at most the whole box, and in between exactly as wide
+   as their content wants. `margin-inline` longhands only, so the vertical
+   rhythm the `.prose` rules set is untouched. */
+.v2-root .reading-body {
+  margin-inline: calc(-1 * var(--reading-bleed));
+}
+
+.v2-root .reading-body > * {
+  margin-inline: var(--reading-bleed);
+}
+
+.v2-root
+  .reading-body
+  > :is(pre, .markdown-table-wrapper, p:has(> img:only-child)) {
+  margin-inline: auto;
+  width: fit-content;
+  min-width: calc(100% - 2 * var(--reading-bleed));
+  max-width: 100%;
+}
+
+/* A mermaid diagram is an SVG at `width: 100%` with its natural width as an
+   inline `max-width`, so `fit-content` cannot see how wide it wants to be.
+   The placeholder takes the whole widened box instead and the SVG centres
+   itself in it, capped by its own natural width. */
+.v2-root .reading-body > [data-mermaid-id] {
+  margin-inline: 0;
+}
+
+.v2-root .reading-body > [data-mermaid-id] svg {
+  display: block;
+  margin-inline: auto;
+}
+
+/* The raw view is monospace source, not prose: it always takes the room. */
+.v2-root .reading-body-raw {
+  margin-inline: calc(-1 * var(--reading-bleed));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Scrollbars come from @vibexp/design-system/scrollbar.css (imported at the  */
+/* top). The one local override: Prism's tomorrow theme paints code blocks    */
+/* dark in BOTH themes, so their thumb is a white mix rather than the          */
+/* theme-following --foreground mix the tokens default to.                     */
+/* -------------------------------------------------------------------------- */
+.v2-root .prose pre {
+  --scrollbar-thumb: rgb(255 255 255 / 22%);
+  --scrollbar-thumb-hover: rgb(255 255 255 / 45%);
+}
+
+/* -------------------------------------------------------------------------- */
 /* v2 — shadcn design tokens (default neutral theme).                         */
 /* The :root + .dark OKLCH light/dark values are the single source of truth   */
 /* in @vibexp/design-system/tokens.css, imported at the top of this     */
@@ -290,6 +370,22 @@
  */
 html {
   scrollbar-gutter: stable;
+}
+
+/* …and because the gutter is reserved, never compensate for it (#971).
+ *
+ * Every Radix modal layer (dropdown menu, dialog, sheet) mounts
+ * react-remove-scroll, which hides the document scrollbar and adds a right
+ * margin on body equal to the scrollbar width so the page does not jump.
+ * Here the gutter never goes away, so that compensation is pure shift: the
+ * whole shell moved left by one scrollbar width for as long as the layer
+ * was open, and the sticky details column showed the gap on its right. The
+ * lock itself (overflow hidden, pointer blocking) is kept; only the margin
+ * is cancelled. The doubled attribute out-specifies the injected
+ * `body[data-scroll-locked]` rule, which is also `!important`.
+ */
+body[data-scroll-locked][data-scroll-locked] {
+  margin-right: 0 !important;
 }
 
 body {
