@@ -116,6 +116,10 @@ function renderAgentDetails(id = 'agent-1') {
           path="/agents/:id/chat"
           element={<div data-testid="chat-probe">Chat probe</div>}
         />
+        <Route
+          path="/agents/:id/edit"
+          element={<div data-testid="edit-probe">Edit probe</div>}
+        />
       </Routes>
     </MemoryRouter>
   )
@@ -228,6 +232,27 @@ describe('AgentDetails page', () => {
     for (const label of ['Back', 'Chat', 'Conversations', 'Edit']) {
       expect(within(details).getByRole('button', { name: label })).toBeVisible()
     }
+  })
+
+  it('gives a card-less agent an explaining article that routes to Edit (#951)', async () => {
+    ;(agentService.getAgent as Mock).mockResolvedValue(
+      buildAgent({ agent_card: null, card_url: null })
+    )
+    const user = userEvent.setup()
+    renderAgentDetails()
+
+    const info = await screen.findByTestId('agent-basic-info')
+    expect(screen.getByTestId('reading-page')).toContainElement(info)
+    expect(
+      within(info).getByRole('heading', { name: 'No A2A card configured' })
+    ).toBeInTheDocument()
+    // The header still carries name and status; this does not move them back.
+    expect(
+      screen.getByRole('heading', { name: 'Code Reviewer', level: 1 })
+    ).toBeInTheDocument()
+
+    await user.click(within(info).getByRole('button', { name: /Edit agent/ }))
+    expect(await screen.findByTestId('edit-probe')).toBeInTheDocument()
   })
 
   it('navigates to the chat page from the Chat action', async () => {

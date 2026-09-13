@@ -73,8 +73,14 @@ test.describe('Agents', () => {
     await expect(
       authenticatedPage.getByRole('button', { name: 'Conversations' })
     ).toBeVisible()
+    // `exact`: the fixture agent has no card, so the article's empty state
+    // (#951) also offers an "Edit agent" button, which a substring match would
+    // count as a second hit.
     await expect(
-      authenticatedPage.getByRole('button', { name: 'Edit' })
+      authenticatedPage.getByRole('button', { name: 'Edit', exact: true })
+    ).toBeVisible()
+    await expect(
+      authenticatedPage.getByRole('heading', { name: 'No A2A card configured' })
     ).toBeVisible()
   })
 

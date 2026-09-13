@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 import type { Agent, AgentCard } from '@/services/agentService'
 
@@ -57,6 +58,89 @@ describe('AgentBasicInfo', () => {
   it('falls back to "Not specified" when there is no interface', () => {
     render(<AgentBasicInfo agent={makeAgent({ supportedInterfaces: [] })} />)
     expect(screen.getByText(/Protocol: Not specified/)).toBeInTheDocument()
+  })
+
+  it('renders the icon tile, not an empty state, when the card is present', () => {
+    render(
+      <AgentBasicInfo
+        agent={makeAgent({
+          supportedInterfaces: [
+            { protocolBinding: 'JSONRPC', protocolVersion: '1.0' },
+          ],
+        })}
+        onEdit={vi.fn()}
+      />
+    )
+    expect(screen.getByTestId('agent-basic-info')).toBeInTheDocument()
+    expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Edit agent/ })
+    ).not.toBeInTheDocument()
+  })
+
+  describe('without an agent card (#951)', () => {
+    it('explains that no A2A card is configured when there is no card URL', () => {
+      render(
+        <AgentBasicInfo
+          agent={{ ...makeAgent(null), card_url: null }}
+          onEdit={vi.fn()}
+        />
+      )
+      const info = screen.getByTestId('agent-basic-info')
+      const empty = within(info).getByTestId('empty-state')
+      expect(
+        within(empty).getByRole('heading', { name: 'No A2A card configured' })
+      ).toBeInTheDocument()
+      expect(screen.queryByTestId('agent-card-url')).not.toBeInTheDocument()
+      expect(screen.queryByText(/Protocol:/)).not.toBeInTheDocument()
+    })
+
+    it('says the card has not been fetched, and shows the URL, when a card URL is set', () => {
+      render(
+        <AgentBasicInfo
+          agent={{
+            ...makeAgent(null),
+            card_url: 'https://agents.example.com/.well-known/agent.json',
+          }}
+          onEdit={vi.fn()}
+        />
+      )
+      const empty = screen.getByTestId('empty-state')
+      expect(
+        within(empty).getByRole('heading', {
+          name: 'Agent card not fetched yet',
+        })
+      ).toBeInTheDocument()
+      expect(screen.getByTestId('agent-card-url')).toHaveTextContent(
+        'https://agents.example.com/.well-known/agent.json'
+      )
+      // No promise of a background retry that may never succeed.
+      expect(screen.getByTestId('empty-state-message')).not.toHaveTextContent(
+        /retry|shortly|automatically/i
+      )
+    })
+
+    it.each([
+      ['no card URL', null],
+      ['an unfetched card URL', 'https://agents.example.com/agent.json'],
+    ])('offers Edit agent with %s', async (_label, cardUrl) => {
+      const onEdit = vi.fn()
+      const user = userEvent.setup()
+      render(
+        <AgentBasicInfo
+          agent={{ ...makeAgent(null), card_url: cardUrl }}
+          onEdit={onEdit}
+        />
+      )
+      await user.click(screen.getByRole('button', { name: /Edit agent/ }))
+      expect(onEdit).toHaveBeenCalledTimes(1)
+    })
+
+    it('renders no action when the page supplies no edit affordance', () => {
+      render(<AgentBasicInfo agent={{ ...makeAgent(null), card_url: null }} />)
+      expect(screen.getByTestId('empty-state')).toBeInTheDocument()
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
   })
 
   it('leaves the name, description and status to the reading shell', () => {
