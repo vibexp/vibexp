@@ -1,3 +1,20 @@
+-- Consolidated post-v0.12.0 migration.
+--
+-- Squashes the migrations that accumulated after the v0.12.0 release into a
+-- single step, applied on top of 015, mirroring the 002/006/011/013
+-- consolidations (#76, #399, #710, #813). Merged here (in original order):
+--   * 016_resource_labels (issue #910, epic #899)
+--   * 017_memory_title    (issue #911, epic #899)
+-- The two touch disjoint columns (labels on artifacts/blueprints/memories,
+-- title on memories only), so each block below is the original migration
+-- verbatim; nothing needed to be reconciled across them. No deployed
+-- instance has applied either (neither shipped in a release), so
+-- renumbering is safe.
+
+-- ===========================================================================
+-- 016_resource_labels
+-- ===========================================================================
+
 -- Migration 016: one taxonomy for every resource type (issue #910, epic #899).
 --
 -- Prompts have had a `labels text[]` column with a GIN index since the baseline;
@@ -75,3 +92,29 @@ UPDATE public.memories
  WHERE jsonb_typeof(metadata->'tags') = 'array';
 
 ALTER TABLE public.memories ENABLE TRIGGER update_memories_updated_at;
+
+-- ===========================================================================
+-- 017_memory_title
+-- ===========================================================================
+
+-- Migration 017: an optional title for memories (issue #911, epic #899).
+--
+-- A memory is the one resource type with nothing to call it: every surface that
+-- lists, links or searches memories has to invent an identifier, and each
+-- invents a different one. This gives it a real one.
+--
+-- NULLABLE with no default and NO BACKFILL, deliberately (decision D of #899):
+-- existing memories keep returning `title: null` and the SPA keeps deriving a
+-- display title from the first markdown heading. Adding a nullable column with
+-- no default is a catalog-only change -- no table rewrite, no lock beyond the
+-- brief ACCESS EXCLUSIVE the ALTER itself takes.
+--
+-- varchar(255) matches the documented `maxLength: 255` in schemas/memories.yaml
+-- and the blueprint/feed-item title limits already in use.
+--
+-- Note the `update_memories_updated_at` trigger on this table: it is a BEFORE
+-- UPDATE ... FOR EACH ROW trigger, so it plays no part in a DDL-only migration.
+-- It does mean a later title edit bumps `updated_at`, which is the intended
+-- behaviour -- a title change is a content edit.
+
+ALTER TABLE public.memories ADD COLUMN title varchar(255);
