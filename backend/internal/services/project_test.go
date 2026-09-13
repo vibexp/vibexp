@@ -227,6 +227,109 @@ func TestProjectService_GetProjectBySlug(t *testing.T) {
 	}
 }
 
+//nolint:funlen // Table covers every branch of the slug → ID fallback
+func TestProjectService_GetProjectBySlugOrID(t *testing.T) {
+	const (
+		teamID    = "team-123"
+		userID    = "user-123"
+		projectID = "0b7b2c1e-6f1a-4c33-9d2e-3f5a8e1b9c40"
+	)
+	slugNotFound := fmt.Errorf("%w: slug=%s team=%s", repositories.ErrProjectNotFoundForRepo, projectID, teamID)
+	projectInTeam := func(team string) *models.Project {
+		p := createTestProject()
+		p.ID = projectID
+		p.TeamID = team
+		return p
+	}
+
+	tests := []struct {
+		name        string
+		ref         string
+		setupMock   func(*mocks.MockProjectRepository)
+		expectID    string
+		expectErrIs error
+		expectErr   string
+	}{
+		{
+			name: "slug match wins and never queries by ID",
+			ref:  "test-project",
+			setupMock: func(m *mocks.MockProjectRepository) {
+				m.EXPECT().GetBySlug(mock.Anything, teamID, userID, "test-project").
+					Return(createTestProject(), nil).Once()
+			},
+			expectID: "project-123",
+		},
+		{
+			name: "UUID with no slug match resolves by ID within the team",
+			ref:  projectID,
+			setupMock: func(m *mocks.MockProjectRepository) {
+				m.EXPECT().GetBySlug(mock.Anything, teamID, userID, projectID).Return(nil, slugNotFound).Once()
+				m.EXPECT().GetByID(mock.Anything, userID, projectID).Return(projectInTeam(teamID), nil).Once()
+			},
+			expectID: projectID,
+		},
+		{
+			name: "UUID of a project in another team is not found",
+			ref:  projectID,
+			setupMock: func(m *mocks.MockProjectRepository) {
+				m.EXPECT().GetBySlug(mock.Anything, teamID, userID, projectID).Return(nil, slugNotFound).Once()
+				m.EXPECT().GetByID(mock.Anything, userID, projectID).Return(projectInTeam("team-other"), nil).Once()
+			},
+			expectErrIs: repositories.ErrProjectNotFoundForRepo,
+		},
+		{
+			name: "UUID matching no project is not found",
+			ref:  projectID,
+			setupMock: func(m *mocks.MockProjectRepository) {
+				m.EXPECT().GetBySlug(mock.Anything, teamID, userID, projectID).Return(nil, slugNotFound).Once()
+				m.EXPECT().GetByID(mock.Anything, userID, projectID).
+					Return(nil, fmt.Errorf("%w: id=%s", repositories.ErrProjectNotFoundForRepo, projectID)).Once()
+			},
+			expectErrIs: repositories.ErrProjectNotFoundForRepo,
+		},
+		{
+			name: "non-UUID with no slug match does not query by ID",
+			ref:  "missing-slug",
+			setupMock: func(m *mocks.MockProjectRepository) {
+				m.EXPECT().GetBySlug(mock.Anything, teamID, userID, "missing-slug").Return(nil, slugNotFound).Once()
+			},
+			expectErrIs: repositories.ErrProjectNotFoundForRepo,
+		},
+		{
+			name: "a slug lookup failure other than not-found does not fall back",
+			ref:  projectID,
+			setupMock: func(m *mocks.MockProjectRepository) {
+				m.EXPECT().GetBySlug(mock.Anything, teamID, userID, projectID).
+					Return(nil, fmt.Errorf("connection refused")).Once()
+			},
+			expectErr: "connection refused",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mocks.NewMockProjectRepository(t)
+			tt.setupMock(mockRepo)
+
+			result, err := createTestProjectService(mockRepo).GetProjectBySlugOrID(teamID, userID, tt.ref)
+
+			switch {
+			case tt.expectErrIs != nil:
+				assert.ErrorIs(t, err, tt.expectErrIs)
+				assert.Nil(t, result)
+			case tt.expectErr != "":
+				assert.ErrorContains(t, err, tt.expectErr)
+				assert.Nil(t, result)
+			default:
+				assert.NoError(t, err)
+				if assert.NotNil(t, result) {
+					assert.Equal(t, tt.expectID, result.ID)
+				}
+			}
+		})
+	}
+}
+
 //nolint:funlen // Test function requires comprehensive setup and assertions
 func TestProjectService_ListProjects(t *testing.T) {
 	tests := []struct {

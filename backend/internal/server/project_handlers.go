@@ -105,7 +105,8 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 		"slug", decodedSlug,
 	).Info("Get project request received")
 
-	project, err := s.container.ProjectService().GetProjectBySlug(teamID, userID, decodedSlug)
+	// The path segment is a slug or, as a fallback, a project ID (#957).
+	project, err := s.container.ProjectService().GetProjectBySlugOrID(teamID, userID, decodedSlug)
 	if err != nil {
 		s.handleGetProjectError(w, userID, decodedSlug, err)
 		return

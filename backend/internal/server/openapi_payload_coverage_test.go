@@ -102,7 +102,6 @@ var payloadCoverageLedger = map[string]string{
 	"GET /api/v1/{team_id}/integrations/github/repositories":          "TODO(#1714): uncovered",
 	"GET /api/v1/{team_id}/projects/{project_id}/migration/inventory": "TODO(#1714): uncovered",
 	"GET /api/v1/{team_id}/projects/{slug}/stats":                     "TODO(#1714): uncovered",
-	"GET /api/v1/{team_id}/projects/{slug}":                           "TODO(#1714): uncovered",
 	"GET /api/v1/{team_id}/projects":                                  "TODO(#1714): uncovered",
 	"GET /api/v1/{team_id}/prompts/{slug}/dependencies":               "TODO(#1714): uncovered",
 	"GET /api/v1/{team_id}/prompts/{slug}/share":                      "TODO(#1714): uncovered",

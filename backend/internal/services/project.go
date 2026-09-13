@@ -2,10 +2,13 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
@@ -170,6 +173,38 @@ func (s *ProjectService) GetProjectBySlug(teamID, userID, slug string) (*models.
 			"team_id", teamID,
 			"user_id", userID,
 			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get project")
+		return nil, err
+	}
+
+	return project, nil
+}
+
+// GetProjectBySlugOrID retrieves a project by slug, falling back to its ID when
+// ref matches no slug but is a UUID (issue #957: clients persist a project's ID
+// and must validate it without scanning a capped project list). A slug match
+// always wins, so existing slug addressing is unchanged. The ID fallback is
+// confined to teamID: a project of another team the caller also belongs to is
+// reported as not found, exactly as a slug lookup scoped to teamID would be.
+func (s *ProjectService) GetProjectBySlugOrID(teamID, userID, ref string) (*models.Project, error) {
+	ctx := context.Background()
+	project, err := s.repo.GetBySlug(ctx, teamID, userID, ref)
+	if err != nil && errors.Is(err, repositories.ErrProjectNotFoundForRepo) {
+		if _, parseErr := uuid.Parse(ref); parseErr == nil {
+			project, err = s.repo.GetByID(ctx, userID, ref)
+			if err == nil && project.TeamID != teamID {
+				project = nil
+				err = fmt.Errorf("%w: id=%s team=%s", repositories.ErrProjectNotFoundForRepo, ref, teamID)
+			}
+		}
+	}
+	if err != nil {
+		s.logger.With(
+			"service", "project",
+			"team_id", teamID,
+			"user_id", userID,
+			"ref", ref,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to get project")
 		return nil, err

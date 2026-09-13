@@ -615,6 +615,9 @@ type TeamServiceInterface interface {
 type ProjectServiceInterface interface {
 	CreateProject(userID, teamID string, req *models.CreateProjectRequest) (*models.Project, error)
 	GetProjectBySlug(teamID, userID, slug string) (*models.Project, error)
+	// GetProjectBySlugOrID resolves ref as a slug, falling back to a project ID
+	// within teamID when no slug matches and ref is a UUID.
+	GetProjectBySlugOrID(teamID, userID, ref string) (*models.Project, error)
 	ListProjects(userID string, filters ProjectFilters) (*models.ProjectListResponse, error)
 	UpdateProject(teamID, userID, slug string, req *models.UpdateProjectRequest) (*models.Project, error)
 	DeleteProject(teamID, userID, slug string) error
