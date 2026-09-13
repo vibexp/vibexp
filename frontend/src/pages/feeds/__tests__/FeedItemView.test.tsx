@@ -226,6 +226,37 @@ describe('FeedItemView page', () => {
     expect(screen.getByTestId('reading-page')).not.toContainElement(metadata)
   })
 
+  it('renders the Feed row with the Rss icon and the Project row with FolderOpen', async () => {
+    renderFeedItemView()
+    const metadata = await screen.findByRole('region', { name: 'Metadata' })
+    const feedLink = within(metadata).getByRole('link', {
+      name: 'Product Updates',
+    })
+    expect(within(feedLink).getByTestId('rss-icon')).toHaveClass('size-3')
+    const projectLink = within(metadata).getByRole('link', {
+      name: 'Apollo Project',
+    })
+    expect(within(projectLink).getByTestId('folderopen-icon')).toHaveClass(
+      'size-3'
+    )
+  })
+
+  it('renders no Project row when the item project does not resolve', async () => {
+    ;(feedService.getFeedItem as Mock).mockResolvedValue(
+      buildItem({ project_id: 'proj-missing' })
+    )
+    renderFeedItemView()
+    const metadata = await screen.findByRole('region', { name: 'Metadata' })
+    // The Feed row still renders; only the unresolvable Project row drops out.
+    expect(
+      within(metadata).getByRole('link', { name: 'Product Updates' })
+    ).toBeInTheDocument()
+    expect(within(metadata).queryByText('Project')).not.toBeInTheDocument()
+    expect(
+      within(metadata).queryByTestId('folderopen-icon')
+    ).not.toBeInTheDocument()
+  })
+
   it('renders the replies thread as a details section, not in the article', async () => {
     renderFeedItemView()
     const replies = await screen.findByRole('region', { name: 'Replies' })

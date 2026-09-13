@@ -1,9 +1,9 @@
 import { FolderOpen } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router'
 
 import {
   MetadataPanel,
+  MetaLinkRow,
   MetaRow,
   MetaSlugRow,
   type VersionHistoryMeta,
@@ -131,15 +131,14 @@ export function ResourceMetadataSection({
     fields.hasProject && project && projectHref ? projectHref(project) : null
   if (project && projectTo) {
     rows.push(
-      <MetaRow key="project" label="Project">
-        <Link
-          to={projectTo}
-          className="flex items-center gap-1 hover:underline"
-        >
-          <FolderOpen className="size-3" />
-          {project.name}
-        </Link>
-      </MetaRow>
+      <MetaLinkRow
+        key="project"
+        icon={FolderOpen}
+        label="Project"
+        to={projectTo}
+      >
+        {project.name}
+      </MetaLinkRow>
     )
   }
 
