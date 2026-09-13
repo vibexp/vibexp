@@ -153,6 +153,12 @@ export function AgentDetails() {
     )
   }
 
+  // One edit route for both the reading action and the card-less article's
+  // empty state, so the two can never gate or navigate differently.
+  const goToEdit = () => {
+    void navigate(`/agents/${agent.id}/edit`)
+  }
+
   const actions: ReadingAction[] = [
     backAction,
     {
@@ -180,9 +186,7 @@ export function AgentDetails() {
       label: 'Edit',
       icon: Pencil,
       testId: 'edit-agent-button',
-      onClick: () => {
-        void navigate(`/agents/${agent.id}/edit`)
-      },
+      onClick: goToEdit,
     },
   ]
   if (canDeleteResource(agent.user_id)) {
@@ -245,7 +249,7 @@ export function AgentDetails() {
         extraSections={extraSections}
       >
         <div className="space-y-8">
-          <AgentBasicInfo agent={agent} />
+          <AgentBasicInfo agent={agent} onEdit={goToEdit} />
           <AgentCardDetails agent={agent} />
           <RecentExecutionsTable
             recentExecutions={recentExecutions}
