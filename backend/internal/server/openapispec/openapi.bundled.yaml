@@ -13823,7 +13823,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Project slug (URL-encoded)
+          description: Project slug (URL-encoded), or the project ID (UUID) when no project has that slug
       responses:
         '200':
           description: Project retrieved successfully

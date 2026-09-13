@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -325,6 +326,43 @@ func TestProjectService_GetProjectBySlugOrID(t *testing.T) {
 				if assert.NotNil(t, result) {
 					assert.Equal(t, tt.expectID, result.ID)
 				}
+			}
+		})
+	}
+}
+
+// Any UUID spelling of the project or team id must resolve like the canonical
+// one: the repository is queried with the canonical id (Postgres rejects
+// urn:uuid:…), and the team match ignores case.
+func TestProjectService_GetProjectBySlugOrID_CanonicalizesUUIDs(t *testing.T) {
+	const (
+		userID    = "user-123"
+		teamID    = "5d0c2f7e-2a4b-4b8e-9f61-0c1d2e3f4a5b"
+		projectID = "0b7b2c1e-6f1a-4c33-9d2e-3f5a8e1b9c40"
+	)
+	cases := map[string]struct{ teamRef, projectRef string }{
+		"uppercase team id":      {strings.ToUpper(teamID), projectID},
+		"urn:uuid project ref":   {teamID, "urn:uuid:" + projectID},
+		"braced uppercase ref":   {teamID, "{" + strings.ToUpper(projectID) + "}"},
+		"unhyphenated team id":   {strings.ReplaceAll(teamID, "-", ""), projectID},
+		"all non-canonical refs": {strings.ToUpper(teamID), "urn:uuid:" + strings.ToUpper(projectID)},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			mockRepo := mocks.NewMockProjectRepository(t)
+			mockRepo.EXPECT().GetBySlug(mock.Anything, tc.teamRef, userID, tc.projectRef).
+				Return(nil, fmt.Errorf("%w: slug", repositories.ErrProjectNotFoundForRepo)).Once()
+			project := createTestProject()
+			project.ID = projectID
+			project.TeamID = teamID
+			mockRepo.EXPECT().GetByID(mock.Anything, userID, projectID).Return(project, nil).Once()
+
+			result, err := createTestProjectService(mockRepo).GetProjectBySlugOrID(tc.teamRef, userID, tc.projectRef)
+
+			assert.NoError(t, err)
+			if assert.NotNil(t, result) {
+				assert.Equal(t, projectID, result.ID)
 			}
 		})
 	}
