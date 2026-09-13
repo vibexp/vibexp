@@ -6,6 +6,7 @@ import {
   within,
 } from '@testing-library/react'
 
+import { REPLIES_PAGE_SIZE } from '@/hooks/useFeedReplies'
 import type {
   FeedItemReply,
   FeedItemReplyListResponse,
@@ -170,7 +171,9 @@ describe('FeedItemReplies', () => {
       within(panel).getByRole('heading', { name: 'Replies' })
     ).toBeInTheDocument()
     // The total, not the two loaded rows.
-    expect(within(panel).getByText('7')).toBeInTheDocument()
+    expect(
+      within(panel).getByTestId('feed-item-replies-count')
+    ).toHaveTextContent('7')
   })
 
   it('shows "No replies yet" when there are no replies', async () => {
@@ -598,5 +601,164 @@ describe('FeedItemReplies', () => {
       },
       { timeout: 3000 }
     )
+  })
+
+  // #954: the thread is paginated — the panel shows the first page and a
+  // "See all replies (N)" footer opens a popup that appends the rest.
+  describe('pagination', () => {
+    function makeReplies(count: number, prefix: string): FeedItemReply[] {
+      return Array.from({ length: count }, (_, i) => ({
+        ...humanReply,
+        id: `${prefix}-${String(i)}`,
+        content: `${prefix} reply ${String(i)}`,
+      }))
+    }
+
+    function pageOf(
+      replies: FeedItemReply[],
+      totalCount: number,
+      pageNum: number
+    ): FeedItemReplyListResponse {
+      return {
+        replies,
+        total_count: totalCount,
+        page: pageNum,
+        per_page: REPLIES_PAGE_SIZE,
+        total_pages: Math.ceil(totalCount / REPLIES_PAGE_SIZE),
+      }
+    }
+
+    it('issues exactly one replies request with an explicit page and limit', async () => {
+      mockedFeedService.listReplies.mockResolvedValue(repliesResponse)
+      renderReplies()
+      await screen.findByText('Great post!')
+      expect(mockedFeedService.listReplies).toHaveBeenCalledTimes(1)
+      expect(mockedFeedService.listReplies).toHaveBeenCalledWith(
+        'team-1',
+        'item-1',
+        1,
+        REPLIES_PAGE_SIZE
+      )
+    })
+
+    it('hides the footer when the whole thread fits on one page', async () => {
+      mockedFeedService.listReplies.mockResolvedValue(
+        pageOf(makeReplies(REPLIES_PAGE_SIZE, 'p1'), REPLIES_PAGE_SIZE, 1)
+      )
+      renderReplies()
+      await screen.findByText('p1 reply 0')
+      expect(
+        screen.queryByTestId('feed-item-replies-see-all')
+      ).not.toBeInTheDocument()
+    })
+
+    it('shows the footer with the total once the thread outgrows the panel', async () => {
+      mockedFeedService.listReplies.mockResolvedValue(
+        pageOf(makeReplies(REPLIES_PAGE_SIZE, 'p1'), 57, 1)
+      )
+      renderReplies()
+      const footer = await screen.findByTestId('feed-item-replies-see-all')
+      expect(footer).toHaveTextContent('See all replies57')
+      expect(screen.getByTestId('feed-item-replies-count')).toHaveTextContent(
+        '57'
+      )
+    })
+
+    it('reaches every reply through the popup, deduped, and stops loading at the last page', async () => {
+      // 23 replies over three pages; page 2 repeats the last row of page 1.
+      const page1 = makeReplies(REPLIES_PAGE_SIZE, 'p1')
+      mockedFeedService.listReplies
+        .mockResolvedValueOnce(pageOf(page1, 23, 1))
+        .mockResolvedValueOnce(
+          pageOf([page1[9], ...makeReplies(9, 'p2')], 23, 2)
+        )
+        .mockResolvedValueOnce(pageOf(makeReplies(4, 'p3'), 23, 3))
+      renderReplies()
+
+      fireEvent.click(await screen.findByTestId('feed-item-replies-see-all'))
+      const dialog = screen.getByRole('dialog', { name: /replies \(23\)/i })
+
+      fireEvent.click(within(dialog).getByText('Load more replies'))
+      await within(dialog).findByText('p2 reply 8')
+      fireEvent.click(within(dialog).getByText('Load more replies'))
+      await within(dialog).findByText('p3 reply 3')
+
+      // All 23, each once — the repeated p1-9 is not rendered twice.
+      expect(within(dialog).getAllByText(/ reply \d+$/)).toHaveLength(23)
+      expect(within(dialog).getAllByText('p1 reply 9')).toHaveLength(1)
+      expect(
+        within(dialog).queryByText('Load more replies')
+      ).not.toBeInTheDocument()
+      expect(mockedFeedService.listReplies).toHaveBeenCalledTimes(3)
+
+      // The panel keeps showing just the first page behind the popup.
+      const panel = screen.getByTestId('feed-item-replies-panel')
+      expect(within(panel).queryByText('p3 reply 0')).not.toBeInTheDocument()
+      expect(
+        within(panel).getByTestId('feed-item-replies-see-all')
+      ).toHaveTextContent('23')
+    })
+
+    it('a reply posted from the popup shows in both surfaces and bumps both counts once', async () => {
+      mockedFeedService.listReplies.mockResolvedValue(
+        pageOf(makeReplies(REPLIES_PAGE_SIZE, 'p1'), 12, 1)
+      )
+      mockedFeedService.createReply.mockResolvedValue({
+        ...humanReply,
+        id: 'from-dialog',
+        content: 'Posted from the popup',
+      })
+      renderReplies()
+
+      fireEvent.click(await screen.findByTestId('feed-item-replies-see-all'))
+      const dialog = screen.getByRole('dialog', { name: /replies \(12\)/i })
+      fireEvent.change(
+        within(dialog).getByPlaceholderText('Write a reply...'),
+        {
+          target: { value: 'Posted from the popup' },
+        }
+      )
+      fireEvent.click(within(dialog).getByText('Reply'))
+
+      await within(dialog).findByText('Posted from the popup')
+      const panel = screen.getByTestId('feed-item-replies-panel')
+      expect(
+        within(panel).getByText('Posted from the popup')
+      ).toBeInTheDocument()
+      expect(
+        within(panel).getByTestId('feed-item-replies-count')
+      ).toHaveTextContent('13')
+      expect(
+        within(panel).getByTestId('feed-item-replies-see-all')
+      ).toHaveTextContent('13')
+      expect(dialog).toHaveAccessibleName(/replies \(13\)/i)
+      expect(mockedFeedService.listReplies).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the draft and reports the error when posting fails', async () => {
+      mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
+      const failure = new Error('rejected')
+      mockedFeedService.createReply.mockRejectedValue(failure)
+      renderReplies()
+      await screen.findByText('No replies yet')
+
+      fireEvent.change(screen.getByPlaceholderText('Write a reply...'), {
+        target: { value: 'Unsent' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+
+      await waitFor(() => {
+        expect(mockHandleError).toHaveBeenCalledWith(
+          failure,
+          'Failed to post reply'
+        )
+      })
+      expect(screen.getByPlaceholderText('Write a reply...')).toHaveValue(
+        'Unsent'
+      )
+      expect(
+        screen.queryByTestId('feed-item-replies-count')
+      ).not.toBeInTheDocument()
+    })
   })
 })
