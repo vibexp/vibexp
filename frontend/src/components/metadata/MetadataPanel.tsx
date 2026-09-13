@@ -20,8 +20,8 @@ import { cn } from '@/lib/utils'
    colours, so it flips with `.dark` for free. Rows are a hairline-divided
    list: key on the left, value on the right. Created / Updated relative-time
    rows are rendered automatically; pass any leading rows (Type, Status, Slug,
-   …) as `MetaRow` / `MetaSlugRow` / `MetaLinkRow` children. Reusable across every resource
-   detail view. */
+   Project, …) as `MetaRow` / `MetaSlugRow` / `MetaLinkRow` children. Reusable
+   across every resource detail view. */
 
 type IconType = ComponentType<{ className?: string }>
 

@@ -226,7 +226,7 @@ describe('FeedItemView page', () => {
     expect(screen.getByTestId('reading-page')).not.toContainElement(metadata)
   })
 
-  it('renders the Feed row through the shared link row, with the Rss icon', async () => {
+  it('renders the Feed row with the Rss icon and the Project row with FolderOpen', async () => {
     renderFeedItemView()
     const metadata = await screen.findByRole('region', { name: 'Metadata' })
     const feedLink = within(metadata).getByRole('link', {
