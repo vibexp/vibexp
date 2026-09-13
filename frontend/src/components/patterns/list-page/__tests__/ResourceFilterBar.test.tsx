@@ -256,7 +256,7 @@ describe('ResourceFilterBar', () => {
       const triggers = container.querySelectorAll('[role="combobox"]')
       expect(triggers.length).toBeGreaterThan(0)
       for (const trigger of triggers) {
-        expect(trigger).toHaveClass('w-[150px]')
+        expect(trigger).toHaveClass('w-control-sm')
       }
     }
   )

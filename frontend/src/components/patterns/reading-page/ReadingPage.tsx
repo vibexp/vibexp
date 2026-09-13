@@ -215,7 +215,7 @@ export function ReadingPage({
           onTransitionEnd={handleTransitionEnd}
           className={cn(
             'scrollbar-hover bg-background sticky top-14 h-[calc(100dvh-3.5rem)] shrink-0 overflow-y-auto overflow-x-hidden border-l transition-[width] duration-200',
-            detailsOpen ? 'w-80' : 'w-12'
+            detailsOpen ? 'w-details-column' : 'w-12'
           )}
         >
           {detailsOpen ? (
@@ -236,7 +236,9 @@ export function ReadingPage({
             side={isTablet ? 'right' : 'bottom'}
             className={cn(
               'overflow-y-auto p-0',
-              isTablet ? 'w-80 sm:max-w-sm' : 'h-[78dvh] rounded-t-xl'
+              isTablet
+                ? 'w-details-column sm:max-w-sm'
+                : 'h-[78dvh] rounded-t-xl'
             )}
             data-testid="reading-details-sheet"
             data-presentation={presentation}
