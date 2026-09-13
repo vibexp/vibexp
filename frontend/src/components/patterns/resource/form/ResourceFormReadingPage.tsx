@@ -50,7 +50,7 @@ export interface ResourceFormReadingPageProps extends ResourceFormPageProps {
  * The generated form (#913) rendered in the reading shell (#916).
  *
  * View and edit are the same document, so they get the same layout: the body
- * editor takes the article slot at the identical 72ch measure and gutters, the
+ * editor takes the article slot at the identical reading measure and gutters, the
  * form's Details and Taxonomy controls become `ReadingSection`s in the details
  * column — folding to the icon rail from the same header toggle as on the
  * detail page — and Save/Cancel are `ReadingAction`s, so they render as the

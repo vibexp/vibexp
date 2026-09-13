@@ -23,9 +23,12 @@ import type { ReadingAction, ReadingSection } from './types'
 
 /**
  * The article's reading measure. Fixed (not "whatever is left") so folding
- * either side column never stretches lines past comfortable length.
+ * either side column never stretches lines. The value itself
+ * (`--reading-measure`) lives in `styles/index.css` beside the bleed it is
+ * computed against, so the column and the wide-block breakout can never
+ * disagree about where the column ends.
  */
-const READING_MEASURE = 'max-w-[72ch]'
+const READING_MEASURE = 'max-w-(--reading-measure)'
 
 /**
  * How long to wait for the column's width transition before scrolling to a
@@ -166,20 +169,27 @@ export function ReadingPage({
   return (
     <>
       <div
-        className={cn('min-w-0 flex-1', className)}
+        // `@container` makes the column a size container: the bleed a wide
+        // block may take beside the article is computed from the column's
+        // inline size (see `--reading-bleed`), so it is exactly the room the
+        // folded rail or a wide window frees, and zero when there is none.
+        className={cn('@container min-w-0 flex-1', className)}
         data-testid="reading-page"
         data-presentation={presentation}
       >
         <article
           className={cn(
-            'mx-auto w-full px-4 py-6 md:px-8 lg:px-12 lg:py-10',
+            'reading-article mx-auto w-full px-4 py-6 md:px-8 lg:px-12 lg:py-10',
             READING_MEASURE
           )}
         >
           <header className="mb-8">
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
             {description && (
-              <div className="text-muted-foreground mt-2 text-sm">
+              // A lead paragraph is prose: capped at a prose measure even in
+              // the wide column, so a long summary does not run 150 characters
+              // per line at 14px.
+              <div className="text-muted-foreground mt-2 max-w-3xl text-sm">
                 {description}
               </div>
             )}
@@ -204,7 +214,7 @@ export function ReadingPage({
           data-state={detailsOpen ? 'open' : 'collapsed'}
           onTransitionEnd={handleTransitionEnd}
           className={cn(
-            'bg-background sticky top-14 h-[calc(100dvh-3.5rem)] shrink-0 overflow-y-auto overflow-x-hidden border-l transition-[width] duration-200',
+            'scrollbar-hover bg-background sticky top-14 h-[calc(100dvh-3.5rem)] shrink-0 overflow-y-auto overflow-x-hidden border-l transition-[width] duration-200',
             detailsOpen ? 'w-80' : 'w-12'
           )}
         >
