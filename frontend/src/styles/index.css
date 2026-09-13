@@ -372,6 +372,22 @@ html {
   scrollbar-gutter: stable;
 }
 
+/* …and because the gutter is reserved, never compensate for it (#971).
+ *
+ * Every Radix modal layer (dropdown menu, dialog, sheet) mounts
+ * react-remove-scroll, which hides the document scrollbar and adds a right
+ * margin on body equal to the scrollbar width so the page does not jump.
+ * Here the gutter never goes away, so that compensation is pure shift: the
+ * whole shell moved left by one scrollbar width for as long as the layer
+ * was open, and the sticky details column showed the gap on its right. The
+ * lock itself (overflow hidden, pointer blocking) is kept; only the margin
+ * is cancelled. The doubled attribute out-specifies the injected
+ * `body[data-scroll-locked]` rule, which is also `!important`.
+ */
+body[data-scroll-locked][data-scroll-locked] {
+  margin-right: 0 !important;
+}
+
 body {
   font-family:
     'Poppins', Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;

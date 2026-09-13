@@ -182,7 +182,11 @@ export function Sidebar() {
         data-testid="app-sidebar"
         data-state={expanded ? 'expanded' : 'collapsed'}
         className={cn(
-          'bg-sidebar text-sidebar-foreground hidden shrink-0 border-r transition-[width] duration-200 md:flex md:flex-col',
+          // Sticky with a viewport-height box, like the details column: the
+          // navigation stays put while a long article scrolls, and the nav
+          // itself scrolls inside its ScrollArea if it is taller than the
+          // viewport (#971).
+          'bg-sidebar text-sidebar-foreground sticky top-0 hidden h-dvh shrink-0 border-r transition-[width] duration-200 md:flex md:flex-col',
           'w-[60px]',
           expanded && 'lg:w-[264px]'
         )}
