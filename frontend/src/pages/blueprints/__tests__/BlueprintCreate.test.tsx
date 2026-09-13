@@ -133,7 +133,9 @@ describe('BlueprintCreate', () => {
         status: 'active',
         content: 'Rules',
         labels: ['rules'],
-        metadata: undefined,
+        // Sent unconditionally — an omitted `metadata` would mean "unchanged"
+        // on an update, so the empty bag is sent, not dropped (#947).
+        metadata: {},
       })
     })
   })

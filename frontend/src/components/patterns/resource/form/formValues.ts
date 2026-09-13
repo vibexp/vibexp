@@ -68,18 +68,3 @@ export function enumValue<T extends string>(
   const current = stringValue(values, key)
   return allowed.find(value => value === current) ?? allowed[0]
 }
-
-/**
- * A metadata bag as the API wants it: omitted entirely when empty, which is
- * what all three hand-written forms did and what keeps an untouched resource's
- * `metadata` out of its update payload.
- *
- * The cost is that emptying the bag does not persist — an omitted `metadata` on
- * an update means "unchanged" — which is pre-existing behaviour tracked in #947
- * rather than something to change under one resource's feet here.
- */
-export function metadataOrUndefined(
-  metadata: Record<string, unknown>
-): Record<string, unknown> | undefined {
-  return Object.keys(metadata).length > 0 ? metadata : undefined
-}

@@ -146,7 +146,7 @@ describe('ArtifactCreate', () => {
     })
   })
 
-  it('omits metadata entirely when the bag is empty', async () => {
+  it('sends an empty metadata object rather than omitting it when the bag is empty (#947)', async () => {
     const user = userEvent.setup()
     renderCreate()
 
@@ -155,7 +155,7 @@ describe('ArtifactCreate', () => {
     await waitFor(() => {
       expect(artifactService.createArtifact).toHaveBeenCalledWith(
         'team-1',
-        expect.objectContaining({ metadata: undefined, labels: [] })
+        expect.objectContaining({ metadata: {}, labels: [] })
       )
     })
   })
