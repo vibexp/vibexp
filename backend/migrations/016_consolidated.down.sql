@@ -1,3 +1,20 @@
+-- Consolidated post-v0.12.0 migration -- down.
+--
+-- Reverses the blocks in the opposite order from the up migration (017 then
+-- 016), each block's own down verbatim.
+
+-- ===========================================================================
+-- 017_memory_title
+-- ===========================================================================
+
+-- Reverses migration 017. Nothing was backfilled, so nothing has to be restored:
+-- titles only ever existed in this column and go with it.
+ALTER TABLE public.memories DROP COLUMN IF EXISTS title;
+
+-- ===========================================================================
+-- 016_resource_labels
+-- ===========================================================================
+
 -- Reverses migration 016. The memory backfill is restored first: dropping the
 -- column before writing metadata.tags back would lose the values permanently.
 --

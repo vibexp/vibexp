@@ -17,9 +17,10 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// Migration 016_resource_labels (#910, epic #899), on its OWN scratch database:
-// this test migrates DOWN, which would corrupt the shared integrationDB (and,
-// since that database is shared across worktrees, other checkouts too).
+// Migration 016_consolidated (originally 016_resource_labels, #910, epic #899),
+// on its OWN scratch database: this test migrates DOWN, which would corrupt the
+// shared integrationDB (and, since that database is shared across worktrees,
+// other checkouts too).
 //
 // The property that matters is the memory backfill. `metadata.tags` was a pure
 // frontend convention, so the values in the wild are unvalidated: the migration
