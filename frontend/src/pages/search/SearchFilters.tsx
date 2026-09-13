@@ -62,7 +62,7 @@ export function SearchFilters({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="relative min-w-[240px] max-w-[480px] flex-1">
+      <div className="relative min-w-control-search-min max-w-control-search-max flex-1">
         <SearchIcon className="text-muted-foreground absolute left-2.5 top-1/2 size-4 -translate-y-1/2" />
         <Input
           value={queryInput}
@@ -118,7 +118,7 @@ export function SearchFilters({
           )
         }}
       >
-        <SelectTrigger className="w-[150px]" aria-label="Filter by type">
+        <SelectTrigger className="w-control-sm" aria-label="Filter by type">
           <SelectValue placeholder="All types" />
         </SelectTrigger>
         <SelectContent>

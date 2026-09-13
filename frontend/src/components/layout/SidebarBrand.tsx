@@ -1,4 +1,4 @@
-import logoUrl from '@vibexp/design-system/brand/logo.svg'
+import { LogoMark } from '@vibexp/design-system/react'
 import { forwardRef } from 'react'
 import { Link, type LinkProps } from 'react-router'
 
@@ -15,12 +15,13 @@ interface SidebarBrandProps extends Omit<LinkProps, 'to'> {
 }
 
 /**
- * Sidebar brand block — the released design-system logo tile
- * (`@vibexp/design-system/brand/logo.svg`) plus a two-line wordmark,
+ * Sidebar brand block — the design-system `LogoMark` tile
+ * (`@vibexp/design-system/react`, 34px by default) plus a two-line wordmark,
  * mirroring the DS docs sidebar ("VibeXP" / subtitle).
  *
  * - `showText` forces the wordmark on; otherwise it shows only in the
- *   expanded desktop sidebar (`expanded` + `lg+`) so the icon rail stays 60px.
+ *   expanded desktop sidebar (`expanded` + `lg+`) so the icon rail stays at
+ *   its collapsed width.
  * - Forwards ref/props to the underlying `Link` so it composes with Radix
  *   `asChild` slots (e.g. `SheetClose`).
  */
@@ -42,13 +43,7 @@ export const SidebarBrand = forwardRef<HTMLAnchorElement, SidebarBrandProps>(
         )}
         {...props}
       >
-        <img
-          src={logoUrl}
-          alt="VibeXP"
-          width={34}
-          height={34}
-          className="size-[34px] shrink-0 rounded-[9px]"
-        />
+        <LogoMark />
         <span
           className={cn(
             'flex-col leading-tight',

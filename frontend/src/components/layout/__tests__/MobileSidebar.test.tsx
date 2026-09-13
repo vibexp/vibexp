@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import React from 'react'
 import { MemoryRouter } from 'react-router'
@@ -86,9 +86,11 @@ describe('MobileSidebar', () => {
       const homeLink = screen.getByRole('link', { name: /VibeXP/i })
       expect(homeLink).toBeInTheDocument()
       expect(homeLink).toHaveAttribute('href', '/')
-      // Brand now uses the released @vibexp/design-system logo asset.
-      const logo = homeLink.querySelector('img[alt="VibeXP"]')
-      expect(logo).toBeInTheDocument()
+      // Brand renders the design-system LogoMark component (#921), an inline
+      // SVG exposed as an image — not the raw logo.svg asset.
+      const logo = within(homeLink).getByRole('img', { name: 'VibeXP' })
+      expect(logo.tagName.toLowerCase()).toBe('svg')
+      expect(homeLink.querySelector('img')).toBeNull()
     })
 
     it('does NOT render a plain "V" text badge span', () => {

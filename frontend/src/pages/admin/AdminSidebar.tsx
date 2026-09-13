@@ -158,7 +158,7 @@ export function AdminSidebar() {
       <aside
         className={cn(
           'bg-sidebar text-sidebar-foreground hidden shrink-0 border-r md:flex md:flex-col',
-          'w-[60px] lg:w-[264px]'
+          'w-rail-collapsed lg:w-rail-expanded'
         )}
       >
         <SidebarBrand />

@@ -13,7 +13,7 @@ export function ProjectFilters({
 }: Readonly<Props>) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="relative min-w-[240px] max-w-[480px] flex-1">
+      <div className="relative min-w-control-search-min max-w-control-search-max flex-1">
         <Search className="text-muted-foreground absolute left-2.5 top-1/2 size-4 -translate-y-1/2" />
         <Input
           value={searchInput}

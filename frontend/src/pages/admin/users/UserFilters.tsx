@@ -63,7 +63,7 @@ export function UserFilters({
           onStatusChange(value as UserStatusFilter)
         }}
       >
-        <SelectTrigger className="w-[150px]" aria-label="Account status">
+        <SelectTrigger className="w-control-sm" aria-label="Account status">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

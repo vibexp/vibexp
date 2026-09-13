@@ -33,6 +33,8 @@ describe('PromptSharedFilter', () => {
 
   it('sits at the same width as the generated controls', () => {
     render(<PromptSharedFilter value="all" onChange={onChange} />)
-    expect(screen.getByTestId('prompt-shared-filter')).toHaveClass('w-[150px]')
+    expect(screen.getByTestId('prompt-shared-filter')).toHaveClass(
+      'w-control-sm'
+    )
   })
 })

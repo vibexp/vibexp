@@ -187,8 +187,8 @@ export function Sidebar() {
           // itself scrolls inside its ScrollArea if it is taller than the
           // viewport (#971).
           'bg-sidebar text-sidebar-foreground sticky top-0 hidden h-dvh shrink-0 border-r transition-[width] duration-200 md:flex md:flex-col',
-          'w-[60px]',
-          expanded && 'lg:w-[264px]'
+          'w-rail-collapsed',
+          expanded && 'lg:w-rail-expanded'
         )}
       >
         <SidebarBrand expanded={expanded} />
