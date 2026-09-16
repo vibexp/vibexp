@@ -235,6 +235,78 @@ func TestCopyEmbeddingProviderFromTeam_NoActivationReportsNulls(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"displaced_embedded_resources":0`)
 }
 
+// armEmbedCopyWipe declares the wipe, which is observable as exactly one
+// repository call. Declaring it only for the case that should wipe means mockery
+// fails the test if a case that must not wipe reaches it. The returned channel
+// receives once when the wipe runs.
+func armEmbedCopyWipe(container *MockEmbeddingProviderContainer, wantWiped bool) <-chan struct{} {
+	wiped := make(chan struct{}, 1)
+	if wantWiped {
+		container.embeddingRepository.EXPECT().
+			DeleteByTeam(mock.Anything, testEmbedCopyDestTeamID).
+			RunAndReturn(func(context.Context, string) (int64, error) {
+				wiped <- struct{}{}
+				return 7, nil
+			})
+	}
+	return wiped
+}
+
+// armEmbedCopyBackfill declares the background re-embed. The regeneration runs
+// on a goroutine the handler does not join, so the test joins it through the
+// returned channel (which receives the request's MissingOnly flag) — letting it
+// outlive the test would have it call the mock (and t) after cleanup, which
+// panics.
+func armEmbedCopyBackfill(container *MockEmbeddingProviderContainer, wantQueued bool) <-chan bool {
+	backfilled := make(chan bool, 1)
+	if wantQueued {
+		container.embeddingBackfillService.EXPECT().
+			Backfill(mock.Anything, mock.MatchedBy(func(r services.EmbeddingBackfillRequest) bool {
+				return r.TeamID == testEmbedCopyDestTeamID
+			})).
+			RunAndReturn(func(_ context.Context, r services.EmbeddingBackfillRequest) (
+				*services.EmbeddingBackfillResult, error,
+			) {
+				backfilled <- r.MissingOnly
+				return &services.EmbeddingBackfillResult{}, nil
+			})
+	}
+	return backfilled
+}
+
+// embedCopyReprocessBody is the copy request body, with reprocess requested
+// when asked for.
+func embedCopyReprocessBody(reprocess bool) string {
+	body := embedCopyRequestBody()
+	if reprocess {
+		body = strings.TrimSuffix(body, "}") + `,"reprocess":true}`
+	}
+	return body
+}
+
+// awaitEmbedCopyWipe joins the wipe declared by armEmbedCopyWipe.
+func awaitEmbedCopyWipe(t *testing.T, wiped <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-wiped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("expected the team's embeddings to be wiped before re-embedding")
+	}
+}
+
+// awaitEmbedCopyBackfill joins the re-embed declared by armEmbedCopyBackfill.
+// After a wipe every entity is missing, so re-embed all; otherwise fill the
+// gaps and leave the valid vectors alone.
+func awaitEmbedCopyBackfill(t *testing.T, backfilled <-chan bool, wiped bool) {
+	t.Helper()
+	select {
+	case missingOnly := <-backfilled:
+		assert.Equal(t, !wiped, missingOnly)
+	case <-time.After(5 * time.Second):
+		t.Fatal("expected a background re-embed to be enqueued")
+	}
+}
+
 // TestCopyEmbeddingProviderFromTeam_ReprocessWipesOnlyWhenTheModelMoved is the
 // guard on the one destructive act in this epic. Deleting a team's vectors is
 // warranted when the copy took over with a DIFFERENT model (the stored vectors
@@ -285,43 +357,12 @@ func TestCopyEmbeddingProviderFromTeam_ReprocessWipesOnlyWhenTheModelMoved(t *te
 				CopyFromTeam(mock.Anything, mock.Anything).
 				Return(embedCopyResult(tc.activation), nil)
 
-			// The wipe is observable as exactly one repository call. Declaring it
-			// only for the case that should wipe means mockery fails the test if a
-			// case that must not wipe reaches it.
-			wiped := make(chan struct{}, 1)
-			if tc.wantWiped {
-				container.embeddingRepository.EXPECT().
-					DeleteByTeam(mock.Anything, testEmbedCopyDestTeamID).
-					RunAndReturn(func(context.Context, string) (int64, error) {
-						wiped <- struct{}{}
-						return 7, nil
-					})
-			}
-			// The regeneration runs on a goroutine the handler does not join, so
-			// the test joins it below — letting it outlive the test would have it
-			// call the mock (and t) after cleanup, which panics.
-			backfilled := make(chan bool, 1)
-			if tc.wantQueued {
-				container.embeddingBackfillService.EXPECT().
-					Backfill(mock.Anything, mock.MatchedBy(func(r services.EmbeddingBackfillRequest) bool {
-						return r.TeamID == testEmbedCopyDestTeamID
-					})).
-					RunAndReturn(func(_ context.Context, r services.EmbeddingBackfillRequest) (
-						*services.EmbeddingBackfillResult, error,
-					) {
-						backfilled <- r.MissingOnly
-						return &services.EmbeddingBackfillResult{}, nil
-					})
-			}
-
-			body := embedCopyRequestBody()
-			if tc.reprocess {
-				body = strings.TrimSuffix(body, "}") + `,"reprocess":true}`
-			}
+			wiped := armEmbedCopyWipe(container, tc.wantWiped)
+			backfilled := armEmbedCopyBackfill(container, tc.wantQueued)
 
 			srv := createTestEmbeddingProviderServer(container)
 			w := httptest.NewRecorder()
-			srv.router.ServeHTTP(w, makeEmbedCopyRequest(body))
+			srv.router.ServeHTTP(w, makeEmbedCopyRequest(embedCopyReprocessBody(tc.reprocess)))
 
 			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 			assert.Contains(t, w.Body.String(),
@@ -330,21 +371,10 @@ func TestCopyEmbeddingProviderFromTeam_ReprocessWipesOnlyWhenTheModelMoved(t *te
 				fmt.Sprintf(`"embeddings_wiped":%t`, tc.wantWiped))
 
 			if tc.wantWiped {
-				select {
-				case <-wiped:
-				case <-time.After(5 * time.Second):
-					t.Fatal("expected the team's embeddings to be wiped before re-embedding")
-				}
+				awaitEmbedCopyWipe(t, wiped)
 			}
 			if tc.wantQueued {
-				select {
-				case missingOnly := <-backfilled:
-					// After a wipe every entity is missing, so re-embed all;
-					// otherwise fill the gaps and leave the valid vectors alone.
-					assert.Equal(t, !tc.wantWiped, missingOnly)
-				case <-time.After(5 * time.Second):
-					t.Fatal("expected a background re-embed to be enqueued")
-				}
+				awaitEmbedCopyBackfill(t, backfilled, tc.wantWiped)
 			}
 		})
 	}
