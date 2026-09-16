@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
@@ -56,18 +57,30 @@ func (r *AdminRepository) GetInstanceCounts(ctx context.Context) (models.Instanc
 	return counts, nil
 }
 
+// Column identifiers shared by the admin user and team listings' projections,
+// filters and sort clauses.
+const (
+	colUserEmail       = "u.email"
+	colUserName        = "u.name"
+	colUserIDPProvider = "u.idp_provider"
+	colUserStatus      = "u.status"
+	colUserCreatedAt   = "u.created_at"
+	colTeamCreatedAt   = "t.created_at"
+)
+
 // adminUserListSelectColumns is the projection for the admin user listing. The
 // team count comes from a LEFT JOIN aggregate over team_members; no role
 // predicate (decision D3) — the join is on user_id only.
-var adminUserListSelectColumns = []string{
-	"u.id", "u.email", "u.name", "u.idp_provider", "u.status", "u.created_at",
+var adminUserListSelectColumns = append(
+	slices.Clone(adminUserListGroupByColumns),
 	"COUNT(tm.team_id) AS team_count",
-}
+)
 
 // adminUserListGroupByColumns are the non-aggregated projection columns, which
-// must all appear in GROUP BY alongside the team_count aggregate.
+// must all appear in GROUP BY alongside the team_count aggregate. The select
+// projection is derived from it, so the two can never diverge.
 var adminUserListGroupByColumns = []string{
-	"u.id", "u.email", "u.name", "u.idp_provider", "u.status", "u.created_at",
+	"u.id", colUserEmail, colUserName, colUserIDPProvider, colUserStatus, colUserCreatedAt,
 }
 
 // applyAdminWhere attaches the shared conditions to a select builder, skipping
@@ -118,16 +131,16 @@ func buildAdminUserWhere(filters repositories.AdminUserFilters) squirrel.And {
 		where = append(where, squirrel.Expr("(u.email ILIKE ? OR u.name ILIKE ?)", term, term))
 	}
 	if filters.IDPProvider != nil && *filters.IDPProvider != "" {
-		where = append(where, squirrel.Eq{"u.idp_provider": *filters.IDPProvider})
+		where = append(where, squirrel.Eq{colUserIDPProvider: *filters.IDPProvider})
 	}
 	if filters.Status != nil && *filters.Status != "" {
-		where = append(where, squirrel.Eq{"u.status": *filters.Status})
+		where = append(where, squirrel.Eq{colUserStatus: *filters.Status})
 	}
 	if filters.CreatedFrom != nil {
-		where = append(where, squirrel.GtOrEq{"u.created_at": *filters.CreatedFrom})
+		where = append(where, squirrel.GtOrEq{colUserCreatedAt: *filters.CreatedFrom})
 	}
 	if filters.CreatedTo != nil {
-		where = append(where, squirrel.LtOrEq{"u.created_at": *filters.CreatedTo})
+		where = append(where, squirrel.LtOrEq{colUserCreatedAt: *filters.CreatedTo})
 	}
 
 	return where
@@ -138,7 +151,7 @@ func buildAdminUserWhere(filters repositories.AdminUserFilters) squirrel.And {
 // a column name selected by the switch. The u.id tie-breaker keeps paging stable
 // when the sort column has duplicates.
 func buildAdminUserOrderBy(filters repositories.AdminUserFilters) string {
-	column := "u.created_at"
+	column := colUserCreatedAt
 	switch filters.SortBy {
 	case "email", "name", "created_at":
 		column = "u." + filters.SortBy
@@ -286,8 +299,8 @@ func (r *AdminRepository) GetUserDetail(
 // owner join is inner (teams.owner_id -> users, ON DELETE CASCADE, so an
 // existing team always has an owner). No role predicate (decision D3).
 var adminTeamListSelectColumns = []string{
-	"t.id", "t.name", "t.slug", "t.is_personal", "t.created_at",
-	"u.id", "u.email", "u.name",
+	"t.id", "t.name", "t.slug", "t.is_personal", colTeamCreatedAt,
+	"u.id", colUserEmail, colUserName,
 	"(SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) AS member_count",
 }
 
@@ -313,10 +326,10 @@ func buildAdminTeamWhere(filters repositories.AdminTeamFilters) squirrel.And {
 		where = append(where, squirrel.Eq{"t.is_personal": *filters.IsPersonal})
 	}
 	if filters.CreatedFrom != nil {
-		where = append(where, squirrel.GtOrEq{"t.created_at": *filters.CreatedFrom})
+		where = append(where, squirrel.GtOrEq{colTeamCreatedAt: *filters.CreatedFrom})
 	}
 	if filters.CreatedTo != nil {
-		where = append(where, squirrel.LtOrEq{"t.created_at": *filters.CreatedTo})
+		where = append(where, squirrel.LtOrEq{colTeamCreatedAt: *filters.CreatedTo})
 	}
 
 	return where
@@ -326,7 +339,7 @@ func buildAdminTeamWhere(filters repositories.AdminTeamFilters) squirrel.And {
 // SQL-injection control as buildAdminUserOrderBy). member_count is the SELECT
 // alias of the correlated subquery. The t.id tie-breaker keeps paging stable.
 func buildAdminTeamOrderBy(filters repositories.AdminTeamFilters) string {
-	column := "t.created_at"
+	column := colTeamCreatedAt
 	switch filters.SortBy {
 	case "name", "created_at":
 		column = "t." + filters.SortBy

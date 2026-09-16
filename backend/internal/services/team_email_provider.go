@@ -526,12 +526,15 @@ func validateUpsertRequest(req models.UpsertTeamEmailProviderRequest, isCreate b
 	return nil
 }
 
+// fieldMsgRequired is the field-validation message for a missing required value.
+const fieldMsgRequired = "is required"
+
 func validateSenderIdentity(req models.UpsertTeamEmailProviderRequest) []FieldError {
 	var fields []FieldError
 
 	from := strings.TrimSpace(req.FromAddress)
 	if from == "" {
-		fields = append(fields, FieldError{Field: "from_address", Message: "is required"})
+		fields = append(fields, FieldError{Field: "from_address", Message: fieldMsgRequired})
 	} else if _, err := mail.ParseAddress(from); err != nil {
 		fields = append(fields, FieldError{Field: "from_address", Message: "must be a valid email address"})
 	}
@@ -548,7 +551,7 @@ func validateSenderIdentity(req models.UpsertTeamEmailProviderRequest) []FieldEr
 func validateSecret(req models.UpsertTeamEmailProviderRequest, isCreate bool) []FieldError {
 	switch {
 	case req.Secret == nil && isCreate:
-		return []FieldError{{Field: "secret", Message: "is required"}}
+		return []FieldError{{Field: "secret", Message: fieldMsgRequired}}
 	case req.Secret != nil && strings.TrimSpace(*req.Secret) == "":
 		// Explicitly not treated as "clear the secret": a provider with no
 		// credential cannot send, and silently disabling a team's mail is worse
@@ -605,12 +608,12 @@ func validateSMTPSettings(settings models.TeamEmailProviderSettings) []FieldErro
 
 	var fields []FieldError
 	if strings.TrimSpace(settings.SMTP.Host) == "" {
-		fields = append(fields, FieldError{Field: "settings.smtp.host", Message: "is required"})
+		fields = append(fields, FieldError{Field: "settings.smtp.host", Message: fieldMsgRequired})
 	}
 
 	port := strings.TrimSpace(settings.SMTP.Port)
 	if port == "" {
-		fields = append(fields, FieldError{Field: "settings.smtp.port", Message: "is required"})
+		fields = append(fields, FieldError{Field: "settings.smtp.port", Message: fieldMsgRequired})
 		return fields
 	}
 
@@ -635,7 +638,7 @@ func validateMailgunSettings(settings models.TeamEmailProviderSettings) []FieldE
 	domain := strings.TrimSpace(settings.Mailgun.Domain)
 	switch {
 	case domain == "":
-		fields = append(fields, FieldError{Field: "settings.mailgun.domain", Message: "is required"})
+		fields = append(fields, FieldError{Field: "settings.mailgun.domain", Message: fieldMsgRequired})
 	case strings.Contains(domain, "://") || strings.HasSuffix(domain, "/"):
 		// Mirrors NewMailgunEmailProvider's check so the caller gets a field
 		// error instead of a construction failure.

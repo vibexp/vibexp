@@ -22,10 +22,14 @@ import (
 // Cross-tenant reads with no role predicate (decision D3) — the only
 // authorization is instanceAdminMiddleware at the transport layer.
 
+// colProjectCreatedAt is the project creation timestamp, used by the
+// projection, the date-range filters and the default sort.
+const colProjectCreatedAt = "p.created_at"
+
 // adminProjectListSelectColumns is the projection for the project listing.
 // `owner` is projects.user_id, the project's creator — NOT the team's owner_id.
 var adminProjectListSelectColumns = []string{
-	"p.id", "p.name", "p.slug", "p.created_at", "p.updated_at",
+	"p.id", "p.name", "p.slug", colProjectCreatedAt, "p.updated_at",
 	"t.id", "t.name", "t.slug",
 	"u.id", "u.email", "u.name",
 }
@@ -52,10 +56,10 @@ func buildAdminProjectWhere(filters repositories.AdminProjectFilters) squirrel.A
 		where = append(where, squirrel.Eq{"p.team_id": *filters.TeamID})
 	}
 	if filters.CreatedFrom != nil {
-		where = append(where, squirrel.GtOrEq{"p.created_at": *filters.CreatedFrom})
+		where = append(where, squirrel.GtOrEq{colProjectCreatedAt: *filters.CreatedFrom})
 	}
 	if filters.CreatedTo != nil {
-		where = append(where, squirrel.LtOrEq{"p.created_at": *filters.CreatedTo})
+		where = append(where, squirrel.LtOrEq{colProjectCreatedAt: *filters.CreatedTo})
 	}
 
 	return where
@@ -66,7 +70,7 @@ func buildAdminProjectWhere(filters repositories.AdminProjectFilters) squirrel.A
 // paging stable when the sort column has duplicates (project names are not
 // unique across teams).
 func buildAdminProjectOrderBy(filters repositories.AdminProjectFilters) string {
-	column := "p.created_at"
+	column := colProjectCreatedAt
 	if filters.SortBy == "name" {
 		column = "p.name"
 	}
