@@ -84,27 +84,7 @@ func TestResourceSchemasDeclareNoInlineStatusEnum(t *testing.T) {
 			raw, err := os.ReadFile(filepath.Join(root, "schemas", file))
 			require.NoError(t, err)
 
-			lines := strings.Split(string(raw), "\n")
-			var offenders []string
-			for i, line := range lines {
-				if strings.TrimSpace(line) != "status:" {
-					continue
-				}
-				indent := len(line) - len(strings.TrimLeft(line, " "))
-				// Scan the property body: everything indented deeper than `status:`.
-				for j := i + 1; j < len(lines); j++ {
-					body := lines[j]
-					if strings.TrimSpace(body) == "" {
-						continue
-					}
-					if len(body)-len(strings.TrimLeft(body, " ")) <= indent {
-						break
-					}
-					if strings.HasPrefix(strings.TrimSpace(body), "enum:") {
-						offenders = append(offenders, fmt.Sprintf("%s:%d", file, j+1))
-					}
-				}
-			}
+			offenders := inlineStatusEnumOffenders(file, raw)
 
 			assert.Empty(t, offenders,
 				"a `status` property declares an inline enum. Every one of them must be "+
@@ -119,6 +99,48 @@ func TestResourceSchemasDeclareNoInlineStatusEnum(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(raw), "enum: [active, draft, archived]",
 		"the subsets themselves must still declare their enums in common.yaml")
+}
+
+// inlineStatusEnumOffenders returns the "file:line" of every `enum:` declared
+// inside the body of a `status:` property in the authored YAML source.
+func inlineStatusEnumOffenders(file string, raw []byte) []string {
+	lines := strings.Split(string(raw), "\n")
+	var offenders []string
+	for i, line := range lines {
+		if strings.TrimSpace(line) != "status:" {
+			continue
+		}
+		for _, j := range enumLinesInPropertyBody(lines, i) {
+			offenders = append(offenders, fmt.Sprintf("%s:%d", file, j+1))
+		}
+	}
+	return offenders
+}
+
+// enumLinesInPropertyBody scans the body of the property declared at
+// lines[start] -- everything indented deeper than it -- and returns the
+// indexes of the lines that open an `enum:`.
+func enumLinesInPropertyBody(lines []string, start int) []int {
+	indent := indentWidth(lines[start])
+	var found []int
+	for j := start + 1; j < len(lines); j++ {
+		body := lines[j]
+		if strings.TrimSpace(body) == "" {
+			continue
+		}
+		if indentWidth(body) <= indent {
+			break
+		}
+		if strings.HasPrefix(strings.TrimSpace(body), "enum:") {
+			found = append(found, j)
+		}
+	}
+	return found
+}
+
+// indentWidth is the number of leading spaces on a line.
+func indentWidth(line string) int {
+	return len(line) - len(strings.TrimLeft(line, " "))
 }
 
 // repoBackendDir walks up to the directory holding openapi.yaml, the same way
