@@ -121,6 +121,32 @@ func TestIntegrationEmbeddingJob_EnqueueAfterTerminalCreatesNewRow(t *testing.T)
 	assert.Equal(t, int64(1), counts[models.EmbeddingJobStatePending])
 }
 
+// claimUntilExhausted is one concurrent claimer: it claims batches as worker
+// until the queue has nothing left for it, recording who claimed each job in
+// claimedBy (guarded by mu) and failing the test the moment a job it received
+// was already claimed by another worker.
+func claimUntilExhausted(
+	t *testing.T, ctx context.Context, repo repositories.EmbeddingJobRepository,
+	worker string, claimedBy map[string]string, mu *sync.Mutex,
+) {
+	for {
+		jobs, err := repo.Claim(ctx, worker, 5, time.Minute, 5)
+		if err != nil || len(jobs) == 0 {
+			assert.NoError(t, err)
+			return
+		}
+		mu.Lock()
+		for _, job := range jobs {
+			if prev, seen := claimedBy[job.ID]; seen {
+				assert.Failf(t, "job claimed twice",
+					"job %s claimed by both %s and %s", job.ID, prev, worker)
+			}
+			claimedBy[job.ID] = worker
+		}
+		mu.Unlock()
+	}
+}
+
 // TestIntegrationEmbeddingJob_ConcurrentClaimersNeverShareAJob is the
 // FOR UPDATE SKIP LOCKED proof. It has to run real, simultaneous claims against
 // one database: a mock cannot distinguish a correct SKIP LOCKED claim from one
@@ -150,22 +176,7 @@ func TestIntegrationEmbeddingJob_ConcurrentClaimersNeverShareAJob(t *testing.T) 
 		go func() {
 			defer done.Done()
 			start.Wait()
-			for {
-				jobs, err := repo.Claim(ctx, worker, 5, time.Minute, 5)
-				if err != nil || len(jobs) == 0 {
-					assert.NoError(t, err)
-					return
-				}
-				mu.Lock()
-				for _, job := range jobs {
-					if prev, seen := claimedBy[job.ID]; seen {
-						assert.Failf(t, "job claimed twice",
-							"job %s claimed by both %s and %s", job.ID, prev, worker)
-					}
-					claimedBy[job.ID] = worker
-				}
-				mu.Unlock()
-			}
+			claimUntilExhausted(t, ctx, repo, worker, claimedBy, &mu)
 		}()
 	}
 	start.Done()
