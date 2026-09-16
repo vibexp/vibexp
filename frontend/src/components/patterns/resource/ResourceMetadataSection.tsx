@@ -82,67 +82,33 @@ function metaValue(field: FieldSpec, value: unknown): ReactNode {
   return null
 }
 
-export function ResourceMetadataSection({
-  descriptor,
-  resource,
-  versionHistory,
-  project,
-  projectHref,
-  className,
-}: Readonly<ResourceMetadataSectionProps>) {
-  const fields = partition(descriptor)
+/**
+ * One row per field whose value is a non-empty string, in field order. Only the
+ * shared "look up, skip empty" walk lives here; each role supplies its own row,
+ * because the rows genuinely differ (badge, status badge, copyable slug).
+ */
+function stringFieldRows(
+  fields: FieldSpec[],
+  resource: Record<string, unknown>,
+  render: (field: FieldSpec, value: string) => ReactNode
+): ReactNode[] {
   const rows: ReactNode[] = []
-
-  for (const field of fields.type) {
+  for (const field of fields) {
     const value = valueOf(resource, field.key)
-    if (typeof value !== 'string' || value.length === 0) continue
-    rows.push(
-      <MetaRow key={`type:${field.key}`} label={field.label}>
-        <Badge variant="secondary">{fieldLabel(field, value)}</Badge>
-      </MetaRow>
-    )
+    if (typeof value === 'string' && value.length > 0) {
+      rows.push(render(field, value))
+    }
   }
+  return rows
+}
 
-  for (const field of fields.status) {
-    const value = valueOf(resource, field.key)
-    if (typeof value !== 'string' || value.length === 0) continue
-    rows.push(
-      <MetaRow key={`status:${field.key}`} label={field.label}>
-        <StatusBadge tone={fieldTone(field, value)}>
-          {fieldLabel(field, value)}
-        </StatusBadge>
-      </MetaRow>
-    )
-  }
-
-  for (const field of fields.address) {
-    const value = valueOf(resource, field.key)
-    if (typeof value !== 'string' || value.length === 0) continue
-    rows.push(
-      <MetaSlugRow
-        key={`address:${field.key}`}
-        label={field.label}
-        value={value}
-      />
-    )
-  }
-
-  const projectTo =
-    fields.hasProject && project && projectHref ? projectHref(project) : null
-  if (project && projectTo) {
-    rows.push(
-      <MetaLinkRow
-        key="project"
-        icon={FolderOpen}
-        label="Project"
-        to={projectTo}
-      >
-        {project.name}
-      </MetaLinkRow>
-    )
-  }
-
-  for (const field of fields.meta) {
+/** The `meta` rows: any field whose `metaValue` renders something. */
+function metaRows(
+  fields: FieldSpec[],
+  resource: Record<string, unknown>
+): ReactNode[] {
+  const rows: ReactNode[] = []
+  for (const field of fields) {
     const rendered = metaValue(field, valueOf(resource, field.key))
     if (rendered === null || rendered === undefined || rendered === false) {
       continue
@@ -153,6 +119,57 @@ export function ResourceMetadataSection({
       </MetaRow>
     )
   }
+  return rows
+}
+
+/** The Project row, or none when the kind has no project or it cannot link. */
+function projectRows(
+  hasProject: boolean,
+  project: ProjectRef | null | undefined,
+  projectHref: ResourceMetadataSectionProps['projectHref']
+): ReactNode[] {
+  const projectTo =
+    hasProject && project && projectHref ? projectHref(project) : null
+  if (!project || !projectTo) return []
+  return [
+    <MetaLinkRow key="project" icon={FolderOpen} label="Project" to={projectTo}>
+      {project.name}
+    </MetaLinkRow>,
+  ]
+}
+
+export function ResourceMetadataSection({
+  descriptor,
+  resource,
+  versionHistory,
+  project,
+  projectHref,
+  className,
+}: Readonly<ResourceMetadataSectionProps>) {
+  const fields = partition(descriptor)
+  const rows: ReactNode[] = [
+    ...stringFieldRows(fields.type, resource, (field, value) => (
+      <MetaRow key={`type:${field.key}`} label={field.label}>
+        <Badge variant="secondary">{fieldLabel(field, value)}</Badge>
+      </MetaRow>
+    )),
+    ...stringFieldRows(fields.status, resource, (field, value) => (
+      <MetaRow key={`status:${field.key}`} label={field.label}>
+        <StatusBadge tone={fieldTone(field, value)}>
+          {fieldLabel(field, value)}
+        </StatusBadge>
+      </MetaRow>
+    )),
+    ...stringFieldRows(fields.address, resource, (field, value) => (
+      <MetaSlugRow
+        key={`address:${field.key}`}
+        label={field.label}
+        value={value}
+      />
+    )),
+    ...projectRows(fields.hasProject, project, projectHref),
+    ...metaRows(fields.meta, resource),
+  ]
 
   const createdAt = valueOf(resource, 'created_at')
   const updatedAt = valueOf(resource, 'updated_at')
