@@ -60,12 +60,8 @@ func TestMemoryService_CreateMemory_Title(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := repomocks.NewMockMemoryRepository(t)
 			if !tt.wantErr {
-				mockRepo.EXPECT().Create(mock.Anything, mock.MatchedBy(func(m *models.Memory) bool {
-					if tt.want == nil {
-						return m.Title == nil
-					}
-					return m.Title != nil && *m.Title == *tt.want
-				})).Return(nil).Once()
+				mockRepo.EXPECT().Create(mock.Anything, mock.MatchedBy(matchesWantedTitle(tt.want))).
+					Return(nil).Once()
 			}
 
 			logger, _ := logtest.New()
@@ -83,14 +79,32 @@ func TestMemoryService_CreateMemory_Title(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			if tt.want == nil {
-				assert.Nil(t, memory.Title)
-			} else {
-				require.NotNil(t, memory.Title)
-				assert.Equal(t, *tt.want, *memory.Title)
-			}
+			assertWantedTitle(t, memory, tt.want)
 		})
 	}
+}
+
+// matchesWantedTitle builds the mock.MatchedBy predicate for a created memory
+// whose stored title must equal want (nil meaning no title).
+func matchesWantedTitle(want *string) func(*models.Memory) bool {
+	return func(m *models.Memory) bool {
+		if want == nil {
+			return m.Title == nil
+		}
+		return m.Title != nil && *m.Title == *want
+	}
+}
+
+// assertWantedTitle asserts the returned memory's title equals want (nil
+// meaning no title).
+func assertWantedTitle(t *testing.T, memory *models.Memory, want *string) {
+	t.Helper()
+	if want == nil {
+		assert.Nil(t, memory.Title)
+		return
+	}
+	require.NotNil(t, memory.Title)
+	assert.Equal(t, *want, *memory.Title)
 }
 
 // A *string could not express these three cases: absent and null would both
