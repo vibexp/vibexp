@@ -28,6 +28,10 @@ import (
 // GitHub App installation.
 const githubMsgAppNotInstalled = "GitHub App not installed for this team"
 
+// githubMsgPermissionDenied is returned when the caller may not manage the
+// team's GitHub integration.
+const githubMsgPermissionDenied = "You do not have permission to manage this team's GitHub integration."
+
 // githubStateMACDomain domain-separates the install-state HMAC key from the
 // instance encryption key it is derived from, so that key never signs anything
 // under its raw form. Mirrors the DeriveStateMACKey / stateMACDomain pattern in
@@ -175,7 +179,7 @@ func (s *Server) handleGitHubInstallURL(w http.ResponseWriter, r *http.Request) 
 		r.Context(), userID, teamID, authz.TeamUpdate,
 	); authzErr != nil {
 		writeErrorResponse(w, r, "forbidden",
-			"You do not have permission to manage this team's GitHub integration.", http.StatusForbidden)
+			githubMsgPermissionDenied, http.StatusForbidden)
 		return
 	}
 
@@ -354,7 +358,7 @@ func (s *Server) handleGitHubCallbackError(w http.ResponseWriter, r *http.Reques
 			"You are not authorized to connect this GitHub installation.", http.StatusForbidden)
 	case errors.Is(err, services.ErrPermissionDenied):
 		writeErrorResponse(w, r, "forbidden",
-			"You do not have permission to manage this team's GitHub integration.", http.StatusForbidden)
+			githubMsgPermissionDenied, http.StatusForbidden)
 	case errors.Is(err, services.ErrGitHubUserAuthUnavailable):
 		s.logger.Error("GitHub App user authorization is not configured; install callback rejected")
 		writeErrorResponse(w, r, "github_user_auth_not_configured",
@@ -401,7 +405,7 @@ func (s *Server) handleGitHubDisconnect(w http.ResponseWriter, r *http.Request) 
 	if err := s.container.GitHubAppService().DisconnectInstallation(r.Context(), userID, teamID); err != nil {
 		if errors.Is(err, services.ErrPermissionDenied) {
 			writeErrorResponse(w, r, "forbidden",
-				"You do not have permission to manage this team's GitHub integration.", http.StatusForbidden)
+				githubMsgPermissionDenied, http.StatusForbidden)
 			return
 		}
 		s.logger.Error("Failed to disconnect GitHub installation", "error", err)

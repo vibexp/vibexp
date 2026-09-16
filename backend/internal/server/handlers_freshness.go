@@ -31,6 +31,8 @@ const (
 	freshnessMsgForbidden = "You do not have permission to change this team's settings"
 	// freshnessMsgRuleNotFound is returned for a rule id the team does not own.
 	freshnessMsgRuleNotFound = "Freshness rule not found"
+	// freshnessMsgBodyRequired is returned when a write request has no body.
+	freshnessMsgBodyRequired = "request body is required"
 )
 
 // freshnessStrictServer implements the generated Freshness strict server.
@@ -65,7 +67,7 @@ func (fs *freshnessStrictServer) CreateFreshnessRule(
 		return nil, err
 	}
 	if request.Body == nil {
-		return nil, apierrors.NewBadRequestError("request body is required")
+		return nil, apierrors.NewBadRequestError(freshnessMsgBodyRequired)
 	}
 
 	rule, err := fs.s.container.FreshnessService().CreateRule(
@@ -90,7 +92,7 @@ func (fs *freshnessStrictServer) UpdateFreshnessRule(
 		return nil, err
 	}
 	if request.Body == nil {
-		return nil, apierrors.NewBadRequestError("request body is required")
+		return nil, apierrors.NewBadRequestError(freshnessMsgBodyRequired)
 	}
 
 	rule, err := fs.s.container.FreshnessService().UpdateRule(
@@ -143,7 +145,7 @@ func (fs *freshnessStrictServer) UpdateTeamFreshnessSettings(
 		return nil, err
 	}
 	if request.Body == nil {
-		return nil, apierrors.NewBadRequestError("request body is required")
+		return nil, apierrors.NewBadRequestError(freshnessMsgBodyRequired)
 	}
 
 	view, err := fs.s.container.FreshnessService().UpdateSettings(
@@ -413,7 +415,7 @@ func (s *Server) requireCompleteFreshnessBody(next http.Handler) http.Handler {
 
 		raw, err := io.ReadAll(r.Body)
 		if err != nil {
-			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError("request body is required"))
+			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(freshnessMsgBodyRequired))
 			return
 		}
 		// Restore the body for the generated binder, which reads it again.

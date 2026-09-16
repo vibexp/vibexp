@@ -227,13 +227,17 @@ func (r *ProjectRepository) List(
 	return projects, totalCount, nil
 }
 
+// projectsTableAliased is the projects table with the `p` alias every list and
+// search query in this file qualifies its columns with.
+const projectsTableAliased = "projects p"
+
 // countList counts projects matching the shared WHERE conditions used by List,
 // so the count and page queries can never diverge. COUNT(*) is safe because the
 // EXISTS subqueries (rather than a JOIN) eliminate multi-member duplicates.
 func (r *ProjectRepository) countList(ctx context.Context, where squirrel.Sqlizer) (int, error) {
 	query, args, err := psql.
 		Select("COUNT(*)").
-		From("projects p").
+		From(projectsTableAliased).
 		Where(where).
 		ToSql()
 	if err != nil {
@@ -275,7 +279,7 @@ func (r *ProjectRepository) queryList(
 			"p.id", "p.user_id", "p.team_id", "p.name", "p.slug", "p.description",
 			"p.git_url", "p.homepage", "p.created_at", "p.updated_at", "p.version",
 		).
-		From("projects p").
+		From(projectsTableAliased).
 		Where(where).
 		OrderBy(buildProjectOrderByClause(filters)).
 		Limit(limit).
@@ -762,7 +766,7 @@ func (r *ProjectRepository) ListByTeamID(ctx context.Context, teamID string) ([]
 // qualifier) to the index expressions in 013_consolidated (#813).
 func projectSearchSpec() entitySearchSpec {
 	return entitySearchSpec{
-		table: "projects p",
+		table: projectsTableAliased,
 		columns: "p.id, p.user_id, p.team_id, p.name, p.slug, p.description, " +
 			"p.git_url, p.homepage, p.created_at, p.updated_at, p.version",
 		nameExpr: "p.name",

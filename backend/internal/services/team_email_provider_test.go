@@ -258,6 +258,14 @@ func TestTeamEmailProvider_Upsert_ValidationRejections(t *testing.T) {
 			isCreate:  true,
 		},
 		{
+			name: "smtp missing port",
+			mutate: func(r *models.UpsertTeamEmailProviderRequest) {
+				r.Settings.SMTP.Port = ""
+			},
+			wantField: "settings.smtp.port",
+			isCreate:  true,
+		},
+		{
 			name: "smtp non-numeric port",
 			mutate: func(r *models.UpsertTeamEmailProviderRequest) {
 				r.Settings.SMTP.Port = "not-a-port"
@@ -372,6 +380,17 @@ func TestTeamEmailProvider_Validation_MailgunDomainMustBeBare(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "settings.mailgun.domain")
 	assert.Contains(t, err.Error(), "bare domain")
+}
+
+func TestTeamEmailProvider_Validation_MailgunDomainRequired(t *testing.T) {
+	req := validMailgunRequest()
+	req.Settings.Mailgun.Domain = "  "
+
+	err := validateUpsertRequest(req, true)
+
+	var verr *TeamEmailProviderValidationError
+	require.True(t, errors.As(err, &verr))
+	assert.Contains(t, verr.Fields, FieldError{Field: "settings.mailgun.domain", Message: "is required"})
 }
 
 // --- SSRF --------------------------------------------------------------------

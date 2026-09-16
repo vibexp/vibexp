@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,11 +13,13 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
+	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	freshnessgen "github.com/vibexp/vibexp/internal/server/gen/freshness"
@@ -395,6 +398,60 @@ func TestFreshnessHandlers_PutRejectsIncompleteBody(t *testing.T) {
 			assert.Contains(t, w.Body.String(), tt.wantIn)
 		})
 	}
+}
+
+// The strict handlers reject a missing body before touching the service.
+func TestFreshnessHandlers_NilBodyIsBadRequest(t *testing.T) {
+	teamID := uuid.MustParse(testFreshnessTeamID)
+	ctx := context.WithValue(context.Background(), contextKeyUserID, testFreshnessUserID)
+
+	calls := map[string]func(*freshnessStrictServer) error{
+		"create rule": func(fs *freshnessStrictServer) error {
+			_, err := fs.CreateFreshnessRule(ctx, freshnessgen.CreateFreshnessRuleRequestObject{TeamId: teamID})
+			return err
+		},
+		"update rule": func(fs *freshnessStrictServer) error {
+			_, err := fs.UpdateFreshnessRule(ctx, freshnessgen.UpdateFreshnessRuleRequestObject{
+				TeamId: teamID, RuleId: uuid.MustParse(testFreshnessRuleID),
+			})
+			return err
+		},
+		"update settings": func(fs *freshnessStrictServer) error {
+			_, err := fs.UpdateTeamFreshnessSettings(ctx,
+				freshnessgen.UpdateTeamFreshnessSettingsRequestObject{TeamId: teamID})
+			return err
+		},
+	}
+
+	for name, call := range calls {
+		t.Run(name, func(t *testing.T) {
+			// No service expectations: the request must never reach the service.
+			svc := servicesmocks.NewMockFreshnessServiceInterface(t)
+			err := call(&freshnessStrictServer{s: createTestFreshnessServer(svc)})
+
+			var apiErr *apierrors.APIError
+			require.ErrorAs(t, err, &apiErr)
+			assert.Equal(t, http.StatusBadRequest, apiErr.Status)
+			assert.Equal(t, "request body is required", apiErr.Detail)
+		})
+	}
+}
+
+// failingBody is a request body whose read always fails.
+type failingBody struct{}
+
+func (failingBody) Read([]byte) (int, error) { return 0, errors.New("read failed") }
+
+func TestFreshnessHandlers_PutUnreadableBodyIsBadRequest(t *testing.T) {
+	svc := servicesmocks.NewMockFreshnessServiceInterface(t)
+	srv := createTestFreshnessServer(svc)
+	req := makeFreshnessRequest(http.MethodPut, freshnessSettingsPath, "")
+	req.Body = io.NopCloser(failingBody{})
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "request body is required")
 }
 
 // POST is a create with documented optional fields, so the completeness guard
