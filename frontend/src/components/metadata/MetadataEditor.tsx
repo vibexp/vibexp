@@ -161,6 +161,7 @@ export function MetadataEditor({
       {rows.map((row, index) => {
         const error = validation.rowErrors[index]
         const isRequired = requiredKeys.includes(row.key.trim())
+        const rowLabel = row.key.trim() || `pair ${String(index + 1)}`
         return (
           <div key={row.id} className="space-y-1" data-testid="metadata-row">
             <div className="flex items-start gap-2">
@@ -200,7 +201,7 @@ export function MetadataEditor({
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label={`Remove ${row.key.trim() || `pair ${String(index + 1)}`}`}
+                aria-label={`Remove ${rowLabel}`}
                 data-testid={`metadata-delete-${String(index)}`}
                 disabled={disabled || isRequired}
                 className={cn(isRequired && 'invisible')}

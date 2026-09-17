@@ -24,6 +24,21 @@ describe('MetadataEditor', () => {
     expect(screen.getAllByTestId('metadata-row')).toHaveLength(1)
   })
 
+  it('labels each delete button by its key, falling back to the row position', async () => {
+    const user = userEvent.setup()
+    render(<MetadataEditor value={{ author: 'ada' }} onChange={vi.fn()} />)
+    expect(screen.getByTestId('metadata-delete-0')).toHaveAttribute(
+      'aria-label',
+      'Remove author'
+    )
+    // A freshly added row has no key yet, so it falls back to its 1-based index.
+    await user.click(screen.getByTestId('metadata-add-pair'))
+    expect(screen.getByTestId('metadata-delete-1')).toHaveAttribute(
+      'aria-label',
+      'Remove pair 2'
+    )
+  })
+
   it('adds a new empty pair', async () => {
     const user = userEvent.setup()
     render(<MetadataEditor value={{}} onChange={vi.fn()} />)
