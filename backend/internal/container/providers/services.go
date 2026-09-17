@@ -492,17 +492,9 @@ func ProvideMetadataCatalogService(
 
 // ProvideFreshnessService creates the freshness rules + settings service
 // (epic #726). The repositories landed in #729; this is the first consumer.
-func ProvideFreshnessService(
-	rules repositories.FreshnessRuleRepository,
-	freshness repositories.ResourceFreshnessRepository,
-	settings repositories.TeamFreshnessSettingsRepository,
-	audit repositories.FreshnessAuditRepository,
-	schedules repositories.ScheduleRepository,
-	projects repositories.ProjectRepository,
-	authzService services.AuthorizationServiceInterface,
-	logger *slog.Logger,
-) services.FreshnessServiceInterface {
-	return services.NewFreshnessService(rules, freshness, settings, audit, schedules, projects, authzService, logger)
+// Wire fills the deps struct via wire.Struct (see the container ProviderSet).
+func ProvideFreshnessService(deps services.FreshnessServiceDeps) services.FreshnessServiceInterface {
+	return services.NewFreshnessService(deps)
 }
 
 // ProvideFreshnessClearer creates the freshness reversal helper (#733), shared

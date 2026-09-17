@@ -47,10 +47,16 @@ func newFreshnessService(t *testing.T) (*services.FreshnessService, freshnessDep
 		projects:  repomocks.NewMockProjectRepository(t),
 		authz:     servicemocks.NewMockAuthorizationServiceInterface(t),
 	}
-	svc := services.NewFreshnessService(
-		deps.rules, deps.freshness, deps.settings, deps.audit, deps.schedules, deps.projects, deps.authz,
-		slog.New(slog.DiscardHandler),
-	)
+	svc := services.NewFreshnessService(services.FreshnessServiceDeps{
+		Rules:     deps.rules,
+		Freshness: deps.freshness,
+		Settings:  deps.settings,
+		Audit:     deps.audit,
+		Schedules: deps.schedules,
+		Projects:  deps.projects,
+		Authz:     deps.authz,
+		Logger:    slog.New(slog.DiscardHandler),
+	})
 	return svc, deps
 }
 

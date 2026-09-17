@@ -131,16 +131,16 @@ func TestIntegration_ReconcileLockContentionSkipsSecondReplica(t *testing.T) {
 // Only the reconcile path is exercised, so the nil dependencies the service
 // never reaches on it are left nil deliberately rather than mocked.
 func newReconcileIntegrationScheduler() *Scheduler {
-	freshnessSvc := services.NewFreshnessService(
-		postgres.NewFreshnessRuleRepository(integrationDB),
-		postgres.NewResourceFreshnessRepository(integrationDB),
-		postgres.NewTeamFreshnessSettingsRepository(integrationDB),
-		postgres.NewFreshnessAuditRepository(integrationDB),
-		postgres.NewScheduleRepository(integrationDB),
-		postgres.NewProjectRepository(integrationDB),
-		nil, // authz: the reconcile path is system-invoked and authorizes nothing.
-		discardLogger(),
-	)
+	freshnessSvc := services.NewFreshnessService(services.FreshnessServiceDeps{
+		Rules:     postgres.NewFreshnessRuleRepository(integrationDB),
+		Freshness: postgres.NewResourceFreshnessRepository(integrationDB),
+		Settings:  postgres.NewTeamFreshnessSettingsRepository(integrationDB),
+		Audit:     postgres.NewFreshnessAuditRepository(integrationDB),
+		Schedules: postgres.NewScheduleRepository(integrationDB),
+		Projects:  postgres.NewProjectRepository(integrationDB),
+		Authz:     nil, // the reconcile path is system-invoked and authorizes nothing.
+		Logger:    discardLogger(),
+	})
 	return New(
 		postgres.NewScheduleRepository(integrationDB), integrationDB, NewRegistry(),
 		Config{TickInterval: time.Hour, JobTimeout: time.Minute, DueLimit: 10},

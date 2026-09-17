@@ -94,6 +94,7 @@ var ProviderSet = wire.NewSet(
 	wire.Struct(new(services.PromptServiceDeps), "*"),
 	wire.Struct(new(services.ArtifactServiceDeps), "*"),
 	wire.Struct(new(services.BlueprintServiceDeps), "*"),
+	wire.Struct(new(services.FreshnessServiceDeps), "*"),
 	wire.Struct(new(services.TeamInvitationServiceDeps), "*"),
 	wire.Struct(new(providers.ActivityServiceDeps), "*"),
 	wire.Struct(new(providers.EmbeddingServiceDeps), "*"),
