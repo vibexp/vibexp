@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type UseFormReturn } from 'react-hook-form'
 import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ import type {
   CreateGitHubAppConfigRequest,
   GitHubAppConfigResponse,
   UpdateGitHubAppConfigRequest,
+  ValidateGitHubAppConfigResponse,
 } from '@/services/githubAppConfigService'
 import { githubAppConfigService } from '@/services/githubAppConfigService'
 
@@ -60,6 +61,84 @@ export interface GitHubAppConfigDialogProps {
     webhookUrl: string
     webhookSecret?: string
   }) => void | Promise<void>
+}
+
+/**
+ * Flags each missing secret on create. Returns false when any is missing.
+ */
+function requireSecretsOnCreate(
+  form: UseFormReturn<GitHubAppConfigFormValues>,
+  clientSecret: string,
+  privateKey: string
+): boolean {
+  if (clientSecret === '') {
+    form.setError('client_secret', { message: 'Client secret is required' })
+  }
+  if (privateKey === '') {
+    form.setError('private_key', { message: 'Private key is required' })
+  }
+  return clientSecret !== '' && privateKey !== ''
+}
+
+/**
+ * Sends the create or update request. `webhookSecret` is returned only on
+ * create, the one time the server discloses it.
+ */
+async function saveAppConfig(
+  isEdit: boolean,
+  teamId: string,
+  values: GitHubAppConfigFormValues,
+  clientSecret: string,
+  privateKey: string
+): Promise<{ webhookUrl: string; webhookSecret?: string }> {
+  if (isEdit) {
+    const request: UpdateGitHubAppConfigRequest = {
+      app_id: values.app_id.trim(),
+      app_slug: values.app_slug.trim(),
+      client_id: values.client_id.trim(),
+      // undefined, never '' — an explicit empty is a server-side
+      // validation error, not "clear this secret".
+      client_secret: clientSecret === '' ? undefined : clientSecret,
+      private_key: privateKey === '' ? undefined : privateKey,
+    }
+    const updated = await githubAppConfigService.updateAppConfig(
+      teamId,
+      request
+    )
+    return { webhookUrl: updated.webhook_url }
+  }
+
+  const request: CreateGitHubAppConfigRequest = {
+    app_id: values.app_id.trim(),
+    app_slug: values.app_slug.trim(),
+    client_id: values.client_id.trim(),
+    client_secret: clientSecret,
+    private_key: privateKey,
+  }
+  const created = await githubAppConfigService.createAppConfig(teamId, request)
+  return {
+    webhookUrl: created.webhook_url,
+    webhookSecret: created.webhook_secret,
+  }
+}
+
+/**
+ * Reports a failed validate probe on the field at fault, or as a toast when
+ * the failure does not map to a form field.
+ */
+function reportValidationFailure(
+  validation: ValidateGitHubAppConfigResponse,
+  form: UseFormReturn<GitHubAppConfigFormValues>
+) {
+  const failure = describeValidationFailure(
+    validation.details?.error_details,
+    validation.message
+  )
+  if (failure.field && failure.field in form.getValues()) {
+    form.setError(failure.field, { message: failure.description })
+  } else {
+    toast.error(failure.title, { description: failure.description })
+  }
 }
 
 /**
@@ -116,74 +195,32 @@ export function GitHubAppConfigDialog({
     const clientSecret = values.client_secret?.trim() ?? ''
     const privateKey = values.private_key?.trim() ?? ''
 
-    if (!isEdit && (clientSecret === '' || privateKey === '')) {
-      if (clientSecret === '') {
-        form.setError('client_secret', { message: 'Client secret is required' })
-      }
-      if (privateKey === '') {
-        form.setError('private_key', { message: 'Private key is required' })
-      }
+    if (!isEdit && !requireSecretsOnCreate(form, clientSecret, privateKey)) {
       return
     }
 
     setSubmitting(true)
     try {
-      let webhookUrl: string
-      let webhookSecret: string | undefined
-
-      if (isEdit) {
-        const request: UpdateGitHubAppConfigRequest = {
-          app_id: values.app_id.trim(),
-          app_slug: values.app_slug.trim(),
-          client_id: values.client_id.trim(),
-          // undefined, never '' — an explicit empty is a server-side
-          // validation error, not "clear this secret".
-          client_secret: clientSecret === '' ? undefined : clientSecret,
-          private_key: privateKey === '' ? undefined : privateKey,
-        }
-        const updated = await githubAppConfigService.updateAppConfig(
-          teamId,
-          request
-        )
-        webhookUrl = updated.webhook_url
-      } else {
-        const request: CreateGitHubAppConfigRequest = {
-          app_id: values.app_id.trim(),
-          app_slug: values.app_slug.trim(),
-          client_id: values.client_id.trim(),
-          client_secret: clientSecret,
-          private_key: privateKey,
-        }
-        const created = await githubAppConfigService.createAppConfig(
-          teamId,
-          request
-        )
-        webhookUrl = created.webhook_url
-        webhookSecret = created.webhook_secret
-      }
+      const saved = await saveAppConfig(
+        isEdit,
+        teamId,
+        values,
+        clientSecret,
+        privateKey
+      )
 
       // Validate-on-save: prove the stored credentials actually work before
       // telling anyone setup succeeded. A failed probe is reported on the field
       // at fault and the dialog stays open.
       const validation = await githubAppConfigService.validateAppConfig(teamId)
       if (!validation.is_valid) {
-        const failure = describeValidationFailure(
-          validation.details?.error_details,
-          validation.message
-        )
-        if (failure.field && failure.field in form.getValues()) {
-          form.setError(failure.field, {
-            message: failure.description,
-          })
-        } else {
-          toast.error(failure.title, { description: failure.description })
-        }
+        reportValidationFailure(validation, form)
         return
       }
 
       form.reset()
       onOpenChange(false)
-      await onSaved({ webhookUrl, webhookSecret })
+      await onSaved(saved)
     } catch (error) {
       toast.error(
         isEdit
