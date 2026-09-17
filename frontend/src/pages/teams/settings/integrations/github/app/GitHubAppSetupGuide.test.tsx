@@ -4,8 +4,10 @@ import { GitHubAppSetupGuide } from './GitHubAppSetupGuide'
 
 // JSX collapses a newline between `</strong>` and adjacent text to nothing, so
 // the rendered sentence hangs on how the source happens to be wrapped (#1029).
-// Assert the joined text rather than the markup: a reformat that drops or
-// doubles the space around the period is exactly the regression this guards.
+// Assert the joined text rather than the markup: a re-wrap that drops or
+// doubles the space around the period is exactly the regression this guards,
+// so compare `textContent` raw — normalising whitespace here would let a
+// doubled space through.
 it('renders the user-authorization sentence with correct spacing around the bold phrase', () => {
   const { container } = render(<GitHubAppSetupGuide teamId="team-1" />)
 
@@ -13,7 +15,7 @@ it('renders the user-authorization sentence with correct spacing around the bold
     p.textContent.includes('This is not optional')
   )
 
-  expect(paragraph?.textContent.replace(/\s+/g, ' ')).toContain(
+  expect(paragraph?.textContent).toContain(
     'Enable “Request user authorization (OAuth) during installation”. This is not optional:'
   )
 })
