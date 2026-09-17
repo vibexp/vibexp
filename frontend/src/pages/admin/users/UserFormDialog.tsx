@@ -31,6 +31,15 @@ export interface UserFormDialogProps {
   onSubmit: (values: UserFormValues) => void
 }
 
+/** Resolves the submit button's caption; in-flight state wins over the mode. */
+function submitLabel({
+  submitting,
+  creating,
+}: Readonly<{ submitting: boolean; creating: boolean }>): string {
+  if (submitting) return 'Saving…'
+  return creating ? 'Create user' : 'Save changes'
+}
+
 /**
  * One dialog for both creating and editing a user, because the API only lets an
  * admin edit the display name — a separate edit dialog would be this one with two
@@ -166,11 +175,7 @@ export function UserFormDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={!canSubmit}>
-              {submitting
-                ? 'Saving…'
-                : creating
-                  ? 'Create user'
-                  : 'Save changes'}
+              {submitLabel({ submitting, creating })}
             </Button>
           </DialogFooter>
         </form>
