@@ -123,20 +123,7 @@ func TestAuthContextKeysAreNotSetOutsideAuthenticatedContext(t *testing.T) {
 	for _, file := range files {
 		ast.Inspect(file, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
-			if !ok || len(call.Args) != 3 {
-				return true
-			}
-			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || sel.Sel.Name != "WithValue" {
-				return true
-			}
-			// Match context.WithValue(ctx, contextkeys.UserID, ...)
-			key, ok := call.Args[1].(*ast.SelectorExpr)
-			if !ok || key.Sel.Name != "UserID" {
-				return true
-			}
-			pkg, ok := key.X.(*ast.Ident)
-			if !ok || pkg.Name != "contextkeys" {
+			if !ok || !matchesUserIDWithValue(call) {
 				return true
 			}
 
@@ -154,4 +141,22 @@ func TestAuthContextKeysAreNotSetOutsideAuthenticatedContext(t *testing.T) {
 
 	require.Equal(t, 1, found,
 		"expected exactly one contextkeys.UserID assignment (inside %s)", authContextConstructor)
+}
+
+// matchesUserIDWithValue reports whether call is
+// context.WithValue(ctx, contextkeys.UserID, ...).
+func matchesUserIDWithValue(call *ast.CallExpr) bool {
+	if len(call.Args) != 3 {
+		return false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "WithValue" {
+		return false
+	}
+	key, ok := call.Args[1].(*ast.SelectorExpr)
+	if !ok || key.Sel.Name != "UserID" {
+		return false
+	}
+	pkg, ok := key.X.(*ast.Ident)
+	return ok && pkg.Name == "contextkeys"
 }
