@@ -40,10 +40,12 @@ describe('getConfigSections', () => {
   const serverName = 'vibexp_io_vibexp_team'
   const sections = getConfigSections(serverName)
 
-  it('exposes the single team-agnostic MCP endpoint', () => {
-    // Neutral placeholder default from siteConfig; real deployments override it
-    // via VITE_MCP_ENDPOINT (this is an open-source, self-hostable app).
-    expect(MCP_ENDPOINT).toBe('https://connect.example.com/mcp/v1/common')
+  it("defaults the endpoint to this instance's own origin", () => {
+    // #1039: the default must be a real, copy-pasteable URL for whatever
+    // instance the user is browsing, never the `connect.example.com`
+    // placeholder a self-hoster cannot reach.
+    expect(MCP_ENDPOINT).toBe(`${window.location.origin}/mcp/v1/common`)
+    expect(MCP_ENDPOINT).not.toContain('connect.example.com')
   })
 
   it('returns four configuration sections', () => {
@@ -131,5 +133,33 @@ describe('getConfigSections', () => {
     expect(claudeCode?.code).toBe(
       `claude mcp add --transport http ${serverName} ${MCP_ENDPOINT}`
     )
+  })
+})
+
+describe('MCP_ENDPOINT override', () => {
+  afterEach(() => {
+    delete window.__VIBEXP_ENV__
+    vi.resetModules()
+  })
+
+  it('prefers an explicitly configured VITE_MCP_ENDPOINT over the origin', async () => {
+    // MCP_ENDPOINT is computed once at module evaluation, so the runtime env
+    // has to be in place before a fresh import of the module graph.
+    window.__VIBEXP_ENV__ = {
+      VITE_MCP_ENDPOINT: 'https://mcp.self-hosted.example/mcp/v1/common',
+    }
+    vi.resetModules()
+
+    const fresh = await import('../config-sections')
+
+    expect(fresh.MCP_ENDPOINT).toBe(
+      'https://mcp.self-hosted.example/mcp/v1/common'
+    )
+    for (const section of fresh.getConfigSections('vibexp_io_vibexp_team')) {
+      expect(section.code).toContain(
+        'https://mcp.self-hosted.example/mcp/v1/common'
+      )
+      expect(section.code).not.toContain(window.location.origin)
+    }
   })
 })
