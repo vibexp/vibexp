@@ -279,22 +279,31 @@ func TestSettingsAliasPathItemsMatchCanonical(t *testing.T) {
 				t.Errorf("%q has no %s, but canonical %q does", alias, strings.ToUpper(method), canonical)
 				continue
 			}
-
-			aliasID, _ := aliasOp["operationId"].(string)
-			canonID, _ := canonOp["operationId"].(string)
-			if aliasID == canonID {
-				t.Errorf("%s %q reuses the canonical operationId %q — that is the duplicate this gate exists to prevent",
-					strings.ToUpper(method), alias, canonID)
-			}
-
-			// Compare everything else. The ids are expected to differ, so they
-			// are the only key excluded.
-			if !reflect.DeepEqual(withoutOperationID(aliasOp), withoutOperationID(canonOp)) {
-				t.Errorf("%s %q has drifted from its canonical %q — the two mounts serve the same handler, "+
-					"so their documentation must stay identical apart from operationId",
-					strings.ToUpper(method), alias, canonical)
-			}
+			assertAliasMethodMatchesCanonical(t, alias, canonical, method, aliasOp, canonOp)
 		}
+	}
+}
+
+// assertAliasMethodMatchesCanonical compares one HTTP method of an alias path
+// item against the same method on its canonical path item.
+func assertAliasMethodMatchesCanonical(
+	t *testing.T, alias, canonical, method string, aliasOp, canonOp map[string]any,
+) {
+	t.Helper()
+
+	aliasID, _ := aliasOp["operationId"].(string)
+	canonID, _ := canonOp["operationId"].(string)
+	if aliasID == canonID {
+		t.Errorf("%s %q reuses the canonical operationId %q — that is the duplicate this gate exists to prevent",
+			strings.ToUpper(method), alias, canonID)
+	}
+
+	// Compare everything else. The ids are expected to differ, so they
+	// are the only key excluded.
+	if !reflect.DeepEqual(withoutOperationID(aliasOp), withoutOperationID(canonOp)) {
+		t.Errorf("%s %q has drifted from its canonical %q — the two mounts serve the same handler, "+
+			"so their documentation must stay identical apart from operationId",
+			strings.ToUpper(method), alias, canonical)
 	}
 }
 
