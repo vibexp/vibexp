@@ -154,10 +154,10 @@ export function GitHubAppSetupGuide({
             <strong>
               “Request user authorization (OAuth) during installation”
             </strong>
-            . This is not optional: connecting an installation exchanges
-            GitHub’s authorization code for a user token to check that the
-            person can actually administer it. Without it the connect step fails
-            closed.
+            {'. '}
+            This is not optional: connecting an installation exchanges GitHub’s
+            authorization code for a user token to check that the person can
+            actually administer it. Without it the connect step fails closed.
           </p>
         </li>
 
