@@ -30,6 +30,15 @@ export const SidebarBrand = forwardRef<HTMLAnchorElement, SidebarBrandProps>(
     { showText = false, expanded = true, className, ...props },
     ref
   ) {
+    let wordmarkDisplay: string
+    if (showText) {
+      wordmarkDisplay = 'flex'
+    } else if (expanded) {
+      wordmarkDisplay = 'hidden lg:flex'
+    } else {
+      wordmarkDisplay = 'hidden'
+    }
+
     return (
       <Link
         ref={ref}
@@ -44,12 +53,7 @@ export const SidebarBrand = forwardRef<HTMLAnchorElement, SidebarBrandProps>(
         {...props}
       >
         <LogoMark />
-        <span
-          className={cn(
-            'flex-col leading-tight',
-            showText ? 'flex' : expanded ? 'hidden lg:flex' : 'hidden'
-          )}
-        >
+        <span className={cn('flex-col leading-tight', wordmarkDisplay)}>
           <span className="text-sm font-bold tracking-tight">VibeXP</span>
           <span className="text-muted-foreground text-xs font-normal">
             Your team&apos;s shared brain

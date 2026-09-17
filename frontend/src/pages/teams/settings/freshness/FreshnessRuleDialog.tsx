@@ -62,6 +62,14 @@ export function FreshnessRuleDialog({
   onSubmit,
 }: Readonly<FreshnessRuleDialogProps>) {
   const validationError = validateRule(form)
+  let submitLabel: string
+  if (submitting) {
+    submitLabel = 'Saving…'
+  } else if (editing) {
+    submitLabel = 'Save rule'
+  } else {
+    submitLabel = 'Create rule'
+  }
 
   const toggleResourceType = (
     value: (typeof RESOURCE_TYPE_OPTIONS)[number]['value']
@@ -231,7 +239,7 @@ export function FreshnessRuleDialog({
             onClick={onSubmit}
             data-testid="submit-rule-button"
           >
-            {submitting ? 'Saving…' : editing ? 'Save rule' : 'Create rule'}
+            {submitLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

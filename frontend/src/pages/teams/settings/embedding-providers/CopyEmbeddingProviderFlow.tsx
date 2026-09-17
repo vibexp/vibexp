@@ -109,6 +109,9 @@ function activationDescription(
   const { activation, providerName } = state
   const displaced = activation.displaced_model
   const count = activation.displaced_embedded_resources
+  const wipedClause = activation.embeddings_wiped
+    ? ', and the stale vectors were cleared first'
+    : ''
   return (
     <>
       <span className="font-medium">{providerName}</span> is now{' '}
@@ -130,11 +133,7 @@ function activationDescription(
         'Nothing is embedded with the previous model, so no existing vectors are affected.'
       )}{' '}
       {activation.reprocess_enqueued
-        ? `A background re-embed is already running${
-            activation.embeddings_wiped
-              ? ', and the stale vectors were cleared first'
-              : ''
-          }. Semantic search falls back to keyword matching until it completes.`
+        ? `A background re-embed is already running${wipedClause}. Semantic search falls back to keyword matching until it completes.`
         : 'Re-embedding regenerates them in the background; semantic search falls back to keyword matching until it completes.'}
     </>
   )

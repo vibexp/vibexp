@@ -75,6 +75,9 @@ function EvaluationCard({
 }: Readonly<EvaluationCardProps>) {
   const busy = saving || resetting
   const hasOverride = settings.source === 'team'
+  const defaultStaleFlags = settings.defaults.reversibility_enabled
+    ? 'stale flags cleared on use'
+    : 'stale flags kept until the next run'
   // A team whose stored interval came from the API directly may match no
   // preset. Showing it as an extra option preserves it instead of silently
   // rounding the team's configuration to the nearest preset on first save.
@@ -160,11 +163,7 @@ function EvaluationCard({
               {hasOverride
                 ? `Reset would restore ${describeInterval(
                     settings.defaults.interval_seconds
-                  ).toLowerCase()} evaluation and ${
-                    settings.defaults.reversibility_enabled
-                      ? 'stale flags cleared on use'
-                      : 'stale flags kept until the next run'
-                  }.`
+                  ).toLowerCase()} evaluation and ${defaultStaleFlags}.`
                 : ''}
             </p>
             <div className="flex gap-2">
