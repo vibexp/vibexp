@@ -32,7 +32,6 @@ type newRelationParams struct {
 // newRelation builds an edge row for the repository (which persists status and
 // origin verbatim; the tiered-trust rule lives in the service layer).
 func newRelation(p newRelationParams) *models.Relation {
-	createdBy := p.createdBy
 	return &models.Relation{
 		TeamID:       p.at.teamID,
 		ProjectID:    p.at.projectID,
@@ -43,7 +42,7 @@ func newRelation(p newRelationParams) *models.Relation {
 		RelationType: p.relType,
 		Origin:       p.origin,
 		Status:       p.status,
-		CreatedBy:    &createdBy,
+		CreatedBy:    &p.createdBy,
 	}
 }
 
