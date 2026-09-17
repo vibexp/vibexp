@@ -55,8 +55,9 @@ export function StatusCard({
             <span className="text-foreground font-medium">
               {provider.effective_from_address}
             </span>
-            . Configure a provider below to send the team&apos;s mail through
-            your own instead.
+            {'. '}
+            Configure a provider below to send the team&apos;s mail through your
+            own instead.
           </p>
         </CardContent>
       </Card>

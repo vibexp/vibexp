@@ -207,6 +207,15 @@ describe('ModelProviderDialog', () => {
     expect(screen.getByRole('combobox')).toHaveTextContent('OpenAI-compatible')
   })
 
+  it('describes the copy source with explicit spacing and punctuation (#1004)', () => {
+    renderCopyDialog()
+
+    expect(screen.getByText(/^Pre-filled from/)).toHaveTextContent(
+      "Pre-filled from Shared OpenAI in Platform Team. Adjust anything you want to differ here — the copy is a snapshot and changing it won't affect the other team.",
+      { normalizeWhitespace: false }
+    )
+  })
+
   it('renders the API key as non-editable, naming the source team', () => {
     renderCopyDialog()
 

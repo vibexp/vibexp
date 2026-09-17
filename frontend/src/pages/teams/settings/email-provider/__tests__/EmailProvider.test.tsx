@@ -121,6 +121,17 @@ describe('EmailProvider — unconfigured state', () => {
     expect(screen.getByText('noreply@instance.test')).toBeInTheDocument()
   })
 
+  it('punctuates the sender sentence with no stray space around the address (#1004)', async () => {
+    renderPage()
+
+    const sentence = (await screen.findByText('noreply@instance.test'))
+      .parentElement
+    expect(sentence).toHaveTextContent(
+      "Mail is currently sent from noreply@instance.test. Configure a provider below to send the team's mail through your own instead.",
+      { normalizeWhitespace: false }
+    )
+  })
+
   it('still offers an empty, editable form rather than nothing', async () => {
     renderPage()
 
