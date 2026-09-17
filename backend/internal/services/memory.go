@@ -76,29 +76,34 @@ type MemoryService struct {
 // Ensure MemoryService implements MemoryServiceInterface
 var _ MemoryServiceInterface = (*MemoryService)(nil)
 
-func NewMemoryService(
-	repo repositories.MemoryRepository,
-	teamService TeamServiceInterface,
-	authzService AuthorizationServiceInterface,
-	eventManager events.EventPublisher,
-	logger *slog.Logger,
-	contentVersionSvc ContentVersionServiceInterface,
-	commentRepo repositories.CommentRepository,
-	relationRepo repositories.RelationRepository,
-	freshnessClearer FreshnessClearer,
-	freshnessRepo repositories.ResourceFreshnessRepository,
-) *MemoryService {
+// MemoryServiceDeps groups the dependencies injected into MemoryService.
+// Wire fills it via wire.Struct (see the container ProviderSet).
+type MemoryServiceDeps struct {
+	Repo              repositories.MemoryRepository
+	TeamService       TeamServiceInterface
+	Authz             AuthorizationServiceInterface
+	EventManager      events.EventPublisher
+	ContentVersionSvc ContentVersionServiceInterface
+	CommentRepo       repositories.CommentRepository
+	RelationRepo      repositories.RelationRepository
+	FreshnessClearer  FreshnessClearer
+	FreshnessRepo     repositories.ResourceFreshnessRepository
+	Logger            *slog.Logger
+}
+
+// NewMemoryService creates a new MemoryService.
+func NewMemoryService(deps MemoryServiceDeps) *MemoryService {
 	return &MemoryService{
-		repo:              repo,
-		teamService:       teamService,
-		authz:             authzService,
-		eventManager:      eventManager,
-		contentVersionSvc: contentVersionSvc,
-		commentRepo:       commentRepo,
-		relationRepo:      relationRepo,
-		freshnessClearer:  freshnessClearer,
-		freshnessRepo:     freshnessRepo,
-		logger:            logger,
+		repo:              deps.Repo,
+		teamService:       deps.TeamService,
+		authz:             deps.Authz,
+		eventManager:      deps.EventManager,
+		contentVersionSvc: deps.ContentVersionSvc,
+		commentRepo:       deps.CommentRepo,
+		relationRepo:      deps.RelationRepo,
+		freshnessClearer:  deps.FreshnessClearer,
+		freshnessRepo:     deps.FreshnessRepo,
+		logger:            deps.Logger,
 	}
 }
 

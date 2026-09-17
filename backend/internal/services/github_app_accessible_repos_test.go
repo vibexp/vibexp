@@ -21,17 +21,12 @@ func buildGitHubAppServiceForURLTest(
 	githubClient *MockGitHubAppClient,
 ) GitHubAppServiceInterface {
 	logger, _ := logtest.New()
-	return NewGitHubAppService(
-		installationRepo,
-		nil, // projectRepo not needed
-		nil, // blueprintRepo not needed
-		resolverFor(githubClient),
-		nil, // encryptionSvc not needed
-		nil, // attachmentSvc not needed
-		nil, // eventManager not needed
-		allowAllAuthz{},
-		logger,
-	)
+	return NewGitHubAppService(GitHubAppServiceDeps{
+		InstallationRepo: installationRepo,
+		Clients:          resolverFor(githubClient),
+		Authz:            allowAllAuthz{},
+		Logger:           logger,
+	})
 }
 
 // sampleInstallation builds a non-suspended installation for testing.

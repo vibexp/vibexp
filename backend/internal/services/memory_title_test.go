@@ -65,8 +65,11 @@ func TestMemoryService_CreateMemory_Title(t *testing.T) {
 			}
 
 			logger, _ := logtest.New()
-			service := services.NewMemoryService(
-				mockRepo, nil, permissiveAuthz(t), nil, logger, nil, nil, nil, nil, nil)
+			service := services.NewMemoryService(services.MemoryServiceDeps{
+				Repo:   mockRepo,
+				Authz:  permissiveAuthz(t),
+				Logger: logger,
+			})
 			memory, err := service.CreateMemory("user-123", "team-123", &models.CreateMemoryRequest{
 				ProjectID: memoryTitleTestProjectID,
 				Title:     tt.title,
@@ -144,8 +147,11 @@ func TestMemoryService_UpdateMemory_TitleThreeStates(t *testing.T) {
 			}
 
 			logger, _ := logtest.New()
-			service := services.NewMemoryService(
-				mockRepo, nil, permissiveAuthz(t), nil, logger, nil, nil, nil, nil, nil)
+			service := services.NewMemoryService(services.MemoryServiceDeps{
+				Repo:   mockRepo,
+				Authz:  permissiveAuthz(t),
+				Logger: logger,
+			})
 			memory, err := service.UpdateMemory("user-123", "team-123", "memory-123",
 				&models.UpdateMemoryRequest{Title: tt.title})
 
@@ -180,8 +186,12 @@ func TestMemoryService_TitleOnlyEditCreatesNoContentVersion(t *testing.T) {
 
 	versionSvc := servicemocks.NewMockContentVersionServiceInterface(t)
 	logger, _ := logtest.New()
-	service := services.NewMemoryService(
-		mockRepo, nil, permissiveAuthz(t), nil, logger, versionSvc, nil, nil, nil, nil)
+	service := services.NewMemoryService(services.MemoryServiceDeps{
+		Repo:              mockRepo,
+		Authz:             permissiveAuthz(t),
+		Logger:            logger,
+		ContentVersionSvc: versionSvc,
+	})
 
 	_, err := service.UpdateMemory("user-123", "team-123", "memory-123",
 		&models.UpdateMemoryRequest{Title: models.NewOptionalString("Just a title")})

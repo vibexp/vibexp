@@ -88,17 +88,16 @@ func newImportLoggingService(
 ) *GitHubAppService {
 	eventManager := new(MockEventPublisher)
 	encryptionSvc := new(MockEncryptionService)
-	return NewGitHubAppService(
-		installationRepo,
-		projectRepo,
-		blueprintRepo,
-		resolverFor(githubClient),
-		encryptionSvc,
-		nil, // attachmentSvc not needed
-		eventManager,
-		allowAllAuthz{},
-		logger,
-	).(*GitHubAppService)
+	return NewGitHubAppService(GitHubAppServiceDeps{
+		InstallationRepo: installationRepo,
+		ProjectRepo:      projectRepo,
+		BlueprintRepo:    blueprintRepo,
+		Clients:          resolverFor(githubClient),
+		EncryptionSvc:    encryptionSvc,
+		EventManager:     eventManager,
+		Authz:            allowAllAuthz{},
+		Logger:           logger,
+	}).(*GitHubAppService)
 }
 
 // TestImportSingleFile_SuccessLog verifies that a successfully imported blueprint

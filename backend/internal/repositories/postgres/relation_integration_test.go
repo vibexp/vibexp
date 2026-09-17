@@ -14,20 +14,35 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
+// newRelationParams bundles the fields of an edge row. The endpoint identifiers
+// and the type/origin/status triple are all plain strings, so naming them at the
+// call site is what stops two of them being silently transposed (go:S107).
+type newRelationParams struct {
+	at        accessTeam
+	createdBy string
+	fromType  string
+	fromID    string
+	toType    string
+	toID      string
+	relType   string
+	origin    string
+	status    string
+}
+
 // newRelation builds an edge row for the repository (which persists status and
 // origin verbatim; the tiered-trust rule lives in the service layer).
-func newRelation(at accessTeam, createdBy, fromType, fromID, toType, toID, relType, origin, status string) *models.Relation {
+func newRelation(p newRelationParams) *models.Relation {
 	return &models.Relation{
-		TeamID:       at.teamID,
-		ProjectID:    at.projectID,
-		FromType:     fromType,
-		FromID:       fromID,
-		ToType:       toType,
-		ToID:         toID,
-		RelationType: relType,
-		Origin:       origin,
-		Status:       status,
-		CreatedBy:    &createdBy,
+		TeamID:       p.at.teamID,
+		ProjectID:    p.at.projectID,
+		FromType:     p.fromType,
+		FromID:       p.fromID,
+		ToType:       p.toType,
+		ToID:         p.toID,
+		RelationType: p.relType,
+		Origin:       p.origin,
+		Status:       p.status,
+		CreatedBy:    &p.createdBy,
 	}
 }
 
@@ -39,9 +54,13 @@ func TestIntegrationRelation_CreateIsIdempotent(t *testing.T) {
 	repo := NewRelationRepository(integrationDB)
 	ctx := context.Background()
 
-	first, created, err := repo.Create(ctx, newRelation(at, at.ownerID,
-		models.RelationResourceTypeArtifact, artifactID, models.RelationResourceTypeBlueprint, blueprintID,
-		models.RelationTypeGovernedBy, models.RelationOriginHuman, models.RelationStatusConfirmed))
+	first, created, err := repo.Create(ctx, newRelation(newRelationParams{
+		at: at, createdBy: at.ownerID,
+		fromType: models.RelationResourceTypeArtifact, fromID: artifactID,
+		toType: models.RelationResourceTypeBlueprint, toID: blueprintID,
+		relType: models.RelationTypeGovernedBy,
+		origin:  models.RelationOriginHuman, status: models.RelationStatusConfirmed,
+	}))
 	require.NoError(t, err)
 	assert.True(t, created, "the first insert reports created=true")
 	require.NotEmpty(t, first.ID)
@@ -49,9 +68,13 @@ func TestIntegrationRelation_CreateIsIdempotent(t *testing.T) {
 
 	// Same endpoint tuple, different origin/status: the unique index makes this a
 	// no-op that returns the PRE-EXISTING row unchanged.
-	second, created, err := repo.Create(ctx, newRelation(at, at.memberID,
-		models.RelationResourceTypeArtifact, artifactID, models.RelationResourceTypeBlueprint, blueprintID,
-		models.RelationTypeGovernedBy, models.RelationOriginAI, models.RelationStatusSuggested))
+	second, created, err := repo.Create(ctx, newRelation(newRelationParams{
+		at: at, createdBy: at.memberID,
+		fromType: models.RelationResourceTypeArtifact, fromID: artifactID,
+		toType: models.RelationResourceTypeBlueprint, toID: blueprintID,
+		relType: models.RelationTypeGovernedBy,
+		origin:  models.RelationOriginAI, status: models.RelationStatusSuggested,
+	}))
 	require.NoError(t, err)
 	assert.False(t, created, "the duplicate reports created=false")
 	assert.Equal(t, first.ID, second.ID, "duplicate create must return the existing row")
@@ -69,15 +92,23 @@ func TestIntegrationRelation_ListBothDirectionsAndDeleteEitherSide(t *testing.T)
 	ctx := context.Background()
 
 	// Outgoing: main --governed-by--> blueprint.
-	_, _, err := repo.Create(ctx, newRelation(at, at.ownerID,
-		models.RelationResourceTypeArtifact, mainID, models.RelationResourceTypeBlueprint, blueprintID,
-		models.RelationTypeGovernedBy, models.RelationOriginHuman, models.RelationStatusConfirmed))
+	_, _, err := repo.Create(ctx, newRelation(newRelationParams{
+		at: at, createdBy: at.ownerID,
+		fromType: models.RelationResourceTypeArtifact, fromID: mainID,
+		toType: models.RelationResourceTypeBlueprint, toID: blueprintID,
+		relType: models.RelationTypeGovernedBy,
+		origin:  models.RelationOriginHuman, status: models.RelationStatusConfirmed,
+	}))
 	require.NoError(t, err)
 
 	// Incoming: successor --supersedes--> main.
-	_, _, err = repo.Create(ctx, newRelation(at, at.ownerID,
-		models.RelationResourceTypeArtifact, otherArtifactID, models.RelationResourceTypeArtifact, mainID,
-		models.RelationTypeSupersedes, models.RelationOriginHuman, models.RelationStatusConfirmed))
+	_, _, err = repo.Create(ctx, newRelation(newRelationParams{
+		at: at, createdBy: at.ownerID,
+		fromType: models.RelationResourceTypeArtifact, fromID: otherArtifactID,
+		toType: models.RelationResourceTypeArtifact, toID: mainID,
+		relType: models.RelationTypeSupersedes,
+		origin:  models.RelationOriginHuman, status: models.RelationStatusConfirmed,
+	}))
 	require.NoError(t, err)
 
 	related, total, err := repo.ListByResource(ctx, at.teamID, models.RelationResourceTypeArtifact, mainID, 1, 10)
@@ -115,9 +146,13 @@ func TestIntegrationRelation_ConfirmFlipsOnce(t *testing.T) {
 	repo := NewRelationRepository(integrationDB)
 	ctx := context.Background()
 
-	created, wasCreated, err := repo.Create(ctx, newRelation(at, at.ownerID,
-		models.RelationResourceTypeArtifact, artifactID, models.RelationResourceTypeBlueprint, blueprintID,
-		models.RelationTypeGovernedBy, models.RelationOriginAI, models.RelationStatusSuggested))
+	created, wasCreated, err := repo.Create(ctx, newRelation(newRelationParams{
+		at: at, createdBy: at.ownerID,
+		fromType: models.RelationResourceTypeArtifact, fromID: artifactID,
+		toType: models.RelationResourceTypeBlueprint, toID: blueprintID,
+		relType: models.RelationTypeGovernedBy,
+		origin:  models.RelationOriginAI, status: models.RelationStatusSuggested,
+	}))
 	require.NoError(t, err)
 	require.True(t, wasCreated)
 	require.Equal(t, models.RelationStatusSuggested, created.Status)

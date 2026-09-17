@@ -36,17 +36,16 @@ func newCallbackTestServiceWithAuthz(
 	encryptionSvc := new(MockEncryptionService)
 	logger := slog.New(slog.DiscardHandler)
 
-	return NewGitHubAppService(
-		installationRepo,
-		projectRepo,
-		blueprintRepo,
-		resolverFor(githubClient),
-		encryptionSvc,
-		nil, // attachmentSvc not needed
-		eventManager,
-		authzSvc,
-		logger,
-	)
+	return NewGitHubAppService(GitHubAppServiceDeps{
+		InstallationRepo: installationRepo,
+		ProjectRepo:      projectRepo,
+		BlueprintRepo:    blueprintRepo,
+		Clients:          resolverFor(githubClient),
+		EncryptionSvc:    encryptionSvc,
+		EventManager:     eventManager,
+		Authz:            authzSvc,
+		Logger:           logger,
+	})
 }
 
 // expectAuthorizedInstaller stubs the #463 caller-authority leg as passing, so

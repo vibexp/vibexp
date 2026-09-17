@@ -48,28 +48,32 @@ type GitHubAppService struct {
 	logger *slog.Logger
 }
 
+// GitHubAppServiceDeps groups the dependencies injected into GitHubAppService.
+// Wire fills it via wire.Struct (see the container ProviderSet).
+type GitHubAppServiceDeps struct {
+	InstallationRepo repositories.GitHubInstallationRepository
+	ProjectRepo      repositories.ProjectRepository
+	BlueprintRepo    repositories.BlueprintRepository
+	Clients          GitHubAppClientResolver
+	EncryptionSvc    EncryptionServiceInterface
+	AttachmentSvc    AttachmentServiceInterface
+	EventManager     events.EventPublisher
+	Authz            AuthorizationServiceInterface
+	Logger           *slog.Logger
+}
+
 // NewGitHubAppService creates a new GitHub App service
-func NewGitHubAppService(
-	installationRepo repositories.GitHubInstallationRepository,
-	projectRepo repositories.ProjectRepository,
-	blueprintRepo repositories.BlueprintRepository,
-	clients GitHubAppClientResolver,
-	encryptionSvc EncryptionServiceInterface,
-	attachmentSvc AttachmentServiceInterface,
-	eventManager events.EventPublisher,
-	authz AuthorizationServiceInterface,
-	logger *slog.Logger,
-) GitHubAppServiceInterface {
+func NewGitHubAppService(deps GitHubAppServiceDeps) GitHubAppServiceInterface {
 	return &GitHubAppService{
-		installationRepo: installationRepo,
-		projectRepo:      projectRepo,
-		blueprintRepo:    blueprintRepo,
-		clients:          clients,
-		encryptionSvc:    encryptionSvc,
-		attachmentSvc:    attachmentSvc,
-		eventManager:     eventManager,
-		authz:            authz,
-		logger:           logger,
+		installationRepo: deps.InstallationRepo,
+		projectRepo:      deps.ProjectRepo,
+		blueprintRepo:    deps.BlueprintRepo,
+		clients:          deps.Clients,
+		encryptionSvc:    deps.EncryptionSvc,
+		attachmentSvc:    deps.AttachmentSvc,
+		eventManager:     deps.EventManager,
+		authz:            deps.Authz,
+		logger:           deps.Logger,
 	}
 }
 

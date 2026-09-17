@@ -484,8 +484,11 @@ func TestServices_ForwardTheStaleFilterToTheRepository(t *testing.T) {
 						return freshnessPointerMatches(f.Freshness, wantSet)
 					})).Return([]models.Memory{}, 0, nil).Once()
 
-				svc := services.NewMemoryService(repo, nil, permissiveFreshnessAuthz(t), nil,
-					discardTestLogger(), nil, nil, nil, nil, nil)
+				svc := services.NewMemoryService(services.MemoryServiceDeps{
+					Repo:   repo,
+					Authz:  permissiveFreshnessAuthz(t),
+					Logger: discardTestLogger(),
+				})
 				_, err := svc.ListMemories("user-1", services.MemoryFilters{
 					TeamID: freshnessTestTeamID, Freshness: filter, Page: 1, Limit: 20,
 				})

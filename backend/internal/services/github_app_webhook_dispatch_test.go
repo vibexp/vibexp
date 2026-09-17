@@ -23,10 +23,12 @@ func TestGitHubAppService_HandleWebhookEvent_ScopedToApp(t *testing.T) {
 	newSvc := func(t *testing.T) (GitHubAppServiceInterface, *MockGitHubInstallationRepository) {
 		t.Helper()
 		installationRepo := new(MockGitHubInstallationRepository)
-		svc := NewGitHubAppService(
-			installationRepo, nil, nil, resolverFor(new(MockGitHubAppClient)),
-			nil, nil, nil, allowAllAuthz{}, newTestLogger(),
-		)
+		svc := NewGitHubAppService(GitHubAppServiceDeps{
+			InstallationRepo: installationRepo,
+			Clients:          resolverFor(new(MockGitHubAppClient)),
+			Authz:            allowAllAuthz{},
+			Logger:           newTestLogger(),
+		})
 		return svc, installationRepo
 	}
 
