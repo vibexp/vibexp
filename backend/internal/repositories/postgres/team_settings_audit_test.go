@@ -42,16 +42,26 @@ func setupTeamSettingsAuditTest(t *testing.T) (*TeamSettingsAuditRepository, sql
 	return repo.(*TeamSettingsAuditRepository), mock
 }
 
-// teamSettingsAuditRow builds one row in the canonical column order. Any of the
-// optional references may be nil, which is how a custom-types copy and a
-// deleted actor are modelled.
-func teamSettingsAuditRow(
-	id string, actorUserID, sourceTeamID, sourceResourceID, createdResourceID interface{},
-	surface string, detail string, createdAt time.Time,
-) *sqlmock.Rows {
+// teamSettingsAuditRowArgs carries the columns of one mock row. The optional
+// references are interface{} so they can be left unset (nil), which is how a
+// custom-types copy and a deleted actor are modelled; named fields keep those
+// same-typed references from being silently transposed at a call site.
+type teamSettingsAuditRowArgs struct {
+	ID                string
+	ActorUserID       interface{}
+	SourceTeamID      interface{}
+	SourceResourceID  interface{}
+	CreatedResourceID interface{}
+	Surface           string
+	Detail            string
+	CreatedAt         time.Time
+}
+
+// teamSettingsAuditRow builds one row in the canonical column order.
+func teamSettingsAuditRow(args teamSettingsAuditRowArgs) *sqlmock.Rows {
 	return sqlmock.NewRows(teamSettingsAuditCols()).AddRow(
-		id, "team-1", actorUserID, surface, sourceTeamID,
-		sourceResourceID, createdResourceID, []byte(detail), createdAt,
+		args.ID, "team-1", args.ActorUserID, args.Surface, args.SourceTeamID,
+		args.SourceResourceID, args.CreatedResourceID, []byte(args.Detail), args.CreatedAt,
 	)
 }
 
@@ -62,11 +72,16 @@ func TestTeamSettingsAuditRepository_Append_Provider(t *testing.T) {
 	mock.ExpectQuery(`INSERT INTO team_settings_audit`).
 		WithArgs("team-1", strPtr("user-1"), models.SettingsAuditSurfaceModelProvider,
 			strPtr("team-2"), strPtr("src-1"), strPtr("new-1"), detail).
-		WillReturnRows(teamSettingsAuditRow(
-			"audit-1", "user-1", "team-2", "src-1", "new-1",
-			models.SettingsAuditSurfaceModelProvider, `{"name":"OpenAI (copy)"}`,
-			time.Now().UTC(),
-		))
+		WillReturnRows(teamSettingsAuditRow(teamSettingsAuditRowArgs{
+			ID:                "audit-1",
+			ActorUserID:       "user-1",
+			SourceTeamID:      "team-2",
+			SourceResourceID:  "src-1",
+			CreatedResourceID: "new-1",
+			Surface:           models.SettingsAuditSurfaceModelProvider,
+			Detail:            `{"name":"OpenAI (copy)"}`,
+			CreatedAt:         time.Now().UTC(),
+		}))
 
 	entry := &models.TeamSettingsAudit{
 		TeamID:            "team-1",
@@ -97,10 +112,14 @@ func TestTeamSettingsAuditRepository_Append_NilDetailBecomesEmptyObject(t *testi
 	mock.ExpectQuery(`INSERT INTO team_settings_audit`).
 		WithArgs("team-1", strPtr("user-1"), models.SettingsAuditSurfaceCustomTypes,
 			strPtr("team-2"), nil, nil, json.RawMessage(`{}`)).
-		WillReturnRows(teamSettingsAuditRow(
-			"audit-2", "user-1", "team-2", nil, nil,
-			models.SettingsAuditSurfaceCustomTypes, `{}`, time.Now().UTC(),
-		))
+		WillReturnRows(teamSettingsAuditRow(teamSettingsAuditRowArgs{
+			ID:           "audit-2",
+			ActorUserID:  "user-1",
+			SourceTeamID: "team-2",
+			Surface:      models.SettingsAuditSurfaceCustomTypes,
+			Detail:       `{}`,
+			CreatedAt:    time.Now().UTC(),
+		}))
 
 	entry := &models.TeamSettingsAudit{
 		TeamID:       "team-1",
@@ -126,10 +145,13 @@ func TestTeamSettingsAuditRepository_Append_NullActorScans(t *testing.T) {
 	mock.ExpectQuery(`INSERT INTO team_settings_audit`).
 		WithArgs("team-1", nil, models.SettingsAuditSurfaceEmbeddingProvider,
 			strPtr("team-2"), nil, nil, json.RawMessage(`{}`)).
-		WillReturnRows(teamSettingsAuditRow(
-			"audit-3", nil, "team-2", nil, nil,
-			models.SettingsAuditSurfaceEmbeddingProvider, `{}`, time.Now().UTC(),
-		))
+		WillReturnRows(teamSettingsAuditRow(teamSettingsAuditRowArgs{
+			ID:           "audit-3",
+			SourceTeamID: "team-2",
+			Surface:      models.SettingsAuditSurfaceEmbeddingProvider,
+			Detail:       `{}`,
+			CreatedAt:    time.Now().UTC(),
+		}))
 
 	entry := &models.TeamSettingsAudit{
 		TeamID:       "team-1",
