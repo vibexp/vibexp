@@ -212,12 +212,7 @@ func TestBuildPasses_ArgumentsMatchPlaceholders(t *testing.T) {
 			require.Len(t, passes, 4, "exact, strict, relaxed, trigram")
 
 			for _, pass := range passes {
-				highest := 0
-				for i := 1; i <= 9; i++ {
-					if strings.Contains(pass.query, "$"+string(rune('0'+i))) {
-						highest = i
-					}
-				}
+				highest := highestPlaceholder(pass.query)
 				assert.Equal(t, len(pass.args), highest,
 					"pass %q binds %d args but references up to $%d — an unreferenced "+
 						"parameter is rejected by Postgres as 42P18; query was:\n%s",
@@ -233,6 +228,18 @@ func TestBuildPasses_ArgumentsMatchPlaceholders(t *testing.T) {
 			}
 		})
 	}
+}
+
+// highestPlaceholder returns the highest single-digit $N placeholder the query
+// references, or 0 when it references none.
+func highestPlaceholder(query string) int {
+	highest := 0
+	for i := 1; i <= 9; i++ {
+		if strings.Contains(query, "$"+string(rune('0'+i))) {
+			highest = i
+		}
+	}
+	return highest
 }
 
 // TestBuildPasses_ExpressionsMatchMigrationIndexes keeps the query expressions
