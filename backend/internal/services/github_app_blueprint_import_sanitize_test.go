@@ -25,10 +25,16 @@ func newSanitizeTestService() (*GitHubAppService, *MockBlueprintRepository) {
 
 	logger := slog.New(slog.DiscardHandler)
 
-	svc := NewGitHubAppService(
-		installationRepo, projectRepo, blueprintRepo,
-		resolverFor(githubClient), encryptionSvc, nil, eventManager, allowAllAuthz{}, logger,
-	)
+	svc := NewGitHubAppService(GitHubAppServiceDeps{
+		InstallationRepo: installationRepo,
+		ProjectRepo:      projectRepo,
+		BlueprintRepo:    blueprintRepo,
+		Clients:          resolverFor(githubClient),
+		EncryptionSvc:    encryptionSvc,
+		EventManager:     eventManager,
+		Authz:            allowAllAuthz{},
+		Logger:           logger,
+	})
 	return svc.(*GitHubAppService), blueprintRepo
 }
 

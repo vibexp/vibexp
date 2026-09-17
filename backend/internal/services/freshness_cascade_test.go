@@ -102,10 +102,12 @@ func freshnessCascadeCases() []freshnessCascadeCase {
 					Return(&models.Memory{ID: cascadeMemoryID, UserID: resRBACCaller, TeamID: resRBACTeamID}, nil).Once()
 				repo.EXPECT().Delete(mock.Anything, resRBACCaller, resRBACTeamID, cascadeMemoryID).Return(nil).Once()
 
-				svc := NewMemoryService(
-					repo, nil, authzForRole(t, models.TeamMemberRoleMember), nil, logger, nil, nil, nil, nil,
-					freshnessRepo,
-				)
+				svc := NewMemoryService(MemoryServiceDeps{
+					Repo:          repo,
+					Authz:         authzForRole(t, models.TeamMemberRoleMember),
+					Logger:        logger,
+					FreshnessRepo: freshnessRepo,
+				})
 				return svc.DeleteMemory(resRBACCaller, resRBACTeamID, cascadeMemoryID)
 			},
 		},

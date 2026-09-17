@@ -85,7 +85,12 @@ func TestMemoryService_Delete_CascadesComments(t *testing.T) {
 	commentRepo.EXPECT().DeleteByResource(mock.Anything, commentTeamID, models.CommentResourceTypeMemory, memoryID).
 		Return(int64(1), nil).Once()
 
-	svc := NewMemoryService(repo, nil, authzForRole(t, models.TeamMemberRoleMember), nil, logger, nil, commentRepo, nil, nil, nil)
+	svc := NewMemoryService(MemoryServiceDeps{
+		Repo:        repo,
+		Authz:       authzForRole(t, models.TeamMemberRoleMember),
+		Logger:      logger,
+		CommentRepo: commentRepo,
+	})
 	require.NoError(t, svc.DeleteMemory(commentCaller, commentTeamID, memoryID))
 }
 

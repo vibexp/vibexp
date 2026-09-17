@@ -31,17 +31,13 @@ func buildGitHubAppServiceForReposTest(
 	if logger == nil {
 		logger, _ = logtest.New()
 	}
-	return NewGitHubAppService(
-		installationRepo,
-		projectRepo,
-		nil, // blueprintRepo not needed
-		resolverFor(githubClient),
-		nil, // encryptionSvc not needed
-		nil, // attachmentSvc not needed
-		nil, // eventManager not needed
-		allowAllAuthz{},
-		logger,
-	)
+	return NewGitHubAppService(GitHubAppServiceDeps{
+		InstallationRepo: installationRepo,
+		ProjectRepo:      projectRepo,
+		Clients:          resolverFor(githubClient),
+		Authz:            allowAllAuthz{},
+		Logger:           logger,
+	})
 }
 
 func sampleInstallationForRepos() *models.GitHubInstallation {

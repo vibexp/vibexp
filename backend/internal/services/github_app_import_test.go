@@ -590,17 +590,16 @@ func setupTestService(
 	encryptionSvc := new(MockEncryptionService)
 	logger := slog.New(slog.DiscardHandler)
 
-	return NewGitHubAppService(
-		installationRepo,
-		projectRepo,
-		blueprintRepo,
-		resolverFor(githubClient),
-		encryptionSvc,
-		nil, // attachmentSvc not needed
-		eventManager,
-		allowAllAuthz{},
-		logger,
-	)
+	return NewGitHubAppService(GitHubAppServiceDeps{
+		InstallationRepo: installationRepo,
+		ProjectRepo:      projectRepo,
+		BlueprintRepo:    blueprintRepo,
+		Clients:          resolverFor(githubClient),
+		EncryptionSvc:    encryptionSvc,
+		EventManager:     eventManager,
+		Authz:            allowAllAuthz{},
+		Logger:           logger,
+	})
 }
 
 func assertImportProjectResult(
@@ -1525,17 +1524,16 @@ func TestGitHubAppService_ImportBlueprintsFromRepository(t *testing.T) {
 			encryptionSvc := new(MockEncryptionService)
 			logger := slog.New(slog.DiscardHandler)
 
-			service := NewGitHubAppService(
-				installationRepo,
-				projectRepo,
-				blueprintRepo,
-				resolverFor(githubClient),
-				encryptionSvc,
-				nil, // attachmentSvc not needed
-				eventManager,
-				allowAllAuthz{},
-				logger,
-			)
+			service := NewGitHubAppService(GitHubAppServiceDeps{
+				InstallationRepo: installationRepo,
+				ProjectRepo:      projectRepo,
+				BlueprintRepo:    blueprintRepo,
+				Clients:          resolverFor(githubClient),
+				EncryptionSvc:    encryptionSvc,
+				EventManager:     eventManager,
+				Authz:            allowAllAuthz{},
+				Logger:           logger,
+			})
 
 			report, err := service.ImportBlueprintsFromRepository(
 				context.Background(),
@@ -1764,17 +1762,16 @@ func TestGitHubAppService_ImportSingleFile_FrontMatter(t *testing.T) {
 			encryptionSvc := new(MockEncryptionService)
 			logger := slog.New(slog.DiscardHandler)
 
-			service := NewGitHubAppService(
-				installationRepo,
-				projectRepo,
-				blueprintRepo,
-				resolverFor(githubClient),
-				encryptionSvc,
-				nil, // attachmentSvc not needed
-				eventManager,
-				allowAllAuthz{},
-				logger,
-			)
+			service := NewGitHubAppService(GitHubAppServiceDeps{
+				InstallationRepo: installationRepo,
+				ProjectRepo:      projectRepo,
+				BlueprintRepo:    blueprintRepo,
+				Clients:          resolverFor(githubClient),
+				EncryptionSvc:    encryptionSvc,
+				EventManager:     eventManager,
+				Authz:            allowAllAuthz{},
+				Logger:           logger,
+			})
 
 			report, err := service.ImportBlueprintsFromRepository(
 				context.Background(),

@@ -83,7 +83,15 @@ func (s *SearchService) Search(
 	// rather than any process-wide config.
 	ranking := s.settings.Resolve(ctx, teamID)
 
-	pageRows, total, err := s.fetchPage(ctx, teamID, vector, model, keyword, entityTypes, req, ranking)
+	pageRows, total, err := s.fetchPage(ctx, FetchPageParams{
+		TeamID:      teamID,
+		Vector:      vector,
+		Model:       model,
+		Keyword:     keyword,
+		EntityTypes: entityTypes,
+		Req:         req,
+		Ranking:     ranking,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -120,34 +128,44 @@ func (s *SearchService) Search(
 	}, nil
 }
 
+// FetchPageParams carries the already-resolved inputs of one page fetch.
+// Bundling them keeps the signature stable as filtering and ranking inputs grow,
+// and removes the chance of transposing two same-typed arguments (go:S107).
+// ctx stays a separate first parameter, per Go convention.
+//
+// Ranking is the caller's already-resolved per-team config, passed in rather
+// than read from the service so a single search cannot straddle two profiles.
+type FetchPageParams struct {
+	TeamID      string
+	Vector      []float32
+	Model       string
+	Keyword     bool
+	EntityTypes []string
+	Req         *models.SearchRequest
+	Ranking     SearchRankingConfig
+}
+
 // fetchPage returns the rows for the requested page plus the full match count.
 // With recency ranking disabled it asks the repository for exactly the page
 // (relevance order). With it enabled it pulls a relevance-ordered candidate pool,
-// re-ranks by the blended score in memory, and slices out the page. The keyword
+// re-ranks by the blended score in memory, and slices out the page. The Keyword
 // flag selects the full-text fallback (SearchKeyword) over semantic search
 // (SearchSimilar); both return the same SearchResultRow shape, so the ranking and
 // pagination logic below is identical for either path.
-//
-// ranking is the caller's already-resolved per-team config, passed in rather
-// than read from the service so a single search cannot straddle two profiles.
 func (s *SearchService) fetchPage(
 	ctx context.Context,
-	teamID string,
-	vector []float32,
-	model string,
-	keyword bool,
-	entityTypes []string,
-	req *models.SearchRequest,
-	ranking SearchRankingConfig,
+	p FetchPageParams,
 ) ([]models.SearchResultRow, int, error) {
+	req := p.Req
+	ranking := p.Ranking
 	offset := (req.Page - 1) * req.PerPage
 
 	fetch := func(limit, offset int) ([]models.SearchResultRow, int, error) {
 		page := repositories.Page{Limit: limit, Offset: offset}
-		if keyword {
-			return s.repo.SearchKeyword(ctx, teamID, req.Query, entityTypes, req.ProjectID, page)
+		if p.Keyword {
+			return s.repo.SearchKeyword(ctx, p.TeamID, req.Query, p.EntityTypes, req.ProjectID, page)
 		}
-		return s.repo.SearchSimilar(ctx, teamID, vector, model, entityTypes, req.ProjectID, page)
+		return s.repo.SearchSimilar(ctx, p.TeamID, p.Vector, p.Model, p.EntityTypes, req.ProjectID, page)
 	}
 
 	if !ranking.Enabled {

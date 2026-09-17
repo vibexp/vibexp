@@ -356,23 +356,10 @@ func ProvideAgentInvocationService(
 	return services.NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
 }
 
-// ProvideMemoryService creates a new MemoryService
-func ProvideMemoryService(
-	repo repositories.MemoryRepository,
-	teamService services.TeamServiceInterface,
-	authzService services.AuthorizationServiceInterface,
-	eventManager events.EventPublisher,
-	logger *slog.Logger,
-	contentVersionSvc services.ContentVersionServiceInterface,
-	commentRepo repositories.CommentRepository,
-	relationRepo repositories.RelationRepository,
-	freshnessClearer services.FreshnessClearer,
-	freshnessRepo repositories.ResourceFreshnessRepository,
-) services.MemoryServiceInterface {
-	return services.NewMemoryService(
-		repo, teamService, authzService, eventManager, logger, contentVersionSvc,
-		commentRepo, relationRepo, freshnessClearer, freshnessRepo,
-	)
+// ProvideMemoryService creates a new MemoryService. Wire fills the deps struct
+// via wire.Struct (see the container ProviderSet).
+func ProvideMemoryService(deps services.MemoryServiceDeps) services.MemoryServiceInterface {
+	return services.NewMemoryService(deps)
 }
 
 // EmbeddingServiceDeps groups the dependencies of ProvideEmbeddingService. Wire
@@ -811,29 +798,10 @@ func ProvideGitHubAppClientResolver(
 	return services.NewGitHubAppClientResolver(repo, enc, logger)
 }
 
-// ProvideGitHubAppService creates a new GitHubAppService
-func ProvideGitHubAppService(
-	installationRepo repositories.GitHubInstallationRepository,
-	projectRepo repositories.ProjectRepository,
-	blueprintRepo repositories.BlueprintRepository,
-	clients services.GitHubAppClientResolver,
-	encryptionSvc services.EncryptionServiceInterface,
-	attachmentSvc services.AttachmentServiceInterface,
-	eventManager events.EventPublisher,
-	authzSvc services.AuthorizationServiceInterface,
-	logger *slog.Logger,
-) services.GitHubAppServiceInterface {
-	return services.NewGitHubAppService(
-		installationRepo,
-		projectRepo,
-		blueprintRepo,
-		clients,
-		encryptionSvc,
-		attachmentSvc,
-		eventManager,
-		authzSvc,
-		logger,
-	)
+// ProvideGitHubAppService creates a new GitHubAppService. Wire fills the deps
+// struct via wire.Struct (see the container ProviderSet).
+func ProvideGitHubAppService(deps services.GitHubAppServiceDeps) services.GitHubAppServiceInterface {
+	return services.NewGitHubAppService(deps)
 }
 
 // ProvideSchedulerRegistry creates the scheduler's job registry and registers
