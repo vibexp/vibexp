@@ -284,6 +284,44 @@ func membersPageCases() []membersPageCase {
 	}
 }
 
+// setupCallerRole wires the team ownership and the caller's membership for one
+// GetTeamMembers case. The caller is always a plain member row; tc.callerIsOwner
+// only decides whether the team's OwnerID is the caller, which is what gates
+// the invitation status on each returned row.
+func setupCallerRole(teamRepo *mocks.MockTeamRepository, memberRepo *mocks.MockTeamMemberRepository, tc membersPageCase) {
+	ownerID := roleTestOwnerID
+	if tc.callerIsOwner {
+		ownerID = roleTestCaller
+	}
+	teamOwnedBy(teamRepo, ownerID)
+	callerWithRole(memberRepo, models.TeamMemberRoleMember)
+}
+
+// wireMemberLookups returns tc.memberIDs as the team's member rows and wires
+// each member's user lookup. The lookup for tc.failUserID fails, which is what
+// drives the "omitted from page and total" case.
+func wireMemberLookups(
+	memberRepo *mocks.MockTeamMemberRepository, userRepo *mocks.MockUserRepository, tc membersPageCase,
+) {
+	members := make([]models.TeamMember, 0, len(tc.memberIDs))
+	for _, id := range tc.memberIDs {
+		members = append(members, models.TeamMember{
+			TeamID:    roleTestTeamID,
+			UserID:    id,
+			Role:      models.TeamMemberRoleMember,
+			CreatedAt: time.Unix(0, 0).UTC(),
+		})
+		if id == tc.failUserID {
+			userRepo.EXPECT().GetByID(mock.Anything, id).
+				Return(nil, stderrors.New("connection reset")).Once()
+		} else {
+			userRepo.EXPECT().GetByID(mock.Anything, id).
+				Return(&models.User{ID: id, Email: id + "@example.com", Name: "User " + id}, nil).Once()
+		}
+	}
+	memberRepo.EXPECT().GetByTeamID(mock.Anything, roleTestTeamID).Return(members, nil).Once()
+}
+
 func TestTeamService_GetTeamMembers_Pagination(t *testing.T) {
 	for _, tc := range membersPageCases() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -291,30 +329,8 @@ func TestTeamService_GetTeamMembers_Pagination(t *testing.T) {
 			memberRepo := mocks.NewMockTeamMemberRepository(t)
 			userRepo := mocks.NewMockUserRepository(t)
 
-			ownerID := roleTestOwnerID
-			if tc.callerIsOwner {
-				ownerID = roleTestCaller
-			}
-			teamOwnedBy(teamRepo, ownerID)
-			callerWithRole(memberRepo, models.TeamMemberRoleMember)
-
-			members := make([]models.TeamMember, 0, len(tc.memberIDs))
-			for _, id := range tc.memberIDs {
-				members = append(members, models.TeamMember{
-					TeamID:    roleTestTeamID,
-					UserID:    id,
-					Role:      models.TeamMemberRoleMember,
-					CreatedAt: time.Unix(0, 0).UTC(),
-				})
-				if id == tc.failUserID {
-					userRepo.EXPECT().GetByID(mock.Anything, id).
-						Return(nil, stderrors.New("connection reset")).Once()
-				} else {
-					userRepo.EXPECT().GetByID(mock.Anything, id).
-						Return(&models.User{ID: id, Email: id + "@example.com", Name: "User " + id}, nil).Once()
-				}
-			}
-			memberRepo.EXPECT().GetByTeamID(mock.Anything, roleTestTeamID).Return(members, nil).Once()
+			setupCallerRole(teamRepo, memberRepo, tc)
+			wireMemberLookups(memberRepo, userRepo, tc)
 
 			svc := createTestTeamService(teamRepo, memberRepo, userRepo)
 			resp, err := svc.GetTeamMembers(context.Background(), roleTestCaller, roleTestTeamID, tc.page, tc.pageSize)
