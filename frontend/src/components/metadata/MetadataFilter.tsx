@@ -377,12 +377,12 @@ function MetadataValueList({
               </CommandItem>
             ))}
             {truncated && (
-              <div
-                className="px-3 py-2 text-xs text-muted-foreground"
-                role="status"
-              >
+              // <output> carries an implicit "status" role; `block` restores
+              // the <div> layout it replaced, since <output> defaults to
+              // display: inline.
+              <output className="block px-3 py-2 text-xs text-muted-foreground">
                 More values available — keep typing to narrow.
-              </div>
+              </output>
             )}
           </>
         )}
