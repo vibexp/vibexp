@@ -156,36 +156,47 @@ func acceptInvitationCases() []acceptInvitationCase {
 	}
 }
 
+// arrangeAcceptInvitation builds the service and wires every mock one
+// AcceptInvitation case needs: the (optionally mutated) pending invitation, the
+// caller's user row, the membership lookup chosen by tc.alreadyMember, and the
+// Create/UpdateStatus outcomes injected by tc.createErr/tc.updateErr. Which of
+// those calls actually happen is what the test body asserts per case.
+func arrangeAcceptInvitation(tc acceptInvitationCase) (*TeamInvitationService, *invitationActionMocks) {
+	svc, m := newInvitationActionMocks()
+	invitation := pendingInvitationFixture()
+	if tc.mutate != nil {
+		tc.mutate(invitation)
+	}
+
+	m.invitationRepo.On("GetByToken", mock.Anything, invActionToken).Return(invitation, nil)
+	m.userRepo.On("GetByID", mock.Anything, invActionUserID).
+		Return(&models.User{ID: invActionUserID, Email: tc.userEmail}, nil)
+	if tc.alreadyMember {
+		m.teamMemberRepo.On("GetByTeamAndUser", mock.Anything, invActionTeamID, invActionUserID).
+			Return(&models.TeamMember{TeamID: invActionTeamID, UserID: invActionUserID}, nil)
+	} else {
+		m.teamMemberRepo.On("GetByTeamAndUser", mock.Anything, invActionTeamID, invActionUserID).
+			Return((*models.TeamMember)(nil), repositories.ErrTeamMemberNotFound)
+	}
+	// The role on the new member row must be the role from the
+	// invitation (admin here), never a default.
+	m.teamMemberRepo.On("Create", mock.Anything, mock.MatchedBy(func(member *models.TeamMember) bool {
+		return member.TeamID == invActionTeamID &&
+			member.UserID == invActionUserID &&
+			member.Role == invitation.Role &&
+			!member.CreatedAt.IsZero() &&
+			!member.UpdatedAt.IsZero()
+	})).Return(tc.createErr)
+	m.invitationRepo.On("UpdateStatus", mock.Anything, invActionInvID, models.InvitationStatusAccepted).
+		Return(tc.updateErr)
+
+	return svc, m
+}
+
 func TestTeamInvitationService_AcceptInvitation(t *testing.T) {
 	for _, tc := range acceptInvitationCases() {
 		t.Run(tc.name, func(t *testing.T) {
-			svc, m := newInvitationActionMocks()
-			invitation := pendingInvitationFixture()
-			if tc.mutate != nil {
-				tc.mutate(invitation)
-			}
-
-			m.invitationRepo.On("GetByToken", mock.Anything, invActionToken).Return(invitation, nil)
-			m.userRepo.On("GetByID", mock.Anything, invActionUserID).
-				Return(&models.User{ID: invActionUserID, Email: tc.userEmail}, nil)
-			if tc.alreadyMember {
-				m.teamMemberRepo.On("GetByTeamAndUser", mock.Anything, invActionTeamID, invActionUserID).
-					Return(&models.TeamMember{TeamID: invActionTeamID, UserID: invActionUserID}, nil)
-			} else {
-				m.teamMemberRepo.On("GetByTeamAndUser", mock.Anything, invActionTeamID, invActionUserID).
-					Return((*models.TeamMember)(nil), repositories.ErrTeamMemberNotFound)
-			}
-			// The role on the new member row must be the role from the
-			// invitation (admin here), never a default.
-			m.teamMemberRepo.On("Create", mock.Anything, mock.MatchedBy(func(member *models.TeamMember) bool {
-				return member.TeamID == invActionTeamID &&
-					member.UserID == invActionUserID &&
-					member.Role == invitation.Role &&
-					!member.CreatedAt.IsZero() &&
-					!member.UpdatedAt.IsZero()
-			})).Return(tc.createErr)
-			m.invitationRepo.On("UpdateStatus", mock.Anything, invActionInvID, models.InvitationStatusAccepted).
-				Return(tc.updateErr)
+			svc, m := arrangeAcceptInvitation(tc)
 
 			teamID, err := svc.AcceptInvitation(context.Background(), invActionToken, invActionUserID)
 
