@@ -11,7 +11,7 @@ export function mockViewportWidth(initialWidth: number) {
   const matches = (query: string): boolean => {
     const m = /\(min-width:\s*([\d.]+)(px|rem)\)/.exec(query)
     if (!m) return false
-    const threshold = parseFloat(m[1]) * (m[2] === 'rem' ? 16 : 1)
+    const threshold = Number.parseFloat(m[1]) * (m[2] === 'rem' ? 16 : 1)
     return width >= threshold
   }
 
