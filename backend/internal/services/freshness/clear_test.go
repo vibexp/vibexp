@@ -76,7 +76,7 @@ func (d clearerDeps) expectReversibility(enabled bool) {
 		}, nil).Once()
 }
 
-func clear(t *testing.T, c *freshness.Clearer, reason string) error {
+func clearWithReason(t *testing.T, c *freshness.Clearer, reason string) error {
 	t.Helper()
 	return clearVia(t, c, reason, testAccessMedium)
 }
@@ -136,7 +136,7 @@ func TestClearIfStale_Matrix(t *testing.T) {
 					Return(nil).Once()
 			}
 
-			require.NoError(t, clear(t, clearer, tt.reason))
+			require.NoError(t, clearWithReason(t, clearer, tt.reason))
 
 			if !tt.wantCleared {
 				// No DeleteByResource and no audit Create were expected; the
@@ -315,7 +315,7 @@ func TestClearIfStale_ClearsWhenNoRuleClaimsTheResource(t *testing.T) {
 	deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).Return(true, nil).Once()
 	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
 
-	require.NoError(t, clear(t, clearer, models.FreshnessReasonAccessed))
+	require.NoError(t, clearWithReason(t, clearer, models.FreshnessReasonAccessed))
 	// No rule lookup either: with no ids to resolve there is nothing to ask
 	// about, and the t-bound rule mock fails the test if one happened.
 }
@@ -328,7 +328,7 @@ func TestClearIfStale_FreshResourceReadsNeitherRulesNorSettings(t *testing.T) {
 
 	deps.state.EXPECT().GetByResource(mock.Anything, "prompt", testPromptID).Return(nil, nil).Once()
 
-	require.NoError(t, clear(t, clearer, models.FreshnessReasonAccessed))
+	require.NoError(t, clearWithReason(t, clearer, models.FreshnessReasonAccessed))
 
 	deps.rules.AssertNotCalled(t, "ListByTeam", mock.Anything, mock.Anything, mock.Anything)
 	deps.settings.AssertNotCalled(t, "Get", mock.Anything, mock.Anything)
@@ -346,7 +346,7 @@ func TestClearIfStale_AbsentSettingsInheritTheDefault(t *testing.T) {
 	deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).Return(true, nil).Once()
 	deps.audit.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
 
-	require.NoError(t, clear(t, clearer, models.FreshnessReasonAccessed))
+	require.NoError(t, clearWithReason(t, clearer, models.FreshnessReasonAccessed))
 	require.True(t, models.DefaultFreshnessReversibilityEnabled,
 		"this test only means anything while the default is ON")
 }
@@ -362,7 +362,7 @@ func TestClearIfStale_LostRaceWritesNoAudit(t *testing.T) {
 	deps.expectReversibility(true)
 	deps.state.EXPECT().DeleteByResource(mock.Anything, "prompt", testPromptID).Return(false, nil).Once()
 
-	require.NoError(t, clear(t, clearer, models.FreshnessReasonAccessed))
+	require.NoError(t, clearWithReason(t, clearer, models.FreshnessReasonAccessed))
 }
 
 // The stored row is the authority on tenancy: a caller passing a team that does
@@ -373,7 +373,7 @@ func TestClearIfStale_RefusesAnotherTeamsResource(t *testing.T) {
 	deps.state.EXPECT().GetByResource(mock.Anything, "prompt", testPromptID).
 		Return(&models.ResourceFreshness{TeamID: "someone-else", ResourceID: testPromptID}, nil).Once()
 
-	require.NoError(t, clear(t, clearer, models.FreshnessReasonAccessed))
+	require.NoError(t, clearWithReason(t, clearer, models.FreshnessReasonAccessed))
 	// No settings read, no delete, no audit — the t-bound mocks enforce it.
 }
 
@@ -385,7 +385,7 @@ func TestClearIfStale_RejectsANonReversalReason(t *testing.T) {
 		t.Run("reason "+reason, func(t *testing.T) {
 			clearer, _ := newClearer(t)
 
-			err := clear(t, clearer, reason)
+			err := clearWithReason(t, clearer, reason)
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "is not a reversal reason")
@@ -451,7 +451,7 @@ func TestClearIfStale_PropagatesRepositoryErrors(t *testing.T) {
 			clearer, deps := newClearer(t)
 			tt.setup(deps)
 
-			err := clear(t, clearer, models.FreshnessReasonAccessed)
+			err := clearWithReason(t, clearer, models.FreshnessReasonAccessed)
 
 			require.Error(t, err)
 			assert.ErrorIs(t, err, failure)
