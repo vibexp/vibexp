@@ -22,6 +22,9 @@ import (
 // msgSkippedBlueprintFile is the log message emitted for each repository file skipped during blueprint import.
 const msgSkippedBlueprintFile = "Skipped file during blueprint import"
 
+// skipReasonEmptyFile is the import-report skip reason for a file with no content.
+const skipReasonEmptyFile = "Empty file"
+
 // attachmentOwnerTypeBlueprint is the attachment owner_type under which Agent
 // Skill companion files are stored (matches the server's ownerTypeBlueprint and
 // the registered blueprint attachment authorizer).
@@ -723,7 +726,7 @@ func (s *GitHubAppService) shouldSkipImportFile(
 			"team_id", teamID,
 			"reason", "empty_content",
 		).Debug("Skipped empty file during blueprint import")
-		recordSkippedImportFile(report, file.Path, "Empty file")
+		recordSkippedImportFile(report, file.Path, skipReasonEmptyFile)
 		return true
 	}
 
@@ -899,7 +902,7 @@ func (s *GitHubAppService) storeCompanion(
 func companionPreflightSkip(file *external.GitHubFile) (string, bool) {
 	switch {
 	case len(file.Content) == 0:
-		return "Empty file", true
+		return skipReasonEmptyFile, true
 	case int64(len(file.Content)) > MaxAttachmentFileSize:
 		return "File exceeds the 5 MB per-file limit", true
 	default:
@@ -926,7 +929,7 @@ func companionSkipReason(err error) string {
 	case errors.Is(err, ErrAttachmentDisallowedType):
 		return "File type is not allowed"
 	case errors.Is(err, ErrAttachmentEmpty):
-		return "Empty file"
+		return skipReasonEmptyFile
 	case errors.Is(err, ErrInvalidAttachmentRelativePath):
 		return "Invalid companion path"
 	default:
