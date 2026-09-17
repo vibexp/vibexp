@@ -162,9 +162,6 @@ export function AdminDashboard() {
     [access.sources]
   )
 
-  const bucketNoun =
-    granularity === 'day' ? 'day' : granularity === 'week' ? 'week' : 'month'
-
   return (
     <div className="space-y-8">
       <DashboardControls
@@ -198,7 +195,7 @@ export function AdminDashboard() {
         />
       </Section>
 
-      <Section title="Growth" description={`New entities per ${bucketNoun}.`}>
+      <Section title="Growth" description={`New entities per ${granularity}.`}>
         <TimeSeriesBarChart
           title="New entities"
           totalLabel="Total created"

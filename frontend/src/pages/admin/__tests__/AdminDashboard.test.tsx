@@ -193,6 +193,8 @@ it('refetches the series when the granularity changes, and only the series', asy
   await waitFor(() => {
     expect(lastSeriesQuery().granularity).toBe('week')
   })
+  // The Growth copy names the bucket, so it has to follow the control.
+  expect(await screen.findByText('New entities per week.')).toBeInTheDocument()
   // The totals do not depend on the range, so they are not refetched.
   expect(mockAdminService.getDashboardOverview).toHaveBeenCalledTimes(1)
 })
