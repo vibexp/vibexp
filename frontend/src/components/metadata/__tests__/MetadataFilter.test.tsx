@@ -266,7 +266,15 @@ describe('MetadataFilter', () => {
     )
 
     await openPopover(user)
-    expect(await screen.findByText(/More values available/)).toBeInTheDocument()
+    const notice = await screen.findByText(/More values available/)
+    expect(notice).toBeInTheDocument()
+    // The notice is a native <output> (implicit "status" role) rather than a
+    // <div role="status"> — see typescript:S6819. `block` is load-bearing:
+    // <output> defaults to display: inline, so dropping it silently collapses
+    // the notice's own line.
+    expect(notice.tagName).toBe('OUTPUT')
+    expect(notice).toHaveRole('status')
+    expect(notice.classList.contains('block')).toBe(true)
     unmount()
 
     render(
