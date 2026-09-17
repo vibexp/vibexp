@@ -275,8 +275,9 @@ export function ModelProviderDialog({
                 <span className="font-medium">{copySource.provider.name}</span>{' '}
                 in{' '}
                 <span className="font-medium">{copySource.sourceTeamName}</span>
-                . Adjust anything you want to differ here — the copy is a
-                snapshot and changing it won&apos;t affect the other team.
+                {'. '}
+                Adjust anything you want to differ here — the copy is a snapshot
+                and changing it won&apos;t affect the other team.
               </>
             ) : (
               'Model providers point VibeXP at an OpenAI-compatible LLM backend.'
