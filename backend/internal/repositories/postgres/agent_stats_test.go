@@ -133,19 +133,9 @@ func TestAgentRepository_Create(t *testing.T) {
 
 			err := repo.Create(ctx, tt.agent)
 
-			if tt.wantErrIs != nil || tt.wantErr != "" {
-				require.Error(t, err)
-				if tt.wantErrIs != nil {
-					assert.ErrorIs(t, err, tt.wantErrIs)
-				}
-				if tt.wantErr != "" {
-					assert.Contains(t, err.Error(), tt.wantErr)
-				}
-			} else {
-				require.NoError(t, err)
-				if tt.validateFn != nil {
-					tt.validateFn(t, tt.agent)
-				}
+			assertWantRepoErr(t, err, tt.wantErrIs, tt.wantErr)
+			if tt.validateFn != nil {
+				tt.validateFn(t, tt.agent)
 			}
 
 			assert.NoError(t, mock.ExpectationsWereMet())
