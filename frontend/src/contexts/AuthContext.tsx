@@ -142,7 +142,7 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
   const logout = useCallback(() => {
     // Clear GA4 user_id before logout (no-op without a GTM container)
     try {
-      setGA4UserId(undefined)
+      setGA4UserId()
     } catch (ga4UserIdError) {
       console.error('Failed to clear GA4 user_id:', ga4UserIdError)
     }
