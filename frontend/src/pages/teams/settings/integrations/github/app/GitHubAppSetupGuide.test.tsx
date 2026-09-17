@@ -8,14 +8,16 @@ import { GitHubAppSetupGuide } from './GitHubAppSetupGuide'
 // doubles the space around the period is exactly the regression this guards,
 // so compare `textContent` raw — normalising whitespace here would let a
 // doubled space through.
-it('renders the user-authorization sentence with correct spacing around the bold phrase', () => {
-  const { container } = render(<GitHubAppSetupGuide teamId="team-1" />)
+describe('GitHubAppSetupGuide', () => {
+  it('renders the user-authorization sentence with correct spacing around the bold phrase', () => {
+    const { container } = render(<GitHubAppSetupGuide teamId="team-1" />)
 
-  const paragraph = Array.from(container.querySelectorAll('p')).find(p =>
-    p.textContent.includes('This is not optional')
-  )
+    const paragraph = Array.from(container.querySelectorAll('p')).find(p =>
+      p.textContent.includes('This is not optional')
+    )
 
-  expect(paragraph?.textContent).toContain(
-    'Enable “Request user authorization (OAuth) during installation”. This is not optional:'
-  )
+    expect(paragraph?.textContent).toContain(
+      'Enable “Request user authorization (OAuth) during installation”. This is not optional:'
+    )
+  })
 })
