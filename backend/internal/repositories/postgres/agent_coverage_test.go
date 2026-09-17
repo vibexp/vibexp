@@ -33,6 +33,7 @@ func TestAgentRepository_GetByIDCrossTeam(t *testing.T) {
 
 	tests := []struct {
 		name       string
+		id         string
 		setupMock  func(mock sqlmock.Sqlmock)
 		wantErrIs  error
 		wantErr    string
@@ -40,6 +41,7 @@ func TestAgentRepository_GetByIDCrossTeam(t *testing.T) {
 	}{
 		{
 			name: "found returns the agent regardless of team",
+			id:   "agent-9",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows(agentCrossTeamColumns).AddRow(
 					"agent-9", "user-1", "team-other", "Shared Agent", "desc",
@@ -58,6 +60,7 @@ func TestAgentRepository_GetByIDCrossTeam(t *testing.T) {
 		},
 		{
 			name: "no rows maps to ErrAgentNotFound",
+			id:   "missing",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`FROM agents`).
 					WithArgs("missing", "user-1").
@@ -67,6 +70,7 @@ func TestAgentRepository_GetByIDCrossTeam(t *testing.T) {
 		},
 		{
 			name: "generic error is wrapped",
+			id:   "agent-9",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`FROM agents`).
 					WithArgs("agent-9", "user-1").
@@ -83,24 +87,13 @@ func TestAgentRepository_GetByIDCrossTeam(t *testing.T) {
 
 			tt.setupMock(mock)
 
-			id := "agent-9"
-			if tt.name == "no rows maps to ErrAgentNotFound" {
-				id = "missing"
-			}
-			got, err := repo.GetByIDCrossTeam(ctx, "user-1", id)
+			got, err := repo.GetByIDCrossTeam(ctx, "user-1", tt.id)
 
-			if tt.wantErrIs != nil || tt.wantErr != "" {
-				require.Error(t, err)
-				if tt.wantErrIs != nil {
-					assert.ErrorIs(t, err, tt.wantErrIs)
-				}
-				if tt.wantErr != "" {
-					assert.Contains(t, err.Error(), tt.wantErr)
-				}
-				assert.Nil(t, got)
-			} else {
-				require.NoError(t, err)
+			assertWantRepoErr(t, err, tt.wantErrIs, tt.wantErr)
+			if tt.validateFn != nil {
 				tt.validateFn(t, got)
+			} else {
+				assert.Nil(t, got)
 			}
 			assert.NoError(t, mock.ExpectationsWereMet())
 		})
