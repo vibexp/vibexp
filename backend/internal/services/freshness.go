@@ -141,26 +141,29 @@ type FreshnessService struct {
 
 var _ FreshnessServiceInterface = (*FreshnessService)(nil)
 
+// FreshnessServiceDeps groups the dependencies injected into FreshnessService.
+type FreshnessServiceDeps struct {
+	Rules     repositories.FreshnessRuleRepository
+	Freshness repositories.ResourceFreshnessRepository
+	Settings  repositories.TeamFreshnessSettingsRepository
+	Audit     repositories.FreshnessAuditRepository
+	Schedules repositories.ScheduleRepository
+	Projects  repositories.ProjectRepository
+	Authz     AuthorizationServiceInterface
+	Logger    *slog.Logger
+}
+
 // NewFreshnessService creates a new FreshnessService.
-func NewFreshnessService(
-	rules repositories.FreshnessRuleRepository,
-	freshness repositories.ResourceFreshnessRepository,
-	settings repositories.TeamFreshnessSettingsRepository,
-	audit repositories.FreshnessAuditRepository,
-	schedules repositories.ScheduleRepository,
-	projects repositories.ProjectRepository,
-	authzService AuthorizationServiceInterface,
-	logger *slog.Logger,
-) *FreshnessService {
+func NewFreshnessService(deps FreshnessServiceDeps) *FreshnessService {
 	return &FreshnessService{
-		rules:     rules,
-		freshness: freshness,
-		settings:  settings,
-		audit:     audit,
-		schedules: schedules,
-		projects:  projects,
-		authz:     authzService,
-		logger:    logger,
+		rules:     deps.Rules,
+		freshness: deps.Freshness,
+		settings:  deps.Settings,
+		audit:     deps.Audit,
+		schedules: deps.Schedules,
+		projects:  deps.Projects,
+		authz:     deps.Authz,
+		logger:    deps.Logger,
 	}
 }
 
