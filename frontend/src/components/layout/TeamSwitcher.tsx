@@ -90,11 +90,12 @@ export function TeamSwitcher() {
   const personal = isPersonalPath(pathname)
   const disabled = personal || pinned !== null
 
-  const tooltip = personal
-    ? 'Your team does not apply to this page'
-    : pinned !== null
-      ? `This page is scoped to ${currentTeam?.name ?? 'this team'}`
-      : undefined
+  let tooltip: string | undefined
+  if (personal) {
+    tooltip = 'Your team does not apply to this page'
+  } else if (pinned !== null) {
+    tooltip = `This page is scoped to ${currentTeam?.name ?? 'this team'}`
+  }
 
   return (
     <span title={tooltip}>

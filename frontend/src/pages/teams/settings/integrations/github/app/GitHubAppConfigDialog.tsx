@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -236,6 +236,20 @@ export function GitHubAppConfigDialog({
     }
   })
 
+  let submitContent: ReactNode
+  if (submitting) {
+    submitContent = (
+      <>
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Validating…
+      </>
+    )
+  } else if (isEdit) {
+    submitContent = 'Save changes'
+  } else {
+    submitContent = 'Register App'
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
@@ -372,16 +386,7 @@ export function GitHubAppConfigDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={submitting}>
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Validating…
-                  </>
-                ) : isEdit ? (
-                  'Save changes'
-                ) : (
-                  'Register App'
-                )}
+                {submitContent}
               </Button>
             </DialogFooter>
           </form>

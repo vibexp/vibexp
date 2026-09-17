@@ -44,9 +44,10 @@ export function FreshnessBadge({
   // threshold), so there is nothing to print but a count. The Resource
   // Freshness settings page is where the criteria live; naming them here would
   // mean inventing labels or dumping UUIDs at the user.
+  const rulePlural = ruleCount === 1 ? '' : 's'
   const ruleLine =
     ruleCount > 0
-      ? `Flagged by ${String(ruleCount)} freshness rule${ruleCount === 1 ? '' : 's'}.`
+      ? `Flagged by ${String(ruleCount)} freshness rule${rulePlural}.`
       : 'The rule that flagged it no longer exists.'
 
   return (

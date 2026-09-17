@@ -54,6 +54,14 @@ export function Header() {
   const showDetailsToggle = detailsRegistered
   const detailsPressed = isDesktop ? detailsOpen : undefined
   const DetailsIcon = isDesktop ? PanelRight : Info
+  let detailsLabel: string
+  if (!isDesktop) {
+    detailsLabel = 'Open details'
+  } else if (detailsOpen) {
+    detailsLabel = 'Collapse details'
+  } else {
+    detailsLabel = 'Expand details'
+  }
 
   return (
     <header className="bg-background sticky top-0 z-30 flex h-14 items-center gap-2 border-b px-4 md:px-6">
@@ -101,13 +109,7 @@ export function Header() {
           <Button
             variant={detailsPressed ? 'secondary' : 'ghost'}
             size="icon"
-            aria-label={
-              isDesktop
-                ? detailsOpen
-                  ? 'Collapse details'
-                  : 'Expand details'
-                : 'Open details'
-            }
+            aria-label={detailsLabel}
             aria-pressed={detailsPressed}
             data-testid="details-toggle"
             onClick={() => {
