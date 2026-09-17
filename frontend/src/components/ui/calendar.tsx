@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import * as React from 'react'
-import { DayPicker } from 'react-day-picker'
+import { type ChevronProps, DayPicker } from 'react-day-picker'
 
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -19,6 +19,24 @@ import { cn } from '@/lib/utils'
  * `defaultMonth`, `disabled` and the rest behave exactly as documented upstream.
  */
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
+
+/**
+ * Own chevron so the arrows match every other icon in the app rather than the
+ * library's inline SVG. Only `className` and `orientation` are forwarded: the
+ * library also passes `size` and `disabled`, and handing `disabled` to an
+ * <svg> makes React warn about a non-boolean attribute.
+ *
+ * Deliberately at module scope rather than inline in `Calendar`'s `components`
+ * prop (SonarCloud `typescript:S6478`). `react-day-picker` renders this entry
+ * as a real component (`createElement(components.Chevron, …)`), so an arrow
+ * rebuilt with the object literal on every render is a new component *type*
+ * each time — React would unmount and remount the chevron subtree instead of
+ * updating it in place, discarding transient DOM state such as focus.
+ */
+function CalendarChevron({ className, orientation }: Readonly<ChevronProps>) {
+  const Icon = orientation === 'left' ? ChevronLeft : ChevronRight
+  return <Icon className={cn('size-4', className)} />
+}
 
 export function Calendar({
   className,
@@ -71,16 +89,7 @@ export function Calendar({
         hidden: 'invisible',
         ...classNames,
       }}
-      components={{
-        // Own chevron so the arrows match every other icon in the app rather
-        // than the library's inline SVG. Only `className` and `orientation` are
-        // forwarded: the library also passes `size` and `disabled`, and handing
-        // `disabled` to an <svg> makes React warn about a non-boolean attribute.
-        Chevron: ({ className: chevronClass, orientation }) => {
-          const Icon = orientation === 'left' ? ChevronLeft : ChevronRight
-          return <Icon className={cn('size-4', chevronClass)} />
-        },
-      }}
+      components={{ Chevron: CalendarChevron }}
       {...props}
     />
   )
