@@ -112,7 +112,7 @@ export interface PropertyLimits {
 }
 
 function numberIn(block: string, key: string): number | undefined {
-  const match = new RegExp(`^\\s*${key}: (\\d+)`, 'm').exec(block)
+  const match = new RegExp(String.raw`^\s*${key}: (\d+)`, 'm').exec(block)
   return match ? Number(match[1]) : undefined
 }
 
