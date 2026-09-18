@@ -9,6 +9,7 @@ import {
   Search as SearchIcon,
   Server,
   Settings as SettingsIcon,
+  Terminal,
   Users,
   UsersRound,
 } from 'lucide-react'
@@ -59,9 +60,15 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'System',
+    label: 'Integrations',
     items: [
       { label: 'MCP Server', href: '/mcp-servers/vibexp-mcp', icon: Server },
+      { label: 'CLI', href: '/integrations/cli', icon: Terminal },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
       // `UsersRound`, not `Users`: the Agents entry above already uses `Users`,
       // and the collapsed icon rail (md-lg) shows icons only - two identical
       // glyphs would be indistinguishable there.

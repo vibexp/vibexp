@@ -17,6 +17,33 @@ describe('NAV_GROUPS', () => {
     expect(teams?.href).toBe('/teams')
   })
 
+  // #1043: MCP Server moved out of System into a dedicated Integrations
+  // group, which also hosts the CLI page. Later Integrations entries
+  // (#1044/#1045) append after these two.
+  it('puts MCP Server then CLI first in the Integrations group', () => {
+    const items = group('Integrations').items
+    expect(items.slice(0, 2).map(i => [i.label, i.href])).toEqual([
+      ['MCP Server', '/mcp-servers/vibexp-mcp'],
+      ['CLI', '/integrations/cli'],
+    ])
+  })
+
+  it('places Integrations between Workspace and System', () => {
+    expect(NAV_GROUPS.map(g => g.label)).toEqual([
+      'General',
+      'Workspace',
+      'Integrations',
+      'System',
+    ])
+  })
+
+  it('no longer lists MCP Server under System', () => {
+    expect(group('System').items.map(i => i.label)).toEqual([
+      'Teams',
+      'Settings',
+    ])
+  })
+
   it('gives Teams an icon distinct from Agents', () => {
     // The collapsed icon rail (md-lg) renders icons with no labels, so two
     // entries sharing a glyph are indistinguishable there.
