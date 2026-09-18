@@ -162,4 +162,21 @@ describe('MCP_ENDPOINT override', () => {
       expect(section.code).not.toContain(window.location.origin)
     }
   })
+
+  it('falls back to the neutral placeholder outside a DOM', async () => {
+    // The origin-derived default needs a `window`; keep the documented
+    // non-browser fallback pinned so the placeholder cannot creep back into
+    // the DOM path unnoticed.
+    vi.stubGlobal('window', undefined)
+    try {
+      vi.resetModules()
+      const fresh = await import('@/config/siteConfig')
+
+      expect(fresh.MCP_ENDPOINT).toBe(
+        'https://connect.example.com/mcp/v1/common'
+      )
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })
