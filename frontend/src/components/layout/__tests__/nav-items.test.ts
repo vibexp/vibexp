@@ -37,6 +37,15 @@ describe('NAV_GROUPS', () => {
     ])
   })
 
+  // #1045: API Client is the fourth Integrations entry, after REST APIs.
+  it('puts API Client fourth in the Integrations group', () => {
+    const fourth = group('Integrations').items[3]
+    expect([fourth.label, fourth.href]).toEqual([
+      'API Client',
+      '/integrations/api-client',
+    ])
+  })
+
   it('places Integrations between Workspace and System', () => {
     expect(NAV_GROUPS.map(g => g.label)).toEqual([
       'General',
