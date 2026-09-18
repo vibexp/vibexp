@@ -25,6 +25,7 @@ import { FeedNew } from '@/pages/feeds/FeedNew'
 import { Feeds } from '@/pages/feeds/Feeds'
 import { FeedView } from '@/pages/feeds/FeedView'
 import { Home } from '@/pages/home/Home'
+import { CLI } from '@/pages/integrations/CLI'
 import { VibeXPMCP } from '@/pages/mcp/VibeXPMCP'
 import { Memories } from '@/pages/memories/Memories'
 import { MemoryCreate } from '@/pages/memories/MemoryCreate'
@@ -146,6 +147,7 @@ export function AppRoutes() {
       <Route path="agents/:id/chat" element={<AgentChat />} />
       <Route path="agents/:id/conversations" element={<AgentConversations />} />
       <Route path="agents/:id/tasks" element={<AgentTasks />} />
+      <Route path="integrations/cli" element={<CLI />} />
       <Route path="mcp-servers/vibexp-mcp" element={<VibeXPMCP />} />
       <Route
         path="mcp-servers/*"
