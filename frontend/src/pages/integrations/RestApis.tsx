@@ -1,7 +1,7 @@
 import { Braces, Check, Copy, ExternalLink } from 'lucide-react'
-import { useState } from 'react'
 
 import { Card } from '@/components/ui/card'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 
 // Served publicly (no auth) by the backend's setupPublicRoutes() on the same
 // origin as the app. Built from window.location.origin at render time, never
@@ -27,15 +27,7 @@ const USES = [
 ]
 
 function SpecUrlRow({ label, url }: Readonly<{ label: string; url: string }>) {
-  const [copied, setCopied] = useState(false)
-
-  const copyUrl = () => {
-    void navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => {
-      setCopied(false)
-    }, 1500)
-  }
+  const { copied, copy } = useCopyToClipboard()
 
   return (
     <div className="flex flex-wrap items-center gap-3.5">
@@ -59,7 +51,9 @@ function SpecUrlRow({ label, url }: Readonly<{ label: string; url: string }>) {
       </a>
       <button
         type="button"
-        onClick={copyUrl}
+        onClick={() => {
+          copy(url)
+        }}
         aria-label={`Copy ${label} schema URL`}
         className="bg-secondary text-secondary-foreground hover:bg-secondary/80 inline-flex h-11 items-center gap-2 rounded-md px-4 text-sm font-medium transition-colors"
       >
