@@ -25,6 +25,7 @@ import { FeedNew } from '@/pages/feeds/FeedNew'
 import { Feeds } from '@/pages/feeds/Feeds'
 import { FeedView } from '@/pages/feeds/FeedView'
 import { Home } from '@/pages/home/Home'
+import { ApiClient } from '@/pages/integrations/ApiClient'
 import { CLI } from '@/pages/integrations/CLI'
 import { RestApis } from '@/pages/integrations/RestApis'
 import { VibeXPMCP } from '@/pages/mcp/VibeXPMCP'
@@ -150,6 +151,7 @@ export function AppRoutes() {
       <Route path="agents/:id/tasks" element={<AgentTasks />} />
       <Route path="integrations/cli" element={<CLI />} />
       <Route path="integrations/rest-apis" element={<RestApis />} />
+      <Route path="integrations/api-client" element={<ApiClient />} />
       <Route path="mcp-servers/vibexp-mcp" element={<VibeXPMCP />} />
       <Route
         path="mcp-servers/*"
