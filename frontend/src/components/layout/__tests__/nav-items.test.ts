@@ -28,6 +28,15 @@ describe('NAV_GROUPS', () => {
     ])
   })
 
+  // #1044: REST APIs is the third Integrations entry, after MCP Server and CLI.
+  it('puts REST APIs third in the Integrations group', () => {
+    const third = group('Integrations').items[2]
+    expect([third.label, third.href]).toEqual([
+      'REST APIs',
+      '/integrations/rest-apis',
+    ])
+  })
+
   it('places Integrations between Workspace and System', () => {
     expect(NAV_GROUPS.map(g => g.label)).toEqual([
       'General',
