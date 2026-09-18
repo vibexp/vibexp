@@ -23,13 +23,13 @@ import { GitHubAppSetupGuide } from './GitHubAppSetupGuide'
 import { describeValidationFailure } from './validationMessages'
 
 export interface GitHubAppConfigCardProps {
-  teamId: string
+  readonly teamId: string
   /** The team's registration, or null when it has none yet. */
-  config: GitHubAppConfigResponse | null
+  readonly config: GitHubAppConfigResponse | null
   /** Whether the viewer may mutate the registration (owner/admin). */
-  canManage: boolean
+  readonly canManage: boolean
   /** Re-fetch after any mutation. */
-  onChanged: () => void | Promise<void>
+  readonly onChanged: () => void | Promise<void>
 }
 
 /**
@@ -326,7 +326,10 @@ export function GitHubAppConfigCard({
  * the API has no field that could carry them back — so this is reporting what
  * the server said, not masking something we hold.
  */
-function SecretBadge({ label, present }: { label: string; present?: boolean }) {
+function SecretBadge({
+  label,
+  present,
+}: Readonly<{ label: string; present?: boolean }>) {
   return (
     <Badge variant={present ? 'secondary' : 'outline'}>
       {label}: {present ? 'Set' : 'Not set'}

@@ -19,15 +19,15 @@ import { CopyableValue } from './CopyableValue'
 import { describeValidationFailure } from './validationMessages'
 
 export interface GitHubAppPostSaveDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  teamId: string
-  webhookUrl: string
+  readonly open: boolean
+  readonly onOpenChange: (open: boolean) => void
+  readonly teamId: string
+  readonly webhookUrl: string
   /**
    * The generated webhook secret. Present only right after create or a secret
    * rotation — this dialog is the one and only time it is ever shown.
    */
-  webhookSecret?: string
+  readonly webhookSecret?: string
 }
 
 /**

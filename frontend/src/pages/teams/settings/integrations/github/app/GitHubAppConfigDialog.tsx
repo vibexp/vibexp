@@ -48,16 +48,16 @@ const schema = z.object({
 export type GitHubAppConfigFormValues = z.infer<typeof schema>
 
 export interface GitHubAppConfigDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  teamId: string
+  readonly open: boolean
+  readonly onOpenChange: (open: boolean) => void
+  readonly teamId: string
   /** Existing registration when editing; undefined when registering a new App. */
-  config?: GitHubAppConfigResponse
+  readonly config?: GitHubAppConfigResponse
   /**
    * Called after a successful save. `webhookSecret` is present only on create —
    * it is the one and only disclosure of the generated secret.
    */
-  onSaved: (result: {
+  readonly onSaved: (result: {
     webhookUrl: string
     webhookSecret?: string
   }) => void | Promise<void>

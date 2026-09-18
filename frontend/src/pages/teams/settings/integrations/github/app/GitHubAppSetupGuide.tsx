@@ -54,12 +54,12 @@ const REQUIRED_EVENTS: { name: string; why: string }[] = [
 
 export interface GitHubAppSetupGuideProps {
   /** Team being configured — the Callback URL is scoped to it. */
-  teamId: string
+  readonly teamId: string
   /**
    * Pre-fills the organization the App is created under. The field stays
    * editable — this is only a starting value.
    */
-  defaultOrganization?: string
+  readonly defaultOrganization?: string
 }
 
 export function GitHubAppSetupGuide({

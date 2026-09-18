@@ -5,14 +5,14 @@ import { Button } from '@/components/ui/button'
 import { toast } from '@/lib/toast'
 
 export interface CopyableValueProps {
-  label: string
-  value: string
+  readonly label: string
+  readonly value: string
   /**
    * Renders the value in a wrapping monospace block rather than a single line.
    * Used for the webhook secret, which is long and has no meaningful prefix to
    * truncate to.
    */
-  multiline?: boolean
+  readonly multiline?: boolean
 }
 
 /**
