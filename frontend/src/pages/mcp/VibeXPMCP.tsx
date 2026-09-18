@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, Copy, Info, Plug } from 'lucide-react'
+import { AlertTriangle, Check, Copy, Plug } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -218,16 +218,6 @@ export function VibeXPMCP() {
             )}
             {endpointCopied ? 'Copied' : 'Copy endpoint'}
           </button>
-        </div>
-        <div className="border-info/20 bg-info-subtle mt-3.5 grid grid-cols-[18px_1fr] items-start gap-x-3 rounded-lg border p-4 text-sm">
-          <Info className="text-info mt-0.5 size-[17px]" />
-          <div>
-            A single endpoint now serves <b>every</b> team. If you previously
-            used a team-specific URL like{' '}
-            <Mono>…/teams/&lt;uuid&gt;/common</Mono>, switch to the common
-            endpoint above — your agent passes a <Mono>team_id</Mono> (UUID or
-            slug) on each tool call instead. Grab yours below.
-          </div>
         </div>
       </section>
 
