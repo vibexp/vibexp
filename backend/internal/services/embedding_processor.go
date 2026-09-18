@@ -75,17 +75,17 @@ func (in embeddingInput) embedText() string {
 	}
 }
 
-// truncateRunes returns s truncated to at most max runes, preserving whole UTF-8
-// characters. A non-positive max yields the empty string.
-func truncateRunes(s string, max int) string {
-	if max <= 0 {
+// truncateRunes returns s truncated to at most maxLen runes, preserving whole UTF-8
+// characters. A non-positive maxLen yields the empty string.
+func truncateRunes(s string, maxLen int) string {
+	if maxLen <= 0 {
 		return ""
 	}
 	runes := []rune(s)
-	if len(runes) <= max {
+	if len(runes) <= maxLen {
 		return s
 	}
-	return string(runes[:max])
+	return string(runes[:maxLen])
 }
 
 // EmbeddingGenerationProcessor implements events.EmbeddingProcessor. On each entity

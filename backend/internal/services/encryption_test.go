@@ -225,10 +225,3 @@ func TestEncryptionService_RandomNonce(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, plaintext, decrypted2)
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
