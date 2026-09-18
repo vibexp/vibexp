@@ -31,8 +31,8 @@ const STEPS = [
     desc: 'Pick your tool below and drop the config into its MCP settings.',
   },
   {
-    title: 'Sign in & pick a team',
-    desc: 'Your client opens the browser to authorize. Pass a team_id per call.',
+    title: 'Sign in',
+    desc: 'Your client opens the browser to authorize via the standard MCP OAuth flow.',
   },
 ]
 
