@@ -49,4 +49,11 @@ describe('VibeXPMCP setup steps', () => {
     expect(screen.queryByText(/pick a team/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/team_id per call/i)).not.toBeInTheDocument()
   })
+  it('does not render the team identifiers section or any team UUID/slug', () => {
+    render(<VibeXPMCP />)
+
+    expect(screen.queryByText('Your team identifiers')).not.toBeInTheDocument()
+    expect(screen.queryByText('uuid-aaa')).not.toBeInTheDocument()
+    expect(screen.queryByText('acme-team')).not.toBeInTheDocument()
+  })
 })

@@ -4,8 +4,8 @@ import { test, expect } from '../../fixtures/auth'
  * Feature Tests: VibeXP MCP server page
  *
  * /mcp-servers/vibexp-mcp is a configuration/instructions page: OAuth connect
- * explainer, per-client setup sections, the MCP tools list, and the team
- * identifier (UUID/slug) rows sourced from the team context.
+ * explainer, per-client setup sections and the MCP tools list. Team
+ * identifiers are no longer shown: the agent discovers teams itself (#1042).
  */
 test.describe('VibeXP MCP page', () => {
   test('should render the MCP integration page', async ({
@@ -27,7 +27,7 @@ test.describe('VibeXP MCP page', () => {
     ).toBeVisible()
   })
 
-  test('should show team identifiers for the current team', async ({
+  test('should not show a team identifiers section', async ({
     authenticatedPage,
   }) => {
     await authenticatedPage.goto('/mcp-servers/vibexp-mcp')
@@ -37,10 +37,8 @@ test.describe('VibeXP MCP page', () => {
       })
     ).toBeVisible({ timeout: 15000 })
 
-    // TeamIdentifiers renders UUID + Slug rows with copy buttons.
-    await expect(authenticatedPage.getByText('UUID').first()).toBeVisible({
-      timeout: 10000,
-    })
-    await expect(authenticatedPage.getByText('Slug').first()).toBeVisible()
+    await expect(
+      authenticatedPage.getByText('Your team identifiers')
+    ).toHaveCount(0)
   })
 })

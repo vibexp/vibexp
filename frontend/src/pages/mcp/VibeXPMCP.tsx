@@ -18,7 +18,6 @@ import {
 } from '@/pages/mcp/config-sections'
 import { mcpTools } from '@/pages/mcp/mcp-tools'
 import { MCPToolsList } from '@/pages/mcp/MCPToolsList'
-import { TeamIdentifiers } from '@/pages/mcp/TeamIdentifiers'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 const STEPS = [
@@ -55,18 +54,10 @@ function SectionHeading({
   )
 }
 
-function Mono({ children }: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <code className="bg-secondary rounded-sm px-1.5 py-0.5 font-mono text-sm">
-      {children}
-    </code>
-  )
-}
-
 export function VibeXPMCP() {
   const { showSuccess } = useAlerts()
   const { trackEvent } = useAnalytics()
-  const { currentTeam, teams, isLoading: isLoadingTeam } = useTeam()
+  const { currentTeam, isLoading: isLoadingTeam } = useTeam()
 
   const [activeTab, setActiveTab] = useState<string>('claude-code')
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set())
@@ -257,22 +248,6 @@ export function VibeXPMCP() {
             </TabsContent>
           ))}
         </Tabs>
-      </section>
-
-      {/* teams */}
-      <section className="mt-9">
-        <SectionHeading
-          title="Your team identifiers"
-          description={
-            <>
-              Hand one of these to your agent as the <Mono>team_id</Mono> on
-              each tool call — or let it find the right team, and the right
-              project, with the <Mono>vibexp_io_list_teams_and_projects</Mono>{' '}
-              tool.
-            </>
-          }
-        />
-        <TeamIdentifiers teams={teams} />
       </section>
 
       {/* tools */}
