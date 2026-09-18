@@ -242,7 +242,7 @@ it('debounces the search box into a single request', async () => {
   await waitFor(() => {
     expect(lastQuery().search).toBe('ada')
   })
-  expect(mockAdminService.listUsers.mock.calls.length).toBe(before + 1)
+  expect(mockAdminService.listUsers.mock.calls).toHaveLength(before + 1)
 })
 
 describe('sorting', () => {

@@ -206,7 +206,7 @@ it('debounces the search box into a single request', async () => {
   await waitFor(() => {
     expect(lastQuery().search).toBe('plat')
   })
-  expect(mockAdminService.listProjects.mock.calls.length).toBe(before + 1)
+  expect(mockAdminService.listProjects.mock.calls).toHaveLength(before + 1)
 })
 
 it('sends local-day instants for the created range, upper bound at end of day', async () => {
