@@ -227,7 +227,7 @@ it('debounces the search box into a single request', async () => {
   await waitFor(() => {
     expect(lastQuery().search).toBe('eng')
   })
-  expect(mockAdminService.listTeams.mock.calls.length).toBe(initialCalls + 1)
+  expect(mockAdminService.listTeams.mock.calls).toHaveLength(initialCalls + 1)
   expect(currentSearch).toContain('search=eng')
 })
 

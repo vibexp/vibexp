@@ -405,7 +405,7 @@ describe('resource routes are normalised (#920)', () => {
     const navigates = [...routesSource.matchAll(/<Navigate\s[^>]*\/>/g)].map(
       m => m[0]
     )
-    expect(navigates.length).toBe(2)
+    expect(navigates).toHaveLength(2)
     for (const tag of navigates) {
       expect(tag).toContain('replace')
     }

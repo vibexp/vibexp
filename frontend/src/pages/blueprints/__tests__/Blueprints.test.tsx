@@ -599,7 +599,7 @@ describe('Blueprints page', () => {
         { timeout: 2000 }
       )
       // Three keystrokes must not become three requests.
-      expect((blueprintService.getBlueprints as Mock).mock.calls.length).toBe(
+      expect((blueprintService.getBlueprints as Mock).mock.calls).toHaveLength(
         before + 1
       )
       expect(currentSearch).toContain('search=api')

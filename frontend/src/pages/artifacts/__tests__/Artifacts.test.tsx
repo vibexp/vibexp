@@ -391,7 +391,7 @@ describe('Artifacts page — URL-synced filters (#523)', () => {
       },
       { timeout: 2000 }
     )
-    expect((artifactService.getArtifacts as Mock).mock.calls.length).toBe(
+    expect((artifactService.getArtifacts as Mock).mock.calls).toHaveLength(
       before + 1
     )
     expect(currentSearch).toContain('search=api')
