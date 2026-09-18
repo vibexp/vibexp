@@ -214,15 +214,15 @@ func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
 // parseIntParam parses an integer query parameter with validation
 //
 //nolint:unused // Kept for potential future use with other query parameters
-func parseIntParam(query string, min, max int) int {
+func parseIntParam(query string, minVal, maxVal int) int {
 	if query == "" {
 		return 0
 	}
 	val, err := strconv.Atoi(query)
-	if err != nil || val < min {
+	if err != nil || val < minVal {
 		return 0
 	}
-	if max > 0 && val > max {
+	if maxVal > 0 && val > maxVal {
 		return 0
 	}
 	return val
