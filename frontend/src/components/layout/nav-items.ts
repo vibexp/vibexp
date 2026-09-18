@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  Braces,
   FileText,
   HardDrive,
   Home,
@@ -64,6 +65,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'MCP Server', href: '/mcp-servers/vibexp-mcp', icon: Server },
       { label: 'CLI', href: '/integrations/cli', icon: Terminal },
+      { label: 'REST APIs', href: '/integrations/rest-apis', icon: Braces },
     ],
   },
   {
