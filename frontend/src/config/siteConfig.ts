@@ -67,12 +67,32 @@ export const BRAND_LOGO_URL = or(
 )
 
 /**
+ * Default MCP endpoint for the instance currently being browsed.
+ *
+ * The backend mounts the team-agnostic MCP handler at the fixed path
+ * `/mcp/v1/common` on its own origin, and in the combined image (#61) that is
+ * the same origin serving this SPA — so the browser's current origin is a real,
+ * copy-pasteable endpoint, while a build/deploy-time constant would not be.
+ * Same rationale as `githubCallbackUrlFor`: a server-side configured base URL
+ * can legitimately differ behind a reverse proxy, but the origin the user is
+ * actually on is what their MCP client has to reach. Guarded for evaluation
+ * outside a DOM (like `getEnv` does), where only the neutral placeholder is
+ * available.
+ */
+const DEFAULT_MCP_ENDPOINT =
+  typeof window !== 'undefined'
+    ? `${window.location.origin}/mcp/v1/common`
+    : 'https://connect.example.com/mcp/v1/common'
+
+/**
  * The single, team-agnostic MCP endpoint advertised in client setup snippets.
- * Self-hosters point this at their own backend's MCP route.
+ * Defaults to this instance's own origin (above); self-hosters whose public
+ * origin differs from the browsing origin override it with
+ * `VITE_MCP_ENDPOINT`.
  */
 export const MCP_ENDPOINT = or(
   getEnv('VITE_MCP_ENDPOINT'),
-  'https://connect.example.com/mcp/v1/common'
+  DEFAULT_MCP_ENDPOINT
 )
 
 /**
