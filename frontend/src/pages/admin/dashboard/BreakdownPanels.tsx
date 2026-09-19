@@ -6,7 +6,7 @@ import type { AdminEntityBreakdown } from '@/services/adminService'
 function breakdownTitle(breakdown: AdminEntityBreakdown): string {
   const entity =
     breakdown.entity.charAt(0).toUpperCase() + breakdown.entity.slice(1)
-  return `${entity} by ${breakdown.field.replace(/_/g, ' ')}`
+  return `${entity} by ${breakdown.field.replaceAll('_', ' ')}`
 }
 
 export function BreakdownPanels({

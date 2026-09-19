@@ -48,7 +48,7 @@ const copyToClipboard = (code: string) => {
   void navigator.clipboard.writeText(code)
 }
 
-export function CLI() {
+export function CliPage() {
   return (
     <div className="mx-auto max-w-[1080px]">
       <header className="mb-8">
@@ -87,7 +87,7 @@ export function CLI() {
           >
             latest release
           </a>
-          .
+          {'.'}
         </p>
       </section>
 
