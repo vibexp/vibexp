@@ -175,9 +175,9 @@ func (s *Server) handleGitHubInstallURL(w http.ResponseWriter, r *http.Request) 
 	// actually complete the connect may start it. Without this a member can
 	// install the App on a GitHub org and then be refused at the callback,
 	// leaving the org with the App installed and no team connected (#463).
-	if authzErr := s.container.AuthorizationService().Can(
+	if s.container.AuthorizationService().Can(
 		r.Context(), userID, teamID, authz.TeamUpdate,
-	); authzErr != nil {
+	) != nil {
 		writeErrorResponse(w, r, "forbidden",
 			githubMsgPermissionDenied, http.StatusForbidden)
 		return
