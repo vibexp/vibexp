@@ -9,7 +9,6 @@ import { BreakdownPanels } from '@/pages/admin/dashboard/BreakdownPanels'
 import {
   accessToChartData,
   countsToChartData,
-  GROWTH_KEYS,
   growthToChartData,
   sumTotals,
 } from '@/pages/admin/dashboard/buckets'
@@ -280,4 +279,4 @@ export function AdminDashboard() {
 }
 
 // Re-exported so the growth chart's series list and the mapper cannot drift apart.
-export { GROWTH_KEYS }
+export { GROWTH_KEYS } from '@/pages/admin/dashboard/buckets'
