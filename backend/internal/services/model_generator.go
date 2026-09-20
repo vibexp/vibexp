@@ -23,9 +23,10 @@ const validateModelProviderTimeout = 30 * time.Second
 const modelValidationProbeText = "ping"
 
 // ModelProvider is the pluggable seam for a chat/completion-style model backend.
-// Issue #110 ships only the config + validation slice, so the interface is
-// intentionally minimal: a future runtime consumer adds methods here plus a
-// matching arm in NewModelProvider. Nothing is wired to it yet.
+// Issue #110 shipped the config + validation slice; #1069 added Complete as the
+// first runtime method (a further provider type adds a matching arm in
+// NewModelProvider). Nothing consumes it yet — LLMService is registered with Wire
+// but has no caller until #1073.
 type ModelProvider interface {
 	// Model is the model identifier configured for this provider.
 	Model() string
@@ -179,7 +180,7 @@ func (p *OpenAICompatibleModelProvider) probeModels(ctx context.Context) (int, e
 		return 0, fmt.Errorf("failed to create models request: %w", err)
 	}
 	if p.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+		req.Header.Set("Authorization", authorizationBearerPrefix+p.apiKey)
 	}
 
 	resp, err := p.httpClient.Do(req)
@@ -215,7 +216,7 @@ func (p *OpenAICompatibleModelProvider) probeChatCompletions(ctx context.Context
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if p.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+		req.Header.Set("Authorization", authorizationBearerPrefix+p.apiKey)
 	}
 
 	resp, err := p.httpClient.Do(req)
@@ -286,6 +287,10 @@ func NewModelProvider(
 // completionRoleUser is the OpenAI-compatible role name for a caller-authored
 // message; it is also what the validation probe sends.
 const completionRoleUser = "user"
+
+// authorizationBearerPrefix is hoisted because this file now sets the header at
+// three call sites, which is the S1192 duplicate-literal threshold.
+const authorizationBearerPrefix = "Bearer "
 
 // maxCompletionErrorBodyBytes caps how much of a non-2xx chat/completions body
 // travels in the error — mirrors maxProviderErrorBodyBytes on the embeddings
@@ -396,7 +401,7 @@ func (p *OpenAICompatibleModelProvider) postChatCompletions(
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if p.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+		req.Header.Set("Authorization", authorizationBearerPrefix+p.apiKey)
 	}
 
 	resp, err := p.httpClient.Do(req)

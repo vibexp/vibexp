@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -512,7 +511,6 @@ func TestLLMComplete_TruncatedBodyIsUnreachableNotRejected(t *testing.T) {
 		w.(http.Flusher).Flush()
 		panic(http.ErrAbortHandler)
 	}))
-	server.Config.ErrorLog = log.New(io.Discard, "", 0)
 	defer server.Close()
 
 	repo := mocks.NewMockModelProviderRepository(t)

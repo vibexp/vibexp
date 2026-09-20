@@ -194,7 +194,7 @@ func (s *LLMService) classifyCompletionError(ctx context.Context, teamID string,
 	var httpErr *completionHTTPError
 	if errors.As(err, &httpErr) {
 		sentinel := sentinelForCompletionStatus(httpErr.StatusCode, httpErr.Body)
-		s.logger.WarnContext(ctx, "Model provider refused a completion",
+		s.logger.WarnContext(ctx, "Model provider returned a non-2xx completion response",
 			slog.String("team_id", teamID),
 			slog.Int("status_code", httpErr.StatusCode),
 			slog.String("provider_response", httpErr.Body),
