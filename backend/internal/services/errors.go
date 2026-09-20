@@ -253,6 +253,41 @@ func NewCannotDeleteLastProjectError(teamID, projectSlug string) *CannotDeleteLa
 // plaintext, or sending with one that cannot be decrypted, is worse than refusing.
 var ErrEncryptionUnavailable = errors.New("encryption service is not configured")
 
+// LLM completion Errors
+//
+// The six sentinels below are the COMPLETE classification of a completion
+// failure (#1069). LLMService maps every provider fault onto exactly one of them
+// and logs the provider's own words server-side, so every consumer branches
+// identically and none of them ever sees a raw provider body (#464).
+
+// ErrNoModelProvider is returned when the team has nothing to complete with:
+// no provider by the requested id, or no default configured. It is deliberately
+// NOT a fallback signal — there is no other provider to try, because spending a
+// team's credits on a model they did not choose is worse than failing.
+var ErrNoModelProvider = errors.New("no model provider available for this team")
+
+// ErrProviderUnreachable is returned when the request never got an answer: a
+// transport failure, a destination the SSRF guard refused, or a 5xx.
+var ErrProviderUnreachable = errors.New("model provider is unreachable")
+
+// ErrProviderUnauthorized is returned when the provider rejected the stored
+// credential (401/403). The stored key is stale or wrong; retrying will not help.
+var ErrProviderUnauthorized = errors.New("model provider rejected the credentials")
+
+// ErrModelRejected is returned when the provider understood the request and
+// refused it (404 on an unknown model, and every other 4xx that is not an auth or
+// context-window failure).
+var ErrModelRejected = errors.New("model provider rejected the request")
+
+// ErrContextTooLarge is returned when the prompt exceeds the model's context
+// window. OpenAI-compatible servers report this as an ordinary 400, so it is
+// recognised from the response body rather than the status alone.
+var ErrContextTooLarge = errors.New("completion request exceeds the model's context window")
+
+// ErrCompletionTimeout is returned when the completion ran out of time — the
+// per-request deadline, the client timeout, or a 408/504 from the provider.
+var ErrCompletionTimeout = errors.New("completion timed out")
+
 // ErrTeamEmailProviderValidation matches any TeamEmailProviderValidationError via
 // errors.Is, so handlers can detect "this is a 400 with field details" without
 // depending on the concrete type.

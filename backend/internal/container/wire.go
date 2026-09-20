@@ -122,6 +122,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideBlueprintService,
 	providers.ProvideEmbeddingProviderService,
 	providers.ProvideModelProviderService,
+	providers.ProvideLLMService,
 	providers.ProvideGitHubAppConfigService,
 	providers.ProvideEmailService,
 	providers.ProvideActivityService,

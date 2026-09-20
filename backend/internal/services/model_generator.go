@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -37,6 +38,11 @@ type ModelProvider interface {
 	// anything, reporting the outcome in the response body (never an error for a
 	// merely-invalid config; a non-nil error signals an internal failure).
 	Validate(ctx context.Context) (*models.ValidateModelProviderResponse, error)
+	// Complete runs one non-streaming completion. It returns a typed
+	// *completionHTTPError for a non-2xx response so a caller can classify the
+	// failure without parsing a message, and never echoes the provider's body
+	// into the error message of any other failure (#464).
+	Complete(ctx context.Context, req models.CompletionRequest) (*models.CompletionResponse, error)
 }
 
 // OpenAICompatibleModelProvider talks to an OpenAI-compatible API root (e.g.
@@ -99,9 +105,19 @@ func (p *OpenAICompatibleModelProvider) Model() string { return p.model }
 func (p *OpenAICompatibleModelProvider) Type() string  { return ProviderTypeOpenAICompatible }
 
 type openAIChatCompletionsRequest struct {
-	Model     string                   `json:"model"`
-	Messages  []map[string]interface{} `json:"messages"`
-	MaxTokens int                      `json:"max_tokens"`
+	Model    string              `json:"model"`
+	Messages []openAIChatMessage `json:"messages"`
+	// MaxTokens is omitted when zero: an OpenAI-compatible server reads an
+	// explicit max_tokens:0 as "generate nothing" rather than "use your default".
+	MaxTokens   int      `json:"max_tokens,omitempty"`
+	Temperature *float64 `json:"temperature,omitempty"`
+}
+
+// openAIChatMessage is one message of a chat/completions request or of the choice
+// a response carries back.
+type openAIChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
 // Validate confirms reachability + auth. It first tries the cheap
@@ -181,8 +197,8 @@ func (p *OpenAICompatibleModelProvider) probeModels(ctx context.Context) (int, e
 func (p *OpenAICompatibleModelProvider) probeChatCompletions(ctx context.Context) (int, error) {
 	body, err := json.Marshal(openAIChatCompletionsRequest{
 		Model: p.model,
-		Messages: []map[string]interface{}{
-			{"role": "user", "content": modelValidationProbeText},
+		Messages: []openAIChatMessage{
+			{Role: completionRoleUser, Content: modelValidationProbeText},
 		},
 		MaxTokens: 1,
 	})
@@ -264,4 +280,163 @@ func NewModelProvider(
 	default:
 		return nil, fmt.Errorf("unsupported model provider type: %q", provider.ProviderType)
 	}
+}
+
+// completionRoleUser is the OpenAI-compatible role name for a caller-authored
+// message; it is also what the validation probe sends.
+const completionRoleUser = "user"
+
+// maxCompletionErrorBodyBytes caps how much of a non-2xx chat/completions body
+// travels in the error — mirrors maxProviderErrorBodyBytes on the embeddings
+// path, so an HTML error page cannot flood a log line.
+const maxCompletionErrorBodyBytes = 512
+
+// maxCompletionResponseBytes caps a SUCCESSFUL completion body. A model asked for
+// a bounded number of tokens cannot legitimately answer with megabytes, and the
+// base_url is caller-supplied, so the decode step gets a ceiling too.
+const maxCompletionResponseBytes = 1 << 20
+
+// completionHTTPError carries a non-2xx from the chat/completions endpoint,
+// including a capped excerpt of the provider's own explanation.
+//
+// It is a sibling of providerHTTPError rather than a reuse of it: that type's
+// Error() names the embeddings endpoint, and a completion failure reported as an
+// embeddings failure is a misleading log line in the one place an operator looks.
+type completionHTTPError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *completionHTTPError) Error() string {
+	if e.Body == "" {
+		return fmt.Sprintf("chat completions endpoint returned status %d", e.StatusCode)
+	}
+	return fmt.Sprintf("chat completions endpoint returned status %d: %s", e.StatusCode, e.Body)
+}
+
+// openAIChatCompletionsChoice is one candidate answer.
+type openAIChatCompletionsChoice struct {
+	Message      openAIChatMessage `json:"message"`
+	FinishReason string            `json:"finish_reason"`
+}
+
+// openAIChatCompletionsUsage is the optional token accounting. An
+// OpenAI-compatible server may omit it entirely, which leaves both fields zero.
+type openAIChatCompletionsUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+}
+
+type openAIChatCompletionsResponse struct {
+	Choices []openAIChatCompletionsChoice `json:"choices"`
+	Usage   openAIChatCompletionsUsage    `json:"usage"`
+}
+
+// Complete runs one non-streaming completion against {base_url}/chat/completions
+// over the SSRF-guarded client the constructor built. The provider's model is
+// always the one configured on the row — a caller chooses a model by choosing a
+// provider, never by overriding it here.
+func (p *OpenAICompatibleModelProvider) Complete(
+	ctx context.Context, req models.CompletionRequest,
+) (*models.CompletionResponse, error) {
+	if len(req.Messages) == 0 {
+		return nil, fmt.Errorf("completion request requires at least one message")
+	}
+
+	body, err := json.Marshal(openAIChatCompletionsRequest{
+		Model:       p.model,
+		Messages:    toOpenAIChatMessages(req.Messages),
+		MaxTokens:   req.MaxTokens,
+		Temperature: req.Temperature,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal chat completions request: %w", err)
+	}
+
+	raw, err := p.postChatCompletions(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+
+	return decodeChatCompletion(raw)
+}
+
+// toOpenAIChatMessages maps the provider-agnostic request messages onto the wire
+// shape. The role is passed through verbatim so a caller can use any role the
+// target server understands.
+func toOpenAIChatMessages(messages []models.CompletionMessage) []openAIChatMessage {
+	out := make([]openAIChatMessage, 0, len(messages))
+	for _, m := range messages {
+		out = append(out, openAIChatMessage{Role: m.Role, Content: m.Content})
+	}
+	return out
+}
+
+// postChatCompletions POSTs body and returns the response bytes, or a
+// *completionHTTPError for any non-2xx status.
+func (p *OpenAICompatibleModelProvider) postChatCompletions(
+	ctx context.Context, body []byte,
+) ([]byte, error) {
+	endpoint := p.baseURL + "/chat/completions"
+	// See probeModels: the SSRF-guarded transport is the control, not a #nosec (#464).
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create chat completions request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if p.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call chat completions endpoint: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close() //nolint:errcheck
+	}()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		// The body is the only place a provider explains itself (a 400 naming the
+		// context window is what distinguishes an oversized prompt from any other
+		// bad request). Read it through a LimitReader and carry it in the error;
+		// LLMService logs it and returns a sentinel, so it never reaches a caller.
+		errBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxCompletionErrorBodyBytes))
+		if readErr != nil {
+			errBody = nil
+		}
+		return nil, &completionHTTPError{
+			StatusCode: resp.StatusCode,
+			Body:       strings.TrimSpace(string(errBody)),
+		}
+	}
+
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxCompletionResponseBytes))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read chat completions response: %w", err)
+	}
+	return raw, nil
+}
+
+// decodeChatCompletion flattens the first choice. A response with no choices is an
+// error rather than an empty completion: a consumer that renders "" as an answer
+// would present a provider fault as a result.
+func decodeChatCompletion(raw []byte) (*models.CompletionResponse, error) {
+	var decoded openAIChatCompletionsResponse
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return nil, fmt.Errorf("failed to decode chat completions response: %w", err)
+	}
+	if len(decoded.Choices) == 0 {
+		return nil, fmt.Errorf("chat completions response carried no choices")
+	}
+
+	choice := decoded.Choices[0]
+	return &models.CompletionResponse{
+		Content:      choice.Message.Content,
+		FinishReason: choice.FinishReason,
+		Usage: models.TokenUsage{
+			PromptTokens:     decoded.Usage.PromptTokens,
+			CompletionTokens: decoded.Usage.CompletionTokens,
+		},
+	}, nil
 }

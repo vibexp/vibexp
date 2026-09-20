@@ -22,29 +22,29 @@ func (_m *MockModelProvider) EXPECT() *MockModelProvider_Expecter {
 	return &MockModelProvider_Expecter{mock: &_m.Mock}
 }
 
-// ListModels provides a mock function with given fields: ctx
-func (_m *MockModelProvider) ListModels(ctx context.Context) (*models.ProviderModelList, error) {
-	ret := _m.Called(ctx)
+// Complete provides a mock function with given fields: ctx, req
+func (_m *MockModelProvider) Complete(ctx context.Context, req models.CompletionRequest) (*models.CompletionResponse, error) {
+	ret := _m.Called(ctx, req)
 
 	if len(ret) == 0 {
-		panic("no return value specified for ListModels")
+		panic("no return value specified for Complete")
 	}
 
-	var r0 *models.ProviderModelList
+	var r0 *models.CompletionResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) (*models.ProviderModelList, error)); ok {
-		return rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, models.CompletionRequest) (*models.CompletionResponse, error)); ok {
+		return rf(ctx, req)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context) *models.ProviderModelList); ok {
-		r0 = rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, models.CompletionRequest) *models.CompletionResponse); ok {
+		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.ProviderModelList)
+			r0 = ret.Get(0).(*models.CompletionResponse)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
+	if rf, ok := ret.Get(1).(func(context.Context, models.CompletionRequest) error); ok {
+		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -52,30 +52,31 @@ func (_m *MockModelProvider) ListModels(ctx context.Context) (*models.ProviderMo
 	return r0, r1
 }
 
-// MockModelProvider_ListModels_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListModels'
-type MockModelProvider_ListModels_Call struct {
+// MockModelProvider_Complete_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Complete'
+type MockModelProvider_Complete_Call struct {
 	*mock.Call
 }
 
-// ListModels is a helper method to define mock.On call
+// Complete is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *MockModelProvider_Expecter) ListModels(ctx interface{}) *MockModelProvider_ListModels_Call {
-	return &MockModelProvider_ListModels_Call{Call: _e.mock.On("ListModels", ctx)}
+//   - req models.CompletionRequest
+func (_e *MockModelProvider_Expecter) Complete(ctx interface{}, req interface{}) *MockModelProvider_Complete_Call {
+	return &MockModelProvider_Complete_Call{Call: _e.mock.On("Complete", ctx, req)}
 }
 
-func (_c *MockModelProvider_ListModels_Call) Run(run func(ctx context.Context)) *MockModelProvider_ListModels_Call {
+func (_c *MockModelProvider_Complete_Call) Run(run func(ctx context.Context, req models.CompletionRequest)) *MockModelProvider_Complete_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		run(args[0].(context.Context), args[1].(models.CompletionRequest))
 	})
 	return _c
 }
 
-func (_c *MockModelProvider_ListModels_Call) Return(_a0 *models.ProviderModelList, _a1 error) *MockModelProvider_ListModels_Call {
+func (_c *MockModelProvider_Complete_Call) Return(_a0 *models.CompletionResponse, _a1 error) *MockModelProvider_Complete_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockModelProvider_ListModels_Call) RunAndReturn(run func(context.Context) (*models.ProviderModelList, error)) *MockModelProvider_ListModels_Call {
+func (_c *MockModelProvider_Complete_Call) RunAndReturn(run func(context.Context, models.CompletionRequest) (*models.CompletionResponse, error)) *MockModelProvider_Complete_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -189,6 +189,19 @@ func ProvideEmbeddingProviderService(
 	return services.NewEmbeddingProviderService(repo, enc, cfg, authzSvc, audit, coverageRepo)
 }
 
+// ProvideLLMService creates the central completion service (#1069). It has no
+// consumer yet — #1073 is the first — so it is registered in the ProviderSet
+// without a container accessor; wire only builds what an injector needs, so this
+// adds nothing to the graph until something asks for it.
+func ProvideLLMService(
+	repo repositories.ModelProviderRepository,
+	enc services.EncryptionServiceInterface,
+	cfg *config.Config,
+	logger *slog.Logger,
+) *services.LLMService {
+	return services.NewLLMService(repo, enc, cfg, logger)
+}
+
 // ProvideModelProviderService creates a new ModelProviderService. Secret
 // encryption is delegated to the shared, fail-closed EncryptionService rather than
 // a private inline AES implementation keyed off the raw config string (#294).
