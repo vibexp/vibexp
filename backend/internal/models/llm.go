@@ -1,11 +1,17 @@
 package models
 
+// The types in this file are INTERNAL DTOs and carry no JSON tags on purpose. The
+// wire shape a provider sees is openAIChatCompletionsRequest/-Response in
+// internal/services, and an HTTP response shape is the generated strict-server
+// type. Tags here would invite marshaling CompletionRequest straight at a
+// provider, which would silently send a body with no "model" field.
+
 // CompletionMessage is one turn of a completion request. Role is the
 // OpenAI-compatible role name ("system", "user" or "assistant"); the wire format
 // of every provider type this backend supports uses those names verbatim.
 type CompletionMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string
+	Content string
 }
 
 // CompletionRequest is the provider-agnostic shape of ONE non-streaming
@@ -16,24 +22,24 @@ type CompletionMessage struct {
 // Temperature is a pointer because 0 is a meaningful value that must be
 // distinguishable from "leave it to the provider's default".
 type CompletionRequest struct {
-	Messages    []CompletionMessage `json:"messages"`
-	MaxTokens   int                 `json:"max_tokens,omitempty"`
-	Temperature *float64            `json:"temperature,omitempty"`
+	Messages    []CompletionMessage
+	MaxTokens   int
+	Temperature *float64
 }
 
 // TokenUsage reports what the completion cost. Both fields are zero when the
 // provider does not report usage — an OpenAI-compatible server is not required
 // to, so a zero here means "unreported", never "free".
 type TokenUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
+	PromptTokens     int
+	CompletionTokens int
 }
 
 // CompletionResponse is the first choice of a completion, flattened. FinishReason
 // is passed through verbatim ("stop", "length", …) so a consumer can tell a
 // truncated answer from a complete one.
 type CompletionResponse struct {
-	Content      string     `json:"content"`
-	FinishReason string     `json:"finish_reason"`
-	Usage        TokenUsage `json:"usage"`
+	Content      string
+	FinishReason string
+	Usage        TokenUsage
 }

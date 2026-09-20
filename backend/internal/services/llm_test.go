@@ -334,7 +334,7 @@ func TestLLMComplete_DeadlineIsErrCompletionTimeout(t *testing.T) {
 	var reached atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		reached.Store(true)
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(2 * time.Second)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -343,7 +343,10 @@ func TestLLMComplete_DeadlineIsErrCompletionTimeout(t *testing.T) {
 	repo.EXPECT().GetDefault(mock.Anything, testProviderTeamID).
 		Return(llmProviderRow(t, server.URL), nil).Once()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	// 150ms matches the package's precedent for this shape (agent_invocation_*_test.go
+	// use 100-200ms); 30ms is too tight for connect + dispatch under -race, and the
+	// handler sleeps far longer, so the deadline still fires first.
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
 
 	_, err := newTestLLMService(t, repo, localDevProviderConfig()).
@@ -357,7 +360,7 @@ func TestLLMComplete_CancelledContextIsReturnedUnchanged(t *testing.T) {
 	// The caller abandoned the request; attributing it to the provider would be a
 	// lie, so context.Canceled is the one failure that is not reclassified.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(2 * time.Second)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -368,7 +371,7 @@ func TestLLMComplete_CancelledContextIsReturnedUnchanged(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(30 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 		cancel()
 	}()
 
@@ -435,5 +438,54 @@ func TestLLMResolve_NamedProviderRepositoryFailureDoesNotFallBack(t *testing.T) 
 		Resolve(context.Background(), testProviderTeamID, &providerID)
 
 	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrNoModelProvider)
+}
+
+func TestLLMComplete_UnusableProviderResponseIsNotUnreachable(t *testing.T) {
+	// The commonest real misconfiguration is a base_url missing its /v1 suffix, so
+	// /chat/completions lands on a proxy's 200 catch-all. The provider answered —
+	// reporting that as unreachability sends the operator to the network instead of
+	// to their base_url.
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"html from a catch-all route", "<html><body>Not Found</body></html>"},
+		{"valid json with no choices", `{"choices": [], "usage": {"prompt_tokens": 7}}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var reached atomic.Bool
+			server := llmCompletionServer(t, http.StatusOK, tt.body, &reached)
+			defer server.Close()
+
+			repo := mocks.NewMockModelProviderRepository(t)
+			repo.EXPECT().GetDefault(context.Background(), testProviderTeamID).
+				Return(llmProviderRow(t, server.URL), nil).Once()
+
+			_, err := newTestLLMService(t, repo, localDevProviderConfig()).
+				Complete(context.Background(), testProviderTeamID, nil, oneUserMessage())
+
+			require.ErrorIs(t, err, ErrModelRejected)
+			assert.NotErrorIs(t, err, ErrProviderUnreachable)
+			assert.True(t, reached.Load())
+		})
+	}
+}
+
+func TestLLMComplete_RejectsEmptyMessagesBeforeTouchingTheDatabase(t *testing.T) {
+	// An un-EXPECTed mock is the assertion: mockery fails the test if GetDefault or
+	// GetByID is called at all, which is what proves the guard runs before resolution.
+	repo := mocks.NewMockModelProviderRepository(t)
+
+	_, err := newTestLLMService(t, repo, localDevProviderConfig()).
+		Complete(context.Background(), testProviderTeamID, nil, models.CompletionRequest{})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "at least one message")
+	// A caller's own bug is not a provider fault.
+	assert.NotErrorIs(t, err, ErrProviderUnreachable)
+	assert.NotErrorIs(t, err, ErrModelRejected)
 	assert.NotErrorIs(t, err, ErrNoModelProvider)
 }

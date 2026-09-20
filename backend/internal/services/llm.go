@@ -163,6 +163,13 @@ func (s *LLMService) decryptAPIKey(row *models.ModelProvider) (string, error) {
 func (s *LLMService) Complete(
 	ctx context.Context, teamID string, providerID *string, req models.CompletionRequest,
 ) (*models.CompletionResponse, error) {
+	// Checked before resolution so a caller's own bug costs neither a database read
+	// nor an AES decrypt, and is not reported as a provider fault. The provider
+	// keeps its own guard as defence in depth.
+	if len(req.Messages) == 0 {
+		return nil, fmt.Errorf("completion request requires at least one message")
+	}
+
 	provider, err := s.Resolve(ctx, teamID, providerID)
 	if err != nil {
 		return nil, err
@@ -195,8 +202,14 @@ func (s *LLMService) classifyCompletionError(ctx context.Context, teamID string,
 	}
 
 	sentinel := ErrProviderUnreachable
-	if errors.Is(err, context.DeadlineExceeded) || isTimeoutError(err) {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded) || isTimeoutError(err):
 		sentinel = ErrCompletionTimeout
+	case errors.Is(err, errUnusableCompletionResponse):
+		// The provider answered; the answer is unusable. Reporting that as
+		// unreachability would send an operator to the network when the real fault is
+		// usually a base_url missing its /v1 suffix.
+		sentinel = ErrModelRejected
 	}
 	// The real error names the host and the dial outcome, which is exactly the
 	// detail that must stay server-side.

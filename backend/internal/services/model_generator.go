@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -314,6 +315,14 @@ func (e *completionHTTPError) Error() string {
 	return fmt.Sprintf("chat completions endpoint returned status %d: %s", e.StatusCode, e.Body)
 }
 
+// errUnusableCompletionResponse marks a response the provider really DID return
+// but that cannot be turned into a completion — a 2xx carrying HTML (a base_url
+// missing its /v1 suffix hits a proxy's catch-all), or a body with no choices.
+// The provider answered, so this classifies as a refusal and never as
+// unreachability: telling an operator to check the network when the real fault is
+// a mistyped base_url sends them to the wrong place.
+var errUnusableCompletionResponse = errors.New("provider returned an unusable completion response")
+
 // openAIChatCompletionsChoice is one candidate answer.
 type openAIChatCompletionsChoice struct {
 	Message      openAIChatMessage `json:"message"`
@@ -413,7 +422,7 @@ func (p *OpenAICompatibleModelProvider) postChatCompletions(
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxCompletionResponseBytes))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read chat completions response: %w", err)
+		return nil, fmt.Errorf("%w: failed to read it: %w", errUnusableCompletionResponse, err)
 	}
 	return raw, nil
 }
@@ -424,10 +433,10 @@ func (p *OpenAICompatibleModelProvider) postChatCompletions(
 func decodeChatCompletion(raw []byte) (*models.CompletionResponse, error) {
 	var decoded openAIChatCompletionsResponse
 	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return nil, fmt.Errorf("failed to decode chat completions response: %w", err)
+		return nil, fmt.Errorf("%w: failed to decode chat completions response: %w", errUnusableCompletionResponse, err)
 	}
 	if len(decoded.Choices) == 0 {
-		return nil, fmt.Errorf("chat completions response carried no choices")
+		return nil, fmt.Errorf("%w: it carried no choices", errUnusableCompletionResponse)
 	}
 
 	choice := decoded.Choices[0]
