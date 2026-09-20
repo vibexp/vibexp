@@ -316,8 +316,10 @@ func (e *completionHTTPError) Error() string {
 }
 
 // errUnusableCompletionResponse marks a response the provider really DID return
-// but that cannot be turned into a completion — a 2xx carrying HTML (a base_url
-// missing its /v1 suffix hits a proxy's catch-all), or a body with no choices.
+// and that arrived intact, but that cannot be turned into a completion — a 2xx
+// carrying HTML (a base_url missing its /v1 suffix hits a proxy's catch-all), or a
+// body with no choices. A body that failed to ARRIVE is a transport fault and
+// deliberately does not carry this marker.
 // The provider answered, so this classifies as a refusal and never as
 // unreachability: telling an operator to check the network when the real fault is
 // a mistyped base_url sends them to the wrong place.
@@ -420,9 +422,14 @@ func (p *OpenAICompatibleModelProvider) postChatCompletions(
 		}
 	}
 
+	// NOT errUnusableCompletionResponse: after 2xx headers this fails only on a real
+	// transport fault (a reset or an unexpected EOF mid-body), which must keep the
+	// transient ErrProviderUnreachable classification rather than becoming a refusal.
+	// Truncation past the LimitReader does not error, so an over-long body still
+	// reaches decodeChatCompletion and is correctly "unusable" there.
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxCompletionResponseBytes))
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to read it: %w", errUnusableCompletionResponse, err)
+		return nil, fmt.Errorf("failed to read chat completions response: %w", err)
 	}
 	return raw, nil
 }

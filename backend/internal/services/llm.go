@@ -77,6 +77,12 @@ func NewLLMService(
 // not decrypt and an unsupported provider type all return an error, the same rule
 // the email sender resolver enforces (#499). Falling back to "some other provider"
 // would spend a team's credits on a model they did not choose.
+//
+// The returned provider's OWN errors are UNCLASSIFIED and carry up to 512 bytes of
+// the provider's response body. Do not surface them to a caller: route completions
+// through Complete, which is what maps them onto the six sentinels and keeps the
+// body server-side (#464). Resolve exists for callers that need the provider's
+// identity — its model or its type — not as a second completion path.
 func (s *LLMService) Resolve(
 	ctx context.Context, teamID string, providerID *string,
 ) (ModelProvider, error) {
@@ -211,9 +217,10 @@ func (s *LLMService) classifyCompletionError(ctx context.Context, teamID string,
 		// usually a base_url missing its /v1 suffix.
 		sentinel = ErrModelRejected
 	}
-	// The real error names the host and the dial outcome, which is exactly the
-	// detail that must stay server-side.
-	s.logger.WarnContext(ctx, "Completion request failed before a provider answered",
+	// Neutral wording on purpose: this branch is reached both when nothing answered
+	// and when a provider answered unusably, and the real error names the host and
+	// the dial outcome, which is exactly the detail that must stay server-side.
+	s.logger.WarnContext(ctx, "Completion request failed",
 		slog.String("team_id", teamID),
 		slog.String("error", err.Error()),
 		slog.String("classified_as", sentinel.Error()),

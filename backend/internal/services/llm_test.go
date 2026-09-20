@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -334,7 +335,11 @@ func TestLLMComplete_DeadlineIsErrCompletionTimeout(t *testing.T) {
 	var reached atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		reached.Store(true)
-		time.Sleep(2 * time.Second)
+		// 600ms is a deliberate compromise: httptest's Close() waits for the handler,
+		// so this sleep is paid in real wall clock however early the client gives up
+		// (measured — the client's abort does not cancel r.Context() here, so
+		// selecting on it is dead code). 4x the 150ms budget is margin enough.
+		time.Sleep(600 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -360,7 +365,8 @@ func TestLLMComplete_CancelledContextIsReturnedUnchanged(t *testing.T) {
 	// The caller abandoned the request; attributing it to the provider would be a
 	// lie, so context.Canceled is the one failure that is not reclassified.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		time.Sleep(2 * time.Second)
+		// See the deadline test: Close() waits for the handler, so keep this short.
+		time.Sleep(600 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -488,4 +494,34 @@ func TestLLMComplete_RejectsEmptyMessagesBeforeTouchingTheDatabase(t *testing.T)
 	assert.NotErrorIs(t, err, ErrProviderUnreachable)
 	assert.NotErrorIs(t, err, ErrModelRejected)
 	assert.NotErrorIs(t, err, ErrNoModelProvider)
+}
+
+func TestLLMComplete_TruncatedBodyIsUnreachableNotRejected(t *testing.T) {
+	// A body that fails to ARRIVE is a transport fault, so it must keep the transient
+	// ErrProviderUnreachable classification — the marker that turns an unusable-but-
+	// intact 2xx into ErrModelRejected must not also swallow this. Getting it wrong
+	// inverts the retryability signal for every consumer of this seam.
+	//
+	// Promising more bytes than are written and then aborting the connection is what
+	// makes the client's body read fail mid-stream.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "4096")
+		w.WriteHeader(http.StatusOK)
+		_, writeErr := io.WriteString(w, `{"choices":[{"message":{"content":"par`)
+		require.NoError(t, writeErr)
+		w.(http.Flusher).Flush()
+		panic(http.ErrAbortHandler)
+	}))
+	server.Config.ErrorLog = log.New(io.Discard, "", 0)
+	defer server.Close()
+
+	repo := mocks.NewMockModelProviderRepository(t)
+	repo.EXPECT().GetDefault(context.Background(), testProviderTeamID).
+		Return(llmProviderRow(t, server.URL), nil).Once()
+
+	_, err := newTestLLMService(t, repo, localDevProviderConfig()).
+		Complete(context.Background(), testProviderTeamID, nil, oneUserMessage())
+
+	require.ErrorIs(t, err, ErrProviderUnreachable)
+	assert.NotErrorIs(t, err, ErrModelRejected)
 }
