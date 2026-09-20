@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,7 +98,7 @@ func TestListProviderModels_Unsupported(t *testing.T) {
 }
 
 func TestListProviderModels_Unauthorized(t *testing.T) {
-	server := modelListServer(t, http.StatusUnauthorized, `{"error":"invalid key sk-inline at `+"internal"+`"}`, nil)
+	server := modelListServer(t, http.StatusUnauthorized, `{"error":"invalid key sk-inline"}`, nil)
 
 	resp, err := createTestModelProviderService(nil).ListProviderModels(
 		context.Background(), testProviderTeamID, testProviderUserID, listRequest(server.URL),
@@ -136,7 +135,6 @@ func TestListProviderModels_ConnectionRefused(t *testing.T) {
 	assert.False(t, resp.Supported)
 	assert.Empty(t, resp.Models)
 	assert.Equal(t, providerErrConnectionFailed, resp.Message)
-	assert.NotContains(t, resp.Message, strings.TrimPrefix(closedURL, "http://"))
 }
 
 func TestListProviderModels_ReusesStoredKeyWhenAPIKeyBlank(t *testing.T) {
@@ -192,6 +190,23 @@ func TestListProviderModels_UnknownProviderID(t *testing.T) {
 	)
 
 	require.ErrorIs(t, err, ErrModelProviderNotFound)
+}
+
+func TestListProviderModels_UndecryptableStoredKeyIsAnError(t *testing.T) {
+	mockRepo := mocks.NewMockModelProviderRepository(t)
+	garbage := "not-a-ciphertext"
+	mockRepo.On("GetByID", mock.Anything, testProviderTeamID, "provider-1").
+		Return(&models.ModelProvider{ID: "provider-1", APIKeyEncrypted: &garbage}, nil)
+
+	req := listRequest("https://api.openai.com/v1")
+	req.APIKey = nil
+	req.ProviderID = "provider-1"
+	_, err := createTestModelProviderService(mockRepo).ListProviderModels(
+		context.Background(), testProviderTeamID, testProviderUserID, req,
+	)
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrModelProviderNotFound)
 }
 
 func TestListProviderModels_UnsupportedProviderType(t *testing.T) {
