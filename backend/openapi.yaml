@@ -303,6 +303,12 @@ components:
       $ref: "./schemas/model-providers.yaml#/ValidateModelProviderRequest"
     ValidateModelProviderResponse:
       $ref: "./schemas/model-providers.yaml#/ValidateModelProviderResponse"
+    ListProviderModelsRequest:
+      $ref: "./schemas/model-providers.yaml#/ListProviderModelsRequest"
+    ProviderModel:
+      $ref: "./schemas/model-providers.yaml#/ProviderModel"
+    ProviderModelList:
+      $ref: "./schemas/model-providers.yaml#/ProviderModelList"
     GitHubAppConfig:
       $ref: "./schemas/github-app-config.yaml#/GitHubAppConfig"
     GitHubAppConfigResponse:
@@ -1282,12 +1288,16 @@ paths:
     $ref: "./paths/model-providers.yaml#/api-v1-model-providers-id"
   /api/v1/{team_id}/model-providers/validate:
     $ref: "./paths/model-providers.yaml#/api-v1-model-providers-validate"
+  /api/v1/{team_id}/model-providers/models:
+    $ref: "./paths/model-providers.yaml#/api-v1-model-providers-models"
   /api/v1/{team_id}/settings/model-providers:
     $ref: "./paths/model-providers.yaml#/api-v1-settings-model-providers"
   /api/v1/{team_id}/settings/model-providers/{id}:
     $ref: "./paths/model-providers.yaml#/api-v1-settings-model-providers-id"
   /api/v1/{team_id}/settings/model-providers/validate:
     $ref: "./paths/model-providers.yaml#/api-v1-settings-model-providers-validate"
+  /api/v1/{team_id}/settings/model-providers/models:
+    $ref: "./paths/model-providers.yaml#/api-v1-settings-model-providers-models"
   /api/v1/{team_id}/settings/model-providers/copy:
     $ref: "./paths/model-providers.yaml#/api-v1-settings-model-providers-copy"
   /api/v1/{team_id}/projects:

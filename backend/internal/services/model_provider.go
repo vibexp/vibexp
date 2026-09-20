@@ -465,3 +465,80 @@ func (mps *ModelProviderService) validateOpenAICompatibleProvider(
 
 	return provider.Validate(ctx)
 }
+
+// ListProviderModels lists the models a provider exposes from inline connection
+// details, so a model can be picked before the provider is saved (#1070). Like
+// ValidateModelProvider it makes the server fetch a caller-supplied URL with
+// team credentials, so it is gated like a mutation and SSRF-guarded (#464), and
+// a provider that cannot list is reported in the body, not as an error.
+func (mps *ModelProviderService) ListProviderModels(
+	ctx context.Context, teamID, userID string, req models.ListProviderModelsRequest,
+) (*models.ProviderModelList, error) {
+	if mps == nil {
+		return nil, fmt.Errorf("ModelProviderService is nil")
+	}
+
+	if authzErr := mps.authorizeProviderMutation(ctx, userID, teamID); authzErr != nil {
+		return nil, authzErr
+	}
+
+	apiKey, err := mps.resolveListingAPIKey(ctx, teamID, req)
+	if err != nil {
+		return nil, err
+	}
+
+	unsupported := &models.ProviderModelList{Models: []models.ProviderModel{}}
+
+	if req.ProviderType != ProviderTypeOpenAICompatible {
+		unsupported.Message = providerErrMisconfigured
+		return unsupported, nil
+	}
+
+	// Reject the destination before dialling it so the listing cannot be used as
+	// a port scanner; the transport's dial-time hook is the backstop (#464).
+	if guardErr := mps.guard.validateOutboundHost(ctx, req.BaseURL); guardErr != nil {
+		logProviderValidationFailure("model", req.BaseURL, guardErr)
+		unsupported.Message = providerErrDestinationNotAllowed
+		return unsupported, nil
+	}
+
+	lister, err := NewOpenAICompatibleModelLister(req.BaseURL, apiKey, validateModelProviderTimeout, mps.guard)
+	if err != nil {
+		logProviderValidationFailure("model", req.BaseURL, err)
+		unsupported.Message = providerErrMisconfigured
+		return unsupported, nil
+	}
+
+	return lister.ListModels(ctx)
+}
+
+// resolveListingAPIKey returns the key a listing authenticates with: the inline
+// one when supplied, otherwise the stored key of req.ProviderID — the same rule
+// an update applies to a blank key. Neither yields "" (an unauthenticated
+// endpoint such as a local Ollama).
+func (mps *ModelProviderService) resolveListingAPIKey(
+	ctx context.Context, teamID string, req models.ListProviderModelsRequest,
+) (string, error) {
+	if req.APIKey != nil && *req.APIKey != "" {
+		return *req.APIKey, nil
+	}
+	if req.ProviderID == "" {
+		return "", nil
+	}
+	if mps.repo == nil {
+		return "", fmt.Errorf("ModelProviderService is nil")
+	}
+
+	provider, err := mps.repo.GetByID(ctx, teamID, req.ProviderID)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", ErrModelProviderNotFound, req.ProviderID)
+	}
+	if provider.APIKeyEncrypted == nil {
+		return "", nil
+	}
+	apiKey, err := mps.decrypt(*provider.APIKeyEncrypted)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt stored API key: %w", err)
+	}
+	return apiKey, nil
+}

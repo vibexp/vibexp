@@ -147,6 +147,7 @@ var settingsAliases = map[string]string{
 	// model-providers: same shape, mounted by setupModelProvidersRoutes.
 	"/api/v1/{team_id}/settings/model-providers":          "/api/v1/{team_id}/model-providers",
 	"/api/v1/{team_id}/settings/model-providers/validate": "/api/v1/{team_id}/model-providers/validate",
+	"/api/v1/{team_id}/settings/model-providers/models":   "/api/v1/{team_id}/model-providers/models",
 	"/api/v1/{team_id}/settings/model-providers/{id}":     "/api/v1/{team_id}/model-providers/{id}",
 }
 

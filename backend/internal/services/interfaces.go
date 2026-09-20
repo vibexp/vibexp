@@ -382,6 +382,13 @@ type ModelProviderServiceInterface interface {
 	ValidateModelProvider(ctx context.Context, teamID, userID string,
 		req models.ValidateModelProviderRequest,
 	) (*models.ValidateModelProviderResponse, error)
+	// ListProviderModels lists a provider's models from inline connection details
+	// (#1070). Authorized and SSRF-guarded exactly like ValidateModelProvider; a
+	// blank api_key with a provider_id reuses that provider's stored key, and an
+	// unknown provider_id is ErrModelProviderNotFound.
+	ListProviderModels(ctx context.Context, teamID, userID string,
+		req models.ListProviderModelsRequest,
+	) (*models.ProviderModelList, error)
 	// CopyFromTeam copies one provider out of another team into this one,
 	// credential included (#830, epic #827). The stored ciphertext is moved
 	// across without being decrypted, and exactly one team-settings audit entry

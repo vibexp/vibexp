@@ -21,6 +21,30 @@ const (
 	CookieAuthScopes cookieAuthContextKey = "CookieAuth.Scopes"
 )
 
+// Defines values for ProviderModelListMessage.
+const (
+	ConnectionFailed      ProviderModelListMessage = "connection_failed"
+	DestinationNotAllowed ProviderModelListMessage = "destination_not_allowed"
+	MisconfiguredProvider ProviderModelListMessage = "misconfigured_provider"
+	Unauthorized          ProviderModelListMessage = "unauthorized"
+)
+
+// Valid indicates whether the value is a known member of the ProviderModelListMessage enum.
+func (e ProviderModelListMessage) Valid() bool {
+	switch e {
+	case ConnectionFailed:
+		return true
+	case DestinationNotAllowed:
+		return true
+	case MisconfiguredProvider:
+		return true
+	case Unauthorized:
+		return true
+	default:
+		return false
+	}
+}
+
 // CopyModelProviderRequest Request body for copying one model provider out of another team into this one. The destination is the `{team_id}` path parameter; only the source is carried here.
 //
 // The API key is deliberately absent. Responses expose `has_api_key` and never the key itself, so a client cannot carry the credential across — the server re-reads the source row's stored ciphertext and writes it to the copy untouched, without ever decrypting it.
@@ -92,6 +116,17 @@ type ErrorResponse struct {
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
 }
 
+// ListProviderModelsRequest Inline connection details for the provider whose models to list. The provider does not have to be saved yet: this is what lets a model be picked while the base URL and key are still being entered.
+type ListProviderModelsRequest struct {
+	// ApiKey Bearer key for the provider. Leave it blank together with `provider_id` to reuse that saved provider's stored key — the same rule an update applies to a blank key.
+	ApiKey  *string `json:"api_key,omitempty"`
+	BaseUrl string  `json:"base_url"`
+
+	// ProviderId A saved provider in this team whose stored API key is used when `api_key` is blank. Ignored when `api_key` is supplied.
+	ProviderId   *openapi_types.UUID `json:"provider_id,omitempty"`
+	ProviderType string              `json:"provider_type"`
+}
+
 // ModelProvider defines model for ModelProvider.
 type ModelProvider struct {
 	BaseUrl       *string   `json:"base_url,omitempty"`
@@ -139,6 +174,30 @@ type ModelProviderResponse struct {
 
 // ModelProviderResponseList defines model for ModelProviderResponseList.
 type ModelProviderResponseList = []ModelProviderResponse
+
+// ProviderModel defines model for ProviderModel.
+type ProviderModel struct {
+	// Id Model identifier, exactly as the provider reports it.
+	Id string `json:"id"`
+
+	// OwnedBy Owner the provider reports for the model, when it reports one.
+	OwnedBy *string `json:"owned_by,omitempty"`
+}
+
+// ProviderModelList defines model for ProviderModelList.
+type ProviderModelList struct {
+	// Message Why the listing failed, as a fixed category — never the provider's raw response or the URL. Omitted on success and when the provider simply does not implement model listing.
+	Message *ProviderModelListMessage `json:"message,omitempty"`
+
+	// Models Every model the provider reported, sorted by `id` and unfiltered. Empty when `supported` is `false`.
+	Models []ProviderModel `json:"models"`
+
+	// Supported Whether the provider answered its model listing. `false` when it does not implement `GET {base_url}/models` (many gateways expose only `/chat/completions`) or could not be reached; a client falls back to free-text model entry.
+	Supported bool `json:"supported"`
+}
+
+// ProviderModelListMessage Why the listing failed, as a fixed category — never the provider's raw response or the URL. Omitted on success and when the provider simply does not implement model listing.
+type ProviderModelListMessage string
 
 // UpdateModelProviderRequest defines model for UpdateModelProviderRequest.
 type UpdateModelProviderRequest struct {
@@ -203,6 +262,9 @@ type cookieAuthContextKey string
 // CreateModelProviderJSONRequestBody defines body for CreateModelProvider for application/json ContentType.
 type CreateModelProviderJSONRequestBody = CreateModelProviderRequest
 
+// ListProviderModelsJSONRequestBody defines body for ListProviderModels for application/json ContentType.
+type ListProviderModelsJSONRequestBody = ListProviderModelsRequest
+
 // ValidateModelProviderJSONRequestBody defines body for ValidateModelProvider for application/json ContentType.
 type ValidateModelProviderJSONRequestBody = ValidateModelProviderRequest
 
@@ -214,6 +276,9 @@ type CreateModelProviderSettingsJSONRequestBody = CreateModelProviderRequest
 
 // CopyModelProviderFromTeamJSONRequestBody defines body for CopyModelProviderFromTeam for application/json ContentType.
 type CopyModelProviderFromTeamJSONRequestBody = CopyModelProviderRequest
+
+// ListProviderModelsSettingsJSONRequestBody defines body for ListProviderModelsSettings for application/json ContentType.
+type ListProviderModelsSettingsJSONRequestBody = ListProviderModelsRequest
 
 // ValidateModelProviderSettingsJSONRequestBody defines body for ValidateModelProviderSettings for application/json ContentType.
 type ValidateModelProviderSettingsJSONRequestBody = ValidateModelProviderRequest
@@ -229,6 +294,9 @@ type ServerInterface interface {
 	// Create model provider
 	// (POST /api/v1/{team_id}/model-providers)
 	CreateModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// List a model provider's models
+	// (POST /api/v1/{team_id}/model-providers/models)
+	ListProviderModels(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
 	// Validate model provider configuration
 	// (POST /api/v1/{team_id}/model-providers/validate)
 	ValidateModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
@@ -250,6 +318,9 @@ type ServerInterface interface {
 	// Copy a model provider from another team into this team
 	// (POST /api/v1/{team_id}/settings/model-providers/copy)
 	CopyModelProviderFromTeam(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// List a model provider's models
+	// (POST /api/v1/{team_id}/settings/model-providers/models)
+	ListProviderModelsSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
 	// Validate model provider configuration
 	// (POST /api/v1/{team_id}/settings/model-providers/validate)
 	ValidateModelProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
@@ -277,6 +348,12 @@ func (_ Unimplemented) ListModelProviders(w http.ResponseWriter, r *http.Request
 // Create model provider
 // (POST /api/v1/{team_id}/model-providers)
 func (_ Unimplemented) CreateModelProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List a model provider's models
+// (POST /api/v1/{team_id}/model-providers/models)
+func (_ Unimplemented) ListProviderModels(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -319,6 +396,12 @@ func (_ Unimplemented) CreateModelProviderSettings(w http.ResponseWriter, r *htt
 // Copy a model provider from another team into this team
 // (POST /api/v1/{team_id}/settings/model-providers/copy)
 func (_ Unimplemented) CopyModelProviderFromTeam(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List a model provider's models
+// (POST /api/v1/{team_id}/settings/model-providers/models)
+func (_ Unimplemented) ListProviderModelsSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -414,6 +497,40 @@ func (siw *ServerInterfaceWrapper) CreateModelProvider(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateModelProvider(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListProviderModels operation middleware
+func (siw *ServerInterfaceWrapper) ListProviderModels(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProviderModels(w, r, teamId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -679,6 +796,40 @@ func (siw *ServerInterfaceWrapper) CopyModelProviderFromTeam(w http.ResponseWrit
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CopyModelProviderFromTeam(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListProviderModelsSettings operation middleware
+func (siw *ServerInterfaceWrapper) ListProviderModelsSettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProviderModelsSettings(w, r, teamId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -971,6 +1122,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/{team_id}/model-providers", wrapper.CreateModelProvider)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/{team_id}/model-providers/models", wrapper.ListProviderModels)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/{team_id}/model-providers/validate", wrapper.ValidateModelProvider)
 	})
 	r.Group(func(r chi.Router) {
@@ -990,6 +1144,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/{team_id}/settings/model-providers/copy", wrapper.CopyModelProviderFromTeam)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/{team_id}/settings/model-providers/models", wrapper.ListProviderModelsSettings)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/{team_id}/settings/model-providers/validate", wrapper.ValidateModelProviderSettings)
@@ -1139,6 +1296,99 @@ func (response CreateModelProvider409ApplicationProblemPlusJSONResponse) VisitCr
 type CreateModelProvider500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response CreateModelProvider500ApplicationProblemPlusJSONResponse) VisitCreateModelProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProviderModelsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Body   *ListProviderModelsJSONRequestBody
+}
+
+type ListProviderModelsResponseObject interface {
+	VisitListProviderModelsResponse(w http.ResponseWriter) error
+}
+
+type ListProviderModels200JSONResponse ProviderModelList
+
+func (response ListProviderModels200JSONResponse) VisitListProviderModelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProviderModels400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListProviderModels400ApplicationProblemPlusJSONResponse) VisitListProviderModelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProviderModels401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListProviderModels401ApplicationProblemPlusJSONResponse) VisitListProviderModelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProviderModels403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListProviderModels403ApplicationProblemPlusJSONResponse) VisitListProviderModelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProviderModels404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListProviderModels404ApplicationProblemPlusJSONResponse) VisitListProviderModelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProviderModels500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListProviderModels500ApplicationProblemPlusJSONResponse) VisitListProviderModelsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -1725,6 +1975,99 @@ func (response CopyModelProviderFromTeam500ApplicationProblemPlusJSONResponse) V
 	return err
 }
 
+type ListProviderModelsSettingsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Body   *ListProviderModelsSettingsJSONRequestBody
+}
+
+type ListProviderModelsSettingsResponseObject interface {
+	VisitListProviderModelsSettingsResponse(w http.ResponseWriter) error
+}
+
+type ListProviderModelsSettings200JSONResponse ProviderModelList
+
+func (response ListProviderModelsSettings200JSONResponse) VisitListProviderModelsSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProviderModelsSettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListProviderModelsSettings400ApplicationProblemPlusJSONResponse) VisitListProviderModelsSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProviderModelsSettings401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListProviderModelsSettings401ApplicationProblemPlusJSONResponse) VisitListProviderModelsSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProviderModelsSettings403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListProviderModelsSettings403ApplicationProblemPlusJSONResponse) VisitListProviderModelsSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProviderModelsSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListProviderModelsSettings404ApplicationProblemPlusJSONResponse) VisitListProviderModelsSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProviderModelsSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListProviderModelsSettings500ApplicationProblemPlusJSONResponse) VisitListProviderModelsSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ValidateModelProviderSettingsRequestObject struct {
 	TeamId openapi_types.UUID `json:"team_id"`
 	Body   *ValidateModelProviderSettingsJSONRequestBody
@@ -2058,6 +2401,9 @@ type StrictServerInterface interface {
 	// Create model provider
 	// (POST /api/v1/{team_id}/model-providers)
 	CreateModelProvider(ctx context.Context, request CreateModelProviderRequestObject) (CreateModelProviderResponseObject, error)
+	// List a model provider's models
+	// (POST /api/v1/{team_id}/model-providers/models)
+	ListProviderModels(ctx context.Context, request ListProviderModelsRequestObject) (ListProviderModelsResponseObject, error)
 	// Validate model provider configuration
 	// (POST /api/v1/{team_id}/model-providers/validate)
 	ValidateModelProvider(ctx context.Context, request ValidateModelProviderRequestObject) (ValidateModelProviderResponseObject, error)
@@ -2079,6 +2425,9 @@ type StrictServerInterface interface {
 	// Copy a model provider from another team into this team
 	// (POST /api/v1/{team_id}/settings/model-providers/copy)
 	CopyModelProviderFromTeam(ctx context.Context, request CopyModelProviderFromTeamRequestObject) (CopyModelProviderFromTeamResponseObject, error)
+	// List a model provider's models
+	// (POST /api/v1/{team_id}/settings/model-providers/models)
+	ListProviderModelsSettings(ctx context.Context, request ListProviderModelsSettingsRequestObject) (ListProviderModelsSettingsResponseObject, error)
 	// Validate model provider configuration
 	// (POST /api/v1/{team_id}/settings/model-providers/validate)
 	ValidateModelProviderSettings(ctx context.Context, request ValidateModelProviderSettingsRequestObject) (ValidateModelProviderSettingsResponseObject, error)
@@ -2174,6 +2523,39 @@ func (sh *strictHandler) CreateModelProvider(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateModelProviderResponseObject); ok {
 		if err := validResponse.VisitCreateModelProviderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListProviderModels operation middleware
+func (sh *strictHandler) ListProviderModels(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request ListProviderModelsRequestObject
+
+	request.TeamId = teamId
+
+	var body ListProviderModelsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListProviderModels(ctx, request.(ListProviderModelsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListProviderModels")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListProviderModelsResponseObject); ok {
+		if err := validResponse.VisitListProviderModelsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -2387,6 +2769,39 @@ func (sh *strictHandler) CopyModelProviderFromTeam(w http.ResponseWriter, r *htt
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CopyModelProviderFromTeamResponseObject); ok {
 		if err := validResponse.VisitCopyModelProviderFromTeamResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListProviderModelsSettings operation middleware
+func (sh *strictHandler) ListProviderModelsSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request ListProviderModelsSettingsRequestObject
+
+	request.TeamId = teamId
+
+	var body ListProviderModelsSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListProviderModelsSettings(ctx, request.(ListProviderModelsSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListProviderModelsSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListProviderModelsSettingsResponseObject); ok {
+		if err := validResponse.VisitListProviderModelsSettingsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

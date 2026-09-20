@@ -149,6 +149,7 @@ var requiredArrayResponseRegistry = map[string]any{
 	"Memory":                         models.Memory{},
 	"MemoryVersionListResponse":      models.MemoryVersionListResponse{},
 	"ModelProviderListResponse":      models.ModelProviderListResponse{},
+	"ProviderModelList":              models.ProviderModelList{},
 	"PendingInvitationsListResponse": models.PendingInvitationsListResponse{},
 	"ProjectListResponse":            models.ProjectListResponse{},
 	"PromptDependenciesResponse":     models.PromptDependenciesResponse{},

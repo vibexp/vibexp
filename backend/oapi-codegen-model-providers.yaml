@@ -36,6 +36,7 @@ output-options:
     - updateModelProvider
     - deleteModelProvider
     - validateModelProvider
+    - listProviderModels
     # Settings alias mount: /api/v1/{team_id}/settings/model-providers
     - createModelProviderSettings
     - listModelProvidersSettings
@@ -43,3 +44,4 @@ output-options:
     - updateModelProviderSettings
     - deleteModelProviderSettings
     - validateModelProviderSettings
+    - listProviderModelsSettings

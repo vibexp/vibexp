@@ -371,6 +371,67 @@ func (_c *MockModelProviderServiceInterface_GetModelProvidersByTeamID_Call) RunA
 	return _c
 }
 
+// ListProviderModels provides a mock function with given fields: ctx, teamID, userID, req
+func (_m *MockModelProviderServiceInterface) ListProviderModels(ctx context.Context, teamID string, userID string, req models.ListProviderModelsRequest) (*models.ProviderModelList, error) {
+	ret := _m.Called(ctx, teamID, userID, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListProviderModels")
+	}
+
+	var r0 *models.ProviderModelList
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, models.ListProviderModelsRequest) (*models.ProviderModelList, error)); ok {
+		return rf(ctx, teamID, userID, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, models.ListProviderModelsRequest) *models.ProviderModelList); ok {
+		r0 = rf(ctx, teamID, userID, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.ProviderModelList)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, models.ListProviderModelsRequest) error); ok {
+		r1 = rf(ctx, teamID, userID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockModelProviderServiceInterface_ListProviderModels_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListProviderModels'
+type MockModelProviderServiceInterface_ListProviderModels_Call struct {
+	*mock.Call
+}
+
+// ListProviderModels is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - userID string
+//   - req models.ListProviderModelsRequest
+func (_e *MockModelProviderServiceInterface_Expecter) ListProviderModels(ctx interface{}, teamID interface{}, userID interface{}, req interface{}) *MockModelProviderServiceInterface_ListProviderModels_Call {
+	return &MockModelProviderServiceInterface_ListProviderModels_Call{Call: _e.mock.On("ListProviderModels", ctx, teamID, userID, req)}
+}
+
+func (_c *MockModelProviderServiceInterface_ListProviderModels_Call) Run(run func(ctx context.Context, teamID string, userID string, req models.ListProviderModelsRequest)) *MockModelProviderServiceInterface_ListProviderModels_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(models.ListProviderModelsRequest))
+	})
+	return _c
+}
+
+func (_c *MockModelProviderServiceInterface_ListProviderModels_Call) Return(_a0 *models.ProviderModelList, _a1 error) *MockModelProviderServiceInterface_ListProviderModels_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockModelProviderServiceInterface_ListProviderModels_Call) RunAndReturn(run func(context.Context, string, string, models.ListProviderModelsRequest) (*models.ProviderModelList, error)) *MockModelProviderServiceInterface_ListProviderModels_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateModelProvider provides a mock function with given fields: ctx, teamID, userID, providerID, req
 func (_m *MockModelProviderServiceInterface) UpdateModelProvider(ctx context.Context, teamID string, userID string, providerID string, req models.UpdateModelProviderRequest) (*models.ModelProvider, error) {
 	ret := _m.Called(ctx, teamID, userID, providerID, req)
