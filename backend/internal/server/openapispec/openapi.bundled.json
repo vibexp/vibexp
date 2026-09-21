@@ -28050,6 +28050,9 @@
             "type": "integer",
             "description": "Total number of pages",
             "example": 5
+          },
+          "ai_summary": {
+            "$ref": "#/components/schemas/SearchAISummaryAvailability"
           }
         },
         "required": [
@@ -28058,6 +28061,26 @@
           "page",
           "per_page",
           "total_pages"
+        ]
+      },
+      "SearchAISummaryAvailability": {
+        "type": "object",
+        "description": "Whether an AI Summary can be generated for this team's search results. Absent on non-REST surfaces.",
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "The team has at least one model provider configured",
+            "example": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "The team has not turned the AI Summary feature off",
+            "example": true
+          }
+        },
+        "required": [
+          "available",
+          "enabled"
         ]
       },
       "SearchSummaryRequest": {

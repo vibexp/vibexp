@@ -148,6 +148,8 @@ var ProviderSet = wire.NewSet(
 		new(*services.TeamAISummarySettingsService)),
 	wire.Bind(new(services.AISummarySettingsResolver),
 		new(*services.TeamAISummarySettingsService)),
+	wire.Bind(new(services.AISummaryAvailabilityResolver),
+		new(*services.TeamAISummarySettingsService)),
 	providers.ProvideTeamSettingsAuditService,
 	providers.ProvideFreshnessService,
 	providers.ProvideFreshnessEvaluator,

@@ -72,6 +72,12 @@ func TestSearch_HappyPath(t *testing.T) {
 	var jsonResp models.SearchResultsResponse
 	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &jsonResp))
 	assert.Equal(t, "Staging DB setup", jsonResp.Results[0].Title)
+
+	// ai_summary is a REST-only UI affordance (#1074); the MCP payload must not
+	// grow it.
+	var raw map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &raw))
+	assert.NotContains(t, raw, "ai_summary")
 }
 
 func TestSearch_NonMemberTeamDenied(t *testing.T) {

@@ -68,6 +68,7 @@ packages:
       SearchSettingsResolver:
       StreamProcessor:
       AISummarySettingsResolver:
+      AISummaryAvailabilityResolver:
       TeamAISummarySettingsServiceInterface:
       TeamEmailProviderServiceInterface:
       FreshnessServiceInterface:

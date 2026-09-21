@@ -55,8 +55,19 @@ type AISummarySettingsResolver interface {
 	Resolve(ctx context.Context, teamID string) (*models.TeamAISummarySettingsView, error)
 }
 
-// TeamAISummarySettingsService implements both
-// TeamAISummarySettingsServiceInterface and AISummarySettingsResolver.
+// AISummaryAvailabilityResolver reports whether an AI Summary can be generated
+// for a team, for the REST search response (#1074).
+//
+// Availability FAILS OPEN towards "not available" — see
+// TeamAISummarySettingsService.Availability. It has no error return on purpose:
+// its caller is the search handler, and a search must never fail because this
+// lookup did.
+type AISummaryAvailabilityResolver interface {
+	Availability(ctx context.Context, teamID string) models.AISummaryAvailability
+}
+
+// TeamAISummarySettingsService implements TeamAISummarySettingsServiceInterface,
+// AISummarySettingsResolver and AISummaryAvailabilityResolver.
 //
 // defaults is the deployment-wide `ai_summary:` config. It is both the fallback
 // for a team with no stored profile and the instance_defaults reported on every
@@ -75,6 +86,7 @@ type TeamAISummarySettingsService struct {
 var (
 	_ TeamAISummarySettingsServiceInterface = (*TeamAISummarySettingsService)(nil)
 	_ AISummarySettingsResolver             = (*TeamAISummarySettingsService)(nil)
+	_ AISummaryAvailabilityResolver         = (*TeamAISummarySettingsService)(nil)
 )
 
 // NewTeamAISummarySettingsService creates a new TeamAISummarySettingsService.
@@ -168,6 +180,36 @@ func (s *TeamAISummarySettingsService) Resolve(
 		return s.view(models.TeamAISummarySettingsSourceInstance, s.instanceValues()), nil
 	}
 	return s.view(models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored)), nil
+}
+
+// Availability implements AISummaryAvailabilityResolver.
+//
+// Available means the team has at least one model provider row; Enabled means
+// the team's effective settings (via the fail-open Resolve) have the feature
+// on. Either lookup failing degrades to available=false — logged at warn —
+// rather than an error: this is a UI affordance flag on a search response, and
+// hiding the affordance for one request is the right cost of a blip.
+func (s *TeamAISummarySettingsService) Availability(
+	ctx context.Context, teamID string,
+) models.AISummaryAvailability {
+	view, err := s.Resolve(ctx, teamID)
+	if err != nil {
+		s.logger.With("team_id", teamID, "error", err).
+			Warn("failed to resolve AI summary settings; reporting AI summary as unavailable")
+		return models.AISummaryAvailability{}
+	}
+
+	count, err := s.providers.Count(ctx, teamID)
+	if err != nil {
+		s.logger.With("team_id", teamID, "error", err).
+			Warn("failed to count team model providers; reporting AI summary as unavailable")
+		return models.AISummaryAvailability{Enabled: view.Values.Enabled}
+	}
+
+	return models.AISummaryAvailability{
+		Available: count > 0,
+		Enabled:   view.Values.Enabled,
+	}
 }
 
 // Update implements TeamAISummarySettingsServiceInterface.

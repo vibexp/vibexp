@@ -129,12 +129,35 @@ SearchResultsResponse:
       type: integer
       description: Total number of pages
       example: 5
+    ai_summary:
+      $ref: '#/SearchAISummaryAvailability'
   required:
     - results
     - total_count
     - page
     - per_page
     - total_pages
+
+# Rides on the REST search response only (#1074), so the SPA can decide whether
+# to render the AI Summary section without a second round-trip. Optional and
+# additive: the MCP and CLI search surfaces never carry it.
+SearchAISummaryAvailability:
+  type: object
+  description: >-
+    Whether an AI Summary can be generated for this team's search results.
+    Absent on non-REST surfaces.
+  properties:
+    available:
+      type: boolean
+      description: The team has at least one model provider configured
+      example: true
+    enabled:
+      type: boolean
+      description: The team has not turned the AI Summary feature off
+      example: true
+  required:
+    - available
+    - enabled
 
 # POST /search/summary (#1073, epic #1068). The request carries the same
 # filters as SearchRequest but NO paging: the summary always reads the global

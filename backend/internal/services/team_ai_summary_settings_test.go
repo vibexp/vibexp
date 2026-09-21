@@ -406,3 +406,60 @@ func TestTeamAISummarySettingsService_Reset_RepositoryErrorPropagates(t *testing
 
 	assert.Error(t, svc.Reset(context.Background(), testAISummaryUserID, testTeamID))
 }
+
+func TestTeamAISummarySettingsService_Availability(t *testing.T) {
+	enabledRow := &models.TeamAISummarySettings{
+		TeamID: testTeamID, Enabled: true, TopN: 5, Style: models.AISummaryStyleBalanced, MaxOutputTokens: 800,
+	}
+	disabledRow := &models.TeamAISummarySettings{
+		TeamID: testTeamID, Enabled: false, TopN: 5, Style: models.AISummaryStyleBalanced, MaxOutputTokens: 800,
+	}
+
+	for name, tc := range map[string]struct {
+		row   *models.TeamAISummarySettings
+		count int
+		want  models.AISummaryAvailability
+	}{
+		"provider and enabled":    {row: enabledRow, count: 2, want: models.AISummaryAvailability{Available: true, Enabled: true}},
+		"provider but disabled":   {row: disabledRow, count: 1, want: models.AISummaryAvailability{Available: true, Enabled: false}},
+		"no provider":             {row: enabledRow, count: 0, want: models.AISummaryAvailability{Available: false, Enabled: true}},
+		"no row inherits enabled": {row: nil, count: 1, want: models.AISummaryAvailability{Available: true, Enabled: true}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+			repo.EXPECT().Get(mock.Anything, testTeamID).Return(tc.row, nil)
+			providers.EXPECT().Count(mock.Anything, testTeamID).Return(tc.count, nil)
+
+			assert.Equal(t, tc.want, svc.Availability(context.Background(), testTeamID))
+		})
+	}
+}
+
+// A failed provider lookup must degrade to available=false — never an error —
+// because the caller is the search handler and a search must not fail over a
+// UI affordance flag.
+func TestTeamAISummarySettingsService_Availability_ProviderCountErrorFailsOpen(t *testing.T) {
+	var logs bytes.Buffer
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, &logs)
+	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
+	providers.EXPECT().Count(mock.Anything, testTeamID).Return(0, errors.New("connection refused"))
+
+	got := svc.Availability(context.Background(), testTeamID)
+
+	assert.Equal(t, models.AISummaryAvailability{Available: false, Enabled: true}, got)
+	assertAISummaryWarnLogged(t, logs.String(), testTeamID)
+}
+
+// A settings read failure goes through Resolve's own fail-open: the instance
+// defaults decide enabled, and availability is still answered.
+func TestTeamAISummarySettingsService_Availability_SettingsErrorFailsOpen(t *testing.T) {
+	var logs bytes.Buffer
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, &logs)
+	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, errors.New("connection refused"))
+	providers.EXPECT().Count(mock.Anything, testTeamID).Return(1, nil)
+
+	got := svc.Availability(context.Background(), testTeamID)
+
+	assert.Equal(t, models.AISummaryAvailability{Available: true, Enabled: true}, got)
+	assertAISummaryWarnLogged(t, logs.String(), testTeamID)
+}

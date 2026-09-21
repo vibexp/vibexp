@@ -82,6 +82,7 @@ type WireContainer struct {
 	embeddingService          services.EmbeddingServiceInterface
 	searchService             services.Searcher
 	searchSummaryService      services.SearchSummaryServiceInterface
+	aiSummaryAvailability     services.AISummaryAvailabilityResolver
 	teamEmailProviderService  services.TeamEmailProviderServiceInterface
 	emailSenderResolver       services.EmailSenderResolver
 	teamSearchSettingsService services.TeamSearchSettingsServiceInterface
@@ -391,6 +392,11 @@ func (c *WireContainer) SearchService() services.Searcher {
 // SearchSummaryService returns the search summary service (#1073).
 func (c *WireContainer) SearchSummaryService() services.SearchSummaryServiceInterface {
 	return c.searchSummaryService
+}
+
+// AISummaryAvailability returns the AI summary availability resolver (#1074).
+func (c *WireContainer) AISummaryAvailability() services.AISummaryAvailabilityResolver {
+	return c.aiSummaryAvailability
 }
 
 func (c *WireContainer) EnvironmentService() *services.EnvironmentService {

@@ -40,6 +40,11 @@ type MockSearchSummaryContainer struct {
 	summaryService *svcmocks.MockSearchSummaryServiceInterface
 	searchService  *svcmocks.MockSearcher
 	teamService    *svcmocks.MockTeamServiceInterface
+	availability   *svcmocks.MockAISummaryAvailabilityResolver
+}
+
+func (m *MockSearchSummaryContainer) AISummaryAvailability() services.AISummaryAvailabilityResolver {
+	return m.availability
 }
 
 func (m *MockSearchSummaryContainer) SearchSummaryService() services.SearchSummaryServiceInterface {
@@ -58,6 +63,7 @@ func newMockSearchSummaryContainer(t *testing.T) *MockSearchSummaryContainer {
 	return &MockSearchSummaryContainer{
 		summaryService: svcmocks.NewMockSearchSummaryServiceInterface(t),
 		searchService:  svcmocks.NewMockSearcher(t),
+		availability:   svcmocks.NewMockAISummaryAvailabilityResolver(t),
 		teamService:    svcmocks.NewMockTeamServiceInterface(t),
 	}
 }
@@ -328,6 +334,8 @@ func TestSetupSearchRoutes_SummaryAndSearchCoexist(t *testing.T) {
 		Return(sampleSearchSummary(), nil).Once()
 	c.searchService.EXPECT().Search(mock.Anything, searchTestTeamID, mock.Anything).
 		Return(&models.SearchResultsResponse{}, nil).Once()
+	c.availability.EXPECT().Availability(mock.Anything, searchTestTeamID).
+		Return(models.AISummaryAvailability{}).Once()
 
 	r := chi.NewRouter()
 	srv := &Server{

@@ -20,6 +20,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
+	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
 const searchTestTeamID = "550e8400-e29b-41d4-a716-446655440000"
@@ -30,6 +31,11 @@ type MockSearchContainer struct {
 	searchService *svcmocks.MockSearcher
 	authService   *svcmocks.MockAuthServiceInterface
 	teamService   *svcmocks.MockTeamServiceInterface
+	availability  *svcmocks.MockAISummaryAvailabilityResolver
+}
+
+func (m *MockSearchContainer) AISummaryAvailability() services.AISummaryAvailabilityResolver {
+	return m.availability
 }
 
 func (m *MockSearchContainer) SearchService() services.Searcher {
@@ -49,7 +55,15 @@ func newMockSearchContainer(t *testing.T) *MockSearchContainer {
 		searchService: svcmocks.NewMockSearcher(t),
 		authService:   svcmocks.NewMockAuthServiceInterface(t),
 		teamService:   svcmocks.NewMockTeamServiceInterface(t),
+		availability:  svcmocks.NewMockAISummaryAvailabilityResolver(t),
 	}
+}
+
+// stubAISummaryAvailability answers the ai_summary lookup every successful
+// REST search makes (#1074).
+func stubAISummaryAvailability(c *MockSearchContainer, available, enabled bool) {
+	c.availability.EXPECT().Availability(mock.Anything, searchTestTeamID).
+		Return(models.AISummaryAvailability{Available: available, Enabled: enabled})
 }
 
 func createSearchTestServer(c *MockSearchContainer) *Server {
@@ -108,6 +122,7 @@ func TestHandleSearch_Success(t *testing.T) {
 			},
 			TotalCount: 1, Page: 1, PerPage: 10, TotalPages: 1,
 		}, nil)
+	stubAISummaryAvailability(c, true, true)
 
 	srv := createSearchTestServer(c)
 	rr := httptest.NewRecorder()
@@ -139,6 +154,7 @@ func TestHandleSearch_PaginationClamping(t *testing.T) {
 			return req.Page == 1 && req.PerPage == 10
 		})).
 		Return(&models.SearchResultsResponse{Results: []models.SearchResultItem{}, Page: 1, PerPage: 10}, nil)
+	stubAISummaryAvailability(c, false, false)
 
 	srv := createSearchTestServer(c)
 	rr := httptest.NewRecorder()
@@ -197,6 +213,70 @@ func TestHandleSearch_ServiceError(t *testing.T) {
 	srv.router.ServeHTTP(rr, searchRequest(t, map[string]interface{}{"query": "q"}))
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	c.availability.AssertNotCalled(t, "Availability", mock.Anything, mock.Anything)
+}
+
+// TestHandleSearch_AISummaryAvailability pins the ai_summary field on the REST
+// search response (#1074): it reflects the resolver verbatim, including the
+// fail-open {available:false} it reports when a lookup failed — which must
+// still be a 200 search — and every variant conforms to the spec.
+func TestHandleSearch_AISummaryAvailability(t *testing.T) {
+	for name, tc := range map[string]struct {
+		available, enabled bool
+		want               string
+	}{
+		"provider and enabled":            {true, true, `{"available":true,"enabled":true}`},
+		"provider but disabled":           {true, false, `{"available":true,"enabled":false}`},
+		"no provider":                     {false, true, `{"available":false,"enabled":true}`},
+		"resolver failure fails to false": {false, false, `{"available":false,"enabled":false}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := newMockSearchContainer(t)
+			grantSearchTeamAccess(c)
+			c.searchService.On("Search", mock.Anything, searchTestTeamID, mock.Anything).
+				Return(&models.SearchResultsResponse{
+					Results: []models.SearchResultItem{{
+						Type: "memory", ID: "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b", Title: "Retry notes",
+						ProjectID: "7c9e6679-7425-40de-944b-e07fc1f90ae7", ProjectName: "My Project",
+						Excerpt: "e", Score: 0.9, ChunkID: "4a5b6c7d-8e9f-4a0b-9c1d-2e3f4a5b6c7d",
+						UpdatedAt: time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC),
+					}},
+					TotalCount: 1, Page: 1, PerPage: 10, TotalPages: 1,
+				}, nil)
+			stubAISummaryAvailability(c, tc.available, tc.enabled)
+
+			req := searchRequest(t, map[string]interface{}{"query": "retries"})
+			rr := httptest.NewRecorder()
+			createSearchTestServer(c).router.ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+			specconformance.AssertConformsToSpec(t, req, rr)
+
+			var raw map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &raw))
+			assert.JSONEq(t, tc.want, string(raw["ai_summary"]))
+			// The shared search fields are still flattened at the top level.
+			assert.JSONEq(t, `1`, string(raw["total_count"]))
+			assert.Contains(t, string(raw["results"]), `"title":"Retry notes"`)
+		})
+	}
+}
+
+// An empty result set still serializes results as [] and carries ai_summary.
+func TestHandleSearch_EmptyResultsConformToSpec(t *testing.T) {
+	c := newMockSearchContainer(t)
+	grantSearchTeamAccess(c)
+	c.searchService.On("Search", mock.Anything, searchTestTeamID, mock.Anything).
+		Return(&models.SearchResultsResponse{Page: 1, PerPage: 10}, nil)
+	stubAISummaryAvailability(c, true, true)
+
+	req := searchRequest(t, map[string]interface{}{"query": "nothing"})
+	rr := httptest.NewRecorder()
+	createSearchTestServer(c).router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
+	assert.Contains(t, rr.Body.String(), `"results":[]`)
 }
 
 func TestSearchHandler_Unauthorized(t *testing.T) {
