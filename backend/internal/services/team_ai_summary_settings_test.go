@@ -158,10 +158,12 @@ func assertAISummaryWarnLogged(t *testing.T, output, teamID string) {
 
 // The fail-open read must NOT be reachable from the settings API's interface —
 // that separation is what keeps #1072 from serving instance defaults as fact
-// during an outage, and prose alone could not enforce it. The assertion is
-// structural: the concrete service satisfies the resolver interface, while
-// TeamAISummarySettingsServiceInterface does not carry Resolve at all (a
-// regression would fail to compile at the second assignment below).
+// during an outage, and prose alone could not enforce it.
+//
+// Note what does NOT catch a regression here: the compiler. Putting Resolve back
+// on TeamAISummarySettingsServiceInterface still builds, because the one service
+// implements everything on both interfaces. The assert.False below is the whole
+// guard.
 func TestTeamAISummarySettings_ResolveIsOffTheSettingsInterface(t *testing.T) {
 	// Reflect over the INTERFACE TYPES, not over a value: a runtime type
 	// assertion would go through the concrete service, which implements both,
