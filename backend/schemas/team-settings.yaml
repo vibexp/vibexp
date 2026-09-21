@@ -160,6 +160,143 @@ UpdateTeamSearchSettingsRequest:
       maximum: 36500
       example: 90
 
+# --- AI Summary settings (issue #1072, epic #1068) ---
+#
+# The per-team AI Summary settings singleton, storage/service built by #1071
+# (migration 017). Same whole-row-override contract as TeamSearchSettings
+# above: a team either owns a complete profile or has none and inherits the
+# instance `ai_summary:` defaults from config.yaml.
+
+TeamAISummarySettingsValues:
+  type: object
+  description: A complete AI summary profile.
+  required:
+    - enabled
+    - model_provider_id
+    - top_n
+    - style
+    - max_output_tokens
+  properties:
+    enabled:
+      type: boolean
+      description: Explicit on/off, independent of whether the team has a usable model provider configured.
+      example: true
+    model_provider_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: >
+        Which of the team's model providers to use. `null` means "use the
+        team's default provider". Must belong to this team — a provider id
+        from another team is rejected with 400.
+      example: null
+    top_n:
+      type: integer
+      minimum: 1
+      description: How many top-ranked documents are fed to the summarizer. Bounded above by the instance's max_top_n.
+      example: 5
+    style:
+      type: string
+      enum:
+        - concise
+        - balanced
+        - detailed
+      description: Requested length/depth of the generated summary.
+      example: balanced
+    max_output_tokens:
+      type: integer
+      minimum: 1
+      description: Upper bound on tokens the summarizer may generate, within the instance cap.
+      example: 800
+
+TeamAISummarySettings:
+  type: object
+  description: >
+    The AI summary settings in effect for a team, with enough context for a
+    client to render the whole settings surface from this one response: the
+    effective values, where they came from, the instance defaults to preview a
+    reset against, the instance-owned top_n cap, and whether the team can
+    currently use AI summaries at all.
+  required:
+    - source
+    - values
+    - instance_defaults
+    - max_top_n
+    - available
+  properties:
+    source:
+      type: string
+      enum:
+        - instance
+        - team
+      description: >
+        Where the effective values come from. `instance` means the team has no
+        override and inherits the deployment defaults; `team` means the team
+        has stored its own profile.
+      example: instance
+    values:
+      $ref: '../openapi.yaml#/components/schemas/TeamAISummarySettingsValues'
+      description: Effective values — the team's when source is `team`, otherwise the instance default.
+    instance_defaults:
+      $ref: '../openapi.yaml#/components/schemas/TeamAISummarySettingsValues'
+      description: >
+        The deployment-wide defaults from config.yaml, so a client can preview
+        what "reset to defaults" would produce without a second request. Equal
+        to `values` when source is `instance`.
+    max_top_n:
+      type: integer
+      description: >
+        Instance-owned ceiling on `top_n`, from `ai_summary.max_top_n`. Not
+        team-configurable — exposed so clients can bound their own input
+        control instead of guessing.
+      example: 10
+    available:
+      type: boolean
+      description: >
+        Whether the team has at least one model provider configured
+        (existence, not health) — AI summaries cannot run without one
+        regardless of `enabled`.
+      example: true
+
+UpdateTeamAISummarySettingsRequest:
+  type: object
+  description: >
+    A complete replacement AI summary profile for the team. There is no
+    partial update: every field is required, and the whole profile is stored
+    or replaced atomically. `max_top_n` and `available` are deliberately
+    absent — both are computed, not settable.
+  additionalProperties: false
+  required:
+    - enabled
+    - model_provider_id
+    - top_n
+    - style
+    - max_output_tokens
+  properties:
+    enabled:
+      type: boolean
+      example: true
+    model_provider_id:
+      type: string
+      format: uuid
+      nullable: true
+      example: null
+    top_n:
+      type: integer
+      minimum: 1
+      example: 5
+    style:
+      type: string
+      enum:
+        - concise
+        - balanced
+        - detailed
+      example: balanced
+    max_output_tokens:
+      type: integer
+      minimum: 1
+      example: 800
+
 # --- Settings audit log (issue #832, epic #827) ---
 #
 # The read side of the team_settings_audit table (#828). The entry is a

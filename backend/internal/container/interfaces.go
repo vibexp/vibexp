@@ -91,6 +91,9 @@ type Container interface {
 	TeamEmailProviderService() services.TeamEmailProviderServiceInterface
 	EmailSenderResolver() services.EmailSenderResolver
 	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface
+	// TeamAISummarySettingsService serves the team AI summary settings API
+	// (get/update/reset, #1072) — the authoritative, non-fail-open surface.
+	TeamAISummarySettingsService() services.TeamAISummarySettingsServiceInterface
 	// TeamSettingsAuditService reads and writes the team settings copy audit
 	// log (epic #827); the read path is #832.
 	TeamSettingsAuditService() services.TeamSettingsAuditServiceInterface

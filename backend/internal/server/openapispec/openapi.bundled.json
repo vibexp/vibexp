@@ -16633,6 +16633,227 @@
         ]
       }
     },
+    "/api/v1/{team_id}/settings/ai-summary": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team identifier",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Get the team's AI summary settings",
+        "description": "Returns the AI summary settings in effect for the team, together with their provenance (`source`), the instance defaults, the instance-owned `top_n` cap, and whether the team currently has a model provider available. A team that has never overridden the settings gets `source: instance` and the deployment defaults. Any member of the team may read them.\n",
+        "operationId": "getTeamAISummarySettings",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Settings retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamAISummarySettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team_id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to read the team's AI summary settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "TeamSettings"
+        ]
+      },
+      "put": {
+        "summary": "Override the team's AI summary settings",
+        "description": "Stores a complete AI summary profile for the team, replacing any previous one. There is no partial update — the whole profile is required, and the team either owns all of it or (after a reset) none of it. Requires the `team.settings.update` permission, held by owners and admins.\n",
+        "operationId": "updateTeamAISummarySettings",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTeamAISummarySettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settings stored successfully; the response reports source `team`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamAISummarySettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid profile — `top_n` outside `1..max_top_n`, an unknown `style`, a non-positive `max_output_tokens`, or a `model_provider_id` that does not belong to this team\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller's role does not grant team.settings.update",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to store the team's AI summary settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "TeamSettings"
+        ]
+      },
+      "delete": {
+        "summary": "Reset the team's AI summary settings to the instance defaults",
+        "description": "Drops the team's stored profile so it inherits the deployment defaults again. Resetting a team that has no override is a no-op and still returns 204. Requires the `team.settings.update` permission.\n",
+        "operationId": "resetTeamAISummarySettings",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Settings reset (no content); the team now inherits the instance defaults"
+          },
+          "400": {
+            "description": "Invalid team_id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller's role does not grant team.settings.update",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to reset the team's AI summary settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "TeamSettings"
+        ]
+      }
+    },
     "/api/v1/{team_id}/settings/audit": {
       "parameters": [
         {
@@ -32342,6 +32563,136 @@
             "minimum": 0,
             "maximum": 36500,
             "example": 90
+          }
+        }
+      },
+      "TeamAISummarySettings": {
+        "type": "object",
+        "description": "The AI summary settings in effect for a team, with enough context for a client to render the whole settings surface from this one response: the effective values, where they came from, the instance defaults to preview a reset against, the instance-owned top_n cap, and whether the team can currently use AI summaries at all.\n",
+        "required": [
+          "source",
+          "values",
+          "instance_defaults",
+          "max_top_n",
+          "available"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "instance",
+              "team"
+            ],
+            "description": "Where the effective values come from. `instance` means the team has no override and inherits the deployment defaults; `team` means the team has stored its own profile.\n",
+            "example": "instance"
+          },
+          "values": {
+            "$ref": "#/components/schemas/TeamAISummarySettingsValues",
+            "description": "Effective values — the team's when source is `team`, otherwise the instance default."
+          },
+          "instance_defaults": {
+            "$ref": "#/components/schemas/TeamAISummarySettingsValues",
+            "description": "The deployment-wide defaults from config.yaml, so a client can preview what \"reset to defaults\" would produce without a second request. Equal to `values` when source is `instance`.\n"
+          },
+          "max_top_n": {
+            "type": "integer",
+            "description": "Instance-owned ceiling on `top_n`, from `ai_summary.max_top_n`. Not team-configurable — exposed so clients can bound their own input control instead of guessing.\n",
+            "example": 10
+          },
+          "available": {
+            "type": "boolean",
+            "description": "Whether the team has at least one model provider configured (existence, not health) — AI summaries cannot run without one regardless of `enabled`.\n",
+            "example": true
+          }
+        }
+      },
+      "TeamAISummarySettingsValues": {
+        "type": "object",
+        "description": "A complete AI summary profile.",
+        "required": [
+          "enabled",
+          "model_provider_id",
+          "top_n",
+          "style",
+          "max_output_tokens"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Explicit on/off, independent of whether the team has a usable model provider configured.",
+            "example": true
+          },
+          "model_provider_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Which of the team's model providers to use. `null` means \"use the team's default provider\". Must belong to this team — a provider id from another team is rejected with 400.\n",
+            "example": null
+          },
+          "top_n": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How many top-ranked documents are fed to the summarizer. Bounded above by the instance's max_top_n.",
+            "example": 5
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "concise",
+              "balanced",
+              "detailed"
+            ],
+            "description": "Requested length/depth of the generated summary.",
+            "example": "balanced"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Upper bound on tokens the summarizer may generate, within the instance cap.",
+            "example": 800
+          }
+        }
+      },
+      "UpdateTeamAISummarySettingsRequest": {
+        "type": "object",
+        "description": "A complete replacement AI summary profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `max_top_n` and `available` are deliberately absent — both are computed, not settable.\n",
+        "additionalProperties": false,
+        "required": [
+          "enabled",
+          "model_provider_id",
+          "top_n",
+          "style",
+          "max_output_tokens"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "model_provider_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "example": null
+          },
+          "top_n": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 5
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "concise",
+              "balanced",
+              "detailed"
+            ],
+            "example": "balanced"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 800
           }
         }
       },

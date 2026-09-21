@@ -120,9 +120,10 @@ func (s *TeamAISummarySettingsService) instanceValues() models.TeamAISummarySett
 	}
 }
 
-// view assembles the response shape from the effective values and their source.
+// view assembles the response shape from the effective values, their source
+// and the team's current AI summary availability.
 func (s *TeamAISummarySettingsService) view(
-	source string, values models.TeamAISummarySettingsValues,
+	source string, values models.TeamAISummarySettingsValues, available bool,
 ) *models.TeamAISummarySettingsView {
 	return &models.TeamAISummarySettingsView{
 		Source:           source,
@@ -130,8 +131,34 @@ func (s *TeamAISummarySettingsService) view(
 		InstanceDefaults: s.instanceValues(),
 		// Instance-owned and never team-configurable: it bounds how much context
 		// a single summary request may assemble.
-		MaxTopN: s.defaults.MaxTopN,
+		MaxTopN:   s.defaults.MaxTopN,
+		Available: available,
 	}
+}
+
+// availability reports whether the team has at least one model provider row
+// (D9 — existence, not health). AI summaries cannot run without one
+// regardless of Values.Enabled, so callers surface it alongside the profile
+// rather than making a client infer it from a separate request.
+func (s *TeamAISummarySettingsService) availability(ctx context.Context, teamID string) (bool, error) {
+	count, err := s.providers.Count(ctx, teamID)
+	if err != nil {
+		return false, fmt.Errorf("counting model providers: %w", err)
+	}
+	return count > 0, nil
+}
+
+// availabilityOrFalse is availability's fail-open counterpart, for Resolve:
+// a provider-count outage degrades the reported availability rather than
+// failing the summary request that asked for it.
+func (s *TeamAISummarySettingsService) availabilityOrFalse(ctx context.Context, teamID string) bool {
+	available, err := s.availability(ctx, teamID)
+	if err != nil {
+		s.logger.With("team_id", teamID, "error", err).
+			Warn("failed to count team model providers; reporting AI summary unavailable")
+		return false
+	}
+	return available
 }
 
 // Get implements TeamAISummarySettingsServiceInterface.
@@ -147,10 +174,14 @@ func (s *TeamAISummarySettingsService) Get(
 	if err != nil {
 		return nil, fmt.Errorf("TeamAISummarySettingsService.Get: %w", err)
 	}
-	if stored == nil {
-		return s.view(models.TeamAISummarySettingsSourceInstance, s.instanceValues()), nil
+	available, err := s.availability(ctx, teamID)
+	if err != nil {
+		return nil, fmt.Errorf("TeamAISummarySettingsService.Get: %w", err)
 	}
-	return s.view(models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored)), nil
+	if stored == nil {
+		return s.view(models.TeamAISummarySettingsSourceInstance, s.instanceValues(), available), nil
+	}
+	return s.view(models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), available), nil
 }
 
 // Resolve implements AISummarySettingsResolver.
@@ -173,13 +204,14 @@ func (s *TeamAISummarySettingsService) Resolve(
 	if err != nil {
 		s.logger.With("team_id", teamID, "error", err).
 			Warn("failed to read team AI summary settings; falling back to instance defaults")
-		return s.view(models.TeamAISummarySettingsSourceInstance, s.instanceValues()), nil
+		return s.view(models.TeamAISummarySettingsSourceInstance, s.instanceValues(), s.availabilityOrFalse(ctx, teamID)), nil
 	}
+	available := s.availabilityOrFalse(ctx, teamID)
 	if stored == nil {
 		// No override row: the team inherits the instance defaults entirely.
-		return s.view(models.TeamAISummarySettingsSourceInstance, s.instanceValues()), nil
+		return s.view(models.TeamAISummarySettingsSourceInstance, s.instanceValues(), available), nil
 	}
-	return s.view(models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored)), nil
+	return s.view(models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), available), nil
 }
 
 // Availability implements AISummaryAvailabilityResolver.
@@ -237,8 +269,12 @@ func (s *TeamAISummarySettingsService) Update(
 	if err := s.repo.Upsert(ctx, stored); err != nil {
 		return nil, fmt.Errorf("TeamAISummarySettingsService.Update: %w", err)
 	}
+	available, err := s.availability(ctx, teamID)
+	if err != nil {
+		return nil, fmt.Errorf("TeamAISummarySettingsService.Update: %w", err)
+	}
 
-	return s.view(models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored)), nil
+	return s.view(models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), available), nil
 }
 
 // Reset implements TeamAISummarySettingsServiceInterface.

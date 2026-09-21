@@ -22,18 +22,57 @@ const (
 	CookieAuthScopes cookieAuthContextKey = "CookieAuth.Scopes"
 )
 
+// Defines values for TeamAISummarySettingsSource.
+const (
+	TeamAISummarySettingsSourceInstance TeamAISummarySettingsSource = "instance"
+	TeamAISummarySettingsSourceTeam     TeamAISummarySettingsSource = "team"
+)
+
+// Valid indicates whether the value is a known member of the TeamAISummarySettingsSource enum.
+func (e TeamAISummarySettingsSource) Valid() bool {
+	switch e {
+	case TeamAISummarySettingsSourceInstance:
+		return true
+	case TeamAISummarySettingsSourceTeam:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TeamAISummarySettingsValuesStyle.
+const (
+	TeamAISummarySettingsValuesStyleBalanced TeamAISummarySettingsValuesStyle = "balanced"
+	TeamAISummarySettingsValuesStyleConcise  TeamAISummarySettingsValuesStyle = "concise"
+	TeamAISummarySettingsValuesStyleDetailed TeamAISummarySettingsValuesStyle = "detailed"
+)
+
+// Valid indicates whether the value is a known member of the TeamAISummarySettingsValuesStyle enum.
+func (e TeamAISummarySettingsValuesStyle) Valid() bool {
+	switch e {
+	case TeamAISummarySettingsValuesStyleBalanced:
+		return true
+	case TeamAISummarySettingsValuesStyleConcise:
+		return true
+	case TeamAISummarySettingsValuesStyleDetailed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TeamSearchSettingsSource.
 const (
-	Instance TeamSearchSettingsSource = "instance"
-	Team     TeamSearchSettingsSource = "team"
+	TeamSearchSettingsSourceInstance TeamSearchSettingsSource = "instance"
+	TeamSearchSettingsSourceTeam     TeamSearchSettingsSource = "team"
 )
 
 // Valid indicates whether the value is a known member of the TeamSearchSettingsSource enum.
 func (e TeamSearchSettingsSource) Valid() bool {
 	switch e {
-	case Instance:
+	case TeamSearchSettingsSourceInstance:
 		return true
-	case Team:
+	case TeamSearchSettingsSourceTeam:
 		return true
 	default:
 		return false
@@ -55,6 +94,27 @@ func (e TeamSettingsAuditSurface) Valid() bool {
 	case EmbeddingProvider:
 		return true
 	case ModelProvider:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateTeamAISummarySettingsRequestStyle.
+const (
+	UpdateTeamAISummarySettingsRequestStyleBalanced UpdateTeamAISummarySettingsRequestStyle = "balanced"
+	UpdateTeamAISummarySettingsRequestStyleConcise  UpdateTeamAISummarySettingsRequestStyle = "concise"
+	UpdateTeamAISummarySettingsRequestStyleDetailed UpdateTeamAISummarySettingsRequestStyle = "detailed"
+)
+
+// Valid indicates whether the value is a known member of the UpdateTeamAISummarySettingsRequestStyle enum.
+func (e UpdateTeamAISummarySettingsRequestStyle) Valid() bool {
+	switch e {
+	case UpdateTeamAISummarySettingsRequestStyleBalanced:
+		return true
+	case UpdateTeamAISummarySettingsRequestStyleConcise:
+		return true
+	case UpdateTeamAISummarySettingsRequestStyleDetailed:
 		return true
 	default:
 		return false
@@ -90,6 +150,48 @@ type ErrorResponse struct {
 	// ValidationErrors Field-level validation errors (present for validation failures)
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
 }
+
+// TeamAISummarySettings The AI summary settings in effect for a team, with enough context for a client to render the whole settings surface from this one response: the effective values, where they came from, the instance defaults to preview a reset against, the instance-owned top_n cap, and whether the team can currently use AI summaries at all.
+type TeamAISummarySettings struct {
+	// Available Whether the team has at least one model provider configured (existence, not health) — AI summaries cannot run without one regardless of `enabled`.
+	Available bool `json:"available"`
+
+	// InstanceDefaults A complete AI summary profile.
+	InstanceDefaults TeamAISummarySettingsValues `json:"instance_defaults"`
+
+	// MaxTopN Instance-owned ceiling on `top_n`, from `ai_summary.max_top_n`. Not team-configurable — exposed so clients can bound their own input control instead of guessing.
+	MaxTopN int `json:"max_top_n"`
+
+	// Source Where the effective values come from. `instance` means the team has no override and inherits the deployment defaults; `team` means the team has stored its own profile.
+	Source TeamAISummarySettingsSource `json:"source"`
+
+	// Values A complete AI summary profile.
+	Values TeamAISummarySettingsValues `json:"values"`
+}
+
+// TeamAISummarySettingsSource Where the effective values come from. `instance` means the team has no override and inherits the deployment defaults; `team` means the team has stored its own profile.
+type TeamAISummarySettingsSource string
+
+// TeamAISummarySettingsValues A complete AI summary profile.
+type TeamAISummarySettingsValues struct {
+	// Enabled Explicit on/off, independent of whether the team has a usable model provider configured.
+	Enabled bool `json:"enabled"`
+
+	// MaxOutputTokens Upper bound on tokens the summarizer may generate, within the instance cap.
+	MaxOutputTokens int `json:"max_output_tokens"`
+
+	// ModelProviderId Which of the team's model providers to use. `null` means "use the team's default provider". Must belong to this team — a provider id from another team is rejected with 400.
+	ModelProviderId *openapi_types.UUID `json:"model_provider_id"`
+
+	// Style Requested length/depth of the generated summary.
+	Style TeamAISummarySettingsValuesStyle `json:"style"`
+
+	// TopN How many top-ranked documents are fed to the summarizer. Bounded above by the instance's max_top_n.
+	TopN int `json:"top_n"`
+}
+
+// TeamAISummarySettingsValuesStyle Requested length/depth of the generated summary.
+type TeamAISummarySettingsValuesStyle string
 
 // TeamSearchSettings The search ranking settings in effect for a team, with enough context for a client to render the whole settings surface from this one response: the effective values, where they came from, the instance defaults to preview a reset against, and the instance-owned candidate cap.
 type TeamSearchSettings struct {
@@ -194,6 +296,18 @@ type TeamSettingsAuditListResponse struct {
 // TeamSettingsAuditSurface Which settings surface was copied between teams.
 type TeamSettingsAuditSurface string
 
+// UpdateTeamAISummarySettingsRequest A complete replacement AI summary profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `max_top_n` and `available` are deliberately absent — both are computed, not settable.
+type UpdateTeamAISummarySettingsRequest struct {
+	Enabled         bool                                    `json:"enabled"`
+	MaxOutputTokens int                                     `json:"max_output_tokens"`
+	ModelProviderId *openapi_types.UUID                     `json:"model_provider_id"`
+	Style           UpdateTeamAISummarySettingsRequestStyle `json:"style"`
+	TopN            int                                     `json:"top_n"`
+}
+
+// UpdateTeamAISummarySettingsRequestStyle defines model for UpdateTeamAISummarySettingsRequest.Style.
+type UpdateTeamAISummarySettingsRequestStyle string
+
 // UpdateTeamSearchSettingsRequest A complete replacement ranking profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `rank_candidate_cap` is deliberately absent — it is instance-owned.
 type UpdateTeamSearchSettingsRequest struct {
 	RankHalfLifeDays      float64 `json:"rank_half_life_days"`
@@ -239,11 +353,23 @@ type ListTeamSettingsAuditParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// UpdateTeamAISummarySettingsJSONRequestBody defines body for UpdateTeamAISummarySettings for application/json ContentType.
+type UpdateTeamAISummarySettingsJSONRequestBody = UpdateTeamAISummarySettingsRequest
+
 // UpdateTeamSearchSettingsJSONRequestBody defines body for UpdateTeamSearchSettings for application/json ContentType.
 type UpdateTeamSearchSettingsJSONRequestBody = UpdateTeamSearchSettingsRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Reset the team's AI summary settings to the instance defaults
+	// (DELETE /api/v1/{team_id}/settings/ai-summary)
+	ResetTeamAISummarySettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Get the team's AI summary settings
+	// (GET /api/v1/{team_id}/settings/ai-summary)
+	GetTeamAISummarySettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Override the team's AI summary settings
+	// (PUT /api/v1/{team_id}/settings/ai-summary)
+	UpdateTeamAISummarySettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
 	// List the team's settings audit log
 	// (GET /api/v1/{team_id}/settings/audit)
 	ListTeamSettingsAudit(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, params ListTeamSettingsAuditParams)
@@ -261,6 +387,24 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// Reset the team's AI summary settings to the instance defaults
+// (DELETE /api/v1/{team_id}/settings/ai-summary)
+func (_ Unimplemented) ResetTeamAISummarySettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the team's AI summary settings
+// (GET /api/v1/{team_id}/settings/ai-summary)
+func (_ Unimplemented) GetTeamAISummarySettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Override the team's AI summary settings
+// (PUT /api/v1/{team_id}/settings/ai-summary)
+func (_ Unimplemented) UpdateTeamAISummarySettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // List the team's settings audit log
 // (GET /api/v1/{team_id}/settings/audit)
@@ -294,6 +438,108 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ResetTeamAISummarySettings operation middleware
+func (siw *ServerInterfaceWrapper) ResetTeamAISummarySettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResetTeamAISummarySettings(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTeamAISummarySettings operation middleware
+func (siw *ServerInterfaceWrapper) GetTeamAISummarySettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTeamAISummarySettings(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateTeamAISummarySettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateTeamAISummarySettings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateTeamAISummarySettings(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListTeamSettingsAudit operation middleware
 func (siw *ServerInterfaceWrapper) ListTeamSettingsAudit(w http.ResponseWriter, r *http.Request) {
@@ -574,6 +820,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/{team_id}/settings/ai-summary", wrapper.ResetTeamAISummarySettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/{team_id}/settings/ai-summary", wrapper.GetTeamAISummarySettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/{team_id}/settings/ai-summary", wrapper.UpdateTeamAISummarySettings)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/{team_id}/settings/audit", wrapper.ListTeamSettingsAudit)
 	})
 	r.Group(func(r chi.Router) {
@@ -587,6 +842,235 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 
 	return r
+}
+
+type ResetTeamAISummarySettingsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+}
+
+type ResetTeamAISummarySettingsResponseObject interface {
+	VisitResetTeamAISummarySettingsResponse(w http.ResponseWriter) error
+}
+
+type ResetTeamAISummarySettings204Response struct {
+}
+
+func (response ResetTeamAISummarySettings204Response) VisitResetTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ResetTeamAISummarySettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetTeamAISummarySettings400ApplicationProblemPlusJSONResponse) VisitResetTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetTeamAISummarySettings401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetTeamAISummarySettings401ApplicationProblemPlusJSONResponse) VisitResetTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetTeamAISummarySettings403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetTeamAISummarySettings403ApplicationProblemPlusJSONResponse) VisitResetTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetTeamAISummarySettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetTeamAISummarySettings500ApplicationProblemPlusJSONResponse) VisitResetTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTeamAISummarySettingsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+}
+
+type GetTeamAISummarySettingsResponseObject interface {
+	VisitGetTeamAISummarySettingsResponse(w http.ResponseWriter) error
+}
+
+type GetTeamAISummarySettings200JSONResponse TeamAISummarySettings
+
+func (response GetTeamAISummarySettings200JSONResponse) VisitGetTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTeamAISummarySettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetTeamAISummarySettings400ApplicationProblemPlusJSONResponse) VisitGetTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTeamAISummarySettings401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetTeamAISummarySettings401ApplicationProblemPlusJSONResponse) VisitGetTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTeamAISummarySettings403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetTeamAISummarySettings403ApplicationProblemPlusJSONResponse) VisitGetTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTeamAISummarySettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetTeamAISummarySettings500ApplicationProblemPlusJSONResponse) VisitGetTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTeamAISummarySettingsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+	Body   *UpdateTeamAISummarySettingsJSONRequestBody
+}
+
+type UpdateTeamAISummarySettingsResponseObject interface {
+	VisitUpdateTeamAISummarySettingsResponse(w http.ResponseWriter) error
+}
+
+type UpdateTeamAISummarySettings200JSONResponse TeamAISummarySettings
+
+func (response UpdateTeamAISummarySettings200JSONResponse) VisitUpdateTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTeamAISummarySettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateTeamAISummarySettings400ApplicationProblemPlusJSONResponse) VisitUpdateTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTeamAISummarySettings401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateTeamAISummarySettings401ApplicationProblemPlusJSONResponse) VisitUpdateTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTeamAISummarySettings403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateTeamAISummarySettings403ApplicationProblemPlusJSONResponse) VisitUpdateTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTeamAISummarySettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateTeamAISummarySettings500ApplicationProblemPlusJSONResponse) VisitUpdateTeamAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type ListTeamSettingsAuditRequestObject struct {
@@ -899,6 +1383,15 @@ func (response UpdateTeamSearchSettings500ApplicationProblemPlusJSONResponse) Vi
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// Reset the team's AI summary settings to the instance defaults
+	// (DELETE /api/v1/{team_id}/settings/ai-summary)
+	ResetTeamAISummarySettings(ctx context.Context, request ResetTeamAISummarySettingsRequestObject) (ResetTeamAISummarySettingsResponseObject, error)
+	// Get the team's AI summary settings
+	// (GET /api/v1/{team_id}/settings/ai-summary)
+	GetTeamAISummarySettings(ctx context.Context, request GetTeamAISummarySettingsRequestObject) (GetTeamAISummarySettingsResponseObject, error)
+	// Override the team's AI summary settings
+	// (PUT /api/v1/{team_id}/settings/ai-summary)
+	UpdateTeamAISummarySettings(ctx context.Context, request UpdateTeamAISummarySettingsRequestObject) (UpdateTeamAISummarySettingsResponseObject, error)
 	// List the team's settings audit log
 	// (GET /api/v1/{team_id}/settings/audit)
 	ListTeamSettingsAudit(ctx context.Context, request ListTeamSettingsAuditRequestObject) (ListTeamSettingsAuditResponseObject, error)
@@ -940,6 +1433,91 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ResetTeamAISummarySettings operation middleware
+func (sh *strictHandler) ResetTeamAISummarySettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request ResetTeamAISummarySettingsRequestObject
+
+	request.TeamId = teamId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResetTeamAISummarySettings(ctx, request.(ResetTeamAISummarySettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResetTeamAISummarySettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResetTeamAISummarySettingsResponseObject); ok {
+		if err := validResponse.VisitResetTeamAISummarySettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTeamAISummarySettings operation middleware
+func (sh *strictHandler) GetTeamAISummarySettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request GetTeamAISummarySettingsRequestObject
+
+	request.TeamId = teamId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTeamAISummarySettings(ctx, request.(GetTeamAISummarySettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTeamAISummarySettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetTeamAISummarySettingsResponseObject); ok {
+		if err := validResponse.VisitGetTeamAISummarySettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateTeamAISummarySettings operation middleware
+func (sh *strictHandler) UpdateTeamAISummarySettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request UpdateTeamAISummarySettingsRequestObject
+
+	request.TeamId = teamId
+
+	var body UpdateTeamAISummarySettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateTeamAISummarySettings(ctx, request.(UpdateTeamAISummarySettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateTeamAISummarySettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateTeamAISummarySettingsResponseObject); ok {
+		if err := validResponse.VisitUpdateTeamAISummarySettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // ListTeamSettingsAudit operation middleware

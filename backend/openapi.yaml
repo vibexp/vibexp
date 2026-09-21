@@ -842,6 +842,12 @@ components:
       $ref: "./schemas/team-settings.yaml#/TeamSearchSettingsValues"
     UpdateTeamSearchSettingsRequest:
       $ref: "./schemas/team-settings.yaml#/UpdateTeamSearchSettingsRequest"
+    TeamAISummarySettings:
+      $ref: "./schemas/team-settings.yaml#/TeamAISummarySettings"
+    TeamAISummarySettingsValues:
+      $ref: "./schemas/team-settings.yaml#/TeamAISummarySettingsValues"
+    UpdateTeamAISummarySettingsRequest:
+      $ref: "./schemas/team-settings.yaml#/UpdateTeamAISummarySettingsRequest"
     TeamSettingsAuditSurface:
       $ref: "./schemas/team-settings.yaml#/TeamSettingsAuditSurface"
     TeamSettingsAuditEntry:
@@ -1242,6 +1248,8 @@ paths:
     $ref: "./paths/metadata.yaml#/api-v1-team_id-metadata-values"
   /api/v1/{team_id}/settings/search:
     $ref: "./paths/team-settings.yaml#/api-v1-team_id-settings-search"
+  /api/v1/{team_id}/settings/ai-summary:
+    $ref: "./paths/team-settings.yaml#/api-v1-team_id-settings-ai-summary"
   /api/v1/{team_id}/settings/audit:
     $ref: "./paths/team-settings.yaml#/api-v1-team_id-settings-audit"
   /api/v1/{team_id}/freshness/rules:

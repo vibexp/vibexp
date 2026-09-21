@@ -155,6 +155,167 @@ api-v1-team_id-settings-search:
     tags:
       - TeamSettings
 
+# The per-team AI Summary settings singleton (issue #1072, epic #1068), on top
+# of the storage/service #1071 built (migration 017). Same GET/PUT(upsert)/
+# DELETE(revert) shape as api-v1-team_id-settings-search above, for the same
+# reason: one optional profile per team, not a collection.
+#
+# The operationIds end in `Settings` like the search-settings ones above — the
+# suffix is the noun (this IS the "AI summary settings" domain), not an alias
+# marker. There is no bare /api/v1/{team_id}/ai-summary counterpart; see
+# settingsAliasExclusions in internal/server/openapispec/operation_ids_test.go.
+api-v1-team_id-settings-ai-summary:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team identifier
+      schema:
+        type: string
+        format: uuid
+
+  get:
+    summary: Get the team's AI summary settings
+    description: >
+      Returns the AI summary settings in effect for the team, together with
+      their provenance (`source`), the instance defaults, the instance-owned
+      `top_n` cap, and whether the team currently has a model provider
+      available. A team that has never overridden the settings gets
+      `source: instance` and the deployment defaults. Any member of the team
+      may read them.
+    operationId: getTeamAISummarySettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Settings retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamAISummarySettings'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to read the team's AI summary settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - TeamSettings
+
+  put:
+    summary: Override the team's AI summary settings
+    description: >
+      Stores a complete AI summary profile for the team, replacing any
+      previous one. There is no partial update — the whole profile is
+      required, and the team either owns all of it or (after a reset) none of
+      it. Requires the `team.settings.update` permission, held by owners and
+      admins.
+    operationId: updateTeamAISummarySettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateTeamAISummarySettingsRequest'
+    responses:
+      '200':
+        description: Settings stored successfully; the response reports source `team`
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamAISummarySettings'
+      '400':
+        description: >
+          Invalid profile — `top_n` outside `1..max_top_n`, an unknown
+          `style`, a non-positive `max_output_tokens`, or a `model_provider_id`
+          that does not belong to this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller's role does not grant team.settings.update
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to store the team's AI summary settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - TeamSettings
+
+  delete:
+    summary: Reset the team's AI summary settings to the instance defaults
+    description: >
+      Drops the team's stored profile so it inherits the deployment defaults
+      again. Resetting a team that has no override is a no-op and still
+      returns 204. Requires the `team.settings.update` permission.
+    operationId: resetTeamAISummarySettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '204':
+        description: Settings reset (no content); the team now inherits the instance defaults
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller's role does not grant team.settings.update
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to reset the team's AI summary settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - TeamSettings
+
 # The read side of the settings audit log (issue #832, epic #827).
 #
 # Unlike the search-settings singleton above, and unlike the neighbouring
