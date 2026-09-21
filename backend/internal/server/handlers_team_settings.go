@@ -222,6 +222,54 @@ func searchSettingsBodyProblem(fields map[string]json.RawMessage) string {
 	return ""
 }
 
+// requireCompleteSettingsBodyFor builds the chi middleware shared by every
+// settings-singleton PUT in this route group: read/restore/decode the body,
+// then reject it unless problem reports it as a complete, exact profile.
+// factored out because the team-settings group holds more than one such
+// singleton (search, AI summary, …) that each need this identical
+// read/restore/decode/reject shape around a DIFFERENT field set — sharing it
+// is what keeps the group from re-deriving the boilerplate a third time.
+//
+// pathSuffix scopes the check to one singleton's path: this route group
+// serves several PUTs on the same base, so without it every registered
+// middleware would validate every domain's body against its own field names.
+// Applied to PUT only; GET and DELETE carry no body.
+func requireCompleteSettingsBodyFor(
+	pathSuffix string, problem func(map[string]json.RawMessage) string,
+) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPut || !strings.HasSuffix(r.URL.Path, pathSuffix) || r.Body == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			raw, err := io.ReadAll(r.Body)
+			if err != nil {
+				apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError("Failed to read request body"))
+				return
+			}
+			// Restore the body for the generated decoder regardless of the outcome.
+			r.Body = io.NopCloser(bytes.NewReader(raw))
+
+			// An empty or non-object body is the generated decoder's problem, not
+			// ours; let it produce its usual error.
+			var fields map[string]json.RawMessage
+			if len(bytes.TrimSpace(raw)) == 0 || json.Unmarshal(raw, &fields) != nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			if msg := problem(fields); msg != "" {
+				apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(msg))
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // requireCompleteSearchSettingsBody enforces on the wire what the spec declares
 // for UpdateTeamSearchSettingsRequest: `additionalProperties: false` and all five
 // fields required. oapi-codegen honours neither (the same gap that motivated
@@ -235,40 +283,6 @@ func searchSettingsBodyProblem(fields map[string]json.RawMessage) string {
 //     other weights sum above zero. The team would end up with a profile blending
 //     their values and silent zeroes, which is exactly the partial override this
 //     epic's whole-row design forbids.
-//
-// Applied to PUT only; GET and DELETE carry no body.
 func (s *Server) requireCompleteSearchSettingsBody(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Path-scoped because this route group also serves the AI summary
-		// settings PUT (#1072) and the audit GET; without the check, this
-		// middleware would validate an ai-summary body against search's field
-		// names and reject it.
-		if r.Method != http.MethodPut || !strings.HasSuffix(r.URL.Path, "/settings/search") || r.Body == nil {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		raw, err := io.ReadAll(r.Body)
-		if err != nil {
-			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError("Failed to read request body"))
-			return
-		}
-		// Restore the body for the generated decoder regardless of the outcome.
-		r.Body = io.NopCloser(bytes.NewReader(raw))
-
-		// An empty or non-object body is the generated decoder's problem, not
-		// ours; let it produce its usual error.
-		var fields map[string]json.RawMessage
-		if len(bytes.TrimSpace(raw)) == 0 || json.Unmarshal(raw, &fields) != nil {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		if problem := searchSettingsBodyProblem(fields); problem != "" {
-			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(problem))
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
+	return requireCompleteSettingsBodyFor("/settings/search", searchSettingsBodyProblem)(next)
 }

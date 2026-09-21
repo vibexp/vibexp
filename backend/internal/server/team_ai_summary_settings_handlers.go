@@ -1,11 +1,9 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"slices"
 	"sort"
@@ -171,38 +169,10 @@ func aiSummarySettingsBodyProblem(fields map[string]json.RawMessage) string {
 // false` and all five fields required (including model_provider_id, which is
 // nullable but must still be PRESENT — a client clears it by sending `null`,
 // not by omitting the key). oapi-codegen honours neither (see
-// requireCompleteSearchSettingsBody), and this route group also serves the
+// requireCompleteSettingsBodyFor), and this route group also serves the
 // search-settings PUT, so this middleware only acts on the ai-summary path —
 // applying it unconditionally would 400 every search-settings PUT using this
 // domain's field names instead.
 func (s *Server) requireCompleteAISummarySettingsBody(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut || !strings.HasSuffix(r.URL.Path, "/settings/ai-summary") || r.Body == nil {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		raw, err := io.ReadAll(r.Body)
-		if err != nil {
-			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError("Failed to read request body"))
-			return
-		}
-		// Restore the body for the generated decoder regardless of the outcome.
-		r.Body = io.NopCloser(bytes.NewReader(raw))
-
-		// An empty or non-object body is the generated decoder's problem, not
-		// ours; let it produce its usual error.
-		var fields map[string]json.RawMessage
-		if len(bytes.TrimSpace(raw)) == 0 || json.Unmarshal(raw, &fields) != nil {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		if problem := aiSummarySettingsBodyProblem(fields); problem != "" {
-			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(problem))
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
+	return requireCompleteSettingsBodyFor("/settings/ai-summary", aiSummarySettingsBodyProblem)(next)
 }
