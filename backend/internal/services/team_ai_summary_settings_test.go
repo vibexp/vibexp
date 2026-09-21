@@ -75,14 +75,22 @@ func newAISummarySettingsService(
 
 // expectProviderOwnedByTeam stubs the tenancy lookup Update runs on a non-nil
 // model_provider_id.
-func expectProviderOwnedByTeam(providers *repomocks.MockModelProviderRepository, teamID, providerID string) {
+func expectProviderOwnedByTeam(providers *repomocks.MockModelProviderRepository) {
+	teamID, providerID := testTeamID, aiSummaryTestProviderID
 	providers.EXPECT().GetByID(mock.Anything, teamID, providerID).
 		Return(&models.ModelProvider{ID: providerID, TeamID: &teamID}, nil)
 }
 
+// expectProviderCount stubs the D9 availability check (Get/Resolve/Update all
+// run it: "available" is true iff the team has at least one provider row).
+func expectProviderCount(providers *repomocks.MockModelProviderRepository, count int) {
+	providers.EXPECT().Count(mock.Anything, testTeamID).Return(count, nil)
+}
+
 func TestTeamAISummarySettingsService_Resolve_NoRowReportsInstanceSource(t *testing.T) {
-	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
 	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
+	expectProviderCount(providers, 1)
 
 	view, err := svc.Resolve(context.Background(), testTeamID)
 
@@ -95,10 +103,11 @@ func TestTeamAISummarySettingsService_Resolve_NoRowReportsInstanceSource(t *test
 	assert.Equal(t, models.AISummaryStyleBalanced, view.Values.Style)
 	assert.Nil(t, view.Values.ModelProviderID, "the instance has no opinion on which provider to use")
 	assert.Equal(t, 8, view.MaxTopN)
+	assert.True(t, view.Available)
 }
 
 func TestTeamAISummarySettingsService_Resolve_StoredRowReportsTeamSource(t *testing.T) {
-	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
 	providerID := "provider-9"
 	repo.EXPECT().Get(mock.Anything, testTeamID).Return(&models.TeamAISummarySettings{
 		TeamID:          testTeamID,
@@ -108,6 +117,7 @@ func TestTeamAISummarySettingsService_Resolve_StoredRowReportsTeamSource(t *test
 		Style:           models.AISummaryStyleDetailed,
 		MaxOutputTokens: 1200,
 	}, nil)
+	expectProviderCount(providers, 1)
 
 	view, err := svc.Resolve(context.Background(), testTeamID)
 
@@ -127,14 +137,30 @@ func TestTeamAISummarySettingsService_Resolve_StoredRowReportsTeamSource(t *test
 // than failing the request that asked for a summary.
 func TestTeamAISummarySettingsService_Resolve_RepositoryErrorFailsOpen(t *testing.T) {
 	var logs bytes.Buffer
-	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, &logs)
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, &logs)
 	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, errors.New("connection refused"))
+	expectProviderCount(providers, 1)
 
 	view, err := svc.Resolve(context.Background(), testTeamID)
 
 	require.NoError(t, err, "a settings read failure must not surface as an error")
 	assert.Equal(t, models.TeamAISummarySettingsSourceInstance, view.Source)
 	assert.Equal(t, view.InstanceDefaults, view.Values)
+	assertAISummaryWarnLogged(t, logs.String(), testTeamID)
+}
+
+// A provider-count outage must ALSO fail open, exactly like a settings-row
+// outage: Resolve's whole contract is "the error is always nil".
+func TestTeamAISummarySettingsService_Resolve_ProviderCountErrorFailsOpen(t *testing.T) {
+	var logs bytes.Buffer
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, &logs)
+	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
+	providers.EXPECT().Count(mock.Anything, testTeamID).Return(0, errors.New("connection refused"))
+
+	view, err := svc.Resolve(context.Background(), testTeamID)
+
+	require.NoError(t, err)
+	assert.False(t, view.Available, "a provider-count outage must degrade to unavailable, not panic or lie true")
 	assertAISummaryWarnLogged(t, logs.String(), testTeamID)
 }
 
@@ -197,8 +223,9 @@ func TestTeamAISummarySettingsService_Get_RepositoryErrorPropagates(t *testing.T
 }
 
 func TestTeamAISummarySettingsService_Get_NoRowReportsInstanceSource(t *testing.T) {
-	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
 	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
+	expectProviderCount(providers, 0)
 
 	view, err := svc.Get(context.Background(), testTeamID)
 
@@ -206,16 +233,18 @@ func TestTeamAISummarySettingsService_Get_NoRowReportsInstanceSource(t *testing.
 	assert.Equal(t, models.TeamAISummarySettingsSourceInstance, view.Source)
 	assert.Equal(t, view.InstanceDefaults, view.Values)
 	assert.Equal(t, 8, view.MaxTopN)
+	assert.False(t, view.Available, "zero provider rows must report unavailable")
 }
 
 func TestTeamAISummarySettingsService_Get_StoredRowReportsTeamSource(t *testing.T) {
-	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
 	repo.EXPECT().Get(mock.Anything, testTeamID).Return(&models.TeamAISummarySettings{
 		TeamID:          testTeamID,
 		TopN:            8,
 		Style:           models.AISummaryStyleConcise,
 		MaxOutputTokens: 300,
 	}, nil)
+	expectProviderCount(providers, 2)
 
 	view, err := svc.Get(context.Background(), testTeamID)
 
@@ -224,6 +253,19 @@ func TestTeamAISummarySettingsService_Get_StoredRowReportsTeamSource(t *testing.
 	assert.Equal(t, models.AISummaryStyleConcise, view.Values.Style)
 	assert.Equal(t, models.AISummaryStyleBalanced, view.InstanceDefaults.Style,
 		"instance_defaults must keep reporting the deployment values, not the team's")
+	assert.True(t, view.Available)
+}
+
+// Get must NOT fail open on a provider-count error either — same reasoning as
+// the settings-row read: a guess must not be reported as fact.
+func TestTeamAISummarySettingsService_Get_ProviderCountErrorPropagates(t *testing.T) {
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
+	providers.EXPECT().Count(mock.Anything, testTeamID).Return(0, errors.New("boom"))
+
+	_, err := svc.Get(context.Background(), testTeamID)
+
+	assert.Error(t, err)
 }
 
 // The column's FK references model_providers(id) alone, so it proves the
@@ -248,6 +290,7 @@ func TestTeamAISummarySettingsService_Update_RejectsProviderOwnedByAnotherTeam(t
 func TestTeamAISummarySettingsService_Update_NilProviderSkipsTheLookup(t *testing.T) {
 	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
 	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
+	expectProviderCount(providers, 0)
 
 	values := aiSummaryTeamProfile()
 	values.ModelProviderID = nil
@@ -274,10 +317,11 @@ func TestTeamAISummarySettingsService_Update_ProviderLookupErrorIsNotAValidation
 
 func TestTeamAISummarySettingsService_Update_StoresAndReportsTeamSource(t *testing.T) {
 	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
-	expectProviderOwnedByTeam(providers, testTeamID, aiSummaryTestProviderID)
+	expectProviderOwnedByTeam(providers)
 	repo.EXPECT().Upsert(mock.Anything, mock.MatchedBy(func(s *models.TeamAISummarySettings) bool {
 		return s.TeamID == testTeamID && s.TopN == 8 && s.Style == models.AISummaryStyleDetailed
 	})).Return(nil)
+	expectProviderCount(providers, 1)
 
 	view, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, aiSummaryTeamProfile())
 
@@ -285,6 +329,7 @@ func TestTeamAISummarySettingsService_Update_StoresAndReportsTeamSource(t *testi
 	assert.Equal(t, models.TeamAISummarySettingsSourceTeam, view.Source)
 	assert.Equal(t, 8, view.Values.TopN)
 	assert.Equal(t, 8, view.MaxTopN, "the cap still comes from the instance config")
+	assert.True(t, view.Available)
 }
 
 // max_top_n is instance-owned: a team may tune top_n only INSIDE it.
@@ -303,8 +348,9 @@ func TestTeamAISummarySettingsService_Update_RejectsTopNAboveInstanceCap(t *test
 // The cap itself is inclusive, matching the storage CHECK.
 func TestTeamAISummarySettingsService_Update_AcceptsTopNAtTheCap(t *testing.T) {
 	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
-	expectProviderOwnedByTeam(providers, testTeamID, aiSummaryTestProviderID)
+	expectProviderOwnedByTeam(providers)
 	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
+	expectProviderCount(providers, 1)
 
 	values := aiSummaryTeamProfile()
 	values.TopN = aiSummaryInstanceConfig().MaxTopN
@@ -377,12 +423,27 @@ func TestTeamAISummarySettingsService_Update_AuthorizesBeforeValidating(t *testi
 
 func TestTeamAISummarySettingsService_Update_RepositoryErrorPropagates(t *testing.T) {
 	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
-	expectProviderOwnedByTeam(providers, testTeamID, aiSummaryTestProviderID)
+	expectProviderOwnedByTeam(providers)
 	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(errors.New("boom"))
 
 	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, aiSummaryTeamProfile())
 
 	assert.Error(t, err, "unlike Resolve, a WRITE must never fail open — the caller must know it did not save")
+}
+
+// A provider-count failure AFTER a successful Upsert must still surface as an
+// error: the write itself is not fail-open, so the response reporting it
+// can't be either — a caller that saved successfully must not be told the
+// count silently, incorrectly, defaulted.
+func TestTeamAISummarySettingsService_Update_ProviderCountErrorPropagates(t *testing.T) {
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	expectProviderOwnedByTeam(providers)
+	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
+	providers.EXPECT().Count(mock.Anything, testTeamID).Return(0, errors.New("boom"))
+
+	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, aiSummaryTeamProfile())
+
+	assert.Error(t, err)
 }
 
 func TestTeamAISummarySettingsService_Reset(t *testing.T) {

@@ -164,6 +164,11 @@ var settingsAliasExclusions = map[string]string{
 		"epic #487) — the suffix is the noun, not an alias marker. There is no bare " +
 		"/api/v1/{team_id}/search counterpart and never will be.",
 
+	"/api/v1/{team_id}/settings/ai-summary": "the DOMAIN is team AI summary settings " +
+		"(getTeamAISummarySettings / updateTeamAISummarySettings / resetTeamAISummarySettings, " +
+		"issue #1072) — the suffix is the noun, not an alias marker, exactly as for " +
+		"/settings/search. There is no bare /api/v1/{team_id}/ai-summary counterpart.",
+
 	"/api/v1/{team_id}/settings/freshness": "the DOMAIN is team freshness settings " +
 		"(getTeamFreshnessSettings / updateTeamFreshnessSettings / resetTeamFreshnessSettings, " +
 		"epic #726) — the suffix is the noun, not an alias marker, exactly as for " +

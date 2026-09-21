@@ -239,7 +239,11 @@ func searchSettingsBodyProblem(fields map[string]json.RawMessage) string {
 // Applied to PUT only; GET and DELETE carry no body.
 func (s *Server) requireCompleteSearchSettingsBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut || r.Body == nil {
+		// Path-scoped because this route group also serves the AI summary
+		// settings PUT (#1072) and the audit GET; without the check, this
+		// middleware would validate an ai-summary body against search's field
+		// names and reject it.
+		if r.Method != http.MethodPut || !strings.HasSuffix(r.URL.Path, "/settings/search") || r.Body == nil {
 			next.ServeHTTP(w, r)
 			return
 		}

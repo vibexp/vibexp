@@ -60,58 +60,59 @@ type WireContainer struct {
 	notifDigestQueueRepo    repositories.NotificationDigestQueueRepository
 
 	// Services
-	authService               services.AuthServiceInterface
-	apiKeyService             services.APIKeyServiceInterface
-	promptService             services.PromptServiceInterface
-	promptGalleryService      services.PromptGalleryServiceInterface
-	promptShareService        *services.PromptShareService
-	artifactService           services.ArtifactServiceInterface
-	attachmentService         services.AttachmentServiceInterface
-	typeService               services.TypeServiceInterface
-	specLibraryService        services.BlueprintServiceInterface
-	embeddingProviderService  services.EmbeddingProviderServiceInterface
-	modelProviderService      services.ModelProviderServiceInterface
-	githubAppConfigService    services.GitHubAppConfigServiceInterface
-	emailService              services.EmailServiceInterface
-	activityService           activities.ActivityService
-	resourceAccessService     resourceaccess.ResourceAccessService
-	agentService              services.AgentServiceInterface
-	agentCardFetcher          services.CardFetcher
-	agentInvocationService    services.AgentInvocationServiceInterface
-	memoryService             services.MemoryServiceInterface
-	embeddingService          services.EmbeddingServiceInterface
-	searchService             services.Searcher
-	searchSummaryService      services.SearchSummaryServiceInterface
-	aiSummaryAvailability     services.AISummaryAvailabilityResolver
-	teamEmailProviderService  services.TeamEmailProviderServiceInterface
-	emailSenderResolver       services.EmailSenderResolver
-	teamSearchSettingsService services.TeamSearchSettingsServiceInterface
-	teamSettingsAuditService  services.TeamSettingsAuditServiceInterface
-	freshnessService          services.FreshnessServiceInterface
-	metadataCatalogService    services.MetadataCatalogServiceInterface
-	environmentService        *services.EnvironmentService
-	featureFlagService        *feature_flags.FeatureFlagService
-	backofficeService         services.UsageAndGrowthGetter
-	adminService              services.AdminServiceInterface
-	embeddingBackfillService  services.EmbeddingBackfiller
-	embeddingStatusService    services.EmbeddingCoverageGetter
-	userPreferencesService    services.UserPreferencesServiceInterface
-	authorizationService      services.AuthorizationServiceInterface
-	teamService               services.TeamServiceInterface
-	teamInvitationService     *services.TeamInvitationService
-	projectService            services.ProjectServiceInterface
-	projectMigrationService   services.ProjectMigrationServiceInterface
-	githubAppService          services.GitHubAppServiceInterface
-	feedService               services.FeedServiceInterface
-	feedItemService           services.FeedItemServiceInterface
-	feedItemReplyService      services.FeedItemReplyServiceInterface
-	commentService            services.CommentServiceInterface
-	relationService           services.RelationServiceInterface
-	relationSeedService       services.RelationSeedServiceInterface
-	notificationService       notifications.NotificationServiceInterface
-	digestRunner              *notifications.DigestRunner
-	scheduler                 *scheduler.Scheduler
-	schedulerRegistry         *scheduler.Registry
+	authService                  services.AuthServiceInterface
+	apiKeyService                services.APIKeyServiceInterface
+	promptService                services.PromptServiceInterface
+	promptGalleryService         services.PromptGalleryServiceInterface
+	promptShareService           *services.PromptShareService
+	artifactService              services.ArtifactServiceInterface
+	attachmentService            services.AttachmentServiceInterface
+	typeService                  services.TypeServiceInterface
+	specLibraryService           services.BlueprintServiceInterface
+	embeddingProviderService     services.EmbeddingProviderServiceInterface
+	modelProviderService         services.ModelProviderServiceInterface
+	githubAppConfigService       services.GitHubAppConfigServiceInterface
+	emailService                 services.EmailServiceInterface
+	activityService              activities.ActivityService
+	resourceAccessService        resourceaccess.ResourceAccessService
+	agentService                 services.AgentServiceInterface
+	agentCardFetcher             services.CardFetcher
+	agentInvocationService       services.AgentInvocationServiceInterface
+	memoryService                services.MemoryServiceInterface
+	embeddingService             services.EmbeddingServiceInterface
+	searchService                services.Searcher
+	searchSummaryService         services.SearchSummaryServiceInterface
+	aiSummaryAvailability        services.AISummaryAvailabilityResolver
+	teamEmailProviderService     services.TeamEmailProviderServiceInterface
+	emailSenderResolver          services.EmailSenderResolver
+	teamSearchSettingsService    services.TeamSearchSettingsServiceInterface
+	teamAISummarySettingsService services.TeamAISummarySettingsServiceInterface
+	teamSettingsAuditService     services.TeamSettingsAuditServiceInterface
+	freshnessService             services.FreshnessServiceInterface
+	metadataCatalogService       services.MetadataCatalogServiceInterface
+	environmentService           *services.EnvironmentService
+	featureFlagService           *feature_flags.FeatureFlagService
+	backofficeService            services.UsageAndGrowthGetter
+	adminService                 services.AdminServiceInterface
+	embeddingBackfillService     services.EmbeddingBackfiller
+	embeddingStatusService       services.EmbeddingCoverageGetter
+	userPreferencesService       services.UserPreferencesServiceInterface
+	authorizationService         services.AuthorizationServiceInterface
+	teamService                  services.TeamServiceInterface
+	teamInvitationService        *services.TeamInvitationService
+	projectService               services.ProjectServiceInterface
+	projectMigrationService      services.ProjectMigrationServiceInterface
+	githubAppService             services.GitHubAppServiceInterface
+	feedService                  services.FeedServiceInterface
+	feedItemService              services.FeedItemServiceInterface
+	feedItemReplyService         services.FeedItemReplyServiceInterface
+	commentService               services.CommentServiceInterface
+	relationService              services.RelationServiceInterface
+	relationSeedService          services.RelationSeedServiceInterface
+	notificationService          notifications.NotificationServiceInterface
+	digestRunner                 *notifications.DigestRunner
+	scheduler                    *scheduler.Scheduler
+	schedulerRegistry            *scheduler.Registry
 
 	// External dependencies
 	identityRegistry *idp.Registry
@@ -369,6 +370,11 @@ func (c *WireContainer) EmailSenderResolver() services.EmailSenderResolver {
 
 func (c *WireContainer) TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface {
 	return c.teamSearchSettingsService
+}
+
+// TeamAISummarySettingsService returns the team AI summary settings service.
+func (c *WireContainer) TeamAISummarySettingsService() services.TeamAISummarySettingsServiceInterface {
+	return c.teamAISummarySettingsService
 }
 
 // TeamSettingsAuditService returns the team settings copy audit log service.

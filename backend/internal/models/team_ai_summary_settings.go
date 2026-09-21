@@ -99,6 +99,10 @@ type TeamAISummarySettingsView struct {
 	// context a single summary request may assemble. It is exposed so clients
 	// can bound their own input control instead of guessing.
 	MaxTopN int
+	// Available reports whether the team has at least one model provider row
+	// (existence, not health) — AI summaries cannot run without one regardless
+	// of Values.Enabled.
+	Available bool
 }
 
 // AISummaryAvailability tells a client whether an AI Summary can be generated
