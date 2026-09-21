@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -153,6 +154,33 @@ func assertAISummaryWarnLogged(t *testing.T, output, teamID string) {
 		}
 	}
 	assert.True(t, found, "expected a WARN log carrying team_id=%s, got: %s", teamID, output)
+}
+
+// The fail-open read must NOT be reachable from the settings API's interface —
+// that separation is what keeps #1072 from serving instance defaults as fact
+// during an outage, and prose alone could not enforce it. The assertion is
+// structural: the concrete service satisfies the resolver interface, while
+// TeamAISummarySettingsServiceInterface does not carry Resolve at all (a
+// regression would fail to compile at the second assignment below).
+func TestTeamAISummarySettings_ResolveIsOffTheSettingsInterface(t *testing.T) {
+	// Reflect over the INTERFACE TYPES, not over a value: a runtime type
+	// assertion would go through the concrete service, which implements both,
+	// and would therefore pass however the interfaces were shaped.
+	settingsIface := reflect.TypeOf((*services.TeamAISummarySettingsServiceInterface)(nil)).Elem()
+	resolverIface := reflect.TypeOf((*services.AISummarySettingsResolver)(nil)).Elem()
+
+	_, hasResolve := settingsIface.MethodByName("Resolve")
+	assert.False(t, hasResolve,
+		"a handler holding TeamAISummarySettingsServiceInterface must not be able to reach the fail-open read")
+	_, hasGet := settingsIface.MethodByName("Get")
+	assert.True(t, hasGet, "the settings API's authoritative read must stay on its interface")
+	_, resolverHasResolve := resolverIface.MethodByName("Resolve")
+	assert.True(t, resolverHasResolve)
+
+	// And the one service still satisfies both, so the split costs no wiring.
+	svc, _, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	assert.Implements(t, (*services.TeamAISummarySettingsServiceInterface)(nil), svc)
+	assert.Implements(t, (*services.AISummarySettingsResolver)(nil), svc)
 }
 
 // Get is the settings API's read and must NOT fail open: reporting the instance

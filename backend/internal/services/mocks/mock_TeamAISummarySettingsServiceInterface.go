@@ -129,65 +129,6 @@ func (_c *MockTeamAISummarySettingsServiceInterface_Reset_Call) RunAndReturn(run
 	return _c
 }
 
-// Resolve provides a mock function with given fields: ctx, teamID
-func (_m *MockTeamAISummarySettingsServiceInterface) Resolve(ctx context.Context, teamID string) (*models.TeamAISummarySettingsView, error) {
-	ret := _m.Called(ctx, teamID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Resolve")
-	}
-
-	var r0 *models.TeamAISummarySettingsView
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.TeamAISummarySettingsView, error)); ok {
-		return rf(ctx, teamID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *models.TeamAISummarySettingsView); ok {
-		r0 = rf(ctx, teamID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.TeamAISummarySettingsView)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, teamID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockTeamAISummarySettingsServiceInterface_Resolve_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Resolve'
-type MockTeamAISummarySettingsServiceInterface_Resolve_Call struct {
-	*mock.Call
-}
-
-// Resolve is a helper method to define mock.On call
-//   - ctx context.Context
-//   - teamID string
-func (_e *MockTeamAISummarySettingsServiceInterface_Expecter) Resolve(ctx interface{}, teamID interface{}) *MockTeamAISummarySettingsServiceInterface_Resolve_Call {
-	return &MockTeamAISummarySettingsServiceInterface_Resolve_Call{Call: _e.mock.On("Resolve", ctx, teamID)}
-}
-
-func (_c *MockTeamAISummarySettingsServiceInterface_Resolve_Call) Run(run func(ctx context.Context, teamID string)) *MockTeamAISummarySettingsServiceInterface_Resolve_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *MockTeamAISummarySettingsServiceInterface_Resolve_Call) Return(_a0 *models.TeamAISummarySettingsView, _a1 error) *MockTeamAISummarySettingsServiceInterface_Resolve_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockTeamAISummarySettingsServiceInterface_Resolve_Call) RunAndReturn(run func(context.Context, string) (*models.TeamAISummarySettingsView, error)) *MockTeamAISummarySettingsServiceInterface_Resolve_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Update provides a mock function with given fields: ctx, userID, teamID, values
 func (_m *MockTeamAISummarySettingsServiceInterface) Update(ctx context.Context, userID string, teamID string, values models.TeamAISummarySettingsValues) (*models.TeamAISummarySettingsView, error) {
 	ret := _m.Called(ctx, userID, teamID, values)

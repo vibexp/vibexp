@@ -17,17 +17,19 @@ import (
 var ErrInvalidAISummarySettings = errors.New("invalid AI summary settings")
 
 // TeamAISummarySettingsServiceInterface is the team-level AI summary settings
-// surface.
+// surface: the settings API's read and its two writes.
+//
+// It deliberately does NOT carry Resolve. The fail-open read lives on
+// AISummarySettingsResolver instead, so a handler typed against this interface
+// physically cannot serve the settings API from it — the same structural split
+// team_search_settings uses (SearchSettingsResolver is its own interface, and
+// TeamSearchSettingsServiceInterface has no Resolve). A doc comment would not
+// have stopped the mistake; the type system does.
 type TeamAISummarySettingsServiceInterface interface {
 	// Get returns the settings in effect for the team and REPORTS A FAILED
-	// READ. It is the method the settings API reads through; readable by any
-	// team member, so it takes no permission check of its own — team membership
-	// is enforced by the tenancy middleware.
+	// READ. Readable by any team member, so it takes no permission check of its
+	// own — team membership is enforced by the tenancy middleware.
 	Get(ctx context.Context, teamID string) (*models.TeamAISummarySettingsView, error)
-	// Resolve answers the same question for the summary generator and FAILS
-	// OPEN — see TeamAISummarySettingsService.Resolve. Never serve the settings
-	// API from here: it would report instance defaults as fact during an outage.
-	Resolve(ctx context.Context, teamID string) (*models.TeamAISummarySettingsView, error)
 	// Update stores a complete replacement profile for the team. Requires
 	// authz.TeamSettingsUpdate; returns an ErrInvalidAISummarySettings-wrapped
 	// error for a profile outside the instance bounds, or for a
@@ -41,7 +43,20 @@ type TeamAISummarySettingsServiceInterface interface {
 	Reset(ctx context.Context, userID, teamID string) error
 }
 
-// TeamAISummarySettingsService implements TeamAISummarySettingsServiceInterface.
+// AISummarySettingsResolver resolves the AI summary settings that apply to a
+// team, for the summary generator (#1073).
+//
+// Resolve FAILS OPEN — see TeamAISummarySettingsService.Resolve. That is the
+// whole reason this is a separate interface from
+// TeamAISummarySettingsServiceInterface: the settings API must report a failed
+// read, and the only reliable way to keep it from reading through the
+// degrading path is to keep that path off the interface it holds.
+type AISummarySettingsResolver interface {
+	Resolve(ctx context.Context, teamID string) (*models.TeamAISummarySettingsView, error)
+}
+
+// TeamAISummarySettingsService implements both
+// TeamAISummarySettingsServiceInterface and AISummarySettingsResolver.
 //
 // defaults is the deployment-wide `ai_summary:` config. It is both the fallback
 // for a team with no stored profile and the instance_defaults reported on every
@@ -57,7 +72,10 @@ type TeamAISummarySettingsService struct {
 	logger    *slog.Logger
 }
 
-var _ TeamAISummarySettingsServiceInterface = (*TeamAISummarySettingsService)(nil)
+var (
+	_ TeamAISummarySettingsServiceInterface = (*TeamAISummarySettingsService)(nil)
+	_ AISummarySettingsResolver             = (*TeamAISummarySettingsService)(nil)
+)
 
 // NewTeamAISummarySettingsService creates a new TeamAISummarySettingsService.
 func NewTeamAISummarySettingsService(
@@ -123,7 +141,7 @@ func (s *TeamAISummarySettingsService) Get(
 	return s.view(models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored)), nil
 }
 
-// Resolve implements TeamAISummarySettingsServiceInterface.
+// Resolve implements AISummarySettingsResolver.
 //
 // It FAILS OPEN: a repository error logs at warn and yields the instance
 // defaults instead of an error. Summarisation is a tuning surface over work the
@@ -134,7 +152,8 @@ func (s *TeamAISummarySettingsService) Get(
 // read shape issue #1071 specifies, shared with Get so a caller can move
 // between the two without reshaping its call site — and it leaves room for a
 // future non-repository failure here. Callers that must not mask an outage
-// (the settings API, #1072) read through Get, never this method.
+// (the settings API, #1072) read through Get; they cannot reach this method at
+// all, because it is not on the interface they hold.
 func (s *TeamAISummarySettingsService) Resolve(
 	ctx context.Context, teamID string,
 ) (*models.TeamAISummarySettingsView, error) {

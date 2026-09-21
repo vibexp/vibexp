@@ -527,13 +527,19 @@ func ProvideTeamSearchSettingsService(
 // validates a team's top_n against.
 // The model provider repository is the tenancy check on a submitted
 // model_provider_id: the column's FK proves existence, not ownership.
+//
+// It returns the CONCRETE type because the service satisfies two interfaces —
+// TeamAISummarySettingsServiceInterface (the settings API's read + writes) and
+// AISummarySettingsResolver (the generator's fail-open read). wire.Bind in
+// wire.go maps it to both, so the two consumers stay typed against the surface
+// each is allowed to use rather than sharing one that offers both reads.
 func ProvideTeamAISummarySettingsService(
 	repo repositories.TeamAISummarySettingsRepository,
 	modelProviders repositories.ModelProviderRepository,
 	authzService services.AuthorizationServiceInterface,
 	cfg *config.Config,
 	logger *slog.Logger,
-) services.TeamAISummarySettingsServiceInterface {
+) *services.TeamAISummarySettingsService {
 	return services.NewTeamAISummarySettingsService(
 		repo, modelProviders, authzService, cfg.AISummary, logger)
 }

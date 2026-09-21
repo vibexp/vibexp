@@ -66,6 +66,7 @@ packages:
       Searcher:
       SearchSettingsResolver:
       StreamProcessor:
+      AISummarySettingsResolver:
       TeamAISummarySettingsServiceInterface:
       TeamEmailProviderServiceInterface:
       FreshnessServiceInterface:
