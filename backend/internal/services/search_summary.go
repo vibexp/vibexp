@@ -94,7 +94,7 @@ func (s *SearchSummaryService) Summarize(
 		Types:     req.Types,
 		ProjectID: req.ProjectID,
 		Page:      1,
-		PerPage:   settings.TopN,
+		PerPage:   s.topN(settings.TopN),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("SearchSummaryService.Summarize: search: %w", err)
@@ -105,12 +105,8 @@ func (s *SearchSummaryService) Summarize(
 
 	docs := buildSummaryContext(rows, s.budget.PerDocumentChars, s.budget.TotalContextChars)
 
-	completionCtx := ctx
-	if s.budget.RequestTimeout > 0 {
-		var cancel context.CancelFunc
-		completionCtx, cancel = context.WithTimeout(ctx, s.budget.RequestTimeout)
-		defer cancel()
-	}
+	completionCtx, cancel := s.completionContext(ctx)
+	defer cancel()
 
 	resp, err := s.llm.Complete(completionCtx, teamID, settings.ModelProviderID, models.CompletionRequest{
 		Messages:  buildSummaryMessages(req.Query, settings.Style, docs),
@@ -119,14 +115,33 @@ func (s *SearchSummaryService) Summarize(
 	if err != nil {
 		return nil, err
 	}
+	answer := strings.TrimSpace(resp.Content)
+	if answer == "" {
+		// A reasoning model can spend the whole output budget before answering
+		// and return finish_reason "length" with no content. A blank 200 would
+		// read as a summary; it is a refusal to answer.
+		s.logger.WarnContext(ctx, "Model provider returned an empty summary",
+			slog.String("team_id", teamID),
+			slog.String("finish_reason", resp.FinishReason),
+		)
+		return nil, fmt.Errorf("%w: the model returned an empty answer", ErrModelRejected)
+	}
 
+	return s.newSearchSummary(answer, resp, docs), nil
+}
+
+// newSearchSummary assembles the result: the answer, the sources in citation
+// order, who generated it, and the usage when the provider reported any.
+func (s *SearchSummaryService) newSearchSummary(
+	answer string, resp *models.CompletionResponse, docs []summaryDocument,
+) *models.SearchSummary {
 	sources := make([]models.SearchSummarySource, 0, len(docs))
 	for _, d := range docs {
 		sources = append(sources, d.source)
 	}
 
 	summary := &models.SearchSummary{
-		Summary:     strings.TrimSpace(resp.Content),
+		Summary:     answer,
 		Sources:     sources,
 		Model:       resp.Model,
 		ProviderID:  resp.ProviderID,
@@ -136,7 +151,46 @@ func (s *SearchSummaryService) Summarize(
 		usage := resp.Usage
 		summary.Usage = &usage
 	}
-	return summary, nil
+	return summary
+}
+
+// summaryResponseMargin is reserved out of the caller's own deadline, so that
+// when the model runs out of time the classified timeout can still be written
+// to a connection that is open.
+const summaryResponseMargin = 2 * time.Second
+
+// topN bounds the team's TopN by the instance cap. The team value was checked
+// against max_top_n when it was saved, but an operator can lower the cap later,
+// and the cap is a ceiling a team can never exceed.
+func (s *SearchSummaryService) topN(teamTopN int) int {
+	if s.budget.MaxTopN > 0 && teamTopN > s.budget.MaxTopN {
+		return s.budget.MaxTopN
+	}
+	return teamTopN
+}
+
+// completionContext bounds the completion by ai_summary.request_timeout AND by
+// the incoming request's own deadline less summaryResponseMargin, whichever is
+// sooner. The HTTP server gives every request a fixed budget (the Timeout
+// middleware and WriteTimeout), and embedding + search have already spent part
+// of it; a completion allowed to run to that budget's end would time out after
+// the response can no longer be written, and the caller would see a dropped
+// connection instead of AI_SUMMARY_TIMEOUT.
+func (s *SearchSummaryService) completionContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	var deadline time.Time
+	if s.budget.RequestTimeout > 0 {
+		deadline = time.Now().Add(s.budget.RequestTimeout)
+	}
+	if callerDeadline, ok := ctx.Deadline(); ok {
+		reserved := callerDeadline.Add(-summaryResponseMargin)
+		if deadline.IsZero() || reserved.Before(deadline) {
+			deadline = reserved
+		}
+	}
+	if deadline.IsZero() {
+		return context.WithCancel(ctx)
+	}
+	return context.WithDeadline(ctx, deadline)
 }
 
 // summaryDocument is one document as it enters the prompt: its public source

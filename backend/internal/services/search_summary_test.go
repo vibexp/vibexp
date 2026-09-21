@@ -45,6 +45,7 @@ type fakeCompleter struct {
 	gotProvider *string
 	gotReq      models.CompletionRequest
 	gotDeadline bool
+	deadline    time.Time
 }
 
 func (f *fakeCompleter) Complete(
@@ -53,7 +54,7 @@ func (f *fakeCompleter) Complete(
 	f.calls++
 	f.gotProvider = providerID
 	f.gotReq = req
-	_, f.gotDeadline = ctx.Deadline()
+	f.deadline, f.gotDeadline = ctx.Deadline()
 	return f.resp, f.err
 }
 
@@ -413,4 +414,67 @@ func TestNewSearchSummaryService_NilLoggerFallsBack(t *testing.T) {
 		fixedSummarySettings{}, config.AISummaryConfig{}, nil)
 
 	assert.NotNil(t, svc.logger)
+}
+
+func TestSummarize_CompletionEndsBeforeTheCallersDeadline(t *testing.T) {
+	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
+	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
+	svc := newTestSearchSummaryService(search, llm, enabledSummarySettings())
+	svc.budget.RequestTimeout = 10 * time.Minute // far past the request's own budget
+
+	callerDeadline := time.Now().Add(20 * time.Second)
+	ctx, cancel := context.WithDeadline(context.Background(), callerDeadline)
+	defer cancel()
+
+	_, err := svc.Summarize(ctx, testSummaryTeamID, &models.SearchSummaryRequest{Query: "q"})
+
+	require.NoError(t, err)
+	require.True(t, llm.gotDeadline)
+	assert.False(t, llm.deadline.After(callerDeadline.Add(-summaryResponseMargin)),
+		"the completion must end early enough for the classified timeout to be written")
+}
+
+func TestSummarize_RequestTimeoutAppliesWhenSoonerThanTheCallersDeadline(t *testing.T) {
+	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
+	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
+	svc := newTestSearchSummaryService(search, llm, enabledSummarySettings())
+	svc.budget.RequestTimeout = 5 * time.Second
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Hour))
+	defer cancel()
+	before := time.Now()
+
+	_, err := svc.Summarize(ctx, testSummaryTeamID, &models.SearchSummaryRequest{Query: "q"})
+
+	require.NoError(t, err)
+	require.True(t, llm.gotDeadline)
+	assert.WithinDuration(t, before.Add(5*time.Second), llm.deadline, time.Second)
+}
+
+func TestSummarize_EmptyAnswerIsAModelError(t *testing.T) {
+	for _, content := range []string{"", "  \n\t "} {
+		search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
+		llm := &fakeCompleter{resp: &models.CompletionResponse{
+			Content: content, FinishReason: "length", ProviderID: "p", Model: "m",
+		}}
+
+		_, err := newTestSearchSummaryService(search, llm, enabledSummarySettings()).
+			Summarize(context.Background(), testSummaryTeamID, &models.SearchSummaryRequest{Query: "q"})
+
+		require.ErrorIs(t, err, ErrModelRejected)
+	}
+}
+
+func TestSummarize_TopNIsClampedToTheInstanceCap(t *testing.T) {
+	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
+	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
+	values := enabledSummarySettings()
+	values.TopN = 10 // saved before the operator lowered max_top_n
+	svc := newTestSearchSummaryService(search, llm, values)
+	svc.budget.MaxTopN = 3
+
+	_, err := svc.Summarize(context.Background(), testSummaryTeamID, &models.SearchSummaryRequest{Query: "q"})
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, search.got.PerPage)
 }
