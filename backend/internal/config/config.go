@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"os"
 	"reflect"
@@ -17,6 +18,7 @@ import (
 	"github.com/knadh/koanf/v2"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
+	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/observability"
 	"github.com/vibexp/vibexp/pkg/events"
 )
@@ -35,6 +37,7 @@ type Config struct {
 	Email      EmailConfig      `koanf:"email"`
 	Frontend   FrontendConfig   `koanf:"frontend"`
 	Search     SearchConfig     `koanf:"search"`
+	AISummary  AISummaryConfig  `koanf:"ai_summary"`
 	Storage    StorageConfig    `koanf:"storage"`
 	GCP        GCPConfig        `koanf:"gcp"`
 	RateLimit  RateLimitConfig  `koanf:"rate_limit"`
@@ -504,6 +507,38 @@ type SearchConfig struct {
 	RankCandidateCap      int     `koanf:"rank_candidate_cap"`
 }
 
+// AISummaryConfig holds the instance-wide AI summary defaults (#1071).
+//
+// It is the operator's half of the feature: the context budgets have to match
+// the deployment's hardware and the model behind it, so they are not
+// team-configurable at all. The knobs a team MAY override (Enabled, TopN, Style,
+// MaxOutputTokens) are also the fallback for every team with no stored profile,
+// and are reported as `instance_defaults` on every read.
+type AISummaryConfig struct {
+	// Enabled switches the feature on for the whole instance. EnvBool so the
+	// combined image can expose it as ${AI_SUMMARY_ENABLED}.
+	Enabled EnvBool `koanf:"enabled"`
+	// TopN is the default number of documents fed to the summariser. EnvInt for
+	// the same reason as Enabled.
+	TopN EnvInt `koanf:"top_n"`
+	// MaxTopN is the instance-owned ceiling on TopN. It is NOT team-configurable
+	// and team_ai_summary_settings has no column for it: it bounds how much work
+	// one request can ask of the server and of the operator's model, exactly as
+	// search.rank_candidate_cap does. Teams tune inside the cap.
+	MaxTopN int `koanf:"max_top_n"`
+	// PerDocumentChars truncates each document before it enters the prompt.
+	PerDocumentChars int `koanf:"per_document_chars"`
+	// TotalContextChars caps the assembled context across all documents. It is
+	// the binding budget when TopN documents would together exceed it.
+	TotalContextChars int `koanf:"total_context_chars"`
+	// MaxOutputTokens is the default answer-length budget.
+	MaxOutputTokens int `koanf:"max_output_tokens"`
+	// RequestTimeout bounds a single summarisation call to the model provider.
+	RequestTimeout time.Duration `koanf:"request_timeout"`
+	// Style is the default summary style, one of models.AISummaryStyles.
+	Style string `koanf:"style"`
+}
+
 // StorageConfig holds resource-attachment storage settings.
 type StorageConfig struct {
 	// Backend selects the object-store implementation: "gcs", "s3" (covers
@@ -773,6 +808,53 @@ func validateSearchRankingConfig(cfg *Config) error {
 	if s.RankCandidateCap > MaxSearchRankCandidateCap {
 		return fmt.Errorf("search.rank_candidate_cap must be <= %d, got %d",
 			MaxSearchRankCandidateCap, s.RankCandidateCap)
+	}
+	return nil
+}
+
+// MaxAISummaryTopN is the absolute ceiling on how many documents a single
+// summary request may assemble, for the whole deployment. ai_summary.max_top_n
+// tunes the per-team limit DOWNWARD inside it, and the
+// team_ai_summary_settings.top_n CHECK constraint mirrors this constant bound
+// for bound — so a value the database would reject can never be configured.
+const MaxAISummaryTopN = 10
+
+// validateAISummaryConfig fails closed on an AI summary block that could not be
+// satisfied: a non-positive budget, a top_n outside the instance cap, or a style
+// outside the closed vocabulary the storage CHECK constraint also enforces.
+// Catching these at startup beats surfacing them as a failed summary hours later.
+func validateAISummaryConfig(cfg *Config) error {
+	s := cfg.AISummary
+	if s.MaxTopN < 1 || s.MaxTopN > MaxAISummaryTopN {
+		return fmt.Errorf("ai_summary.max_top_n must be between 1 and %d, got %d",
+			MaxAISummaryTopN, s.MaxTopN)
+	}
+	if int(s.TopN) < 1 || int(s.TopN) > s.MaxTopN {
+		return fmt.Errorf("ai_summary.top_n must be between 1 and ai_summary.max_top_n (%d), got %d",
+			s.MaxTopN, int(s.TopN))
+	}
+	for _, budget := range []struct {
+		key   string
+		value int
+	}{
+		{"per_document_chars", s.PerDocumentChars},
+		{"total_context_chars", s.TotalContextChars},
+		{"max_output_tokens", s.MaxOutputTokens},
+	} {
+		if budget.value < 1 {
+			return fmt.Errorf("ai_summary.%s must be >= 1, got %d", budget.key, budget.value)
+		}
+	}
+	if s.TotalContextChars < s.PerDocumentChars {
+		return fmt.Errorf(
+			"ai_summary.total_context_chars (%d) must be >= ai_summary.per_document_chars (%d)",
+			s.TotalContextChars, s.PerDocumentChars)
+	}
+	if s.RequestTimeout <= 0 {
+		return fmt.Errorf("ai_summary.request_timeout must be positive, got %s", s.RequestTimeout)
+	}
+	if !models.IsValidAISummaryStyle(s.Style) {
+		return fmt.Errorf("ai_summary.style must be one of %v, got %q", models.AISummaryStyles, s.Style)
 	}
 	return nil
 }
@@ -1125,6 +1207,7 @@ func validateAll(cfg *Config) error {
 		validateBodyAndRetention,
 		validateRateLimits,
 		validateSearchRankingConfig,
+		validateAISummaryConfig,
 		validateStorageConfig,
 		validateDatabaseSSLMode,
 		validateEncryptionKey,
@@ -1156,7 +1239,7 @@ const defaultAuthRedirectURI = "http://localhost:8080/api/v1/auth/callback"
 // any of them. Duration defaults are expressed as strings ("15m") and decoded by
 // the time.Duration hook, matching how the YAML file expresses them.
 func defaults() map[string]any {
-	return map[string]any{
+	d := map[string]any{
 		"server.port":                         "8080",
 		"server.log_level":                    "info",
 		"server.log_format":                   "json",
@@ -1213,6 +1296,25 @@ func defaults() map[string]any {
 		"otel.endpoint":                       "localhost:4317",
 		"otel.export_interval":                "60s",
 		"otel.trace_sample_ratio":             0.1,
+	}
+	maps.Copy(d, aiSummaryDefaults())
+	return d
+}
+
+// aiSummaryDefaults holds the `ai_summary:` defaults (#1071). They live in their
+// own map, merged above, because defaults() sits at golangci's function-length
+// ceiling — folding a section in keeps adding one knob from forcing an unrelated
+// refactor of every other default.
+func aiSummaryDefaults() map[string]any {
+	return map[string]any{
+		"ai_summary.enabled":             true,
+		"ai_summary.top_n":               5,
+		"ai_summary.max_top_n":           MaxAISummaryTopN,
+		"ai_summary.per_document_chars":  8000,
+		"ai_summary.total_context_chars": 32000,
+		"ai_summary.max_output_tokens":   800,
+		"ai_summary.request_timeout":     "60s",
+		"ai_summary.style":               models.AISummaryStyleBalanced,
 	}
 }
 

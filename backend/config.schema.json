@@ -17,6 +17,53 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "AISummaryConfig": {
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
+        },
+        "top_n": {
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
+        },
+        "max_top_n": {
+          "type": "integer"
+        },
+        "per_document_chars": {
+          "type": "integer"
+        },
+        "total_context_chars": {
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "type": "integer"
+        },
+        "request_timeout": {
+          "type": "string",
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
+        },
+        "style": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "APIOAuthConfig": {
       "properties": {
         "issuer": {
@@ -144,6 +191,9 @@
         },
         "search": {
           "$ref": "#/$defs/SearchConfig"
+        },
+        "ai_summary": {
+          "$ref": "#/$defs/AISummaryConfig"
         },
         "storage": {
           "$ref": "#/$defs/StorageConfig"

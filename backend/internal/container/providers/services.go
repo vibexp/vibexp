@@ -520,6 +520,30 @@ func ProvideTeamSearchSettingsService(
 	return services.NewTeamSearchSettingsService(repo, authzService, cfg.Search, logger)
 }
 
+// ProvideTeamAISummarySettingsService creates the team AI summary settings
+// service (#1071). It receives the deployment `ai_summary:` config, which is
+// both the fallback for a team with no stored profile and the instance_defaults
+// reported on every read — plus max_top_n, the instance-owned bound Update
+// validates a team's top_n against.
+// The model provider repository is the tenancy check on a submitted
+// model_provider_id: the column's FK proves existence, not ownership.
+//
+// It returns the CONCRETE type because the service satisfies two interfaces —
+// TeamAISummarySettingsServiceInterface (the settings API's read + writes) and
+// AISummarySettingsResolver (the generator's fail-open read). wire.Bind in
+// wire.go maps it to both, so the two consumers stay typed against the surface
+// each is allowed to use rather than sharing one that offers both reads.
+func ProvideTeamAISummarySettingsService(
+	repo repositories.TeamAISummarySettingsRepository,
+	modelProviders repositories.ModelProviderRepository,
+	authzService services.AuthorizationServiceInterface,
+	cfg *config.Config,
+	logger *slog.Logger,
+) *services.TeamAISummarySettingsService {
+	return services.NewTeamAISummarySettingsService(
+		repo, modelProviders, authzService, cfg.AISummary, logger)
+}
+
 // ProvideTeamSettingsAuditService creates the team settings audit log service
 // (epic #827). The authorization service is used by the READ path only (#832,
 // authz.TeamSettingsUpdate): entries are WRITTEN from inside an

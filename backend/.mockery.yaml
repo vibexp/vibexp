@@ -66,6 +66,8 @@ packages:
       Searcher:
       SearchSettingsResolver:
       StreamProcessor:
+      AISummarySettingsResolver:
+      TeamAISummarySettingsServiceInterface:
       TeamEmailProviderServiceInterface:
       FreshnessServiceInterface:
       TeamSearchSettingsServiceInterface:
@@ -138,6 +140,7 @@ packages:
       TeamFreshnessSettingsRepository:
       TeamMemberRepository:
       TeamRepository:
+      TeamAISummarySettingsRepository:
       TeamSearchSettingsRepository:
       TeamSettingsAuditRepository:
       TypeRepository:
