@@ -202,6 +202,12 @@ a2a:
 # SCHEDULER_ENABLED=false to turn the loop off entirely (nothing is claimed or
 # run). tick_interval is a polling cadence, not a job cadence — the 1-hour floor
 # on a schedule's own interval keeps the work sparse.
+scheduler:
+  enabled: "${SCHEDULER_ENABLED:-true}"
+  tick_interval: "${SCHEDULER_TICK_INTERVAL:-1m}"
+  job_timeout: "${SCHEDULER_JOB_TIMEOUT:-10m}"
+  due_limit: "${SCHEDULER_DUE_LIMIT:-100}"
+
 # AI summary defaults (#1071). enabled/top_n are typed EnvBool/EnvInt so they
 # can be authored as placeholders here (the schema validates the RAW YAML, where
 # a ${VAR} is a string). The context budgets stay literal: they are plain ints,
@@ -217,12 +223,6 @@ ai_summary:
   max_output_tokens: 800
   request_timeout: "${AI_SUMMARY_REQUEST_TIMEOUT:-60s}"
   style: "${AI_SUMMARY_STYLE:-balanced}"
-
-scheduler:
-  enabled: "${SCHEDULER_ENABLED:-true}"
-  tick_interval: "${SCHEDULER_TICK_INTERVAL:-1m}"
-  job_timeout: "${SCHEDULER_JOB_TIMEOUT:-10m}"
-  due_limit: "${SCHEDULER_DUE_LIMIT:-100}"
 
 # Durable embedding job queue (issue #820). Durability itself is not an operator
 # knob -- these only tune how the queue is drained.

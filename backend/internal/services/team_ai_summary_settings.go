@@ -19,14 +19,19 @@ var ErrInvalidAISummarySettings = errors.New("invalid AI summary settings")
 // TeamAISummarySettingsServiceInterface is the team-level AI summary settings
 // surface.
 type TeamAISummarySettingsServiceInterface interface {
-	// Resolve returns the settings in effect for the team, reporting whether
-	// they come from the team's own profile or from the instance defaults.
-	//
-	// It FAILS OPEN — see TeamAISummarySettingsService.Resolve.
+	// Get returns the settings in effect for the team and REPORTS A FAILED
+	// READ. It is the method the settings API reads through; readable by any
+	// team member, so it takes no permission check of its own — team membership
+	// is enforced by the tenancy middleware.
+	Get(ctx context.Context, teamID string) (*models.TeamAISummarySettingsView, error)
+	// Resolve answers the same question for the summary generator and FAILS
+	// OPEN — see TeamAISummarySettingsService.Resolve. Never serve the settings
+	// API from here: it would report instance defaults as fact during an outage.
 	Resolve(ctx context.Context, teamID string) (*models.TeamAISummarySettingsView, error)
 	// Update stores a complete replacement profile for the team. Requires
 	// authz.TeamSettingsUpdate; returns an ErrInvalidAISummarySettings-wrapped
-	// error for a profile outside the instance bounds.
+	// error for a profile outside the instance bounds, or for a
+	// model_provider_id that is not one of the team's own providers.
 	Update(
 		ctx context.Context, userID, teamID string, values models.TeamAISummarySettingsValues,
 	) (*models.TeamAISummarySettingsView, error)
@@ -42,10 +47,14 @@ type TeamAISummarySettingsServiceInterface interface {
 // for a team with no stored profile and the instance_defaults reported on every
 // read, so a client can preview a reset without a second request.
 type TeamAISummarySettingsService struct {
-	repo     repositories.TeamAISummarySettingsRepository
-	authz    AuthorizationServiceInterface
-	defaults config.AISummaryConfig
-	logger   *slog.Logger
+	repo repositories.TeamAISummarySettingsRepository
+	// providers resolves a submitted model_provider_id WITHIN the team, which
+	// is the only tenancy check on that column: the FK references
+	// model_providers(id) alone and therefore proves existence, not ownership.
+	providers repositories.ModelProviderRepository
+	authz     AuthorizationServiceInterface
+	defaults  config.AISummaryConfig
+	logger    *slog.Logger
 }
 
 var _ TeamAISummarySettingsServiceInterface = (*TeamAISummarySettingsService)(nil)
@@ -53,15 +62,17 @@ var _ TeamAISummarySettingsServiceInterface = (*TeamAISummarySettingsService)(ni
 // NewTeamAISummarySettingsService creates a new TeamAISummarySettingsService.
 func NewTeamAISummarySettingsService(
 	repo repositories.TeamAISummarySettingsRepository,
+	providers repositories.ModelProviderRepository,
 	authzService AuthorizationServiceInterface,
 	defaults config.AISummaryConfig,
 	logger *slog.Logger,
 ) *TeamAISummarySettingsService {
 	return &TeamAISummarySettingsService{
-		repo:     repo,
-		authz:    authzService,
-		defaults: defaults,
-		logger:   logger,
+		repo:      repo,
+		providers: providers,
+		authz:     authzService,
+		defaults:  defaults,
+		logger:    logger,
 	}
 }
 
@@ -93,14 +104,37 @@ func (s *TeamAISummarySettingsService) view(
 	}
 }
 
+// Get implements TeamAISummarySettingsServiceInterface.
+//
+// Unlike Resolve it does NOT fail open: the caller is asking what the settings
+// ARE, and answering "the instance defaults" during a database outage would
+// report a guess as fact — and, through the settings UI, invite an admin to
+// save those defaults over a profile they cannot currently see.
+func (s *TeamAISummarySettingsService) Get(
+	ctx context.Context, teamID string,
+) (*models.TeamAISummarySettingsView, error) {
+	stored, err := s.repo.Get(ctx, teamID)
+	if err != nil {
+		return nil, fmt.Errorf("TeamAISummarySettingsService.Get: %w", err)
+	}
+	if stored == nil {
+		return s.view(models.TeamAISummarySettingsSourceInstance, s.instanceValues()), nil
+	}
+	return s.view(models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored)), nil
+}
+
 // Resolve implements TeamAISummarySettingsServiceInterface.
 //
 // It FAILS OPEN: a repository error logs at warn and yields the instance
 // defaults instead of an error. Summarisation is a tuning surface over work the
 // caller is doing anyway, so a blip reading one settings row must degrade the
-// tuning rather than fail the request that asked for the summary. The error is
-// kept in the signature because the settings API (#1072) is the opposite — it
-// must report a failed read — and both read through this one method.
+// tuning rather than fail the request that asked for the summary.
+//
+// The error in the signature is therefore ALWAYS nil today. It is part of the
+// read shape issue #1071 specifies, shared with Get so a caller can move
+// between the two without reshaping its call site — and it leaves room for a
+// future non-repository failure here. Callers that must not mask an outage
+// (the settings API, #1072) read through Get, never this method.
 func (s *TeamAISummarySettingsService) Resolve(
 	ctx context.Context, teamID string,
 ) (*models.TeamAISummarySettingsView, error) {
@@ -127,6 +161,9 @@ func (s *TeamAISummarySettingsService) Update(
 	if err := ValidateAISummarySettings(values, s.defaults.MaxTopN); err != nil {
 		return nil, err
 	}
+	if err := s.requireOwnedProvider(ctx, teamID, values.ModelProviderID); err != nil {
+		return nil, err
+	}
 
 	stored := &models.TeamAISummarySettings{
 		TeamID:          teamID,
@@ -150,6 +187,33 @@ func (s *TeamAISummarySettingsService) Reset(ctx context.Context, userID, teamID
 	}
 	if err := s.repo.Delete(ctx, teamID); err != nil {
 		return fmt.Errorf("TeamAISummarySettingsService.Reset: %w", err)
+	}
+	return nil
+}
+
+// requireOwnedProvider rejects a model_provider_id that is not one of teamID's
+// own providers.
+//
+// The column's foreign key is REFERENCES model_providers(id) — it proves the
+// provider EXISTS, not that it belongs to this team — so without this check a
+// team admin could point their summaries at another team's provider row and,
+// through the generator (#1073), at that team's base_url and encrypted API key.
+// Every other query in ModelProviderRepository carries `AND team_id = $2` for
+// the same reason; this is that predicate applied to the one place a provider
+// id arrives from a client. A nil id is the "use the team default" value and
+// needs no lookup.
+func (s *TeamAISummarySettingsService) requireOwnedProvider(
+	ctx context.Context, teamID string, providerID *string,
+) error {
+	if providerID == nil {
+		return nil
+	}
+	if _, err := s.providers.GetByID(ctx, teamID, *providerID); err != nil {
+		if errors.Is(err, repositories.ErrModelProviderNotFound) {
+			return fmt.Errorf("%w: model_provider_id %q is not a model provider of this team",
+				ErrInvalidAISummarySettings, *providerID)
+		}
+		return fmt.Errorf("TeamAISummarySettingsService.Update: resolving model provider: %w", err)
 	}
 	return nil
 }

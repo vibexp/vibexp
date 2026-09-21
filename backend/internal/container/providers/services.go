@@ -525,13 +525,17 @@ func ProvideTeamSearchSettingsService(
 // both the fallback for a team with no stored profile and the instance_defaults
 // reported on every read — plus max_top_n, the instance-owned bound Update
 // validates a team's top_n against.
+// The model provider repository is the tenancy check on a submitted
+// model_provider_id: the column's FK proves existence, not ownership.
 func ProvideTeamAISummarySettingsService(
 	repo repositories.TeamAISummarySettingsRepository,
+	modelProviders repositories.ModelProviderRepository,
 	authzService services.AuthorizationServiceInterface,
 	cfg *config.Config,
 	logger *slog.Logger,
 ) services.TeamAISummarySettingsServiceInterface {
-	return services.NewTeamAISummarySettingsService(repo, authzService, cfg.AISummary, logger)
+	return services.NewTeamAISummarySettingsService(
+		repo, modelProviders, authzService, cfg.AISummary, logger)
 }
 
 // ProvideTeamSettingsAuditService creates the team settings audit log service

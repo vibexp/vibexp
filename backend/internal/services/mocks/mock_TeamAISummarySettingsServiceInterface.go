@@ -22,6 +22,65 @@ func (_m *MockTeamAISummarySettingsServiceInterface) EXPECT() *MockTeamAISummary
 	return &MockTeamAISummarySettingsServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// Get provides a mock function with given fields: ctx, teamID
+func (_m *MockTeamAISummarySettingsServiceInterface) Get(ctx context.Context, teamID string) (*models.TeamAISummarySettingsView, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Get")
+	}
+
+	var r0 *models.TeamAISummarySettingsView
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.TeamAISummarySettingsView, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.TeamAISummarySettingsView); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.TeamAISummarySettingsView)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTeamAISummarySettingsServiceInterface_Get_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Get'
+type MockTeamAISummarySettingsServiceInterface_Get_Call struct {
+	*mock.Call
+}
+
+// Get is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+func (_e *MockTeamAISummarySettingsServiceInterface_Expecter) Get(ctx interface{}, teamID interface{}) *MockTeamAISummarySettingsServiceInterface_Get_Call {
+	return &MockTeamAISummarySettingsServiceInterface_Get_Call{Call: _e.mock.On("Get", ctx, teamID)}
+}
+
+func (_c *MockTeamAISummarySettingsServiceInterface_Get_Call) Run(run func(ctx context.Context, teamID string)) *MockTeamAISummarySettingsServiceInterface_Get_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockTeamAISummarySettingsServiceInterface_Get_Call) Return(_a0 *models.TeamAISummarySettingsView, _a1 error) *MockTeamAISummarySettingsServiceInterface_Get_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTeamAISummarySettingsServiceInterface_Get_Call) RunAndReturn(run func(context.Context, string) (*models.TeamAISummarySettingsView, error)) *MockTeamAISummarySettingsServiceInterface_Get_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Reset provides a mock function with given fields: ctx, userID, teamID
 func (_m *MockTeamAISummarySettingsServiceInterface) Reset(ctx context.Context, userID string, teamID string) error {
 	ret := _m.Called(ctx, userID, teamID)

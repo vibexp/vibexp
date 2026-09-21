@@ -16,11 +16,17 @@ import (
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
 )
 
-const testAISummaryUserID = "22222222-3333-4444-5555-666666666666"
+const (
+	testAISummaryUserID = "22222222-3333-4444-5555-666666666666"
+	// aiSummaryTestProviderID is the provider aiSummaryTeamProfile points at;
+	// Update looks it up to prove the team owns it.
+	aiSummaryTestProviderID = "33333333-4444-5555-6666-777777777777"
+)
 
 func aiSummaryInstanceConfig() config.AISummaryConfig {
 	return config.AISummaryConfig{
@@ -38,7 +44,7 @@ func aiSummaryInstanceConfig() config.AISummaryConfig {
 // aiSummaryTeamProfile is deliberately different from the instance config in
 // every field, so a test can tell which one came back.
 func aiSummaryTeamProfile() models.TeamAISummarySettingsValues {
-	providerID := "provider-9"
+	providerID := aiSummaryTestProviderID
 	return models.TeamAISummarySettingsValues{
 		Enabled:         false,
 		ModelProviderID: &providerID,
@@ -50,19 +56,31 @@ func aiSummaryTeamProfile() models.TeamAISummarySettingsValues {
 
 func newAISummarySettingsService(
 	t *testing.T, authzSvc services.AuthorizationServiceInterface, logs *bytes.Buffer,
-) (*services.TeamAISummarySettingsService, *repomocks.MockTeamAISummarySettingsRepository) {
+) (
+	*services.TeamAISummarySettingsService,
+	*repomocks.MockTeamAISummarySettingsRepository,
+	*repomocks.MockModelProviderRepository,
+) {
 	t.Helper()
 	repo := repomocks.NewMockTeamAISummarySettingsRepository(t)
+	providers := repomocks.NewMockModelProviderRepository(t)
 	handler := slog.Handler(slog.DiscardHandler)
 	if logs != nil {
 		handler = slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})
 	}
 	return services.NewTeamAISummarySettingsService(
-		repo, authzSvc, aiSummaryInstanceConfig(), slog.New(handler)), repo
+		repo, providers, authzSvc, aiSummaryInstanceConfig(), slog.New(handler)), repo, providers
+}
+
+// expectProviderOwnedByTeam stubs the tenancy lookup Update runs on a non-nil
+// model_provider_id.
+func expectProviderOwnedByTeam(providers *repomocks.MockModelProviderRepository, teamID, providerID string) {
+	providers.EXPECT().GetByID(mock.Anything, teamID, providerID).
+		Return(&models.ModelProvider{ID: providerID, TeamID: &teamID}, nil)
 }
 
 func TestTeamAISummarySettingsService_Resolve_NoRowReportsInstanceSource(t *testing.T) {
-	svc, repo := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
 	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
 
 	view, err := svc.Resolve(context.Background(), testTeamID)
@@ -79,7 +97,7 @@ func TestTeamAISummarySettingsService_Resolve_NoRowReportsInstanceSource(t *test
 }
 
 func TestTeamAISummarySettingsService_Resolve_StoredRowReportsTeamSource(t *testing.T) {
-	svc, repo := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
 	providerID := "provider-9"
 	repo.EXPECT().Get(mock.Anything, testTeamID).Return(&models.TeamAISummarySettings{
 		TeamID:          testTeamID,
@@ -108,7 +126,7 @@ func TestTeamAISummarySettingsService_Resolve_StoredRowReportsTeamSource(t *test
 // than failing the request that asked for a summary.
 func TestTeamAISummarySettingsService_Resolve_RepositoryErrorFailsOpen(t *testing.T) {
 	var logs bytes.Buffer
-	svc, repo := newAISummarySettingsService(t, allowAllAuthz{}, &logs)
+	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, &logs)
 	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, errors.New("connection refused"))
 
 	view, err := svc.Resolve(context.Background(), testTeamID)
@@ -137,8 +155,96 @@ func assertAISummaryWarnLogged(t *testing.T, output, teamID string) {
 	assert.True(t, found, "expected a WARN log carrying team_id=%s, got: %s", teamID, output)
 }
 
+// Get is the settings API's read and must NOT fail open: reporting the instance
+// defaults during an outage would present a guess as fact.
+func TestTeamAISummarySettingsService_Get_RepositoryErrorPropagates(t *testing.T) {
+	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, errors.New("boom"))
+
+	_, err := svc.Get(context.Background(), testTeamID)
+
+	assert.Error(t, err, "unlike Resolve, the settings API read must surface a failed read")
+}
+
+func TestTeamAISummarySettingsService_Get_NoRowReportsInstanceSource(t *testing.T) {
+	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
+
+	view, err := svc.Get(context.Background(), testTeamID)
+
+	require.NoError(t, err)
+	assert.Equal(t, models.TeamAISummarySettingsSourceInstance, view.Source)
+	assert.Equal(t, view.InstanceDefaults, view.Values)
+	assert.Equal(t, 8, view.MaxTopN)
+}
+
+func TestTeamAISummarySettingsService_Get_StoredRowReportsTeamSource(t *testing.T) {
+	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	repo.EXPECT().Get(mock.Anything, testTeamID).Return(&models.TeamAISummarySettings{
+		TeamID:          testTeamID,
+		TopN:            8,
+		Style:           models.AISummaryStyleConcise,
+		MaxOutputTokens: 300,
+	}, nil)
+
+	view, err := svc.Get(context.Background(), testTeamID)
+
+	require.NoError(t, err)
+	assert.Equal(t, models.TeamAISummarySettingsSourceTeam, view.Source)
+	assert.Equal(t, models.AISummaryStyleConcise, view.Values.Style)
+	assert.Equal(t, models.AISummaryStyleBalanced, view.InstanceDefaults.Style,
+		"instance_defaults must keep reporting the deployment values, not the team's")
+}
+
+// The column's FK references model_providers(id) alone, so it proves the
+// provider EXISTS, not that this team owns it. Without the service check a team
+// admin could point their summaries at another team's provider — and through
+// #1073 at that team's base_url and encrypted API key.
+func TestTeamAISummarySettingsService_Update_RejectsProviderOwnedByAnotherTeam(t *testing.T) {
+	// No repo expectations: a cross-team reference must never reach storage.
+	svc, _, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	providers.EXPECT().GetByID(mock.Anything, testTeamID, aiSummaryTestProviderID).
+		Return(nil, repositories.ErrModelProviderNotFound)
+
+	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, aiSummaryTeamProfile())
+
+	assert.ErrorIs(t, err, services.ErrInvalidAISummarySettings)
+	assert.Contains(t, err.Error(), "model_provider_id")
+}
+
+// A nil provider means "use the team default", so it needs no lookup at all —
+// asserting the mock was never called is what proves we do not pay a query for
+// the common case.
+func TestTeamAISummarySettingsService_Update_NilProviderSkipsTheLookup(t *testing.T) {
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
+
+	values := aiSummaryTeamProfile()
+	values.ModelProviderID = nil
+
+	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, values)
+
+	require.NoError(t, err)
+	providers.AssertNotCalled(t, "GetByID", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// A provider lookup that fails for a reason OTHER than "not found" is an
+// infrastructure error, not a rejected profile: it must not be dressed up as a
+// 400 telling the admin their provider id is wrong.
+func TestTeamAISummarySettingsService_Update_ProviderLookupErrorIsNotAValidationError(t *testing.T) {
+	svc, _, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	providers.EXPECT().GetByID(mock.Anything, testTeamID, aiSummaryTestProviderID).
+		Return(nil, errors.New("connection refused"))
+
+	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, aiSummaryTeamProfile())
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, services.ErrInvalidAISummarySettings)
+}
+
 func TestTeamAISummarySettingsService_Update_StoresAndReportsTeamSource(t *testing.T) {
-	svc, repo := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	expectProviderOwnedByTeam(providers, testTeamID, aiSummaryTestProviderID)
 	repo.EXPECT().Upsert(mock.Anything, mock.MatchedBy(func(s *models.TeamAISummarySettings) bool {
 		return s.TeamID == testTeamID && s.TopN == 8 && s.Style == models.AISummaryStyleDetailed
 	})).Return(nil)
@@ -154,7 +260,7 @@ func TestTeamAISummarySettingsService_Update_StoresAndReportsTeamSource(t *testi
 // max_top_n is instance-owned: a team may tune top_n only INSIDE it.
 func TestTeamAISummarySettingsService_Update_RejectsTopNAboveInstanceCap(t *testing.T) {
 	// No repo expectations: a rejected profile must never reach storage.
-	svc, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	svc, _, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
 	values := aiSummaryTeamProfile()
 	values.TopN = aiSummaryInstanceConfig().MaxTopN + 1
 
@@ -166,7 +272,8 @@ func TestTeamAISummarySettingsService_Update_RejectsTopNAboveInstanceCap(t *test
 
 // The cap itself is inclusive, matching the storage CHECK.
 func TestTeamAISummarySettingsService_Update_AcceptsTopNAtTheCap(t *testing.T) {
-	svc, repo := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	expectProviderOwnedByTeam(providers, testTeamID, aiSummaryTestProviderID)
 	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
 
 	values := aiSummaryTeamProfile()
@@ -208,7 +315,7 @@ func TestTeamAISummarySettingsService_Update_RejectsInvalidProfiles(t *testing.T
 	for name, values := range invalidAISummaryValues() {
 		t.Run(name, func(t *testing.T) {
 			// No repo expectations: a rejected profile must never reach storage.
-			svc, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+			svc, _, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
 
 			_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, values)
 
@@ -218,7 +325,7 @@ func TestTeamAISummarySettingsService_Update_RejectsInvalidProfiles(t *testing.T
 }
 
 func TestTeamAISummarySettingsService_Update_DeniedWithoutPermission(t *testing.T) {
-	svc, _ := newAISummarySettingsService(t, denyAuthz{}, nil)
+	svc, _, _ := newAISummarySettingsService(t, denyAuthz{}, nil)
 
 	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, aiSummaryTeamProfile())
 
@@ -228,7 +335,7 @@ func TestTeamAISummarySettingsService_Update_DeniedWithoutPermission(t *testing.
 // Authorization must be checked BEFORE validation, so an unauthorized caller
 // cannot use the error body to probe which values the endpoint accepts.
 func TestTeamAISummarySettingsService_Update_AuthorizesBeforeValidating(t *testing.T) {
-	svc, _ := newAISummarySettingsService(t, denyAuthz{}, nil)
+	svc, _, _ := newAISummarySettingsService(t, denyAuthz{}, nil)
 	invalid := aiSummaryTeamProfile()
 	invalid.TopN = 999
 
@@ -239,7 +346,8 @@ func TestTeamAISummarySettingsService_Update_AuthorizesBeforeValidating(t *testi
 }
 
 func TestTeamAISummarySettingsService_Update_RepositoryErrorPropagates(t *testing.T) {
-	svc, repo := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	expectProviderOwnedByTeam(providers, testTeamID, aiSummaryTestProviderID)
 	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(errors.New("boom"))
 
 	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, aiSummaryTeamProfile())
@@ -248,14 +356,14 @@ func TestTeamAISummarySettingsService_Update_RepositoryErrorPropagates(t *testin
 }
 
 func TestTeamAISummarySettingsService_Reset(t *testing.T) {
-	svc, repo := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
 	repo.EXPECT().Delete(mock.Anything, testTeamID).Return(nil)
 
 	assert.NoError(t, svc.Reset(context.Background(), testAISummaryUserID, testTeamID))
 }
 
 func TestTeamAISummarySettingsService_Reset_DeniedWithoutPermission(t *testing.T) {
-	svc, _ := newAISummarySettingsService(t, denyAuthz{}, nil)
+	svc, _, _ := newAISummarySettingsService(t, denyAuthz{}, nil)
 
 	err := svc.Reset(context.Background(), testAISummaryUserID, testTeamID)
 
@@ -263,7 +371,7 @@ func TestTeamAISummarySettingsService_Reset_DeniedWithoutPermission(t *testing.T
 }
 
 func TestTeamAISummarySettingsService_Reset_RepositoryErrorPropagates(t *testing.T) {
-	svc, repo := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	svc, repo, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
 	repo.EXPECT().Delete(mock.Anything, testTeamID).Return(errors.New("boom"))
 
 	assert.Error(t, svc.Reset(context.Background(), testAISummaryUserID, testTeamID))
