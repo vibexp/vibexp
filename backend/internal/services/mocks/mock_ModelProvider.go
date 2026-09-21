@@ -22,6 +22,65 @@ func (_m *MockModelProvider) EXPECT() *MockModelProvider_Expecter {
 	return &MockModelProvider_Expecter{mock: &_m.Mock}
 }
 
+// Complete provides a mock function with given fields: ctx, req
+func (_m *MockModelProvider) Complete(ctx context.Context, req models.CompletionRequest) (*models.CompletionResponse, error) {
+	ret := _m.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Complete")
+	}
+
+	var r0 *models.CompletionResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.CompletionRequest) (*models.CompletionResponse, error)); ok {
+		return rf(ctx, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.CompletionRequest) *models.CompletionResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.CompletionResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.CompletionRequest) error); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockModelProvider_Complete_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Complete'
+type MockModelProvider_Complete_Call struct {
+	*mock.Call
+}
+
+// Complete is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req models.CompletionRequest
+func (_e *MockModelProvider_Expecter) Complete(ctx interface{}, req interface{}) *MockModelProvider_Complete_Call {
+	return &MockModelProvider_Complete_Call{Call: _e.mock.On("Complete", ctx, req)}
+}
+
+func (_c *MockModelProvider_Complete_Call) Run(run func(ctx context.Context, req models.CompletionRequest)) *MockModelProvider_Complete_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.CompletionRequest))
+	})
+	return _c
+}
+
+func (_c *MockModelProvider_Complete_Call) Return(_a0 *models.CompletionResponse, _a1 error) *MockModelProvider_Complete_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockModelProvider_Complete_Call) RunAndReturn(run func(context.Context, models.CompletionRequest) (*models.CompletionResponse, error)) *MockModelProvider_Complete_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListModels provides a mock function with given fields: ctx
 func (_m *MockModelProvider) ListModels(ctx context.Context) (*models.ProviderModelList, error) {
 	ret := _m.Called(ctx)
