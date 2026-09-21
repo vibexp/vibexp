@@ -146,7 +146,7 @@ func TestTeamAISummarySettingsService_Resolve_RepositoryErrorFailsOpen(t *testin
 	require.NoError(t, err, "a settings read failure must not surface as an error")
 	assert.Equal(t, models.TeamAISummarySettingsSourceInstance, view.Source)
 	assert.Equal(t, view.InstanceDefaults, view.Values)
-	assertAISummaryWarnLogged(t, logs.String(), testTeamID)
+	assertAISummaryWarnLogged(t, logs.String())
 }
 
 // A provider-count outage must ALSO fail open, exactly like a settings-row
@@ -161,13 +161,13 @@ func TestTeamAISummarySettingsService_Resolve_ProviderCountErrorFailsOpen(t *tes
 
 	require.NoError(t, err)
 	assert.False(t, view.Available, "a provider-count outage must degrade to unavailable, not panic or lie true")
-	assertAISummaryWarnLogged(t, logs.String(), testTeamID)
+	assertAISummaryWarnLogged(t, logs.String())
 }
 
 // assertAISummaryWarnLogged pins the observability contract: the fail-open path
 // must be greppable, so it logs at warn and carries team_id. Logging it at debug
 // would hide a real outage behind silently-default tuning.
-func assertAISummaryWarnLogged(t *testing.T, output, teamID string) {
+func assertAISummaryWarnLogged(t *testing.T, output string) {
 	t.Helper()
 	require.NotEmpty(t, output, "fail-open must emit a log line")
 
@@ -175,11 +175,11 @@ func assertAISummaryWarnLogged(t *testing.T, output, teamID string) {
 	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
 		var entry map[string]any
 		require.NoError(t, json.Unmarshal([]byte(line), &entry))
-		if entry["level"] == "WARN" && entry["team_id"] == teamID {
+		if entry["level"] == "WARN" && entry["team_id"] == testTeamID {
 			found = true
 		}
 	}
-	assert.True(t, found, "expected a WARN log carrying team_id=%s, got: %s", teamID, output)
+	assert.True(t, found, "expected a WARN log carrying team_id=%s, got: %s", testTeamID, output)
 }
 
 // The fail-open read must NOT be reachable from the settings API's interface —
@@ -508,7 +508,7 @@ func TestTeamAISummarySettingsService_Availability_ProviderCountErrorFailsOpen(t
 	got := svc.Availability(context.Background(), testTeamID)
 
 	assert.Equal(t, models.AISummaryAvailability{Available: false, Enabled: true}, got)
-	assertAISummaryWarnLogged(t, logs.String(), testTeamID)
+	assertAISummaryWarnLogged(t, logs.String())
 }
 
 // A settings read failure goes through Resolve's own fail-open: the instance
@@ -522,5 +522,5 @@ func TestTeamAISummarySettingsService_Availability_SettingsErrorFailsOpen(t *tes
 	got := svc.Availability(context.Background(), testTeamID)
 
 	assert.Equal(t, models.AISummaryAvailability{Available: true, Enabled: true}, got)
-	assertAISummaryWarnLogged(t, logs.String(), testTeamID)
+	assertAISummaryWarnLogged(t, logs.String())
 }
