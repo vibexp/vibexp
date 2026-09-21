@@ -422,6 +422,8 @@ components:
       $ref: "./schemas/search.yaml#/SearchResultItem"
     SearchResultsResponse:
       $ref: "./schemas/search.yaml#/SearchResultsResponse"
+    SearchAISummaryAvailability:
+      $ref: "./schemas/search.yaml#/SearchAISummaryAvailability"
     SearchSummaryRequest:
       $ref: "./schemas/search.yaml#/SearchSummaryRequest"
     SearchSummarySource:

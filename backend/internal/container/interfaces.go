@@ -85,6 +85,9 @@ type Container interface {
 	// SearchSummaryService answers a query from the team's top search results
 	// with the team's model provider (#1073).
 	SearchSummaryService() services.SearchSummaryServiceInterface
+	// AISummaryAvailability reports whether a team can generate an AI Summary;
+	// it populates the REST search response's ai_summary field (#1074).
+	AISummaryAvailability() services.AISummaryAvailabilityResolver
 	TeamEmailProviderService() services.TeamEmailProviderServiceInterface
 	EmailSenderResolver() services.EmailSenderResolver
 	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface

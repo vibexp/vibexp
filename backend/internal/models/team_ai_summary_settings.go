@@ -100,3 +100,14 @@ type TeamAISummarySettingsView struct {
 	// can bound their own input control instead of guessing.
 	MaxTopN int
 }
+
+// AISummaryAvailability tells a client whether an AI Summary can be generated
+// for a team's search results (#1074). It rides on the REST search response so
+// the SPA can decide whether to render the summary section without a second
+// round-trip; the MCP and CLI search surfaces never carry it.
+type AISummaryAvailability struct {
+	// Available reports that the team has at least one model provider row.
+	Available bool `json:"available"`
+	// Enabled reports that the team has not turned the feature off.
+	Enabled bool `json:"enabled"`
+}

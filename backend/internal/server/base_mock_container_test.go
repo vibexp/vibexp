@@ -256,6 +256,10 @@ func (b *BaseMockContainer) SearchSummaryService() services.SearchSummaryService
 	return nil
 }
 
+func (b *BaseMockContainer) AISummaryAvailability() services.AISummaryAvailabilityResolver {
+	return nil
+}
+
 func (b *BaseMockContainer) TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface {
 	return nil
 }

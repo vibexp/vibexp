@@ -55,5 +55,20 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeOK(w, response, s.logger)
+	writeOK(w, searchResultsRESTResponse{
+		SearchResultsResponse: response,
+		AISummary:             s.container.AISummaryAvailability().Availability(r.Context(), teamID),
+	}, s.logger)
+}
+
+// searchResultsRESTResponse is the REST search payload: the shared search
+// response plus the ai_summary availability flag (#1074).
+//
+// The flag is added HERE, not on models.SearchResultsResponse, because
+// SearchService.Search is the shared choke point for REST, MCP and CLI, and a
+// UI affordance flag must not leak into those other surfaces. Availability
+// fails open to available=false, so it can never fail the search itself.
+type searchResultsRESTResponse struct {
+	*models.SearchResultsResponse
+	AISummary models.AISummaryAvailability `json:"ai_summary"`
 }
