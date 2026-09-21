@@ -29,6 +29,10 @@ type ModelProvider interface {
 	Model() string
 	// Type is the provider_type this implementation handles.
 	Type() string
+	// ListModels reports the models the provider exposes (#1070). Like Validate,
+	// an unreachable or non-implementing provider is reported in the body
+	// (supported:false) and a non-nil error signals an internal failure only.
+	ListModels(ctx context.Context) (*models.ProviderModelList, error)
 	// Validate probes the provider for reachability + auth without persisting
 	// anything, reporting the outcome in the response body (never an error for a
 	// merely-invalid config; a non-nil error signals an internal failure).
@@ -56,15 +60,30 @@ var _ ModelProvider = (*OpenAICompatibleModelProvider)(nil)
 func NewOpenAICompatibleModelProvider(
 	baseURL, apiKey, model string, timeout time.Duration, guard *ssrfGuard,
 ) (*OpenAICompatibleModelProvider, error) {
+	if strings.TrimSpace(model) == "" {
+		return nil, fmt.Errorf("model is required")
+	}
+	provider, err := NewOpenAICompatibleModelLister(baseURL, apiKey, timeout, guard)
+	if err != nil {
+		return nil, err
+	}
+	provider.model = model
+	return provider, nil
+}
+
+// NewOpenAICompatibleModelLister builds an OpenAICompatibleModelProvider with no
+// model configured, for ListModels alone (#1070): listing is how a model is
+// chosen, so it has to work before one exists. Every other method needs a model
+// and must be reached through NewOpenAICompatibleModelProvider instead.
+func NewOpenAICompatibleModelLister(
+	baseURL, apiKey string, timeout time.Duration, guard *ssrfGuard,
+) (*OpenAICompatibleModelProvider, error) {
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {
 		return nil, fmt.Errorf("model provider base_url is required")
 	}
 	if err := validateProviderBaseURLScheme(baseURL); err != nil {
 		return nil, err
-	}
-	if strings.TrimSpace(model) == "" {
-		return nil, fmt.Errorf("model is required")
 	}
 	if timeout <= 0 {
 		timeout = validateModelProviderTimeout
@@ -73,7 +92,6 @@ func NewOpenAICompatibleModelProvider(
 		httpClient: newProviderHTTPClient(guard, timeout),
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
 		apiKey:     apiKey,
-		model:      model,
 	}, nil
 }
 

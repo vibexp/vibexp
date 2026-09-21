@@ -94,6 +94,16 @@ func (m *modelProvidersStrictServer) ValidateModelProvider(
 	return modelprovidersgen.ValidateModelProvider200JSONResponse(result), nil
 }
 
+func (m *modelProvidersStrictServer) ListProviderModels(
+	ctx context.Context, request modelprovidersgen.ListProviderModelsRequestObject,
+) (modelprovidersgen.ListProviderModelsResponseObject, error) {
+	result, err := m.listModels(ctx, request.TeamId.String(), request.Body)
+	if err != nil {
+		return nil, err
+	}
+	return modelprovidersgen.ListProviderModels200JSONResponse(result), nil
+}
+
 // --- Settings mount (/api/v1/{team_id}/settings/model-providers) --------------
 
 func (m *modelProvidersStrictServer) CreateModelProviderSettings(
@@ -153,6 +163,16 @@ func (m *modelProvidersStrictServer) ValidateModelProviderSettings(
 		return nil, err
 	}
 	return modelprovidersgen.ValidateModelProviderSettings200JSONResponse(result), nil
+}
+
+func (m *modelProvidersStrictServer) ListProviderModelsSettings(
+	ctx context.Context, request modelprovidersgen.ListProviderModelsSettingsRequestObject,
+) (modelprovidersgen.ListProviderModelsSettingsResponseObject, error) {
+	result, err := m.listModels(ctx, request.TeamId.String(), request.Body)
+	if err != nil {
+		return nil, err
+	}
+	return modelprovidersgen.ListProviderModelsSettings200JSONResponse(result), nil
 }
 
 // --- Shared implementations ---------------------------------------------------
@@ -436,6 +456,66 @@ func (m *modelProvidersStrictServer) validate(
 	return toGenValidateModelProviderResponse(result), nil
 }
 
+// listModels is the shared implementation behind ListProviderModels and its
+// settings twin (#1070). Like validate it fetches a caller-supplied base_url
+// with team credentials, so it is gated in the service (#464), and a provider
+// that cannot list its models is reported in the 200 body, not as an error.
+func (m *modelProvidersStrictServer) listModels(
+	ctx context.Context, teamID string, body *modelprovidersgen.ListProviderModelsJSONRequestBody,
+) (modelprovidersgen.ProviderModelList, error) {
+	var zero modelprovidersgen.ProviderModelList
+
+	userID, err := authedUserID(ctx)
+	if err != nil {
+		return zero, err
+	}
+	if body == nil {
+		return zero, apierrors.NewBadRequestError(msgInvalidBodyWellFormedJSON)
+	}
+
+	req := listProviderModelsRequestFromGen(body)
+	if apiErr := validateListProviderModelsFields(&req); apiErr != nil {
+		m.logValidationFailure("ListProviderModels", userID)
+		return zero, apiErr
+	}
+
+	result, err := m.s.container.ModelProviderService().ListProviderModels(ctx, teamID, userID, req)
+	if err != nil {
+		return zero, m.listModelsError(userID, req.ProviderID, err)
+	}
+
+	m.s.logger.With(
+		"service", serverLogServiceName,
+		"handler", "ListProviderModels",
+		"user_id", userID,
+		"supported", result.Supported,
+		"model_count", len(result.Models),
+		"message", result.Message,
+	).Info("Model provider model listing completed")
+
+	return toGenProviderModelList(result), nil
+}
+
+func (m *modelProvidersStrictServer) listModelsError(userID, providerID string, err error) error {
+	if forbidden := providerPermissionError(err); forbidden != nil {
+		return forbidden
+	}
+	m.s.logger.With(
+		"service", serverLogServiceName,
+		"handler", "ListProviderModels",
+		"user_id", userID,
+		"provider_id", providerID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to list model provider models")
+
+	if stderrors.Is(err, services.ErrModelProviderNotFound) {
+		return apierrors.NewModelProviderNotFoundError(providerID)
+	}
+	return apierrors.NewInternalError(
+		"Listing provider models failed due to a service error. Please try again later.",
+	)
+}
+
 func (m *modelProvidersStrictServer) logValidationFailure(handler, userID string) {
 	m.s.logger.With(
 		"service", serverLogServiceName,
@@ -481,6 +561,25 @@ func validateModelProviderProbeFields(req *models.ValidateModelProviderRequest) 
 	}
 	if req.Model == "" {
 		validationErrors = append(validationErrors, apierrors.NewRequiredFieldError("model"))
+	}
+
+	if len(validationErrors) == 0 {
+		return nil
+	}
+	return apierrors.NewModelProviderValidationError(msgModelProviderProbeIncomplete, validationErrors)
+}
+
+// validateListProviderModelsFields enforces the model-listing body's required
+// fields. It shares the validate probe's detail string: both are probes of an
+// unsaved configuration, and neither takes a model here.
+func validateListProviderModelsFields(req *models.ListProviderModelsRequest) error {
+	var validationErrors []apierrors.ValidationError
+
+	if req.ProviderType == "" {
+		validationErrors = append(validationErrors, apierrors.NewRequiredFieldError("provider_type"))
+	}
+	if req.BaseURL == "" {
+		validationErrors = append(validationErrors, apierrors.NewRequiredFieldError("base_url"))
 	}
 
 	if len(validationErrors) == 0 {
@@ -599,6 +698,42 @@ func toGenValidateModelProviderResponse(
 		ErrorDetails:   optionalString(result.Details.ErrorDetails),
 		ResponseTimeMs: optionalInt(result.Details.ResponseTime),
 		StatusCode:     optionalInt(result.Details.StatusCode),
+	}
+	return out
+}
+
+func listProviderModelsRequestFromGen(
+	body *modelprovidersgen.ListProviderModelsJSONRequestBody,
+) models.ListProviderModelsRequest {
+	req := models.ListProviderModelsRequest{
+		ProviderType: body.ProviderType,
+		BaseURL:      body.BaseUrl,
+		APIKey:       body.ApiKey,
+	}
+	if body.ProviderId != nil {
+		req.ProviderID = body.ProviderId.String()
+	}
+	return req
+}
+
+// toGenProviderModelList converts a listing result. models is a required array,
+// and the generated type cannot use models.JSONArray[T], so it is built with
+// make(...,0) here — the single construction site — and never marshals as null
+// (#125). An empty message is omitted rather than sent as "".
+func toGenProviderModelList(result *models.ProviderModelList) modelprovidersgen.ProviderModelList {
+	out := modelprovidersgen.ProviderModelList{
+		Supported: result.Supported,
+		Models:    make([]modelprovidersgen.ProviderModel, 0, len(result.Models)),
+	}
+	for _, model := range result.Models {
+		out.Models = append(out.Models, modelprovidersgen.ProviderModel{
+			Id:      model.ID,
+			OwnedBy: optionalString(model.OwnedBy),
+		})
+	}
+	if result.Message != "" {
+		message := modelprovidersgen.ProviderModelListMessage(result.Message)
+		out.Message = &message
 	}
 	return out
 }

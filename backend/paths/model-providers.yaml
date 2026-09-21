@@ -667,6 +667,160 @@ api-v1-settings-model-providers-validate:
     tags:
       - Model Providers
 
+api-v1-model-providers-models:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team that owns the model provider(s).
+      schema:
+        type: string
+        format: uuid
+  post:
+    summary: List a model provider's models
+    description: |
+      Lists the models an OpenAI-compatible provider exposes via
+      `GET {base_url}/models`, so a model can be picked instead of typed. It
+      takes inline connection details and persists nothing, so it works before
+      the provider is saved; a blank `api_key` together with `provider_id`
+      reuses that saved provider's stored key.
+
+      The outcome is reported in the 200 body, like validate: a provider that
+      does not implement model listing, cannot be reached or rejects the key
+      answers `supported: false` with an empty `models` array, and `message`
+      carries a fixed failure category — never the provider's response or the
+      URL. The list is the provider's own, sorted by `id` and unfiltered. 500 is
+      returned only for internal service errors.
+    operationId: listProviderModels
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/ListProviderModelsRequest'
+    responses:
+      '200':
+        description: Listing completed (check `supported` for the outcome)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ProviderModelList'
+      '400':
+        description: Malformed JSON body (`BAD_REQUEST`) or missing required fields (`MODEL_PROVIDER_VALIDATION_FAILED` with `validation_errors`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: >-
+          `api_key` was blank and `provider_id` names no provider in this team
+          (`MODEL_PROVIDER_NOT_FOUND`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Listing failed due to an internal service error (`INTERNAL_ERROR`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Model Providers
+
+api-v1-settings-model-providers-models:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team that owns the model provider(s).
+      schema:
+        type: string
+        format: uuid
+  post:
+    summary: List a model provider's models
+    description: |
+      Lists the models an OpenAI-compatible provider exposes via
+      `GET {base_url}/models`, so a model can be picked instead of typed. It
+      takes inline connection details and persists nothing, so it works before
+      the provider is saved; a blank `api_key` together with `provider_id`
+      reuses that saved provider's stored key.
+
+      The outcome is reported in the 200 body, like validate: a provider that
+      does not implement model listing, cannot be reached or rejects the key
+      answers `supported: false` with an empty `models` array, and `message`
+      carries a fixed failure category — never the provider's response or the
+      URL. The list is the provider's own, sorted by `id` and unfiltered. 500 is
+      returned only for internal service errors.
+    operationId: listProviderModelsSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/ListProviderModelsRequest'
+    responses:
+      '200':
+        description: Listing completed (check `supported` for the outcome)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ProviderModelList'
+      '400':
+        description: Malformed JSON body (`BAD_REQUEST`) or missing required fields (`MODEL_PROVIDER_VALIDATION_FAILED` with `validation_errors`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: >-
+          `api_key` was blank and `provider_id` names no provider in this team
+          (`MODEL_PROVIDER_NOT_FOUND`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Listing failed due to an internal service error (`INTERNAL_ERROR`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Model Providers
+
 # Cross-team copy (issue #830, epic #827). Registered on the settings mount
 # ALONE — the "Copy from another team…" action is a settings-page affordance,
 # so there is deliberately no bare /api/v1/{team_id}/model-providers/copy twin

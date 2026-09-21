@@ -79,3 +79,31 @@ type ValidateModelProviderDetails struct {
 	StatusCode   int    `json:"status_code,omitempty"`
 	ErrorDetails string `json:"error_details,omitempty"`
 }
+
+// ListProviderModelsRequest carries the inline connection details a model
+// listing probes (#1070). It deliberately has no model field: listing is how a
+// model gets chosen in the first place.
+type ListProviderModelsRequest struct {
+	ProviderType string `json:"provider_type"`
+	BaseURL      string `json:"base_url"`
+	// #nosec G117 - Request struct field for API key input, not a hardcoded secret
+	APIKey *string `json:"api_key,omitempty"`
+	// ProviderID names a saved provider whose stored key is reused when APIKey is
+	// blank.
+	ProviderID string `json:"provider_id,omitempty"`
+}
+
+// ProviderModel is one model an OpenAI-compatible provider reports.
+type ProviderModel struct {
+	ID      string `json:"id"`
+	OwnedBy string `json:"owned_by,omitempty"`
+}
+
+// ProviderModelList is the outcome of a model listing. Models is a required
+// array in the spec, so it is a JSONArray and serializes as [] when nil (#125).
+// Message is a fixed failure category and empty on success.
+type ProviderModelList struct {
+	Supported bool                     `json:"supported"`
+	Models    JSONArray[ProviderModel] `json:"models"`
+	Message   string                   `json:"message,omitempty"`
+}

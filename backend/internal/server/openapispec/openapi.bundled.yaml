@@ -13248,6 +13248,79 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Model Providers
+  /api/v1/{team_id}/model-providers/models:
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team that owns the model provider(s).
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: List a model provider's models
+      description: |
+        Lists the models an OpenAI-compatible provider exposes via
+        `GET {base_url}/models`, so a model can be picked instead of typed. It
+        takes inline connection details and persists nothing, so it works before
+        the provider is saved; a blank `api_key` together with `provider_id`
+        reuses that saved provider's stored key.
+
+        The outcome is reported in the 200 body, like validate: a provider that
+        does not implement model listing, cannot be reached or rejects the key
+        answers `supported: false` with an empty `models` array, and `message`
+        carries a fixed failure category — never the provider's response or the
+        URL. The list is the provider's own, sorted by `id` and unfiltered. 500 is
+        returned only for internal service errors.
+      operationId: listProviderModels
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListProviderModelsRequest'
+      responses:
+        '200':
+          description: Listing completed (check `supported` for the outcome)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderModelList'
+        '400':
+          description: Malformed JSON body (`BAD_REQUEST`) or missing required fields (`MODEL_PROVIDER_VALIDATION_FAILED` with `validation_errors`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: '`api_key` was blank and `provider_id` names no provider in this team (`MODEL_PROVIDER_NOT_FOUND`)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Listing failed due to an internal service error (`INTERNAL_ERROR`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Model Providers
   /api/v1/{team_id}/settings/model-providers:
     parameters:
       - name: team_id
@@ -13567,6 +13640,79 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Validation failed due to an internal service error (`INTERNAL_ERROR`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Model Providers
+  /api/v1/{team_id}/settings/model-providers/models:
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team that owns the model provider(s).
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: List a model provider's models
+      description: |
+        Lists the models an OpenAI-compatible provider exposes via
+        `GET {base_url}/models`, so a model can be picked instead of typed. It
+        takes inline connection details and persists nothing, so it works before
+        the provider is saved; a blank `api_key` together with `provider_id`
+        reuses that saved provider's stored key.
+
+        The outcome is reported in the 200 body, like validate: a provider that
+        does not implement model listing, cannot be reached or rejects the key
+        answers `supported: false` with an empty `models` array, and `message`
+        carries a fixed failure category — never the provider's response or the
+        URL. The list is the provider's own, sorted by `id` and unfiltered. 500 is
+        returned only for internal service errors.
+      operationId: listProviderModelsSettings
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListProviderModelsRequest'
+      responses:
+        '200':
+          description: Listing completed (check `supported` for the outcome)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderModelList'
+        '400':
+          description: Malformed JSON body (`BAD_REQUEST`) or missing required fields (`MODEL_PROVIDER_VALIDATION_FAILED` with `validation_errors`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: '`api_key` was blank and `provider_id` names no provider in this team (`MODEL_PROVIDER_NOT_FOUND`)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Listing failed due to an internal service error (`INTERNAL_ERROR`)
           content:
             application/problem+json:
               schema:
@@ -16907,6 +17053,72 @@ components:
       required:
         - is_valid
         - message
+    ListProviderModelsRequest:
+      type: object
+      description: |
+        Inline connection details for the provider whose models to list. The provider does not have to be saved yet: this is what lets a model be picked while the base URL and key are still being entered.
+      properties:
+        provider_type:
+          type: string
+          example: openai_compatible
+        base_url:
+          type: string
+          format: uri
+          example: https://api.openai.com/v1
+        api_key:
+          type: string
+          nullable: true
+          description: |
+            Bearer key for the provider. Leave it blank together with `provider_id` to reuse that saved provider's stored key — the same rule an update applies to a blank key.
+        provider_id:
+          type: string
+          format: uuid
+          description: |
+            A saved provider in this team whose stored API key is used when `api_key` is blank. Ignored when `api_key` is supplied.
+          example: 550e8400-e29b-41d4-a716-446655440000
+      required:
+        - provider_type
+        - base_url
+    ProviderModel:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Model identifier, exactly as the provider reports it.
+          example: gpt-4o-mini
+        owned_by:
+          type: string
+          description: Owner the provider reports for the model, when it reports one.
+          example: openai
+      required:
+        - id
+    ProviderModelList:
+      type: object
+      properties:
+        supported:
+          type: boolean
+          description: |
+            Whether the provider answered its model listing. `false` when it does not implement `GET {base_url}/models` (many gateways expose only `/chat/completions`) or could not be reached; a client falls back to free-text model entry.
+          example: true
+        models:
+          type: array
+          description: |
+            Every model the provider reported, sorted by `id` and unfiltered. Empty when `supported` is `false`.
+          items:
+            $ref: '#/components/schemas/ProviderModel'
+        message:
+          type: string
+          description: |
+            Why the listing failed, as a fixed category — never the provider's raw response or the URL. Omitted on success and when the provider simply does not implement model listing.
+          enum:
+            - connection_failed
+            - unauthorized
+            - misconfigured_provider
+            - destination_not_allowed
+          example: unauthorized
+      required:
+        - supported
+        - models
     GitHubAppConfig:
       type: object
       description: A team's own GitHub App registration. Never carries secret values.
