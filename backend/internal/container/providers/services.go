@@ -520,6 +520,20 @@ func ProvideTeamSearchSettingsService(
 	return services.NewTeamSearchSettingsService(repo, authzService, cfg.Search, logger)
 }
 
+// ProvideTeamAISummarySettingsService creates the team AI summary settings
+// service (#1071). It receives the deployment `ai_summary:` config, which is
+// both the fallback for a team with no stored profile and the instance_defaults
+// reported on every read — plus max_top_n, the instance-owned bound Update
+// validates a team's top_n against.
+func ProvideTeamAISummarySettingsService(
+	repo repositories.TeamAISummarySettingsRepository,
+	authzService services.AuthorizationServiceInterface,
+	cfg *config.Config,
+	logger *slog.Logger,
+) services.TeamAISummarySettingsServiceInterface {
+	return services.NewTeamAISummarySettingsService(repo, authzService, cfg.AISummary, logger)
+}
+
 // ProvideTeamSettingsAuditService creates the team settings audit log service
 // (epic #827). The authorization service is used by the READ path only (#832,
 // authz.TeamSettingsUpdate): entries are WRITTEN from inside an

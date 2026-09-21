@@ -202,6 +202,22 @@ a2a:
 # SCHEDULER_ENABLED=false to turn the loop off entirely (nothing is claimed or
 # run). tick_interval is a polling cadence, not a job cadence — the 1-hour floor
 # on a schedule's own interval keeps the work sparse.
+# AI summary defaults (#1071). enabled/top_n are typed EnvBool/EnvInt so they
+# can be authored as placeholders here (the schema validates the RAW YAML, where
+# a ${VAR} is a string). The context budgets stay literal: they are plain ints,
+# and opting every int into a placeholder-tolerant schema would lose the editor
+# validation config.schema.json exists to give. Operators who need to tune them
+# mount their own config.yaml over /app/config.yaml.
+ai_summary:
+  enabled: "${AI_SUMMARY_ENABLED:-true}"
+  top_n: "${AI_SUMMARY_TOP_N:-5}"
+  max_top_n: 10
+  per_document_chars: 8000
+  total_context_chars: 32000
+  max_output_tokens: 800
+  request_timeout: "${AI_SUMMARY_REQUEST_TIMEOUT:-60s}"
+  style: "${AI_SUMMARY_STYLE:-balanced}"
+
 scheduler:
   enabled: "${SCHEDULER_ENABLED:-true}"
   tick_interval: "${SCHEDULER_TICK_INTERVAL:-1m}"

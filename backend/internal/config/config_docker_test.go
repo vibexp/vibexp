@@ -11,6 +11,8 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/vibexp/vibexp/internal/models"
 )
 
 // dockerConfigPath points at the production-neutral config baked into the
@@ -323,6 +325,68 @@ func TestConfigDockerYAML_S3PathStyleInvalidEnvFailsFast(t *testing.T) {
 	require.ErrorContains(t, err, "storage.s3_path_style")
 }
 
+// TestConfigDockerYAML_AISummaryDefaults pins the baked defaults an operator
+// who sets no AI_SUMMARY_* variable gets, so opting the two knobs in changes
+// nothing for anyone already running (#1071).
+func TestConfigDockerYAML_AISummaryDefaults(t *testing.T) {
+	setDockerRequiredEnv(t)
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
+	require.Equal(t, EnvBool(true), cfg.AISummary.Enabled)
+	require.Equal(t, EnvInt(5), cfg.AISummary.TopN)
+	require.Equal(t, 10, cfg.AISummary.MaxTopN)
+	require.Equal(t, 60*time.Second, cfg.AISummary.RequestTimeout)
+	require.Equal(t, models.AISummaryStyleBalanced, cfg.AISummary.Style)
+}
+
+// TestConfigDockerYAML_AISummaryEnvOverride is the acceptance criterion for the
+// two typed knobs: a self-hoster turns the feature off, or narrows it, with
+// `docker run -e` alone rather than mounting a config.yaml for one bool.
+func TestConfigDockerYAML_AISummaryEnvOverride(t *testing.T) {
+	setDockerRequiredEnv(t)
+	t.Setenv("AI_SUMMARY_ENABLED", "false")
+	t.Setenv("AI_SUMMARY_TOP_N", "3")
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
+	require.Equal(t, EnvBool(false), cfg.AISummary.Enabled)
+	require.Equal(t, EnvInt(3), cfg.AISummary.TopN)
+}
+
+// TestConfigDockerYAML_AISummaryTopNAboveCapFailsFast proves the instance cap is
+// enforced against the ENV-supplied value too, not only against a mounted file:
+// the validator reads the decoded config, so the ${VAR} path is validated
+// identically.
+func TestConfigDockerYAML_AISummaryTopNAboveCapFailsFast(t *testing.T) {
+	setDockerRequiredEnv(t)
+	t.Setenv("AI_SUMMARY_TOP_N", "99")
+
+	cfg, err := Load(dockerConfigPath)
+
+	require.Error(t, err, "an AI_SUMMARY_TOP_N above the instance cap must fail startup")
+	require.Nil(t, cfg)
+	// Name the field, so this cannot pass because Load failed for some unrelated
+	// reason (a broken secret in setDockerRequiredEnv would do it).
+	require.ErrorContains(t, err, "ai_summary.top_n")
+}
+
+// TestConfigDockerYAML_AISummaryInvalidEnvFailsFast pins the failure mode of the
+// weak decoding EnvInt relies on: an undecodable value is a load error, not a
+// silently-default top_n.
+func TestConfigDockerYAML_AISummaryInvalidEnvFailsFast(t *testing.T) {
+	setDockerRequiredEnv(t)
+	t.Setenv("AI_SUMMARY_TOP_N", "lots")
+
+	cfg, err := Load(dockerConfigPath)
+
+	require.Error(t, err, "an undecodable AI_SUMMARY_TOP_N must fail startup")
+	require.Nil(t, cfg)
+	require.ErrorContains(t, err, "ai_summary.top_n")
+}
+
 // TestConfigSchema_EnvPlaceholderTypesAreOptIn guards the decision that
 // EnvBool/EnvInt loosen the schema for exactly the fields that opt in. A blanket
 // mapper over every bool/int would make the schema accept a typo'd "tru" on any
@@ -348,6 +412,20 @@ func TestConfigSchema_EnvPlaceholderTypesAreOptIn(t *testing.T) {
 		"scheduler.due_limit is EnvInt, so its schema must also accept a ${VAR} placeholder")
 	require.Len(t, doc.Defs["StorageConfig"].Properties["s3_path_style"].OneOf, 2,
 		"storage.s3_path_style is EnvBool, so its schema must also accept a ${VAR} placeholder")
+	require.Len(t, doc.Defs["AISummaryConfig"].Properties["enabled"].OneOf, 2,
+		"ai_summary.enabled is EnvBool, so its schema must also accept a ${VAR} placeholder")
+	require.Len(t, doc.Defs["AISummaryConfig"].Properties["top_n"].OneOf, 2,
+		"ai_summary.top_n is EnvInt, so its schema must also accept a ${VAR} placeholder")
+
+	// Not opted in: the AI summary CONTEXT BUDGETS stay plain ints, so the raw
+	// config.docker.yaml must keep them literal. They are sized to the
+	// deployment's model rather than flipped per container, and loosening every
+	// int would let a typo'd budget past the schema (#1071).
+	for _, field := range []string{"max_top_n", "per_document_chars", "total_context_chars", "max_output_tokens"} {
+		prop := doc.Defs["AISummaryConfig"].Properties[field]
+		require.Equal(t, "integer", prop.Type, "ai_summary.%s must stay a strict integer", field)
+		require.Empty(t, prop.OneOf, "ai_summary.%s must not accept a placeholder — it is a literal knob", field)
+	}
 
 	// Not opted in: plain bools keep the strict schema. dev_login_enabled stays
 	// here deliberately — it gates the dev-login bypass via IsLocalDevelopment(),

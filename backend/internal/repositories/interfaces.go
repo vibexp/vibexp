@@ -1130,6 +1130,21 @@ type TeamSearchSettingsRepository interface {
 	Delete(ctx context.Context, teamID string) error
 }
 
+// TeamAISummarySettingsRepository defines the interface for per-team AI summary
+// override data access operations (#1071).
+//
+// The override is whole-row: a team either has a complete profile stored or no
+// row at all, in which case it inherits the instance defaults from config.yaml.
+type TeamAISummarySettingsRepository interface {
+	// Get returns (nil, nil) — not an error — when the team has no override
+	// row, so callers can fall back to the instance defaults.
+	Get(ctx context.Context, teamID string) (*models.TeamAISummarySettings, error)
+	Upsert(ctx context.Context, settings *models.TeamAISummarySettings) error
+	// Delete removes the team's override row. Deleting when no row exists is a
+	// no-op, not an error.
+	Delete(ctx context.Context, teamID string) error
+}
+
 // MetadataCatalogRepository enumerates the metadata keys and values in use
 // across a team's artifacts, blueprints or memories (epic #519).
 //

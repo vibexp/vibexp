@@ -266,6 +266,25 @@ search:
   rank_half_life_days: 90.0
   rank_candidate_cap: 200
 
+# AI summary defaults (#1071). The context budgets are operator-owned and are
+# never team-configurable: they size the work one request may ask of the model
+# behind this deployment. A team may override enabled/top_n/style/
+# max_output_tokens (whole-row, via team_ai_summary_settings); everything else
+# here applies to every team.
+ai_summary:
+  enabled: true
+  # Documents fed to the summariser by default. max_top_n is the instance
+  # ceiling a team can never raise; it may not exceed 10 (the storage CHECK).
+  top_n: 5
+  max_top_n: 10
+  # Context budgets, in characters: per document, then across all documents.
+  per_document_chars: 8000
+  total_context_chars: 32000
+  max_output_tokens: 800
+  request_timeout: 60s
+  # One of: concise, balanced, detailed.
+  style: balanced
+
 # Resource-attachment storage. backend selects the object store: "gcs", "s3"
 # (MinIO-compatible too), or "filesystem". Empty backend keeps the legacy
 # behavior: GCS when attachments_bucket is set, otherwise attachments are

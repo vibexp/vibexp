@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/vibexp/vibexp/internal/models"
 )
 
 // Note: tests that use t.Setenv must not be parallelised.
@@ -137,6 +139,15 @@ search:
   rank_weight_updated: 0.15
   rank_half_life_days: 45
   rank_candidate_cap: 300
+ai_summary:
+  enabled: false
+  top_n: 3
+  max_top_n: 6
+  per_document_chars: 4000
+  total_context_chars: 16000
+  max_output_tokens: 400
+  request_timeout: 30s
+  style: concise
 storage:
   backend: s3
   attachments_bucket: my-bucket
@@ -269,6 +280,16 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.InDelta(t, 90, cfg.Search.RankHalfLifeDays, 1e-9)
 	assert.Equal(t, 200, cfg.Search.RankCandidateCap)
 
+	// AI summary defaults.
+	assert.Equal(t, EnvBool(true), cfg.AISummary.Enabled)
+	assert.Equal(t, EnvInt(5), cfg.AISummary.TopN)
+	assert.Equal(t, 10, cfg.AISummary.MaxTopN)
+	assert.Equal(t, 8000, cfg.AISummary.PerDocumentChars)
+	assert.Equal(t, 32000, cfg.AISummary.TotalContextChars)
+	assert.Equal(t, 800, cfg.AISummary.MaxOutputTokens)
+	assert.Equal(t, 60*time.Second, cfg.AISummary.RequestTimeout)
+	assert.Equal(t, models.AISummaryStyleBalanced, cfg.AISummary.Style)
+
 	// Rate limits / retention defaults.
 	assert.Equal(t, 100, cfg.RateLimit.AuthPerMinute)
 	assert.Equal(t, 1000, cfg.RateLimit.APIPerMinute)
@@ -374,6 +395,18 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.InDelta(t, 0.6, cfg.Search.RankWeightRelevance, 1e-9)
 	assert.InDelta(t, 45, cfg.Search.RankHalfLifeDays, 1e-9)
 	assert.Equal(t, 300, cfg.Search.RankCandidateCap)
+
+	// AI summary. These are the LITERAL values an operator's mounted config.yaml
+	// would carry — the ${VAR} path for the two typed knobs is covered separately
+	// (a retyped field otherwise leaves the literal path at zero coverage, #752).
+	assert.Equal(t, EnvBool(false), cfg.AISummary.Enabled)
+	assert.Equal(t, EnvInt(3), cfg.AISummary.TopN)
+	assert.Equal(t, 6, cfg.AISummary.MaxTopN)
+	assert.Equal(t, 4000, cfg.AISummary.PerDocumentChars)
+	assert.Equal(t, 16000, cfg.AISummary.TotalContextChars)
+	assert.Equal(t, 400, cfg.AISummary.MaxOutputTokens)
+	assert.Equal(t, 30*time.Second, cfg.AISummary.RequestTimeout)
+	assert.Equal(t, models.AISummaryStyleConcise, cfg.AISummary.Style)
 
 	// Storage, gcp.
 	assert.Equal(t, "s3", cfg.Storage.Backend)
@@ -625,6 +658,75 @@ func TestLoad_SearchRankWeightNegative_ReturnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, cfg)
 	assert.Contains(t, err.Error(), "search.rank_weight")
+}
+
+// TestLoad_AISummaryStyleUnknown_ReturnsError is the LOAD-LEVEL half of the
+// validator's coverage, and it is the load-bearing half: the table test below
+// calls validateAISummaryConfig directly and would stay green even if the
+// function were never added to validateAll's checks slice (proven by mutation
+// in #753). Only this test goes red for a missing registration.
+func TestLoad_AISummaryStyleUnknown_ReturnsError(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+"ai_summary:\n  style: verbose\n")
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "ai_summary.style")
+}
+
+func TestValidateAISummaryConfig(t *testing.T) {
+	base := func() *Config {
+		return &Config{AISummary: AISummaryConfig{
+			Enabled:           true,
+			TopN:              5,
+			MaxTopN:           10,
+			PerDocumentChars:  8000,
+			TotalContextChars: 32000,
+			MaxOutputTokens:   800,
+			RequestTimeout:    60 * time.Second,
+			Style:             models.AISummaryStyleBalanced,
+		}}
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr bool
+	}{
+		{"valid defaults", func(*Config) {}, false},
+		{"zero max_top_n", func(c *Config) { c.AISummary.MaxTopN = 0 }, true},
+		// max_top_n is bounded by the same constant the storage CHECK mirrors, so
+		// a value above it could never be persisted by any team.
+		{"max_top_n above the storage ceiling", func(c *Config) { c.AISummary.MaxTopN = MaxAISummaryTopN + 1 }, true},
+		{"max_top_n at the storage ceiling", func(c *Config) { c.AISummary.MaxTopN = MaxAISummaryTopN }, false},
+		{"zero top_n", func(c *Config) { c.AISummary.TopN = 0 }, true},
+		{"top_n above max_top_n", func(c *Config) { c.AISummary.MaxTopN, c.AISummary.TopN = 4, 5 }, true},
+		{"top_n at max_top_n", func(c *Config) { c.AISummary.MaxTopN, c.AISummary.TopN = 5, 5 }, false},
+		{"zero per_document_chars", func(c *Config) { c.AISummary.PerDocumentChars = 0 }, true},
+		{"zero total_context_chars", func(c *Config) { c.AISummary.TotalContextChars = 0 }, true},
+		{"zero max_output_tokens", func(c *Config) { c.AISummary.MaxOutputTokens = 0 }, true},
+		// A total budget below the per-document budget can never be satisfied by
+		// even one document, which would make every summary empty.
+		{"total budget below per-document budget", func(c *Config) { c.AISummary.TotalContextChars = 100 }, true},
+		{"total budget equal to per-document budget", func(c *Config) { c.AISummary.TotalContextChars = 8000 }, false},
+		{"zero request_timeout", func(c *Config) { c.AISummary.RequestTimeout = 0 }, true},
+		{"negative request_timeout", func(c *Config) { c.AISummary.RequestTimeout = -time.Second }, true},
+		{"unknown style", func(c *Config) { c.AISummary.Style = "verbose" }, true},
+		{"empty style", func(c *Config) { c.AISummary.Style = "" }, true},
+		{"concise style", func(c *Config) { c.AISummary.Style = models.AISummaryStyleConcise }, false},
+		{"detailed style", func(c *Config) { c.AISummary.Style = models.AISummaryStyleDetailed }, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := base()
+			tt.mutate(cfg)
+			err := validateAISummaryConfig(cfg)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
 }
 
 func TestValidateSearchRankingConfig(t *testing.T) {
