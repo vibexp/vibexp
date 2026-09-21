@@ -76,6 +76,16 @@ const (
 
 	// Preferences errors
 	CodePreferencesUpdateFailed = "PREFERENCES_UPDATE_FAILED"
+
+	// Search summary errors (#1073). Each names a classified failure; the
+	// provider's own response never reaches the client (#464).
+	CodeAISummaryDisabled            = "AI_SUMMARY_DISABLED"
+	CodeAISummaryNoProvider          = "AI_SUMMARY_NO_PROVIDER"
+	CodeAISummaryNoResults           = "AI_SUMMARY_NO_RESULTS"
+	CodeAISummaryProviderUnreachable = "AI_SUMMARY_PROVIDER_UNREACHABLE"
+	CodeAISummaryUnauthorized        = "AI_SUMMARY_UNAUTHORIZED"
+	CodeAISummaryModelError          = "AI_SUMMARY_MODEL_ERROR"
+	CodeAISummaryTimeout             = "AI_SUMMARY_TIMEOUT"
 )
 
 // Error titles for common error codes
@@ -127,6 +137,13 @@ var errorTitles = map[string]string{
 	CodeModelProviderLastDeleteBlocked:    "Cannot Delete Last Model Provider",
 	CodeModelProviderValidationFailed:     "Model Provider Validation Failed",
 	CodePreferencesUpdateFailed:           "User Preferences Update Failed",
+	CodeAISummaryDisabled:                 "AI Summary Disabled",
+	CodeAISummaryNoProvider:               "No Model Provider Configured",
+	CodeAISummaryNoResults:                "No Documents To Summarize",
+	CodeAISummaryProviderUnreachable:      "Model Provider Unreachable",
+	CodeAISummaryUnauthorized:             "Model Provider Rejected Credentials",
+	CodeAISummaryModelError:               "Model Provider Rejected Request",
+	CodeAISummaryTimeout:                  "Model Provider Timed Out",
 }
 
 // GetErrorTitle returns the title for a given error code

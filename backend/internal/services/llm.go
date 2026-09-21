@@ -86,28 +86,37 @@ func NewLLMService(
 func (s *LLMService) Resolve(
 	ctx context.Context, teamID string, providerID *string,
 ) (ModelProvider, error) {
+	provider, _, err := s.resolve(ctx, teamID, providerID)
+	return provider, err
+}
+
+// resolve is Resolve plus the row the provider was built from, so Complete can
+// report which provider answered without a second lookup.
+func (s *LLMService) resolve(
+	ctx context.Context, teamID string, providerID *string,
+) (ModelProvider, *models.ModelProvider, error) {
 	if s == nil || s.repo == nil {
-		return nil, fmt.Errorf("LLMService is nil")
+		return nil, nil, fmt.Errorf("LLMService is nil")
 	}
 	if strings.TrimSpace(teamID) == "" {
-		return nil, fmt.Errorf("%w: team id is required", ErrNoModelProvider)
+		return nil, nil, fmt.Errorf("%w: team id is required", ErrNoModelProvider)
 	}
 
 	row, err := s.loadProvider(ctx, teamID, providerID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	apiKey, err := s.decryptAPIKey(row)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	provider, err := NewModelProvider(row, apiKey, row.Model, completionTimeout, s.guard)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build the model provider: %w", err)
+		return nil, nil, fmt.Errorf("failed to build the model provider: %w", err)
 	}
-	return provider, nil
+	return provider, row, nil
 }
 
 // loadProvider fetches the named row, or the team's default when no id is given.
@@ -176,7 +185,7 @@ func (s *LLMService) Complete(
 		return nil, fmt.Errorf("completion request requires at least one message")
 	}
 
-	provider, err := s.Resolve(ctx, teamID, providerID)
+	provider, row, err := s.resolve(ctx, teamID, providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -185,6 +194,11 @@ func (s *LLMService) Complete(
 	if err != nil {
 		return nil, s.classifyCompletionError(ctx, teamID, err)
 	}
+	if resp == nil {
+		return nil, fmt.Errorf("model provider returned no completion")
+	}
+	resp.ProviderID = row.ID
+	resp.Model = row.Model
 	return resp, nil
 }
 

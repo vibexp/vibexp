@@ -37,7 +37,10 @@ type SearchService struct {
 	now func() time.Time
 }
 
-var _ Searcher = (*SearchService)(nil)
+var (
+	_ Searcher               = (*SearchService)(nil)
+	_ SourceDocumentSearcher = (*SearchService)(nil)
+)
 
 // NewSearchService creates a new SearchService. settings resolves the ranking
 // config that applies to the searching team, so ordering is per-team rather than
@@ -70,12 +73,53 @@ func (s *SearchService) Search(
 	teamID string,
 	req *models.SearchRequest,
 ) (*models.SearchResultsResponse, error) {
+	pageRows, total, err := s.searchRows(ctx, teamID, req)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]models.SearchResultItem, 0, len(pageRows))
+	for i := range pageRows {
+		items = append(items, mapRowToItem(&pageRows[i]))
+	}
+
+	return &models.SearchResultsResponse{
+		Results:    items,
+		TotalCount: total,
+		Page:       req.Page,
+		PerPage:    req.PerPage,
+		TotalPages: totalPages(total, req.PerPage),
+	}, nil
+}
+
+// SearchRows implements SourceDocumentSearcher: the same search as Search —
+// same tenancy, filters, ranking and keyword fallback — but returning the
+// requested page as repository rows, which carry each match's full SourceBody
+// rather than a 500-character excerpt. It exists so the search summary (#1073)
+// reads the documents search ranked without a second, divergent query path.
+func (s *SearchService) SearchRows(
+	ctx context.Context,
+	teamID string,
+	req *models.SearchRequest,
+) ([]models.SearchResultRow, error) {
+	rows, _, err := s.searchRows(ctx, teamID, req)
+	return rows, err
+}
+
+// searchRows is the single choke point behind Search and SearchRows: it embeds
+// the query (or falls back to keyword search), resolves the team's ranking and
+// returns the requested page of rows plus the paginable match count.
+func (s *SearchService) searchRows(
+	ctx context.Context,
+	teamID string,
+	req *models.SearchRequest,
+) ([]models.SearchResultRow, int, error) {
 	entityTypes := resolveEntityTypes(req.Types)
 
 	vector, model, err := s.embedder.EmbedQuery(ctx, teamID, req.Query)
 	keyword := errors.Is(err, ErrNoEmbeddingProvider)
 	if err != nil && !keyword {
-		return nil, fmt.Errorf("SearchService.Search: failed to embed query: %w", err)
+		return nil, 0, fmt.Errorf("SearchService.Search: failed to embed query: %w", err)
 	}
 
 	// Resolved once per search, after the embedding step so a failed embed does
@@ -93,7 +137,7 @@ func (s *SearchService) Search(
 		Ranking:     ranking,
 	})
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	if total == 0 {
@@ -114,18 +158,7 @@ func (s *SearchService) Search(
 			Debug("search returned no results")
 	}
 
-	items := make([]models.SearchResultItem, 0, len(pageRows))
-	for i := range pageRows {
-		items = append(items, mapRowToItem(&pageRows[i]))
-	}
-
-	return &models.SearchResultsResponse{
-		Results:    items,
-		TotalCount: total,
-		Page:       req.Page,
-		PerPage:    req.PerPage,
-		TotalPages: totalPages(total, req.PerPage),
-	}, nil
+	return pageRows, total, nil
 }
 
 // FetchPageParams carries the already-resolved inputs of one page fetch.

@@ -81,6 +81,7 @@ type WireContainer struct {
 	memoryService             services.MemoryServiceInterface
 	embeddingService          services.EmbeddingServiceInterface
 	searchService             services.Searcher
+	searchSummaryService      services.SearchSummaryServiceInterface
 	teamEmailProviderService  services.TeamEmailProviderServiceInterface
 	emailSenderResolver       services.EmailSenderResolver
 	teamSearchSettingsService services.TeamSearchSettingsServiceInterface
@@ -385,6 +386,11 @@ func (c *WireContainer) MetadataCatalogService() services.MetadataCatalogService
 
 func (c *WireContainer) SearchService() services.Searcher {
 	return c.searchService
+}
+
+// SearchSummaryService returns the search summary service (#1073).
+func (c *WireContainer) SearchSummaryService() services.SearchSummaryServiceInterface {
+	return c.searchSummaryService
 }
 
 func (c *WireContainer) EnvironmentService() *services.EnvironmentService {

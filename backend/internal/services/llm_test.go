@@ -247,6 +247,10 @@ func TestLLMComplete_ReturnsContentFinishReasonAndUsage(t *testing.T) {
 	assert.Equal(t, "a summary", resp.Content)
 	assert.Equal(t, "stop", resp.FinishReason)
 	assert.Equal(t, models.TokenUsage{PromptTokens: 120, CompletionTokens: 18}, resp.Usage)
+	// The resolved row identifies who answered — "the team default" is only
+	// knowable here, so a consumer must not have to look it up again (#1073).
+	assert.Equal(t, testLLMProviderID, resp.ProviderID)
+	assert.Equal(t, testCompletionModel, resp.Model)
 }
 
 func TestLLMComplete_ClassifiesProviderStatuses(t *testing.T) {

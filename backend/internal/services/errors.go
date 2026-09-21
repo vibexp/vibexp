@@ -288,6 +288,17 @@ var ErrContextTooLarge = errors.New("completion request exceeds the model's cont
 // per-request deadline, the client timeout, or a 408/504 from the provider.
 var ErrCompletionTimeout = errors.New("completion timed out")
 
+// Search summary Errors (#1073)
+
+// ErrAISummaryDisabled is returned when AI summaries are switched off for the
+// team — by its own settings, or by the instance default it inherits.
+var ErrAISummaryDisabled = errors.New("AI summaries are disabled for this team")
+
+// ErrAISummaryNoResults is returned when the search found no documents, so there
+// is nothing to ground a summary in. Asking the model anyway would invite an
+// answer from its own training data, which is exactly what grounding prevents.
+var ErrAISummaryNoResults = errors.New("the search returned no documents to summarize")
+
 // ErrTeamEmailProviderValidation matches any TeamEmailProviderValidationError via
 // errors.Is, so handlers can detect "this is a 400 with field details" without
 // depending on the concrete type.

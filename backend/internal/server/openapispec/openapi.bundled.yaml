@@ -1875,6 +1875,82 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Search
+  /api/v1/{team_id}/search/summary:
+    post:
+      summary: Answer a query from the team's top search results
+      description: Runs the team's search for the query, gives the full text of the top-N matching documents to the team's model provider, and returns a markdown answer grounded in them, citing each document as `[n]`. Always uses the global top-N results (there is no paging), and works the same whether search ranked them semantically or by the keyword fallback. Each document is truncated to a per-document budget, and documents stop being added once the total context budget is used, so `sources` lists exactly what the model saw. Any team member may call it. Errors never carry the provider's raw response.
+      operationId: summarizeSearchResults
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          description: Team ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchSummaryRequest'
+      responses:
+        '200':
+          description: Summary generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchSummaryResponse'
+        '400':
+          description: Invalid request data or validation error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: User is not a member of the team
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: AI summaries are disabled for the team (`AI_SUMMARY_DISABLED`), or the team has no model provider (`AI_SUMMARY_NO_PROVIDER`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: The search returned no documents to summarize (`AI_SUMMARY_NO_RESULTS`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to generate the summary
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: 'The model provider could not produce a summary: it was unreachable (`AI_SUMMARY_PROVIDER_UNREACHABLE`), rejected the credentials (`AI_SUMMARY_UNAUTHORIZED`), or rejected the request (`AI_SUMMARY_MODEL_ERROR`)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: The model provider did not answer in time (`AI_SUMMARY_TIMEOUT`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Search
   /api/v1/{team_id}/resource-access-metrics:
     get:
       summary: Per-resource daily access metrics
@@ -18841,6 +18917,138 @@ components:
         - page
         - per_page
         - total_pages
+    SearchSummaryRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: The question to answer. It is run through the team's search, and the top matching documents are what the answer is grounded in.
+          example: how do we configure retries
+        types:
+          type: array
+          description: Resource types to draw documents from. Omit or leave empty to use all four types. Unknown values are rejected with a 400.
+          items:
+            type: string
+            enum:
+              - prompts
+              - artifacts
+              - blueprints
+              - memories
+          example:
+            - memories
+            - blueprints
+        project_id:
+          type: string
+          format: uuid
+          description: Optional project UUID. When set, only documents in this project are used.
+          example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+      required:
+        - query
+    SearchSummarySource:
+      type: object
+      description: One document the summary was grounded in. Its `index` is the number the summary cites it by (`[1]`, `[2]`, ...).
+      properties:
+        index:
+          type: integer
+          minimum: 1
+          description: Citation number of this document in the summary, starting at 1
+          example: 1
+        type:
+          type: string
+          enum:
+            - prompt
+            - artifact
+            - blueprint
+            - memory
+          description: Singular resource type of the document
+          example: memory
+        id:
+          type: string
+          format: uuid
+          description: ID of the document
+        title:
+          type: string
+          description: Title of the document
+          example: Retry configuration guide
+        slug:
+          type: string
+          description: Slug of the document, used to build slug-based detail-page links. Empty for memories, which are routed by id.
+          example: retry-configuration-guide
+        project_id:
+          type: string
+          format: uuid
+          description: UUID of the document's project
+        project_name:
+          type: string
+          description: Human-readable name of the document's project
+          example: My Project
+        updated_at:
+          type: string
+          format: date-time
+          description: Last-updated timestamp of the document
+        truncated:
+          type: boolean
+          description: True when only the beginning of the document was given to the model, because it exceeded the per-document or total context budget.
+      required:
+        - index
+        - type
+        - id
+        - title
+        - slug
+        - project_id
+        - project_name
+        - updated_at
+        - truncated
+    SearchSummaryUsage:
+      type: object
+      description: Token usage the model provider reported for the completion.
+      properties:
+        prompt_tokens:
+          type: integer
+          minimum: 0
+          description: Tokens in the prompt sent to the model
+          example: 2400
+        completion_tokens:
+          type: integer
+          minimum: 0
+          description: Tokens in the generated summary
+          example: 310
+      required:
+        - prompt_tokens
+        - completion_tokens
+    SearchSummaryResponse:
+      type: object
+      properties:
+        summary:
+          type: string
+          description: Markdown answer to the query, grounded in `sources` and citing them as `[n]`. When the documents do not contain the answer, the summary says so.
+        sources:
+          type: array
+          description: The documents given to the model, in citation order. Only documents that were actually included are listed.
+          items:
+            $ref: '#/components/schemas/SearchSummarySource'
+        model:
+          type: string
+          description: Model that generated the summary
+          example: gpt-4o-mini
+        provider_id:
+          type: string
+          format: uuid
+          description: ID of the team model provider that generated the summary
+        generated_at:
+          type: string
+          format: date-time
+          description: When the summary was generated
+        usage:
+          $ref: '#/components/schemas/SearchSummaryUsage'
+      required:
+        - summary
+        - sources
+        - model
+        - provider_id
+        - generated_at
     Blueprint:
       type: object
       properties:

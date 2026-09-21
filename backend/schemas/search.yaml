@@ -135,3 +135,149 @@ SearchResultsResponse:
     - page
     - per_page
     - total_pages
+
+# POST /search/summary (#1073, epic #1068). The request carries the same
+# filters as SearchRequest but NO paging: the summary always reads the global
+# top-N (decision D7), so it cannot change meaning as the user pages.
+SearchSummaryRequest:
+  type: object
+  properties:
+    query:
+      type: string
+      minLength: 1
+      maxLength: 1000
+      description: >-
+        The question to answer. It is run through the team's search, and the
+        top matching documents are what the answer is grounded in.
+      example: how do we configure retries
+    types:
+      type: array
+      description: >-
+        Resource types to draw documents from. Omit or leave empty to use all
+        four types. Unknown values are rejected with a 400.
+      items:
+        type: string
+        enum: [prompts, artifacts, blueprints, memories]
+      example: [memories, blueprints]
+    project_id:
+      type: string
+      format: uuid
+      description: >-
+        Optional project UUID. When set, only documents in this project are
+        used.
+      example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+  required:
+    - query
+
+SearchSummarySource:
+  type: object
+  description: >-
+    One document the summary was grounded in. Its `index` is the number the
+    summary cites it by (`[1]`, `[2]`, ...).
+  properties:
+    index:
+      type: integer
+      minimum: 1
+      description: Citation number of this document in the summary, starting at 1
+      example: 1
+    type:
+      type: string
+      enum: [prompt, artifact, blueprint, memory]
+      description: Singular resource type of the document
+      example: memory
+    id:
+      type: string
+      format: uuid
+      description: ID of the document
+    title:
+      type: string
+      description: Title of the document
+      example: Retry configuration guide
+    slug:
+      type: string
+      description: >-
+        Slug of the document, used to build slug-based detail-page links.
+        Empty for memories, which are routed by id.
+      example: retry-configuration-guide
+    project_id:
+      type: string
+      format: uuid
+      description: UUID of the document's project
+    project_name:
+      type: string
+      description: Human-readable name of the document's project
+      example: My Project
+    updated_at:
+      type: string
+      format: date-time
+      description: Last-updated timestamp of the document
+    truncated:
+      type: boolean
+      description: >-
+        True when only the beginning of the document was given to the model,
+        because it exceeded the per-document or total context budget.
+  required:
+    - index
+    - type
+    - id
+    - title
+    - slug
+    - project_id
+    - project_name
+    - updated_at
+    - truncated
+
+SearchSummaryUsage:
+  type: object
+  description: Token usage the model provider reported for the completion.
+  properties:
+    prompt_tokens:
+      type: integer
+      minimum: 0
+      description: Tokens in the prompt sent to the model
+      example: 2400
+    completion_tokens:
+      type: integer
+      minimum: 0
+      description: Tokens in the generated summary
+      example: 310
+  required:
+    - prompt_tokens
+    - completion_tokens
+
+SearchSummaryResponse:
+  type: object
+  properties:
+    summary:
+      type: string
+      description: >-
+        Markdown answer to the query, grounded in `sources` and citing them as
+        `[n]`. When the documents do not contain the answer, the summary says
+        so.
+    sources:
+      type: array
+      description: >-
+        The documents given to the model, in citation order. Only documents
+        that were actually included are listed.
+      items:
+        $ref: '#/SearchSummarySource'
+    model:
+      type: string
+      description: Model that generated the summary
+      example: gpt-4o-mini
+    provider_id:
+      type: string
+      format: uuid
+      description: ID of the team model provider that generated the summary
+    generated_at:
+      type: string
+      format: date-time
+      description: When the summary was generated
+    usage:
+      $ref: '#/SearchSummaryUsage'
+  required:
+    - summary
+    - sources
+    - model
+    - provider_id
+    - generated_at

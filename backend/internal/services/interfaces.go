@@ -793,6 +793,15 @@ type Searcher interface {
 	Search(ctx context.Context, teamID string, req *models.SearchRequest) (*models.SearchResultsResponse, error)
 }
 
+// SourceDocumentSearcher runs the team's search and returns the matching rows,
+// each carrying the resource's full body. It is Searcher's choke point exposed
+// for consumers that need the documents rather than excerpts — the search
+// summary (#1073) — so they inherit its tenancy, filters, ranking and keyword
+// fallback instead of re-implementing them.
+type SourceDocumentSearcher interface {
+	SearchRows(ctx context.Context, teamID string, req *models.SearchRequest) ([]models.SearchResultRow, error)
+}
+
 // GitHubAppServiceInterface defines the interface for GitHub App operations
 type GitHubAppServiceInterface interface {
 	GetInstallationStatus(ctx context.Context, teamID string) (*models.GitHubInstallationStatus, error)

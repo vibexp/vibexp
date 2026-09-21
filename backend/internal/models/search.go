@@ -59,3 +59,39 @@ type SearchResultsResponse struct {
 	PerPage    int                         `json:"per_page"`
 	TotalPages int                         `json:"total_pages"`
 }
+
+// SearchSummaryRequest is the input of the search summary (#1073). It carries
+// the same filters as SearchRequest but no paging: the summary always reads the
+// global top-N, so it cannot change meaning as the user pages.
+type SearchSummaryRequest struct {
+	Query     string   `json:"query"`
+	Types     []string `json:"types"`
+	ProjectID string   `json:"project_id"`
+}
+
+// SearchSummarySource is one document the summary was grounded in. Index is the
+// 1-based number the summary cites it by; Truncated reports that only the
+// beginning of the document reached the model.
+type SearchSummarySource struct {
+	Index       int       `json:"index"`
+	Type        string    `json:"type"`
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Slug        string    `json:"slug"`
+	ProjectID   string    `json:"project_id"`
+	ProjectName string    `json:"project_name"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Truncated   bool      `json:"truncated"`
+}
+
+// SearchSummary is a generated, cited answer to a search query. Sources lists
+// exactly the documents the model was given, in citation order. Usage is nil
+// when the provider reported none.
+type SearchSummary struct {
+	Summary     string                         `json:"summary"`
+	Sources     JSONArray[SearchSummarySource] `json:"sources"`
+	Model       string                         `json:"model"`
+	ProviderID  string                         `json:"provider_id"`
+	GeneratedAt time.Time                      `json:"generated_at"`
+	Usage       *TokenUsage                    `json:"usage,omitempty"`
+}
