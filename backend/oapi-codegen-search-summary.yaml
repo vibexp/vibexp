@@ -1,0 +1,24 @@
+# oapi-codegen configuration for the search summary operation (#1073, epic
+# #1068), one more spec-first strict-server package under internal/server/gen.
+#
+# Selected by operation id, not `include-tags: [Search]`, for the same reason as
+# oapi-codegen-model-providers.yaml: the rest of the Search tag
+# (searchTeamResources) is still a hand-written chi handler, and a tag selector
+# would pull it onto this package's StrictServerInterface and force its
+# conversion in the same change. A later conversion of the Search tag appends
+# its ids here.
+#
+# The id is copied from backend/paths/search.yaml — a misspelled id generates an
+# EMPTY package with no error.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: searchsummarygen
+output: internal/server/gen/searchsummary/searchsummary.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-operation-ids:
+    - summarizeSearchResults

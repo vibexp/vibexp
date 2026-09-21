@@ -189,10 +189,9 @@ func ProvideEmbeddingProviderService(
 	return services.NewEmbeddingProviderService(repo, enc, cfg, authzSvc, audit, coverageRepo)
 }
 
-// ProvideLLMService creates the central completion service (#1069). It has no
-// consumer yet — #1073 is the first — so it is registered in the ProviderSet
-// without a container accessor; wire only builds what an injector needs, so this
-// adds nothing to the graph until something asks for it.
+// ProvideLLMService creates the central completion service (#1069). The search
+// summary (#1073) is its first consumer, through the services.LLMCompleter
+// binding in wire.go; it has no container accessor of its own.
 func ProvideLLMService(
 	repo repositories.ModelProviderRepository,
 	enc services.EncryptionServiceInterface,
@@ -595,13 +594,30 @@ func ProvideSearchSettingsResolver(
 // ProvideSearchService creates a new SearchService. Ranking is no longer baked
 // in at wire time: the service resolves it per search through the resolver, so
 // a team's stored profile takes effect without a restart.
+//
+// It returns the concrete type so one instance backs both services.Searcher
+// (the search API) and services.SourceDocumentSearcher (the search summary,
+// #1073); wire.go binds each interface to it.
 func ProvideSearchService(
 	repo repositories.SearchRepository,
 	embedder services.QueryEmbedder,
 	logger *slog.Logger,
 	settings services.SearchSettingsResolver,
-) services.Searcher {
+) *services.SearchService {
 	return services.NewSearchService(repo, embedder, logger, settings)
+}
+
+// ProvideSearchSummaryService creates the search summary service (#1073). The
+// context budgets and request timeout come from the instance-only ai_summary
+// config; everything a team may tune is resolved per request.
+func ProvideSearchSummaryService(
+	search services.SourceDocumentSearcher,
+	llm services.LLMCompleter,
+	settings services.AISummarySettingsResolver,
+	cfg *config.Config,
+	logger *slog.Logger,
+) services.SearchSummaryServiceInterface {
+	return services.NewSearchSummaryService(search, llm, settings, cfg.AISummary, logger)
 }
 
 // ProvideEnvironmentService creates a new EnvironmentService

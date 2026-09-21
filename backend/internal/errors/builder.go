@@ -431,3 +431,36 @@ func NewTeamEmailProviderDeleteFailedError(detail string) *APIError {
 		http.StatusInternalServerError,
 	)
 }
+
+// Search summary errors (#1073)
+
+// NewAISummaryError builds one of the classified search summary errors. The
+// detail is fixed per code on purpose: a summary failure must never echo what
+// the model provider said, which can name internal hosts (#464).
+func NewAISummaryError(code string) *APIError {
+	status, detail := aiSummaryErrorShape(code)
+	return NewAPIError(code, GetErrorTitle(code), detail, status)
+}
+
+// aiSummaryErrorShape returns the status and client-facing detail for a search
+// summary error code. An unknown code is an internal error.
+func aiSummaryErrorShape(code string) (int, string) {
+	switch code {
+	case CodeAISummaryDisabled:
+		return http.StatusConflict, "AI summaries are disabled for this team"
+	case CodeAISummaryNoProvider:
+		return http.StatusConflict, "This team has no model provider configured for AI summaries"
+	case CodeAISummaryNoResults:
+		return http.StatusUnprocessableEntity, "The search returned no documents to summarize"
+	case CodeAISummaryProviderUnreachable:
+		return http.StatusBadGateway, "The model provider could not be reached"
+	case CodeAISummaryUnauthorized:
+		return http.StatusBadGateway, "The model provider rejected the configured credentials"
+	case CodeAISummaryModelError:
+		return http.StatusBadGateway, "The model provider rejected the summary request"
+	case CodeAISummaryTimeout:
+		return http.StatusGatewayTimeout, "The model provider did not answer in time"
+	default:
+		return http.StatusInternalServerError, "Failed to generate the summary"
+	}
+}

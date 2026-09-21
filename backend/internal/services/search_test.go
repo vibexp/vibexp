@@ -659,3 +659,61 @@ func TestSearchService_Search_TeamWithoutOverrideMatchesInstanceDefaults(t *test
 	assert.Equal(t, "c-fresh", resp.Results[0].ChunkID)
 	assert.Equal(t, "c-stale", resp.Results[1].ChunkID)
 }
+
+// TestSearchService_SearchRows_ReturnsFullSourceBodies pins that SearchRows is
+// the same search as Search — same page arithmetic, filters and repository call
+// — but hands back the rows, whose SourceBody is the whole document rather than
+// the 500-rune excerpt Search derives from it (#1073).
+func TestSearchService_SearchRows_ReturnsFullSourceBodies(t *testing.T) {
+	svc, repo, embedder := newTestSearchService(t)
+	vec := validVector()
+	longBody := strings.Repeat("x", 2000)
+	projectID := "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
+	repo.EXPECT().
+		SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel,
+			[]string{"memory"}, projectID, repositories.Page{Limit: 3, Offset: 0}).
+		Return([]models.SearchResultRow{{EntityType: "memory", EntityID: "m1", SourceBody: longBody}}, 1, nil)
+
+	rows, err := svc.SearchRows(context.Background(), testTeamID, &models.SearchRequest{
+		Query: "q", Types: []string{"memories"}, ProjectID: projectID, Page: 1, PerPage: 3,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, longBody, rows[0].SourceBody)
+}
+
+// TestSearchService_SearchRows_UsesTheKeywordFallback pins that SearchRows
+// inherits the keyword-FTS fallback, so the summary works without an embedding
+// provider (decision D8).
+func TestSearchService_SearchRows_UsesTheKeywordFallback(t *testing.T) {
+	svc, repo, embedder := newTestSearchService(t)
+
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(nil, "", services.ErrNoEmbeddingProvider)
+	repo.EXPECT().
+		SearchKeyword(mock.Anything, testTeamID, "q",
+			[]string{"prompt", "artifact", "blueprint", "memory"}, "", repositories.Page{Limit: 5, Offset: 0}).
+		Return([]models.SearchResultRow{{EntityType: "prompt", EntityID: "p1", SourceBody: "body"}}, 1, nil)
+
+	rows, err := svc.SearchRows(context.Background(), testTeamID, &models.SearchRequest{
+		Query: "q", Page: 1, PerPage: 5,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "body", rows[0].SourceBody)
+}
+
+func TestSearchService_SearchRows_PropagatesEmbedFailure(t *testing.T) {
+	svc, _, embedder := newTestSearchService(t)
+
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(nil, "", errors.New("boom"))
+
+	_, err := svc.SearchRows(context.Background(), testTeamID, &models.SearchRequest{
+		Query: "q", Page: 1, PerPage: 5,
+	})
+
+	require.Error(t, err)
+}

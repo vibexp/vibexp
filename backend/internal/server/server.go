@@ -39,6 +39,7 @@ import (
 	modelprovidersgen "github.com/vibexp/vibexp/internal/server/gen/modelproviders"
 	promptsgen "github.com/vibexp/vibexp/internal/server/gen/prompts"
 	relationsgen "github.com/vibexp/vibexp/internal/server/gen/relations"
+	searchsummarygen "github.com/vibexp/vibexp/internal/server/gen/searchsummary"
 	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
 	teamsettingsgen "github.com/vibexp/vibexp/internal/server/gen/teamsettings"
 	typesgen "github.com/vibexp/vibexp/internal/server/gen/types"
@@ -1418,6 +1419,32 @@ func (s *Server) setupSearchRoutes(r chi.Router) {
 	r.Route("/api/v1/{team_id}/search", func(r chi.Router) {
 		r.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
 		r.Post("/", s.handleSearch)
+	})
+	// The summary (#1073) is strict-server generated, and the generated handler
+	// registers its ABSOLUTE path, so it cannot live inside the /search subrouter
+	// above. It is mounted on its own team-validated group instead; chi prefers
+	// the static /search/summary segment over that subrouter's catch-all.
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
+		s.mountSearchSummaryHandlers(gr)
+	})
+}
+
+// mountSearchSummaryHandlers registers the search summary's generated route on
+// an already-scoped router. Split out so tests can exercise the real route
+// without the tenancy middleware.
+func (s *Server) mountSearchSummaryHandlers(r chi.Router) {
+	strict := searchsummarygen.NewStrictHandlerWithOptions(
+		&searchSummaryStrictServer{s: s},
+		nil,
+		searchsummarygen.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  s.searchSummaryBindErrorHandler,
+			ResponseErrorHandlerFunc: s.searchSummaryResponseErrorHandler,
+		},
+	)
+	searchsummarygen.HandlerWithOptions(strict, searchsummarygen.ChiServerOptions{
+		BaseRouter:       r,
+		ErrorHandlerFunc: s.searchSummaryBindErrorHandler,
 	})
 }
 

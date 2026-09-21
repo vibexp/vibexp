@@ -82,6 +82,9 @@ type Container interface {
 	MemoryService() services.MemoryServiceInterface
 	EmbeddingService() services.EmbeddingServiceInterface
 	SearchService() services.Searcher
+	// SearchSummaryService answers a query from the team's top search results
+	// with the team's model provider (#1073).
+	SearchSummaryService() services.SearchSummaryServiceInterface
 	TeamEmailProviderService() services.TeamEmailProviderServiceInterface
 	EmailSenderResolver() services.EmailSenderResolver
 	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface

@@ -38,8 +38,14 @@ type TokenUsage struct {
 // CompletionResponse is the first choice of a completion, flattened. FinishReason
 // is passed through verbatim ("stop", "length", …) so a consumer can tell a
 // truncated answer from a complete one.
+//
+// ProviderID and Model identify the provider row that answered. LLMService sets
+// them, because only it knows which row "the team default" resolved to; a
+// ModelProvider leaves them empty.
 type CompletionResponse struct {
 	Content      string
 	FinishReason string
 	Usage        TokenUsage
+	ProviderID   string
+	Model        string
 }

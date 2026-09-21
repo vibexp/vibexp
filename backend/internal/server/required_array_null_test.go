@@ -188,6 +188,7 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"BlueprintListResponse":            "generated strict-server type (internal/server/gen/blueprints); handler builds blueprints via make(...,0) — handlers_blueprints.go toGenBlueprintListResponse",
 	"PromptListResponse":               "generated strict-server type (internal/server/gen/prompts); handler builds prompts via make(...,0) — handlers_prompts.go toGenPromptListEnvelope (nested in the legacy PromptListEnvelope)",
 	"FreshnessRule":                    "generated strict-server type (internal/server/gen/freshness); handler builds resource_types + mediums via make(...,0) — handlers_freshness.go toGenFreshnessRule",
+	"SearchSummaryResponse":            "generated strict-server type (internal/server/gen/searchsummary); handler builds sources via make(...,0) — search_summary_handlers.go toGenSearchSummaryResponse (the domain models.SearchSummary also uses JSONArray[T])",
 	"ProviderModelList":                "generated strict-server type (internal/server/gen/modelproviders); handler builds models via make(...,0) — model_provider_strict_handlers.go toGenProviderModelList (the domain models.ProviderModelList also uses JSONArray[T])",
 	"MetadataKeysResponse":             "generated strict-server type (internal/server/gen/metadata); handler coerces nil->[] via make(...,0) — handlers_metadata.go metadataEntries",
 	"MetadataValuesResponse":           "generated strict-server type (internal/server/gen/metadata); handler coerces nil->[] via make(...,0) — handlers_metadata.go metadataEntries",
