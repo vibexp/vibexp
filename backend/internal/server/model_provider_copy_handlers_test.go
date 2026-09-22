@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -111,6 +112,11 @@ func TestCopyModelProviderFromTeam_ResponseNeverCarriesKeyMaterial(t *testing.T)
 	secret := "s3cr3t-ciphertext-that-must-never-ship"
 	provider := copiedProviderRow()
 	provider.APIKeyEncrypted = &secret
+	// Pin the timestamps: time.Now() renders nanoseconds that contain "38"
+	// (len(secret)) often enough to fail the length assertion below (#1105).
+	fixed := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	provider.CreatedAt = fixed
+	provider.UpdatedAt = fixed
 
 	container := newMockModelProviderContainer(t)
 	container.modelProviderService.EXPECT().
