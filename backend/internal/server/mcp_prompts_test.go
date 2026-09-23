@@ -66,17 +66,21 @@ func TestAddUserPromptsToMCP_AcrossTeamsDedupesSlugCollision(t *testing.T) {
 	mockPrompt.On("ListPrompts", testMemberUserID,
 		mock.MatchedBy(func(f services.PromptFilters) bool { return f.TeamID == testTeamUUID }),
 	).Return(&models.PromptListResponse{
-		Prompts: []models.Prompt{{Slug: "deploy", Description: "team A deploy", Body: "hello"}},
+		Prompts: []models.Prompt{{Slug: "deploy", Description: "team A deploy", Body: "hello", TeamID: testTeamUUID}},
 	}, nil)
 	mockPrompt.On("ListPrompts", testMemberUserID,
 		mock.MatchedBy(func(f services.PromptFilters) bool { return f.TeamID == testOtherTeamUUID }),
 	).Return(&models.PromptListResponse{
-		Prompts: []models.Prompt{{Slug: "deploy", Description: "team B deploy", Body: "world"}},
+		Prompts: []models.Prompt{{Slug: "deploy", Description: "team B deploy", Body: "world", TeamID: testOtherTeamUUID}},
 	}, nil)
 
 	// Body has no placeholders, so ExtractAllPlaceholders returns an empty set.
-	mockPrompt.On("ExtractAllPlaceholders", testMemberUserID, mock.Anything, mock.Anything).
-		Return([]string{}, nil)
+	// Each prompt's @references resolve within its own team, never the
+	// reader's (#1100), so the call carries the prompt's team_id.
+	mockPrompt.On("ExtractAllPlaceholders", testTeamUUID, "hello", mock.Anything).
+		Return([]string{}, nil).Once()
+	mockPrompt.On("ExtractAllPlaceholders", testOtherTeamUUID, "world", mock.Anything).
+		Return([]string{}, nil).Once()
 
 	mcpServer := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1.0.0"}, &mcp.ServerOptions{HasPrompts: true})
 	srv.addUserPromptsToMCP(context.Background(), mcpServer, testMemberUserID)
@@ -167,11 +171,11 @@ func TestAddUserPromptsToMCP_CapsPrimitives(t *testing.T) {
 
 	prompts := make([]models.Prompt, maxPromptPrimitives+10)
 	for i := range prompts {
-		prompts[i] = models.Prompt{Slug: fmt.Sprintf("p-%d", i), Body: "x"}
+		prompts[i] = models.Prompt{Slug: fmt.Sprintf("p-%d", i), Body: "x", TeamID: testTeamUUID}
 	}
 	mockPrompt.On("ListPrompts", testMemberUserID, mock.Anything).
 		Return(&models.PromptListResponse{Prompts: prompts}, nil)
-	mockPrompt.On("ExtractAllPlaceholders", testMemberUserID, mock.Anything, mock.Anything).
+	mockPrompt.On("ExtractAllPlaceholders", testTeamUUID, mock.Anything, mock.Anything).
 		Return([]string{}, nil)
 
 	mcpServer := mcp.NewServer(

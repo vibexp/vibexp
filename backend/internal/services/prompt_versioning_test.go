@@ -68,7 +68,7 @@ func TestPromptService_UpdateSnapshotsOldBody(t *testing.T) {
 			if tt.newBody == "Hi {{name}} @intro" {
 				// The @intro reference is looked up; treat it as not found so no batch insert.
 				repo.EXPECT().
-					GetBySlugCrossTeam(mock.Anything, userID, "intro").
+					GetBySlugInTeam(mock.Anything, teamID, "intro").
 					Return(nil, repositories.ErrPromptNotFound).
 					Once()
 			}

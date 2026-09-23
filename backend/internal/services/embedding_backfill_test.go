@@ -321,7 +321,7 @@ func TestEmbeddingBackfill_Prompt_EmbedsRenderedBody(t *testing.T) {
 
 	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", "", false, mock.Anything, 0).
 		Return([]models.BackfillEntity{entity}, nil).Once()
-	renderer.EXPECT().RenderPromptBody("user-1", entity.Body).Return(renderedBody, nil).Once()
+	renderer.EXPECT().RenderPromptBody("team-1", entity.Body).Return(renderedBody, nil).Once()
 
 	var captured events.Event
 	publisher.EXPECT().
@@ -347,7 +347,7 @@ func TestEmbeddingBackfill_Prompt_RenderFailureFallsBackToRawBody(t *testing.T) 
 
 	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", "", false, mock.Anything, 0).
 		Return([]models.BackfillEntity{entity}, nil).Once()
-	renderer.EXPECT().RenderPromptBody("user-1", entity.Body).
+	renderer.EXPECT().RenderPromptBody("team-1", entity.Body).
 		Return("", errors.New("circular reference")).Once()
 
 	var captured events.Event

@@ -619,6 +619,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 
 		prompt := &models.Prompt{
 			ID:     "prompt-123",
+			TeamID: "team-123",
 			Body:   "Hello {{name}}, you are {{age}} years old.",
 			UserID: "user-123",
 		}
@@ -644,6 +645,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 
 		prompt := &models.Prompt{
 			ID:     "prompt-123",
+			TeamID: "team-123",
 			Body:   "Hello {{name}}, you are {{age}} years old.",
 			UserID: "user-123",
 		}
@@ -670,6 +672,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 
 		prompt := &models.Prompt{
 			ID:     "prompt-123",
+			TeamID: "team-123",
 			Body:   "Hello {{name}}, you are {{age}} years old.",
 			UserID: "user-123",
 		}
@@ -701,13 +704,14 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 
 		mainPrompt := &models.Prompt{
 			ID:     "prompt-123",
+			TeamID: "team-123",
 			Body:   "Main: {{main_var}} @base-prompt End.",
 			UserID: "user-123",
 		}
 
 		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
 			Return(mainPrompt, nil)
-		mockRepo.On("GetBySlugCrossTeam", mock.AnythingOfType("context.backgroundCtx"), "user-123", "base-prompt").
+		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "base-prompt").
 			Return(basePrompt, nil)
 
 		// Only provide one placeholder value
@@ -732,6 +736,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 
 		prompt := &models.Prompt{
 			ID:     "prompt-123",
+			TeamID: "team-123",
 			Body:   "Hello {{name}}, you are {{age}} years old.",
 			UserID: "user-123",
 		}
@@ -758,6 +763,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 
 		prompt := &models.Prompt{
 			ID:     "prompt-123",
+			TeamID: "team-123",
 			Body:   "Contact me at user@@example.com or @@mention me",
 			UserID: "user-123",
 		}
@@ -780,12 +786,13 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 
 		prompt := &models.Prompt{
 			ID:     "prompt-123",
+			TeamID: "team-123",
 			Body:   "This references @nonexistent prompt",
 			UserID: "user-123",
 		}
 		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
 			Return(prompt, nil)
-		mockRepo.On("GetBySlugCrossTeam", mock.AnythingOfType("context.backgroundCtx"), "user-123", "nonexistent").
+		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "nonexistent").
 			Return(nil, repositories.ErrPromptNotFound)
 
 		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{})
@@ -813,14 +820,15 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 
 		prompt := &models.Prompt{
 			ID:     "prompt-123",
+			TeamID: "team-123",
 			Body:   "Email: user@@example.com, Reference: @base, Missing: @missing",
 			UserID: "user-123",
 		}
 		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
 			Return(prompt, nil)
-		mockRepo.On("GetBySlugCrossTeam", mock.AnythingOfType("context.backgroundCtx"), "user-123", "base").
+		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "base").
 			Return(basePrompt, nil)
-		mockRepo.On("GetBySlugCrossTeam", mock.AnythingOfType("context.backgroundCtx"), "user-123", "missing").
+		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "missing").
 			Return(nil, repositories.ErrPromptNotFound)
 
 		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{})
@@ -854,15 +862,16 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 
 		prompt := &models.Prompt{
 			ID:     "prompt-123",
+			TeamID: "team-123",
 			Body:   "Start @@symbol @base finish",
 			UserID: "user-123",
 		}
 
 		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
 			Return(prompt, nil)
-		mockRepo.On("GetBySlugCrossTeam", mock.AnythingOfType("context.backgroundCtx"), "user-123", "base").
+		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "base").
 			Return(basePrompt, nil)
-		mockRepo.On("GetBySlugCrossTeam", mock.AnythingOfType("context.backgroundCtx"), "user-123", "nested").
+		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "nested").
 			Return(nestedPrompt, nil)
 
 		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{})
@@ -883,6 +892,7 @@ func TestPromptService_GetPromptPlaceholders(t *testing.T) {
 
 		prompt := &models.Prompt{
 			ID:     "prompt-123",
+			TeamID: "team-123",
 			Body:   "Hello {{name}}, you are {{age}} years old. Welcome {{name}}!",
 			UserID: "user-123",
 		}
@@ -1050,7 +1060,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 		}
 
 		// Mock getting the referenced prompt during rendering
-		mockRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "base-prompt").
+		mockRepo.On("GetBySlugInTeam", mock.Anything, "team-123", "base-prompt").
 			Return(referencedPrompt, nil)
 
 		// Mock creating the main prompt
@@ -1144,6 +1154,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 			Description: "Test Description",
 			Body:        "Old body",
 			UserID:      "user-123",
+			TeamID:      "team-123",
 			Status:      "published",
 		}
 
@@ -1159,7 +1170,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 			Return(existingPrompt, nil)
 
 		// Mock getting the referenced prompt during rendering
-		mockRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "footer-prompt").
+		mockRepo.On("GetBySlugInTeam", mock.Anything, "team-123", "footer-prompt").
 			Return(referencedPrompt, nil)
 
 		mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.Prompt")).
@@ -2043,9 +2054,9 @@ func TestPromptService_RenderPrompt_PlaceholdersMissing(t *testing.T) {
 		mockRepo := mocks.NewMockPromptRepository(t)
 		service := createTestPromptService(mockRepo, nil)
 		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
-			Return(&models.Prompt{ID: "prompt-123", Body: body, UserID: "user-123"}, nil)
+			Return(&models.Prompt{ID: "prompt-123", Body: body, UserID: "user-123", TeamID: "team-123"}, nil)
 		for slug, refBody := range refs {
-			mockRepo.On("GetBySlugCrossTeam", mock.AnythingOfType("context.backgroundCtx"), "user-123", slug).
+			mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", slug).
 				Return(&models.Prompt{ID: slug + "-id", Slug: slug, Body: refBody, UserID: "user-123"}, nil)
 		}
 		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders)
@@ -2096,8 +2107,8 @@ func TestPromptService_RenderPrompt_PlaceholdersMissing(t *testing.T) {
 		mockRepo := mocks.NewMockPromptRepository(t)
 		service := createTestPromptService(mockRepo, nil)
 		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
-			Return(&models.Prompt{ID: "prompt-123", Body: "{{a}} @ghost", UserID: "user-123"}, nil)
-		mockRepo.On("GetBySlugCrossTeam", mock.AnythingOfType("context.backgroundCtx"), "user-123", "ghost").
+			Return(&models.Prompt{ID: "prompt-123", Body: "{{a}} @ghost", UserID: "user-123", TeamID: "team-123"}, nil)
+		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "ghost").
 			Return(nil, repositories.ErrPromptNotFound)
 
 		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{})

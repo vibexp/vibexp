@@ -17,9 +17,9 @@ func (_m *MockPromptBodyRenderer) EXPECT() *MockPromptBodyRenderer_Expecter {
 	return &MockPromptBodyRenderer_Expecter{mock: &_m.Mock}
 }
 
-// RenderPromptBody provides a mock function with given fields: userID, body
-func (_m *MockPromptBodyRenderer) RenderPromptBody(userID string, body string) (string, error) {
-	ret := _m.Called(userID, body)
+// RenderPromptBody provides a mock function with given fields: teamID, body
+func (_m *MockPromptBodyRenderer) RenderPromptBody(teamID string, body string) (string, error) {
+	ret := _m.Called(teamID, body)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RenderPromptBody")
@@ -28,16 +28,16 @@ func (_m *MockPromptBodyRenderer) RenderPromptBody(userID string, body string) (
 	var r0 string
 	var r1 error
 	if rf, ok := ret.Get(0).(func(string, string) (string, error)); ok {
-		return rf(userID, body)
+		return rf(teamID, body)
 	}
 	if rf, ok := ret.Get(0).(func(string, string) string); ok {
-		r0 = rf(userID, body)
+		r0 = rf(teamID, body)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
 	if rf, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = rf(userID, body)
+		r1 = rf(teamID, body)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -51,13 +51,13 @@ type MockPromptBodyRenderer_RenderPromptBody_Call struct {
 }
 
 // RenderPromptBody is a helper method to define mock.On call
-//   - userID string
+//   - teamID string
 //   - body string
-func (_e *MockPromptBodyRenderer_Expecter) RenderPromptBody(userID interface{}, body interface{}) *MockPromptBodyRenderer_RenderPromptBody_Call {
-	return &MockPromptBodyRenderer_RenderPromptBody_Call{Call: _e.mock.On("RenderPromptBody", userID, body)}
+func (_e *MockPromptBodyRenderer_Expecter) RenderPromptBody(teamID interface{}, body interface{}) *MockPromptBodyRenderer_RenderPromptBody_Call {
+	return &MockPromptBodyRenderer_RenderPromptBody_Call{Call: _e.mock.On("RenderPromptBody", teamID, body)}
 }
 
-func (_c *MockPromptBodyRenderer_RenderPromptBody_Call) Run(run func(userID string, body string)) *MockPromptBodyRenderer_RenderPromptBody_Call {
+func (_c *MockPromptBodyRenderer_RenderPromptBody_Call) Run(run func(teamID string, body string)) *MockPromptBodyRenderer_RenderPromptBody_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(string), args[1].(string))
 	})

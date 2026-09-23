@@ -178,9 +178,9 @@ func (_c *MockPromptServiceInterface_DeletePromptBySlug_Call) RunAndReturn(run f
 	return _c
 }
 
-// ExtractAllPlaceholders provides a mock function with given fields: userID, body, visitedRefs
-func (_m *MockPromptServiceInterface) ExtractAllPlaceholders(userID string, body string, visitedRefs map[string]bool) ([]string, error) {
-	ret := _m.Called(userID, body, visitedRefs)
+// ExtractAllPlaceholders provides a mock function with given fields: teamID, body, visitedRefs
+func (_m *MockPromptServiceInterface) ExtractAllPlaceholders(teamID string, body string, visitedRefs map[string]bool) ([]string, error) {
+	ret := _m.Called(teamID, body, visitedRefs)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ExtractAllPlaceholders")
@@ -189,10 +189,10 @@ func (_m *MockPromptServiceInterface) ExtractAllPlaceholders(userID string, body
 	var r0 []string
 	var r1 error
 	if rf, ok := ret.Get(0).(func(string, string, map[string]bool) ([]string, error)); ok {
-		return rf(userID, body, visitedRefs)
+		return rf(teamID, body, visitedRefs)
 	}
 	if rf, ok := ret.Get(0).(func(string, string, map[string]bool) []string); ok {
-		r0 = rf(userID, body, visitedRefs)
+		r0 = rf(teamID, body, visitedRefs)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]string)
@@ -200,7 +200,7 @@ func (_m *MockPromptServiceInterface) ExtractAllPlaceholders(userID string, body
 	}
 
 	if rf, ok := ret.Get(1).(func(string, string, map[string]bool) error); ok {
-		r1 = rf(userID, body, visitedRefs)
+		r1 = rf(teamID, body, visitedRefs)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -214,14 +214,14 @@ type MockPromptServiceInterface_ExtractAllPlaceholders_Call struct {
 }
 
 // ExtractAllPlaceholders is a helper method to define mock.On call
-//   - userID string
+//   - teamID string
 //   - body string
 //   - visitedRefs map[string]bool
-func (_e *MockPromptServiceInterface_Expecter) ExtractAllPlaceholders(userID interface{}, body interface{}, visitedRefs interface{}) *MockPromptServiceInterface_ExtractAllPlaceholders_Call {
-	return &MockPromptServiceInterface_ExtractAllPlaceholders_Call{Call: _e.mock.On("ExtractAllPlaceholders", userID, body, visitedRefs)}
+func (_e *MockPromptServiceInterface_Expecter) ExtractAllPlaceholders(teamID interface{}, body interface{}, visitedRefs interface{}) *MockPromptServiceInterface_ExtractAllPlaceholders_Call {
+	return &MockPromptServiceInterface_ExtractAllPlaceholders_Call{Call: _e.mock.On("ExtractAllPlaceholders", teamID, body, visitedRefs)}
 }
 
-func (_c *MockPromptServiceInterface_ExtractAllPlaceholders_Call) Run(run func(userID string, body string, visitedRefs map[string]bool)) *MockPromptServiceInterface_ExtractAllPlaceholders_Call {
+func (_c *MockPromptServiceInterface_ExtractAllPlaceholders_Call) Run(run func(teamID string, body string, visitedRefs map[string]bool)) *MockPromptServiceInterface_ExtractAllPlaceholders_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(string), args[1].(string), args[2].(map[string]bool))
 	})
@@ -837,9 +837,9 @@ func (_c *MockPromptServiceInterface_RenderPrompt_Call) RunAndReturn(run func(st
 	return _c
 }
 
-// RenderPromptBody provides a mock function with given fields: userID, body
-func (_m *MockPromptServiceInterface) RenderPromptBody(userID string, body string) (string, error) {
-	ret := _m.Called(userID, body)
+// RenderPromptBody provides a mock function with given fields: teamID, body
+func (_m *MockPromptServiceInterface) RenderPromptBody(teamID string, body string) (string, error) {
+	ret := _m.Called(teamID, body)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RenderPromptBody")
@@ -848,16 +848,16 @@ func (_m *MockPromptServiceInterface) RenderPromptBody(userID string, body strin
 	var r0 string
 	var r1 error
 	if rf, ok := ret.Get(0).(func(string, string) (string, error)); ok {
-		return rf(userID, body)
+		return rf(teamID, body)
 	}
 	if rf, ok := ret.Get(0).(func(string, string) string); ok {
-		r0 = rf(userID, body)
+		r0 = rf(teamID, body)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
 	if rf, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = rf(userID, body)
+		r1 = rf(teamID, body)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -871,13 +871,13 @@ type MockPromptServiceInterface_RenderPromptBody_Call struct {
 }
 
 // RenderPromptBody is a helper method to define mock.On call
-//   - userID string
+//   - teamID string
 //   - body string
-func (_e *MockPromptServiceInterface_Expecter) RenderPromptBody(userID interface{}, body interface{}) *MockPromptServiceInterface_RenderPromptBody_Call {
-	return &MockPromptServiceInterface_RenderPromptBody_Call{Call: _e.mock.On("RenderPromptBody", userID, body)}
+func (_e *MockPromptServiceInterface_Expecter) RenderPromptBody(teamID interface{}, body interface{}) *MockPromptServiceInterface_RenderPromptBody_Call {
+	return &MockPromptServiceInterface_RenderPromptBody_Call{Call: _e.mock.On("RenderPromptBody", teamID, body)}
 }
 
-func (_c *MockPromptServiceInterface_RenderPromptBody_Call) Run(run func(userID string, body string)) *MockPromptServiceInterface_RenderPromptBody_Call {
+func (_c *MockPromptServiceInterface_RenderPromptBody_Call) Run(run func(teamID string, body string)) *MockPromptServiceInterface_RenderPromptBody_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(string), args[1].(string))
 	})

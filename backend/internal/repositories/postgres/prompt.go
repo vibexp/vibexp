@@ -181,8 +181,12 @@ func (r *PromptRepository) GetByIDCrossTeam(ctx context.Context, userID, promptI
 	return &prompt, nil
 }
 
-// GetBySlugCrossTeam retrieves a prompt by slug across all user's teams
-func (r *PromptRepository) GetBySlugCrossTeam(ctx context.Context, userID, slug string) (*models.Prompt, error) {
+// GetBySlugInTeam retrieves a prompt by slug within a team, regardless of who
+// authored it. It is tenancy-only (no user or role predicate): callers resolve
+// @slug references inside the owning team of a prompt they already loaded
+// through a membership-checked lookup. Slugs are unique per team
+// (prompts_slug_team_id_key), so the result is deterministic.
+func (r *PromptRepository) GetBySlugInTeam(ctx context.Context, teamID, slug string) (*models.Prompt, error) {
 	query := `
 		SELECT
 			p.id, p.name, p.slug, p.description, p.body, p.user_id, p.team_id, p.project_id,
@@ -192,11 +196,11 @@ func (r *PromptRepository) GetBySlugCrossTeam(ctx context.Context, userID, slug 
 		LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 			AND ps.is_active = true
 			AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
-		WHERE p.slug = $1 AND p.user_id = $2
+		WHERE p.slug = $1 AND p.team_id = $2
 	`
 
 	var prompt models.Prompt
-	err := r.db.QueryRowContext(ctx, query, slug, userID).Scan(
+	err := r.db.QueryRowContext(ctx, query, slug, teamID).Scan(
 		&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description, &prompt.Body,
 		&prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose,
 		&prompt.Labels, &prompt.CreatedAt, &prompt.UpdatedAt, &prompt.Version, &prompt.IsShared,
@@ -204,7 +208,7 @@ func (r *PromptRepository) GetBySlugCrossTeam(ctx context.Context, userID, slug 
 
 	if err != nil {
 		return nil, mapNoRows(
-			fmt.Errorf("failed to get prompt by slug (cross-team): %w", err),
+			fmt.Errorf("failed to get prompt by slug in team: %w", err),
 			repositories.ErrPromptNotFound,
 		)
 	}

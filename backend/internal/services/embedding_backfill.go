@@ -119,7 +119,7 @@ type EmbeddingBackfiller interface {
 // than the raw `{{...}}` template, keeping backfilled embeddings identical to
 // the live pipeline's.
 type PromptBodyRenderer interface {
-	RenderPromptBody(userID, body string) (string, error)
+	RenderPromptBody(teamID, body string) (string, error)
 }
 
 // EmbeddingBackfillService implements EmbeddingBackfiller.
@@ -420,7 +420,7 @@ func (s *EmbeddingBackfillService) buildCreatedEvent(e *models.BackfillEntity) (
 // failure falls back to the raw body (matching the live path's fallback), so a
 // single unresolvable reference never aborts the run.
 func (s *EmbeddingBackfillService) renderPromptBody(e *models.BackfillEntity) string {
-	rendered, err := s.promptRenderer.RenderPromptBody(e.UserID, e.Body)
+	rendered, err := s.promptRenderer.RenderPromptBody(e.TeamID, e.Body)
 	if err != nil {
 		s.logger.With("error", err).
 			With(

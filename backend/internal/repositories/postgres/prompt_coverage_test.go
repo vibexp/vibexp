@@ -69,19 +69,19 @@ func TestPromptRepository_GetByIDCrossTeam(t *testing.T) {
 	})
 }
 
-func TestPromptRepository_GetBySlugCrossTeam(t *testing.T) {
+func TestPromptRepository_GetBySlugInTeam(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	t.Run("found returns the prompt by slug", func(t *testing.T) {
+	t.Run("found returns the team's prompt by slug, filtered on team not user", func(t *testing.T) {
 		repo, mock, mockDB := setupPromptListTest(t)
 		defer closeMockDB(t, mockDB)
 
-		mock.ExpectQuery(`FROM prompts p .* WHERE p\.slug = \$1 AND p\.user_id = \$2`).
-			WithArgs("my-slug", "user-1").
+		mock.ExpectQuery(`FROM prompts p .* WHERE p\.slug = \$1 AND p\.team_id = \$2\s*$`).
+			WithArgs("my-slug", "team-1").
 			WillReturnRows(promptCrossTeamRow(now))
 
-		got, err := repo.GetBySlugCrossTeam(ctx, "user-1", "my-slug")
+		got, err := repo.GetBySlugInTeam(ctx, "team-1", "my-slug")
 		require.NoError(t, err)
 		assert.Equal(t, "prompt-1", got.ID)
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -92,10 +92,10 @@ func TestPromptRepository_GetBySlugCrossTeam(t *testing.T) {
 		defer closeMockDB(t, mockDB)
 
 		mock.ExpectQuery(`FROM prompts p`).
-			WithArgs("missing-slug", "user-1").
+			WithArgs("missing-slug", "team-1").
 			WillReturnError(sql.ErrNoRows)
 
-		got, err := repo.GetBySlugCrossTeam(ctx, "user-1", "missing-slug")
+		got, err := repo.GetBySlugInTeam(ctx, "team-1", "missing-slug")
 		assert.ErrorIs(t, err, repositories.ErrPromptNotFound)
 		assert.Nil(t, got)
 	})

@@ -53,15 +53,31 @@ func (s *PromptShareService) generateShareToken() (string, error) {
 	return token, nil
 }
 
+// getOwnedPrompt loads a prompt by slug within teamID (membership-checked) and
+// requires userID to be its author: sharing stays author-only, and the team
+// disambiguates a slug the user also has in another team (#1100).
+func (s *PromptShareService) getOwnedPrompt(
+	ctx context.Context, userID, teamID, promptSlug string,
+) (*models.Prompt, error) {
+	prompt, err := s.promptRepo.GetBySlug(ctx, userID, teamID, promptSlug)
+	if err != nil {
+		return nil, err
+	}
+	if prompt.UserID != userID {
+		return nil, repositories.ErrPromptNotFound
+	}
+	return prompt, nil
+}
+
 // CreateShare creates or updates a share for a prompt
 func (s *PromptShareService) CreateShare(
-	userID, promptSlug string,
+	userID, teamID, promptSlug string,
 	req *models.CreateShareRequest,
 ) (*models.ShareResponse, error) {
 	ctx := context.Background()
 
-	// Verify prompt exists and user owns it across all user's teams
-	prompt, err := s.promptRepo.GetBySlugCrossTeam(ctx, userID, promptSlug)
+	// Verify prompt exists in the URL's team and the user authored it
+	prompt, err := s.getOwnedPrompt(ctx, userID, teamID, promptSlug)
 	if err != nil {
 		return nil, fmt.Errorf("prompt not found")
 	}
@@ -170,11 +186,11 @@ func (s *PromptShareService) createNewShare(
 }
 
 // GetShare retrieves share details for a prompt
-func (s *PromptShareService) GetShare(userID, promptSlug string) (*models.ShareResponse, error) {
+func (s *PromptShareService) GetShare(userID, teamID, promptSlug string) (*models.ShareResponse, error) {
 	ctx := context.Background()
 
-	// Verify prompt exists and user owns it across all user's teams
-	prompt, err := s.promptRepo.GetBySlugCrossTeam(ctx, userID, promptSlug)
+	// Verify prompt exists in the URL's team and the user authored it
+	prompt, err := s.getOwnedPrompt(ctx, userID, teamID, promptSlug)
 	if err != nil {
 		return nil, fmt.Errorf("prompt not found")
 	}
@@ -203,11 +219,11 @@ func (s *PromptShareService) GetShare(userID, promptSlug string) (*models.ShareR
 }
 
 // DeleteShare deletes a share for a prompt
-func (s *PromptShareService) DeleteShare(userID, promptSlug string) error {
+func (s *PromptShareService) DeleteShare(userID, teamID, promptSlug string) error {
 	ctx := context.Background()
 
-	// Verify prompt exists and user owns it across all user's teams
-	prompt, err := s.promptRepo.GetBySlugCrossTeam(ctx, userID, promptSlug)
+	// Verify prompt exists in the URL's team and the user authored it
+	prompt, err := s.getOwnedPrompt(ctx, userID, teamID, promptSlug)
 	if err != nil {
 		return fmt.Errorf("prompt not found")
 	}
@@ -303,13 +319,12 @@ func (s *PromptShareService) renderSharedPromptBody(prompt *models.Prompt) strin
 		return prompt.Body
 	}
 
-	// Use the prompt service's render method to resolve @references
-	// We'll pass empty placeholders map so they remain in the output
-	// Pass empty teamID for shared prompts
-	renderResp, renderErr := s.promptService.RenderPrompt(prompt.UserID, "", prompt.Slug, make(map[string]string))
+	// Resolve @references within the prompt's own team. RenderPromptBody passes
+	// an empty placeholders map, so {{placeholders}} remain in the output.
+	rendered, renderErr := s.promptService.RenderPromptBody(prompt.TeamID, prompt.Body)
 	if renderErr != nil {
 		s.logger.With("error", renderErr).Warn("Failed to render prompt, using raw body")
 		return prompt.Body
 	}
-	return renderResp.RenderedBody
+	return rendered
 }

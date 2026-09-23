@@ -170,7 +170,7 @@ var createPromptShareTests = []struct {
 		setupMocks: func(mockService *svcmocks.MockPromptShareServiceInterface) {
 			now := time.Now()
 			mockService.EXPECT().
-				CreateShare("test-user", "test-prompt", mock.MatchedBy(func(req *models.CreateShareRequest) bool {
+				CreateShare("test-user", "550e8400-e29b-41d4-a716-446655440000", "test-prompt", mock.MatchedBy(func(req *models.CreateShareRequest) bool {
 					return req.ShareType == "public"
 				})).
 				Return(&models.ShareResponse{
@@ -199,7 +199,7 @@ var createPromptShareTests = []struct {
 		setupMocks: func(mockService *svcmocks.MockPromptShareServiceInterface) {
 			now := time.Now()
 			mockService.EXPECT().
-				CreateShare("test-user", "test-prompt", mock.MatchedBy(func(req *models.CreateShareRequest) bool {
+				CreateShare("test-user", "550e8400-e29b-41d4-a716-446655440000", "test-prompt", mock.MatchedBy(func(req *models.CreateShareRequest) bool {
 					return req.ShareType == "restricted" && len(req.Emails) == 2
 				})).
 				Return(&models.ShareResponse{
@@ -226,7 +226,7 @@ var createPromptShareTests = []struct {
 		},
 		setupMocks: func(mockService *svcmocks.MockPromptShareServiceInterface) {
 			mockService.EXPECT().
-				CreateShare("test-user", "test-prompt", mock.Anything).
+				CreateShare("test-user", "550e8400-e29b-41d4-a716-446655440000", "test-prompt", mock.Anything).
 				Return(nil, fmt.Errorf("prompt not found"))
 		},
 		expectedStatus: http.StatusNotFound,
@@ -264,7 +264,7 @@ func TestGetPromptShare_Integration(t *testing.T) {
 			setupMocks: func(mockService *svcmocks.MockPromptShareServiceInterface) {
 				now := time.Now()
 				mockService.EXPECT().
-					GetShare("test-user", "test-prompt").
+					GetShare("test-user", "550e8400-e29b-41d4-a716-446655440000", "test-prompt").
 					Return(&models.ShareResponse{
 						ShareToken: "abc123xyz789",
 						ShareURL:   "/shared/prompts/abc123xyz789",
@@ -285,7 +285,7 @@ func TestGetPromptShare_Integration(t *testing.T) {
 			slug: "nonexistent",
 			setupMocks: func(mockService *svcmocks.MockPromptShareServiceInterface) {
 				mockService.EXPECT().
-					GetShare("test-user", "nonexistent").
+					GetShare("test-user", "550e8400-e29b-41d4-a716-446655440000", "nonexistent").
 					Return(nil, fmt.Errorf("share not found"))
 			},
 			expectedStatus: http.StatusNotFound,
@@ -319,7 +319,7 @@ func TestDeletePromptShare_Integration(t *testing.T) {
 			slug: "test-prompt",
 			setupMocks: func(mockService *svcmocks.MockPromptShareServiceInterface) {
 				mockService.EXPECT().
-					DeleteShare("test-user", "test-prompt").
+					DeleteShare("test-user", "550e8400-e29b-41d4-a716-446655440000", "test-prompt").
 					Return(nil)
 			},
 			expectedStatus: http.StatusNoContent,
@@ -329,7 +329,7 @@ func TestDeletePromptShare_Integration(t *testing.T) {
 			slug: "nonexistent",
 			setupMocks: func(mockService *svcmocks.MockPromptShareServiceInterface) {
 				mockService.EXPECT().
-					DeleteShare("test-user", "nonexistent").
+					DeleteShare("test-user", "550e8400-e29b-41d4-a716-446655440000", "nonexistent").
 					Return(fmt.Errorf("share not found"))
 			},
 			expectedStatus: http.StatusNotFound,

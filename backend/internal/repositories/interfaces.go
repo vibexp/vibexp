@@ -452,8 +452,9 @@ type PromptRepository interface {
 	GetBySlug(ctx context.Context, userID, teamID, slug string) (*models.Prompt, error)
 	// GetByIDCrossTeam searches for a prompt across all user's teams
 	GetByIDCrossTeam(ctx context.Context, userID, promptID string) (*models.Prompt, error)
-	// GetBySlugCrossTeam searches for a prompt across all user's teams
-	GetBySlugCrossTeam(ctx context.Context, userID, slug string) (*models.Prompt, error)
+	// GetBySlugInTeam looks a prompt up by slug within a team, whoever authored
+	// it. Tenancy-only: the caller must already have checked team membership.
+	GetBySlugInTeam(ctx context.Context, teamID, slug string) (*models.Prompt, error)
 	List(ctx context.Context, userID string, filters PromptFilters) ([]models.Prompt, int, error)
 	Update(ctx context.Context, prompt *models.Prompt) error
 	Delete(ctx context.Context, userID, teamID, promptID string) error

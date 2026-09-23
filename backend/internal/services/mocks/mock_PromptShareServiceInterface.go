@@ -20,9 +20,9 @@ func (_m *MockPromptShareServiceInterface) EXPECT() *MockPromptShareServiceInter
 	return &MockPromptShareServiceInterface_Expecter{mock: &_m.Mock}
 }
 
-// CreateShare provides a mock function with given fields: userID, promptSlug, req
-func (_m *MockPromptShareServiceInterface) CreateShare(userID string, promptSlug string, req *models.CreateShareRequest) (*models.ShareResponse, error) {
-	ret := _m.Called(userID, promptSlug, req)
+// CreateShare provides a mock function with given fields: userID, teamID, promptSlug, req
+func (_m *MockPromptShareServiceInterface) CreateShare(userID string, teamID string, promptSlug string, req *models.CreateShareRequest) (*models.ShareResponse, error) {
+	ret := _m.Called(userID, teamID, promptSlug, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateShare")
@@ -30,19 +30,19 @@ func (_m *MockPromptShareServiceInterface) CreateShare(userID string, promptSlug
 
 	var r0 *models.ShareResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, *models.CreateShareRequest) (*models.ShareResponse, error)); ok {
-		return rf(userID, promptSlug, req)
+	if rf, ok := ret.Get(0).(func(string, string, string, *models.CreateShareRequest) (*models.ShareResponse, error)); ok {
+		return rf(userID, teamID, promptSlug, req)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, *models.CreateShareRequest) *models.ShareResponse); ok {
-		r0 = rf(userID, promptSlug, req)
+	if rf, ok := ret.Get(0).(func(string, string, string, *models.CreateShareRequest) *models.ShareResponse); ok {
+		r0 = rf(userID, teamID, promptSlug, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.ShareResponse)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, *models.CreateShareRequest) error); ok {
-		r1 = rf(userID, promptSlug, req)
+	if rf, ok := ret.Get(1).(func(string, string, string, *models.CreateShareRequest) error); ok {
+		r1 = rf(userID, teamID, promptSlug, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -57,15 +57,16 @@ type MockPromptShareServiceInterface_CreateShare_Call struct {
 
 // CreateShare is a helper method to define mock.On call
 //   - userID string
+//   - teamID string
 //   - promptSlug string
 //   - req *models.CreateShareRequest
-func (_e *MockPromptShareServiceInterface_Expecter) CreateShare(userID interface{}, promptSlug interface{}, req interface{}) *MockPromptShareServiceInterface_CreateShare_Call {
-	return &MockPromptShareServiceInterface_CreateShare_Call{Call: _e.mock.On("CreateShare", userID, promptSlug, req)}
+func (_e *MockPromptShareServiceInterface_Expecter) CreateShare(userID interface{}, teamID interface{}, promptSlug interface{}, req interface{}) *MockPromptShareServiceInterface_CreateShare_Call {
+	return &MockPromptShareServiceInterface_CreateShare_Call{Call: _e.mock.On("CreateShare", userID, teamID, promptSlug, req)}
 }
 
-func (_c *MockPromptShareServiceInterface_CreateShare_Call) Run(run func(userID string, promptSlug string, req *models.CreateShareRequest)) *MockPromptShareServiceInterface_CreateShare_Call {
+func (_c *MockPromptShareServiceInterface_CreateShare_Call) Run(run func(userID string, teamID string, promptSlug string, req *models.CreateShareRequest)) *MockPromptShareServiceInterface_CreateShare_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(*models.CreateShareRequest))
+		run(args[0].(string), args[1].(string), args[2].(string), args[3].(*models.CreateShareRequest))
 	})
 	return _c
 }
@@ -75,22 +76,22 @@ func (_c *MockPromptShareServiceInterface_CreateShare_Call) Return(_a0 *models.S
 	return _c
 }
 
-func (_c *MockPromptShareServiceInterface_CreateShare_Call) RunAndReturn(run func(string, string, *models.CreateShareRequest) (*models.ShareResponse, error)) *MockPromptShareServiceInterface_CreateShare_Call {
+func (_c *MockPromptShareServiceInterface_CreateShare_Call) RunAndReturn(run func(string, string, string, *models.CreateShareRequest) (*models.ShareResponse, error)) *MockPromptShareServiceInterface_CreateShare_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DeleteShare provides a mock function with given fields: userID, promptSlug
-func (_m *MockPromptShareServiceInterface) DeleteShare(userID string, promptSlug string) error {
-	ret := _m.Called(userID, promptSlug)
+// DeleteShare provides a mock function with given fields: userID, teamID, promptSlug
+func (_m *MockPromptShareServiceInterface) DeleteShare(userID string, teamID string, promptSlug string) error {
+	ret := _m.Called(userID, teamID, promptSlug)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteShare")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string) error); ok {
-		r0 = rf(userID, promptSlug)
+	if rf, ok := ret.Get(0).(func(string, string, string) error); ok {
+		r0 = rf(userID, teamID, promptSlug)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -105,14 +106,15 @@ type MockPromptShareServiceInterface_DeleteShare_Call struct {
 
 // DeleteShare is a helper method to define mock.On call
 //   - userID string
+//   - teamID string
 //   - promptSlug string
-func (_e *MockPromptShareServiceInterface_Expecter) DeleteShare(userID interface{}, promptSlug interface{}) *MockPromptShareServiceInterface_DeleteShare_Call {
-	return &MockPromptShareServiceInterface_DeleteShare_Call{Call: _e.mock.On("DeleteShare", userID, promptSlug)}
+func (_e *MockPromptShareServiceInterface_Expecter) DeleteShare(userID interface{}, teamID interface{}, promptSlug interface{}) *MockPromptShareServiceInterface_DeleteShare_Call {
+	return &MockPromptShareServiceInterface_DeleteShare_Call{Call: _e.mock.On("DeleteShare", userID, teamID, promptSlug)}
 }
 
-func (_c *MockPromptShareServiceInterface_DeleteShare_Call) Run(run func(userID string, promptSlug string)) *MockPromptShareServiceInterface_DeleteShare_Call {
+func (_c *MockPromptShareServiceInterface_DeleteShare_Call) Run(run func(userID string, teamID string, promptSlug string)) *MockPromptShareServiceInterface_DeleteShare_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string))
+		run(args[0].(string), args[1].(string), args[2].(string))
 	})
 	return _c
 }
@@ -122,14 +124,14 @@ func (_c *MockPromptShareServiceInterface_DeleteShare_Call) Return(_a0 error) *M
 	return _c
 }
 
-func (_c *MockPromptShareServiceInterface_DeleteShare_Call) RunAndReturn(run func(string, string) error) *MockPromptShareServiceInterface_DeleteShare_Call {
+func (_c *MockPromptShareServiceInterface_DeleteShare_Call) RunAndReturn(run func(string, string, string) error) *MockPromptShareServiceInterface_DeleteShare_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// GetShare provides a mock function with given fields: userID, promptSlug
-func (_m *MockPromptShareServiceInterface) GetShare(userID string, promptSlug string) (*models.ShareResponse, error) {
-	ret := _m.Called(userID, promptSlug)
+// GetShare provides a mock function with given fields: userID, teamID, promptSlug
+func (_m *MockPromptShareServiceInterface) GetShare(userID string, teamID string, promptSlug string) (*models.ShareResponse, error) {
+	ret := _m.Called(userID, teamID, promptSlug)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetShare")
@@ -137,19 +139,19 @@ func (_m *MockPromptShareServiceInterface) GetShare(userID string, promptSlug st
 
 	var r0 *models.ShareResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string) (*models.ShareResponse, error)); ok {
-		return rf(userID, promptSlug)
+	if rf, ok := ret.Get(0).(func(string, string, string) (*models.ShareResponse, error)); ok {
+		return rf(userID, teamID, promptSlug)
 	}
-	if rf, ok := ret.Get(0).(func(string, string) *models.ShareResponse); ok {
-		r0 = rf(userID, promptSlug)
+	if rf, ok := ret.Get(0).(func(string, string, string) *models.ShareResponse); ok {
+		r0 = rf(userID, teamID, promptSlug)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.ShareResponse)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = rf(userID, promptSlug)
+	if rf, ok := ret.Get(1).(func(string, string, string) error); ok {
+		r1 = rf(userID, teamID, promptSlug)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -164,14 +166,15 @@ type MockPromptShareServiceInterface_GetShare_Call struct {
 
 // GetShare is a helper method to define mock.On call
 //   - userID string
+//   - teamID string
 //   - promptSlug string
-func (_e *MockPromptShareServiceInterface_Expecter) GetShare(userID interface{}, promptSlug interface{}) *MockPromptShareServiceInterface_GetShare_Call {
-	return &MockPromptShareServiceInterface_GetShare_Call{Call: _e.mock.On("GetShare", userID, promptSlug)}
+func (_e *MockPromptShareServiceInterface_Expecter) GetShare(userID interface{}, teamID interface{}, promptSlug interface{}) *MockPromptShareServiceInterface_GetShare_Call {
+	return &MockPromptShareServiceInterface_GetShare_Call{Call: _e.mock.On("GetShare", userID, teamID, promptSlug)}
 }
 
-func (_c *MockPromptShareServiceInterface_GetShare_Call) Run(run func(userID string, promptSlug string)) *MockPromptShareServiceInterface_GetShare_Call {
+func (_c *MockPromptShareServiceInterface_GetShare_Call) Run(run func(userID string, teamID string, promptSlug string)) *MockPromptShareServiceInterface_GetShare_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string))
+		run(args[0].(string), args[1].(string), args[2].(string))
 	})
 	return _c
 }
@@ -181,7 +184,7 @@ func (_c *MockPromptShareServiceInterface_GetShare_Call) Return(_a0 *models.Shar
 	return _c
 }
 
-func (_c *MockPromptShareServiceInterface_GetShare_Call) RunAndReturn(run func(string, string) (*models.ShareResponse, error)) *MockPromptShareServiceInterface_GetShare_Call {
+func (_c *MockPromptShareServiceInterface_GetShare_Call) RunAndReturn(run func(string, string, string) (*models.ShareResponse, error)) *MockPromptShareServiceInterface_GetShare_Call {
 	_c.Call.Return(run)
 	return _c
 }
