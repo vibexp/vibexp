@@ -72,26 +72,19 @@ func validateProviderBaseURLScheme(baseURL string) error {
 // unguarded client, so forgetting to thread one through cannot silently reopen
 // the hole.
 //
-// Pool settings mirror newAgentCardHTTPClient: the previous bare
-// &http.Client{Timeout} used http.DefaultTransport's shared pool, so an untuned
-// per-provider transport would quietly drop connection reuse for the embedding
-// worker, which issues many requests per run.
+// The returned client is a cheap per-call-site wrapper: only its Timeout is its
+// own (each call site keeps a distinct one — validation probes, completions,
+// embeddings). The transport is the guard's shared one (#1082), so every
+// provider built from the same guard pools connections instead of paying a
+// fresh TCP+TLS handshake per construction. Nothing may mutate the returned
+// client's Transport or call CloseIdleConnections on it — it is shared.
 func newProviderHTTPClient(guard *ssrfGuard, timeout time.Duration) *http.Client {
 	if guard == nil {
 		guard = defaultSSRFGuard
 	}
-	transport := guard.newSSRFSafeTransport(&http.Transport{
-		MaxIdleConns:          100,
-		MaxIdleConnsPerHost:   10,
-		MaxConnsPerHost:       50,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		ForceAttemptHTTP2:     true,
-	})
 	return &http.Client{
 		Timeout:   timeout,
-		Transport: transport,
+		Transport: guard.sharedProviderTransport(),
 	}
 }
 
