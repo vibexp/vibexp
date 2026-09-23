@@ -65,6 +65,7 @@ const settings: TeamAISummarySettings = {
   values: instanceDefaults,
   instance_defaults: instanceDefaults,
   max_top_n: 10,
+  max_output_tokens_ceiling: 4096,
   available: true,
 }
 

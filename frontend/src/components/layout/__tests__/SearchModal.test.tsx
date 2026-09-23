@@ -51,6 +51,7 @@ function settings(available: boolean, enabled: boolean): TeamAISummarySettings {
     values,
     instance_defaults: values,
     max_top_n: 10,
+    max_output_tokens_ceiling: 4096,
     available,
   }
 }

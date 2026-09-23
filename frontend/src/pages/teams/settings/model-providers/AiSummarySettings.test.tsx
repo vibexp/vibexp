@@ -77,6 +77,7 @@ const instanceSettings: TeamAISummarySettings = {
   values: defaults,
   instance_defaults: defaults,
   max_top_n: 10,
+  max_output_tokens_ceiling: 4096,
   available: true,
 }
 
@@ -208,6 +209,22 @@ describe('AiSummarySettings', () => {
     expect(topN).toHaveValue(1)
   })
 
+  it('clamps response length to the response max_output_tokens_ceiling', async () => {
+    const user = userEvent.setup()
+    renderCard()
+
+    const tokens = await screen.findByLabelText('Response length (tokens)')
+    expect(tokens).toHaveAttribute('max', '4096')
+    expect(screen.getByText(/\(1–4096\)/)).toBeInTheDocument()
+    await user.clear(tokens)
+    await user.type(tokens, '9999')
+    expect(tokens).toHaveValue(4096)
+
+    await user.clear(tokens)
+    await user.type(tokens, '0')
+    expect(tokens).toHaveValue(1)
+  })
+
   it('blocks saving an invalid response length', async () => {
     const user = userEvent.setup()
     renderCard()
@@ -215,7 +232,11 @@ describe('AiSummarySettings', () => {
     const tokens = await screen.findByLabelText('Response length (tokens)')
     await user.clear(tokens)
 
-    expect(screen.getByText(/at least 1 token/)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Response length must be a whole number between 1 and 4096.'
+      )
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()
   })
 

@@ -28,6 +28,7 @@ import {
   AI_SUMMARY_STYLES,
   type AISummaryForm,
   type AISummaryStyle,
+  clampMaxOutputTokens,
   clampTopN,
   describeValues,
   sameValues,
@@ -47,6 +48,7 @@ interface FieldsProps {
   form: AISummaryForm
   providers: ModelProviderResponse[]
   maxTopN: number
+  maxOutputTokens: number
   disabled: boolean
   onChange: (patch: Partial<AISummaryForm>) => void
 }
@@ -55,6 +57,7 @@ function AiSummaryFields({
   form,
   providers,
   maxTopN,
+  maxOutputTokens,
   disabled,
   onChange,
 }: Readonly<FieldsProps>) {
@@ -148,14 +151,20 @@ function AiSummaryFields({
             id="ai-summary-max-tokens"
             type="number"
             min={1}
+            max={maxOutputTokens}
             step={1}
             value={form.max_output_tokens}
             onChange={e => {
-              onChange({ max_output_tokens: e.target.value })
+              onChange({
+                max_output_tokens: clampMaxOutputTokens(
+                  e.target.value,
+                  maxOutputTokens
+                ),
+              })
             }}
           />
           <p className="text-muted-foreground text-xs">
-            Upper bound on how much the summary may write.
+            Upper bound on how much the summary may write (1–{maxOutputTokens}).
           </p>
         </div>
       </div>
@@ -297,7 +306,10 @@ export function AiSummarySettings({
 
   const isTeamOwned = settings.source === 'team'
   const busy = saving || resetting
-  const validationError = validate(form, settings.max_top_n)
+  const validationError = validate(form, {
+    maxTopN: settings.max_top_n,
+    maxOutputTokens: settings.max_output_tokens_ceiling,
+  })
   const hasChanges = !sameValues(toValues(form), settings.values)
 
   return (
@@ -339,6 +351,7 @@ export function AiSummarySettings({
               form={form}
               providers={providers}
               maxTopN={settings.max_top_n}
+              maxOutputTokens={settings.max_output_tokens_ceiling}
               disabled={!canEdit || busy}
               onChange={handleChange}
             />

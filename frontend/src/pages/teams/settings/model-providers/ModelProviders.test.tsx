@@ -120,6 +120,7 @@ beforeEach(() => {
     values: aiSummaryDefaults,
     instance_defaults: aiSummaryDefaults,
     max_top_n: 10,
+    max_output_tokens_ceiling: 4096,
     available: true,
   })
   service.deleteModelProvider.mockResolvedValue(undefined)
