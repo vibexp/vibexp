@@ -151,13 +151,16 @@ type ErrorResponse struct {
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
 }
 
-// TeamAISummarySettings The AI summary settings in effect for a team, with enough context for a client to render the whole settings surface from this one response: the effective values, where they came from, the instance defaults to preview a reset against, the instance-owned top_n cap, and whether the team can currently use AI summaries at all.
+// TeamAISummarySettings The AI summary settings in effect for a team, with enough context for a client to render the whole settings surface from this one response: the effective values, where they came from, the instance defaults to preview a reset against, the instance-owned top_n and max_output_tokens caps, and whether the team can currently use AI summaries at all.
 type TeamAISummarySettings struct {
 	// Available Whether the team has at least one model provider configured (existence, not health) — AI summaries cannot run without one regardless of `enabled`.
 	Available bool `json:"available"`
 
 	// InstanceDefaults A complete AI summary profile.
 	InstanceDefaults TeamAISummarySettingsValues `json:"instance_defaults"`
+
+	// MaxOutputTokensCeiling Instance-owned ceiling on `max_output_tokens`, from `ai_summary.max_output_tokens_ceiling`. Not team-configurable — exposed so clients can bound their own input control instead of guessing.
+	MaxOutputTokensCeiling int `json:"max_output_tokens_ceiling"`
 
 	// MaxTopN Instance-owned ceiling on `top_n`, from `ai_summary.max_top_n`. Not team-configurable — exposed so clients can bound their own input control instead of guessing.
 	MaxTopN int `json:"max_top_n"`
@@ -296,7 +299,7 @@ type TeamSettingsAuditListResponse struct {
 // TeamSettingsAuditSurface Which settings surface was copied between teams.
 type TeamSettingsAuditSurface string
 
-// UpdateTeamAISummarySettingsRequest A complete replacement AI summary profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `max_top_n` and `available` are deliberately absent — both are computed, not settable.
+// UpdateTeamAISummarySettingsRequest A complete replacement AI summary profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `max_top_n`, `max_output_tokens_ceiling` and `available` are deliberately absent — all are computed, not settable.
 type UpdateTeamAISummarySettingsRequest struct {
 	Enabled         bool                                    `json:"enabled"`
 	MaxOutputTokens int                                     `json:"max_output_tokens"`

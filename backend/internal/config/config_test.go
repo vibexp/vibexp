@@ -146,6 +146,7 @@ ai_summary:
   per_document_chars: 4000
   total_context_chars: 16000
   max_output_tokens: 400
+  max_output_tokens_ceiling: 2000
   request_timeout: 30s
   style: concise
 storage:
@@ -287,6 +288,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, 8000, cfg.AISummary.PerDocumentChars)
 	assert.Equal(t, 32000, cfg.AISummary.TotalContextChars)
 	assert.Equal(t, 800, cfg.AISummary.MaxOutputTokens)
+	assert.Equal(t, 4096, cfg.AISummary.MaxOutputTokensCeiling)
 	assert.Equal(t, 60*time.Second, cfg.AISummary.RequestTimeout)
 	assert.Equal(t, models.AISummaryStyleBalanced, cfg.AISummary.Style)
 
@@ -405,6 +407,7 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, 4000, cfg.AISummary.PerDocumentChars)
 	assert.Equal(t, 16000, cfg.AISummary.TotalContextChars)
 	assert.Equal(t, 400, cfg.AISummary.MaxOutputTokens)
+	assert.Equal(t, 2000, cfg.AISummary.MaxOutputTokensCeiling)
 	assert.Equal(t, 30*time.Second, cfg.AISummary.RequestTimeout)
 	assert.Equal(t, models.AISummaryStyleConcise, cfg.AISummary.Style)
 
@@ -675,44 +678,62 @@ func TestLoad_AISummaryStyleUnknown_ReturnsError(t *testing.T) {
 func TestValidateAISummaryConfig(t *testing.T) {
 	base := func() *Config {
 		return &Config{AISummary: AISummaryConfig{
-			Enabled:           true,
-			TopN:              5,
-			MaxTopN:           10,
-			PerDocumentChars:  8000,
-			TotalContextChars: 32000,
-			MaxOutputTokens:   800,
-			RequestTimeout:    60 * time.Second,
-			Style:             models.AISummaryStyleBalanced,
+			Enabled:                true,
+			TopN:                   5,
+			MaxTopN:                10,
+			PerDocumentChars:       8000,
+			TotalContextChars:      32000,
+			MaxOutputTokens:        800,
+			MaxOutputTokensCeiling: 4096,
+			RequestTimeout:         60 * time.Second,
+			Style:                  models.AISummaryStyleBalanced,
 		}}
 	}
 
+	// wantErr is the config key the error must name ("" = valid), so a case
+	// cannot pass because an unrelated check happened to fail first.
 	tests := []struct {
 		name    string
 		mutate  func(*Config)
-		wantErr bool
+		wantErr string
 	}{
-		{"valid defaults", func(*Config) {}, false},
-		{"zero max_top_n", func(c *Config) { c.AISummary.MaxTopN = 0 }, true},
+		{"valid defaults", func(*Config) {}, ""},
+		{"zero max_top_n", func(c *Config) { c.AISummary.MaxTopN = 0 }, "ai_summary.max_top_n"},
 		// max_top_n is bounded by the same constant the storage CHECK mirrors, so
 		// a value above it could never be persisted by any team.
-		{"max_top_n above the storage ceiling", func(c *Config) { c.AISummary.MaxTopN = MaxAISummaryTopN + 1 }, true},
-		{"max_top_n at the storage ceiling", func(c *Config) { c.AISummary.MaxTopN = MaxAISummaryTopN }, false},
-		{"zero top_n", func(c *Config) { c.AISummary.TopN = 0 }, true},
-		{"top_n above max_top_n", func(c *Config) { c.AISummary.MaxTopN, c.AISummary.TopN = 4, 5 }, true},
-		{"top_n at max_top_n", func(c *Config) { c.AISummary.MaxTopN, c.AISummary.TopN = 5, 5 }, false},
-		{"zero per_document_chars", func(c *Config) { c.AISummary.PerDocumentChars = 0 }, true},
-		{"zero total_context_chars", func(c *Config) { c.AISummary.TotalContextChars = 0 }, true},
-		{"zero max_output_tokens", func(c *Config) { c.AISummary.MaxOutputTokens = 0 }, true},
+		{"max_top_n above the storage ceiling", func(c *Config) { c.AISummary.MaxTopN = MaxAISummaryTopN + 1 }, "ai_summary.max_top_n"},
+		{"max_top_n at the storage ceiling", func(c *Config) { c.AISummary.MaxTopN = MaxAISummaryTopN }, ""},
+		{"zero top_n", func(c *Config) { c.AISummary.TopN = 0 }, "ai_summary.top_n"},
+		{"top_n above max_top_n", func(c *Config) { c.AISummary.MaxTopN, c.AISummary.TopN = 4, 5 }, "ai_summary.top_n"},
+		{"top_n at max_top_n", func(c *Config) { c.AISummary.MaxTopN, c.AISummary.TopN = 5, 5 }, ""},
+		{"zero per_document_chars", func(c *Config) { c.AISummary.PerDocumentChars = 0 }, "ai_summary.per_document_chars"},
+		{"zero total_context_chars", func(c *Config) { c.AISummary.TotalContextChars = 0 }, "ai_summary.total_context_chars"},
+		{"zero max_output_tokens", func(c *Config) { c.AISummary.MaxOutputTokens = 0 }, "ai_summary.max_output_tokens"},
+		// max_output_tokens_ceiling (#1085) mirrors max_top_n: bounded by an
+		// absolute constant, and the default must fit inside it.
+		{"zero max_output_tokens_ceiling", func(c *Config) { c.AISummary.MaxOutputTokensCeiling = 0 }, "ai_summary.max_output_tokens_ceiling"},
+		{"max_output_tokens_ceiling above the absolute ceiling", func(c *Config) {
+			c.AISummary.MaxOutputTokensCeiling = MaxAISummaryOutputTokens + 1
+		}, "ai_summary.max_output_tokens_ceiling"},
+		{"max_output_tokens_ceiling at the absolute ceiling", func(c *Config) {
+			c.AISummary.MaxOutputTokensCeiling = MaxAISummaryOutputTokens
+		}, ""},
+		{"max_output_tokens above the ceiling", func(c *Config) {
+			c.AISummary.MaxOutputTokensCeiling, c.AISummary.MaxOutputTokens = 500, 501
+		}, "ai_summary.max_output_tokens_ceiling"},
+		{"max_output_tokens at the ceiling", func(c *Config) {
+			c.AISummary.MaxOutputTokensCeiling, c.AISummary.MaxOutputTokens = 500, 500
+		}, ""},
 		// A total budget below the per-document budget can never be satisfied by
 		// even one document, which would make every summary empty.
-		{"total budget below per-document budget", func(c *Config) { c.AISummary.TotalContextChars = 100 }, true},
-		{"total budget equal to per-document budget", func(c *Config) { c.AISummary.TotalContextChars = 8000 }, false},
-		{"zero request_timeout", func(c *Config) { c.AISummary.RequestTimeout = 0 }, true},
-		{"negative request_timeout", func(c *Config) { c.AISummary.RequestTimeout = -time.Second }, true},
-		{"unknown style", func(c *Config) { c.AISummary.Style = "verbose" }, true},
-		{"empty style", func(c *Config) { c.AISummary.Style = "" }, true},
-		{"concise style", func(c *Config) { c.AISummary.Style = models.AISummaryStyleConcise }, false},
-		{"detailed style", func(c *Config) { c.AISummary.Style = models.AISummaryStyleDetailed }, false},
+		{"total budget below per-document budget", func(c *Config) { c.AISummary.TotalContextChars = 100 }, "ai_summary.total_context_chars"},
+		{"total budget equal to per-document budget", func(c *Config) { c.AISummary.TotalContextChars = 8000 }, ""},
+		{"zero request_timeout", func(c *Config) { c.AISummary.RequestTimeout = 0 }, "ai_summary.request_timeout"},
+		{"negative request_timeout", func(c *Config) { c.AISummary.RequestTimeout = -time.Second }, "ai_summary.request_timeout"},
+		{"unknown style", func(c *Config) { c.AISummary.Style = "verbose" }, "ai_summary.style"},
+		{"empty style", func(c *Config) { c.AISummary.Style = "" }, "ai_summary.style"},
+		{"concise style", func(c *Config) { c.AISummary.Style = models.AISummaryStyleConcise }, ""},
+		{"detailed style", func(c *Config) { c.AISummary.Style = models.AISummaryStyleDetailed }, ""},
 	}
 
 	for _, tt := range tests {
@@ -720,8 +741,8 @@ func TestValidateAISummaryConfig(t *testing.T) {
 			cfg := base()
 			tt.mutate(cfg)
 			err := validateAISummaryConfig(cfg)
-			if tt.wantErr {
-				assert.Error(t, err)
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
 				return
 			}
 			assert.NoError(t, err)

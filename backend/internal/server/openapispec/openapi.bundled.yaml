@@ -10875,7 +10875,7 @@ paths:
                 $ref: '#/components/schemas/TeamAISummarySettings'
         '400':
           description: |
-            Invalid profile — `top_n` outside `1..max_top_n`, an unknown `style`, a non-positive `max_output_tokens`, or a `model_provider_id` that does not belong to this team
+            Invalid profile — `top_n` outside `1..max_top_n`, an unknown `style`, `max_output_tokens` outside `1..max_output_tokens_ceiling`, or a `model_provider_id` that does not belong to this team
           content:
             application/problem+json:
               schema:
@@ -22417,12 +22417,13 @@ components:
     TeamAISummarySettings:
       type: object
       description: |
-        The AI summary settings in effect for a team, with enough context for a client to render the whole settings surface from this one response: the effective values, where they came from, the instance defaults to preview a reset against, the instance-owned top_n cap, and whether the team can currently use AI summaries at all.
+        The AI summary settings in effect for a team, with enough context for a client to render the whole settings surface from this one response: the effective values, where they came from, the instance defaults to preview a reset against, the instance-owned top_n and max_output_tokens caps, and whether the team can currently use AI summaries at all.
       required:
         - source
         - values
         - instance_defaults
         - max_top_n
+        - max_output_tokens_ceiling
         - available
       properties:
         source:
@@ -22445,6 +22446,12 @@ components:
           description: |
             Instance-owned ceiling on `top_n`, from `ai_summary.max_top_n`. Not team-configurable — exposed so clients can bound their own input control instead of guessing.
           example: 10
+        max_output_tokens_ceiling:
+          type: integer
+          minimum: 1
+          description: |
+            Instance-owned ceiling on `max_output_tokens`, from `ai_summary.max_output_tokens_ceiling`. Not team-configurable — exposed so clients can bound their own input control instead of guessing.
+          example: 4096
         available:
           type: boolean
           description: |
@@ -22492,7 +22499,7 @@ components:
     UpdateTeamAISummarySettingsRequest:
       type: object
       description: |
-        A complete replacement AI summary profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `max_top_n` and `available` are deliberately absent — both are computed, not settable.
+        A complete replacement AI summary profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `max_top_n`, `max_output_tokens_ceiling` and `available` are deliberately absent — all are computed, not settable.
       additionalProperties: false
       required:
         - enabled

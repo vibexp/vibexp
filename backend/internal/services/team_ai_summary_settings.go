@@ -131,8 +131,11 @@ func (s *TeamAISummarySettingsService) view(
 		InstanceDefaults: s.instanceValues(),
 		// Instance-owned and never team-configurable: it bounds how much context
 		// a single summary request may assemble.
-		MaxTopN:   s.defaults.MaxTopN,
-		Available: available,
+		MaxTopN: s.defaults.MaxTopN,
+		// Likewise instance-owned: it bounds the answer length a team may ask
+		// the operator's model for (#1085).
+		MaxOutputTokensCeiling: s.defaults.MaxOutputTokensCeiling,
+		Available:              available,
 	}
 }
 
@@ -251,7 +254,9 @@ func (s *TeamAISummarySettingsService) Update(
 	if err := s.authz.Can(ctx, userID, teamID, authz.TeamSettingsUpdate); err != nil {
 		return nil, err
 	}
-	if err := ValidateAISummarySettings(values, s.defaults.MaxTopN); err != nil {
+	if err := ValidateAISummarySettings(
+		values, s.defaults.MaxTopN, s.defaults.MaxOutputTokensCeiling,
+	); err != nil {
 		return nil, err
 	}
 	if err := s.requireOwnedProvider(ctx, teamID, values.ModelProviderID); err != nil {
@@ -331,17 +336,18 @@ func aiSummaryValuesFromStored(stored *models.TeamAISummarySettings) models.Team
 // operator reading a 400 and a developer reading a constraint violation see one
 // vocabulary.
 //
-// maxTopN is the instance's ai_summary.max_top_n: it is NOT settable per team,
-// which is exactly what makes it the bound checked here rather than a value
-// carried in values.
-func ValidateAISummarySettings(v models.TeamAISummarySettingsValues, maxTopN int) error {
+// maxTopN is the instance's ai_summary.max_top_n and maxOutputTokens its
+// ai_summary.max_output_tokens_ceiling: neither is settable per team, which is
+// exactly what makes them the bounds checked here rather than values carried in
+// values. Unlike top_n, the output-token bound has no storage CHECK (#1085).
+func ValidateAISummarySettings(v models.TeamAISummarySettingsValues, maxTopN, maxOutputTokens int) error {
 	if v.TopN < 1 || v.TopN > maxTopN {
 		return fmt.Errorf("%w: top_n must be between 1 and %d, got %d",
 			ErrInvalidAISummarySettings, maxTopN, v.TopN)
 	}
-	if v.MaxOutputTokens < 1 {
-		return fmt.Errorf("%w: max_output_tokens must be >= 1, got %d",
-			ErrInvalidAISummarySettings, v.MaxOutputTokens)
+	if v.MaxOutputTokens < 1 || v.MaxOutputTokens > maxOutputTokens {
+		return fmt.Errorf("%w: max_output_tokens must be between 1 and %d, got %d",
+			ErrInvalidAISummarySettings, maxOutputTokens, v.MaxOutputTokens)
 	}
 	if !models.IsValidAISummaryStyle(v.Style) {
 		return fmt.Errorf("%w: style must be one of %v, got %q",

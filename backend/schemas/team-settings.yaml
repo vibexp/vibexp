@@ -215,13 +215,14 @@ TeamAISummarySettings:
     The AI summary settings in effect for a team, with enough context for a
     client to render the whole settings surface from this one response: the
     effective values, where they came from, the instance defaults to preview a
-    reset against, the instance-owned top_n cap, and whether the team can
+    reset against, the instance-owned top_n and max_output_tokens caps, and whether the team can
     currently use AI summaries at all.
   required:
     - source
     - values
     - instance_defaults
     - max_top_n
+    - max_output_tokens_ceiling
     - available
   properties:
     source:
@@ -250,6 +251,15 @@ TeamAISummarySettings:
         team-configurable — exposed so clients can bound their own input
         control instead of guessing.
       example: 10
+    max_output_tokens_ceiling:
+      type: integer
+      minimum: 1
+      description: >
+        Instance-owned ceiling on `max_output_tokens`, from
+        `ai_summary.max_output_tokens_ceiling`. Not team-configurable —
+        exposed so clients can bound their own input control instead of
+        guessing.
+      example: 4096
     available:
       type: boolean
       description: >
@@ -263,8 +273,8 @@ UpdateTeamAISummarySettingsRequest:
   description: >
     A complete replacement AI summary profile for the team. There is no
     partial update: every field is required, and the whole profile is stored
-    or replaced atomically. `max_top_n` and `available` are deliberately
-    absent — both are computed, not settable.
+    or replaced atomically. `max_top_n`, `max_output_tokens_ceiling` and
+    `available` are deliberately absent — all are computed, not settable.
   additionalProperties: false
   required:
     - enabled

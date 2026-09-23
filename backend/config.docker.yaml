@@ -221,6 +221,7 @@ ai_summary:
   per_document_chars: 8000
   total_context_chars: 32000
   max_output_tokens: 800
+  max_output_tokens_ceiling: 4096
   request_timeout: "${AI_SUMMARY_REQUEST_TIMEOUT:-60s}"
   style: "${AI_SUMMARY_STYLE:-balanced}"
 

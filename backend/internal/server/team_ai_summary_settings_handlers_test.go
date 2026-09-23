@@ -75,7 +75,9 @@ func sampleAISummaryInstanceView() *models.TeamAISummarySettingsView {
 		Values:           defaults,
 		InstanceDefaults: defaults,
 		MaxTopN:          10,
-		Available:        true,
+		// Deliberately not the 4096 default, so the test proves it is echoed.
+		MaxOutputTokensCeiling: 3000,
+		Available:              true,
 	}
 }
 
@@ -114,6 +116,7 @@ func TestGetTeamAISummarySettings_NoOverrideReportsInstanceSource(t *testing.T) 
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "instance", resp["source"])
 	assert.EqualValues(t, 10, resp["max_top_n"])
+	assert.EqualValues(t, 3000, resp["max_output_tokens_ceiling"])
 	assert.Equal(t, true, resp["available"])
 	assert.NotNil(t, resp["instance_defaults"], "clients preview a reset from this without a 2nd call")
 	values, ok := resp["values"].(map[string]any)
@@ -280,6 +283,42 @@ func TestUpdateTeamAISummarySettings_InvalidProfileReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "top_n must be between 1 and 10",
 		"the 400 must carry the validator's wording, not a generic message")
+}
+
+// max_output_tokens above the instance ceiling (#1085) is the service's 400,
+// carried through with the ceiling in the message.
+func TestUpdateTeamAISummarySettings_MaxOutputTokensAboveCeilingReturns400(t *testing.T) {
+	svc := servicesmocks.NewMockTeamAISummarySettingsServiceInterface(t)
+	svc.EXPECT().Update(mock.Anything, mock.Anything, mock.Anything,
+		mock.MatchedBy(func(v models.TeamAISummarySettingsValues) bool { return v.MaxOutputTokens == 3001 })).
+		Return(nil, fmt.Errorf("%w: max_output_tokens must be between 1 and 3000, got 3001",
+			services.ErrInvalidAISummarySettings))
+
+	srv := createTestTeamAISummarySettingsServer(svc)
+	req := makeTeamSettingsRequest(http.MethodPut, teamAISummarySettingsPath,
+		`{"enabled":true,"model_provider_id":null,"top_n":5,"style":"balanced","max_output_tokens":3001}`)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "max_output_tokens must be between 1 and 3000")
+}
+
+// The ceiling is computed, not settable: a body carrying it is rejected like
+// max_top_n.
+func TestUpdateTeamAISummarySettings_RejectsMaxOutputTokensCeilingInBody(t *testing.T) {
+	svc := servicesmocks.NewMockTeamAISummarySettingsServiceInterface(t)
+
+	srv := createTestTeamAISummarySettingsServer(svc)
+	req := makeTeamSettingsRequest(http.MethodPut, teamAISummarySettingsPath,
+		`{"enabled":true,"model_provider_id":null,"top_n":5,"style":"balanced",`+
+			`"max_output_tokens":400,"max_output_tokens_ceiling":99999}`)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "max_output_tokens_ceiling")
 }
 
 // A model_provider_id from another team surfaces as the same

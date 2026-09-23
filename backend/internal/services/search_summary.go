@@ -110,7 +110,7 @@ func (s *SearchSummaryService) Summarize(
 
 	resp, err := s.llm.Complete(completionCtx, teamID, settings.ModelProviderID, models.CompletionRequest{
 		Messages:  buildSummaryMessages(req.Query, settings.Style, docs),
-		MaxTokens: settings.MaxOutputTokens,
+		MaxTokens: s.maxOutputTokens(settings.MaxOutputTokens),
 	})
 	if err != nil {
 		return nil, err
@@ -167,6 +167,16 @@ func (s *SearchSummaryService) topN(teamTopN int) int {
 		return s.budget.MaxTopN
 	}
 	return teamTopN
+}
+
+// maxOutputTokens bounds the team's answer-length budget by the instance's
+// ai_summary.max_output_tokens_ceiling (#1085), for the same reason as topN: a
+// value saved under a higher ceiling must not outlive the operator lowering it.
+func (s *SearchSummaryService) maxOutputTokens(teamMaxOutputTokens int) int {
+	if s.budget.MaxOutputTokensCeiling > 0 && teamMaxOutputTokens > s.budget.MaxOutputTokensCeiling {
+		return s.budget.MaxOutputTokensCeiling
+	}
+	return teamMaxOutputTokens
 }
 
 // completionContext bounds the completion by ai_summary.request_timeout AND by

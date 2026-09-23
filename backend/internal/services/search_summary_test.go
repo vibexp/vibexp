@@ -478,3 +478,31 @@ func TestSummarize_TopNIsClampedToTheInstanceCap(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3, search.got.PerPage)
 }
+
+func TestSummarize_MaxOutputTokensIsClampedToTheInstanceCeiling(t *testing.T) {
+	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
+	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
+	values := enabledSummarySettings()
+	values.MaxOutputTokens = 4000 // saved before the operator lowered the ceiling
+	svc := newTestSearchSummaryService(search, llm, values)
+	svc.budget.MaxOutputTokensCeiling = 1000
+
+	_, err := svc.Summarize(context.Background(), testSummaryTeamID, &models.SearchSummaryRequest{Query: "q"})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1000, llm.gotReq.MaxTokens)
+}
+
+func TestSummarize_MaxOutputTokensInsideTheCeilingIsKept(t *testing.T) {
+	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
+	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
+	values := enabledSummarySettings()
+	values.MaxOutputTokens = 1000
+	svc := newTestSearchSummaryService(search, llm, values)
+	svc.budget.MaxOutputTokensCeiling = 1000
+
+	_, err := svc.Summarize(context.Background(), testSummaryTeamID, &models.SearchSummaryRequest{Query: "q"})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1000, llm.gotReq.MaxTokens)
+}
