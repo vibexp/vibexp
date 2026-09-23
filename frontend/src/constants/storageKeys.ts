@@ -86,6 +86,14 @@ export const STORAGE_KEYS = {
    */
   BODY_VIEW_RAW: 'vx_body_view_raw',
 
+  // Search (#1078)
+  /**
+   * `true` when the user left the search page's AI Summary section expanded.
+   * Stored as a BOOLEAN (see `BODY_VIEW_RAW`). An expanded section generates
+   * a summary for each new search the user runs — one request per search.
+   */
+  SEARCH_AI_SUMMARY_EXPANDED: 'vx_search_ai_summary_expanded',
+
   // Analytics
   /** Referrer URL for page tracking - session scoped */
   ANALYTICS_REFERRER: 'vx_analytics_referrer',

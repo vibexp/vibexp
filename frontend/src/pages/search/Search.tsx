@@ -1,5 +1,5 @@
 import { Search as SearchIcon } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { EmptyState } from '@/components/EmptyState'
@@ -7,11 +7,15 @@ import type { ListPageStatus } from '@/components/patterns/list-page'
 import { ListPage } from '@/components/patterns/list-page'
 import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
+import { AiSummary } from '@/pages/search/AiSummary'
 import { SearchFilters } from '@/pages/search/SearchFilters'
 import { SearchResultCard } from '@/pages/search/searchResult'
+import { useSearchSummary } from '@/pages/search/useSearchSummary'
 import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
 import type {
+  SearchAISummaryAvailability,
   SearchFilterType,
   SearchRequest,
   SearchResultItem,
@@ -20,6 +24,14 @@ import { searchService } from '@/services/searchService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 const PER_PAGE = 20
+
+// How long a result card stays highlighted after a citation scrolls to it.
+const CITATION_HIGHLIGHT_MS = 2000
+
+/** DOM id of the (first) result card for a resource, for citation links. */
+function resultCardDomId(resourceId: string): string {
+  return `search-result-${resourceId}`
+}
 
 const SEARCH_TYPES: SearchFilterType[] = [
   'prompts',
@@ -40,6 +52,7 @@ interface SearchState {
   total: number
   totalPages: number
   page: number
+  aiSummary?: SearchAISummaryAvailability
 }
 
 const INITIAL_STATE: SearchState = {
@@ -54,6 +67,7 @@ const INITIAL_STATE: SearchState = {
 export function Search() {
   const { currentTeam } = useTeam()
   const { handleError } = useErrorHandler()
+  const { can } = usePermissions()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const q = searchParams.get('q') ?? ''
@@ -68,7 +82,13 @@ export function Search() {
   // Local, uncommitted text in the query box; committed to the `q` param on submit.
   const [queryInput, setQueryInput] = useState(q)
 
+  const [highlightedId, setHighlightedId] = useState<string | null>(null)
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  )
+
   const teamId = currentTeam?.id
+  const aiSummary = useSearchSummary(teamId, q, type, projectId)
 
   // Keep the query box in sync when `q` changes externally (e.g. navigating in
   // from the header search modal or the browser back button).
@@ -132,6 +152,7 @@ export function Search() {
           total: response.total_count,
           totalPages: response.total_pages,
           page: response.page,
+          aiSummary: response.ai_summary,
         })
       })
       .catch((error: unknown) => {
@@ -159,6 +180,44 @@ export function Search() {
       return next
     })
   }, [])
+
+  // First card per resource id: one resource can yield several chunk cards,
+  // and a citation targets the resource, so it lands on the first of them.
+  const firstCardIds = useMemo(() => {
+    const seen = new Set<string>()
+    return new Set(
+      state.results
+        .filter(item => {
+          if (seen.has(item.id)) return false
+          seen.add(item.id)
+          return true
+        })
+        .map(item => item.chunk_id)
+    )
+  }, [state.results])
+
+  const isResultOnPage = useCallback(
+    (resourceId: string) => state.results.some(item => item.id === resourceId),
+    [state.results]
+  )
+
+  const showResult = useCallback((resourceId: string) => {
+    document
+      .getElementById(resultCardDomId(resourceId))
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightedId(resourceId)
+    clearTimeout(highlightTimer.current)
+    highlightTimer.current = setTimeout(() => {
+      setHighlightedId(null)
+    }, CITATION_HIGHLIGHT_MS)
+  }, [])
+
+  useEffect(
+    () => () => {
+      clearTimeout(highlightTimer.current)
+    },
+    []
+  )
 
   // Commit the query box. Changing the query always resets to page 1.
   const submitQuery = useCallback(() => {
@@ -229,6 +288,22 @@ export function Search() {
           </div>
         ) : (
           <>
+            {state.status === 'ready' &&
+              state.results.length > 0 &&
+              aiSummary.key && (
+                <div className="px-4 pt-4">
+                  <AiSummary
+                    availability={state.aiSummary}
+                    canConfigure={can('team.update')}
+                    teamId={currentTeam.id}
+                    state={aiSummary.state}
+                    onGenerate={aiSummary.generate}
+                    onRetry={aiSummary.retry}
+                    isOnPage={isResultOnPage}
+                    onShowResult={showResult}
+                  />
+                </div>
+              )}
             <ListPage.Body
               status={state.status}
               errorTitle="Failed to search"
@@ -246,6 +321,12 @@ export function Search() {
                   <SearchResultCard
                     key={item.chunk_id}
                     item={item}
+                    domId={
+                      firstCardIds.has(item.chunk_id)
+                        ? resultCardDomId(item.id)
+                        : undefined
+                    }
+                    highlighted={highlightedId === item.id}
                     expanded={expanded.has(item.chunk_id)}
                     onToggleExpand={() => {
                       toggleExpand(item.chunk_id)

@@ -1,5 +1,9 @@
 import { ApiError } from '../../types/errors'
-import { unwrap } from '../apiClientGenerated'
+import {
+  createTimeoutFetch,
+  LONG_RUNNING_REQUEST_TIMEOUT_MS,
+  unwrap,
+} from '../apiClientGenerated'
 
 const response = (status: number, statusText = ''): Response =>
   ({ ok: status >= 200 && status < 300, status, statusText }) as Response
@@ -115,5 +119,78 @@ describe('unwrap', () => {
     const abort = new DOMException('Aborted', 'AbortError')
 
     await expect(unwrap(Promise.reject(abort))).rejects.toBe(abort)
+  })
+})
+
+describe('createTimeoutFetch', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // Captures the signal the wrapper hands to fetch.
+  function stubFetch(): { signal: () => AbortSignal } {
+    let captured: AbortSignal | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_request: Request, init?: RequestInit) => {
+        captured = init?.signal ?? undefined
+        return Promise.resolve(new Response(null, { status: 204 }))
+      })
+    )
+    return {
+      signal: () => {
+        if (!captured) throw new Error('fetch was not called')
+        return captured
+      },
+    }
+  }
+
+  // AbortSignal.timeout runs on Node's internal timers, which fake timers do
+  // not drive — so pin the budget each wrapper arms instead of waiting it out.
+  it('arms the timeout it was created with', async () => {
+    stubFetch()
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+
+    await createTimeoutFetch(30000)(new Request('http://localhost/x'))
+    await createTimeoutFetch(LONG_RUNNING_REQUEST_TIMEOUT_MS)(
+      new Request('http://localhost/x')
+    )
+
+    expect(timeout.mock.calls).toEqual([
+      [30000],
+      [LONG_RUNNING_REQUEST_TIMEOUT_MS],
+    ])
+    timeout.mockRestore()
+  })
+
+  it('gives long-running requests more than the 60s backend budget', () => {
+    expect(LONG_RUNNING_REQUEST_TIMEOUT_MS).toBeGreaterThan(60000)
+  })
+
+  it('aborts the request when the timeout fires', async () => {
+    const fetchStub = stubFetch()
+    const fired = new AbortController()
+    const timeout = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockReturnValue(fired.signal)
+
+    await createTimeoutFetch(30000)(new Request('http://localhost/x'))
+    expect(fetchStub.signal().aborted).toBe(false)
+    fired.abort()
+
+    expect(fetchStub.signal().aborted).toBe(true)
+    timeout.mockRestore()
+  })
+
+  it('still honours the caller signal', async () => {
+    const fetchStub = stubFetch()
+    const controller = new AbortController()
+
+    await createTimeoutFetch(30000)(
+      new Request('http://localhost/x', { signal: controller.signal })
+    )
+    controller.abort()
+
+    expect(fetchStub.signal().aborted).toBe(true)
   })
 })

@@ -5,6 +5,9 @@ import type { SearchRequest, SearchResultsResponse } from '../searchService'
 const mockGeneratedClient = vi.hoisted(() => ({
   POST: vi.fn(),
 }))
+const mockLongRunningClient = vi.hoisted(() => ({
+  POST: vi.fn(),
+}))
 
 vi.mock('../../lib/apiClientGenerated', async () => {
   const actual = await vi.importActual<
@@ -13,6 +16,7 @@ vi.mock('../../lib/apiClientGenerated', async () => {
   return {
     ...actual,
     generatedClient: mockGeneratedClient,
+    longRunningClient: mockLongRunningClient,
   }
 })
 
@@ -116,5 +120,50 @@ describe('SearchService', () => {
     await expect(
       searchService.search(teamId, { query: '', page: 1, per_page: 20 })
     ).rejects.toThrow('query is required')
+  })
+
+  describe('summarize', () => {
+    const summary = {
+      summary: 'An answer [1]',
+      sources: [],
+      model: 'gpt-test',
+      provider_id: 'prov-1',
+      generated_at: '2024-01-01T00:00:00Z',
+    }
+
+    it('posts to the summary endpoint on the long-running client', async () => {
+      mockLongRunningClient.POST.mockReturnValue(success(summary))
+      const req = { query: 'hello', types: ['memories' as const] }
+
+      const result = await searchService.summarize(teamId, req)
+
+      expect(mockLongRunningClient.POST).toHaveBeenCalledWith(
+        '/api/v1/{team_id}/search/summary',
+        { params: { path: { team_id: teamId } }, body: req }
+      )
+      expect(mockGeneratedClient.POST).not.toHaveBeenCalled()
+      expect(result).toEqual(summary)
+    })
+
+    it('surfaces an AI_SUMMARY_* problem as an ApiError with its code', async () => {
+      mockLongRunningClient.POST.mockReturnValue(
+        Promise.resolve({
+          error: {
+            type: 'https://api.vibexp.io/errors/AI_SUMMARY_TIMEOUT',
+            title: 'Gateway Timeout',
+            status: 504,
+            detail: 'the model did not answer in time',
+            code: 'AI_SUMMARY_TIMEOUT',
+            request_id: 'req-1',
+            timestamp: '2024-01-01T10:00:00Z',
+          },
+          response: { ok: false, status: 504, statusText: 'Gateway Timeout' },
+        })
+      )
+
+      await expect(
+        searchService.summarize(teamId, { query: 'q' })
+      ).rejects.toMatchObject({ code: 'AI_SUMMARY_TIMEOUT', status: 504 })
+    })
   })
 })
