@@ -19,6 +19,10 @@ export type ValidateModelProviderResponse =
   components['schemas']['ValidateModelProviderResponse']
 export type CopyModelProviderRequest =
   components['schemas']['CopyModelProviderRequest']
+export type ListProviderModelsRequest =
+  components['schemas']['ListProviderModelsRequest']
+export type ProviderModelList = components['schemas']['ProviderModelList']
+export type ProviderModel = components['schemas']['ProviderModel']
 
 /**
  * Model-provider settings service backed by
@@ -111,6 +115,27 @@ class ModelProviderService {
     return unwrap(
       generatedClient.POST(
         '/api/v1/{team_id}/settings/model-providers/validate',
+        { params: { path: { team_id: teamId } }, body: request }
+      )
+    )
+  }
+
+  /**
+   * Lists the models an OpenAI-compatible provider serves (#1070), for an
+   * UNSAVED configuration. A blank `api_key` together with `provider_id`
+   * reuses that saved provider's stored key.
+   *
+   * A provider that cannot list its models is a 200 with `supported: false`,
+   * not an error: `message` is absent when the provider simply does not
+   * implement `/models`, and a fixed failure category otherwise.
+   */
+  async listProviderModels(
+    teamId: string,
+    request: ListProviderModelsRequest
+  ): Promise<ProviderModelList> {
+    return unwrap(
+      generatedClient.POST(
+        '/api/v1/{team_id}/settings/model-providers/models',
         { params: { path: { team_id: teamId } }, body: request }
       )
     )

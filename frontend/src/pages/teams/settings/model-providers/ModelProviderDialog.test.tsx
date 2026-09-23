@@ -13,7 +13,37 @@ vi.mock('@/services/modelProviderService', async () => ({
   ...(await vi.importActual('@/services/modelProviderService')),
   modelProviderService: {
     validateModelProvider: vi.fn(),
+    listProviderModels: vi.fn(),
   },
+}))
+
+// The real combobox (Popover + cmdk) is covered by ModelCombobox.test.tsx,
+// outside a Dialog: Radix popper primitives inside a Dialog are the jsdom
+// heap trap. Here a plain stub stands in so the dialog's wiring is testable.
+vi.mock('./ModelCombobox', () => ({
+  ModelCombobox: ({
+    value,
+    onChange,
+    models,
+  }: {
+    value: string
+    onChange: (model: string) => void
+    models: { id: string }[]
+  }) => (
+    <div data-testid="model-combobox" data-value={value}>
+      {models.map(model => (
+        <button
+          key={model.id}
+          type="button"
+          onClick={() => {
+            onChange(model.id)
+          }}
+        >
+          pick {model.id}
+        </button>
+      ))}
+    </div>
+  ),
 }))
 
 vi.mock('@/lib/toast', () => ({
@@ -30,6 +60,10 @@ beforeAll(() => {
 const mockedValidate =
   modelProviderService.validateModelProvider as MockedFunction<
     typeof modelProviderService.validateModelProvider
+  >
+const mockedListModels =
+  modelProviderService.listProviderModels as MockedFunction<
+    typeof modelProviderService.listProviderModels
   >
 const mockedToastError = toast.error as MockedFunction<typeof toast.error>
 
@@ -172,6 +206,7 @@ describe('ModelProviderDialog', () => {
 
   const copySource = {
     provider: { ...existingProvider, name: 'Shared OpenAI' },
+    sourceTeamId: 'team-source',
     sourceTeamName: 'Platform Team',
   }
 
@@ -314,5 +349,213 @@ describe('ModelProviderDialog', () => {
       )
     })
     expect(onSubmit).toHaveBeenCalled()
+  })
+
+  // -------------------------------------------------------------------------
+  // #1076 — on-demand model listing
+  // -------------------------------------------------------------------------
+
+  const loadModelsButton = () => screen.getByRole('button', { name: /models$/ })
+
+  const typeCreateConfig = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.type(
+      screen.getByPlaceholderText('https://api.openai.com/v1'),
+      'https://api.openai.com/v1'
+    )
+    await user.type(screen.getByPlaceholderText('Enter API key'), 'sk-test')
+  }
+
+  it('keeps Load models disabled until the base URL is a valid URL', async () => {
+    const user = userEvent.setup()
+    renderDialog()
+
+    expect(screen.getByRole('button', { name: 'Load models' })).toBeDisabled()
+    await user.type(
+      screen.getByPlaceholderText('https://api.openai.com/v1'),
+      'https://api.openai.com/v1'
+    )
+    expect(screen.getByRole('button', { name: 'Load models' })).toBeEnabled()
+    expect(mockedListModels).not.toHaveBeenCalled()
+  })
+
+  it('loads models before saving and submits the picked one (create)', async () => {
+    const user = userEvent.setup()
+    mockedListModels.mockResolvedValue({
+      supported: true,
+      models: [{ id: 'gpt-4o' }, { id: 'gpt-4o-mini', owned_by: 'openai' }],
+    })
+    mockedValidate.mockResolvedValue({ is_valid: true, message: 'ok' })
+    const onSubmit = renderDialog()
+
+    await user.type(
+      screen.getByPlaceholderText('e.g., OpenAI GPT-4o'),
+      'My Provider'
+    )
+    await typeCreateConfig(user)
+    await user.click(screen.getByRole('button', { name: 'Load models' }))
+
+    expect(await screen.findByTestId('model-combobox')).toBeInTheDocument()
+    expect(mockedListModels).toHaveBeenCalledTimes(1)
+    expect(mockedListModels).toHaveBeenCalledWith('team-1', {
+      provider_type: 'openai_compatible',
+      base_url: 'https://api.openai.com/v1',
+      api_key: 'sk-test',
+    })
+    expect(
+      screen.queryByPlaceholderText('e.g., gpt-4o-mini')
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'pick gpt-4o' }))
+    await user.click(screen.getByRole('button', { name: 'Add provider' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'gpt-4o' })
+      )
+    })
+  })
+
+  it('falls back to the text input with a note when the endpoint does not list models', async () => {
+    const user = userEvent.setup()
+    mockedListModels.mockResolvedValue({ supported: false, models: [] })
+    renderDialog()
+
+    await typeCreateConfig(user)
+    await user.click(screen.getByRole('button', { name: 'Load models' }))
+
+    expect(
+      await screen.findByText(
+        "This endpoint doesn't list models — enter the model id manually."
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('e.g., gpt-4o-mini')).toBeInTheDocument()
+    expect(screen.queryByTestId('model-list-error')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['connection_failed', "Couldn't reach the provider."],
+    ['unauthorized', 'The provider rejected the API key.'],
+    [
+      'misconfigured_provider',
+      "The provider's response wasn't understood — check the base URL.",
+    ],
+    ['destination_not_allowed', "This base URL isn't allowed by the server."],
+  ] as const)(
+    'shows a fixed sentence for the %s failure and retries',
+    async (category, sentence) => {
+      const user = userEvent.setup()
+      mockedListModels.mockResolvedValue({
+        supported: false,
+        models: [],
+        message: category,
+      })
+      renderDialog()
+
+      await typeCreateConfig(user)
+      await user.click(screen.getByRole('button', { name: 'Load models' }))
+
+      const error = await screen.findByTestId('model-list-error')
+      expect(error).toHaveTextContent(sentence)
+      expect(error).not.toHaveTextContent(category)
+
+      await user.click(screen.getByRole('button', { name: 'Retry' }))
+      await waitFor(() => {
+        expect(mockedListModels).toHaveBeenCalledTimes(2)
+      })
+    }
+  )
+
+  it('shows a generic message on a thrown request and still saves a typed model', async () => {
+    const user = userEvent.setup()
+    mockedListModels.mockRejectedValue(new Error('403'))
+    mockedValidate.mockResolvedValue({ is_valid: true, message: 'ok' })
+    const onSubmit = renderDialog()
+
+    await fillValidForm(user)
+    await user.click(screen.getByRole('button', { name: 'Load models' }))
+
+    expect(await screen.findByTestId('model-list-error')).toHaveTextContent(
+      "Couldn't load models."
+    )
+    await user.click(screen.getByRole('button', { name: 'Add provider' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'gpt-4o-mini' })
+      )
+    })
+  })
+
+  it('edit mode sends the saved provider and omits a blank key', async () => {
+    const user = userEvent.setup()
+    mockedListModels.mockResolvedValue({ supported: true, models: [] })
+    render(
+      <ModelProviderDialog
+        teamId="team-1"
+        open
+        onOpenChange={vi.fn()}
+        submitting={false}
+        provider={existingProvider}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Load models' }))
+
+    await waitFor(() => {
+      expect(mockedListModels).toHaveBeenCalledWith('team-1', {
+        provider_type: 'openai_compatible',
+        base_url: 'https://api.openai.com/v1',
+        provider_id: 'p1',
+      })
+    })
+    expect(await screen.findByTestId('model-combobox')).toHaveAttribute(
+      'data-value',
+      'gpt-4o-mini'
+    )
+  })
+
+  it('copy mode lists against the source team with the source provider', async () => {
+    const user = userEvent.setup()
+    mockedListModels.mockResolvedValue({
+      supported: true,
+      models: [{ id: 'gpt-4o' }],
+    })
+    renderCopyDialog()
+
+    await user.click(screen.getByRole('button', { name: 'Load models' }))
+
+    await waitFor(() => {
+      expect(mockedListModels).toHaveBeenCalledWith('team-source', {
+        provider_type: 'openai_compatible',
+        base_url: 'https://api.openai.com/v1',
+        provider_id: 'p1',
+      })
+    })
+    expect(await screen.findByTestId('model-combobox')).toBeInTheDocument()
+  })
+
+  it('drops a loaded list when the base URL changes, keeping the model', async () => {
+    const user = userEvent.setup()
+    mockedListModels.mockResolvedValue({
+      supported: true,
+      models: [{ id: 'gpt-4o' }],
+    })
+    renderDialog()
+
+    await typeCreateConfig(user)
+    await user.click(screen.getByRole('button', { name: 'Load models' }))
+    await user.click(await screen.findByRole('button', { name: 'pick gpt-4o' }))
+
+    await user.type(
+      screen.getByPlaceholderText('https://api.openai.com/v1'),
+      '/x'
+    )
+
+    expect(screen.queryByTestId('model-combobox')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('e.g., gpt-4o-mini')).toHaveValue(
+      'gpt-4o'
+    )
+    expect(loadModelsButton()).toHaveTextContent('Load models')
   })
 })

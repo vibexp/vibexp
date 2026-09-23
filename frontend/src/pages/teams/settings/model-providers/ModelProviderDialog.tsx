@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
+import { Loader2, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import type { Control } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
@@ -40,6 +41,10 @@ import type {
 } from '@/services/modelProviderService'
 import { modelProviderService } from '@/services/modelProviderService'
 
+import { ModelCombobox } from './ModelCombobox'
+import type { ModelListState } from './useProviderModelList'
+import { useProviderModelList } from './useProviderModelList'
+
 const schema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(255),
   provider_type: z.string().min(1, 'Provider type is required'),
@@ -68,6 +73,7 @@ const BASE_URL_PRESETS: { label: string; base_url: string }[] = [
  */
 export interface CopySource {
   provider: ModelProviderResponse
+  sourceTeamId: string
   sourceTeamName: string
 }
 
@@ -125,6 +131,98 @@ function CopiedApiKeyField({
           : 'That provider has no key stored, so the copy will not have one either.'}
       </p>
     </div>
+  )
+}
+
+/**
+ * The on-demand "Load models" control plus whatever the last load said.
+ * Loading never gates saving: the button is `type="button"` and a failure
+ * leaves the free-text input in place.
+ */
+function ModelListStatus({
+  state,
+  canLoad,
+  onLoad,
+}: Readonly<{ state: ModelListState; canLoad: boolean; onLoad: () => void }>) {
+  const loading = state.status === 'loading'
+  let label = 'Load models'
+  if (state.status === 'error') label = 'Retry'
+  else if (state.status === 'loaded') label = 'Reload models'
+
+  return (
+    <div className="space-y-1">
+      {state.status === 'unsupported' && (
+        <p
+          className="text-muted-foreground text-sm"
+          data-testid="model-list-unsupported"
+        >
+          This endpoint doesn&apos;t list models — enter the model id manually.
+        </p>
+      )}
+      {state.status === 'error' && (
+        <p className="text-destructive text-sm" data-testid="model-list-error">
+          {state.message} You can still enter the model id manually.
+        </p>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={!canLoad}
+        onClick={onLoad}
+      >
+        {loading ? (
+          <Loader2 className="mr-2 size-4 animate-spin" />
+        ) : (
+          <RefreshCw className="mr-2 size-4" />
+        )}
+        {loading ? 'Loading models…' : label}
+      </Button>
+    </div>
+  )
+}
+
+/**
+ * The model field (#1076): the searchable list once the provider's models are
+ * loaded, the plain text input otherwise — including every failure, so a
+ * provider can always be saved with a hand-typed id.
+ */
+function ModelField({
+  control,
+  modelList,
+}: Readonly<{
+  control: Control<ModelProviderFormValues>
+  modelList: ReturnType<typeof useProviderModelList>
+}>) {
+  return (
+    <FormField
+      control={control}
+      name="model"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Model</FormLabel>
+          <FormControl>
+            {modelList.state.status === 'loaded' ? (
+              <ModelCombobox
+                value={field.value}
+                onChange={field.onChange}
+                models={modelList.state.models}
+              />
+            ) : (
+              <Input {...field} placeholder="e.g., gpt-4o-mini" />
+            )}
+          </FormControl>
+          <ModelListStatus
+            state={modelList.state}
+            canLoad={modelList.canLoad}
+            onLoad={() => {
+              void modelList.load()
+            }}
+          />
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   )
 }
 
@@ -192,6 +290,20 @@ export function ModelProviderDialog({
       })
     }
   }, [open, provider, copySource, form])
+
+  const [providerType, baseUrl, apiKey] = useWatch({
+    control: form.control,
+    name: ['provider_type', 'base_url', 'api_key'],
+  })
+  const modelList = useProviderModelList({
+    open,
+    teamId,
+    provider,
+    copySource,
+    providerType,
+    baseUrl,
+    apiKey,
+  })
 
   // identityChanged is true when an edit changes the model, base URL, or
   // provider type — the fields that make the stored config point at a different
@@ -353,19 +465,7 @@ export function ModelProviderDialog({
                 Optional — prefills the Base URL below, which stays editable.
               </p>
             </div>
-            <FormField
-              control={form.control}
-              name="model"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Model</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="e.g., gpt-4o-mini" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <ModelField control={form.control} modelList={modelList} />
             <FormField
               control={form.control}
               name="base_url"
