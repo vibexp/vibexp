@@ -31,14 +31,15 @@ const (
 
 func aiSummaryInstanceConfig() config.AISummaryConfig {
 	return config.AISummaryConfig{
-		Enabled:           true,
-		TopN:              5,
-		MaxTopN:           8,
-		PerDocumentChars:  8000,
-		TotalContextChars: 32000,
-		MaxOutputTokens:   800,
-		RequestTimeout:    60 * time.Second,
-		Style:             models.AISummaryStyleBalanced,
+		Enabled:                true,
+		TopN:                   5,
+		MaxTopN:                8,
+		PerDocumentChars:       8000,
+		TotalContextChars:      32000,
+		MaxOutputTokens:        800,
+		MaxOutputTokensCeiling: 2000,
+		RequestTimeout:         60 * time.Second,
+		Style:                  models.AISummaryStyleBalanced,
 	}
 }
 
@@ -103,6 +104,7 @@ func TestTeamAISummarySettingsService_Resolve_NoRowReportsInstanceSource(t *test
 	assert.Equal(t, models.AISummaryStyleBalanced, view.Values.Style)
 	assert.Nil(t, view.Values.ModelProviderID, "the instance has no opinion on which provider to use")
 	assert.Equal(t, 8, view.MaxTopN)
+	assert.Equal(t, 2000, view.MaxOutputTokensCeiling)
 	assert.True(t, view.Available)
 }
 
@@ -358,6 +360,37 @@ func TestTeamAISummarySettingsService_Update_AcceptsTopNAtTheCap(t *testing.T) {
 	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, values)
 
 	assert.NoError(t, err)
+}
+
+// max_output_tokens_ceiling is instance-owned too (#1085): a team may tune
+// max_output_tokens only INSIDE it, and the error names the ceiling.
+func TestTeamAISummarySettingsService_Update_RejectsMaxOutputTokensAboveCeiling(t *testing.T) {
+	// No repo expectations: a rejected profile must never reach storage.
+	svc, _, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	values := aiSummaryTeamProfile()
+	values.MaxOutputTokens = aiSummaryInstanceConfig().MaxOutputTokensCeiling + 1
+
+	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, values)
+
+	assert.ErrorIs(t, err, services.ErrInvalidAISummarySettings)
+	assert.Contains(t, err.Error(), "max_output_tokens must be between 1 and 2000")
+}
+
+// The ceiling is inclusive.
+func TestTeamAISummarySettingsService_Update_AcceptsMaxOutputTokensAtTheCeiling(t *testing.T) {
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	expectProviderOwnedByTeam(providers)
+	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
+	expectProviderCount(providers, 1)
+
+	values := aiSummaryTeamProfile()
+	values.MaxOutputTokens = aiSummaryInstanceConfig().MaxOutputTokensCeiling
+
+	view, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, values)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2000, view.Values.MaxOutputTokens)
+	assert.Equal(t, 2000, view.MaxOutputTokensCeiling)
 }
 
 // invalidAISummaryValues covers one violation per validation bound; each mirrors

@@ -88,7 +88,7 @@ type TeamAISummarySettingsValues struct {
 // TeamAISummarySettingsView is the read model for a team's AI summary settings:
 // the effective values plus everything a client needs to render the whole
 // settings surface from one response — where the values came from, the defaults
-// a reset would restore, and the instance-owned cap on TopN.
+// a reset would restore, and the instance-owned caps on TopN and MaxOutputTokens.
 type TeamAISummarySettingsView struct {
 	// Source is TeamAISummarySettingsSourceInstance or
 	// TeamAISummarySettingsSourceTeam.
@@ -99,6 +99,9 @@ type TeamAISummarySettingsView struct {
 	// context a single summary request may assemble. It is exposed so clients
 	// can bound their own input control instead of guessing.
 	MaxTopN int
+	// MaxOutputTokensCeiling is the instance-owned ceiling on
+	// Values.MaxOutputTokens (#1085), exposed for the same reason as MaxTopN.
+	MaxOutputTokensCeiling int
 	// Available reports whether the team has at least one model provider row
 	// (existence, not health) — AI summaries cannot run without one regardless
 	// of Values.Enabled.

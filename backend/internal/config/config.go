@@ -533,6 +533,11 @@ type AISummaryConfig struct {
 	TotalContextChars int `koanf:"total_context_chars"`
 	// MaxOutputTokens is the default answer-length budget.
 	MaxOutputTokens int `koanf:"max_output_tokens"`
+	// MaxOutputTokensCeiling is the instance-owned ceiling on MaxOutputTokens
+	// (#1085). Like MaxTopN it is NOT team-configurable and has no column in
+	// team_ai_summary_settings: output tokens are billed and latency-bearing per
+	// request on the operator's model account, so teams tune inside the cap.
+	MaxOutputTokensCeiling int `koanf:"max_output_tokens_ceiling"`
 	// RequestTimeout bounds a single summarisation call to the model provider.
 	RequestTimeout time.Duration `koanf:"request_timeout"`
 	// Style is the default summary style, one of models.AISummaryStyles.
@@ -819,6 +824,13 @@ func validateSearchRankingConfig(cfg *Config) error {
 // for bound — so a value the database would reject can never be configured.
 const MaxAISummaryTopN = 10
 
+// MaxAISummaryOutputTokens is the absolute ceiling on
+// ai_summary.max_output_tokens_ceiling (#1085). Unlike MaxAISummaryTopN no
+// storage CHECK mirrors it: there is no model-independent token limit to pin in
+// the schema, so the bound is enforced in the service on save and clamped again
+// at request time, which also covers an operator lowering the ceiling later.
+const MaxAISummaryOutputTokens = 32768
+
 // validateAISummaryConfig fails closed on an AI summary block that could not be
 // satisfied: a non-positive budget, a top_n outside the instance cap, or a style
 // outside the closed vocabulary the storage CHECK constraint also enforces.
@@ -845,6 +857,9 @@ func validateAISummaryConfig(cfg *Config) error {
 			return fmt.Errorf("ai_summary.%s must be >= 1, got %d", budget.key, budget.value)
 		}
 	}
+	if err := validateAISummaryOutputTokensCeiling(s); err != nil {
+		return err
+	}
 	if s.TotalContextChars < s.PerDocumentChars {
 		return fmt.Errorf(
 			"ai_summary.total_context_chars (%d) must be >= ai_summary.per_document_chars (%d)",
@@ -855,6 +870,22 @@ func validateAISummaryConfig(cfg *Config) error {
 	}
 	if !models.IsValidAISummaryStyle(s.Style) {
 		return fmt.Errorf("ai_summary.style must be one of %v, got %q", models.AISummaryStyles, s.Style)
+	}
+	return nil
+}
+
+// validateAISummaryOutputTokensCeiling bounds ai_summary.max_output_tokens_ceiling
+// by MaxAISummaryOutputTokens and requires the default max_output_tokens to fit
+// inside it (#1085) — the max_top_n / top_n pair, for output tokens.
+func validateAISummaryOutputTokensCeiling(s AISummaryConfig) error {
+	if s.MaxOutputTokensCeiling < 1 || s.MaxOutputTokensCeiling > MaxAISummaryOutputTokens {
+		return fmt.Errorf("ai_summary.max_output_tokens_ceiling must be between 1 and %d, got %d",
+			MaxAISummaryOutputTokens, s.MaxOutputTokensCeiling)
+	}
+	if s.MaxOutputTokens > s.MaxOutputTokensCeiling {
+		return fmt.Errorf(
+			"ai_summary.max_output_tokens (%d) must be <= ai_summary.max_output_tokens_ceiling (%d)",
+			s.MaxOutputTokens, s.MaxOutputTokensCeiling)
 	}
 	return nil
 }
@@ -1313,8 +1344,10 @@ func aiSummaryDefaults() map[string]any {
 		"ai_summary.per_document_chars":  8000,
 		"ai_summary.total_context_chars": 32000,
 		"ai_summary.max_output_tokens":   800,
-		"ai_summary.request_timeout":     "60s",
-		"ai_summary.style":               models.AISummaryStyleBalanced,
+		// 4096 leaves the 800 default ample headroom; see MaxAISummaryOutputTokens.
+		"ai_summary.max_output_tokens_ceiling": 4096,
+		"ai_summary.request_timeout":           "60s",
+		"ai_summary.style":                     models.AISummaryStyleBalanced,
 	}
 }
 

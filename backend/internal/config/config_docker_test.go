@@ -337,6 +337,7 @@ func TestConfigDockerYAML_AISummaryDefaults(t *testing.T) {
 	require.Equal(t, EnvBool(true), cfg.AISummary.Enabled)
 	require.Equal(t, EnvInt(5), cfg.AISummary.TopN)
 	require.Equal(t, 10, cfg.AISummary.MaxTopN)
+	require.Equal(t, 4096, cfg.AISummary.MaxOutputTokensCeiling)
 	require.Equal(t, 60*time.Second, cfg.AISummary.RequestTimeout)
 	require.Equal(t, models.AISummaryStyleBalanced, cfg.AISummary.Style)
 }
@@ -421,7 +422,7 @@ func TestConfigSchema_EnvPlaceholderTypesAreOptIn(t *testing.T) {
 	// config.docker.yaml must keep them literal. They are sized to the
 	// deployment's model rather than flipped per container, and loosening every
 	// int would let a typo'd budget past the schema (#1071).
-	for _, field := range []string{"max_top_n", "per_document_chars", "total_context_chars", "max_output_tokens"} {
+	for _, field := range []string{"max_top_n", "per_document_chars", "total_context_chars", "max_output_tokens", "max_output_tokens_ceiling"} {
 		prop := doc.Defs["AISummaryConfig"].Properties[field]
 		require.Equal(t, "integer", prop.Type, "ai_summary.%s must stay a strict integer", field)
 		require.Empty(t, prop.OneOf, "ai_summary.%s must not accept a placeholder — it is a literal knob", field)

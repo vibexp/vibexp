@@ -91,7 +91,9 @@ func toGenTeamAISummarySettings(view *models.TeamAISummarySettingsView) teamsett
 		Values:           toGenTeamAISummarySettingsValues(view.Values),
 		InstanceDefaults: toGenTeamAISummarySettingsValues(view.InstanceDefaults),
 		MaxTopN:          view.MaxTopN,
-		Available:        view.Available,
+		// Instance-owned, like MaxTopN (#1085).
+		MaxOutputTokensCeiling: view.MaxOutputTokensCeiling,
+		Available:              view.Available,
 	}
 }
 
@@ -147,7 +149,7 @@ func aiSummarySettingsBodyProblem(fields map[string]json.RawMessage) string {
 		sort.Strings(unknown)
 		return "Unknown field(s): " + strings.Join(unknown, ", ") +
 			". Only " + strings.Join(aiSummarySettingsBodyFields, ", ") +
-			" may be set; max_top_n and available are computed."
+			" may be set; max_top_n, max_output_tokens_ceiling and available are computed."
 	}
 
 	var missing []string

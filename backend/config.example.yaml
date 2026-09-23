@@ -280,7 +280,11 @@ ai_summary:
   # Context budgets, in characters: per document, then across all documents.
   per_document_chars: 8000
   total_context_chars: 32000
+  # Default answer length, in tokens. max_output_tokens_ceiling is the instance
+  # ceiling a team can never raise (billed per request on the operator's model);
+  # it may not exceed 32768.
   max_output_tokens: 800
+  max_output_tokens_ceiling: 4096
   request_timeout: 60s
   # One of: concise, balanced, detailed.
   style: balanced
