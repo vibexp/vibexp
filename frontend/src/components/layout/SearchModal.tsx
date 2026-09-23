@@ -58,13 +58,23 @@ export function SearchModal() {
     }
   }, [open, teamId])
 
-  const submit = (withSummary = false) => {
-    if (!query) return
+  const close = () => {
     setOpen(false)
     setValue('')
     setAiSummaryAvailable(false)
-    const summaryParam = withSummary ? '&summary=open' : ''
-    void navigate(`/search?q=${encodeURIComponent(query)}${summaryParam}`)
+  }
+
+  const submit = () => {
+    if (!query) return
+    close()
+    void navigate(`/search?q=${encodeURIComponent(query)}`)
+  }
+
+  // Opens the full results with the AI Summary pre-expanded; `/search`
+  // consumes the `summary=open` param.
+  const seeFullResults = () => {
+    close()
+    void navigate(`/search?q=${encodeURIComponent(query)}&summary=open`)
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -76,11 +86,8 @@ export function SearchModal() {
   }
 
   const handleOpenChange = (next: boolean) => {
-    setOpen(next)
-    if (!next) {
-      setValue('')
-      setAiSummaryAvailable(false)
-    }
+    if (next) setOpen(true)
+    else close()
   }
 
   return (
@@ -114,18 +121,11 @@ export function SearchModal() {
           <SearchModalAiSummary
             teamId={teamId}
             query={query}
-            onSeeFullResults={() => {
-              submit(true)
-            }}
+            onSeeFullResults={seeFullResults}
           />
         )}
         <DialogFooter>
-          <Button
-            onClick={() => {
-              submit()
-            }}
-            disabled={!query}
-          >
+          <Button onClick={submit} disabled={!query}>
             <SearchIcon className="mr-2 size-4" />
             Search
           </Button>

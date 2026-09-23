@@ -140,15 +140,7 @@ function SummaryBody({
     return <SummarySkeleton />
   }
   if (state.status === 'error') {
-    return (
-      <div role="alert" className="flex flex-col items-start gap-2 text-sm">
-        <p className="text-destructive">{state.message}</p>
-        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-          <RefreshCw className="size-3.5" />
-          Retry
-        </Button>
-      </div>
-    )
+    return <SummaryError message={state.message} onRetry={onRetry} />
   }
   return (
     <SummaryReady
@@ -156,6 +148,22 @@ function SummaryBody({
       isOnPage={isOnPage}
       onShowResult={onShowResult}
     />
+  )
+}
+
+/** A failed summary's classified message and its Retry (shared with #1079). */
+export function SummaryError({
+  message,
+  onRetry,
+}: Readonly<{ message: string; onRetry: () => void }>) {
+  return (
+    <div role="alert" className="flex flex-col items-start gap-2 text-sm">
+      <p className="text-destructive">{message}</p>
+      <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+        <RefreshCw className="size-3.5" />
+        Retry
+      </Button>
+    </div>
   )
 }
 

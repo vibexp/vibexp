@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronDown, RefreshCw, Sparkles } from 'lucide-react'
+import { ArrowRight, ChevronDown, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,8 @@ import {
 } from '@/components/ui/collapsible'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { SummaryError } from '@/pages/search/AiSummary'
+import type { SummaryState } from '@/pages/search/aiSummary'
 import { renderCompactSummaryHtml } from '@/pages/search/aiSummary'
 import { useSearchSummary } from '@/pages/search/useSearchSummary'
 import type { SearchSummaryResponse } from '@/services/searchService'
@@ -68,38 +70,44 @@ export function SearchModalAiSummary({
         />
       </CollapsibleTrigger>
       <CollapsibleContent className="px-3 pb-3">
-        {summary.state === undefined || summary.state.status === 'loading' ? (
-          <div
-            data-testid="ai-summary-skeleton"
-            aria-busy="true"
-            aria-label="Generating summary"
-            className="space-y-2"
-          >
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-2/3" />
-          </div>
-        ) : summary.state.status === 'error' ? (
-          <div role="alert" className="flex flex-col items-start gap-2 text-sm">
-            <p className="text-destructive">{summary.state.message}</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={summary.retry}
-            >
-              <RefreshCw className="size-3.5" />
-              Retry
-            </Button>
-          </div>
-        ) : (
-          <CompactSummary
-            data={summary.state.data}
-            onSeeFullResults={onSeeFullResults}
-          />
-        )}
+        <CompactSummaryBody
+          state={summary.state}
+          onRetry={summary.retry}
+          onSeeFullResults={onSeeFullResults}
+        />
       </CollapsibleContent>
     </Collapsible>
+  )
+}
+
+function CompactSummaryBody({
+  state,
+  onRetry,
+  onSeeFullResults,
+}: Readonly<{
+  state: SummaryState | undefined
+  onRetry: () => void
+  onSeeFullResults: () => void
+}>) {
+  if (state === undefined || state.status === 'loading') {
+    return (
+      <div
+        data-testid="ai-summary-skeleton"
+        aria-busy="true"
+        aria-label="Generating summary"
+        className="space-y-2"
+      >
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-2/3" />
+      </div>
+    )
+  }
+  if (state.status === 'error') {
+    return <SummaryError message={state.message} onRetry={onRetry} />
+  }
+  return (
+    <CompactSummary data={state.data} onSeeFullResults={onSeeFullResults} />
   )
 }
 
