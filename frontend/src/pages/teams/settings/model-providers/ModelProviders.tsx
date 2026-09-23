@@ -15,6 +15,7 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { toast } from '@/lib/toast'
+import { AiSummarySettings } from '@/pages/teams/settings/model-providers/AiSummarySettings'
 import type { CopySource } from '@/pages/teams/settings/model-providers/ModelProviderDialog'
 import { ModelProviderDialog } from '@/pages/teams/settings/model-providers/ModelProviderDialog'
 import type {
@@ -230,6 +231,9 @@ export function ModelProviders({ team }: Readonly<{ team: Team }>) {
   const [submitting, setSubmitting] = useState(false)
   const [toDelete, setToDelete] = useState<ModelProviderResponse | null>(null)
   const [deleting, setDeleting] = useState(false)
+  // Bumped after every provider create/update/copy/delete so the AI Summary card
+  // re-reads `available` and a provider selection the server may have nulled.
+  const [aiSummaryReloadKey, setAiSummaryReloadKey] = useState(0)
 
   const [copyOpen, setCopyOpen] = useState(false)
   const [sourceProviders, setSourceProviders] = useState<
@@ -262,6 +266,11 @@ export function ModelProviders({ team }: Readonly<{ team: Team }>) {
   useEffect(() => {
     void loadProviders()
   }, [loadProviders])
+
+  const refreshAfterProviderChange = async () => {
+    await loadProviders()
+    setAiSummaryReloadKey(key => key + 1)
+  }
 
   const handleSourceChange = async (sourceTeam: Team | null) => {
     const seq = ++sourceSeq.current
@@ -320,7 +329,7 @@ export function ModelProviders({ team }: Readonly<{ team: Team }>) {
       toast.success(`Provider copied from ${copyTarget.sourceTeamName}`)
       setDialogOpen(false)
       setCopyTarget(null)
-      await loadProviders()
+      await refreshAfterProviderChange()
     } catch (error) {
       handleError(error, 'Failed to copy provider')
     } finally {
@@ -353,7 +362,7 @@ export function ModelProviders({ team }: Readonly<{ team: Team }>) {
       }
       setDialogOpen(false)
       setEditing(undefined)
-      await loadProviders()
+      await refreshAfterProviderChange()
     } catch (error) {
       handleError(
         error,
@@ -370,7 +379,7 @@ export function ModelProviders({ team }: Readonly<{ team: Team }>) {
       setDeleting(true)
       await modelProviderService.deleteModelProvider(teamId, toDelete.id)
       toast.success('Provider deleted')
-      await loadProviders()
+      await refreshAfterProviderChange()
     } catch (error) {
       handleError(error, 'Failed to delete provider')
     } finally {
@@ -478,6 +487,12 @@ export function ModelProviders({ team }: Readonly<{ team: Team }>) {
           </CardContent>
         </Card>
       )}
+
+      <AiSummarySettings
+        team={team}
+        providers={providers}
+        reloadKey={aiSummaryReloadKey}
+      />
 
       <CopyFromTeamDialog
         open={copyOpen}
