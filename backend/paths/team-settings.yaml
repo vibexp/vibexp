@@ -249,8 +249,8 @@ api-v1-team_id-settings-ai-summary:
       '400':
         description: >
           Invalid profile — `top_n` outside `1..max_top_n`, an unknown
-          `style`, `max_output_tokens` outside `1..max_output_tokens_ceiling`, or a `model_provider_id`
-          that does not belong to this team
+          `style`, `max_output_tokens` outside `1..max_output_tokens_ceiling`,
+          or a `model_provider_id` that does not belong to this team
         content:
           application/problem+json:
             schema:

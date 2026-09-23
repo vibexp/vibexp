@@ -215,8 +215,8 @@ TeamAISummarySettings:
     The AI summary settings in effect for a team, with enough context for a
     client to render the whole settings surface from this one response: the
     effective values, where they came from, the instance defaults to preview a
-    reset against, the instance-owned top_n and max_output_tokens caps, and whether the team can
-    currently use AI summaries at all.
+    reset against, the instance-owned top_n and max_output_tokens caps, and
+    whether the team can currently use AI summaries at all.
   required:
     - source
     - values
