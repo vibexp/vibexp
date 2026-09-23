@@ -95,6 +95,24 @@ services:
       timeout: 5s
       retries: 20
 
+  # A deterministic OpenAI-compatible model provider for the AI Summary journey
+  # (backend/cmd/llm-test-provider, #1080), so no real LLM is ever contacted
+  # from CI. It cites the first document it is given and echoes the style and
+  # document count it received; the key "e2e-bad-key" gets a 401. The small
+  # completion delay keeps the loading skeleton observable. Reachable from the
+  # app for the same local-development reason as a2a-test-agent.
+  llm-test-provider:
+    build:
+      context: .
+      dockerfile: backend/cmd/llm-test-provider/Dockerfile
+    command: ['--port', '9002', '--completion-delay', '1s']
+    networks: [vibexp-e2e]
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:9002/healthz']
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
   app:
     build:
       context: .
@@ -150,6 +168,8 @@ services:
       gcs-init:
         condition: service_completed_successfully
       a2a-test-agent:
+        condition: service_healthy
+      llm-test-provider:
         condition: service_healthy
     networks: [vibexp-e2e]
     healthcheck:

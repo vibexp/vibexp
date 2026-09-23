@@ -13,6 +13,7 @@ e2e/journeys/
 ├── team-collaboration.journey.spec.ts       # Team collaboration workflow
 ├── resource-freshness.journey.spec.ts       # Freshness loop (gated on the docker stack)
 ├── cross-team-settings-copy.journey.spec.ts # Copying settings between two teams
+├── ai-summary.journey.spec.ts               # AI Summary on search (gated on the docker stack)
 └── README.md                                # This file
 ```
 
@@ -45,6 +46,39 @@ Names that a locator matches on are scoped per **attempt**, not per file:
 `describe.serial` re-runs `beforeAll` on a retry, and a file-scoped team name
 would leave the source-team picker offering two identical options on the second
 attempt — a red ship gate caused by the harness rather than the feature.
+
+## AI Summary (`ai-summary.journey.spec.ts`)
+
+The ship gate for epic #1068: search → the collapsed AI Summary section →
+expand → the cited summary and its Sources footer, the header search dialog's
+compact summary, a settings change reaching the next summary, the classified
+unauthorized error with a working Retry, and the provider-less member/owner
+split.
+
+**No real LLM is ever contacted.** `docker-compose.e2e.yml` runs
+`backend/cmd/llm-test-provider`, a deterministic OpenAI-compatible stub, and the
+spec registers it as the team's model provider — so a summary really travels
+backend → provider and back, exercising the LLM service and its error
+classification rather than a route mock. The stub:
+
+- cites the first document it is sent and echoes the style and document count
+  it received (`Style: detailed · Documents: 3`) — that is how the settings
+  assertion reads its effect from the page;
+- answers the key **`e2e-bad-key`** with 401, so the unauthorized path is driven
+  by editing the provider's key, never by toggling shared stub state that a
+  retried or parallel test could race;
+- delays each completion by one second, so the loading skeleton is observable.
+
+**The request count is asserted in the browser.** "One summary per search" is a
+client contract — the summary is cached per search identity, and the page is
+deliberately not part of it — so every `POST …/search/summary` the browser issues
+is counted, and collapse → re-expand → results page 2 must leave it at exactly
+one. That cache lives for one page load, so a step that needs a fresh summary for
+the same query reloads the page.
+
+Like the freshness journey it **requires the docker e2e stack**; pointed at a
+bare `npm run dev` it skips with a reason unless `E2E_LLM_PROVIDER_URL` names a
+stub the backend can reach.
 
 ## Resource freshness (`resource-freshness.journey.spec.ts`)
 
