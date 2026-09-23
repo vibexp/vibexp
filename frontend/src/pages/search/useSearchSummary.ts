@@ -1,12 +1,16 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 
 import type { SummaryState } from '@/pages/search/aiSummary'
-import { classifySummaryError, summaryKey } from '@/pages/search/aiSummary'
+import { summaryKey } from '@/pages/search/aiSummary'
+import {
+  getSearchSummary,
+  requestSearchSummary,
+  subscribeSearchSummaries,
+} from '@/pages/search/searchSummaryStore'
 import type {
   SearchFilterType,
   SearchSummaryRequest,
 } from '@/services/searchService'
-import { searchService } from '@/services/searchService'
 
 export interface UseSearchSummaryResult {
   /** Identity of the current search's summary; undefined without a team. */
@@ -20,12 +24,15 @@ export interface UseSearchSummaryResult {
 }
 
 /**
- * AI Summaries for the search page, cached by search identity (#1078).
+ * AI Summaries for a search, cached by search identity (#1078, #1079).
  *
- * Owned by the page rather than the collapsible: Radix unmounts a closed
- * panel's children, so state kept there would be lost on collapse and the
- * request would re-fire on every expand. The key excludes the page, so paging
- * reuses the summary; a new query or filter is a new key and generates anew.
+ * The cache is the session-wide `searchSummaryStore`, never component state:
+ * Radix unmounts a closed panel's children (and the header search dialog's
+ * whole content), so state kept there would be lost and the request would
+ * re-fire on every expand. The store is shared by the search page and the
+ * header search dialog, so the same search is summarized once for both. The
+ * key excludes the page, so paging reuses the summary; a new query or filter
+ * is a new key and generates anew.
  */
 export function useSearchSummary(
   teamId: string | undefined,
@@ -33,54 +40,33 @@ export function useSearchSummary(
   type: SearchFilterType | undefined,
   projectId: string | undefined
 ): UseSearchSummaryResult {
-  const [summaries, setSummaries] = useState<Map<string, SummaryState>>(
-    () => new Map()
-  )
-  // Keys with a request in flight, so a fast double expand/retry never sends
-  // a second request for the same search.
-  const inFlight = useRef(new Set<string>())
-
   const key = teamId ? summaryKey(teamId, query, type, projectId) : undefined
+
+  const getSnapshot = useCallback(
+    () => (key ? getSearchSummary(key) : undefined),
+    [key]
+  )
+  const state = useSyncExternalStore(subscribeSearchSummaries, getSnapshot)
 
   const request = useCallback(
     (requestKey: string) => {
-      if (!teamId || inFlight.current.has(requestKey)) return
-      inFlight.current.add(requestKey)
-      const store = (next: SummaryState) => {
-        setSummaries(prev => new Map(prev).set(requestKey, next))
-      }
-      store({ status: 'loading' })
+      if (!teamId) return
       // No paging fields: the summary is grounded in the global top-N.
       const req: SearchSummaryRequest = { query }
       if (type) req.types = [type]
       if (projectId) req.project_id = projectId
-      searchService
-        .summarize(teamId, req)
-        .then(data => {
-          store({ status: 'ready', data })
-        })
-        .catch((error: unknown) => {
-          store({ status: 'error', ...classifySummaryError(error) })
-        })
-        .finally(() => {
-          inFlight.current.delete(requestKey)
-        })
+      requestSearchSummary(requestKey, teamId, req)
     },
     [teamId, query, type, projectId]
   )
 
   const generate = useCallback(() => {
-    if (key && !summaries.has(key)) request(key)
-  }, [key, summaries, request])
+    if (key && getSearchSummary(key) === undefined) request(key)
+  }, [key, request])
 
   const retry = useCallback(() => {
     if (key) request(key)
   }, [key, request])
 
-  return {
-    key,
-    state: key ? summaries.get(key) : undefined,
-    generate,
-    retry,
-  }
+  return { key, state, generate, retry }
 }

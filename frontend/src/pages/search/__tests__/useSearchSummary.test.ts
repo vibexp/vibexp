@@ -9,6 +9,7 @@ vi.mock('@/services/searchService', () => ({
 
 import { searchService } from '@/services/searchService'
 
+import { resetSearchSummaries } from '../searchSummaryStore'
 import { useSearchSummary } from '../useSearchSummary'
 
 const mockSummarize = searchService.summarize as Mock
@@ -38,6 +39,7 @@ function setup(initial: Props) {
 describe('useSearchSummary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetSearchSummaries()
     mockSummarize.mockResolvedValue(summary)
   })
 

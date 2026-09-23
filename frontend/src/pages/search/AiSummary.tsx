@@ -38,6 +38,14 @@ interface AiSummaryProps {
   isOnPage: (resourceId: string) => boolean
   /** Scroll to and highlight the visible result for this resource. */
   onShowResult: (resourceId: string) => void
+  /**
+   * Open regardless of the stored preference — the user arrived through the
+   * header search dialog's "See full results" (#1079). The stored preference
+   * is left untouched.
+   */
+  preExpanded?: boolean
+  /** The user toggled the section, ending any `preExpanded` override. */
+  onToggle?: () => void
 }
 
 /**
@@ -56,11 +64,14 @@ export function AiSummary({
   onRetry,
   isOnPage,
   onShowResult,
+  preExpanded = false,
+  onToggle,
 }: Readonly<AiSummaryProps>) {
-  const [open, setOpen] = useLocalStorage(
+  const [storedOpen, setOpen] = useLocalStorage(
     STORAGE_KEYS.SEARCH_AI_SUMMARY_EXPANDED,
     false
   )
+  const open = preExpanded || storedOpen
   const active = availability?.enabled === true && availability.available
 
   useEffect(() => {
@@ -87,7 +98,13 @@ export function AiSummary({
 
   return (
     <Card className="p-0">
-      <Collapsible open={open} onOpenChange={setOpen}>
+      <Collapsible
+        open={open}
+        onOpenChange={next => {
+          onToggle?.()
+          setOpen(next)
+        }}
+      >
         <CollapsibleTrigger className="flex w-full items-center gap-2 p-4 text-left font-medium">
           <Sparkles className="size-4 shrink-0" />
           <span className="flex-1">AI Summary</span>
@@ -123,15 +140,7 @@ function SummaryBody({
     return <SummarySkeleton />
   }
   if (state.status === 'error') {
-    return (
-      <div role="alert" className="flex flex-col items-start gap-2 text-sm">
-        <p className="text-destructive">{state.message}</p>
-        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-          <RefreshCw className="size-3.5" />
-          Retry
-        </Button>
-      </div>
-    )
+    return <SummaryError message={state.message} onRetry={onRetry} />
   }
   return (
     <SummaryReady
@@ -139,6 +148,22 @@ function SummaryBody({
       isOnPage={isOnPage}
       onShowResult={onShowResult}
     />
+  )
+}
+
+/** A failed summary's classified message and its Retry (shared with #1079). */
+export function SummaryError({
+  message,
+  onRetry,
+}: Readonly<{ message: string; onRetry: () => void }>) {
+  return (
+    <div role="alert" className="flex flex-col items-start gap-2 text-sm">
+      <p className="text-destructive">{message}</p>
+      <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+        <RefreshCw className="size-3.5" />
+        Retry
+      </Button>
+    </div>
   )
 }
 

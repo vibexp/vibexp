@@ -90,6 +90,25 @@ export function Search() {
   const teamId = currentTeam?.id
   const aiSummary = useSearchSummary(teamId, q, type, projectId)
 
+  // Arriving from the header search dialog's "See full results"
+  // (`summary=open`, #1079) opens the AI Summary for that query, reusing the
+  // answer the dialog already cached. The param is consumed right away so a
+  // refresh or back-navigation follows the user's stored preference again.
+  const [preExpandedQuery, setPreExpandedQuery] = useState<string | null>(null)
+  const summaryParam = searchParams.get('summary')
+  useEffect(() => {
+    if (summaryParam === null) return
+    if (summaryParam === 'open') setPreExpandedQuery(q)
+    setSearchParams(
+      prev => {
+        const params = new URLSearchParams(prev)
+        params.delete('summary')
+        return params
+      },
+      { replace: true }
+    )
+  }, [summaryParam, q, setSearchParams])
+
   // Keep the query box in sync when `q` changes externally (e.g. navigating in
   // from the header search modal or the browser back button).
   useEffect(() => {
@@ -251,6 +270,10 @@ export function Search() {
     [setSearchParams]
   )
 
+  const clearPreExpanded = useCallback(() => {
+    setPreExpandedQuery(null)
+  }, [])
+
   if (!currentTeam) return null
 
   return (
@@ -301,6 +324,8 @@ export function Search() {
                     onRetry={aiSummary.retry}
                     isOnPage={isResultOnPage}
                     onShowResult={showResult}
+                    preExpanded={preExpandedQuery === q}
+                    onToggle={clearPreExpanded}
                   />
                 </div>
               )}
