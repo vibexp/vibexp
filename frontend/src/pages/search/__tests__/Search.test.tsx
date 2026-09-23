@@ -515,8 +515,15 @@ describe('Search page', () => {
     })
 
     it('highlights a cited result on the page', async () => {
+      // jsdom has no layout, so Element has no scrollIntoView to spy on.
       const scrollIntoView = vi.fn()
-      Element.prototype.scrollIntoView = scrollIntoView
+      Object.defineProperty(Element.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: scrollIntoView,
+      })
+      onTestFinished(() => {
+        Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+      })
       mockSearch.mockResolvedValue(
         withSummary({ available: true, enabled: true })
       )
