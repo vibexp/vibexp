@@ -14,12 +14,18 @@ import type { SearchResultItem } from '@/services/searchService'
 
 interface SearchResultCardProps {
   item: SearchResultItem
+  /** DOM id, set on the first card of a resource so citations can target it. */
+  domId?: string
+  /** Briefly true after an AI Summary citation scrolled to this card. */
+  highlighted?: boolean
   expanded: boolean
   onToggleExpand: () => void
 }
 
 export function SearchResultCard({
   item,
+  domId,
+  highlighted = false,
   expanded,
   onToggleExpand,
 }: Readonly<SearchResultCardProps>) {
@@ -44,7 +50,15 @@ export function SearchResultCard({
   )
 
   return (
-    <Card className={cn('p-4', href && 'transition-colors hover:bg-accent/50')}>
+    <Card
+      id={domId}
+      data-highlighted={highlighted || undefined}
+      className={cn(
+        'p-4',
+        href && 'transition-colors hover:bg-accent/50',
+        highlighted && 'ring-primary ring-2'
+      )}
+    >
       {href ? (
         <Link to={href} className="block">
           {header}

@@ -13,6 +13,37 @@ const API_ORIGIN = getApiBaseUrl().replace(/\/api\/v1\/?$/, '')
 // would hold the hooks' in-flight guards forever.
 const REQUEST_TIMEOUT_MS = 30000
 
+// For the few operations the backend deliberately lets run longer than the
+// default (the AI Summary call waits up to `ai_summary.request_timeout`, 60s
+// by default, on a model provider). Backend budget plus headroom, so a slow
+// but successful call is never aborted client-side and a server-side timeout
+// still arrives as its classified error rather than a generic abort.
+export const LONG_RUNNING_REQUEST_TIMEOUT_MS = 90000
+
+/**
+ * The `fetch` the generated clients use: combines the caller's signal
+ * (openapi-fetch puts a per-request `signal` on the Request) with the request
+ * timeout so callers can still cancel in-flight requests (e.g. charts aborting
+ * on unmount / range change) while the timeout guard is preserved.
+ * `AbortSignal.any` aborts as soon as either fires.
+ */
+export function createTimeoutFetch(
+  timeoutMs: number
+): (request: Request) => Promise<Response> {
+  return request =>
+    fetch(request, {
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(timeoutMs)]),
+    })
+}
+
+function createGeneratedClient(timeoutMs: number) {
+  return createApiClient({
+    baseUrl: API_ORIGIN,
+    credentials: 'include',
+    fetch: createTimeoutFetch(timeoutMs),
+  })
+}
+
 /**
  * Typed openapi-fetch client generated from the backend OpenAPI spec — the
  * single HTTP client for the SPA (the hand-written `apiClient` was retired in
@@ -20,21 +51,16 @@ const REQUEST_TIMEOUT_MS = 30000
  * https://docs.vibexp.io/developer-guide/frontend/api-integration/ for the pattern.
  * Authentication uses the httpOnly session cookie (`credentials: 'include'`).
  */
-export const generatedClient = createApiClient({
-  baseUrl: API_ORIGIN,
-  credentials: 'include',
-  // Combine the caller's signal (openapi-fetch puts a per-request `signal` on
-  // the Request) with the request timeout so callers can still cancel in-flight
-  // requests (e.g. charts aborting on unmount / range change) while the timeout
-  // guard is preserved. `AbortSignal.any` aborts as soon as either fires.
-  fetch: request =>
-    fetch(request, {
-      signal: AbortSignal.any([
-        request.signal,
-        AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      ]),
-    }),
-})
+export const generatedClient = createGeneratedClient(REQUEST_TIMEOUT_MS)
+
+/**
+ * Same client with `LONG_RUNNING_REQUEST_TIMEOUT_MS` instead of the 30s
+ * default. Use only for an operation whose server-side budget exceeds the
+ * default; everything else stays on `generatedClient`.
+ */
+export const longRunningClient = createGeneratedClient(
+  LONG_RUNNING_REQUEST_TIMEOUT_MS
+)
 
 interface FetchResult<T> {
   data?: T
