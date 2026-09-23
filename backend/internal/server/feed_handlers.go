@@ -101,7 +101,11 @@ func (s *Server) handleListFeeds(w http.ResponseWriter, r *http.Request) {
 		"team_id", teamID,
 	).Info("List feeds request received")
 
-	filters := s.buildFeedFilters(r, teamID)
+	filters, filterErr := s.buildFeedFilters(r, teamID)
+	if filterErr != nil {
+		writeErrorResponse(w, nil, "bad_request", errorMessage(filterErr), http.StatusBadRequest)
+		return
+	}
 
 	response, err := s.container.FeedService().ListFeeds(r.Context(), userID, filters)
 	if err != nil {
@@ -230,7 +234,7 @@ func (s *Server) handleListFeedItems(w http.ResponseWriter, r *http.Request) {
 
 	filters, filterErr := s.buildFeedItemFilters(r, teamID, "")
 	if filterErr != nil {
-		writeErrorResponse(w, nil, "bad_request", filterErr.Error(), http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", errorMessage(filterErr), http.StatusBadRequest)
 		return
 	}
 
@@ -270,7 +274,7 @@ func (s *Server) handleListFeedItemsByFeed(w http.ResponseWriter, r *http.Reques
 
 	filters, filterErr := s.buildFeedItemFilters(r, teamID, feedID)
 	if filterErr != nil {
-		writeErrorResponse(w, nil, "bad_request", filterErr.Error(), http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", errorMessage(filterErr), http.StatusBadRequest)
 		return
 	}
 
@@ -570,18 +574,33 @@ func (s *Server) validateCreateFeedItemRequest(w http.ResponseWriter, req *model
 // ─────────────────────────────────────────────────────────────────────────────
 
 // buildFeedFilters constructs FeedFilters from the HTTP request query params.
-func (s *Server) buildFeedFilters(r *http.Request, teamID string) services.FeedFilters {
-	limitStr := r.URL.Query().Get("limit")
-	if limitStr == "" {
-		limitStr = "20"
+// An out-of-range page or limit is an error the caller maps to a 400.
+func (s *Server) buildFeedFilters(r *http.Request, teamID string) (services.FeedFilters, error) {
+	pagination, err := feedPaginationParams(r)
+	if err != nil {
+		return services.FeedFilters{}, err
 	}
-	pagination := validatePaginationParams(r.URL.Query().Get("page"), limitStr)
 	return services.FeedFilters{
 		TeamID: teamID,
 		Search: r.URL.Query().Get("search"),
 		Page:   pagination.Page,
 		Limit:  pagination.Limit,
+	}, nil
+}
+
+// feedDefaultLimit is the page size the feed list endpoints use when
+// `limit` is omitted -- the spec's documented default for them, which differs
+// from validatePaginationParams' own default of 10.
+const feedDefaultLimit = "20"
+
+// feedPaginationParams validates the feed endpoints' page/limit query params,
+// substituting the feed default when limit is omitted.
+func feedPaginationParams(r *http.Request) (PaginationParams, error) {
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = feedDefaultLimit
 	}
+	return validatePaginationParams(r.URL.Query().Get("page"), limitStr)
 }
 
 // parseFeedItemArchivedParam parses the ?archived query parameter.
@@ -609,11 +628,10 @@ func parseFeedItemArchivedParam(val string) (*bool, error) {
 func (s *Server) buildFeedItemFilters(
 	r *http.Request, teamID, feedIDOverride string,
 ) (services.FeedItemFilters, error) {
-	limitStr := r.URL.Query().Get("limit")
-	if limitStr == "" {
-		limitStr = "20"
+	pagination, err := feedPaginationParams(r)
+	if err != nil {
+		return services.FeedItemFilters{}, err
 	}
-	pagination := validatePaginationParams(r.URL.Query().Get("page"), limitStr)
 
 	filters := services.FeedItemFilters{
 		TeamID: teamID,
@@ -862,11 +880,11 @@ func (s *Server) handleListFeedItemReplies(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	limitStr := r.URL.Query().Get("limit")
-	if limitStr == "" {
-		limitStr = "20"
+	pagination, err := feedPaginationParams(r)
+	if err != nil {
+		writeErrorResponse(w, nil, "bad_request", errorMessage(err), http.StatusBadRequest)
+		return
 	}
-	pagination := validatePaginationParams(r.URL.Query().Get("page"), limitStr)
 
 	response, err := s.container.FeedItemReplyService().ListReplies(
 		r.Context(), userID, teamID, itemID, pagination.Page, pagination.Limit,

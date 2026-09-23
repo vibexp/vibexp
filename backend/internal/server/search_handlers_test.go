@@ -144,11 +144,11 @@ func TestHandleSearch_Success(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), `"project_name":"My Project"`)
 }
 
-func TestHandleSearch_PaginationClamping(t *testing.T) {
+// Omitted page/per_page (JSON zero values) take the defaults.
+func TestHandleSearch_PaginationDefaults(t *testing.T) {
 	c := newMockSearchContainer(t)
 	grantSearchTeamAccess(c)
 
-	// per_page above max should clamp to default 10 (validatePaginationParams ignores out-of-range).
 	c.searchService.On("Search", mock.Anything, searchTestTeamID,
 		mock.MatchedBy(func(req *models.SearchRequest) bool {
 			return req.Page == 1 && req.PerPage == 10
@@ -158,9 +158,44 @@ func TestHandleSearch_PaginationClamping(t *testing.T) {
 
 	srv := createSearchTestServer(c)
 	rr := httptest.NewRecorder()
-	srv.router.ServeHTTP(rr, searchRequest(t, map[string]interface{}{"query": "q", "per_page": 9999}))
+	srv.router.ServeHTTP(rr, searchRequest(t, map[string]interface{}{"query": "q"}))
 
 	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+// A provided out-of-range page/per_page is a 400 naming the range, never
+// silently replaced by the default (#1107).
+func TestHandleSearch_OutOfRangePaginationIsRejected(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		body    map[string]interface{}
+		message string
+	}{
+		{name: "per_page above max", body: map[string]interface{}{"query": "q", "per_page": 9999},
+			message: "per_page must be between 1 and 100"},
+		{name: "negative per_page", body: map[string]interface{}{"query": "q", "per_page": -1},
+			message: "per_page must be between 1 and 100"},
+		{name: "page above max", body: map[string]interface{}{"query": "q", "page": 10001},
+			message: "page must be between 1 and 10000"},
+		{name: "negative page", body: map[string]interface{}{"query": "q", "page": -1},
+			message: "page must be between 1 and 10000"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newMockSearchContainer(t)
+			grantSearchTeamAccess(c)
+
+			srv := createSearchTestServer(c)
+			rr := httptest.NewRecorder()
+			srv.router.ServeHTTP(rr, searchRequest(t, tc.body))
+
+			require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+			assert.Equal(t, "VALIDATION_FAILED", body["code"], "same code as the body's other validation failures")
+			assert.Equal(t, tc.message, body["detail"])
+			c.searchService.AssertNotCalled(t, "Search")
+		})
+	}
 }
 
 func TestHandleSearch_BadRequests(t *testing.T) {

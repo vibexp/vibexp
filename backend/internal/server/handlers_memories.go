@@ -134,14 +134,18 @@ func memoriesUserID(ctx context.Context) (string, error) {
 // returns the FULL list: a silently ignored filter that looks like a legitimate
 // answer, which is exactly what the spec's own description says must 400.
 //
-// Pagination stays clamped rather than rejected, as validatePaginationParams
-// does for every other domain.
+// The same applies to pagination: the binder accepts any integer, so an
+// out-of-range page or limit is rejected here by validatePaginationParams
+// rather than silently replaced by the default (#1107).
 func memoryFiltersFromParams(
 	teamID string, params memoriesgen.ListMemoriesParams,
 ) (services.MemoryFilters, error) {
-	pagination := validatePaginationParams(
+	pagination, err := validatePaginationParams(
 		intPtrToQueryString(params.Page), intPtrToQueryString(params.Limit),
 	)
+	if err != nil {
+		return services.MemoryFilters{}, err
+	}
 
 	var projectID *string
 	if params.ProjectId != nil {
@@ -228,7 +232,7 @@ func optionalStringValue(value *string) string {
 
 // intPtrToQueryString renders an optional integer parameter the way
 // validatePaginationParams expects to receive it: absent becomes "", which is
-// what makes it apply the default rather than clamp a zero.
+// what makes it apply the default rather than reject a zero.
 func intPtrToQueryString(value *int) string {
 	if value == nil {
 		return ""

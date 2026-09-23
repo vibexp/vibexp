@@ -273,9 +273,12 @@ func blueprintFiltersFromQuery(
 		return services.BlueprintFilters{}, err
 	}
 
-	pagination := validatePaginationParams(
+	pagination, err := validatePaginationParams(
 		intPtrToQueryString(query.page), intPtrToQueryString(query.limit),
 	)
+	if err != nil {
+		return services.BlueprintFilters{}, err
+	}
 
 	return services.BlueprintFilters{
 		Freshness:      query.freshness,

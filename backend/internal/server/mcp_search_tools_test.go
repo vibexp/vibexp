@@ -156,7 +156,7 @@ func TestSearch_RejectsInvalidInput(t *testing.T) {
 	}
 }
 
-func TestSearch_PaginationClamping(t *testing.T) {
+func TestSearch_PaginationDefaults(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		inPage      int
@@ -164,11 +164,9 @@ func TestSearch_PaginationClamping(t *testing.T) {
 		wantPage    int
 		wantPerPage int
 	}{
-		{name: "zero defaults", inPage: 0, inLimit: 0, wantPage: 1, wantPerPage: 10},
-		{name: "negative defaults", inPage: -5, inLimit: -3, wantPage: 1, wantPerPage: 10},
-		{name: "limit above max defaults", inPage: 1, inLimit: 9999, wantPage: 1, wantPerPage: 10},
-		{name: "page above max defaults to 1", inPage: 100000, inLimit: 50, wantPage: 1, wantPerPage: 50},
+		{name: "zero (omitted) defaults", inPage: 0, inLimit: 0, wantPage: 1, wantPerPage: 10},
 		{name: "within bounds preserved", inPage: 3, inLimit: 50, wantPage: 3, wantPerPage: 50},
+		{name: "max bounds preserved", inPage: 10000, inLimit: 100, wantPage: 10000, wantPerPage: 100},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, mockSearchSvc := newSearchServer(t)
@@ -185,6 +183,38 @@ func TestSearch_PaginationClamping(t *testing.T) {
 			result, _, err := srv.search(context.Background(), nil, params, testMemberUserID)
 			assert.NoError(t, err)
 			assert.False(t, result.IsError)
+		})
+	}
+}
+
+// A provided out-of-range page/limit is a tool error naming the range, never
+// silently replaced by the default (#1107) -- and never reaches the billed
+// embeddings service.
+func TestSearch_OutOfRangePaginationIsToolError(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		page    int
+		limit   int
+		message string
+	}{
+		{name: "limit above max", page: 1, limit: 500, message: "limit must be between 1 and 100"},
+		{name: "negative limit", page: 1, limit: -3, message: "limit must be between 1 and 100"},
+		{name: "page above max", page: 10001, limit: 10, message: "page must be between 1 and 10000"},
+		{name: "negative page", page: -5, limit: 10, message: "page must be between 1 and 10000"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, mockSearchSvc := newSearchServer(t)
+
+			params := &SemanticSearchParams{TeamID: testTeamUUID, Query: "q", Page: tc.page, Limit: tc.limit}
+			result, structured, err := srv.search(context.Background(), nil, params, testMemberUserID)
+
+			assert.NoError(t, err)
+			require.NotNil(t, result)
+			assert.True(t, result.IsError)
+			assert.Nil(t, structured)
+			require.Len(t, result.Content, 1)
+			assert.Equal(t, tc.message, result.Content[0].(*mcp.TextContent).Text)
+			mockSearchSvc.AssertNotCalled(t, "Search")
 		})
 	}
 }
