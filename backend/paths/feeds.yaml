@@ -100,6 +100,12 @@ api-v1-team_id-feeds:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/FeedListResponse'
+      '400':
+        description: Invalid query parameter (page/limit out of range)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
         content:
@@ -504,6 +510,12 @@ api-v1-team_id-feed-items:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/FeedItemListResponse'
+      '400':
+        description: Invalid query parameter (page/limit out of range, malformed feed_id or archived)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
         content:

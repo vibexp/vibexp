@@ -115,8 +115,8 @@ func validatePaginationParams(pageStr, limitStr string) (PaginationParams, error
 
 // errorMessage returns the client-facing message for err: an APIError's
 // Detail (its Error() prefixes the code), anything else verbatim. It is how
-// the legacy chi handlers surface a validatePaginationParams error in their
-// {error, message} body.
+// the legacy chi handlers pass a validatePaginationParams error to
+// writeErrorResponse, whose body carries it as `detail`.
 func errorMessage(err error) string {
 	var apiErr *apierrors.APIError
 	if errors.As(err, &apiErr) {
@@ -132,7 +132,17 @@ func parseBoundedInt(raw string, defaultValue, maxValue int, rangeMsg string) (i
 		return defaultValue, nil
 	}
 	value, err := strconv.Atoi(raw)
-	if err != nil || value < 1 || value > maxValue {
+	if err != nil {
+		return 0, apierrors.NewBadRequestError(rangeMsg)
+	}
+	return checkBounded(value, maxValue, rangeMsg)
+}
+
+// checkBounded returns value when it lies in [1, maxValue], else a
+// bad-request error carrying rangeMsg. It is the one range check behind both
+// the query-string and the integer (search body / MCP) pagination paths.
+func checkBounded(value, maxValue int, rangeMsg string) (int, error) {
+	if value < 1 || value > maxValue {
 		return 0, apierrors.NewBadRequestError(rangeMsg)
 	}
 	return value, nil

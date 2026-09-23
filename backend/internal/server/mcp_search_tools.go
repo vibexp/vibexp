@@ -9,7 +9,6 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
@@ -52,15 +51,17 @@ func normalizeSearchPagination(page, limit int, limitName string) (int, int, err
 	if page == 0 {
 		page = paginationDefaultPage
 	}
-	if page < 1 || page > paginationMaxPage {
-		return 0, 0, apierrors.NewBadRequestError(paginationMsgPageRange)
+	page, err := checkBounded(page, paginationMaxPage, paginationMsgPageRange)
+	if err != nil {
+		return 0, 0, err
 	}
 	if limit == 0 {
 		limit = paginationDefaultLimit
 	}
-	if limit < 1 || limit > paginationMaxLimit {
-		return 0, 0, apierrors.NewBadRequestError(
-			fmt.Sprintf("%s must be between 1 and %d", limitName, paginationMaxLimit))
+	limit, err = checkBounded(limit, paginationMaxLimit,
+		fmt.Sprintf("%s must be between 1 and %d", limitName, paginationMaxLimit))
+	if err != nil {
+		return 0, 0, err
 	}
 	return page, limit, nil
 }
