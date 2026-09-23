@@ -1,8 +1,10 @@
 import '@testing-library/jest-dom'
 
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
+import mermaid from 'mermaid'
+import { useState } from 'react'
 
 import { MarkdownRenderer } from './MarkdownRenderer'
 
@@ -20,6 +22,34 @@ vi.mock('mermaid', () => {
   }
   return { ...mermaid, default: mermaid }
 })
+
+// Records every React root created through `react-dom/client` so the mermaid
+// lifecycle tests can find the diagram roots (those mounted inside a
+// `[data-mermaid-id]` placeholder) and assert they are unmounted (#1109).
+// Testing Library's own roots pass through here too; they are filtered out by
+// container.
+const createdRoots = vi.hoisted(
+  () => [] as { container: Element; unmount: ReturnType<typeof vi.fn> }[]
+)
+vi.mock('react-dom/client', async importOriginal => {
+  const actual = await importOriginal<typeof import('react-dom/client')>()
+  return {
+    ...actual,
+    createRoot: (...args: Parameters<typeof actual.createRoot>) => {
+      const root = actual.createRoot(...args)
+      const unmount = vi.fn(() => {
+        root.unmount()
+      })
+      createdRoots.push({ container: args[0] as Element, unmount })
+      return { render: root.render.bind(root), unmount }
+    },
+  }
+})
+
+const diagramRoots = () =>
+  createdRoots.filter(({ container }) =>
+    container.parentElement?.hasAttribute('data-mermaid-id')
+  )
 
 // Capture the link override installed by configureMarked so tests can
 // invoke it directly and assert on its output.
@@ -545,6 +575,122 @@ describe('MarkdownRenderer', () => {
       const source = markedMock.mock.calls[0]?.[0]
       expect(source).toContain('```mermaid')
       expect(source).not.toContain('data-mermaid-id')
+    })
+  })
+
+  // #1109: react-dom 19 re-applies a fresh `dangerouslySetInnerHTML` object on
+  // every render, even for an identical string — which wiped the placeholders
+  // the diagrams were mounted into. Any parent re-render (the AlertProvider's
+  // 10s prune was the visible one) made every diagram vanish.
+  describe('mermaid diagrams survive re-renders', () => {
+    const FENCE_A = '```mermaid\nflowchart TD\n  A[Start] --> B[Stop]\n```'
+    const FENCE_B = '```mermaid\nflowchart LR\n  X[One] --> Y[Two]\n```'
+    // Raw HTML the passthrough `marked` leaves as-is, so the code-block
+    // post-processing injects a real copy button next to the diagram.
+    const CODE_BLOCK = '<pre><code class="language-text">echo hi</code></pre>'
+
+    const Parent = ({ content }: { content: string }) => {
+      const [ticks, setTicks] = useState(0)
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setTicks(t => t + 1)
+            }}
+          >
+            parent-tick-{ticks}
+          </button>
+          <MarkdownRenderer content={content} />
+        </>
+      )
+    }
+
+    const diagramSvg = (container: HTMLElement) =>
+      container.querySelector('.mermaid-container svg')
+
+    beforeEach(() => {
+      createdRoots.length = 0
+      vi.mocked(marked).mockImplementation((src: string) =>
+        Promise.resolve(src)
+      )
+    })
+
+    afterEach(() => {
+      vi.mocked(marked).mockResolvedValue('<p>mocked content</p>')
+    })
+
+    it('keeps the diagram after a parent re-render that does not change content', async () => {
+      const { container } = render(
+        <Parent content={`${FENCE_A}\n\n${CODE_BLOCK}\n`} />
+      )
+      await waitFor(() => {
+        expect(diagramSvg(container)).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'parent-tick-0' }))
+      expect(
+        screen.getByRole('button', { name: 'parent-tick-1' })
+      ).toBeInTheDocument()
+      expect(diagramSvg(container)).toBeInTheDocument()
+
+      // The component's OWN state changing (a copy button's "copied" toggle)
+      // re-renders it too, and must not wipe the diagram either — while the
+      // copy icon still toggles.
+      const copyButton =
+        container.querySelector<HTMLButtonElement>('.copy-button')
+      expect(copyButton).not.toBeNull()
+      const iconBefore = copyButton!.innerHTML
+      await act(async () => {
+        fireEvent.click(copyButton!)
+        await Promise.resolve()
+      })
+      await waitFor(() => {
+        expect(copyButton!.innerHTML).not.toBe(iconBefore)
+      })
+      expect(diagramSvg(container)).toBeInTheDocument()
+    })
+
+    it('renders the new diagram and unmounts the old roots when content changes', async () => {
+      const { container, rerender } = render(<Parent content={FENCE_A} />)
+      await waitFor(() => {
+        expect(diagramSvg(container)).toBeInTheDocument()
+      })
+      const firstRoots = diagramRoots()
+      expect(firstRoots).toHaveLength(1)
+
+      rerender(<Parent content={FENCE_B} />)
+
+      await waitFor(() => {
+        expect(vi.mocked(mermaid.render)).toHaveBeenCalledWith(
+          expect.any(String),
+          'flowchart LR\n  X[One] --> Y[Two]'
+        )
+      })
+      await waitFor(() => {
+        expect(diagramSvg(container)).toBeInTheDocument()
+      })
+      await waitFor(() => {
+        expect(firstRoots[0].unmount).toHaveBeenCalled()
+      })
+      const current = diagramRoots().filter(r => !firstRoots.includes(r))
+      expect(current).toHaveLength(1)
+      expect(current[0].unmount).not.toHaveBeenCalled()
+    })
+
+    it('unmounts the diagram roots when the renderer unmounts', async () => {
+      const { container, unmount } = render(<Parent content={FENCE_A} />)
+      await waitFor(() => {
+        expect(diagramSvg(container)).toBeInTheDocument()
+      })
+      const roots = diagramRoots()
+      expect(roots).toHaveLength(1)
+
+      unmount()
+
+      await waitFor(() => {
+        expect(roots[0].unmount).toHaveBeenCalled()
+      })
     })
   })
 
