@@ -769,6 +769,10 @@ func (s *PromptService) renderPromptRecursive(
 	// Handle escaped @@ sequences first
 	renderedBody := strings.ReplaceAll(body, "@@", escapedAtSentinel)
 
+	// Missing keys come from the template, not the output, so a supplied value
+	// that itself contains {{x}} never reports x as missing (#1098).
+	missing := missingPlaceholderKeys(renderedBody, placeholders)
+
 	// Substitute {{placeholder_key}} patterns with provided values
 	renderedBody = substitutePlaceholders(renderedBody, placeholders)
 
@@ -818,6 +822,9 @@ func (s *PromptService) renderPromptRecursive(
 
 		// Collect warnings from nested prompt
 		warnings = append(warnings, refResponse.Warnings...)
+
+		// Collect unfilled placeholders from nested prompt
+		missing = appendUniquePlaceholders(missing, refResponse.PlaceholdersMissing)
 	}
 
 	// Remove duplicates from references
@@ -827,9 +834,10 @@ func (s *PromptService) renderPromptRecursive(
 	renderedBody = strings.ReplaceAll(renderedBody, escapedAtSentinel, "@")
 
 	return &models.RenderPromptResponse{
-		RenderedBody:   renderedBody,
-		ReferencesUsed: referencesUsed,
-		Warnings:       warnings,
+		RenderedBody:        renderedBody,
+		PlaceholdersMissing: missing,
+		ReferencesUsed:      referencesUsed,
+		Warnings:            warnings,
 	}, nil
 }
 
@@ -921,6 +929,19 @@ func extractPlaceholderKeys(body string) []string {
 		keys = append(keys, strings.TrimSpace(match[1]))
 	}
 	return keys
+}
+
+// missingPlaceholderKeys returns the deduplicated {{placeholder}} keys in body that
+// have no entry in placeholders. An empty-string value counts as filled, matching
+// substitutePlaceholders, which substitutes on key existence.
+func missingPlaceholderKeys(body string, placeholders map[string]string) []string {
+	var missing []string
+	for _, key := range extractPlaceholderKeys(body) {
+		if _, exists := placeholders[key]; !exists && !slices.Contains(missing, key) {
+			missing = append(missing, key)
+		}
+	}
+	return missing
 }
 
 // appendUniquePlaceholders appends each value not already present in dst, preserving order.
