@@ -3,6 +3,7 @@ import { ApiError } from '@/types/errors'
 
 import {
   classifySummaryError,
+  renderCompactSummaryHtml,
   renderSummaryHtml,
   sourceUrl,
   summaryKey,
@@ -110,6 +111,12 @@ describe('sourceUrl', () => {
 
 // `marked` is aliased to tests/mocks/marked.js, which wraps the input in <p>,
 // so these assert on the citation rewrite + DOMPurify output, not on parsing.
+function toDom(html: string): HTMLElement {
+  const el = document.createElement('div')
+  el.innerHTML = html
+  return el
+}
+
 describe('renderSummaryHtml', () => {
   const sources = [
     makeSource({ index: 1, id: 'mem-1' }),
@@ -120,12 +127,6 @@ describe('renderSummaryHtml', () => {
       slug: 'retry-guide',
     }),
   ]
-
-  function toDom(html: string): HTMLElement {
-    const el = document.createElement('div')
-    el.innerHTML = html
-    return el
-  }
 
   it('turns known [n] citations into links to their sources', () => {
     const dom = toDom(
@@ -163,5 +164,30 @@ describe('renderSummaryHtml', () => {
     expect(html).not.toContain('javascript:')
     // The citation rewrite survives sanitization.
     expect(dom.querySelector('a[data-citation="1"]')).not.toBeNull()
+  })
+})
+
+describe('renderCompactSummaryHtml', () => {
+  const compactSources = [makeSource({ index: 1 })]
+
+  it('renders known citations as plain superscripts, not links', () => {
+    const dom = toDom(
+      renderCompactSummaryHtml('See [1] and [9].', compactSources)
+    )
+    expect(dom.querySelector('sup[data-citation="1"]')).toHaveTextContent('1')
+    expect(dom.querySelectorAll('a')).toHaveLength(0)
+    // An unknown number stays literal.
+    expect(dom).toHaveTextContent('and [9].')
+  })
+
+  it('sanitizes scripted payloads out of the summary', () => {
+    const html = renderCompactSummaryHtml(
+      'Hi <script>window.pwned = true</script><img src="x" onerror="window.pwned = true"> [1]',
+      compactSources
+    )
+    const dom = toDom(html)
+    expect(dom.querySelector('script')).toBeNull()
+    expect(html).not.toContain('onerror')
+    expect(dom.querySelector('sup[data-citation="1"]')).not.toBeNull()
   })
 })

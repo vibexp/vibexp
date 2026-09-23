@@ -1,7 +1,8 @@
 import { Search as SearchIcon } from 'lucide-react'
-import { type KeyboardEvent, useState } from 'react'
+import { type KeyboardEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 
+import { SearchModalAiSummary } from '@/components/layout/SearchModalAiSummary'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -13,6 +14,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { useTeam } from '@/contexts/TeamContext'
+import { aiSummarySettingsService } from '@/services/aiSummarySettingsService'
 
 /**
  * Header search entry point: a ghost icon-button that opens a controlled
@@ -21,18 +24,47 @@ import { Textarea } from '@/components/ui/textarea'
  *
  * A plain `Dialog` (not `CommandDialog`) is used deliberately — cmdk swallows
  * the Enter key, which would break the submit-on-Enter behavior.
+ *
+ * Once a query is typed, a collapsed AI Summary row offers a grounded answer
+ * without leaving the dialog (#1079) — only when the team's AI Summary is
+ * enabled and has a model provider, and never with an admin configure-hint
+ * (that belongs on the full search page).
  */
 export function SearchModal() {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState('')
+  const { currentTeam } = useTeam()
+  const teamId = currentTeam?.id
+  const [aiSummaryAvailable, setAiSummaryAvailable] = useState(false)
+  const query = value.trim()
 
-  const submit = () => {
-    const query = value.trim()
+  // Availability is read once per dialog open. Any failure hides the row.
+  useEffect(() => {
+    if (!open || !teamId) return
+    let cancelled = false
+    aiSummarySettingsService
+      .getAISummarySettings(teamId)
+      .then(settings => {
+        if (!cancelled) {
+          setAiSummaryAvailable(settings.available && settings.values.enabled)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAiSummaryAvailable(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, teamId])
+
+  const submit = (withSummary = false) => {
     if (!query) return
     setOpen(false)
     setValue('')
-    void navigate(`/search?q=${encodeURIComponent(query)}`)
+    setAiSummaryAvailable(false)
+    const summaryParam = withSummary ? '&summary=open' : ''
+    void navigate(`/search?q=${encodeURIComponent(query)}${summaryParam}`)
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -45,7 +77,10 @@ export function SearchModal() {
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
-    if (!next) setValue('')
+    if (!next) {
+      setValue('')
+      setAiSummaryAvailable(false)
+    }
   }
 
   return (
@@ -75,8 +110,22 @@ export function SearchModal() {
           }}
           onKeyDown={handleKeyDown}
         />
+        {teamId && query && aiSummaryAvailable && (
+          <SearchModalAiSummary
+            teamId={teamId}
+            query={query}
+            onSeeFullResults={() => {
+              submit(true)
+            }}
+          />
+        )}
         <DialogFooter>
-          <Button onClick={submit} disabled={!value.trim()}>
+          <Button
+            onClick={() => {
+              submit()
+            }}
+            disabled={!query}
+          >
             <SearchIcon className="mr-2 size-4" />
             Search
           </Button>

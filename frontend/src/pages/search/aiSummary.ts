@@ -94,31 +94,22 @@ const CITATION = /\[(\d+)\]/g
 /** Elements whose text is never rewritten into citation links. */
 const NO_CITATION_ANCESTORS = 'a, code, pre'
 
+/** Builds the element replacing citation `[index]`, or `null` to keep it literal. */
+type CitationFactory = (doc: Document, index: number) => Element | null
+
 /**
- * Replace every `[n]` in `textNode` that names a known source with a citation
- * link. Unknown numbers stay literal text.
+ * Replace every `[n]` in `textNode` for which `makeCitation` returns an
+ * element with that element. The rest stay literal text.
  */
-function linkCitations(
-  textNode: Text,
-  sourcesByIndex: Map<number, SearchSummarySource>
-): void {
+function rewriteCitations(textNode: Text, makeCitation: CitationFactory): void {
   const text = textNode.data
   const doc = textNode.ownerDocument
   const fragment = doc.createDocumentFragment()
   let last = 0
   for (const match of text.matchAll(CITATION)) {
-    const index = Number(match[1])
-    const source = sourcesByIndex.get(index)
-    const url = source ? sourceUrl(source) : null
-    if (!source || !url) continue
-    fragment.append(text.slice(last, match.index))
-    const link = doc.createElement('a')
-    link.setAttribute('href', url)
-    link.dataset.citation = String(index)
-    link.dataset.resourceId = source.id
-    link.className = 'ai-summary-citation'
-    link.textContent = `[${String(index)}]`
-    fragment.append(link)
+    const citation = makeCitation(doc, Number(match[1]))
+    if (!citation) continue
+    fragment.append(text.slice(last, match.index), citation)
     last = match.index + match[0].length
   }
   if (last === 0) return
@@ -127,21 +118,17 @@ function linkCitations(
 }
 
 /**
- * Render a summary's markdown to HTML safe for `dangerouslySetInnerHTML`.
- *
- * The summary is untrusted LLM output: markdown → HTML (`marked`), then `[n]`
- * citations are rewritten into links to their sources in an inert parsed
- * document (DOMParser runs no scripts and loads nothing), and only THEN is
- * the whole thing sanitized — sanitizing last means nothing the rewrite did
- * can re-open a hole.
+ * Markdown → HTML (`marked`), then `[n]` citations are rewritten in an inert
+ * parsed document (DOMParser runs no scripts and loads nothing), and only
+ * THEN is the whole thing sanitized — sanitizing last means nothing the
+ * rewrite did can re-open a hole.
  */
-export function renderSummaryHtml(
+function renderWithCitations(
   summary: string,
-  sources: readonly SearchSummarySource[]
+  makeCitation: CitationFactory
 ): string {
   const html = marked.parse(summary, { async: false })
   const doc = new DOMParser().parseFromString(html, 'text/html')
-  const sourcesByIndex = new Map(sources.map(s => [s.index, s]))
 
   const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT)
   const textNodes: Text[] = []
@@ -150,7 +137,51 @@ export function renderSummaryHtml(
       textNodes.push(node as Text)
     }
   }
-  for (const node of textNodes) linkCitations(node, sourcesByIndex)
+  for (const node of textNodes) rewriteCitations(node, makeCitation)
 
   return DOMPurify.sanitize(doc.body.innerHTML)
+}
+
+/**
+ * Render a summary's markdown to HTML safe for `dangerouslySetInnerHTML`,
+ * with each `[n]` naming a known source rewritten into a link to it. Unknown
+ * numbers stay literal text. The summary is untrusted LLM output.
+ */
+export function renderSummaryHtml(
+  summary: string,
+  sources: readonly SearchSummarySource[]
+): string {
+  const sourcesByIndex = new Map(sources.map(s => [s.index, s]))
+  return renderWithCitations(summary, (doc, index) => {
+    const source = sourcesByIndex.get(index)
+    const url = source ? sourceUrl(source) : null
+    if (!source || !url) return null
+    const link = doc.createElement('a')
+    link.setAttribute('href', url)
+    link.dataset.citation = String(index)
+    link.dataset.resourceId = source.id
+    link.className = 'ai-summary-citation'
+    link.textContent = `[${String(index)}]`
+    return link
+  })
+}
+
+/**
+ * Render a summary for the header search dialog's compact view (#1079): the
+ * same sanitize path as `renderSummaryHtml`, but each `[n]` naming a known
+ * source becomes a plain superscript — the cited results are not on screen
+ * there to scroll to. Unknown numbers stay literal text.
+ */
+export function renderCompactSummaryHtml(
+  summary: string,
+  sources: readonly SearchSummarySource[]
+): string {
+  const indexes = new Set(sources.map(s => s.index))
+  return renderWithCitations(summary, (doc, index) => {
+    if (!indexes.has(index)) return null
+    const sup = doc.createElement('sup')
+    sup.dataset.citation = String(index)
+    sup.textContent = String(index)
+    return sup
+  })
 }
