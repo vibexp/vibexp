@@ -254,9 +254,12 @@ func artifactFiltersFromQuery(
 		return services.ArtifactFilters{}, err
 	}
 
-	pagination := validatePaginationParams(
+	pagination, err := validatePaginationParams(
 		intPtrToQueryString(query.page), intPtrToQueryString(query.limit),
 	)
+	if err != nil {
+		return services.ArtifactFilters{}, err
+	}
 
 	return services.ArtifactFilters{
 		Freshness:      query.freshness,

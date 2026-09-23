@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -27,9 +26,13 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pagination := validatePaginationParams(strconv.Itoa(req.Page), strconv.Itoa(req.PerPage))
-	req.Page = pagination.Page
-	req.PerPage = pagination.Limit
+	page, perPage, err := normalizeSearchPagination(req.Page, req.PerPage, "per_page")
+	if err != nil {
+		writeErrorResponse(w, r, "validation_error", errorMessage(err), http.StatusBadRequest)
+		return
+	}
+	req.Page = page
+	req.PerPage = perPage
 
 	s.logger.With(
 		"service", "vibexp-api",

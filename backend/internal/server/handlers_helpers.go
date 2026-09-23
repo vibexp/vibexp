@@ -2,11 +2,14 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/go-playground/validator/v10"
+
+	apierrors "github.com/vibexp/vibexp/internal/errors"
 )
 
 // handlerErrorParams bundles the log and response fields for logHandlerError,
@@ -70,41 +73,77 @@ type PaginationParams struct {
 	Limit int
 }
 
-// validatePaginationParams parses and validates pagination query parameters
-// Returns validated page and limit with proper bounds checking to prevent performance issues
-//
-// Bounds:
-//   - page: 1 to 10000 (prevents excessive offset calculations)
-//   - limit: 1 to 100 (prevents loading too many records)
-//
-// Defaults:
-//   - page: 1
-//   - limit: 10
-func validatePaginationParams(pageStr, limitStr string) PaginationParams {
-	const (
-		defaultPage  = 1
-		maxPage      = 10000
-		defaultLimit = 10
-		maxLimit     = 100
-		minLimit     = 1
-	)
+// Pagination bounds shared by every list endpoint (and, via
+// normalizeSearchPagination, the MCP search tool). They are the spec's
+// minimum/maximum for `page` and `limit` (`per_page` on search).
+const (
+	paginationDefaultPage  = 1
+	paginationMaxPage      = 10000
+	paginationDefaultLimit = 10
+	paginationMaxLimit     = 100
+)
 
-	page := defaultPage
-	if pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p >= 1 && p <= maxPage {
-			page = p
-		}
+// Messages naming the allowed range, returned verbatim as the 400 detail.
+var (
+	paginationMsgPageRange  = fmt.Sprintf("page must be between 1 and %d", paginationMaxPage)
+	paginationMsgLimitRange = fmt.Sprintf("limit must be between 1 and %d", paginationMaxLimit)
+)
+
+// validatePaginationParams parses and validates pagination query parameters.
+//
+// An empty string means "not provided" and yields the default (page 1,
+// limit 10). A provided value that is non-numeric or outside its bounds
+// (page 1..10000, limit 1..100) is REJECTED with a 400 bad-request error
+// naming the allowed range -- never silently replaced by the default, which
+// used to turn `limit=200` into a clean-looking 10-item page (#1107).
+func validatePaginationParams(pageStr, limitStr string) (PaginationParams, error) {
+	page, err := parseBoundedInt(pageStr, paginationDefaultPage, paginationMaxPage, paginationMsgPageRange)
+	if err != nil {
+		return PaginationParams{}, err
 	}
 
-	limit := defaultLimit
-	if limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l >= minLimit && l <= maxLimit {
-			limit = l
-		}
+	limit, err := parseBoundedInt(limitStr, paginationDefaultLimit, paginationMaxLimit, paginationMsgLimitRange)
+	if err != nil {
+		return PaginationParams{}, err
 	}
 
 	return PaginationParams{
 		Page:  page,
 		Limit: limit,
+	}, nil
+}
+
+// errorMessage returns the client-facing message for err: an APIError's
+// Detail (its Error() prefixes the code), anything else verbatim. It is how
+// the legacy chi handlers pass a validatePaginationParams error to
+// writeErrorResponse, whose body carries it as `detail`.
+func errorMessage(err error) string {
+	var apiErr *apierrors.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Detail
 	}
+	return err.Error()
+}
+
+// parseBoundedInt parses raw as an integer in [1, maxValue]; empty yields
+// defaultValue, anything else is a bad-request error carrying rangeMsg.
+func parseBoundedInt(raw string, defaultValue, maxValue int, rangeMsg string) (int, error) {
+	if raw == "" {
+		return defaultValue, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, apierrors.NewBadRequestError(rangeMsg)
+	}
+	return checkBounded(value, maxValue, rangeMsg)
+}
+
+// checkBounded returns value when it lies in [1, maxValue], else a
+// bad-request error carrying rangeMsg. It is the one range check behind both
+// the query-string and the integer (search body / MCP) pagination paths.
+func checkBounded(value, maxValue int, rangeMsg string) (int, error) {
+	if value < 1 || value > maxValue {
+		return 0, apierrors.NewBadRequestError(rangeMsg)
+	}
+	return value, nil
 }

@@ -212,7 +212,7 @@ api-v1-team_id-blueprints:
           type: integer
           minimum: 1
           maximum: 100
-          default: 20
+          default: 10
     responses:
       '200':
         description: Spec libraries retrieved successfully
@@ -385,7 +385,7 @@ api-v1-team_id-blueprints-project_id:
           type: integer
           minimum: 1
           maximum: 100
-          default: 20
+          default: 10
     responses:
       '200':
         description: Spec libraries retrieved successfully

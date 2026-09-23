@@ -219,15 +219,16 @@ func promptFiltersFromParams(
 		filters.ProjectID = &projectID
 	}
 
-	// validatePaginationParams clamps rather than rejects: an out-of-range page or
-	// limit falls back to the documented default (page 1..10000, limit 1..100,
-	// defaults 1 and 10) instead of 400ing. That is still true of every value the
-	// binder hands over -- but note the binder rejects a NON-NUMERIC page/limit
-	// before this runs, where the old chi parser clamped that too. Same on the
-	// other three converted domains; tracked in #800.
-	pagination := validatePaginationParams(
+	// The binder rejects a NON-NUMERIC page/limit before this runs, but accepts
+	// any integer; validatePaginationParams rejects an out-of-range one (page
+	// 1..10000, limit 1..100) with a 400 naming the range instead of silently
+	// falling back to the default (#1107). Omitted values take the defaults.
+	pagination, err := validatePaginationParams(
 		intPtrToQueryString(params.Page), intPtrToQueryString(params.Limit),
 	)
+	if err != nil {
+		return services.PromptFilters{}, err
+	}
 	filters.Page = pagination.Page
 	filters.Limit = pagination.Limit
 

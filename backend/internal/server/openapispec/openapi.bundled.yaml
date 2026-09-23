@@ -810,7 +810,7 @@ paths:
             type: integer
             minimum: 1
             maximum: 100
-            default: 20
+            default: 10
       responses:
         '200':
           description: Artifacts retrieved successfully
@@ -957,7 +957,7 @@ paths:
             type: integer
             minimum: 1
             maximum: 100
-            default: 20
+            default: 10
       responses:
         '200':
           description: Artifacts retrieved successfully
@@ -2150,7 +2150,7 @@ paths:
             type: integer
             minimum: 1
             maximum: 100
-            default: 50
+            default: 10
       responses:
         '200':
           description: Memories retrieved successfully
@@ -2789,7 +2789,7 @@ paths:
             type: integer
             minimum: 1
             maximum: 100
-            default: 20
+            default: 10
       responses:
         '200':
           description: Spec libraries retrieved successfully
@@ -2967,7 +2967,7 @@ paths:
             type: integer
             minimum: 1
             maximum: 100
-            default: 20
+            default: 10
       responses:
         '200':
           description: Spec libraries retrieved successfully
@@ -5068,6 +5068,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FeedListResponse'
+        '400':
+          description: Invalid query parameter (page/limit out of range)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
           content:
@@ -5472,6 +5478,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FeedItemListResponse'
+        '400':
+          description: Invalid query parameter (page/limit out of range, malformed feed_id or archived)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
           content:

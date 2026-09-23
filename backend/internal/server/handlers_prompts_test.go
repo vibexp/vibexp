@@ -348,18 +348,43 @@ func TestStrictListPrompts_ParseableBooleanStillFilters(t *testing.T) {
 	container.promptService.AssertExpectations(t)
 }
 
-// Pagination CLAMPS rather than rejects, which the binder cannot do — it only
-// converts. An out-of-range page or limit must still answer 200 with the
-// defaults, exactly as validatePaginationParams has always done.
-func TestStrictListPrompts_OutOfRangePaginationIsClampedNotRejected(t *testing.T) {
+// The binder only converts, so an out-of-range page or limit reaches the
+// handler as a valid integer. It must be REJECTED with a 400 naming the range,
+// never silently replaced by the default (#1107): limit=999 used to answer a
+// clean-looking 10-item page.
+func TestStrictListPrompts_OutOfRangePaginationIsRejected(t *testing.T) {
+	cases := map[string]struct{ query, detail string }{
+		"limit above max": {"?limit=999", "limit must be between 1 and 100"},
+		"limit zero":      {"?limit=0", "limit must be between 1 and 100"},
+		"page zero":       {"?page=0", "page must be between 1 and 10000"},
+		"page above max":  {"?page=10001", "page must be between 1 and 10000"},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			// No ListPrompts expectation: reaching the service is itself the failure.
+			srv, _ := strictPromptServer(t)
+			_, w := strictPromptRequest(t, srv, "/api/v1/"+strictPrTeamID+"/prompts"+tc.query)
+
+			require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, tc.detail, body["detail"])
+			assert.Equal(t, "BAD_REQUEST", body["code"])
+		})
+	}
+}
+
+// The upper bound itself is valid and passes through unchanged.
+func TestStrictListPrompts_MaxLimitIsAccepted(t *testing.T) {
 	srv, container := strictPromptServer(t)
 	container.promptService.On("ListPrompts", strictPrUserID,
 		mock.MatchedBy(func(f services.PromptFilters) bool {
-			return f.Page == 1 && f.Limit == 10
+			return f.Page == 10000 && f.Limit == 100
 		}),
-	).Return(&models.PromptListResponse{Page: 1, PerPage: 10}, nil)
+	).Return(&models.PromptListResponse{Page: 10000, PerPage: 100}, nil)
 
-	_, w := strictPromptRequest(t, srv, "/api/v1/"+strictPrTeamID+"/prompts?page=0&limit=999")
+	_, w := strictPromptRequest(t, srv, "/api/v1/"+strictPrTeamID+"/prompts?page=10000&limit=100")
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	container.promptService.AssertExpectations(t)

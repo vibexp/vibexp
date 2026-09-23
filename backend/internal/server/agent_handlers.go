@@ -148,8 +148,12 @@ func parseAgentFilters(w http.ResponseWriter, r *http.Request, teamID string) (s
 		return services.AgentFilters{}, false
 	}
 
-	// Parse and validate pagination parameters with bounds checking
-	pagination := validatePaginationParams(query.Get("page"), query.Get("limit"))
+	// Parse and validate pagination parameters; out of range is a 400 (#1107)
+	pagination, err := validatePaginationParams(query.Get("page"), query.Get("limit"))
+	if err != nil {
+		writeErrorResponse(w, nil, "validation_error", errorMessage(err), http.StatusBadRequest)
+		return services.AgentFilters{}, false
+	}
 
 	filters := services.AgentFilters{
 		Status:    query.Get("status"),

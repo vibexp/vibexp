@@ -132,7 +132,7 @@ api-v1-team_id-memories:
           type: integer
           minimum: 1
           maximum: 100
-          default: 50
+          default: 10
     responses:
       '200':
         description: Memories retrieved successfully

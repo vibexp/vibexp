@@ -12,15 +12,6 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// Pagination bounds for semantic search, mirroring validatePaginationParams in
-// handlers_helpers.go so the MCP tool behaves identically to the HTTP endpoint.
-const (
-	searchDefaultPage  = 1
-	searchMaxPage      = 10000
-	searchDefaultLimit = 10
-	searchMaxLimit     = 100
-)
-
 // SemanticSearchParams defines the arguments for the vibexp_io_search MCP tool.
 // They mirror the HTTP search payload (POST /api/v1/{team_id}/search), with
 // team_id supplied per call (UUID or slug) and membership-validated.
@@ -49,16 +40,30 @@ const semanticSearchToolDescription = "Semantic (RAG) retrieval across the curre
 	"updated_at, plus pagination metadata (total_count, page, per_page, total_pages). Results are always scoped " +
 	"to the authenticated team."
 
-// normalizeSearchPagination applies default and max bounds to page/limit, matching
-// validatePaginationParams so page/limit of 0 never yield a negative offset.
-func normalizeSearchPagination(page, limit int) (int, int) {
-	if page < searchDefaultPage || page > searchMaxPage {
-		page = searchDefaultPage
+// normalizeSearchPagination validates the integer page/limit of a search
+// request (the REST body and the MCP tool, whose fields are omitempty) with
+// the same bounds as validatePaginationParams. Zero means "not provided" and
+// yields the default; any other out-of-range value is a bad-request error
+// naming the allowed range -- never silently replaced by the default (#1107).
+// limitName is the parameter name the error message uses (`per_page` on the
+// REST body, `limit` on the MCP tool).
+func normalizeSearchPagination(page, limit int, limitName string) (int, int, error) {
+	if page == 0 {
+		page = paginationDefaultPage
 	}
-	if limit < 1 || limit > searchMaxLimit {
-		limit = searchDefaultLimit
+	page, err := checkBounded(page, paginationMaxPage, paginationMsgPageRange)
+	if err != nil {
+		return 0, 0, err
 	}
-	return page, limit
+	if limit == 0 {
+		limit = paginationDefaultLimit
+	}
+	limit, err = checkBounded(limit, paginationMaxLimit,
+		fmt.Sprintf("%s must be between 1 and %d", limitName, paginationMaxLimit))
+	if err != nil {
+		return 0, 0, err
+	}
+	return page, limit, nil
 }
 
 // addSearchTools registers the semantic search MCP tool.
@@ -100,7 +105,10 @@ func (s *Server) search(
 		return searchToolTextError("query is required and must not be empty"), nil, nil
 	}
 
-	page, limit := normalizeSearchPagination(params.Page, params.Limit)
+	page, limit, err := normalizeSearchPagination(params.Page, params.Limit, "limit")
+	if err != nil {
+		return searchToolTextError(errorMessage(err)), nil, nil
+	}
 	searchReq := &models.SearchRequest{
 		Query:     query,
 		Types:     params.Types,
@@ -110,7 +118,7 @@ func (s *Server) search(
 	}
 
 	// Mirror handleSearch's validation before reaching the billed embeddings service.
-	if err := validate.Struct(searchReq); err != nil {
+	if err = validate.Struct(searchReq); err != nil {
 		return searchToolTextError(fmt.Sprintf("invalid search parameters: %v", err)), nil, nil
 	}
 
