@@ -23,6 +23,13 @@ import (
 // rendering so they survive reference expansion before being restored as "@".
 const escapedAtSentinel = "\x00ESCAPED_AT\x00"
 
+var (
+	// referenceRegex matches an @prompt_slug reference.
+	referenceRegex = regexp.MustCompile(`@([a-zA-Z0-9_-]+)`)
+	// placeholderRegex matches a {{placeholder_key}} pattern.
+	placeholderRegex = regexp.MustCompile(`\{\{([^}]+)\}\}`)
+)
+
 type PromptService struct {
 	repo              repositories.PromptRepository
 	refRepo           repositories.PromptReferenceRepository
@@ -508,9 +515,7 @@ func (s *PromptService) publishPromptUpdatedEvent(
 	// Render the prompt body to resolve all @references and {{placeholders}}
 	// For embedding generation, we want the fully resolved content
 	renderedBody := updatedPrompt.Body
-	renderResponse, err := s.renderPromptRecursive(
-		updatedPrompt.TeamID, updatedPrompt.Body, make(map[string]string), make(map[string]bool),
-	)
+	renderResponse, err := s.renderPrompt(updatedPrompt.TeamID, updatedPrompt.Body, nil)
 	if err != nil {
 		// If rendering fails (e.g., missing placeholders or circular refs), log warning but continue
 		// We'll send the raw body instead
@@ -746,7 +751,7 @@ func (s *PromptService) RenderPrompt(
 
 	// The root was loaded membership-checked; its @references resolve within
 	// the team that owns it, whoever is reading (#1100).
-	return s.renderPromptRecursive(prompt.TeamID, prompt.Body, placeholders, make(map[string]bool))
+	return s.renderPrompt(prompt.TeamID, prompt.Body, placeholders)
 }
 
 // RenderPromptBody resolves all @references and {{placeholders}} in an
@@ -755,35 +760,56 @@ func (s *PromptService) RenderPrompt(
 // the embedding backfill) embed the same reference-resolved content the live
 // pipeline produces, without re-fetching the prompt by slug.
 func (s *PromptService) RenderPromptBody(teamID, body string) (string, error) {
-	rendered, err := s.renderPromptRecursive(teamID, body, make(map[string]string), make(map[string]bool))
+	rendered, err := s.renderPrompt(teamID, body, nil)
 	if err != nil {
 		return "", err
 	}
 	return rendered.RenderedBody, nil
 }
 
-// renderPromptRecursive resolves @references among the prompts of teamID — the
+// renderPrompt renders body in two phases. Phase 1 expands @references over
+// authored text only (the root body and the bodies it references). Phase 2
+// substitutes {{placeholders}} once, over the fully expanded body, so a
+// variable value is inserted verbatim: it is never scanned for @references,
+// never unescaped, and never substituted again (#1102).
+func (s *PromptService) renderPrompt(
+	teamID, body string, placeholders map[string]string,
+) (*models.RenderPromptResponse, error) {
+	expanded, referencesUsed, warnings, err := s.expandReferences(teamID, body, make(map[string]bool))
+	if err != nil {
+		return nil, err
+	}
+
+	// Restore escaped @@ as a literal @ only once expansion is complete, so an
+	// escape inside a referenced body is never picked up as a reference.
+	expanded = strings.ReplaceAll(expanded, escapedAtSentinel, "@")
+
+	return &models.RenderPromptResponse{
+		RenderedBody: substitutePlaceholders(expanded, placeholders),
+		// Missing keys come from the template, not the output, so a supplied value
+		// that itself contains {{x}} never reports x as missing (#1098).
+		PlaceholdersMissing: missingPlaceholderKeys(expanded, placeholders),
+		ReferencesUsed:      referencesUsed,
+		Warnings:            warnings,
+	}, nil
+}
+
+// expandReferences resolves @references among the prompts of teamID — the
 // team owning the prompt being rendered — never among the reader's own prompts
 // in other teams (#1100). The caller has already checked access to the root.
-func (s *PromptService) renderPromptRecursive(
-	teamID, body string, placeholders map[string]string, visitedRefs map[string]bool,
-) (*models.RenderPromptResponse, error) {
+// Escaped @@ sequences are left as escapedAtSentinel in the returned body.
+func (s *PromptService) expandReferences(
+	teamID, body string, visitedRefs map[string]bool,
+) (string, []string, []string, error) {
 	warnings := make([]string, 0)
 	referencesUsed := make([]string, 0)
 
 	// Handle escaped @@ sequences first
-	renderedBody := strings.ReplaceAll(body, "@@", escapedAtSentinel)
+	expanded := strings.ReplaceAll(body, "@@", escapedAtSentinel)
 
-	// Missing keys come from the template, not the output, so a supplied value
-	// that itself contains {{x}} never reports x as missing (#1098).
-	missing := missingPlaceholderKeys(renderedBody, placeholders)
-
-	// Substitute {{placeholder_key}} patterns with provided values
-	renderedBody = substitutePlaceholders(renderedBody, placeholders)
-
-	// Parse reference patterns @prompt_slug
-	referenceRegex := regexp.MustCompile(`@([a-zA-Z0-9_-]+)`)
-	referenceMatches := referenceRegex.FindAllStringSubmatch(renderedBody, -1)
+	// Parse reference patterns @prompt_slug. Matches are collected before any
+	// splicing, so expanded content is never rescanned.
+	referenceMatches := referenceRegex.FindAllStringSubmatch(expanded, -1)
 
 	for _, match := range referenceMatches {
 		if len(match) < 2 {
@@ -795,7 +821,7 @@ func (s *PromptService) renderPromptRecursive(
 
 		// Check for circular references
 		if visitedRefs[refSlug] {
-			return nil, fmt.Errorf("circular reference detected for prompt: %s", refSlug)
+			return "", nil, nil, fmt.Errorf("circular reference detected for prompt: %s", refSlug)
 		}
 
 		// Get the referenced prompt from the owning team
@@ -809,41 +835,25 @@ func (s *PromptService) renderPromptRecursive(
 				warnings = append(warnings, fmt.Sprintf("Reference not found: @%s", refSlug))
 				continue // Skip this reference, keep it in the rendered body
 			}
-			return nil, fmt.Errorf("failed to get referenced prompt %s: %w", refSlug, err)
+			return "", nil, nil, fmt.Errorf("failed to get referenced prompt %s: %w", refSlug, err)
 		}
 
-		// Recursively render the referenced prompt, marking this reference as visited
-		refResponse, err := s.renderPromptRecursive(teamID, refPrompt.Body, placeholders, visitedWith(visitedRefs, refSlug))
+		// Recursively expand the referenced prompt, marking this reference as visited
+		refBody, refUsed, refWarnings, err := s.expandReferences(teamID, refPrompt.Body, visitedWith(visitedRefs, refSlug))
 		if err != nil {
-			return nil, fmt.Errorf("failed to render referenced prompt %s: %w", refSlug, err)
+			return "", nil, nil, fmt.Errorf("failed to render referenced prompt %s: %w", refSlug, err)
 		}
 
-		// Replace the reference with the rendered content
-		renderedBody = strings.ReplaceAll(renderedBody, reference, refResponse.RenderedBody)
+		// Replace the reference with the expanded content
+		expanded = strings.ReplaceAll(expanded, reference, refBody)
 
-		// Collect references used from nested prompt
+		// Collect references used and warnings from the nested prompt
 		referencesUsed = append(referencesUsed, refSlug)
-		referencesUsed = append(referencesUsed, refResponse.ReferencesUsed...)
-
-		// Collect warnings from nested prompt
-		warnings = append(warnings, refResponse.Warnings...)
-
-		// Collect unfilled placeholders from nested prompt
-		missing = appendUniquePlaceholders(missing, refResponse.PlaceholdersMissing)
+		referencesUsed = append(referencesUsed, refUsed...)
+		warnings = append(warnings, refWarnings...)
 	}
 
-	// Remove duplicates from references
-	referencesUsed = lo.Uniq(referencesUsed)
-
-	// Replace escaped sequences back
-	renderedBody = strings.ReplaceAll(renderedBody, escapedAtSentinel, "@")
-
-	return &models.RenderPromptResponse{
-		RenderedBody:        renderedBody,
-		PlaceholdersMissing: missing,
-		ReferencesUsed:      referencesUsed,
-		Warnings:            warnings,
-	}, nil
+	return expanded, lo.Uniq(referencesUsed), warnings, nil
 }
 
 func (s *PromptService) GetPromptPlaceholders(userID, teamID, slug string) ([]string, error) {
@@ -865,7 +875,6 @@ func (s *PromptService) ExtractAllPlaceholders(teamID, body string, visitedRefs 
 	allPlaceholders := appendUniquePlaceholders(nil, extractPlaceholderKeys(bodyForExtraction))
 
 	// Extract references and get their placeholders recursively
-	referenceRegex := regexp.MustCompile(`@([a-zA-Z0-9_-]+)`)
 	referenceMatches := referenceRegex.FindAllStringSubmatch(bodyForExtraction, -1)
 
 	for _, match := range referenceMatches {
@@ -906,27 +915,19 @@ func (s *PromptService) ExtractAllPlaceholders(teamID, body string, visitedRefs 
 // substitutePlaceholders replaces every {{placeholder_key}} pattern that has a value
 // in placeholders; patterns without a value remain in the body as-is.
 func substitutePlaceholders(body string, placeholders map[string]string) string {
-	placeholderRegex := regexp.MustCompile(`\{\{([^}]+)\}\}`)
-	for _, match := range placeholderRegex.FindAllStringSubmatch(body, -1) {
-		if len(match) < 2 {
-			continue
-		}
-
-		placeholder := match[0]            // Full match like {{key}}
-		key := strings.TrimSpace(match[1]) // Just the key
-
-		// Only replace if value exists, otherwise keep placeholder as-is
+	// A single pass: inserted values are never rescanned, so a value containing
+	// {{other}} stays literal even when other is also supplied (#1102).
+	return placeholderRegex.ReplaceAllStringFunc(body, func(placeholder string) string {
+		key := strings.TrimSpace(placeholder[2 : len(placeholder)-2])
 		if value, exists := placeholders[key]; exists {
-			body = strings.ReplaceAll(body, placeholder, value)
+			return value
 		}
-		// If value doesn't exist, placeholder remains in the rendered body
-	}
-	return body
+		return placeholder // no value: keep the placeholder as-is
+	})
 }
 
 // extractPlaceholderKeys returns the trimmed {{placeholder}} keys found in body, in order.
 func extractPlaceholderKeys(body string) []string {
-	placeholderRegex := regexp.MustCompile(`\{\{([^}]+)\}\}`)
 	matches := placeholderRegex.FindAllStringSubmatch(body, -1)
 	keys := make([]string, 0, len(matches))
 	for _, match := range matches {
@@ -985,7 +986,6 @@ func (s *PromptService) updatePromptReferences(ctx context.Context, teamID, prom
 	bodyForExtraction := strings.ReplaceAll(body, "@@", escapedAtSentinel)
 
 	// Extract reference patterns @prompt_slug
-	referenceRegex := regexp.MustCompile(`@([a-zA-Z0-9_-]+)`)
 	referenceMatches := referenceRegex.FindAllStringSubmatch(bodyForExtraction, -1)
 
 	if len(referenceMatches) == 0 {

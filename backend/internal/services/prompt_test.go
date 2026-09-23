@@ -780,6 +780,91 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 		assert.Empty(t, response.Warnings)
 	})
 
+	// Variable values are plain data (#1102): inserted verbatim after @reference
+	// expansion, never scanned for references, unescaped or re-substituted.
+	valueCases := []struct {
+		name  string
+		value string
+	}{
+		{name: "Value with literal @ is not a reference", value: "git@github.com"},
+		{name: "Value with @@ is not unescaped", value: "git@@github.com"},
+		{name: "Value naming an existing prompt is not expanded", value: "@existing-slug"},
+	}
+	for _, tc := range valueCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockRepo := mocks.NewMockPromptRepository(t)
+			service := createTestPromptService(mockRepo, nil)
+
+			prompt := &models.Prompt{
+				ID:     "prompt-123",
+				TeamID: "team-123",
+				Body:   "Remote: {{extra}}",
+				UserID: "user-123",
+			}
+			mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
+				Return(prompt, nil)
+
+			response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{"extra": tc.value})
+
+			require.NoError(t, err)
+			assert.Equal(t, "Remote: "+tc.value, response.RenderedBody)
+			assert.Empty(t, response.Warnings)
+			assert.Empty(t, response.ReferencesUsed)
+			assert.Empty(t, response.PlaceholdersMissing)
+			mockRepo.AssertNotCalled(t, "GetBySlugInTeam", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+
+	t.Run("Value containing a placeholder is inserted literally", func(t *testing.T) {
+		mockRepo := mocks.NewMockPromptRepository(t)
+		service := createTestPromptService(mockRepo, nil)
+
+		prompt := &models.Prompt{
+			ID:     "prompt-123",
+			TeamID: "team-123",
+			Body:   "A={{a}} B={{b}}",
+			UserID: "user-123",
+		}
+		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
+			Return(prompt, nil)
+
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt",
+			map[string]string{"a": "{{b}}", "b": "bee"})
+
+		require.NoError(t, err)
+		assert.Equal(t, "A={{b}} B=bee", response.RenderedBody)
+		assert.Empty(t, response.PlaceholdersMissing)
+	})
+
+	t.Run("Escaped @@ in a referenced prompt is not resolved as a reference", func(t *testing.T) {
+		mockRepo := mocks.NewMockPromptRepository(t)
+		service := createTestPromptService(mockRepo, nil)
+
+		prompt := &models.Prompt{
+			ID:     "prompt-123",
+			TeamID: "team-123",
+			Body:   "@footer then @x",
+			UserID: "user-123",
+		}
+		footer := &models.Prompt{ID: "prompt-456", TeamID: "team-123", Body: "mail @@x and {{who}}"}
+		x := &models.Prompt{ID: "prompt-789", TeamID: "team-123", Body: "X"}
+		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
+			Return(prompt, nil)
+		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "footer").
+			Return(footer, nil).Once()
+		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "x").
+			Return(x, nil).Once()
+
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt",
+			map[string]string{"who": "me@example.com"})
+
+		require.NoError(t, err)
+		// The escaped @x inside footer stays literal; only the authored @x expands.
+		assert.Equal(t, "mail @x and me@example.com then X", response.RenderedBody)
+		assert.ElementsMatch(t, []string{"footer", "x"}, response.ReferencesUsed)
+		assert.Empty(t, response.Warnings)
+	})
+
 	t.Run("Render with non-existent @reference", func(t *testing.T) {
 		mockRepo := mocks.NewMockPromptRepository(t)
 		service := createTestPromptService(mockRepo, nil)
