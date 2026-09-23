@@ -23,12 +23,17 @@ interface AlertProviderProps {
   children: React.ReactNode
 }
 
-/** Drops non-persistent alerts older than 30 seconds. */
+/**
+ * Drops non-persistent alerts older than 30 seconds. Returns the SAME array
+ * when nothing expired, so the 10s prune below makes `setAlerts` bail out
+ * instead of re-rendering every `useAlerts()` consumer on each tick (#1109).
+ */
 function pruneExpiredAlerts(alerts: Alert[]): Alert[] {
   const thirtySecondsAgo = Date.now() - 30000
-  return alerts.filter(
+  const kept = alerts.filter(
     alert => alert.createdAt > thirtySecondsAgo || alert.persistent
   )
+  return kept.length === alerts.length ? alerts : kept
 }
 
 export function AlertProvider({ children }: Readonly<AlertProviderProps>) {

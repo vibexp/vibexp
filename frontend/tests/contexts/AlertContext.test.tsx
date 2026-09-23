@@ -697,6 +697,65 @@ describe('AlertContext', () => {
       // Recent alert should still be there
       expect(screen.getByTestId('alerts-count')).toHaveTextContent('1')
     })
+
+    // #1109: the prune used to hand `setAlerts` a fresh `.filter()` array
+    // every tick, re-rendering every consumer every 10s — which is what wiped
+    // mermaid diagrams out of MarkdownRenderer. Nothing expired → same array.
+    it('keeps the same alerts array (and does not re-render) when nothing expired', () => {
+      const seen: ReturnType<typeof useAlertContext>['alerts'][] = []
+
+      renderWithProvider(
+        <TestComponent
+          onHookValue={value => {
+            seen.push(value.alerts)
+          }}
+        />
+      )
+      const rendersBefore = seen.length
+      const before = seen.at(-1)
+
+      act(() => {
+        vi.advanceTimersByTime(25000) // two prune ticks
+      })
+
+      expect(seen).toHaveLength(rendersBefore)
+      expect(seen.at(-1)).toBe(before)
+    })
+
+    it('hands consumers a new, filtered array when an alert expired', () => {
+      let contextValue: ReturnType<typeof useAlertContext> | null = null
+
+      renderWithProvider(
+        <TestComponent
+          onHookValue={value => {
+            contextValue = value
+          }}
+        />
+      )
+
+      act(() => {
+        contextValue!.showAlert({
+          type: 'info',
+          message: 'Old alert',
+          duration: 0,
+        })
+        contextValue!.showAlert({
+          type: 'error',
+          message: 'Pinned',
+          duration: 0,
+          persistent: true,
+        })
+      })
+      const before = contextValue!.alerts
+      expect(before).toHaveLength(2)
+
+      act(() => {
+        vi.advanceTimersByTime(31000)
+      })
+
+      expect(contextValue!.alerts).not.toBe(before)
+      expect(contextValue!.alerts.map(a => a.message)).toEqual(['Pinned'])
+    })
   })
 
   describe('Alert queuing', () => {

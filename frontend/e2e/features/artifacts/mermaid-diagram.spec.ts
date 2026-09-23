@@ -106,6 +106,26 @@ test.describe('Mermaid diagram rendering', () => {
     await expect(svg.locator('foreignObject')).toHaveCount(0)
   })
 
+  // #1109: the diagram used to vanish ~10s after load, on the first
+  // AlertProvider prune tick — any parent re-render made react-dom re-apply
+  // `dangerouslySetInnerHTML`, wiping the mounted diagram. Real time is used
+  // (not `page.clock`) so mermaid's own async rendering runs unfaked.
+  test('the diagram is still on screen after two alert-prune ticks', async ({
+    authenticatedPage: page,
+  }) => {
+    test.setTimeout(90000)
+    await createArtifactWithContent(page, 'persist', FLOWCHART)
+
+    const svg = page.locator('.mermaid-container svg')
+    await expect(svg).toBeVisible({ timeout: 15000 })
+
+    // The prune runs every 10s; 25s covers two ticks.
+    await page.waitForTimeout(25000)
+
+    await expect(svg).toBeVisible()
+    await expect(svg.locator('text', { hasText: /^Start$/ })).toHaveCount(1)
+  })
+
   test('an XSS payload in a node label is inert', async ({
     authenticatedPage: page,
   }) => {

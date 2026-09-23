@@ -2,7 +2,8 @@ import DOMPurify from 'dompurify'
 import { AlertTriangle } from 'lucide-react'
 import { marked, Renderer } from 'marked'
 import mermaid from 'mermaid'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Root } from 'react-dom/client'
 
 import { cn } from '@/lib/utils'
 import Prism from '@/utils/prism-config'
@@ -462,8 +463,14 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       onErrorFn?.(error, 'mermaid-rendering')
     }
 
+    // The roots this run mounted, torn down by the cleanup below when the
+    // content changes or the component unmounts — they used to leak (#1109).
+    // `cancelled` covers the cleanup landing before the async import resolves.
+    const roots: Root[] = []
+    let cancelled = false
+
     void import('react-dom/client').then(({ createRoot }) => {
-      if (!containerRef.current) return
+      if (cancelled || !containerRef.current) return
 
       diagrams.forEach(({ id, code }) => {
         const placeholder = containerRef.current?.querySelector(
@@ -478,9 +485,34 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
         const root = createRoot(mountPoint)
         root.render(<MermaidDiagram code={code} onError={handleMermaidError} />)
+        roots.push(root)
       })
     })
+
+    return () => {
+      cancelled = true
+      // Deferred: unmounting a root synchronously while React is rendering
+      // (this cleanup runs during a commit) logs a race warning.
+      setTimeout(() => {
+        roots.forEach(root => {
+          root.unmount()
+        })
+      }, 0)
+    }
   }, [renderedContent, mermaidDiagrams])
+
+  // Referentially stable on purpose — do NOT inline this back into the JSX.
+  // react-dom 19 compares `dangerouslySetInnerHTML` by object identity, so a
+  // fresh `{ __html }` on every render re-assigns `innerHTML` even when the
+  // string is unchanged. That wiped the `[data-mermaid-id]` placeholders the
+  // effect above had mounted diagrams into, and since its deps had not
+  // changed nothing re-mounted them: any parent re-render made every diagram
+  // vanish (#1109). Memoised on the string, the DOM is rewritten only when
+  // the HTML actually changes — which re-runs the mount effect.
+  const innerHtml = useMemo(
+    () => ({ __html: renderedContent }),
+    [renderedContent]
+  )
 
   const themeClass = syntaxThemeClass(syntaxTheme)
 
@@ -492,7 +524,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         themeClass,
         className
       )}
-      dangerouslySetInnerHTML={{ __html: renderedContent }}
+      dangerouslySetInnerHTML={innerHtml}
     />
   )
 }
