@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import type { Mocked } from 'vitest'
 
 import { toast } from '@/lib/toast'
+import { aiSummarySettingsService } from '@/services/aiSummarySettingsService'
 import type { ModelProviderResponse } from '@/services/modelProviderService'
 import { modelProviderService } from '@/services/modelProviderService'
 import type { Team } from '@/services/teamService'
@@ -39,7 +40,18 @@ vi.mock('@/services/modelProviderService', async () => ({
   },
 }))
 
+vi.mock('@/services/aiSummarySettingsService', () => ({
+  aiSummarySettingsService: {
+    getAISummarySettings: vi.fn(),
+    updateAISummarySettings: vi.fn(),
+    resetAISummarySettings: vi.fn(),
+  },
+}))
+
 const service = modelProviderService as Mocked<typeof modelProviderService>
+const aiSummaryService = aiSummarySettingsService as Mocked<
+  typeof aiSummarySettingsService
+>
 const mockedToast = toast as Mocked<typeof toast>
 
 const provider: ModelProviderResponse = {
@@ -96,6 +108,20 @@ beforeEach(() => {
     teams: [urlTeam, sourceTeam],
   })
   service.getModelProviders.mockResolvedValue([provider])
+  const aiSummaryDefaults = {
+    enabled: false,
+    model_provider_id: null,
+    top_n: 5,
+    style: 'balanced' as const,
+    max_output_tokens: 800,
+  }
+  aiSummaryService.getAISummarySettings.mockResolvedValue({
+    source: 'instance',
+    values: aiSummaryDefaults,
+    instance_defaults: aiSummaryDefaults,
+    max_top_n: 10,
+    available: true,
+  })
   service.deleteModelProvider.mockResolvedValue(undefined)
   service.copyModelProviderFromTeam.mockResolvedValue({
     ...sourceProvider,
@@ -149,6 +175,17 @@ describe('ModelProviders', () => {
     await waitFor(() => {
       expect(service.getModelProviders).toHaveBeenCalledTimes(2)
     })
+    // The AI Summary card re-reads `available` after the provider change.
+    await waitFor(() => {
+      expect(aiSummaryService.getAISummarySettings).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('mounts the AI Summary card for the URL team', async () => {
+    renderPage()
+
+    expect(await screen.findByTestId('ai-summary-settings')).toBeInTheDocument()
+    expect(aiSummaryService.getAISummarySettings).toHaveBeenCalledWith('team-1')
   })
 })
 
