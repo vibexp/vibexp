@@ -241,9 +241,7 @@ export function ModelProviders({ team }: Readonly<{ team: Team }>) {
     useState<ModelProviderResponse | null>(null)
   // Set once the source team + provider are chosen; puts the provider dialog
   // into copy mode and carries what the copy request needs.
-  const [copyTarget, setCopyTarget] = useState<
-    (CopySource & { sourceTeamId: string }) | null
-  >(null)
+  const [copyTarget, setCopyTarget] = useState<CopySource | null>(null)
   // Bumped on every source change so a slow response for a previously selected
   // team cannot overwrite the list of the current one.
   const sourceSeq = useRef(0)

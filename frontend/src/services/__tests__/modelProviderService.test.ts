@@ -1,7 +1,9 @@
 import { ApiError } from '../../types/errors'
 import type {
   CreateModelProviderRequest,
+  ListProviderModelsRequest,
   ModelProviderResponse,
+  ProviderModelList,
   UpdateModelProviderRequest,
   ValidateModelProviderRequest,
   ValidateModelProviderResponse,
@@ -234,6 +236,50 @@ describe('ModelProviderService', () => {
       await expect(
         modelProviderService.deleteModelProvider(teamId, providerId)
       ).rejects.toThrow('Cannot delete the last model provider')
+    })
+  })
+
+  describe('listProviderModels', () => {
+    const request: ListProviderModelsRequest = {
+      provider_type: 'openai_compatible',
+      base_url: 'https://api.openai.com/v1',
+      provider_id: providerId,
+    }
+
+    it('posts the unsaved configuration to the models endpoint', async () => {
+      const response: ProviderModelList = {
+        supported: true,
+        models: [{ id: 'gpt-4o-mini', owned_by: 'openai' }],
+      }
+      mockGeneratedClient.POST.mockReturnValue(success(response))
+
+      const result = await modelProviderService.listProviderModels(
+        teamId,
+        request
+      )
+
+      expect(mockGeneratedClient.POST).toHaveBeenCalledWith(`${base}/models`, {
+        params: { path: { team_id: teamId } },
+        body: request,
+      })
+      expect(result).toEqual(response)
+    })
+
+    it('returns a supported:false outcome without throwing (200 body)', async () => {
+      mockGeneratedClient.POST.mockReturnValue(
+        success({ supported: false, models: [], message: 'unauthorized' })
+      )
+
+      const result = await modelProviderService.listProviderModels(
+        teamId,
+        request
+      )
+
+      expect(result).toEqual({
+        supported: false,
+        models: [],
+        message: 'unauthorized',
+      })
     })
   })
 
