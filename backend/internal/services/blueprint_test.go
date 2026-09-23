@@ -101,16 +101,6 @@ func (m *MockBlueprintRepository) GetStats(
 	return args.Get(0).(*models.BlueprintStatsResponse), args.Error(1)
 }
 
-func (m *MockBlueprintRepository) GetByProjectIDAndSlugCrossTeam(
-	ctx context.Context, userID, projectID, slug string,
-) (*models.Blueprint, error) {
-	args := m.Called(ctx, userID, projectID, slug)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.Blueprint), args.Error(1)
-}
-
 func (m *MockBlueprintRepository) GetByIDCrossTeam(
 	ctx context.Context, userID, blueprintID string,
 ) (*models.Blueprint, error) {
@@ -357,11 +347,11 @@ func TestBlueprintService_UpdateBlueprint_PathLifecycle(t *testing.T) {
 
 	t.Run("explicit path freezes it", func(t *testing.T) {
 		repo := &MockBlueprintRepository{}
-		repo.On("GetByProjectIDAndSlugCrossTeam", mock.Anything, "u1", "p1", "s").Return(existing(), nil)
+		repo.On("GetByProjectIDAndSlug", mock.Anything, "u1", "team-1", "p1", "s").Return(existing(), nil)
 		repo.On("Update", mock.Anything, mock.MatchedBy(func(bp *models.Blueprint) bool {
 			return bp.Path == "moved/here.md" && !bp.PathDerived
 		})).Return(nil)
-		bp, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlug("u1", "p1", "s",
+		bp, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlugInTeam("u1", "team-1", "p1", "s",
 			&models.UpdateBlueprintRequest{Path: strptr("moved/here.md")})
 		require.NoError(t, err)
 		assert.Equal(t, "moved/here.md", bp.Path)
@@ -371,8 +361,8 @@ func TestBlueprintService_UpdateBlueprint_PathLifecycle(t *testing.T) {
 
 	t.Run("traversal-invalid path is rejected", func(t *testing.T) {
 		repo := &MockBlueprintRepository{}
-		repo.On("GetByProjectIDAndSlugCrossTeam", mock.Anything, "u1", "p1", "s").Return(existing(), nil)
-		bp, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlug("u1", "p1", "s",
+		repo.On("GetByProjectIDAndSlug", mock.Anything, "u1", "team-1", "p1", "s").Return(existing(), nil)
+		bp, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlugInTeam("u1", "team-1", "p1", "s",
 			&models.UpdateBlueprintRequest{Path: strptr("../escape.md")})
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrInvalidBlueprintPath)
@@ -382,7 +372,7 @@ func TestBlueprintService_UpdateBlueprint_PathLifecycle(t *testing.T) {
 }
 
 //nolint:funlen // Test function requires comprehensive setup and assertions
-func TestBlueprintService_GetBlueprintByProjectIDAndSlug(t *testing.T) {
+func TestBlueprintService_GetBlueprintByProjectIDAndSlugInTeam(t *testing.T) {
 	tests := []struct {
 		name        string
 		userID      string
@@ -406,9 +396,9 @@ func TestBlueprintService_GetBlueprintByProjectIDAndSlug(t *testing.T) {
 					Content:   "Test content",
 				}
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
+					"GetByProjectIDAndSlug",
 					mock.Anything,
-					"user-123",
+					"user-123", "team-1",
 					"550e8400-e29b-41d4-a716-446655440000",
 					"test-slug",
 				).Return(blueprint, nil)
@@ -428,8 +418,8 @@ func TestBlueprintService_GetBlueprintByProjectIDAndSlug(t *testing.T) {
 			slug:        "non-existent",
 			setup: func(repo *MockBlueprintRepository) {
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
-					mock.Anything, "user-123",
+					"GetByProjectIDAndSlug",
+					mock.Anything, "user-123", "team-1",
 					"550e8400-e29b-41d4-a716-446655440000", "non-existent",
 				).Return(nil, assert.AnError)
 			},
@@ -454,7 +444,7 @@ func TestBlueprintService_GetBlueprintByProjectIDAndSlug(t *testing.T) {
 				ContentVersionSvc: nil,
 				CommentRepo:       nil,
 			})
-			blueprint, err := service.GetBlueprintByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug)
+			blueprint, err := service.GetBlueprintByProjectIDAndSlugInTeam(tt.userID, "team-1", tt.projectName, tt.slug)
 
 			tt.expected(t, blueprint, err)
 			repo.AssertExpectations(t)
@@ -684,7 +674,7 @@ func TestBlueprintService_ListSpecLibrariesByProject(t *testing.T) {
 }
 
 //nolint:funlen // Test function requires comprehensive setup and assertions
-func TestBlueprintService_UpdateBlueprintByProjectIDAndSlug(t *testing.T) {
+func TestBlueprintService_UpdateBlueprintByProjectIDAndSlugInTeam(t *testing.T) {
 	tests := []struct {
 		name        string
 		userID      string
@@ -723,8 +713,8 @@ func TestBlueprintService_UpdateBlueprintByProjectIDAndSlug(t *testing.T) {
 					UpdatedAt:   time.Now(),
 				}
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
-					mock.Anything, "user-123",
+					"GetByProjectIDAndSlug",
+					mock.Anything, "user-123", "team-1",
 					"550e8400-e29b-41d4-a716-446655440000", "test-slug",
 				).Return(existingBlueprint, nil)
 				repo.On("Update", mock.Anything, mock.MatchedBy(func(blueprint *models.Blueprint) bool {
@@ -768,8 +758,8 @@ func TestBlueprintService_UpdateBlueprintByProjectIDAndSlug(t *testing.T) {
 					Type:        "general",
 				}
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
-					mock.Anything, "user-123",
+					"GetByProjectIDAndSlug",
+					mock.Anything, "user-123", "team-1",
 					"550e8400-e29b-41d4-a716-446655440000", "test-slug",
 				).Return(existingBlueprint, nil)
 				repo.On("Update", mock.Anything, mock.MatchedBy(func(blueprint *models.Blueprint) bool {
@@ -803,8 +793,8 @@ func TestBlueprintService_UpdateBlueprintByProjectIDAndSlug(t *testing.T) {
 					Title:     "Test Title",
 				}
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
-					mock.Anything, "user-123",
+					"GetByProjectIDAndSlug",
+					mock.Anything, "user-123", "team-1",
 					"550e8400-e29b-41d4-a716-446655440000", "test-slug",
 				).Return(existingBlueprint, nil)
 				repo.On("Update", mock.Anything, mock.MatchedBy(func(blueprint *models.Blueprint) bool {
@@ -826,8 +816,8 @@ func TestBlueprintService_UpdateBlueprintByProjectIDAndSlug(t *testing.T) {
 			request:     &models.UpdateBlueprintRequest{},
 			setup: func(repo *MockBlueprintRepository) {
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
-					mock.Anything, "user-123",
+					"GetByProjectIDAndSlug",
+					mock.Anything, "user-123", "team-1",
 					"550e8400-e29b-41d4-a716-446655440000", "non-existent",
 				).Return(nil, assert.AnError)
 			},
@@ -853,8 +843,8 @@ func TestBlueprintService_UpdateBlueprintByProjectIDAndSlug(t *testing.T) {
 					Title:     "Original Title",
 				}
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
-					mock.Anything, "user-123",
+					"GetByProjectIDAndSlug",
+					mock.Anything, "user-123", "team-1",
 					"550e8400-e29b-41d4-a716-446655440000", "test-slug",
 				).Return(existingBlueprint, nil)
 				repo.On("Update", mock.Anything, mock.Anything).Return(assert.AnError)
@@ -880,7 +870,7 @@ func TestBlueprintService_UpdateBlueprintByProjectIDAndSlug(t *testing.T) {
 				ContentVersionSvc: nil,
 				CommentRepo:       nil,
 			})
-			blueprint, err := service.UpdateBlueprintByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug, tt.request)
+			blueprint, err := service.UpdateBlueprintByProjectIDAndSlugInTeam(tt.userID, "team-1", tt.projectName, tt.slug, tt.request)
 
 			tt.expected(t, blueprint, err)
 			repo.AssertExpectations(t)
@@ -1161,9 +1151,9 @@ func TestBlueprintService_PublishesBlueprintEvents(t *testing.T) {
 					UpdatedAt: time.Now(),
 				}
 				mockRepo.On(
-					"GetByProjectIDAndSlugCrossTeam",
+					"GetByProjectIDAndSlug",
 					mock.Anything,
-					"user-123",
+					"user-123", "team-1",
 					"550e8400-e29b-41d4-a716-446655440000",
 					"test-spec-library",
 				).Return(existingBlueprint, nil)
@@ -1181,8 +1171,8 @@ func TestBlueprintService_PublishesBlueprintEvents(t *testing.T) {
 				req := &models.UpdateBlueprintRequest{
 					Title: &title,
 				}
-				_, err := service.UpdateBlueprintByProjectIDAndSlug(
-					"user-123",
+				_, err := service.UpdateBlueprintByProjectIDAndSlugInTeam(
+					"user-123", "team-1",
 					"550e8400-e29b-41d4-a716-446655440000",
 					"test-spec-library",
 					req,
@@ -1254,9 +1244,9 @@ func TestBlueprintService_UpdateBlueprint_PreservesTeamID(t *testing.T) {
 	}
 
 	mockRepo.On(
-		"GetByProjectIDAndSlugCrossTeam",
+		"GetByProjectIDAndSlug",
 		mock.Anything,
-		"user-123",
+		"user-123", "team-1",
 		"project-789",
 		"test-spec",
 	).Return(existingBlueprint, nil)
@@ -1274,7 +1264,7 @@ func TestBlueprintService_UpdateBlueprint_PreservesTeamID(t *testing.T) {
 		Title: &title,
 	}
 
-	blueprint, err := service.UpdateBlueprintByProjectIDAndSlug("user-123", "project-789", "test-spec", request)
+	blueprint, err := service.UpdateBlueprintByProjectIDAndSlugInTeam("user-123", "team-1", "project-789", "test-spec", request)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, blueprint)
@@ -1314,7 +1304,7 @@ func TestBlueprintService_UpdateBlueprint_MetadataNilVsEmpty(t *testing.T) {
 				TeamID:    "team-888",
 				Metadata:  map[string]interface{}{"env": "prod"},
 			}
-			mockRepo.On("GetByProjectIDAndSlugCrossTeam", mock.Anything, "user-123", "project-789", "test-spec").
+			mockRepo.On("GetByProjectIDAndSlug", mock.Anything, "user-123", "team-1", "project-789", "test-spec").
 				Return(existingBlueprint, nil)
 
 			var persisted *models.Blueprint
@@ -1322,8 +1312,8 @@ func TestBlueprintService_UpdateBlueprint_MetadataNilVsEmpty(t *testing.T) {
 				Run(func(args mock.Arguments) { persisted = args.Get(1).(*models.Blueprint) }).
 				Return(nil)
 
-			blueprint, err := service.UpdateBlueprintByProjectIDAndSlug(
-				"user-123", "project-789", "test-spec",
+			blueprint, err := service.UpdateBlueprintByProjectIDAndSlugInTeam(
+				"user-123", "team-1", "project-789", "test-spec",
 				&models.UpdateBlueprintRequest{Metadata: tt.reqMetadata},
 			)
 

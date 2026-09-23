@@ -366,52 +366,6 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 	return &blueprint, nil
 }
 
-// GetByProjectIDAndSlugCrossTeam retrieves a blueprint by project ID and slug across all user's teams
-func (r *BlueprintRepository) GetByProjectIDAndSlugCrossTeam(
-	ctx context.Context, userID, projectID, slug string,
-) (*models.Blueprint, error) {
-	query := `
-		SELECT id, project_id, slug, user_id, team_id, title, description, content, status,
-		type, subtype, metadata, created_at, updated_at, version,
-		path, path_derived, raw_content, content_sha,
-		source_repo, source_commit_sha, source_blob_sha, source_content_sha, imported_at, labels
-		FROM blueprints
-		WHERE project_id = $1 AND slug = $2 AND user_id = $3
-	`
-
-	var blueprint models.Blueprint
-	var metadataJSON []byte
-	var sync blueprintSyncScan
-	err := r.db.QueryRowContext(ctx, query, projectID, slug, userID).Scan(
-		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
-		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
-		&blueprint.Content, &blueprint.Status, &blueprint.Type,
-		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
-		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
-		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
-		&blueprint.Labels,
-	)
-
-	if err != nil {
-		return nil, mapNoRows(
-			fmt.Errorf("failed to get blueprint by project and slug (cross-team): %w", err),
-			repositories.ErrBlueprintNotFound,
-		)
-	}
-	sync.apply(&blueprint)
-
-	// Initialize metadata if JSON is nil or empty
-	if len(metadataJSON) == 0 {
-		blueprint.Metadata = make(map[string]interface{})
-	} else {
-		if err := json.Unmarshal(metadataJSON, &blueprint.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-		}
-	}
-
-	return &blueprint, nil
-}
-
 // blueprintListColumns is the projection used by List. The content and
 // raw_content columns are deliberately excluded from list operations to keep
 // payloads small (raw_content is returned only on the detail GET). path is

@@ -49,7 +49,7 @@ func TestBlueprintService_UpdateSnapshotsOldContent(t *testing.T) {
 				UserID: userID, Content: tt.oldContent,
 			}
 			repo.EXPECT().
-				GetByProjectIDAndSlugCrossTeam(mock.Anything, userID, projectID, slug).
+				GetByProjectIDAndSlug(mock.Anything, userID, teamID, projectID, slug).
 				Return(existing, nil).
 				Once()
 			repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
@@ -84,8 +84,8 @@ func TestBlueprintService_UpdateSnapshotsOldContent(t *testing.T) {
 			})
 
 			content := tt.newContent
-			_, err := svc.UpdateBlueprintByProjectIDAndSlug(
-				userID, projectID, slug, &models.UpdateBlueprintRequest{Content: &content},
+			_, err := svc.UpdateBlueprintByProjectIDAndSlugInTeam(
+				userID, teamID, projectID, slug, &models.UpdateBlueprintRequest{Content: &content},
 			)
 			require.NoError(t, err)
 		})

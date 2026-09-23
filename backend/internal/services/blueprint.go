@@ -320,28 +320,8 @@ func (s *BlueprintService) GetBlueprintByIDInTeam(
 	return blueprint, nil
 }
 
-func (s *BlueprintService) GetBlueprintByProjectIDAndSlug(
-	userID, projectID, slug string,
-) (*models.Blueprint, error) {
-	// Search across all user's teams
-	blueprint, err := s.repo.GetByProjectIDAndSlugCrossTeam(context.Background(), userID, projectID, slug)
-	if err != nil {
-		s.logger.With(
-			"service", "blueprint",
-			"user_id", userID,
-			"project_id", projectID,
-			"slug", slug,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to get blueprint")
-		return nil, err
-	}
-
-	return blueprint, nil
-}
-
 // GetBlueprintByProjectIDAndSlugInTeam retrieves a blueprint scoped to a single team the
-// user belongs to. Unlike GetBlueprintByProjectIDAndSlug (which spans all of the user's
-// teams by creator user_id), this enforces that the blueprint lives in teamID and is
+// user belongs to. It enforces that the blueprint lives in teamID and is
 // visible to any member of that team — so a non-creator member can open it (#258) — while
 // a caller outside the team still gets not-found (tenancy preserved). Mirrors
 // ArtifactService.GetArtifactByProjectIDAndSlugInTeam.
@@ -491,21 +471,8 @@ func validateBlueprintBusinessRules(blueprint *models.Blueprint) error {
 	return nil
 }
 
-func (s *BlueprintService) UpdateBlueprintByProjectIDAndSlug(
-	userID, projectID, slug string, req *models.UpdateBlueprintRequest,
-) (*models.Blueprint, error) {
-	// First check if the blueprint exists and get current data
-	blueprint, err := s.GetBlueprintByProjectIDAndSlug(userID, projectID, slug)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.applyAndPersistBlueprintUpdate(userID, blueprint, req, models.ActorTypeHuman, nil, nil)
-}
-
 // UpdateBlueprintByProjectIDAndSlugInTeam updates a blueprint scoped to a single team the
-// user belongs to. Unlike UpdateBlueprintByProjectIDAndSlug (which spans all of the user's
-// teams by creator user_id), this resolves by team membership so resource.update.any (D1 —
+// user belongs to. It resolves by team membership so resource.update.any (D1 —
 // every role may update any team member's resource) reaches the update path instead of 404ing
 // for a non-creator member (#258). Mirrors ArtifactService.UpdateArtifactByProjectIDAndSlugInTeam.
 func (s *BlueprintService) UpdateBlueprintByProjectIDAndSlugInTeam(

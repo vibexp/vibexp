@@ -365,67 +365,6 @@ func (_c *MockBlueprintRepository_GetByProjectIDAndSlug_Call) RunAndReturn(run f
 	return _c
 }
 
-// GetByProjectIDAndSlugCrossTeam provides a mock function with given fields: ctx, userID, projectID, slug
-func (_m *MockBlueprintRepository) GetByProjectIDAndSlugCrossTeam(ctx context.Context, userID string, projectID string, slug string) (*models.Blueprint, error) {
-	ret := _m.Called(ctx, userID, projectID, slug)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetByProjectIDAndSlugCrossTeam")
-	}
-
-	var r0 *models.Blueprint
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (*models.Blueprint, error)); ok {
-		return rf(ctx, userID, projectID, slug)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) *models.Blueprint); ok {
-		r0 = rf(ctx, userID, projectID, slug)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Blueprint)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
-		r1 = rf(ctx, userID, projectID, slug)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockBlueprintRepository_GetByProjectIDAndSlugCrossTeam_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByProjectIDAndSlugCrossTeam'
-type MockBlueprintRepository_GetByProjectIDAndSlugCrossTeam_Call struct {
-	*mock.Call
-}
-
-// GetByProjectIDAndSlugCrossTeam is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID string
-//   - projectID string
-//   - slug string
-func (_e *MockBlueprintRepository_Expecter) GetByProjectIDAndSlugCrossTeam(ctx interface{}, userID interface{}, projectID interface{}, slug interface{}) *MockBlueprintRepository_GetByProjectIDAndSlugCrossTeam_Call {
-	return &MockBlueprintRepository_GetByProjectIDAndSlugCrossTeam_Call{Call: _e.mock.On("GetByProjectIDAndSlugCrossTeam", ctx, userID, projectID, slug)}
-}
-
-func (_c *MockBlueprintRepository_GetByProjectIDAndSlugCrossTeam_Call) Run(run func(ctx context.Context, userID string, projectID string, slug string)) *MockBlueprintRepository_GetByProjectIDAndSlugCrossTeam_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
-	})
-	return _c
-}
-
-func (_c *MockBlueprintRepository_GetByProjectIDAndSlugCrossTeam_Call) Return(_a0 *models.Blueprint, _a1 error) *MockBlueprintRepository_GetByProjectIDAndSlugCrossTeam_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockBlueprintRepository_GetByProjectIDAndSlugCrossTeam_Call) RunAndReturn(run func(context.Context, string, string, string) (*models.Blueprint, error)) *MockBlueprintRepository_GetByProjectIDAndSlugCrossTeam_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetNamesByIDsCrossTeam provides a mock function with given fields: ctx, userID, ids
 func (_m *MockBlueprintRepository) GetNamesByIDsCrossTeam(ctx context.Context, userID string, ids []string) (map[string]string, error) {
 	ret := _m.Called(ctx, userID, ids)

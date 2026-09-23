@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 // The unified read dispatchers reuse newDeleteResourceTestServer (it mocks the
@@ -17,10 +18,16 @@ import (
 // getResource/listResources; these tests focus on the blueprint paths (a new
 // capability), the resource_type discriminator, and identifier validation.
 
+// TestGetResource_BlueprintSuccess reads a blueprint a teammate created: the
+// lookup must be the team-membership one keyed on the resolved team, not the
+// creator-scoped one (#1101).
 func TestGetResource_BlueprintSuccess(t *testing.T) {
 	srv, m := newDeleteResourceTestServer(t)
-	m.blueprint.On("GetBlueprintByProjectIDAndSlug", testMemberUserID, testProjectID, "bp").
-		Return(&models.Blueprint{ID: "bp-1", Slug: "bp", Title: "My BP", Content: "full body"}, nil)
+	m.blueprint.On("GetBlueprintByProjectIDAndSlugInTeam", testMemberUserID, testTeamUUID, testProjectID, "bp").
+		Return(&models.Blueprint{
+			ID: "bp-1", Slug: "bp", Title: "My BP", Content: "full body",
+			UserID: "teammate-user", TeamID: testTeamUUID,
+		}, nil)
 
 	params := &GetResourceParams{
 		TeamID: testTeamUUID, ResourceType: "blueprint", ProjectID: testProjectID, Slug: "bp",
@@ -39,6 +46,37 @@ func TestGetResource_BlueprintSuccess(t *testing.T) {
 	// get_resource returns the full resource, so content is present.
 	if !strings.Contains(extractText(t, result), "full body") {
 		t.Error("get_resource(blueprint) should return full content")
+	}
+	m.blueprint.AssertExpectations(t)
+}
+
+// TestGetResource_BlueprintWrongTeamNotFound proves team_id is enforced: the
+// lookup runs against the team the caller named, and a blueprint living in
+// another team (even one the caller created) comes back as not-found (#1101).
+func TestGetResource_BlueprintWrongTeamNotFound(t *testing.T) {
+	srv, m := newDeleteResourceTestServer(t)
+	srv.container.(*TestContainer).TeamRepositoryMock = stubTeamResolution(t, []models.Team{
+		memberTeam(),
+		{ID: testOtherTeamUUID, Name: "Other", Slug: testOtherTeamSlug},
+	})
+	m.blueprint.On("GetBlueprintByProjectIDAndSlugInTeam", testMemberUserID, testOtherTeamUUID, testProjectID, "bp").
+		Return(nil, repositories.ErrBlueprintNotFound)
+
+	params := &GetResourceParams{
+		TeamID: testOtherTeamUUID, ResourceType: "blueprint", ProjectID: testProjectID, Slug: "bp",
+	}
+	result, structured, err := srv.getResource(context.Background(), nil, params, testMemberUserID)
+	if err != nil {
+		t.Fatalf("getResource returned error: %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Fatalf("expected a not-found tool error, got %v", result)
+	}
+	if structured != nil {
+		t.Errorf("expected no structured result, got %T", structured)
+	}
+	if !strings.Contains(extractText(t, result), repositories.ErrBlueprintNotFound.Error()) {
+		t.Errorf("expected not-found message, got %q", extractText(t, result))
 	}
 	m.blueprint.AssertExpectations(t)
 }
