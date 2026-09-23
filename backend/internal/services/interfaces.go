@@ -65,9 +65,9 @@ type PromptServiceInterface interface {
 	DeletePromptBySlug(userID, teamID, slug string) error
 	DeletePrompt(userID, teamID, promptID string) error
 	RenderPrompt(userID, teamID, slug string, placeholders map[string]string) (*models.RenderPromptResponse, error)
-	RenderPromptBody(userID, body string) (string, error)
+	RenderPromptBody(teamID, body string) (string, error)
 	GetPromptPlaceholders(userID, teamID, slug string) ([]string, error)
-	ExtractAllPlaceholders(userID, body string, visitedRefs map[string]bool) ([]string, error)
+	ExtractAllPlaceholders(teamID, body string, visitedRefs map[string]bool) ([]string, error)
 	GetPromptDependencies(userID, teamID, promptID string) (*models.PromptDependenciesResponse, error)
 	GetPromptDependenciesBySlug(userID, teamID, slug string) (*models.PromptDependenciesResponse, error)
 	GetUserLabels(userID string) ([]string, error)
@@ -88,9 +88,9 @@ type PromptServiceInterface interface {
 
 // PromptShareServiceInterface defines the interface for prompt sharing operations
 type PromptShareServiceInterface interface {
-	CreateShare(userID, promptSlug string, req *models.CreateShareRequest) (*models.ShareResponse, error)
-	GetShare(userID, promptSlug string) (*models.ShareResponse, error)
-	DeleteShare(userID, promptSlug string) error
+	CreateShare(userID, teamID, promptSlug string, req *models.CreateShareRequest) (*models.ShareResponse, error)
+	GetShare(userID, teamID, promptSlug string) (*models.ShareResponse, error)
+	DeleteShare(userID, teamID, promptSlug string) error
 	GetSharedPrompt(token string, userEmail *string) (*models.SharedPromptResponse, error)
 }
 

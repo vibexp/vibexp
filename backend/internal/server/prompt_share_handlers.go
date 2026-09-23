@@ -24,7 +24,7 @@ const (
 // handleCreatePromptShare creates or updates a share for a prompt
 func (s *Server) handleCreatePromptShare(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
-	_ = chi.URLParam(r, "team_id") // Already validated by middleware, not needed for share service
+	teamID := chi.URLParam(r, "team_id") // membership validated by middleware
 	promptSlug := chi.URLParam(r, "slug")
 
 	var req models.CreateShareRequest
@@ -50,7 +50,7 @@ func (s *Server) handleCreatePromptShare(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Create share
-	shareResp, err := s.container.PromptShareService().CreateShare(userID, promptSlug, &req)
+	shareResp, err := s.container.PromptShareService().CreateShare(userID, teamID, promptSlug, &req)
 	if err != nil {
 		s.logger.With(
 			"service", serverLogServiceName,
@@ -75,10 +75,10 @@ func (s *Server) handleCreatePromptShare(w http.ResponseWriter, r *http.Request)
 // handleGetPromptShare retrieves share details for a prompt
 func (s *Server) handleGetPromptShare(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
-	_ = chi.URLParam(r, "team_id") // Already validated by middleware, not needed for share service
+	teamID := chi.URLParam(r, "team_id") // membership validated by middleware
 	promptSlug := chi.URLParam(r, "slug")
 
-	shareResp, err := s.container.PromptShareService().GetShare(userID, promptSlug)
+	shareResp, err := s.container.PromptShareService().GetShare(userID, teamID, promptSlug)
 	if err != nil {
 		s.logger.With(
 			"service", serverLogServiceName,
@@ -108,10 +108,10 @@ func (s *Server) handleGetPromptShare(w http.ResponseWriter, r *http.Request) {
 // handleDeletePromptShare deletes a share for a prompt
 func (s *Server) handleDeletePromptShare(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
-	_ = chi.URLParam(r, "team_id") // Already validated by middleware, not needed for share service
+	teamID := chi.URLParam(r, "team_id") // membership validated by middleware
 	promptSlug := chi.URLParam(r, "slug")
 
-	err := s.container.PromptShareService().DeleteShare(userID, promptSlug)
+	err := s.container.PromptShareService().DeleteShare(userID, teamID, promptSlug)
 	if err != nil {
 		s.logger.With(
 			"service", serverLogServiceName,

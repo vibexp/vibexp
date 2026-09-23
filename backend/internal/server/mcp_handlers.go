@@ -26,11 +26,12 @@ const promptsListPageSize = 100
 // most-recently-updated first (the prompt list's default order).
 const maxPromptPrimitives = 50
 
-// extractPromptArguments extracts placeholder arguments from prompt body
-func (s *Server) extractPromptArguments(body, userID string) []*mcp.PromptArgument {
-	// Use the same logic as the prompt service to extract placeholders
-	// Note: ExtractAllPlaceholders doesn't require teamID as it operates on prompt body content
-	placeholders, err := s.container.PromptService().ExtractAllPlaceholders(userID, body, make(map[string]bool))
+// extractPromptArguments extracts placeholder arguments from a prompt's body,
+// following its @references within the prompt's own team.
+func (s *Server) extractPromptArguments(prompt *models.Prompt, userID string) []*mcp.PromptArgument {
+	placeholders, err := s.container.PromptService().ExtractAllPlaceholders(
+		prompt.TeamID, prompt.Body, make(map[string]bool),
+	)
 	if err != nil {
 		s.logger.With(
 			"user_id", userID,
@@ -150,7 +151,7 @@ func (s *Server) addTeamPromptsToMCP(
 		name := uniquePromptName(prompt.Slug, teamSlug, registered)
 		registered[name] = struct{}{}
 
-		arguments := s.extractPromptArguments(prompt.Body, userID)
+		arguments := s.extractPromptArguments(&prompt, userID)
 		mcpPrompt := &mcp.Prompt{
 			Name:        name,
 			Title:       name,

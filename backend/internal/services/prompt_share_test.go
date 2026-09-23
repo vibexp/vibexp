@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
@@ -31,6 +32,7 @@ func createTestPromptForSharing() *models.Prompt {
 		Description: "A test prompt",
 		Body:        "Hello {{name}}, this is a test.",
 		UserID:      "user-123",
+		TeamID:      "team-1",
 		Status:      "published",
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -105,7 +107,7 @@ func TestPromptShareService_CreateShare(t *testing.T) {
 			},
 			setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
 				prompt := createTestPromptForSharing()
-				promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "test-prompt").
+				promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "test-prompt").
 					Return(prompt, nil)
 				shareRepo.On("GetByPromptID", mock.Anything, "prompt-123").
 					Return(nil, errors.New("share not found"))
@@ -128,7 +130,7 @@ func TestPromptShareService_CreateShare(t *testing.T) {
 			},
 			setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
 				prompt := createTestPromptForSharing()
-				promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "test-prompt").
+				promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "test-prompt").
 					Return(prompt, nil)
 				shareRepo.On("GetByPromptID", mock.Anything, "prompt-123").
 					Return(nil, errors.New("share not found"))
@@ -152,7 +154,7 @@ func TestPromptShareService_CreateShare(t *testing.T) {
 			},
 			setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
 				prompt := createTestPromptForSharing()
-				promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "test-prompt").
+				promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "test-prompt").
 					Return(prompt, nil)
 				existingShare := createTestPromptShare()
 				existingShare.ShareType = "restricted"
@@ -175,7 +177,7 @@ func TestPromptShareService_CreateShare(t *testing.T) {
 			},
 			setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
 				prompt := createTestPromptForSharing()
-				promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "test-prompt").
+				promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "test-prompt").
 					Return(prompt, nil)
 				existingShare := createTestPromptShare()
 				shareRepo.On("GetByPromptID", mock.Anything, "prompt-123").
@@ -197,7 +199,7 @@ func TestPromptShareService_CreateShare(t *testing.T) {
 				ShareType: "public",
 			},
 			setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
-				promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "nonexistent").
+				promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "nonexistent").
 					Return(nil, errors.New("not found"))
 			},
 			expectError: true,
@@ -213,7 +215,7 @@ func TestPromptShareService_CreateShare(t *testing.T) {
 			},
 			setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
 				prompt := createTestPromptForSharing()
-				promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "test-prompt").
+				promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "test-prompt").
 					Return(prompt, nil)
 			},
 			expectError: true,
@@ -229,7 +231,7 @@ func TestPromptShareService_CreateShare(t *testing.T) {
 
 			service := createTestPromptShareService(shareRepo, promptRepo)
 
-			result, err := service.CreateShare(tt.userID, tt.promptSlug, tt.request)
+			result, err := service.CreateShare(tt.userID, "team-1", tt.promptSlug, tt.request)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -262,7 +264,7 @@ var getShareTests = []struct {
 		promptSlug: "test-prompt",
 		setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
 			prompt := createTestPromptForSharing()
-			promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "test-prompt").
+			promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "test-prompt").
 				Return(prompt, nil)
 			share := createTestPromptShare()
 			shareRepo.On("GetByPromptID", mock.Anything, "prompt-123").
@@ -276,7 +278,7 @@ var getShareTests = []struct {
 		promptSlug: "test-prompt",
 		setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
 			prompt := createTestPromptForSharing()
-			promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "test-prompt").
+			promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "test-prompt").
 				Return(prompt, nil)
 			share := createTestPromptShare()
 			share.ShareType = "restricted"
@@ -292,7 +294,7 @@ var getShareTests = []struct {
 		userID:     "user-123",
 		promptSlug: "nonexistent",
 		setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
-			promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "nonexistent").
+			promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "nonexistent").
 				Return(nil, errors.New("not found"))
 		},
 		expectError: true,
@@ -304,7 +306,7 @@ var getShareTests = []struct {
 		promptSlug: "test-prompt",
 		setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
 			prompt := createTestPromptForSharing()
-			promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "test-prompt").
+			promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "test-prompt").
 				Return(prompt, nil)
 			shareRepo.On("GetByPromptID", mock.Anything, "prompt-123").
 				Return(nil, errors.New("not found"))
@@ -323,7 +325,7 @@ func TestPromptShareService_GetShare(t *testing.T) {
 
 			service := createTestPromptShareService(shareRepo, promptRepo)
 
-			result, err := service.GetShare(tt.userID, tt.promptSlug)
+			result, err := service.GetShare(tt.userID, "team-1", tt.promptSlug)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -355,7 +357,7 @@ var deleteShareTests = []struct {
 		promptSlug: "test-prompt",
 		setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
 			prompt := createTestPromptForSharing()
-			promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "test-prompt").
+			promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "test-prompt").
 				Return(prompt, nil)
 			share := createTestPromptShare()
 			shareRepo.On("GetByPromptID", mock.Anything, "prompt-123").
@@ -369,7 +371,7 @@ var deleteShareTests = []struct {
 		userID:     "user-123",
 		promptSlug: "nonexistent",
 		setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
-			promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "nonexistent").
+			promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "nonexistent").
 				Return(nil, errors.New("not found"))
 		},
 		expectError: true,
@@ -381,7 +383,7 @@ var deleteShareTests = []struct {
 		promptSlug: "test-prompt",
 		setupMocks: func(shareRepo *mocks.MockPromptShareRepository, promptRepo *mocks.MockPromptRepository) {
 			prompt := createTestPromptForSharing()
-			promptRepo.On("GetBySlugCrossTeam", mock.Anything, "user-123", "test-prompt").
+			promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "test-prompt").
 				Return(prompt, nil)
 			shareRepo.On("GetByPromptID", mock.Anything, "prompt-123").
 				Return(nil, errors.New("not found"))
@@ -400,7 +402,7 @@ func TestPromptShareService_DeleteShare(t *testing.T) {
 
 			service := createTestPromptShareService(shareRepo, promptRepo)
 
-			err := service.DeleteShare(tt.userID, tt.promptSlug)
+			err := service.DeleteShare(tt.userID, "team-1", tt.promptSlug)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -556,4 +558,46 @@ func TestPromptShareService_GetSharedPrompt(t *testing.T) {
 
 func shareStringPtr(s string) *string {
 	return &s
+}
+
+// #1100: sharing stays author-only; the URL team only disambiguates the slug.
+func TestPromptShareService_RejectsTeammatesPrompt(t *testing.T) {
+	shareRepo := mocks.NewMockPromptShareRepository(t)
+	promptRepo := mocks.NewMockPromptRepository(t)
+	teammates := createTestPromptForSharing()
+	teammates.UserID = "user-other"
+	promptRepo.On("GetBySlug", mock.Anything, "user-123", "team-1", "test-prompt").Return(teammates, nil)
+
+	service := createTestPromptShareService(shareRepo, promptRepo)
+
+	_, err := service.CreateShare("user-123", "team-1", "test-prompt", &models.CreateShareRequest{ShareType: "public"})
+	assert.EqualError(t, err, "prompt not found")
+	_, err = service.GetShare("user-123", "team-1", "test-prompt")
+	assert.EqualError(t, err, "prompt not found")
+	assert.EqualError(t, service.DeleteShare("user-123", "team-1", "test-prompt"), "prompt not found")
+}
+
+// #1100: a shared prompt renders its @references within the prompt's own team
+// (it used to pass an empty team and always fall back to the raw body), and
+// leaves {{placeholders}} for the client.
+func TestPromptShareService_GetSharedPrompt_ResolvesReferencesInPromptsTeam(t *testing.T) {
+	shareRepo := mocks.NewMockPromptShareRepository(t)
+	promptRepo := mocks.NewMockPromptRepository(t)
+
+	share := createTestPromptShare()
+	shareRepo.On("GetByToken", mock.Anything, "abc123xyz789").Return(share, nil)
+	shareRepo.On("IncrementAccessCount", mock.Anything, share.ID).Return(nil).Maybe()
+	prompt := createTestPromptForSharing()
+	prompt.Body = "Hello {{name}} @footer"
+	promptRepo.On("GetByID", mock.Anything, "", "", "prompt-123").Return(prompt, nil)
+	promptRepo.On("GetBySlugInTeam", mock.Anything, "team-1", "footer").
+		Return(&models.Prompt{ID: "footer-id", Slug: "footer", Body: "-- the team", TeamID: "team-1"}, nil).Once()
+
+	logger, _ := logtest.New()
+	service := NewPromptShareService(shareRepo, promptRepo, createTestPromptService(promptRepo, nil), logger)
+
+	result, err := service.GetSharedPrompt("abc123xyz789", nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "Hello {{name}} -- the team", result.RenderedBody)
 }

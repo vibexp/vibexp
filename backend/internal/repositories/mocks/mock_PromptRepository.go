@@ -360,21 +360,21 @@ func (_c *MockPromptRepository_GetBySlug_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
-// GetBySlugCrossTeam provides a mock function with given fields: ctx, userID, slug
-func (_m *MockPromptRepository) GetBySlugCrossTeam(ctx context.Context, userID string, slug string) (*models.Prompt, error) {
-	ret := _m.Called(ctx, userID, slug)
+// GetBySlugInTeam provides a mock function with given fields: ctx, teamID, slug
+func (_m *MockPromptRepository) GetBySlugInTeam(ctx context.Context, teamID string, slug string) (*models.Prompt, error) {
+	ret := _m.Called(ctx, teamID, slug)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetBySlugCrossTeam")
+		panic("no return value specified for GetBySlugInTeam")
 	}
 
 	var r0 *models.Prompt
 	var r1 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*models.Prompt, error)); ok {
-		return rf(ctx, userID, slug)
+		return rf(ctx, teamID, slug)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) *models.Prompt); ok {
-		r0 = rf(ctx, userID, slug)
+		r0 = rf(ctx, teamID, slug)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Prompt)
@@ -382,7 +382,7 @@ func (_m *MockPromptRepository) GetBySlugCrossTeam(ctx context.Context, userID s
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, userID, slug)
+		r1 = rf(ctx, teamID, slug)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -390,32 +390,32 @@ func (_m *MockPromptRepository) GetBySlugCrossTeam(ctx context.Context, userID s
 	return r0, r1
 }
 
-// MockPromptRepository_GetBySlugCrossTeam_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetBySlugCrossTeam'
-type MockPromptRepository_GetBySlugCrossTeam_Call struct {
+// MockPromptRepository_GetBySlugInTeam_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetBySlugInTeam'
+type MockPromptRepository_GetBySlugInTeam_Call struct {
 	*mock.Call
 }
 
-// GetBySlugCrossTeam is a helper method to define mock.On call
+// GetBySlugInTeam is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
+//   - teamID string
 //   - slug string
-func (_e *MockPromptRepository_Expecter) GetBySlugCrossTeam(ctx interface{}, userID interface{}, slug interface{}) *MockPromptRepository_GetBySlugCrossTeam_Call {
-	return &MockPromptRepository_GetBySlugCrossTeam_Call{Call: _e.mock.On("GetBySlugCrossTeam", ctx, userID, slug)}
+func (_e *MockPromptRepository_Expecter) GetBySlugInTeam(ctx interface{}, teamID interface{}, slug interface{}) *MockPromptRepository_GetBySlugInTeam_Call {
+	return &MockPromptRepository_GetBySlugInTeam_Call{Call: _e.mock.On("GetBySlugInTeam", ctx, teamID, slug)}
 }
 
-func (_c *MockPromptRepository_GetBySlugCrossTeam_Call) Run(run func(ctx context.Context, userID string, slug string)) *MockPromptRepository_GetBySlugCrossTeam_Call {
+func (_c *MockPromptRepository_GetBySlugInTeam_Call) Run(run func(ctx context.Context, teamID string, slug string)) *MockPromptRepository_GetBySlugInTeam_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
 	return _c
 }
 
-func (_c *MockPromptRepository_GetBySlugCrossTeam_Call) Return(_a0 *models.Prompt, _a1 error) *MockPromptRepository_GetBySlugCrossTeam_Call {
+func (_c *MockPromptRepository_GetBySlugInTeam_Call) Return(_a0 *models.Prompt, _a1 error) *MockPromptRepository_GetBySlugInTeam_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockPromptRepository_GetBySlugCrossTeam_Call) RunAndReturn(run func(context.Context, string, string) (*models.Prompt, error)) *MockPromptRepository_GetBySlugCrossTeam_Call {
+func (_c *MockPromptRepository_GetBySlugInTeam_Call) RunAndReturn(run func(context.Context, string, string) (*models.Prompt, error)) *MockPromptRepository_GetBySlugInTeam_Call {
 	_c.Call.Return(run)
 	return _c
 }

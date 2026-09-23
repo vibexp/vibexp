@@ -113,7 +113,7 @@ func (s *PromptService) publishPromptCreatedEvent(ctx context.Context, prompt *m
 	}
 
 	// Render the prompt body to resolve all @references and {{placeholders}}
-	renderedBody, err := s.RenderPromptBody(prompt.UserID, prompt.Body)
+	renderedBody, err := s.RenderPromptBody(prompt.TeamID, prompt.Body)
 	if err != nil {
 		s.logger.With(
 			"prompt_id", prompt.ID,
@@ -210,7 +210,7 @@ func (s *PromptService) CreatePrompt(userID, teamID string, req *models.CreatePr
 	}
 
 	// Extract and store references from the prompt body
-	if err := s.updatePromptReferences(ctx, userID, prompt.ID, prompt.Body); err != nil {
+	if err := s.updatePromptReferences(ctx, prompt.TeamID, prompt.ID, prompt.Body); err != nil {
 		s.logger.With("error", err).Warn("Failed to update prompt references")
 		// Don't fail the creation, just log the warning
 	}
@@ -388,7 +388,7 @@ func (s *PromptService) updatePromptInternal(
 
 	// Update references if body changed
 	if req.Body != nil {
-		if err := s.updatePromptReferences(ctx, userID, updatedPrompt.ID, updatedPrompt.Body); err != nil {
+		if err := s.updatePromptReferences(ctx, updatedPrompt.TeamID, updatedPrompt.ID, updatedPrompt.Body); err != nil {
 			s.logger.With("error", err).Warn("Failed to update prompt references")
 			// Don't fail the update, just log the warning
 		}
@@ -397,7 +397,7 @@ func (s *PromptService) updatePromptInternal(
 	clearFreshnessAfterEdit(ctx, s.freshnessClearer, s.logger,
 		updatedPrompt.TeamID, "prompt", updatedPrompt.ID)
 
-	s.publishPromptUpdatedEvent(ctx, userID, updatedPrompt)
+	s.publishPromptUpdatedEvent(ctx, updatedPrompt)
 
 	s.logger.With(
 		"prompt_id", updatedPrompt.ID,
@@ -499,7 +499,7 @@ func (s *PromptService) snapshotPromptBody(
 // (all @references and {{placeholders}} resolved, for embedding generation). Rendering
 // or publish failures are logged and swallowed — the update already succeeded.
 func (s *PromptService) publishPromptUpdatedEvent(
-	ctx context.Context, userID string, updatedPrompt *models.Prompt,
+	ctx context.Context, updatedPrompt *models.Prompt,
 ) {
 	if s.eventManager == nil {
 		return
@@ -509,7 +509,7 @@ func (s *PromptService) publishPromptUpdatedEvent(
 	// For embedding generation, we want the fully resolved content
 	renderedBody := updatedPrompt.Body
 	renderResponse, err := s.renderPromptRecursive(
-		userID, updatedPrompt.Body, make(map[string]string), make(map[string]bool),
+		updatedPrompt.TeamID, updatedPrompt.Body, make(map[string]string), make(map[string]bool),
 	)
 	if err != nil {
 		// If rendering fails (e.g., missing placeholders or circular refs), log warning but continue
@@ -744,24 +744,29 @@ func (s *PromptService) RenderPrompt(
 		return nil, err
 	}
 
-	return s.renderPromptRecursive(userID, prompt.Body, placeholders, make(map[string]bool))
+	// The root was loaded membership-checked; its @references resolve within
+	// the team that owns it, whoever is reading (#1100).
+	return s.renderPromptRecursive(prompt.TeamID, prompt.Body, placeholders, make(map[string]bool))
 }
 
 // RenderPromptBody resolves all @references and {{placeholders}} in an
-// already-loaded prompt body for the given user, returning the fully rendered
+// already-loaded prompt body within the prompt's owning team, returning the fully rendered
 // text. It exists so callers that hold the body (e.g. the create-event path and
 // the embedding backfill) embed the same reference-resolved content the live
 // pipeline produces, without re-fetching the prompt by slug.
-func (s *PromptService) RenderPromptBody(userID, body string) (string, error) {
-	rendered, err := s.renderPromptRecursive(userID, body, make(map[string]string), make(map[string]bool))
+func (s *PromptService) RenderPromptBody(teamID, body string) (string, error) {
+	rendered, err := s.renderPromptRecursive(teamID, body, make(map[string]string), make(map[string]bool))
 	if err != nil {
 		return "", err
 	}
 	return rendered.RenderedBody, nil
 }
 
+// renderPromptRecursive resolves @references among the prompts of teamID — the
+// team owning the prompt being rendered — never among the reader's own prompts
+// in other teams (#1100). The caller has already checked access to the root.
 func (s *PromptService) renderPromptRecursive(
-	userID, body string, placeholders map[string]string, visitedRefs map[string]bool,
+	teamID, body string, placeholders map[string]string, visitedRefs map[string]bool,
 ) (*models.RenderPromptResponse, error) {
 	warnings := make([]string, 0)
 	referencesUsed := make([]string, 0)
@@ -793,8 +798,8 @@ func (s *PromptService) renderPromptRecursive(
 			return nil, fmt.Errorf("circular reference detected for prompt: %s", refSlug)
 		}
 
-		// Get the referenced prompt across all user's teams
-		refPrompt, err := s.repo.GetBySlugCrossTeam(context.Background(), userID, refSlug)
+		// Get the referenced prompt from the owning team
+		refPrompt, err := s.repo.GetBySlugInTeam(context.Background(), teamID, refSlug)
 		if err != nil {
 			if errors.Is(err, repositories.ErrPromptNotFound) {
 				// Log warning but don't fail - keep the reference as-is
@@ -808,7 +813,7 @@ func (s *PromptService) renderPromptRecursive(
 		}
 
 		// Recursively render the referenced prompt, marking this reference as visited
-		refResponse, err := s.renderPromptRecursive(userID, refPrompt.Body, placeholders, visitedWith(visitedRefs, refSlug))
+		refResponse, err := s.renderPromptRecursive(teamID, refPrompt.Body, placeholders, visitedWith(visitedRefs, refSlug))
 		if err != nil {
 			return nil, fmt.Errorf("failed to render referenced prompt %s: %w", refSlug, err)
 		}
@@ -847,10 +852,12 @@ func (s *PromptService) GetPromptPlaceholders(userID, teamID, slug string) ([]st
 		return nil, err
 	}
 
-	return s.ExtractAllPlaceholders(userID, prompt.Body, make(map[string]bool))
+	return s.ExtractAllPlaceholders(prompt.TeamID, prompt.Body, make(map[string]bool))
 }
 
-func (s *PromptService) ExtractAllPlaceholders(userID, body string, visitedRefs map[string]bool) ([]string, error) {
+// ExtractAllPlaceholders collects the {{placeholder}} keys of body and of every
+// prompt it @references, resolving references within teamID (the owning team).
+func (s *PromptService) ExtractAllPlaceholders(teamID, body string, visitedRefs map[string]bool) ([]string, error) {
 	// Handle escaped @@ sequences first (replace temporarily to avoid matching them)
 	bodyForExtraction := strings.ReplaceAll(body, "@@", escapedAtSentinel)
 
@@ -873,8 +880,8 @@ func (s *PromptService) ExtractAllPlaceholders(userID, body string, visitedRefs 
 			continue // Skip circular references
 		}
 
-		// Get the referenced prompt across all user's teams
-		refPrompt, err := s.repo.GetBySlugCrossTeam(context.Background(), userID, refSlug)
+		// Get the referenced prompt from the owning team
+		refPrompt, err := s.repo.GetBySlugInTeam(context.Background(), teamID, refSlug)
 		if err != nil {
 			if errors.Is(err, repositories.ErrPromptNotFound) {
 				continue // Skip missing references
@@ -884,7 +891,7 @@ func (s *PromptService) ExtractAllPlaceholders(userID, body string, visitedRefs 
 
 		// Recursively get placeholders from the referenced prompt, marking this
 		// reference as visited
-		refPlaceholders, err := s.ExtractAllPlaceholders(userID, refPrompt.Body, visitedWith(visitedRefs, refSlug))
+		refPlaceholders, err := s.ExtractAllPlaceholders(teamID, refPrompt.Body, visitedWith(visitedRefs, refSlug))
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract placeholders from referenced prompt %s: %w", refSlug, err)
 		}
@@ -965,8 +972,10 @@ func visitedWith(visited map[string]bool, slug string) map[string]bool {
 	return next
 }
 
-// updatePromptReferences extracts references from prompt body and updates the database
-func (s *PromptService) updatePromptReferences(ctx context.Context, userID, promptID, body string) error {
+// updatePromptReferences extracts references from prompt body and updates the
+// database. References resolve within teamID, the saved prompt's team, so an
+// edge to a teammate's prompt is stored and one to another team never is.
+func (s *PromptService) updatePromptReferences(ctx context.Context, teamID, promptID, body string) error {
 	// First, delete existing references for this prompt
 	if err := s.refRepo.DeleteByPromptID(ctx, promptID); err != nil {
 		return fmt.Errorf("failed to delete existing references: %w", err)
@@ -996,8 +1005,8 @@ func (s *PromptService) updatePromptReferences(ctx context.Context, userID, prom
 	// Build references list
 	references := make([]models.PromptReference, 0, len(uniqueSlugs))
 	for slug := range uniqueSlugs {
-		// Get the referenced prompt to get its ID across all user's teams
-		refPrompt, err := s.repo.GetBySlugCrossTeam(ctx, userID, slug)
+		// Get the referenced prompt's ID from the owning team
+		refPrompt, err := s.repo.GetBySlugInTeam(ctx, teamID, slug)
 		if err != nil {
 			// If referenced prompt doesn't exist, log warning but continue
 			s.logger.With(
@@ -1007,6 +1016,9 @@ func (s *PromptService) updatePromptReferences(ctx context.Context, userID, prom
 			).
 				Warn("Referenced prompt not found, skipping reference")
 			continue
+		}
+		if refPrompt.ID == promptID {
+			continue // a self-reference is not a dependency
 		}
 
 		references = append(references, models.PromptReference{
