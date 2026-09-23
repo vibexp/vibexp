@@ -200,12 +200,6 @@ func (r *inMemoryBlueprintRepo) GetByIDCrossTeam(context.Context, string, string
 	return nil, repositories.ErrBlueprintNotFound
 }
 
-func (r *inMemoryBlueprintRepo) GetByProjectIDAndSlugCrossTeam(
-	context.Context, string, string, string,
-) (*models.Blueprint, error) {
-	return nil, repositories.ErrBlueprintNotFound
-}
-
 func (r *inMemoryBlueprintRepo) List(
 	context.Context, string, repositories.BlueprintFilters,
 ) ([]models.Blueprint, int, error) {

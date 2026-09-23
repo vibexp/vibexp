@@ -148,26 +148,6 @@ func TestGetByIDCrossTeam_ReadsSyncColumns(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestGetByProjectIDAndSlugCrossTeam_ReadsSyncColumns covers the other cross-team
-// detail read's new column scan (#339).
-func TestGetByProjectIDAndSlugCrossTeam_ReadsSyncColumns(t *testing.T) {
-	db, mock, repo := setupMockDB(t)
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			t.Logf("failed to close db: %v", closeErr)
-		}
-	}()
-
-	mock.ExpectQuery("SELECT (.+) FROM blueprints").
-		WithArgs("proj-1", "slug", "user-1").WillReturnRows(blueprintDetailRow())
-
-	bp, err := repo.GetByProjectIDAndSlugCrossTeam(context.Background(), "user-1", "proj-1", "slug")
-	assert.NoError(t, err)
-	assert.Equal(t, "slug.md", bp.Path)
-	assert.True(t, bp.PathDerived)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
 // TestGetByProjectIDAndPath_ReadsRow covers the path-first re-import lookup (#341).
 func TestGetByProjectIDAndPath_ReadsRow(t *testing.T) {
 	db, mock, repo := setupMockDB(t)

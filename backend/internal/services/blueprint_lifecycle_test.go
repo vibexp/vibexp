@@ -121,15 +121,15 @@ func TestUpdateBlueprint_RegeneratesRawAndRecomputesPath(t *testing.T) {
 		Type: "claude-code", Subtype: lifecycleStr("others"), Title: "T", Content: "old body",
 		Path: ".claude/old.md", PathDerived: true, RawContent: "old body", ContentSHA: "stale",
 	}
-	repo.On("GetByProjectIDAndSlugCrossTeam", mock.Anything, "u1", "p1", "old").Return(existing, nil)
+	repo.On("GetByProjectIDAndSlug", mock.Anything, "u1", "team-1", "p1", "old").Return(existing, nil)
 	var saved *models.Blueprint
 	repo.On("Update", mock.Anything, mock.MatchedBy(func(bp *models.Blueprint) bool {
 		saved = bp
 		return true
 	})).Return(nil)
 
-	updated, err := newLifecycleSvc(repo).UpdateBlueprintByProjectIDAndSlug(
-		"u1", "p1", "old",
+	updated, err := newLifecycleSvc(repo).UpdateBlueprintByProjectIDAndSlugInTeam(
+		"u1", "team-1", "p1", "old",
 		&models.UpdateBlueprintRequest{Slug: lifecycleStr("new"), Content: lifecycleStr("new body")},
 	)
 	require.NoError(t, err)

@@ -191,66 +191,6 @@ func (_c *MockBlueprintServiceInterface_GetBlueprintByIDInTeam_Call) RunAndRetur
 	return _c
 }
 
-// GetBlueprintByProjectIDAndSlug provides a mock function with given fields: userID, projectID, slug
-func (_m *MockBlueprintServiceInterface) GetBlueprintByProjectIDAndSlug(userID string, projectID string, slug string) (*models.Blueprint, error) {
-	ret := _m.Called(userID, projectID, slug)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetBlueprintByProjectIDAndSlug")
-	}
-
-	var r0 *models.Blueprint
-	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string) (*models.Blueprint, error)); ok {
-		return rf(userID, projectID, slug)
-	}
-	if rf, ok := ret.Get(0).(func(string, string, string) *models.Blueprint); ok {
-		r0 = rf(userID, projectID, slug)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Blueprint)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(string, string, string) error); ok {
-		r1 = rf(userID, projectID, slug)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockBlueprintServiceInterface_GetBlueprintByProjectIDAndSlug_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetBlueprintByProjectIDAndSlug'
-type MockBlueprintServiceInterface_GetBlueprintByProjectIDAndSlug_Call struct {
-	*mock.Call
-}
-
-// GetBlueprintByProjectIDAndSlug is a helper method to define mock.On call
-//   - userID string
-//   - projectID string
-//   - slug string
-func (_e *MockBlueprintServiceInterface_Expecter) GetBlueprintByProjectIDAndSlug(userID interface{}, projectID interface{}, slug interface{}) *MockBlueprintServiceInterface_GetBlueprintByProjectIDAndSlug_Call {
-	return &MockBlueprintServiceInterface_GetBlueprintByProjectIDAndSlug_Call{Call: _e.mock.On("GetBlueprintByProjectIDAndSlug", userID, projectID, slug)}
-}
-
-func (_c *MockBlueprintServiceInterface_GetBlueprintByProjectIDAndSlug_Call) Run(run func(userID string, projectID string, slug string)) *MockBlueprintServiceInterface_GetBlueprintByProjectIDAndSlug_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string))
-	})
-	return _c
-}
-
-func (_c *MockBlueprintServiceInterface_GetBlueprintByProjectIDAndSlug_Call) Return(_a0 *models.Blueprint, _a1 error) *MockBlueprintServiceInterface_GetBlueprintByProjectIDAndSlug_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockBlueprintServiceInterface_GetBlueprintByProjectIDAndSlug_Call) RunAndReturn(run func(string, string, string) (*models.Blueprint, error)) *MockBlueprintServiceInterface_GetBlueprintByProjectIDAndSlug_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetBlueprintByProjectIDAndSlugInTeam provides a mock function with given fields: userID, teamID, projectID, slug
 func (_m *MockBlueprintServiceInterface) GetBlueprintByProjectIDAndSlugInTeam(userID string, teamID string, projectID string, slug string) (*models.Blueprint, error) {
 	ret := _m.Called(userID, teamID, projectID, slug)
@@ -670,67 +610,6 @@ func (_c *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call) Retu
 }
 
 func (_c *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call) RunAndReturn(run func(string, string, string, string, int) (*models.Blueprint, error)) *MockBlueprintServiceInterface_RestoreBlueprintVersionInTeam_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// UpdateBlueprintByProjectIDAndSlug provides a mock function with given fields: userID, projectID, slug, req
-func (_m *MockBlueprintServiceInterface) UpdateBlueprintByProjectIDAndSlug(userID string, projectID string, slug string, req *models.UpdateBlueprintRequest) (*models.Blueprint, error) {
-	ret := _m.Called(userID, projectID, slug, req)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UpdateBlueprintByProjectIDAndSlug")
-	}
-
-	var r0 *models.Blueprint
-	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, *models.UpdateBlueprintRequest) (*models.Blueprint, error)); ok {
-		return rf(userID, projectID, slug, req)
-	}
-	if rf, ok := ret.Get(0).(func(string, string, string, *models.UpdateBlueprintRequest) *models.Blueprint); ok {
-		r0 = rf(userID, projectID, slug, req)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Blueprint)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(string, string, string, *models.UpdateBlueprintRequest) error); ok {
-		r1 = rf(userID, projectID, slug, req)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockBlueprintServiceInterface_UpdateBlueprintByProjectIDAndSlug_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateBlueprintByProjectIDAndSlug'
-type MockBlueprintServiceInterface_UpdateBlueprintByProjectIDAndSlug_Call struct {
-	*mock.Call
-}
-
-// UpdateBlueprintByProjectIDAndSlug is a helper method to define mock.On call
-//   - userID string
-//   - projectID string
-//   - slug string
-//   - req *models.UpdateBlueprintRequest
-func (_e *MockBlueprintServiceInterface_Expecter) UpdateBlueprintByProjectIDAndSlug(userID interface{}, projectID interface{}, slug interface{}, req interface{}) *MockBlueprintServiceInterface_UpdateBlueprintByProjectIDAndSlug_Call {
-	return &MockBlueprintServiceInterface_UpdateBlueprintByProjectIDAndSlug_Call{Call: _e.mock.On("UpdateBlueprintByProjectIDAndSlug", userID, projectID, slug, req)}
-}
-
-func (_c *MockBlueprintServiceInterface_UpdateBlueprintByProjectIDAndSlug_Call) Run(run func(userID string, projectID string, slug string, req *models.UpdateBlueprintRequest)) *MockBlueprintServiceInterface_UpdateBlueprintByProjectIDAndSlug_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(*models.UpdateBlueprintRequest))
-	})
-	return _c
-}
-
-func (_c *MockBlueprintServiceInterface_UpdateBlueprintByProjectIDAndSlug_Call) Return(_a0 *models.Blueprint, _a1 error) *MockBlueprintServiceInterface_UpdateBlueprintByProjectIDAndSlug_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockBlueprintServiceInterface_UpdateBlueprintByProjectIDAndSlug_Call) RunAndReturn(run func(string, string, string, *models.UpdateBlueprintRequest) (*models.Blueprint, error)) *MockBlueprintServiceInterface_UpdateBlueprintByProjectIDAndSlug_Call {
 	_c.Call.Return(run)
 	return _c
 }

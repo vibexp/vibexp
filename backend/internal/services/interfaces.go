@@ -535,7 +535,6 @@ type UsageAndGrowthGetter interface {
 // BlueprintServiceInterface defines the interface for blueprint operations
 type BlueprintServiceInterface interface {
 	CreateBlueprint(userID, teamID string, req *models.CreateBlueprintRequest) (*models.Blueprint, error)
-	GetBlueprintByProjectIDAndSlug(userID, projectID, slug string) (*models.Blueprint, error)
 	// GetBlueprintByProjectIDAndSlugInTeam retrieves a blueprint scoped to a single team the user
 	// belongs to (by membership, not creator user_id), so any member can open it (#258).
 	GetBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug string) (*models.Blueprint, error)
@@ -543,8 +542,6 @@ type BlueprintServiceInterface interface {
 	ListBlueprints(userID string, filters BlueprintFilters) (*models.BlueprintListResponse, error)
 	ListBlueprintsByProject(userID, projectID string, filters BlueprintFilters,
 	) (*models.BlueprintListResponse, error)
-	UpdateBlueprintByProjectIDAndSlug(userID, projectID, slug string, req *models.UpdateBlueprintRequest,
-	) (*models.Blueprint, error)
 	// UpdateBlueprintByProjectIDAndSlugInTeam updates a blueprint scoped to a single team the user
 	// belongs to, so resource.update.any (D1) reaches the update path for a non-creator member (#258).
 	UpdateBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug string,

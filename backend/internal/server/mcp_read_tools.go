@@ -187,9 +187,10 @@ func (s *Server) getArtifactResource(
 	return mcpJSONResult(artifact)
 }
 
-// getBlueprintResource fetches a blueprint by project_id + slug. Blueprint reads
-// are ownership-scoped (cross-team by userID), the same lookup the delete and
-// REST blueprint handlers use.
+// getBlueprintResource fetches a blueprint by project_id + slug through the
+// team-enforcing lookup (the same one REST GetBlueprint and MCP delete use), so
+// any member of the resolved team can read it and a blueprint outside teamID is
+// not found (#1101).
 func (s *Server) getBlueprintResource(
 	ctx context.Context, params *GetResourceParams, userID, teamID string,
 ) (*mcp.CallToolResult, any, error) {
@@ -201,7 +202,9 @@ func (s *Server) getBlueprintResource(
 		return mcpTextError("slug is required to get a blueprint"), nil, nil
 	}
 
-	blueprint, err := s.container.BlueprintService().GetBlueprintByProjectIDAndSlug(userID, params.ProjectID, slug)
+	blueprint, err := s.container.BlueprintService().GetBlueprintByProjectIDAndSlugInTeam(
+		userID, teamID, params.ProjectID, slug,
+	)
 	if err != nil {
 		return s.mcpReadError(resourceTypeBlueprint, "get", userID, teamID, err), nil, nil
 	}
@@ -335,8 +338,9 @@ func (s *Server) listArtifactResources(
 }
 
 // listBlueprintResources lists blueprints in a project (slim items, no content).
-// Blueprint listing is ownership-scoped (cross-team by userID) with the resolved
-// team applied as a filter, mirroring the REST blueprint list handler.
+// Blueprint listing is team-membership-scoped (the resolved team is applied as a
+// filter and the repository checks membership), mirroring the REST blueprint
+// list handler.
 func (s *Server) listBlueprintResources(
 	params *ListResourcesParams, userID, teamID string,
 ) (*mcp.CallToolResult, any, error) {
