@@ -28,20 +28,44 @@ export const getApiBaseUrl = (): string => {
     return process.env.VITE_API_BASE_URL ?? ''
   }
 
-  // For Vite builds, use standard import.meta.env access
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (import.meta?.env) {
+  // For Vite builds, use standard import.meta.env access. Typed as possibly
+  // undefined because it is absent outside a Vite transform.
+  const viteEnv = import.meta.env as ImportMetaEnv | undefined
+  if (viteEnv) {
     // First check for explicit VITE_API_BASE_URL
-    if (import.meta.env.VITE_API_BASE_URL) {
-      return import.meta.env.VITE_API_BASE_URL
+    if (viteEnv.VITE_API_BASE_URL) {
+      return viteEnv.VITE_API_BASE_URL
     }
 
     // Then check development mode
-    if (import.meta.env.DEV) {
+    if (viteEnv.DEV) {
       return 'http://localhost:8080/api/v1'
     }
   }
 
   // Neutral default: same-origin relative requests. No hardcoded host.
   return ''
+}
+
+/**
+ * Origin of the backend that serves the API, MCP endpoint and OpenAPI spec.
+ *
+ * Derived from `getApiBaseUrl()`, resolved against the browsing origin: a
+ * relative or empty base (the combined image, #61, where the SPA and the API
+ * share one origin) yields the browsing origin, while an absolute base (local
+ * dev on `:5173` talking to `:8080`, or any split deployment) yields the
+ * backend's. Use it for URLs that must reach the backend rather than the SPA
+ * (#1129). A malformed base falls back to the browsing origin; outside a DOM
+ * there is no origin to resolve against, so it returns an empty string.
+ */
+export const getBackendOrigin = (): string => {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+  const browsingOrigin = window.location.origin
+  try {
+    return new URL(getApiBaseUrl() || '/', browsingOrigin).origin
+  } catch {
+    return browsingOrigin
+  }
 }
