@@ -2,10 +2,12 @@ import { Braces, Check, Copy, ExternalLink } from 'lucide-react'
 
 import { Card } from '@/components/ui/card'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { getBackendOrigin } from '@/utils/environment'
 
-// Served publicly (no auth) by the backend's setupPublicRoutes() on the same
-// origin as the app. Built from window.location.origin at render time, never
-// a build-time value, so the links are real on any self-hosted instance.
+// Served publicly (no auth) by the backend's setupPublicRoutes() on its own
+// origin. Built from getBackendOrigin() at render time, never a build-time
+// value: the browsing origin in the combined image, the backend's when the
+// API base URL is absolute (local dev, #1129), so the links always resolve.
 const SPEC_FORMATS = [
   { id: 'yaml', label: 'YAML', path: '/openapi.yaml' },
   { id: 'json', label: 'JSON', path: '/openapi.json' },
@@ -65,7 +67,7 @@ function SpecUrlRow({ label, url }: Readonly<{ label: string; url: string }>) {
 }
 
 export function RestApis() {
-  const origin = window.location.origin
+  const origin = getBackendOrigin()
 
   return (
     <div className="mx-auto max-w-[1080px]">

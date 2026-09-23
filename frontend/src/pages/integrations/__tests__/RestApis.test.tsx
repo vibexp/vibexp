@@ -3,7 +3,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { RestApis } from '../RestApis'
 
 describe('REST APIs integration page', () => {
-  const origin = window.location.origin
+  // The test env sets an absolute VITE_API_BASE_URL (vitest.config.ts), i.e.
+  // the split-origin topology of local dev: the spec is served by the
+  // backend, not by the SPA's origin (#1129).
+  const origin = 'https://api.vibexp.io'
 
   it('renders without any team or auth provider', () => {
     render(<RestApis />)
@@ -13,11 +16,34 @@ describe('REST APIs integration page', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows both schema URLs built from the current origin', () => {
+  it("shows both schema URLs built from the backend's origin", () => {
     render(<RestApis />)
 
     expect(screen.getByText(`${origin}/openapi.yaml`)).toBeInTheDocument()
     expect(screen.getByText(`${origin}/openapi.json`)).toBeInTheDocument()
+    expect(
+      screen.queryByText(`${window.location.origin}/openapi.yaml`)
+    ).not.toBeInTheDocument()
+  })
+
+  describe('when the API is same-origin (combined image)', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it.each([['/api/v1'], ['']])(
+      'builds the schema URLs from the browsing origin for base %j',
+      base => {
+        vi.stubEnv('VITE_API_BASE_URL', base)
+        render(<RestApis />)
+
+        const browsing = window.location.origin
+        expect(screen.getByText(`${browsing}/openapi.yaml`)).toBeInTheDocument()
+        expect(
+          screen.getByRole('link', { name: 'Open JSON schema' })
+        ).toHaveAttribute('href', `${browsing}/openapi.json`)
+      }
+    )
   })
 
   it.each([

@@ -40,12 +40,15 @@ describe('getConfigSections', () => {
   const serverName = 'vibexp_io_vibexp_team'
   const sections = getConfigSections(serverName)
 
-  it("defaults the endpoint to this instance's own origin", () => {
+  it("defaults the endpoint to this instance's backend origin", () => {
     // #1039: the default must be a real, copy-pasteable URL for whatever
     // instance the user is browsing, never the `connect.example.com`
-    // placeholder a self-hoster cannot reach.
-    expect(MCP_ENDPOINT).toBe(`${window.location.origin}/mcp/v1/common`)
+    // placeholder a self-hoster cannot reach. #1129: with an absolute API
+    // base URL (the test env's, like local dev) that is the backend's origin,
+    // not the SPA's.
+    expect(MCP_ENDPOINT).toBe('https://api.vibexp.io/mcp/v1/common')
     expect(MCP_ENDPOINT).not.toContain('connect.example.com')
+    expect(MCP_ENDPOINT).not.toContain(window.location.origin)
   })
 
   it('returns four configuration sections', () => {
@@ -139,8 +142,23 @@ describe('getConfigSections', () => {
 describe('MCP_ENDPOINT override', () => {
   afterEach(() => {
     delete window.__VIBEXP_ENV__
+    vi.unstubAllEnvs()
     vi.resetModules()
   })
+
+  it.each([['/api/v1'], ['']])(
+    'defaults to the browsing origin when the API base is same-origin (%j)',
+    async base => {
+      // The combined image (#61) serves the SPA and the API from one origin,
+      // so its output must stay exactly what it was before #1129.
+      vi.stubEnv('VITE_API_BASE_URL', base)
+      vi.resetModules()
+
+      const fresh = await import('../config-sections')
+
+      expect(fresh.MCP_ENDPOINT).toBe(`${window.location.origin}/mcp/v1/common`)
+    }
+  )
 
   it('prefers an explicitly configured VITE_MCP_ENDPOINT over the origin', async () => {
     // MCP_ENDPOINT is computed once at module evaluation, so the runtime env
