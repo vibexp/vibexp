@@ -601,3 +601,24 @@ func TestPromptsUserID_MissingUserIsAnInternalError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), promptsMsgInternalError)
 }
+
+// #1098: a render that leaves {{key}} unfilled is still a 200, and reports the
+// key in placeholders_missing, validated against the spec.
+func TestRenderPrompt_ReportsPlaceholdersMissing(t *testing.T) {
+	srv, container := strictPromptServer(t)
+	container.promptService.On("RenderPrompt", strictPrUserID, strictPrTeamID, strictPrSlug,
+		map[string]string{"a": "A"}).
+		Return(&models.RenderPromptResponse{
+			RenderedBody:        "A and {{b}}",
+			PlaceholdersMissing: []string{"b"},
+		}, nil)
+
+	req := makeAuthenticatedRequest("POST", "/api/v1/"+strictPrTeamID+"/prompts/"+strictPrSlug+"/render",
+		map[string]any{"placeholders": map[string]string{"a": "A"}}, strictPrUserID)
+	w := httptest.NewRecorder()
+	srv.router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	specconformance.AssertConformsToSpec(t, req, w)
+	assert.JSONEq(t, `{"rendered_body":"A and {{b}}","placeholders_missing":["b"]}`, w.Body.String())
+}

@@ -121,7 +121,6 @@ var payloadCoverageLedger = map[string]string{
 	"POST /api/v1/{team_id}/feeds":                           "TODO(#1714): uncovered",
 	"POST /api/v1/{team_id}/projects/{project_id}/migration": "TODO(#1714): uncovered",
 	"POST /api/v1/{team_id}/projects":                        "TODO(#1714): uncovered",
-	"POST /api/v1/{team_id}/prompts/{slug}/render":           "TODO(#1714): uncovered",
 	"POST /api/v1/{team_id}/prompts/{slug}/share":            "TODO(#1714): uncovered",
 	"POST /api/v1/user/onboarding/complete":                  "TODO(#1714): uncovered",
 	"POST /api/v1/webhooks/github":                           "TODO(#1714): uncovered",

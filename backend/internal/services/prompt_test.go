@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
@@ -2032,4 +2033,77 @@ func TestPromptService_UpdatePrompt_PreservesTeamID(t *testing.T) {
 	assert.NotNil(t, prompt)
 	assert.Equal(t, "team-456", prompt.TeamID, "TeamID should be preserved during update")
 	mockRepo.AssertExpectations(t)
+}
+
+// #1098: placeholders_missing lists every template {{key}} the render left
+// unfilled, across the whole reference tree.
+func TestPromptService_RenderPrompt_PlaceholdersMissing(t *testing.T) {
+	render := func(t *testing.T, body string, refs map[string]string, placeholders map[string]string) *models.RenderPromptResponse {
+		t.Helper()
+		mockRepo := mocks.NewMockPromptRepository(t)
+		service := createTestPromptService(mockRepo, nil)
+		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
+			Return(&models.Prompt{ID: "prompt-123", Body: body, UserID: "user-123"}, nil)
+		for slug, refBody := range refs {
+			mockRepo.On("GetBySlugCrossTeam", mock.AnythingOfType("context.backgroundCtx"), "user-123", slug).
+				Return(&models.Prompt{ID: slug + "-id", Slug: slug, Body: refBody, UserID: "user-123"}, nil)
+		}
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders)
+		require.NoError(t, err)
+		return response
+	}
+
+	t.Run("partial fill reports the unfilled key and keeps it in the body", func(t *testing.T) {
+		response := render(t, "{{a}} and {{b}} and {{b}}", nil, map[string]string{"a": "A"})
+
+		assert.Equal(t, []string{"b"}, response.PlaceholdersMissing)
+		assert.Equal(t, "A and {{b}} and {{b}}", response.RenderedBody)
+	})
+
+	t.Run("keys only in referenced prompts are reported at any depth, once", func(t *testing.T) {
+		response := render(t, "{{top}} {{shared}} @child", map[string]string{
+			"child":      "{{shared}} {{mid}} @grandchild",
+			"grandchild": "{{deep}} {{top}}",
+		}, map[string]string{"mid": "M"})
+
+		assert.Equal(t, []string{"top", "shared", "deep"}, response.PlaceholdersMissing)
+		assert.Equal(t, []string{"child", "grandchild"}, response.ReferencesUsed)
+	})
+
+	t.Run("empty-string value counts as filled", func(t *testing.T) {
+		response := render(t, "Hello {{name}}", nil, map[string]string{"name": ""})
+
+		assert.Empty(t, response.PlaceholdersMissing)
+		assert.Equal(t, "Hello ", response.RenderedBody)
+	})
+
+	t.Run("value containing {{x}} does not report x", func(t *testing.T) {
+		response := render(t, "Say {{a}}", nil, map[string]string{"a": "{{x}}"})
+
+		assert.Empty(t, response.PlaceholdersMissing)
+		assert.Equal(t, "Say {{x}}", response.RenderedBody)
+	})
+
+	t.Run("everything filled leaves the field empty", func(t *testing.T) {
+		response := render(t, "{{a}} @child", map[string]string{"child": "{{b}}"},
+			map[string]string{"a": "A", "b": "B"})
+
+		assert.Empty(t, response.PlaceholdersMissing)
+		assert.Equal(t, "A B", response.RenderedBody)
+	})
+
+	t.Run("unresolvable reference only warns", func(t *testing.T) {
+		mockRepo := mocks.NewMockPromptRepository(t)
+		service := createTestPromptService(mockRepo, nil)
+		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
+			Return(&models.Prompt{ID: "prompt-123", Body: "{{a}} @ghost", UserID: "user-123"}, nil)
+		mockRepo.On("GetBySlugCrossTeam", mock.AnythingOfType("context.backgroundCtx"), "user-123", "ghost").
+			Return(nil, repositories.ErrPromptNotFound)
+
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{})
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a"}, response.PlaceholdersMissing)
+		assert.Equal(t, []string{"Reference not found: @ghost"}, response.Warnings)
+	})
 }
