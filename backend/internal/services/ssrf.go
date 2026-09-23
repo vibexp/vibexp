@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -45,9 +46,16 @@ const outboundAllowlistHint = " (declare the range in security.outbound_allowed_
 // (cloud metadata), multicast and the unspecified address stay blocked here
 // regardless, and the config layer already refuses to load an entry overlapping
 // them.
+//
+// A guard is only ever used by pointer: it owns the lazily-built shared
+// provider transport (see sharedProviderTransport), and the sync.Once guarding
+// it must not be copied.
 type ssrfGuard struct {
 	allowPrivate bool
 	allowedCIDRs []*net.IPNet
+
+	providerTransportOnce sync.Once
+	providerTransport     http.RoundTripper
 }
 
 // defaultSSRFGuard is the production policy: reject all reserved ranges.
@@ -197,4 +205,34 @@ func (g *ssrfGuard) newSSRFSafeTransport(base *http.Transport) *http.Transport {
 	}
 	base.DialContext = dialer.DialContext
 	return base
+}
+
+// sharedProviderTransport returns the one SSRF-guarded transport every
+// bring-your-own provider client built from this guard shares (#1082). It is
+// built on first use and lives as long as the guard, so connection pooling
+// actually works: a transport per provider construction was discarded before a
+// second request could reuse its connection, and each discarded transport's
+// idle connection (plus its read/write goroutines) lingered until
+// IdleConnTimeout.
+//
+// The pool is scoped to the guard, not the process, because the dial-time
+// Control hook IS the guard's policy: two guards with different policies must
+// never share a pool, or a connection dialed under a permissive policy could be
+// reused under a strict one. Sharing across providers is otherwise safe — API
+// keys travel in per-request headers, never on the transport.
+//
+// Pool settings mirror newAgentCardHTTPClient.
+func (g *ssrfGuard) sharedProviderTransport() http.RoundTripper {
+	g.providerTransportOnce.Do(func() {
+		g.providerTransport = g.newSSRFSafeTransport(&http.Transport{
+			MaxIdleConns:          100,
+			MaxIdleConnsPerHost:   10,
+			MaxConnsPerHost:       50,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			ForceAttemptHTTP2:     true,
+		})
+	})
+	return g.providerTransport
 }
