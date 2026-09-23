@@ -166,7 +166,7 @@ function AiSummaryFields({
 interface AiSummarySettingsProps {
   team: Team
   providers: ModelProviderResponse[]
-  /** Bumped by the page after a provider is added, copied or deleted. */
+  /** Bumped by the page after a provider is added, updated, copied or deleted. */
   reloadKey: number
 }
 

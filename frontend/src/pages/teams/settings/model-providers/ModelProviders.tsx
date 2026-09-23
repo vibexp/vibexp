@@ -231,7 +231,7 @@ export function ModelProviders({ team }: Readonly<{ team: Team }>) {
   const [submitting, setSubmitting] = useState(false)
   const [toDelete, setToDelete] = useState<ModelProviderResponse | null>(null)
   const [deleting, setDeleting] = useState(false)
-  // Bumped after every provider create/copy/delete so the AI Summary card
+  // Bumped after every provider create/update/copy/delete so the AI Summary card
   // re-reads `available` and a provider selection the server may have nulled.
   const [aiSummaryReloadKey, setAiSummaryReloadKey] = useState(0)
 
