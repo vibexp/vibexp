@@ -4,7 +4,7 @@ description: >-
   Cut a VibeXP release end to end — preflight checks, trigger + wait on the CI
   E2E suite, generate curated release notes, publish the GitHub Release (which
   builds & pushes the combined image), then post-release run three tracks in
-  parallel — smoke-test the published image locally, sync the vibexp/docs site,
+  parallel — smoke-test the published image locally, sync the docs (vibexp/website),
   and verify vibexp/cli compatibility (e2e + gap-analysis issues) — and hand back
   a test URL, the docs PR, and the CLI verdict. Handles both a normal release
   cut from main and a hotfix/patch release cut from a release/X.Y.x line branch.
@@ -34,10 +34,11 @@ builds and pushes `:X.Y.Z` (+ `:latest` for non-prereleases).
 - **Fast CI:** one consolidated `ci.yml` workflow named **`CI`** (backend +
   frontend + Sonar in one run, #390/#391) runs on push/PR — NOT the old split
   `ci-backend.yml`/`ci-frontend.yml`.
-- **Docs site:** `vibexp/docs` (sibling checkout `../docs`) tracks the latest
-  published release, not `main`. Its own `update-docs` skill
-  (`../docs/.claude/skills/update-docs/SKILL.md`) drives the sync and records the
-  last-synced core version in `../docs/.vibexp-release`.
+- **Docs:** the documentation lives in `docs/` of `vibexp/website` (sibling
+  checkout `../website`, published at vibexp.io/docs) and tracks the latest
+  published release, not `main`. That repo's own `update-docs` skill
+  (`../website/.claude/skills/update-docs/SKILL.md`) drives the sync and records
+  the last-synced core version in `../website/.vibexp-release`.
 - **CLI compat:** `vibexp/cli` (sibling `../cli`) ships a self-contained e2e job
   (`.github/workflows/ci.yml`, job `e2e`) with a `workflow_dispatch` input
   `platform_image_tag` that boots `ghcr.io/vibexp/vibexp:<tag>` and runs the CLI
@@ -241,7 +242,7 @@ Once the image is published, run **three independent tracks concurrently** and
 report all three when they finish:
 
 - **Track A — smoke test** the published image (below).
-- **Track B — docs sync**: bring `vibexp/docs` up to the new release (below).
+- **Track B — docs sync**: bring the docs in `vibexp/website` up to the new release (below).
 - **Track C — CLI compatibility**: verify the latest `vibexp/cli` release still
   works against the new platform image, and file follow-up issues for any CLI
   catch-up the release implies (below).
@@ -323,20 +324,20 @@ networks: { vibexp: { driver: bridge } }
 
 #### Track B — docs sync
 
-Bring the documentation site up to the release you just published. The docs
-site (`vibexp/docs`) **tracks the latest published release, never `main`**, so
+Bring the documentation up to the release you just published. The docs (in
+`vibexp/website`) **track the latest published release, never `main`**, so
 a fresh `vX.Y.Z` is exactly when it needs syncing. This runs concurrently with
 Track A.
 
-1. Ensure the docs checkout exists as a sibling (`../docs`, relative to this
-   repo). If missing, clone it:
-   `git clone https://github.com/vibexp/docs.git ../docs`.
-2. Delegate the whole sync to the docs repo's own **`update-docs`** skill
-   (`../docs/.claude/skills/update-docs/SKILL.md`) scoped to `core`. That skill
+1. Ensure the website checkout exists as a sibling (`../website`, relative to
+   this repo). If missing, clone it:
+   `git clone https://github.com/vibexp/website.git ../website`.
+2. Delegate the whole sync to the website repo's own **`update-docs`** skill
+   (`../website/.claude/skills/update-docs/SKILL.md`) scoped to `core`. That skill
    owns the real work: it audits every in-scope doc page against the vibexp
    source **at the `vX.Y.Z` tag** with file:line evidence, fixes/adds/removes
-   content, bumps `../docs/.vibexp-release` to the new tag, validates the build
-   (`npm run build/lint/typecheck/test`), opens a PR, and runs its review loop.
+   content, bumps `../website/.vibexp-release` to the new tag, validates the build
+   (`npm run build`, `check`, `check:links`), opens a PR, and runs its review loop.
    Do not re-implement that flow here — invoke it. (Prefer running it as a
    background Agent so Track A proceeds in parallel; the audit + review loop can
    take a while.)
@@ -537,7 +538,7 @@ the *fork* work and the branch CI as the gate for the release itself.
   already there.
 - Never `git commit/push --no-verify`. This skill makes **no commit to
   `vibexp/vibexp`** — it operates on an already-merged `$REF`. Its only writes are
-  an **unmerged PR in `vibexp/docs`** (Track B, via `update-docs`) and **follow-up
+  an **unmerged docs PR in `vibexp/website`** (Track B, via `update-docs`) and **follow-up
   issues in `vibexp/cli`** (Track C). It never edits or merges CLI code.
 - **Never merge the docs PR.** Track B ends at a review-approved, unmerged PR;
   the human merges it. Do not merge even with admin rights.

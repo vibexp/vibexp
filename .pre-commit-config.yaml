@@ -192,15 +192,16 @@ repos:
         exclude: ^frontend/.*\.test\.(ts|tsx)$
 
   # ------------------------------------------------------------------
-  # Policy: Documentation lives in vibexp/docs, not in a docs/ directory here
+  # Policy: Documentation lives in vibexp/website (docs/), not in a docs/ directory here
   # ------------------------------------------------------------------
   - repo: local
     hooks:
       - id: no-docs-directory
-        name: Block files under docs/ (documentation lives in vibexp/docs)
+        name: Block files under docs/ (documentation lives in vibexp/website)
         entry: >-
           Documentation does not live in this repo. Add it to
-          https://github.com/vibexp/docs instead (published at docs.vibexp.io).
+          the docs/ directory of https://github.com/vibexp/website instead
+          (published at vibexp.io/docs).
         language: fail
         # Anchored at the repo root ON PURPOSE (#608): this blocks a
         # top-level docs/ tree only. Package-level docs that live next to the
