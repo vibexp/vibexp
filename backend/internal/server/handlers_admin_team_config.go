@@ -186,15 +186,9 @@ func (a *adminStrictServer) GetAdminTeamFreshnessConfig(
 		return nil, a.adminConfigInternalError(handler, teamID, err)
 	}
 
-	// make(...,0,...): `rules` is a required array on a generated type, so an
-	// empty rule set must serialize as `[]`, not `null`.
-	genRules := make([]admingen.AdminFreshnessRule, 0, len(rules))
-	for _, rule := range rules {
-		converted, cerr := toGenAdminFreshnessRule(rule)
-		if cerr != nil {
-			return nil, a.adminConfigInternalError(handler, teamID, cerr)
-		}
-		genRules = append(genRules, converted)
+	genRules, err := toGenAdminFreshnessRules(rules)
+	if err != nil {
+		return nil, a.adminConfigInternalError(handler, teamID, err)
 	}
 
 	return admingen.GetAdminTeamFreshnessConfig200JSONResponse(admingen.AdminTeamFreshnessConfig{

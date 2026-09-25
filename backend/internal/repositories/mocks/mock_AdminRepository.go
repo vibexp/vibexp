@@ -384,6 +384,131 @@ func (_c *MockAdminRepository_GetInstanceCounts_Call) RunAndReturn(run func(cont
 	return _c
 }
 
+// GetProjectAccessBySourceSeries provides a mock function with given fields: ctx, projectID, teamID, from, to, granularity
+func (_m *MockAdminRepository) GetProjectAccessBySourceSeries(ctx context.Context, projectID string, teamID string, from time.Time, to time.Time, granularity string) ([]models.AdminSourcePoint, error) {
+	ret := _m.Called(ctx, projectID, teamID, from, to, granularity)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProjectAccessBySourceSeries")
+	}
+
+	var r0 []models.AdminSourcePoint
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time, string) ([]models.AdminSourcePoint, error)); ok {
+		return rf(ctx, projectID, teamID, from, to, granularity)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time, string) []models.AdminSourcePoint); ok {
+		r0 = rf(ctx, projectID, teamID, from, to, granularity)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AdminSourcePoint)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, time.Time, time.Time, string) error); ok {
+		r1 = rf(ctx, projectID, teamID, from, to, granularity)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_GetProjectAccessBySourceSeries_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProjectAccessBySourceSeries'
+type MockAdminRepository_GetProjectAccessBySourceSeries_Call struct {
+	*mock.Call
+}
+
+// GetProjectAccessBySourceSeries is a helper method to define mock.On call
+//   - ctx context.Context
+//   - projectID string
+//   - teamID string
+//   - from time.Time
+//   - to time.Time
+//   - granularity string
+func (_e *MockAdminRepository_Expecter) GetProjectAccessBySourceSeries(ctx interface{}, projectID interface{}, teamID interface{}, from interface{}, to interface{}, granularity interface{}) *MockAdminRepository_GetProjectAccessBySourceSeries_Call {
+	return &MockAdminRepository_GetProjectAccessBySourceSeries_Call{Call: _e.mock.On("GetProjectAccessBySourceSeries", ctx, projectID, teamID, from, to, granularity)}
+}
+
+func (_c *MockAdminRepository_GetProjectAccessBySourceSeries_Call) Run(run func(ctx context.Context, projectID string, teamID string, from time.Time, to time.Time, granularity string)) *MockAdminRepository_GetProjectAccessBySourceSeries_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(time.Time), args[4].(time.Time), args[5].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_GetProjectAccessBySourceSeries_Call) Return(_a0 []models.AdminSourcePoint, _a1 error) *MockAdminRepository_GetProjectAccessBySourceSeries_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_GetProjectAccessBySourceSeries_Call) RunAndReturn(run func(context.Context, string, string, time.Time, time.Time, string) ([]models.AdminSourcePoint, error)) *MockAdminRepository_GetProjectAccessBySourceSeries_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetProjectCreationSeries provides a mock function with given fields: ctx, projectID, from, to, granularity
+func (_m *MockAdminRepository) GetProjectCreationSeries(ctx context.Context, projectID string, from time.Time, to time.Time, granularity string) ([]models.AdminGrowthCount, error) {
+	ret := _m.Called(ctx, projectID, from, to, granularity)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProjectCreationSeries")
+	}
+
+	var r0 []models.AdminGrowthCount
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time, string) ([]models.AdminGrowthCount, error)); ok {
+		return rf(ctx, projectID, from, to, granularity)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time, string) []models.AdminGrowthCount); ok {
+		r0 = rf(ctx, projectID, from, to, granularity)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AdminGrowthCount)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, time.Time, time.Time, string) error); ok {
+		r1 = rf(ctx, projectID, from, to, granularity)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_GetProjectCreationSeries_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProjectCreationSeries'
+type MockAdminRepository_GetProjectCreationSeries_Call struct {
+	*mock.Call
+}
+
+// GetProjectCreationSeries is a helper method to define mock.On call
+//   - ctx context.Context
+//   - projectID string
+//   - from time.Time
+//   - to time.Time
+//   - granularity string
+func (_e *MockAdminRepository_Expecter) GetProjectCreationSeries(ctx interface{}, projectID interface{}, from interface{}, to interface{}, granularity interface{}) *MockAdminRepository_GetProjectCreationSeries_Call {
+	return &MockAdminRepository_GetProjectCreationSeries_Call{Call: _e.mock.On("GetProjectCreationSeries", ctx, projectID, from, to, granularity)}
+}
+
+func (_c *MockAdminRepository_GetProjectCreationSeries_Call) Run(run func(ctx context.Context, projectID string, from time.Time, to time.Time, granularity string)) *MockAdminRepository_GetProjectCreationSeries_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(time.Time), args[3].(time.Time), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_GetProjectCreationSeries_Call) Return(_a0 []models.AdminGrowthCount, _a1 error) *MockAdminRepository_GetProjectCreationSeries_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_GetProjectCreationSeries_Call) RunAndReturn(run func(context.Context, string, time.Time, time.Time, string) ([]models.AdminGrowthCount, error)) *MockAdminRepository_GetProjectCreationSeries_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetProjectDetail provides a mock function with given fields: ctx, id
 func (_m *MockAdminRepository) GetProjectDetail(ctx context.Context, id string) (*models.AdminProjectDetail, error) {
 	ret := _m.Called(ctx, id)
@@ -439,6 +564,69 @@ func (_c *MockAdminRepository_GetProjectDetail_Call) Return(_a0 *models.AdminPro
 }
 
 func (_c *MockAdminRepository_GetProjectDetail_Call) RunAndReturn(run func(context.Context, string) (*models.AdminProjectDetail, error)) *MockAdminRepository_GetProjectDetail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetProjectTopAccessedResources provides a mock function with given fields: ctx, projectID, teamID, from, to, limit
+func (_m *MockAdminRepository) GetProjectTopAccessedResources(ctx context.Context, projectID string, teamID string, from time.Time, to time.Time, limit int) ([]models.AdminTopAccessedResource, error) {
+	ret := _m.Called(ctx, projectID, teamID, from, to, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProjectTopAccessedResources")
+	}
+
+	var r0 []models.AdminTopAccessedResource
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time, int) ([]models.AdminTopAccessedResource, error)); ok {
+		return rf(ctx, projectID, teamID, from, to, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time, int) []models.AdminTopAccessedResource); ok {
+		r0 = rf(ctx, projectID, teamID, from, to, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AdminTopAccessedResource)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, time.Time, time.Time, int) error); ok {
+		r1 = rf(ctx, projectID, teamID, from, to, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_GetProjectTopAccessedResources_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProjectTopAccessedResources'
+type MockAdminRepository_GetProjectTopAccessedResources_Call struct {
+	*mock.Call
+}
+
+// GetProjectTopAccessedResources is a helper method to define mock.On call
+//   - ctx context.Context
+//   - projectID string
+//   - teamID string
+//   - from time.Time
+//   - to time.Time
+//   - limit int
+func (_e *MockAdminRepository_Expecter) GetProjectTopAccessedResources(ctx interface{}, projectID interface{}, teamID interface{}, from interface{}, to interface{}, limit interface{}) *MockAdminRepository_GetProjectTopAccessedResources_Call {
+	return &MockAdminRepository_GetProjectTopAccessedResources_Call{Call: _e.mock.On("GetProjectTopAccessedResources", ctx, projectID, teamID, from, to, limit)}
+}
+
+func (_c *MockAdminRepository_GetProjectTopAccessedResources_Call) Run(run func(ctx context.Context, projectID string, teamID string, from time.Time, to time.Time, limit int)) *MockAdminRepository_GetProjectTopAccessedResources_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(time.Time), args[4].(time.Time), args[5].(int))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_GetProjectTopAccessedResources_Call) Return(_a0 []models.AdminTopAccessedResource, _a1 error) *MockAdminRepository_GetProjectTopAccessedResources_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_GetProjectTopAccessedResources_Call) RunAndReturn(run func(context.Context, string, string, time.Time, time.Time, int) ([]models.AdminTopAccessedResource, error)) *MockAdminRepository_GetProjectTopAccessedResources_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1178,6 +1366,70 @@ func (_c *MockAdminRepository_ListUsers_Call) Return(_a0 []models.AdminUserListI
 }
 
 func (_c *MockAdminRepository_ListUsers_Call) RunAndReturn(run func(context.Context, repositories.AdminUserFilters) ([]models.AdminUserListItem, int, error)) *MockAdminRepository_ListUsers_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ProjectTeamID provides a mock function with given fields: ctx, id
+func (_m *MockAdminRepository) ProjectTeamID(ctx context.Context, id string) (string, bool, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ProjectTeamID")
+	}
+
+	var r0 string
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, bool, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) bool); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Get(1).(bool)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string) error); ok {
+		r2 = rf(ctx, id)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockAdminRepository_ProjectTeamID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ProjectTeamID'
+type MockAdminRepository_ProjectTeamID_Call struct {
+	*mock.Call
+}
+
+// ProjectTeamID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockAdminRepository_Expecter) ProjectTeamID(ctx interface{}, id interface{}) *MockAdminRepository_ProjectTeamID_Call {
+	return &MockAdminRepository_ProjectTeamID_Call{Call: _e.mock.On("ProjectTeamID", ctx, id)}
+}
+
+func (_c *MockAdminRepository_ProjectTeamID_Call) Run(run func(ctx context.Context, id string)) *MockAdminRepository_ProjectTeamID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_ProjectTeamID_Call) Return(teamID string, found bool, err error) *MockAdminRepository_ProjectTeamID_Call {
+	_c.Call.Return(teamID, found, err)
+	return _c
+}
+
+func (_c *MockAdminRepository_ProjectTeamID_Call) RunAndReturn(run func(context.Context, string) (string, bool, error)) *MockAdminRepository_ProjectTeamID_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -16572,6 +16572,396 @@
         }
       }
     },
+    "/api/v1/admin/projects/{id}/resource-creation-metrics": {
+      "get": {
+        "summary": "Get a project's resource creation series",
+        "description": "Returns how many resources of each PROJECT-SCOPED type (prompts, memories,\nartifacts, blueprints, feed items) were created in the project per bucket\nover a time range. Only resources that currently belong to the project are\ncounted: deleted resources drop out, and a resource moved in by a project\nmigration counts here from its original creation time. Omitting the\nparameters yields the last 30 days at `day` granularity, and the range\nrules match getAdminDashboardTimeseries. Every bucket is present with an\nexplicit 0 for every type.\n\nInstance-admin only; non-admin and unauthenticated requests receive 404, as\ndoes an unknown project id.\n",
+        "operationId": "getAdminProjectResourceCreationMetrics",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Project id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive start of the range. Defaults to 30 days before `to`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Exclusive end of the range. Defaults to now.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "description": "Bucket size.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "default": "day"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bucketed creation counts per type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProjectResourceCreationMetrics"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed project id, `to` is not after `from`, the range\nexceeds the maximum span, or `granularity` is outside its enum\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown project id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/projects/{id}/resource-access-metrics": {
+      "get": {
+        "summary": "Get a project's resource access series by source",
+        "description": "Returns how many times the project's resources (prompts, artifacts,\nblueprints, memories) and the project itself were accessed (opened) per\nbucket and per access source (web, cli, mcp, api). Omitting the parameters\nyields the last 30 days at `day` granularity, and the range rules match\ngetAdminDashboardTimeseries. Every bucket is present with an explicit 0 for\neach source that appears in the range.\n\nAccess events carry no project, so an event is attributed to the project\nits resource belongs to NOW: accesses to a since-deleted resource drop out,\nand a resource moved in by a project migration brings its whole access\nhistory with it. Agents are team-scoped and never count. Access events are\nalso TTL-pruned (`retention.access_event_days`), so a range reaching back\nbefore `earliest_retained_at` reads as zeros there.\n\nInstance-admin only; non-admin and unauthenticated requests receive 404, as\ndoes an unknown project id.\n",
+        "operationId": "getAdminProjectResourceAccessMetrics",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Project id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive start of the range. Defaults to 30 days before `to`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Exclusive end of the range. Defaults to now.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "description": "Bucket size.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "default": "day"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bucketed access counts per source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProjectAccessMetrics"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed project id, `to` is not after `from`, the range\nexceeds the maximum span, or `granularity` is outside its enum\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown project id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/projects/{id}/top-accessed-resources": {
+      "get": {
+        "summary": "Get a project's most-accessed resources",
+        "description": "Returns the project's resources (prompts, artifacts, blueprints, memories)\naccessed most often in a time range, ranked by access count (ties broken\nby resource id). Rows are OPAQUE: resource type, team, project and the\nfirst 8 characters of the resource id — never a title, slug or content.\nOpening the project page itself counts in the access series but is not\nlisted here, and `resource_deleted` is always `false`: attribution is by\nthe resource's CURRENT project, so a deleted resource has none and drops\nout.\n\n`from` defaults to 30 days before `to`, and `to` to now. Access events are\nTTL-pruned (`retention.access_event_days`), so accesses before\n`earliest_retained_at` are not counted.\n\nInstance-admin only; non-admin and unauthenticated requests receive 404, as\ndoes an unknown project id.\n",
+        "operationId": "getAdminProjectTopAccessedResources",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Project id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive start of the range. Defaults to 30 days before `to`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Exclusive end of the range. Defaults to now.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of rows.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The most-accessed resources, most accessed first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTopAccessedResourcesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed project id, `to` is not after `from`, the range\nexceeds the maximum span, or `limit` is out of range\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown project id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/projects/{id}/config": {
+      "get": {
+        "summary": "Get a project's configuration",
+        "description": "Returns the configuration that applies to the project. Projects have no\nsettings of their own, so today this is the freshness rules that govern\nit, split in two: the rules scoped to this project, and the team-wide\nrules (no project scope) that apply to every project of its team. Rules\ncombine cumulatively, so both lists apply. Rules scoped to other projects\nof the team are never included. The team's freshness settings live in\ngetAdminTeamFreshnessConfig. Read-only.\n\nInstance-admin only; non-admin and unauthenticated requests receive 404, as\ndoes an unknown project id.\n",
+        "operationId": "getAdminProjectConfig",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Project id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project's and the team-wide freshness rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProjectConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed project id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown project id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/{team_id}/comments": {
       "get": {
         "summary": "List a resource's comments",
@@ -36538,7 +36928,7 @@
       },
       "AdminTopAccessedResource": {
         "type": "object",
-        "description": "One opaque most-accessed resource: its type, where it lives and how often\nthe user accessed it. Deliberately carries no title, slug or content — only\nthe first 8 characters of the resource id. The identity fields share their\nnames with AdminUserTimelineEvent.\n",
+        "description": "One opaque most-accessed resource: its type, where it lives and how often\nthe user accessed it (or, for a project, how often it was accessed).\nDeliberately carries no title, slug or content — only\nthe first 8 characters of the resource id. The identity fields share their\nnames with AdminUserTimelineEvent.\n",
         "required": [
           "resource_type",
           "resource_short_id",
@@ -36595,7 +36985,7 @@
       },
       "AdminTopAccessedResourcesResponse": {
         "type": "object",
-        "description": "The resources a user accessed most in a range\n(GET /api/v1/admin/users/{id}/top-accessed-resources).\n",
+        "description": "The resources a user accessed most in a range\n(GET /api/v1/admin/users/{id}/top-accessed-resources), or a project's\nmost-accessed resources (GET /api/v1/admin/projects/{id}/top-accessed-resources).\n",
         "required": [
           "from",
           "to",
@@ -37522,6 +37912,152 @@
           },
           "installation": {
             "$ref": "#/components/schemas/AdminGitHubInstallation"
+          }
+        }
+      },
+      "AdminProjectCreationPoint": {
+        "type": "object",
+        "description": "How many resources of each project-scoped type were created in the project within one time bucket.",
+        "required": [
+          "bucket",
+          "prompts",
+          "memories",
+          "artifacts",
+          "blueprints",
+          "feed_items"
+        ],
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the bucket, in UTC."
+          },
+          "prompts": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memories": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "artifacts": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "blueprints": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "feed_items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AdminProjectResourceCreationMetrics": {
+        "type": "object",
+        "description": "Resources created in the project per bucket, stacked by type\n(GET /api/v1/admin/projects/{id}/resource-creation-metrics). Every bucket in\nthe range is present with an explicit 0 for every type.\n",
+        "required": [
+          "from",
+          "to",
+          "granularity",
+          "series"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Inclusive start of the range actually used, snapped DOWN to the start of\nits bucket (same rule as AdminTimeseriesResponse.from).\n"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Exclusive end of the range actually used (after defaulting); not snapped."
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "description": "Bucket size actually used."
+          },
+          "series": {
+            "type": "array",
+            "description": "One point per bucket, ascending by bucket.",
+            "items": {
+              "$ref": "#/components/schemas/AdminProjectCreationPoint"
+            }
+          }
+        }
+      },
+      "AdminProjectAccessMetrics": {
+        "type": "object",
+        "description": "Accesses to the project's resources and to the project itself per bucket and\nsource (GET /api/v1/admin/projects/{id}/resource-access-metrics). An event\nis attributed to the project its resource belongs to now, so accesses to a\ndeleted resource drop out and a migrated resource brings its history with\nit. Every bucket in the range is present with an explicit 0 for each source\nthat appears.\n",
+        "required": [
+          "from",
+          "to",
+          "granularity",
+          "access_by_source",
+          "earliest_retained_at"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Inclusive start of the range actually used, snapped DOWN to the start of\nits bucket (same rule as AdminTimeseriesResponse.from).\n"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Exclusive end of the range actually used (after defaulting); not snapped."
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "description": "Bucket size actually used."
+          },
+          "access_by_source": {
+            "type": "array",
+            "description": "One point per (bucket, source), ascending by bucket then source.",
+            "items": {
+              "$ref": "#/components/schemas/AdminSourcePoint"
+            }
+          },
+          "earliest_retained_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Oldest access event still retained (now minus\n`retention.access_event_days`); buckets before it read as zeros.\n"
+          }
+        }
+      },
+      "AdminProjectConfig": {
+        "type": "object",
+        "description": "The configuration that applies to a project\n(GET /api/v1/admin/projects/{id}/config): the freshness rules scoped to it\nand the team-wide rules that also apply. Both lists are oldest first and\ninclude disabled rules.\n",
+        "additionalProperties": false,
+        "required": [
+          "project_rules",
+          "team_wide_rules"
+        ],
+        "properties": {
+          "project_rules": {
+            "type": "array",
+            "description": "Rules scoped to this project. `[]` when there are none.",
+            "items": {
+              "$ref": "#/components/schemas/AdminFreshnessRule"
+            }
+          },
+          "team_wide_rules": {
+            "type": "array",
+            "description": "Rules with no project scope, which apply to every project of the team. `[]` when there are none.",
+            "items": {
+              "$ref": "#/components/schemas/AdminFreshnessRule"
+            }
           }
         }
       },

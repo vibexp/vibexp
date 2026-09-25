@@ -64,18 +64,9 @@ func (s *AdminService) GetUserAccessMetrics(
 func (s *AdminService) GetUserTopAccessedResources(
 	ctx context.Context, id string, q AdminTopResourcesQuery,
 ) (*models.AdminTopAccessedResources, error) {
-	from, to, err := resolveAdminWindow(q.From, q.To, time.Now())
+	from, to, limit, err := resolveAdminTopResourcesQuery(q, time.Now())
 	if err != nil {
 		return nil, err
-	}
-	limit := q.Limit
-	if limit == 0 {
-		limit = AdminTopResourcesDefaultLimit
-	}
-	if limit < 1 || limit > AdminTopResourcesMaxLimit {
-		return nil, &ErrAdminTimeseriesRange{
-			Detail: fmt.Sprintf("invalid limit %d: must be between 1 and %d", limit, AdminTopResourcesMaxLimit),
-		}
 	}
 
 	exists, err := s.adminRepo.UserExists(ctx, id)

@@ -171,7 +171,7 @@ func TestAdminService_GetTeamDetail(t *testing.T) {
 // CREATION (#462). CreateUser rejects a nil wiring explicitly rather than
 // panicking, and TestCreateUser_UnwiredDependencies covers that.
 func newReadOnlyAdminService(repo repositories.AdminRepository) AdminServiceInterface {
-	return NewAdminService(repo, nil, nil)
+	return NewAdminService(repo, nil, nil, nil)
 }
 
 // TestAdminService_ListProjects_ClampsAndComputesPages mirrors the users/teams

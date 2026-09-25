@@ -1002,6 +1002,15 @@ components:
       $ref: "./schemas/admin.yaml#/AdminGitHubInstallation"
     AdminTeamGitHubConfig:
       $ref: "./schemas/admin.yaml#/AdminTeamGitHubConfig"
+    # Admin project detail analytics and configuration (#1145)
+    AdminProjectCreationPoint:
+      $ref: "./schemas/admin.yaml#/AdminProjectCreationPoint"
+    AdminProjectResourceCreationMetrics:
+      $ref: "./schemas/admin.yaml#/AdminProjectResourceCreationMetrics"
+    AdminProjectAccessMetrics:
+      $ref: "./schemas/admin.yaml#/AdminProjectAccessMetrics"
+    AdminProjectConfig:
+      $ref: "./schemas/admin.yaml#/AdminProjectConfig"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
@@ -1332,6 +1341,14 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-users-id-top-accessed-resources"
   /api/v1/admin/users/{id}/notification-preferences:
     $ref: "./paths/admin.yaml#/api-v1-admin-users-id-notification-preferences"
+  /api/v1/admin/projects/{id}/resource-creation-metrics:
+    $ref: "./paths/admin.yaml#/api-v1-admin-projects-id-resource-creation-metrics"
+  /api/v1/admin/projects/{id}/resource-access-metrics:
+    $ref: "./paths/admin.yaml#/api-v1-admin-projects-id-resource-access-metrics"
+  /api/v1/admin/projects/{id}/top-accessed-resources:
+    $ref: "./paths/admin.yaml#/api-v1-admin-projects-id-top-accessed-resources"
+  /api/v1/admin/projects/{id}/config:
+    $ref: "./paths/admin.yaml#/api-v1-admin-projects-id-config"
   /api/v1/{team_id}/comments:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
   /api/v1/{team_id}/comments/recent:

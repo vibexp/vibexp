@@ -39,7 +39,7 @@ func newCreateService(
 	adminRepo := repomocks.NewMockAdminRepository(t)
 	userRepo := repomocks.NewMockUserRepository(t)
 	pub := &stubPublisher{}
-	return NewAdminService(adminRepo, userRepo, pub), adminRepo, userRepo, pub
+	return NewAdminService(adminRepo, userRepo, pub, nil), adminRepo, userRepo, pub
 }
 
 // createdDetail is what the follow-up read returns.
@@ -165,7 +165,7 @@ func TestCreateUser_PublishFailureRollsBackTheUser(t *testing.T) {
 	adminRepo := repomocks.NewMockAdminRepository(t)
 	userRepo := repomocks.NewMockUserRepository(t)
 	pub := &stubPublisher{err: errors.New("event channel full, event dropped")}
-	svc := NewAdminService(adminRepo, userRepo, pub)
+	svc := NewAdminService(adminRepo, userRepo, pub, nil)
 
 	userRepo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound)
 	userRepo.On("Create", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
@@ -190,7 +190,7 @@ func TestCreateUser_PublishAndRollbackBothFail(t *testing.T) {
 	adminRepo := repomocks.NewMockAdminRepository(t)
 	userRepo := repomocks.NewMockUserRepository(t)
 	pub := &stubPublisher{err: errors.New("bus not running")}
-	svc := NewAdminService(adminRepo, userRepo, pub)
+	svc := NewAdminService(adminRepo, userRepo, pub, nil)
 
 	userRepo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound)
 	userRepo.On("Create", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {

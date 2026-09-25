@@ -2452,3 +2452,310 @@ api-v1-admin-teams-id-config-github:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-projects-id-resource-creation-metrics:
+  get:
+    summary: Get a project's resource creation series
+    description: |
+      Returns how many resources of each PROJECT-SCOPED type (prompts, memories,
+      artifacts, blueprints, feed items) were created in the project per bucket
+      over a time range. Only resources that currently belong to the project are
+      counted: deleted resources drop out, and a resource moved in by a project
+      migration counts here from its original creation time. Omitting the
+      parameters yields the last 30 days at `day` granularity, and the range
+      rules match getAdminDashboardTimeseries. Every bucket is present with an
+      explicit 0 for every type.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404, as
+      does an unknown project id.
+    operationId: getAdminProjectResourceCreationMetrics
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Project id (UUID)
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        description: Inclusive start of the range. Defaults to 30 days before `to`.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: Exclusive end of the range. Defaults to now.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: granularity
+        in: query
+        description: Bucket size.
+        required: false
+        schema:
+          type: string
+          enum:
+            - day
+            - week
+            - month
+          default: day
+    responses:
+      '200':
+        description: Bucketed creation counts per type
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminProjectResourceCreationMetrics'
+      '400':
+        description: |
+          Bad request — malformed project id, `to` is not after `from`, the range
+          exceeds the maximum span, or `granularity` is outside its enum
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown project id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-projects-id-resource-access-metrics:
+  get:
+    summary: Get a project's resource access series by source
+    description: |
+      Returns how many times the project's resources (prompts, artifacts,
+      blueprints, memories) and the project itself were accessed (opened) per
+      bucket and per access source (web, cli, mcp, api). Omitting the parameters
+      yields the last 30 days at `day` granularity, and the range rules match
+      getAdminDashboardTimeseries. Every bucket is present with an explicit 0 for
+      each source that appears in the range.
+
+      Access events carry no project, so an event is attributed to the project
+      its resource belongs to NOW: accesses to a since-deleted resource drop out,
+      and a resource moved in by a project migration brings its whole access
+      history with it. Agents are team-scoped and never count. Access events are
+      also TTL-pruned (`retention.access_event_days`), so a range reaching back
+      before `earliest_retained_at` reads as zeros there.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404, as
+      does an unknown project id.
+    operationId: getAdminProjectResourceAccessMetrics
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Project id (UUID)
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        description: Inclusive start of the range. Defaults to 30 days before `to`.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: Exclusive end of the range. Defaults to now.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: granularity
+        in: query
+        description: Bucket size.
+        required: false
+        schema:
+          type: string
+          enum:
+            - day
+            - week
+            - month
+          default: day
+    responses:
+      '200':
+        description: Bucketed access counts per source
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminProjectAccessMetrics'
+      '400':
+        description: |
+          Bad request — malformed project id, `to` is not after `from`, the range
+          exceeds the maximum span, or `granularity` is outside its enum
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown project id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-projects-id-top-accessed-resources:
+  get:
+    summary: Get a project's most-accessed resources
+    description: |
+      Returns the project's resources (prompts, artifacts, blueprints, memories)
+      accessed most often in a time range, ranked by access count (ties broken
+      by resource id). Rows are OPAQUE: resource type, team, project and the
+      first 8 characters of the resource id — never a title, slug or content.
+      Opening the project page itself counts in the access series but is not
+      listed here, and `resource_deleted` is always `false`: attribution is by
+      the resource's CURRENT project, so a deleted resource has none and drops
+      out.
+
+      `from` defaults to 30 days before `to`, and `to` to now. Access events are
+      TTL-pruned (`retention.access_event_days`), so accesses before
+      `earliest_retained_at` are not counted.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404, as
+      does an unknown project id.
+    operationId: getAdminProjectTopAccessedResources
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Project id (UUID)
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        description: Inclusive start of the range. Defaults to 30 days before `to`.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: Exclusive end of the range. Defaults to now.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: limit
+        in: query
+        description: Maximum number of rows.
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+    responses:
+      '200':
+        description: The most-accessed resources, most accessed first
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTopAccessedResourcesResponse'
+      '400':
+        description: |
+          Bad request — malformed project id, `to` is not after `from`, the range
+          exceeds the maximum span, or `limit` is out of range
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown project id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-projects-id-config:
+  get:
+    summary: Get a project's configuration
+    description: |
+      Returns the configuration that applies to the project. Projects have no
+      settings of their own, so today this is the freshness rules that govern
+      it, split in two: the rules scoped to this project, and the team-wide
+      rules (no project scope) that apply to every project of its team. Rules
+      combine cumulatively, so both lists apply. Rules scoped to other projects
+      of the team are never included. The team's freshness settings live in
+      getAdminTeamFreshnessConfig. Read-only.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404, as
+      does an unknown project id.
+    operationId: getAdminProjectConfig
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Project id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The project's and the team-wide freshness rules
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminProjectConfig'
+      '400':
+        description: Bad request — malformed project id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown project id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'

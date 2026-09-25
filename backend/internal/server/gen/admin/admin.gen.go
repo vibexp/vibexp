@@ -43,6 +43,48 @@ func (e AdminAISummaryValuesStyle) Valid() bool {
 	}
 }
 
+// Defines values for AdminProjectAccessMetricsGranularity.
+const (
+	AdminProjectAccessMetricsGranularityDay   AdminProjectAccessMetricsGranularity = "day"
+	AdminProjectAccessMetricsGranularityMonth AdminProjectAccessMetricsGranularity = "month"
+	AdminProjectAccessMetricsGranularityWeek  AdminProjectAccessMetricsGranularity = "week"
+)
+
+// Valid indicates whether the value is a known member of the AdminProjectAccessMetricsGranularity enum.
+func (e AdminProjectAccessMetricsGranularity) Valid() bool {
+	switch e {
+	case AdminProjectAccessMetricsGranularityDay:
+		return true
+	case AdminProjectAccessMetricsGranularityMonth:
+		return true
+	case AdminProjectAccessMetricsGranularityWeek:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminProjectResourceCreationMetricsGranularity.
+const (
+	AdminProjectResourceCreationMetricsGranularityDay   AdminProjectResourceCreationMetricsGranularity = "day"
+	AdminProjectResourceCreationMetricsGranularityMonth AdminProjectResourceCreationMetricsGranularity = "month"
+	AdminProjectResourceCreationMetricsGranularityWeek  AdminProjectResourceCreationMetricsGranularity = "week"
+)
+
+// Valid indicates whether the value is a known member of the AdminProjectResourceCreationMetricsGranularity enum.
+func (e AdminProjectResourceCreationMetricsGranularity) Valid() bool {
+	switch e {
+	case AdminProjectResourceCreationMetricsGranularityDay:
+		return true
+	case AdminProjectResourceCreationMetricsGranularityMonth:
+		return true
+	case AdminProjectResourceCreationMetricsGranularityWeek:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminTeamConfigSource.
 const (
 	Instance AdminTeamConfigSource = "instance"
@@ -382,6 +424,48 @@ func (e ListAdminProjectsParamsSortOrder) Valid() bool {
 	case ListAdminProjectsParamsSortOrderAsc:
 		return true
 	case ListAdminProjectsParamsSortOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminProjectResourceAccessMetricsParamsGranularity.
+const (
+	GetAdminProjectResourceAccessMetricsParamsGranularityDay   GetAdminProjectResourceAccessMetricsParamsGranularity = "day"
+	GetAdminProjectResourceAccessMetricsParamsGranularityMonth GetAdminProjectResourceAccessMetricsParamsGranularity = "month"
+	GetAdminProjectResourceAccessMetricsParamsGranularityWeek  GetAdminProjectResourceAccessMetricsParamsGranularity = "week"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminProjectResourceAccessMetricsParamsGranularity enum.
+func (e GetAdminProjectResourceAccessMetricsParamsGranularity) Valid() bool {
+	switch e {
+	case GetAdminProjectResourceAccessMetricsParamsGranularityDay:
+		return true
+	case GetAdminProjectResourceAccessMetricsParamsGranularityMonth:
+		return true
+	case GetAdminProjectResourceAccessMetricsParamsGranularityWeek:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminProjectResourceCreationMetricsParamsGranularity.
+const (
+	GetAdminProjectResourceCreationMetricsParamsGranularityDay   GetAdminProjectResourceCreationMetricsParamsGranularity = "day"
+	GetAdminProjectResourceCreationMetricsParamsGranularityMonth GetAdminProjectResourceCreationMetricsParamsGranularity = "month"
+	GetAdminProjectResourceCreationMetricsParamsGranularityWeek  GetAdminProjectResourceCreationMetricsParamsGranularity = "week"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminProjectResourceCreationMetricsParamsGranularity enum.
+func (e GetAdminProjectResourceCreationMetricsParamsGranularity) Valid() bool {
+	switch e {
+	case GetAdminProjectResourceCreationMetricsParamsGranularityDay:
+		return true
+	case GetAdminProjectResourceCreationMetricsParamsGranularityMonth:
+		return true
+	case GetAdminProjectResourceCreationMetricsParamsGranularityWeek:
 		return true
 	default:
 		return false
@@ -889,6 +973,58 @@ type AdminPostmarkSettings struct {
 	MessageStream string `json:"message_stream"`
 }
 
+// AdminProjectAccessMetrics Accesses to the project's resources and to the project itself per bucket and
+// source (GET /api/v1/admin/projects/{id}/resource-access-metrics). An event
+// is attributed to the project its resource belongs to now, so accesses to a
+// deleted resource drop out and a migrated resource brings its history with
+// it. Every bucket in the range is present with an explicit 0 for each source
+// that appears.
+type AdminProjectAccessMetrics struct {
+	// AccessBySource One point per (bucket, source), ascending by bucket then source.
+	AccessBySource []AdminSourcePoint `json:"access_by_source"`
+
+	// EarliestRetainedAt Oldest access event still retained (now minus
+	// `retention.access_event_days`); buckets before it read as zeros.
+	EarliestRetainedAt time.Time `json:"earliest_retained_at"`
+
+	// From Inclusive start of the range actually used, snapped DOWN to the start of
+	// its bucket (same rule as AdminTimeseriesResponse.from).
+	From time.Time `json:"from"`
+
+	// Granularity Bucket size actually used.
+	Granularity AdminProjectAccessMetricsGranularity `json:"granularity"`
+
+	// To Exclusive end of the range actually used (after defaulting); not snapped.
+	To time.Time `json:"to"`
+}
+
+// AdminProjectAccessMetricsGranularity Bucket size actually used.
+type AdminProjectAccessMetricsGranularity string
+
+// AdminProjectConfig The configuration that applies to a project
+// (GET /api/v1/admin/projects/{id}/config): the freshness rules scoped to it
+// and the team-wide rules that also apply. Both lists are oldest first and
+// include disabled rules.
+type AdminProjectConfig struct {
+	// ProjectRules Rules scoped to this project. `[]` when there are none.
+	ProjectRules []AdminFreshnessRule `json:"project_rules"`
+
+	// TeamWideRules Rules with no project scope, which apply to every project of the team. `[]` when there are none.
+	TeamWideRules []AdminFreshnessRule `json:"team_wide_rules"`
+}
+
+// AdminProjectCreationPoint How many resources of each project-scoped type were created in the project within one time bucket.
+type AdminProjectCreationPoint struct {
+	Artifacts  int64 `json:"artifacts"`
+	Blueprints int64 `json:"blueprints"`
+
+	// Bucket Start of the bucket, in UTC.
+	Bucket    time.Time `json:"bucket"`
+	FeedItems int64     `json:"feed_items"`
+	Memories  int64     `json:"memories"`
+	Prompts   int64     `json:"prompts"`
+}
+
 // AdminProjectDetail A single project with its team, owner and resource counts (GET /api/v1/admin/projects/{id}).
 type AdminProjectDetail struct {
 	CreatedAt time.Time `json:"created_at"`
@@ -995,6 +1131,27 @@ type AdminProjectResourceCounts struct {
 	// Total Sum of the five project-scoped counts.
 	Total int64 `json:"total"`
 }
+
+// AdminProjectResourceCreationMetrics Resources created in the project per bucket, stacked by type
+// (GET /api/v1/admin/projects/{id}/resource-creation-metrics). Every bucket in
+// the range is present with an explicit 0 for every type.
+type AdminProjectResourceCreationMetrics struct {
+	// From Inclusive start of the range actually used, snapped DOWN to the start of
+	// its bucket (same rule as AdminTimeseriesResponse.from).
+	From time.Time `json:"from"`
+
+	// Granularity Bucket size actually used.
+	Granularity AdminProjectResourceCreationMetricsGranularity `json:"granularity"`
+
+	// Series One point per bucket, ascending by bucket.
+	Series []AdminProjectCreationPoint `json:"series"`
+
+	// To Exclusive end of the range actually used (after defaulting); not snapped.
+	To time.Time `json:"to"`
+}
+
+// AdminProjectResourceCreationMetricsGranularity Bucket size actually used.
+type AdminProjectResourceCreationMetricsGranularity string
 
 // AdminProjectTeam The team a project belongs to.
 type AdminProjectTeam struct {
@@ -1412,7 +1569,8 @@ type AdminTimeseriesResponse struct {
 type AdminTimeseriesResponseGranularity string
 
 // AdminTopAccessedResource One opaque most-accessed resource: its type, where it lives and how often
-// the user accessed it. Deliberately carries no title, slug or content — only
+// the user accessed it (or, for a project, how often it was accessed).
+// Deliberately carries no title, slug or content — only
 // the first 8 characters of the resource id. The identity fields share their
 // names with AdminUserTimelineEvent.
 type AdminTopAccessedResource struct {
@@ -1437,7 +1595,8 @@ type AdminTopAccessedResource struct {
 type AdminTopAccessedResourceResourceType string
 
 // AdminTopAccessedResourcesResponse The resources a user accessed most in a range
-// (GET /api/v1/admin/users/{id}/top-accessed-resources).
+// (GET /api/v1/admin/users/{id}/top-accessed-resources), or a project's
+// most-accessed resources (GET /api/v1/admin/projects/{id}/top-accessed-resources).
 type AdminTopAccessedResourcesResponse struct {
 	// EarliestRetainedAt Oldest access event still retained (now minus
 	// `retention.access_event_days`); accesses before it are not counted.
@@ -1935,6 +2094,48 @@ type ListAdminProjectsParamsSortBy string
 // ListAdminProjectsParamsSortOrder defines parameters for ListAdminProjects.
 type ListAdminProjectsParamsSortOrder string
 
+// GetAdminProjectResourceAccessMetricsParams defines parameters for GetAdminProjectResourceAccessMetrics.
+type GetAdminProjectResourceAccessMetricsParams struct {
+	// From Inclusive start of the range. Defaults to 30 days before `to`.
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Exclusive end of the range. Defaults to now.
+	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Granularity Bucket size.
+	Granularity *GetAdminProjectResourceAccessMetricsParamsGranularity `form:"granularity,omitempty" json:"granularity,omitempty"`
+}
+
+// GetAdminProjectResourceAccessMetricsParamsGranularity defines parameters for GetAdminProjectResourceAccessMetrics.
+type GetAdminProjectResourceAccessMetricsParamsGranularity string
+
+// GetAdminProjectResourceCreationMetricsParams defines parameters for GetAdminProjectResourceCreationMetrics.
+type GetAdminProjectResourceCreationMetricsParams struct {
+	// From Inclusive start of the range. Defaults to 30 days before `to`.
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Exclusive end of the range. Defaults to now.
+	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Granularity Bucket size.
+	Granularity *GetAdminProjectResourceCreationMetricsParamsGranularity `form:"granularity,omitempty" json:"granularity,omitempty"`
+}
+
+// GetAdminProjectResourceCreationMetricsParamsGranularity defines parameters for GetAdminProjectResourceCreationMetrics.
+type GetAdminProjectResourceCreationMetricsParamsGranularity string
+
+// GetAdminProjectTopAccessedResourcesParams defines parameters for GetAdminProjectTopAccessedResources.
+type GetAdminProjectTopAccessedResourcesParams struct {
+	// From Inclusive start of the range. Defaults to 30 days before `to`.
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Exclusive end of the range. Defaults to now.
+	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Limit Maximum number of rows.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListAdminTeamsParams defines parameters for ListAdminTeams.
 type ListAdminTeamsParams struct {
 	// Page 1-based page number
@@ -2277,6 +2478,18 @@ type ServerInterface interface {
 	// Get an instance project
 	// (GET /api/v1/admin/projects/{id})
 	GetAdminProject(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get a project's configuration
+	// (GET /api/v1/admin/projects/{id}/config)
+	GetAdminProjectConfig(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get a project's resource access series by source
+	// (GET /api/v1/admin/projects/{id}/resource-access-metrics)
+	GetAdminProjectResourceAccessMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminProjectResourceAccessMetricsParams)
+	// Get a project's resource creation series
+	// (GET /api/v1/admin/projects/{id}/resource-creation-metrics)
+	GetAdminProjectResourceCreationMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminProjectResourceCreationMetricsParams)
+	// Get a project's most-accessed resources
+	// (GET /api/v1/admin/projects/{id}/top-accessed-resources)
+	GetAdminProjectTopAccessedResources(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminProjectTopAccessedResourcesParams)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(w http.ResponseWriter, r *http.Request)
@@ -2379,6 +2592,30 @@ func (_ Unimplemented) ListAdminProjects(w http.ResponseWriter, r *http.Request,
 // Get an instance project
 // (GET /api/v1/admin/projects/{id})
 func (_ Unimplemented) GetAdminProject(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a project's configuration
+// (GET /api/v1/admin/projects/{id}/config)
+func (_ Unimplemented) GetAdminProjectConfig(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a project's resource access series by source
+// (GET /api/v1/admin/projects/{id}/resource-access-metrics)
+func (_ Unimplemented) GetAdminProjectResourceAccessMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminProjectResourceAccessMetricsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a project's resource creation series
+// (GET /api/v1/admin/projects/{id}/resource-creation-metrics)
+func (_ Unimplemented) GetAdminProjectResourceCreationMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminProjectResourceCreationMetricsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a project's most-accessed resources
+// (GET /api/v1/admin/projects/{id}/top-accessed-resources)
+func (_ Unimplemented) GetAdminProjectTopAccessedResources(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminProjectTopAccessedResourcesParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2982,6 +3219,268 @@ func (siw *ServerInterfaceWrapper) GetAdminProject(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdminProject(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminProjectConfig operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminProjectConfig(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminProjectConfig(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminProjectResourceAccessMetrics operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminProjectResourceAccessMetrics(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminProjectResourceAccessMetricsParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "granularity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "granularity", r.URL.Query(), &params.Granularity, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "granularity"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "granularity", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminProjectResourceAccessMetrics(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminProjectResourceCreationMetrics operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminProjectResourceCreationMetrics(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminProjectResourceCreationMetricsParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "granularity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "granularity", r.URL.Query(), &params.Granularity, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "granularity"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "granularity", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminProjectResourceCreationMetrics(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminProjectTopAccessedResources operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminProjectTopAccessedResources(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminProjectTopAccessedResourcesParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminProjectTopAccessedResources(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5142,6 +5641,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/admin/projects/{id}", wrapper.GetAdminProject)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/projects/{id}/config", wrapper.GetAdminProjectConfig)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/projects/{id}/resource-access-metrics", wrapper.GetAdminProjectResourceAccessMetrics)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/projects/{id}/resource-creation-metrics", wrapper.GetAdminProjectResourceCreationMetrics)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/projects/{id}/top-accessed-resources", wrapper.GetAdminProjectTopAccessedResources)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/stats", wrapper.GetAdminStats)
 	})
 	r.Group(func(r chi.Router) {
@@ -5450,6 +5961,265 @@ func (response GetAdminProject404ApplicationProblemPlusJSONResponse) VisitGetAdm
 type GetAdminProject500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response GetAdminProject500ApplicationProblemPlusJSONResponse) VisitGetAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectConfigRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdminProjectConfigResponseObject interface {
+	VisitGetAdminProjectConfigResponse(w http.ResponseWriter) error
+}
+
+type GetAdminProjectConfig200JSONResponse AdminProjectConfig
+
+func (response GetAdminProjectConfig200JSONResponse) VisitGetAdminProjectConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectConfig400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProjectConfig400ApplicationProblemPlusJSONResponse) VisitGetAdminProjectConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectConfig404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProjectConfig404ApplicationProblemPlusJSONResponse) VisitGetAdminProjectConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectConfig500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProjectConfig500ApplicationProblemPlusJSONResponse) VisitGetAdminProjectConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectResourceAccessMetricsRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetAdminProjectResourceAccessMetricsParams
+}
+
+type GetAdminProjectResourceAccessMetricsResponseObject interface {
+	VisitGetAdminProjectResourceAccessMetricsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminProjectResourceAccessMetrics200JSONResponse AdminProjectAccessMetrics
+
+func (response GetAdminProjectResourceAccessMetrics200JSONResponse) VisitGetAdminProjectResourceAccessMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectResourceAccessMetrics400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProjectResourceAccessMetrics400ApplicationProblemPlusJSONResponse) VisitGetAdminProjectResourceAccessMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectResourceAccessMetrics404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProjectResourceAccessMetrics404ApplicationProblemPlusJSONResponse) VisitGetAdminProjectResourceAccessMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectResourceAccessMetrics500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProjectResourceAccessMetrics500ApplicationProblemPlusJSONResponse) VisitGetAdminProjectResourceAccessMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectResourceCreationMetricsRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetAdminProjectResourceCreationMetricsParams
+}
+
+type GetAdminProjectResourceCreationMetricsResponseObject interface {
+	VisitGetAdminProjectResourceCreationMetricsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminProjectResourceCreationMetrics200JSONResponse AdminProjectResourceCreationMetrics
+
+func (response GetAdminProjectResourceCreationMetrics200JSONResponse) VisitGetAdminProjectResourceCreationMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectResourceCreationMetrics400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProjectResourceCreationMetrics400ApplicationProblemPlusJSONResponse) VisitGetAdminProjectResourceCreationMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectResourceCreationMetrics404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProjectResourceCreationMetrics404ApplicationProblemPlusJSONResponse) VisitGetAdminProjectResourceCreationMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectResourceCreationMetrics500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProjectResourceCreationMetrics500ApplicationProblemPlusJSONResponse) VisitGetAdminProjectResourceCreationMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectTopAccessedResourcesRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetAdminProjectTopAccessedResourcesParams
+}
+
+type GetAdminProjectTopAccessedResourcesResponseObject interface {
+	VisitGetAdminProjectTopAccessedResourcesResponse(w http.ResponseWriter) error
+}
+
+type GetAdminProjectTopAccessedResources200JSONResponse AdminTopAccessedResourcesResponse
+
+func (response GetAdminProjectTopAccessedResources200JSONResponse) VisitGetAdminProjectTopAccessedResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectTopAccessedResources400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProjectTopAccessedResources400ApplicationProblemPlusJSONResponse) VisitGetAdminProjectTopAccessedResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectTopAccessedResources404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProjectTopAccessedResources404ApplicationProblemPlusJSONResponse) VisitGetAdminProjectTopAccessedResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectTopAccessedResources500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProjectTopAccessedResources500ApplicationProblemPlusJSONResponse) VisitGetAdminProjectTopAccessedResourcesResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -7074,6 +7844,18 @@ type StrictServerInterface interface {
 	// Get an instance project
 	// (GET /api/v1/admin/projects/{id})
 	GetAdminProject(ctx context.Context, request GetAdminProjectRequestObject) (GetAdminProjectResponseObject, error)
+	// Get a project's configuration
+	// (GET /api/v1/admin/projects/{id}/config)
+	GetAdminProjectConfig(ctx context.Context, request GetAdminProjectConfigRequestObject) (GetAdminProjectConfigResponseObject, error)
+	// Get a project's resource access series by source
+	// (GET /api/v1/admin/projects/{id}/resource-access-metrics)
+	GetAdminProjectResourceAccessMetrics(ctx context.Context, request GetAdminProjectResourceAccessMetricsRequestObject) (GetAdminProjectResourceAccessMetricsResponseObject, error)
+	// Get a project's resource creation series
+	// (GET /api/v1/admin/projects/{id}/resource-creation-metrics)
+	GetAdminProjectResourceCreationMetrics(ctx context.Context, request GetAdminProjectResourceCreationMetricsRequestObject) (GetAdminProjectResourceCreationMetricsResponseObject, error)
+	// Get a project's most-accessed resources
+	// (GET /api/v1/admin/projects/{id}/top-accessed-resources)
+	GetAdminProjectTopAccessedResources(ctx context.Context, request GetAdminProjectTopAccessedResourcesRequestObject) (GetAdminProjectTopAccessedResourcesResponseObject, error)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(ctx context.Context, request GetAdminStatsRequestObject) (GetAdminStatsResponseObject, error)
@@ -7275,6 +8057,113 @@ func (sh *strictHandler) GetAdminProject(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminProjectResponseObject); ok {
 		if err := validResponse.VisitGetAdminProjectResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminProjectConfig operation middleware
+func (sh *strictHandler) GetAdminProjectConfig(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdminProjectConfigRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminProjectConfig(ctx, request.(GetAdminProjectConfigRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminProjectConfig")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminProjectConfigResponseObject); ok {
+		if err := validResponse.VisitGetAdminProjectConfigResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminProjectResourceAccessMetrics operation middleware
+func (sh *strictHandler) GetAdminProjectResourceAccessMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminProjectResourceAccessMetricsParams) {
+	var request GetAdminProjectResourceAccessMetricsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminProjectResourceAccessMetrics(ctx, request.(GetAdminProjectResourceAccessMetricsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminProjectResourceAccessMetrics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminProjectResourceAccessMetricsResponseObject); ok {
+		if err := validResponse.VisitGetAdminProjectResourceAccessMetricsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminProjectResourceCreationMetrics operation middleware
+func (sh *strictHandler) GetAdminProjectResourceCreationMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminProjectResourceCreationMetricsParams) {
+	var request GetAdminProjectResourceCreationMetricsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminProjectResourceCreationMetrics(ctx, request.(GetAdminProjectResourceCreationMetricsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminProjectResourceCreationMetrics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminProjectResourceCreationMetricsResponseObject); ok {
+		if err := validResponse.VisitGetAdminProjectResourceCreationMetricsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminProjectTopAccessedResources operation middleware
+func (sh *strictHandler) GetAdminProjectTopAccessedResources(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminProjectTopAccessedResourcesParams) {
+	var request GetAdminProjectTopAccessedResourcesRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminProjectTopAccessedResources(ctx, request.(GetAdminProjectTopAccessedResourcesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminProjectTopAccessedResources")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminProjectTopAccessedResourcesResponseObject); ok {
+		if err := validResponse.VisitGetAdminProjectTopAccessedResourcesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

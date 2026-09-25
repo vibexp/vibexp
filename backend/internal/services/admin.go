@@ -104,6 +104,28 @@ type AdminServiceInterface interface {
 	GetUserTopAccessedResources(
 		ctx context.Context, id string, q AdminTopResourcesQuery,
 	) (*models.AdminTopAccessedResources, error)
+	// GetProjectCreationMetrics returns the gap-filled per-type creation series
+	// for a project; *ErrAdminTimeseriesRange for an invalid range (handler:
+	// 400) and (nil, nil) for an unknown project.
+	GetProjectCreationMetrics(
+		ctx context.Context, id string, q AdminTimeseriesQuery,
+	) (*models.AdminProjectCreationMetrics, error)
+	// GetProjectAccessMetrics returns the gap-filled per-source access series
+	// for a project; *ErrAdminTimeseriesRange for an invalid range (handler:
+	// 400) and (nil, nil) for an unknown project.
+	GetProjectAccessMetrics(
+		ctx context.Context, id string, q AdminTimeseriesQuery,
+	) (*models.AdminProjectAccessMetrics, error)
+	// GetProjectTopAccessedResources returns a project's most-accessed
+	// resources as opaque rows; *ErrAdminTimeseriesRange for an invalid range
+	// or limit (handler: 400) and (nil, nil) for an unknown project.
+	GetProjectTopAccessedResources(
+		ctx context.Context, id string, q AdminTopResourcesQuery,
+	) (*models.AdminTopAccessedResources, error)
+	// GetProjectConfig returns the freshness rules that apply to a project,
+	// split into its own and the team-wide ones; (nil, nil) for an unknown
+	// project.
+	GetProjectConfig(ctx context.Context, id string) (*models.AdminProjectConfig, error)
 }
 
 // AdminService implements AdminServiceInterface.
@@ -113,10 +135,15 @@ type AdminServiceInterface interface {
 // this service needs to write the users row and publish that event. Everything
 // else goes through adminRepo. Both may be nil in a read-only wiring; CreateUser
 // reports a clear error rather than panicking.
+//
+// freshness exists only for the project configuration read (#1145), whose rules
+// live behind FreshnessService.ListRules (no authz; instanceAdminMiddleware is
+// the boundary). It may be nil in a wiring that never calls GetProjectConfig.
 type AdminService struct {
 	adminRepo      repositories.AdminRepository
 	userRepo       repositories.UserRepository
 	eventPublisher events.EventPublisher
+	freshness      FreshnessServiceInterface
 }
 
 // NewAdminService creates a new AdminService.
@@ -124,11 +151,13 @@ func NewAdminService(
 	adminRepo repositories.AdminRepository,
 	userRepo repositories.UserRepository,
 	eventPublisher events.EventPublisher,
+	freshness FreshnessServiceInterface,
 ) AdminServiceInterface {
 	return &AdminService{
 		adminRepo:      adminRepo,
 		userRepo:       userRepo,
 		eventPublisher: eventPublisher,
+		freshness:      freshness,
 	}
 }
 

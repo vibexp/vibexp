@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -41,15 +40,11 @@ func (a *adminStrictServer) GetAdminUserResourceAccessMetrics(
 		return nil, apierrors.NewResourceNotFoundError("user", adminMsgUserNotFound)
 	}
 
-	access := make([]admingen.AdminSourcePoint, 0, len(metrics.AccessBySource))
-	for _, p := range metrics.AccessBySource {
-		access = append(access, admingen.AdminSourcePoint{Bucket: p.Bucket, Source: p.Source, Count: p.Count})
-	}
 	return admingen.GetAdminUserResourceAccessMetrics200JSONResponse(admingen.AdminUserAccessMetrics{
 		From:               metrics.From,
 		To:                 metrics.To,
 		Granularity:        admingen.AdminUserAccessMetricsGranularity(metrics.Granularity),
-		AccessBySource:     access,
+		AccessBySource:     toGenAdminSourcePoints(metrics.AccessBySource),
 		EarliestRetainedAt: a.accessEventsEarliestRetainedAt(),
 	}), nil
 }
@@ -59,14 +54,9 @@ func (a *adminStrictServer) GetAdminUserResourceAccessMetrics(
 func (a *adminStrictServer) GetAdminUserTopAccessedResources(
 	ctx context.Context, request admingen.GetAdminUserTopAccessedResourcesRequestObject,
 ) (admingen.GetAdminUserTopAccessedResourcesResponseObject, error) {
-	limit := 0
-	if request.Params.Limit != nil {
-		limit = *request.Params.Limit
-		// The generated binder does not enforce minimum/maximum.
-		if limit < 1 || limit > services.AdminTopResourcesMaxLimit {
-			return nil, apierrors.NewBadRequestError(
-				fmt.Sprintf("invalid limit %d: must be between 1 and %d", limit, services.AdminTopResourcesMaxLimit))
-		}
+	limit, err := adminTopResourcesLimitParam(request.Params.Limit)
+	if err != nil {
+		return nil, err
 	}
 
 	top, err := a.s.container.AdminService().GetUserTopAccessedResources(ctx, request.Id.String(),
