@@ -175,3 +175,48 @@ func TestTeamSettingsAuditService_Record_StorageError(t *testing.T) {
 	assert.Contains(t, err.Error(), "append boom")
 	assert.Nil(t, entry)
 }
+
+// ResolveSettingsAuditNames is shared with the instance-admin read path
+// (#1140), which reaches it without ListAudit's permission check, so it is
+// pinned directly: names resolve with one batched lookup per kind, and a failed
+// lookup degrades that kind to nil names instead of failing.
+func TestResolveSettingsAuditNames(t *testing.T) {
+	actor, sourceTeam := "user-1", "team-2"
+	entries := []*models.TeamSettingsAudit{
+		{ID: "a-1", ActorUserID: &actor, SourceTeamID: &sourceTeam},
+		{ID: "a-2", ActorUserID: &actor, SourceTeamID: &sourceTeam},
+		{ID: "a-3"},
+	}
+
+	t.Run("resolves names with one lookup per kind", func(t *testing.T) {
+		users, teams := mocks.NewMockUserRepository(t), mocks.NewMockTeamRepository(t)
+		users.EXPECT().GetNamesByIDs(mock.Anything, []string{"user-1"}).
+			Return(map[string]string{"user-1": "Ada"}, nil).Once()
+		teams.EXPECT().GetNamesByIDs(mock.Anything, []string{"team-2"}).
+			Return(map[string]string{"team-2": "Platform"}, nil).Once()
+
+		views := ResolveSettingsAuditNames(context.Background(), users, teams, slog.Default(), "team-1", entries)
+
+		require.Len(t, views, 3)
+		require.NotNil(t, views[0].ActorName)
+		assert.Equal(t, "Ada", *views[0].ActorName)
+		require.NotNil(t, views[1].SourceTeamName)
+		assert.Equal(t, "Platform", *views[1].SourceTeamName)
+		assert.Nil(t, views[2].ActorName)
+		assert.Nil(t, views[2].SourceTeamName)
+	})
+
+	t.Run("a failed lookup degrades to nil names", func(t *testing.T) {
+		users, teams := mocks.NewMockUserRepository(t), mocks.NewMockTeamRepository(t)
+		users.EXPECT().GetNamesByIDs(mock.Anything, mock.Anything).Return(nil, errors.New("db down"))
+		teams.EXPECT().GetNamesByIDs(mock.Anything, mock.Anything).
+			Return(map[string]string{"team-2": "Platform"}, nil)
+
+		views := ResolveSettingsAuditNames(context.Background(), users, teams, slog.Default(), "team-1", entries)
+
+		require.Len(t, views, 3)
+		assert.Nil(t, views[0].ActorName)
+		require.NotNil(t, views[0].SourceTeamName)
+		assert.Equal(t, "Platform", *views[0].SourceTeamName)
+	})
+}

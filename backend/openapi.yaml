@@ -948,6 +948,31 @@ components:
       $ref: "./schemas/admin.yaml#/AdminTopAccessedResource"
     AdminTopAccessedResourcesResponse:
       $ref: "./schemas/admin.yaml#/AdminTopAccessedResourcesResponse"
+    # Admin team configuration, read-only (#1140)
+    AdminTeamConfigSource:
+      $ref: "./schemas/admin.yaml#/AdminTeamConfigSource"
+    AdminSearchValues:
+      $ref: "./schemas/admin.yaml#/AdminSearchValues"
+    AdminTeamSearchConfig:
+      $ref: "./schemas/admin.yaml#/AdminTeamSearchConfig"
+    AdminAISummaryValues:
+      $ref: "./schemas/admin.yaml#/AdminAISummaryValues"
+    AdminTeamAISummaryConfig:
+      $ref: "./schemas/admin.yaml#/AdminTeamAISummaryConfig"
+    AdminFreshnessValues:
+      $ref: "./schemas/admin.yaml#/AdminFreshnessValues"
+    AdminFreshnessRule:
+      $ref: "./schemas/admin.yaml#/AdminFreshnessRule"
+    AdminTeamFreshnessConfig:
+      $ref: "./schemas/admin.yaml#/AdminTeamFreshnessConfig"
+    AdminArtifactType:
+      $ref: "./schemas/admin.yaml#/AdminArtifactType"
+    AdminTeamArtifactTypes:
+      $ref: "./schemas/admin.yaml#/AdminTeamArtifactTypes"
+    AdminTeamSettingsAuditEntry:
+      $ref: "./schemas/admin.yaml#/AdminTeamSettingsAuditEntry"
+    AdminTeamSettingsAuditListResponse:
+      $ref: "./schemas/admin.yaml#/AdminTeamSettingsAuditListResponse"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
@@ -1236,6 +1261,16 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-teams"
   /api/v1/admin/teams/{id}:
     $ref: "./paths/admin.yaml#/api-v1-admin-teams-id"
+  /api/v1/admin/teams/{id}/config/search:
+    $ref: "./paths/admin.yaml#/api-v1-admin-teams-id-config-search"
+  /api/v1/admin/teams/{id}/config/ai-summary:
+    $ref: "./paths/admin.yaml#/api-v1-admin-teams-id-config-ai-summary"
+  /api/v1/admin/teams/{id}/config/freshness:
+    $ref: "./paths/admin.yaml#/api-v1-admin-teams-id-config-freshness"
+  /api/v1/admin/teams/{id}/config/artifact-types:
+    $ref: "./paths/admin.yaml#/api-v1-admin-teams-id-config-artifact-types"
+  /api/v1/admin/teams/{id}/config/settings-audit:
+    $ref: "./paths/admin.yaml#/api-v1-admin-teams-id-config-settings-audit"
   /api/v1/admin/dashboard/overview:
     $ref: "./paths/admin.yaml#/api-v1-admin-dashboard-overview"
   /api/v1/admin/dashboard/timeseries:

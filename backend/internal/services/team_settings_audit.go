@@ -204,23 +204,33 @@ func (s *TeamSettingsAuditService) ListAudit(
 	}
 
 	return &models.TeamSettingsAuditPage{
-		Entries:    s.resolveNames(ctx, teamID, entries),
+		Entries:    ResolveSettingsAuditNames(ctx, s.users, s.teams, s.logger, teamID, entries),
 		TotalCount: total,
 		Page:       page,
 		PerPage:    limit,
 	}, nil
 }
 
-// resolveNames attaches the actor and source-team display names to a page of
-// entries with two batched lookups, so rendering a page costs two queries
-// rather than two per row.
+// ResolveSettingsAuditNames attaches the actor and source-team display names to
+// a page of entries with two batched lookups, so rendering a page costs two
+// queries rather than two per row.
+//
+// It carries no permission check: ListAudit authorizes before calling it, and
+// the instance-admin read path (#1140) is gated by instanceAdminMiddleware.
+// Exporting the resolver rather than routing the admin path through ListAudit
+// is what keeps that path from bypassing or weakening ListAudit's authz.
 //
 // A failed lookup is logged and DEGRADED to no names rather than failing the
 // read: the ids on every entry are the audit record, the names are only there
 // to make it legible, and a team investigating what arrived in their settings
 // is worse served by an error page than by a page of ids.
-func (s *TeamSettingsAuditService) resolveNames(
-	ctx context.Context, teamID string, entries []*models.TeamSettingsAudit,
+func ResolveSettingsAuditNames(
+	ctx context.Context,
+	users repositories.UserRepository,
+	teams repositories.TeamRepository,
+	logger *slog.Logger,
+	teamID string,
+	entries []*models.TeamSettingsAudit,
 ) []*models.TeamSettingsAuditEntryView {
 	actorIDs := make([]string, 0, len(entries))
 	teamIDs := make([]string, 0, len(entries))
@@ -231,15 +241,15 @@ func (s *TeamSettingsAuditService) resolveNames(
 		collectID(entry.SourceTeamID, seenTeams, &teamIDs)
 	}
 
-	actorNames, err := s.users.GetNamesByIDs(ctx, actorIDs)
+	actorNames, err := users.GetNamesByIDs(ctx, actorIDs)
 	if err != nil {
-		s.logger.Warn("Failed to resolve settings audit actor names",
+		logger.Warn("Failed to resolve settings audit actor names",
 			"team_id", teamID, "error", err)
 		actorNames = nil
 	}
-	teamNames, err := s.teams.GetNamesByIDs(ctx, teamIDs)
+	teamNames, err := teams.GetNamesByIDs(ctx, teamIDs)
 	if err != nil {
-		s.logger.Warn("Failed to resolve settings audit source team names",
+		logger.Warn("Failed to resolve settings audit source team names",
 			"team_id", teamID, "error", err)
 		teamNames = nil
 	}

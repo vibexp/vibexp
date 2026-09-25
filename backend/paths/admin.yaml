@@ -1846,3 +1846,242 @@ api-v1-admin-users-id-notification-preferences:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+# --- Team configuration, read-only (#1140) ---
+
+api-v1-admin-teams-id-config-search:
+  get:
+    summary: Get a team's search ranking settings
+    description: |
+      Returns the team's effective search ranking settings, where they came from
+      (`team` or `instance`), the instance defaults and the instance-owned
+      candidate cap.
+      Read-only. Instance-admin only; non-admin and unauthenticated requests
+      receive 404, as does an unknown team id.
+    operationId: getAdminTeamSearchConfig
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The team's search ranking settings
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTeamSearchConfig'
+      '404':
+        description: Not found — unknown team id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-teams-id-config-ai-summary:
+  get:
+    summary: Get a team's AI summary settings
+    description: |
+      Returns the team's effective AI summary settings, their source, the instance
+      defaults and caps, whether a model provider exists, and the selected
+      provider's name. No provider credential is ever included.
+      Read-only. Instance-admin only; non-admin and unauthenticated requests
+      receive 404, as does an unknown team id.
+    operationId: getAdminTeamAISummaryConfig
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The team's AI summary settings
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTeamAISummaryConfig'
+      '404':
+        description: Not found — unknown team id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-teams-id-config-freshness:
+  get:
+    summary: Get a team's freshness settings and rules
+    description: |
+      Returns the team's freshness settings (with source and defaults) and every
+      freshness rule, including each rule's optional project scope.
+      Read-only. Instance-admin only; non-admin and unauthenticated requests
+      receive 404, as does an unknown team id.
+    operationId: getAdminTeamFreshnessConfig
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The team's freshness settings and rules
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTeamFreshnessConfig'
+      '404':
+        description: Not found — unknown team id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-teams-id-config-artifact-types:
+  get:
+    summary: Get a team's artifact types
+    description: |
+      Returns the artifact types the team sees: the global system types and the
+      team's own custom types.
+      Read-only. Instance-admin only; non-admin and unauthenticated requests
+      receive 404, as does an unknown team id.
+    operationId: getAdminTeamArtifactTypes
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The team's artifact types
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTeamArtifactTypes'
+      '404':
+        description: Not found — unknown team id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-teams-id-config-settings-audit:
+  get:
+    summary: List a team's settings audit log
+    description: |
+      Returns one page of the team's settings-copy audit log, newest first, with
+      actor and source-team names resolved. Each entry's `detail` is filtered to
+      a per-surface key allowlist, so no credential can surface here.
+      Read-only. Instance-admin only; non-admin and unauthenticated requests
+      receive 404, as does an unknown team id.
+    operationId: listAdminTeamSettingsAudit
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team id (UUID)
+        schema:
+          type: string
+          format: uuid
+      - name: page
+        in: query
+        required: false
+        description: Page number (1-based).
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+          default: 1
+      - name: limit
+        in: query
+        required: false
+        description: Page size.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: One page of settings audit entries, newest first
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTeamSettingsAuditListResponse'
+      '400':
+        description: Bad request — malformed team id, or `page`/`limit` out of range
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown team id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'

@@ -269,6 +269,11 @@ func (b *BaseMockContainer) TeamAISummarySettingsService() services.TeamAISummar
 	return nil
 }
 
+// TeamSettingsAuditRepository returns nil; suites that exercise it install their own.
+func (b *BaseMockContainer) TeamSettingsAuditRepository() repositories.TeamSettingsAuditRepository {
+	return nil
+}
+
 // TeamSettingsAuditService returns nil; suites that exercise it install their own.
 func (b *BaseMockContainer) TeamSettingsAuditService() services.TeamSettingsAuditServiceInterface {
 	return nil

@@ -40,6 +40,10 @@ type Container interface {
 	BackofficeRepository() repositories.BackofficeRepository
 	UserPreferencesRepository() repositories.UserPreferencesRepository
 	TeamRepository() repositories.TeamRepository
+	// TeamSettingsAuditRepository backs the instance-admin read of a team's
+	// settings audit log (#1140), which must not go through the role-checked
+	// TeamSettingsAuditService.ListAudit.
+	TeamSettingsAuditRepository() repositories.TeamSettingsAuditRepository
 	TeamMemberRepository() repositories.TeamMemberRepository
 	ProjectRepository() repositories.ProjectRepository
 	WebhookEventRepository() repositories.WebhookEventRepository

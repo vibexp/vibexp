@@ -35,7 +35,44 @@ type adminMockContainer struct {
 	adminService    services.AdminServiceInterface
 	activityService activities.ActivityService
 	prefsService    services.UserPreferencesServiceInterface
+
+	// Team configuration reads (#1140). Nil unless a suite installs them.
+	teamRepo              repositories.TeamRepository
+	userRepo              repositories.UserRepository
+	modelProviderRepo     repositories.ModelProviderRepository
+	settingsAuditRepo     repositories.TeamSettingsAuditRepository
+	searchSettingsService services.TeamSearchSettingsServiceInterface
+	aiSummaryService      services.TeamAISummarySettingsServiceInterface
+	freshnessService      services.FreshnessServiceInterface
+	typeService           services.TypeServiceInterface
 }
+
+func (c *adminMockContainer) TeamRepository() repositories.TeamRepository { return c.teamRepo }
+
+// UserRepository falls back to the base's always-active default, which every
+// authenticated request's suspension check relies on.
+func (c *adminMockContainer) UserRepository() repositories.UserRepository {
+	if c.userRepo == nil {
+		return c.BaseMockContainer.UserRepository()
+	}
+	return c.userRepo
+}
+func (c *adminMockContainer) ModelProviderRepository() repositories.ModelProviderRepository {
+	return c.modelProviderRepo
+}
+func (c *adminMockContainer) TeamSettingsAuditRepository() repositories.TeamSettingsAuditRepository {
+	return c.settingsAuditRepo
+}
+func (c *adminMockContainer) TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface {
+	return c.searchSettingsService
+}
+func (c *adminMockContainer) TeamAISummarySettingsService() services.TeamAISummarySettingsServiceInterface {
+	return c.aiSummaryService
+}
+func (c *adminMockContainer) FreshnessService() services.FreshnessServiceInterface {
+	return c.freshnessService
+}
+func (c *adminMockContainer) TypeService() services.TypeServiceInterface { return c.typeService }
 
 func (c *adminMockContainer) AuthService() services.AuthServiceInterface   { return c.authService }
 func (c *adminMockContainer) AdminService() services.AdminServiceInterface { return c.adminService }
