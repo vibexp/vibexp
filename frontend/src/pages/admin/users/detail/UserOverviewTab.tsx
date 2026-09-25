@@ -12,35 +12,27 @@ import {
   Rss,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
 
 import { CategoryBreakdownChart } from '@/components/CategoryBreakdownChart'
 import type { ChartSeries } from '@/components/TimeSeriesBarChart'
 import { TimeSeriesBarChart } from '@/components/TimeSeriesBarChart'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { DateRangeValue } from '@/components/ui/date-range'
 import { rangeToInstants } from '@/components/ui/date-range'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { accessToChartData, sumTotals } from '@/pages/admin/dashboard/buckets'
 import type { Granularity } from '@/pages/admin/dashboard/DashboardControls'
 import { DashboardControls } from '@/pages/admin/dashboard/DashboardControls'
 import { DataWindowNote } from '@/pages/admin/dashboard/DataWindowNote'
 import { Section } from '@/pages/admin/dashboard/Section'
+import type { Slot } from '@/pages/admin/detail/slot'
+import { LOADING, settle } from '@/pages/admin/detail/slot'
+import { TopAccessedTable } from '@/pages/admin/detail/TopAccessedTable'
 import type { ResourceTypeKey } from '@/pages/admin/users/detail/userInsightsChartData'
 import {
   CHART_FILLS,
   creationToChartData,
-  formatResourceType,
   insightsToBreakdowns,
   RESOURCE_TYPE_KEYS,
   RESOURCE_TYPE_LABELS,
@@ -68,15 +60,6 @@ const TYPE_ICONS: Record<ResourceTypeKey, LucideIcon> = {
   comments: MessageSquare,
   attachments: Paperclip,
 }
-
-/** One async slot: its value, whether it is in flight, and its error. */
-interface Slot<T> {
-  data: T | null
-  loading: boolean
-  error: string | null
-}
-
-const LOADING: Slot<never> = { data: null, loading: true, error: null }
 
 function CountCards({
   insights,
@@ -133,85 +116,6 @@ function CountCards({
 }
 
 /**
- * The resources a user accessed most, as opaque references.
- *
- * Each cell reads one allowlisted field — never a spread of the row — so a
- * title can never leak into this table even if the wire type grows one.
- */
-function TopAccessedTable({
-  slot,
-}: Readonly<{ slot: Slot<AdminTopAccessedResource[]> }>) {
-  if (slot.loading) return <Skeleton className="h-32 w-full" />
-  if (slot.error) {
-    return (
-      <Alert variant="destructive">
-        <AlertTitle>Failed to load the most accessed resources</AlertTitle>
-        <AlertDescription>{slot.error}</AlertDescription>
-      </Alert>
-    )
-  }
-  const rows = slot.data ?? []
-  if (rows.length === 0) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        No resource access recorded in this range.
-      </p>
-    )
-  }
-
-  return (
-    <Card className="overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableHead className="h-9 text-xs font-medium">Type</TableHead>
-            <TableHead className="h-9 text-xs font-medium">Team</TableHead>
-            <TableHead className="h-9 text-xs font-medium">Project</TableHead>
-            <TableHead className="h-9 text-xs font-medium">Id</TableHead>
-            <TableHead className="h-9 text-right text-xs font-medium">
-              Accesses
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map(row => (
-            <TableRow key={`${row.resource_type}-${row.resource_short_id}`}>
-              <TableCell className="py-3">
-                <Badge variant="outline">
-                  {formatResourceType(row.resource_type)}
-                </Badge>
-              </TableCell>
-              <TableCell className="py-3 text-sm">
-                <Link
-                  to={`/admin/teams/${row.team_id}`}
-                  className="hover:underline"
-                >
-                  {row.team_name}
-                </Link>
-              </TableCell>
-              <TableCell className="py-3 text-sm">
-                {row.project_name ?? '—'}
-              </TableCell>
-              <TableCell className="py-3 font-mono text-xs">
-                {row.resource_short_id}
-                {row.resource_deleted && (
-                  <span className="text-muted-foreground ml-2 font-sans">
-                    (deleted)
-                  </span>
-                )}
-              </TableCell>
-              <TableCell className="py-3 text-right text-sm tabular-nums">
-                {row.access_count.toLocaleString()}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
-  )
-}
-
-/**
  * The user's footprint: counts and breakdowns (range-independent), then the
  * creation and access series plus the top-accessed list, all three driven by
  * one range + bucket-size control so they always describe the same window.
@@ -259,26 +163,7 @@ export function UserOverviewTab({ userId }: Readonly<{ userId: string }>) {
 
     // Each request settles into its own slot, so one failing panel leaves the
     // other two rendered.
-    function settle<T>(
-      request: Promise<T>,
-      set: (slot: Slot<T>) => void,
-      fallback: string
-    ) {
-      request
-        .then(data => {
-          if (!cancelled) set({ data, loading: false, error: null })
-        })
-        .catch((err: unknown) => {
-          if (!cancelled) {
-            set({
-              data: null,
-              loading: false,
-              error: getErrorMessage(err, fallback),
-            })
-          }
-        })
-    }
-
+    const isCancelled = () => cancelled
     settle(
       adminService.getUserResourceCreationMetrics(userId, {
         from,
@@ -286,7 +171,8 @@ export function UserOverviewTab({ userId }: Readonly<{ userId: string }>) {
         granularity,
       }),
       setCreation,
-      'Failed to load the creation series'
+      'Failed to load the creation series',
+      isCancelled
     )
     settle(
       adminService.getUserResourceAccessMetrics(userId, {
@@ -295,14 +181,16 @@ export function UserOverviewTab({ userId }: Readonly<{ userId: string }>) {
         granularity,
       }),
       setAccess,
-      'Failed to load the access series'
+      'Failed to load the access series',
+      isCancelled
     )
     settle(
       adminService
         .getUserTopAccessedResources(userId, { from, to })
         .then(response => response.items),
       setTop,
-      'Failed to load the most accessed resources'
+      'Failed to load the most accessed resources',
+      isCancelled
     )
 
     return () => {

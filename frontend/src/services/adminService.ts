@@ -117,6 +117,24 @@ export type AdminUserTimelineParams = NonNullable<
   operations['getAdminUserTimeline']['parameters']['query']
 >
 
+// Per-project analytics and configuration behind the project detail tabs
+// (#1145). Top-accessed rows reuse the opaque `AdminTopAccessedResource`.
+export type AdminProjectCreationPoint =
+  components['schemas']['AdminProjectCreationPoint']
+export type AdminProjectResourceCreationMetrics =
+  components['schemas']['AdminProjectResourceCreationMetrics']
+export type AdminProjectAccessMetrics =
+  components['schemas']['AdminProjectAccessMetrics']
+export type AdminProjectConfig = components['schemas']['AdminProjectConfig']
+
+/** Range + bucket size shared by the per-project creation and access series. */
+export type AdminProjectSeriesParams = NonNullable<
+  operations['getAdminProjectResourceCreationMetrics']['parameters']['query']
+>
+export type AdminProjectTopAccessedParams = NonNullable<
+  operations['getAdminProjectTopAccessedResources']['parameters']['query']
+>
+
 // Read-only team configuration behind the team detail tabs (#1140, #1141).
 // Secrets arrive already redacted: credentials as `has_*` booleans,
 // configuration as key names only, and no free-text error.
@@ -331,6 +349,54 @@ class AdminService {
     return unwrap(
       generatedClient.GET('/api/v1/admin/users/{id}/top-accessed-resources', {
         params: { path: { id }, query: params },
+      })
+    )
+  }
+
+  /** Resources created in the project, bucketed per type over a range. */
+  async getProjectResourceCreationMetrics(
+    id: string,
+    params: AdminProjectSeriesParams
+  ): Promise<AdminProjectResourceCreationMetrics> {
+    return unwrap(
+      generatedClient.GET(
+        '/api/v1/admin/projects/{id}/resource-creation-metrics',
+        { params: { path: { id }, query: params } }
+      )
+    )
+  }
+
+  /** Accesses to the project and its resources, bucketed per source. */
+  async getProjectResourceAccessMetrics(
+    id: string,
+    params: AdminProjectSeriesParams
+  ): Promise<AdminProjectAccessMetrics> {
+    return unwrap(
+      generatedClient.GET(
+        '/api/v1/admin/projects/{id}/resource-access-metrics',
+        { params: { path: { id }, query: params } }
+      )
+    )
+  }
+
+  /** The project's most-accessed resources in a range, as opaque references. */
+  async getProjectTopAccessedResources(
+    id: string,
+    params: AdminProjectTopAccessedParams
+  ): Promise<AdminTopAccessedResourcesResponse> {
+    return unwrap(
+      generatedClient.GET(
+        '/api/v1/admin/projects/{id}/top-accessed-resources',
+        { params: { path: { id }, query: params } }
+      )
+    )
+  }
+
+  /** The freshness rules that apply to a project: its own plus team-wide. */
+  async getProjectConfig(id: string): Promise<AdminProjectConfig> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/projects/{id}/config', {
+        params: { path: { id } },
       })
     )
   }

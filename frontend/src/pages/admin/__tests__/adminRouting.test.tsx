@@ -51,6 +51,10 @@ vi.mock('@/services/adminService', () => ({
     getTeam: vi.fn(),
     listProjects: vi.fn(),
     getProject: vi.fn(),
+    // The project detail's default Overview tab fetches these on mount (#1146).
+    getProjectResourceCreationMetrics: vi.fn(() => new Promise(() => {})),
+    getProjectResourceAccessMetrics: vi.fn(() => new Promise(() => {})),
+    getProjectTopAccessedResources: vi.fn(() => new Promise(() => {})),
   },
 }))
 
