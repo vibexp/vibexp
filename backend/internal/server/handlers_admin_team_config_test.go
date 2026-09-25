@@ -90,8 +90,35 @@ func TestAdminTeamConfig_TeamGuard(t *testing.T) {
 	}
 }
 
-// TestAdminTeamConfig_NonAdminIs404 exercises the full router for one config
-// route: the instance-admin gate hides it from a non-admin.
+// TestAdminTeamConfigRoutes_UnauthenticatedGets404 exercises the FULL router
+// (setupAdminRoutes: optionalAuthMiddleware + instanceAdminMiddleware) for every
+// config op: an unauthenticated request is answered 404 and never reaches a
+// handler — the settings mocks carry no expectations, so any call fails.
+func TestAdminTeamConfigRoutes_UnauthenticatedGets404(t *testing.T) {
+	for name, path := range adminConfigPaths(uuid.NewString()) {
+		t.Run(name, func(t *testing.T) {
+			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
+				authService:           servicesmocks.NewMockAuthServiceInterface(t),
+				teamRepo:              repomocks.NewMockTeamRepository(t),
+				searchSettingsService: servicesmocks.NewMockTeamSearchSettingsServiceInterface(t),
+				aiSummaryService:      servicesmocks.NewMockTeamAISummarySettingsServiceInterface(t),
+				freshnessService:      servicesmocks.NewMockFreshnessServiceInterface(t),
+				typeService:           servicesmocks.NewMockTypeServiceInterface(t),
+				settingsAuditRepo:     repomocks.NewMockTeamSettingsAuditRepository(t),
+			})
+
+			rr := httptest.NewRecorder()
+			srv.router.ServeHTTP(rr, httptest.NewRequest("GET", path, nil))
+
+			require.Equal(t, http.StatusNotFound, rr.Code)
+		})
+	}
+}
+
+// TestAdminTeamConfig_NonAdminIs404 covers the other half of the gate: an
+// authenticated NON-admin is stopped by instanceAdminMiddleware on a config
+// path. It drives the middleware directly (the full router's auth needs a real
+// session), so route mounting is pinned by the unauthenticated test above.
 func TestAdminTeamConfig_NonAdminIs404(t *testing.T) {
 	cfg := &config.Config{Auth: config.AuthConfig{InstanceAdmins: config.EnvStringSlice{"admin@example.com"}}}
 	mockAuth := servicesmocks.NewMockAuthServiceInterface(t)
