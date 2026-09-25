@@ -1123,6 +1123,26 @@ type AdminRepository interface {
 	// GetProjectDetail returns one project with its team, owner and per-type
 	// resource counts, or (nil, nil) when no project with that id exists.
 	GetProjectDetail(ctx context.Context, id string) (*models.AdminProjectDetail, error)
+
+	// CountUsers, CountTeams and CountProjects return the size of each listing's
+	// filtered set: the same count ListUsers/ListTeams/ListProjects report as
+	// their total (#1149). Page/Limit are ignored.
+	CountUsers(ctx context.Context, filters AdminUserFilters) (int, error)
+	CountTeams(ctx context.Context, filters AdminTeamFilters) (int, error)
+	CountProjects(ctx context.Context, filters AdminProjectFilters) (int, error)
+	// StreamUsers, StreamTeams and StreamProjects call fn once per row of the
+	// listing's filtered set, in the listing's order, up to limit rows, without
+	// buffering the set (#1149). Page/Limit are ignored. The first fn error stops
+	// the stream and is returned unchanged.
+	StreamUsers(
+		ctx context.Context, filters AdminUserFilters, limit int, fn func(models.AdminUserListItem) error,
+	) error
+	StreamTeams(
+		ctx context.Context, filters AdminTeamFilters, limit int, fn func(models.AdminTeamListItem) error,
+	) error
+	StreamProjects(
+		ctx context.Context, filters AdminProjectFilters, limit int, fn func(models.AdminProjectListItem) error,
+	) error
 	// DeleteUserIfUnblocked hard-deletes a user, but ONLY after confirming in the
 	// same transaction that they own no shared team with other members — deleting
 	// such a user would cascade that team away and take its members' data with it.

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -451,6 +452,63 @@ func (e ListAdminProjectsParamsSortOrder) Valid() bool {
 	}
 }
 
+// Defines values for ExportAdminProjectsParamsSortBy.
+const (
+	ExportAdminProjectsParamsSortByArtifactCount         ExportAdminProjectsParamsSortBy = "artifact_count"
+	ExportAdminProjectsParamsSortByBlueprintCount        ExportAdminProjectsParamsSortBy = "blueprint_count"
+	ExportAdminProjectsParamsSortByCreatedAt             ExportAdminProjectsParamsSortBy = "created_at"
+	ExportAdminProjectsParamsSortByFeedItemCount         ExportAdminProjectsParamsSortBy = "feed_item_count"
+	ExportAdminProjectsParamsSortByLastResourceCreatedAt ExportAdminProjectsParamsSortBy = "last_resource_created_at"
+	ExportAdminProjectsParamsSortByMemoryCount           ExportAdminProjectsParamsSortBy = "memory_count"
+	ExportAdminProjectsParamsSortByName                  ExportAdminProjectsParamsSortBy = "name"
+	ExportAdminProjectsParamsSortByPromptCount           ExportAdminProjectsParamsSortBy = "prompt_count"
+	ExportAdminProjectsParamsSortByTotalResourceCount    ExportAdminProjectsParamsSortBy = "total_resource_count"
+)
+
+// Valid indicates whether the value is a known member of the ExportAdminProjectsParamsSortBy enum.
+func (e ExportAdminProjectsParamsSortBy) Valid() bool {
+	switch e {
+	case ExportAdminProjectsParamsSortByArtifactCount:
+		return true
+	case ExportAdminProjectsParamsSortByBlueprintCount:
+		return true
+	case ExportAdminProjectsParamsSortByCreatedAt:
+		return true
+	case ExportAdminProjectsParamsSortByFeedItemCount:
+		return true
+	case ExportAdminProjectsParamsSortByLastResourceCreatedAt:
+		return true
+	case ExportAdminProjectsParamsSortByMemoryCount:
+		return true
+	case ExportAdminProjectsParamsSortByName:
+		return true
+	case ExportAdminProjectsParamsSortByPromptCount:
+		return true
+	case ExportAdminProjectsParamsSortByTotalResourceCount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExportAdminProjectsParamsSortOrder.
+const (
+	ExportAdminProjectsParamsSortOrderAsc  ExportAdminProjectsParamsSortOrder = "asc"
+	ExportAdminProjectsParamsSortOrderDesc ExportAdminProjectsParamsSortOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ExportAdminProjectsParamsSortOrder enum.
+func (e ExportAdminProjectsParamsSortOrder) Valid() bool {
+	switch e {
+	case ExportAdminProjectsParamsSortOrderAsc:
+		return true
+	case ExportAdminProjectsParamsSortOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetAdminProjectResourceAccessMetricsParamsGranularity.
 const (
 	GetAdminProjectResourceAccessMetricsParamsGranularityDay   GetAdminProjectResourceAccessMetricsParamsGranularity = "day"
@@ -571,18 +629,96 @@ func (e ListAdminTeamsParamsSortOrder) Valid() bool {
 	}
 }
 
+// Defines values for ExportAdminTeamsParamsSortBy.
+const (
+	ExportAdminTeamsParamsSortByAdminCount         ExportAdminTeamsParamsSortBy = "admin_count"
+	ExportAdminTeamsParamsSortByAgentCount         ExportAdminTeamsParamsSortBy = "agent_count"
+	ExportAdminTeamsParamsSortByArtifactCount      ExportAdminTeamsParamsSortBy = "artifact_count"
+	ExportAdminTeamsParamsSortByAttachmentCount    ExportAdminTeamsParamsSortBy = "attachment_count"
+	ExportAdminTeamsParamsSortByBlueprintCount     ExportAdminTeamsParamsSortBy = "blueprint_count"
+	ExportAdminTeamsParamsSortByCommentCount       ExportAdminTeamsParamsSortBy = "comment_count"
+	ExportAdminTeamsParamsSortByCreatedAt          ExportAdminTeamsParamsSortBy = "created_at"
+	ExportAdminTeamsParamsSortByFeedCount          ExportAdminTeamsParamsSortBy = "feed_count"
+	ExportAdminTeamsParamsSortByFeedItemCount      ExportAdminTeamsParamsSortBy = "feed_item_count"
+	ExportAdminTeamsParamsSortByMemberCount        ExportAdminTeamsParamsSortBy = "member_count"
+	ExportAdminTeamsParamsSortByMemoryCount        ExportAdminTeamsParamsSortBy = "memory_count"
+	ExportAdminTeamsParamsSortByName               ExportAdminTeamsParamsSortBy = "name"
+	ExportAdminTeamsParamsSortByOwnerCount         ExportAdminTeamsParamsSortBy = "owner_count"
+	ExportAdminTeamsParamsSortByProjectCount       ExportAdminTeamsParamsSortBy = "project_count"
+	ExportAdminTeamsParamsSortByPromptCount        ExportAdminTeamsParamsSortBy = "prompt_count"
+	ExportAdminTeamsParamsSortByTotalResourceCount ExportAdminTeamsParamsSortBy = "total_resource_count"
+)
+
+// Valid indicates whether the value is a known member of the ExportAdminTeamsParamsSortBy enum.
+func (e ExportAdminTeamsParamsSortBy) Valid() bool {
+	switch e {
+	case ExportAdminTeamsParamsSortByAdminCount:
+		return true
+	case ExportAdminTeamsParamsSortByAgentCount:
+		return true
+	case ExportAdminTeamsParamsSortByArtifactCount:
+		return true
+	case ExportAdminTeamsParamsSortByAttachmentCount:
+		return true
+	case ExportAdminTeamsParamsSortByBlueprintCount:
+		return true
+	case ExportAdminTeamsParamsSortByCommentCount:
+		return true
+	case ExportAdminTeamsParamsSortByCreatedAt:
+		return true
+	case ExportAdminTeamsParamsSortByFeedCount:
+		return true
+	case ExportAdminTeamsParamsSortByFeedItemCount:
+		return true
+	case ExportAdminTeamsParamsSortByMemberCount:
+		return true
+	case ExportAdminTeamsParamsSortByMemoryCount:
+		return true
+	case ExportAdminTeamsParamsSortByName:
+		return true
+	case ExportAdminTeamsParamsSortByOwnerCount:
+		return true
+	case ExportAdminTeamsParamsSortByProjectCount:
+		return true
+	case ExportAdminTeamsParamsSortByPromptCount:
+		return true
+	case ExportAdminTeamsParamsSortByTotalResourceCount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExportAdminTeamsParamsSortOrder.
+const (
+	ExportAdminTeamsParamsSortOrderAsc  ExportAdminTeamsParamsSortOrder = "asc"
+	ExportAdminTeamsParamsSortOrderDesc ExportAdminTeamsParamsSortOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ExportAdminTeamsParamsSortOrder enum.
+func (e ExportAdminTeamsParamsSortOrder) Valid() bool {
+	switch e {
+	case ExportAdminTeamsParamsSortOrderAsc:
+		return true
+	case ExportAdminTeamsParamsSortOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListAdminUsersParamsStatus.
 const (
-	Active    ListAdminUsersParamsStatus = "active"
-	Suspended ListAdminUsersParamsStatus = "suspended"
+	ListAdminUsersParamsStatusActive    ListAdminUsersParamsStatus = "active"
+	ListAdminUsersParamsStatusSuspended ListAdminUsersParamsStatus = "suspended"
 )
 
 // Valid indicates whether the value is a known member of the ListAdminUsersParamsStatus enum.
 func (e ListAdminUsersParamsStatus) Valid() bool {
 	switch e {
-	case Active:
+	case ListAdminUsersParamsStatusActive:
 		return true
-	case Suspended:
+	case ListAdminUsersParamsStatusSuspended:
 		return true
 	default:
 		return false
@@ -591,58 +727,58 @@ func (e ListAdminUsersParamsStatus) Valid() bool {
 
 // Defines values for ListAdminUsersParamsSortBy.
 const (
-	AgentCount            ListAdminUsersParamsSortBy = "agent_count"
-	ArtifactCount         ListAdminUsersParamsSortBy = "artifact_count"
-	AttachmentCount       ListAdminUsersParamsSortBy = "attachment_count"
-	BlueprintCount        ListAdminUsersParamsSortBy = "blueprint_count"
-	CommentCount          ListAdminUsersParamsSortBy = "comment_count"
-	CreatedAt             ListAdminUsersParamsSortBy = "created_at"
-	Email                 ListAdminUsersParamsSortBy = "email"
-	FeedCount             ListAdminUsersParamsSortBy = "feed_count"
-	FeedItemCount         ListAdminUsersParamsSortBy = "feed_item_count"
-	LastResourceCreatedAt ListAdminUsersParamsSortBy = "last_resource_created_at"
-	MemoryCount           ListAdminUsersParamsSortBy = "memory_count"
-	Name                  ListAdminUsersParamsSortBy = "name"
-	ProjectCount          ListAdminUsersParamsSortBy = "project_count"
-	PromptCount           ListAdminUsersParamsSortBy = "prompt_count"
-	TeamCount             ListAdminUsersParamsSortBy = "team_count"
-	TotalResourceCount    ListAdminUsersParamsSortBy = "total_resource_count"
+	ListAdminUsersParamsSortByAgentCount            ListAdminUsersParamsSortBy = "agent_count"
+	ListAdminUsersParamsSortByArtifactCount         ListAdminUsersParamsSortBy = "artifact_count"
+	ListAdminUsersParamsSortByAttachmentCount       ListAdminUsersParamsSortBy = "attachment_count"
+	ListAdminUsersParamsSortByBlueprintCount        ListAdminUsersParamsSortBy = "blueprint_count"
+	ListAdminUsersParamsSortByCommentCount          ListAdminUsersParamsSortBy = "comment_count"
+	ListAdminUsersParamsSortByCreatedAt             ListAdminUsersParamsSortBy = "created_at"
+	ListAdminUsersParamsSortByEmail                 ListAdminUsersParamsSortBy = "email"
+	ListAdminUsersParamsSortByFeedCount             ListAdminUsersParamsSortBy = "feed_count"
+	ListAdminUsersParamsSortByFeedItemCount         ListAdminUsersParamsSortBy = "feed_item_count"
+	ListAdminUsersParamsSortByLastResourceCreatedAt ListAdminUsersParamsSortBy = "last_resource_created_at"
+	ListAdminUsersParamsSortByMemoryCount           ListAdminUsersParamsSortBy = "memory_count"
+	ListAdminUsersParamsSortByName                  ListAdminUsersParamsSortBy = "name"
+	ListAdminUsersParamsSortByProjectCount          ListAdminUsersParamsSortBy = "project_count"
+	ListAdminUsersParamsSortByPromptCount           ListAdminUsersParamsSortBy = "prompt_count"
+	ListAdminUsersParamsSortByTeamCount             ListAdminUsersParamsSortBy = "team_count"
+	ListAdminUsersParamsSortByTotalResourceCount    ListAdminUsersParamsSortBy = "total_resource_count"
 )
 
 // Valid indicates whether the value is a known member of the ListAdminUsersParamsSortBy enum.
 func (e ListAdminUsersParamsSortBy) Valid() bool {
 	switch e {
-	case AgentCount:
+	case ListAdminUsersParamsSortByAgentCount:
 		return true
-	case ArtifactCount:
+	case ListAdminUsersParamsSortByArtifactCount:
 		return true
-	case AttachmentCount:
+	case ListAdminUsersParamsSortByAttachmentCount:
 		return true
-	case BlueprintCount:
+	case ListAdminUsersParamsSortByBlueprintCount:
 		return true
-	case CommentCount:
+	case ListAdminUsersParamsSortByCommentCount:
 		return true
-	case CreatedAt:
+	case ListAdminUsersParamsSortByCreatedAt:
 		return true
-	case Email:
+	case ListAdminUsersParamsSortByEmail:
 		return true
-	case FeedCount:
+	case ListAdminUsersParamsSortByFeedCount:
 		return true
-	case FeedItemCount:
+	case ListAdminUsersParamsSortByFeedItemCount:
 		return true
-	case LastResourceCreatedAt:
+	case ListAdminUsersParamsSortByLastResourceCreatedAt:
 		return true
-	case MemoryCount:
+	case ListAdminUsersParamsSortByMemoryCount:
 		return true
-	case Name:
+	case ListAdminUsersParamsSortByName:
 		return true
-	case ProjectCount:
+	case ListAdminUsersParamsSortByProjectCount:
 		return true
-	case PromptCount:
+	case ListAdminUsersParamsSortByPromptCount:
 		return true
-	case TeamCount:
+	case ListAdminUsersParamsSortByTeamCount:
 		return true
-	case TotalResourceCount:
+	case ListAdminUsersParamsSortByTotalResourceCount:
 		return true
 	default:
 		return false
@@ -651,16 +787,112 @@ func (e ListAdminUsersParamsSortBy) Valid() bool {
 
 // Defines values for ListAdminUsersParamsSortOrder.
 const (
-	Asc  ListAdminUsersParamsSortOrder = "asc"
-	Desc ListAdminUsersParamsSortOrder = "desc"
+	ListAdminUsersParamsSortOrderAsc  ListAdminUsersParamsSortOrder = "asc"
+	ListAdminUsersParamsSortOrderDesc ListAdminUsersParamsSortOrder = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListAdminUsersParamsSortOrder enum.
 func (e ListAdminUsersParamsSortOrder) Valid() bool {
 	switch e {
-	case Asc:
+	case ListAdminUsersParamsSortOrderAsc:
 		return true
-	case Desc:
+	case ListAdminUsersParamsSortOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExportAdminUsersParamsStatus.
+const (
+	ExportAdminUsersParamsStatusActive    ExportAdminUsersParamsStatus = "active"
+	ExportAdminUsersParamsStatusSuspended ExportAdminUsersParamsStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the ExportAdminUsersParamsStatus enum.
+func (e ExportAdminUsersParamsStatus) Valid() bool {
+	switch e {
+	case ExportAdminUsersParamsStatusActive:
+		return true
+	case ExportAdminUsersParamsStatusSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExportAdminUsersParamsSortBy.
+const (
+	ExportAdminUsersParamsSortByAgentCount            ExportAdminUsersParamsSortBy = "agent_count"
+	ExportAdminUsersParamsSortByArtifactCount         ExportAdminUsersParamsSortBy = "artifact_count"
+	ExportAdminUsersParamsSortByAttachmentCount       ExportAdminUsersParamsSortBy = "attachment_count"
+	ExportAdminUsersParamsSortByBlueprintCount        ExportAdminUsersParamsSortBy = "blueprint_count"
+	ExportAdminUsersParamsSortByCommentCount          ExportAdminUsersParamsSortBy = "comment_count"
+	ExportAdminUsersParamsSortByCreatedAt             ExportAdminUsersParamsSortBy = "created_at"
+	ExportAdminUsersParamsSortByEmail                 ExportAdminUsersParamsSortBy = "email"
+	ExportAdminUsersParamsSortByFeedCount             ExportAdminUsersParamsSortBy = "feed_count"
+	ExportAdminUsersParamsSortByFeedItemCount         ExportAdminUsersParamsSortBy = "feed_item_count"
+	ExportAdminUsersParamsSortByLastResourceCreatedAt ExportAdminUsersParamsSortBy = "last_resource_created_at"
+	ExportAdminUsersParamsSortByMemoryCount           ExportAdminUsersParamsSortBy = "memory_count"
+	ExportAdminUsersParamsSortByName                  ExportAdminUsersParamsSortBy = "name"
+	ExportAdminUsersParamsSortByProjectCount          ExportAdminUsersParamsSortBy = "project_count"
+	ExportAdminUsersParamsSortByPromptCount           ExportAdminUsersParamsSortBy = "prompt_count"
+	ExportAdminUsersParamsSortByTeamCount             ExportAdminUsersParamsSortBy = "team_count"
+	ExportAdminUsersParamsSortByTotalResourceCount    ExportAdminUsersParamsSortBy = "total_resource_count"
+)
+
+// Valid indicates whether the value is a known member of the ExportAdminUsersParamsSortBy enum.
+func (e ExportAdminUsersParamsSortBy) Valid() bool {
+	switch e {
+	case ExportAdminUsersParamsSortByAgentCount:
+		return true
+	case ExportAdminUsersParamsSortByArtifactCount:
+		return true
+	case ExportAdminUsersParamsSortByAttachmentCount:
+		return true
+	case ExportAdminUsersParamsSortByBlueprintCount:
+		return true
+	case ExportAdminUsersParamsSortByCommentCount:
+		return true
+	case ExportAdminUsersParamsSortByCreatedAt:
+		return true
+	case ExportAdminUsersParamsSortByEmail:
+		return true
+	case ExportAdminUsersParamsSortByFeedCount:
+		return true
+	case ExportAdminUsersParamsSortByFeedItemCount:
+		return true
+	case ExportAdminUsersParamsSortByLastResourceCreatedAt:
+		return true
+	case ExportAdminUsersParamsSortByMemoryCount:
+		return true
+	case ExportAdminUsersParamsSortByName:
+		return true
+	case ExportAdminUsersParamsSortByProjectCount:
+		return true
+	case ExportAdminUsersParamsSortByPromptCount:
+		return true
+	case ExportAdminUsersParamsSortByTeamCount:
+		return true
+	case ExportAdminUsersParamsSortByTotalResourceCount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExportAdminUsersParamsSortOrder.
+const (
+	ExportAdminUsersParamsSortOrderAsc  ExportAdminUsersParamsSortOrder = "asc"
+	ExportAdminUsersParamsSortOrderDesc ExportAdminUsersParamsSortOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ExportAdminUsersParamsSortOrder enum.
+func (e ExportAdminUsersParamsSortOrder) Valid() bool {
+	switch e {
+	case ExportAdminUsersParamsSortOrderAsc:
+		return true
+	case ExportAdminUsersParamsSortOrderDesc:
 		return true
 	default:
 		return false
@@ -2187,6 +2419,84 @@ type ListAdminProjectsParamsSortBy string
 // ListAdminProjectsParamsSortOrder defines parameters for ListAdminProjects.
 type ListAdminProjectsParamsSortOrder string
 
+// ExportAdminProjectsParams defines parameters for ExportAdminProjects.
+type ExportAdminProjectsParams struct {
+	// Search Case-insensitive substring match over the project name and slug.
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// TeamId Narrow to projects belonging to one team.
+	TeamId *openapi_types.UUID `form:"team_id,omitempty" json:"team_id,omitempty"`
+
+	// CreatedFrom Only projects created at or after this instant (inclusive).
+	CreatedFrom *time.Time `form:"created_from,omitempty" json:"created_from,omitempty"`
+
+	// CreatedTo Only projects created at or before this instant (inclusive).
+	CreatedTo *time.Time `form:"created_to,omitempty" json:"created_to,omitempty"`
+
+	// PromptCountMin Only projects with at least this many prompts in the project (inclusive).
+	PromptCountMin *int64 `form:"prompt_count_min,omitempty" json:"prompt_count_min,omitempty"`
+
+	// PromptCountMax Only projects with at most this many prompts in the project (inclusive).
+	PromptCountMax *int64 `form:"prompt_count_max,omitempty" json:"prompt_count_max,omitempty"`
+
+	// MemoryCountMin Only projects with at least this many memories in the project (inclusive).
+	MemoryCountMin *int64 `form:"memory_count_min,omitempty" json:"memory_count_min,omitempty"`
+
+	// MemoryCountMax Only projects with at most this many memories in the project (inclusive).
+	MemoryCountMax *int64 `form:"memory_count_max,omitempty" json:"memory_count_max,omitempty"`
+
+	// ArtifactCountMin Only projects with at least this many artifacts in the project (inclusive).
+	ArtifactCountMin *int64 `form:"artifact_count_min,omitempty" json:"artifact_count_min,omitempty"`
+
+	// ArtifactCountMax Only projects with at most this many artifacts in the project (inclusive).
+	ArtifactCountMax *int64 `form:"artifact_count_max,omitempty" json:"artifact_count_max,omitempty"`
+
+	// BlueprintCountMin Only projects with at least this many blueprints in the project (inclusive).
+	BlueprintCountMin *int64 `form:"blueprint_count_min,omitempty" json:"blueprint_count_min,omitempty"`
+
+	// BlueprintCountMax Only projects with at most this many blueprints in the project (inclusive).
+	BlueprintCountMax *int64 `form:"blueprint_count_max,omitempty" json:"blueprint_count_max,omitempty"`
+
+	// FeedItemCountMin Only projects with at least this many feed items in the project (inclusive).
+	FeedItemCountMin *int64 `form:"feed_item_count_min,omitempty" json:"feed_item_count_min,omitempty"`
+
+	// FeedItemCountMax Only projects with at most this many feed items in the project (inclusive).
+	FeedItemCountMax *int64 `form:"feed_item_count_max,omitempty" json:"feed_item_count_max,omitempty"`
+
+	// TotalResourceCountMin Only projects with at least this many project-scoped resources in the project (inclusive). The total is the sum of the five project-scoped types.
+	TotalResourceCountMin *int64 `form:"total_resource_count_min,omitempty" json:"total_resource_count_min,omitempty"`
+
+	// TotalResourceCountMax Only projects with at most this many project-scoped resources in the project (inclusive). The total is the sum of the five project-scoped types.
+	TotalResourceCountMax *int64 `form:"total_resource_count_max,omitempty" json:"total_resource_count_max,omitempty"`
+
+	// OwnerEmail Case-insensitive exact match on the email of the project's creator (`projects.user_id`, the `owner` field), not the owning team's owner. For substring matching on name/slug use `search`.
+	OwnerEmail *openapi_types.Email `form:"owner_email,omitempty" json:"owner_email,omitempty"`
+
+	// LastResourceCreatedFrom Only projects whose most recent project-scoped resource (any of the five
+	// types) was created at or after this instant (inclusive). Projects with
+	// no resources never match.
+	LastResourceCreatedFrom *time.Time `form:"last_resource_created_from,omitempty" json:"last_resource_created_from,omitempty"`
+
+	// LastResourceCreatedTo Only projects whose most recent project-scoped resource (any of the five
+	// types) was created at or before this instant (inclusive). Projects with
+	// no resources never match.
+	LastResourceCreatedTo *time.Time `form:"last_resource_created_to,omitempty" json:"last_resource_created_to,omitempty"`
+
+	// SortBy Column to sort by. Ties are always broken by project id so paging is stable.
+	// Sorting by last_resource_created_at places projects with no resources
+	// last in both directions.
+	SortBy *ExportAdminProjectsParamsSortBy `form:"sort_by,omitempty" json:"sort_by,omitempty"`
+
+	// SortOrder Sort direction.
+	SortOrder *ExportAdminProjectsParamsSortOrder `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+}
+
+// ExportAdminProjectsParamsSortBy defines parameters for ExportAdminProjects.
+type ExportAdminProjectsParamsSortBy string
+
+// ExportAdminProjectsParamsSortOrder defines parameters for ExportAdminProjects.
+type ExportAdminProjectsParamsSortOrder string
+
 // GetAdminProjectResourceAccessMetricsParams defines parameters for GetAdminProjectResourceAccessMetrics.
 type GetAdminProjectResourceAccessMetricsParams struct {
 	// From Inclusive start of the range. Defaults to 30 days before `to`.
@@ -2370,6 +2680,141 @@ type ListAdminTeamsParamsSortBy string
 // ListAdminTeamsParamsSortOrder defines parameters for ListAdminTeams.
 type ListAdminTeamsParamsSortOrder string
 
+// ExportAdminTeamsParams defines parameters for ExportAdminTeams.
+type ExportAdminTeamsParams struct {
+	// Search Case-insensitive substring match over the team name, team slug, and the owner's email.
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// IsPersonal Narrow to personal workspaces (true) or shared team workspaces (false).
+	IsPersonal *bool `form:"is_personal,omitempty" json:"is_personal,omitempty"`
+
+	// CreatedFrom Only teams created at or after this instant (inclusive).
+	CreatedFrom *time.Time `form:"created_from,omitempty" json:"created_from,omitempty"`
+
+	// CreatedTo Only teams created at or before this instant (inclusive).
+	CreatedTo *time.Time `form:"created_to,omitempty" json:"created_to,omitempty"`
+
+	// MemberCountMin Only teams with at least this many members (inclusive).
+	MemberCountMin *int64 `form:"member_count_min,omitempty" json:"member_count_min,omitempty"`
+
+	// MemberCountMax Only teams with at most this many members (inclusive).
+	MemberCountMax *int64 `form:"member_count_max,omitempty" json:"member_count_max,omitempty"`
+
+	// OwnerCountMin Only teams with at least this many members holding the owner role (always 1 by application invariant; any other value is integrity drift) (inclusive).
+	OwnerCountMin *int64 `form:"owner_count_min,omitempty" json:"owner_count_min,omitempty"`
+
+	// OwnerCountMax Only teams with at most this many members holding the owner role (always 1 by application invariant; any other value is integrity drift) (inclusive).
+	OwnerCountMax *int64 `form:"owner_count_max,omitempty" json:"owner_count_max,omitempty"`
+
+	// AdminCountMin Only teams with at least this many members holding the admin role (inclusive).
+	AdminCountMin *int64 `form:"admin_count_min,omitempty" json:"admin_count_min,omitempty"`
+
+	// AdminCountMax Only teams with at most this many members holding the admin role (inclusive).
+	AdminCountMax *int64 `form:"admin_count_max,omitempty" json:"admin_count_max,omitempty"`
+
+	// ProjectCountMin Only teams with at least this many projects in the team (inclusive).
+	ProjectCountMin *int64 `form:"project_count_min,omitempty" json:"project_count_min,omitempty"`
+
+	// ProjectCountMax Only teams with at most this many projects in the team (inclusive).
+	ProjectCountMax *int64 `form:"project_count_max,omitempty" json:"project_count_max,omitempty"`
+
+	// PromptCountMin Only teams with at least this many prompts in the team (inclusive).
+	PromptCountMin *int64 `form:"prompt_count_min,omitempty" json:"prompt_count_min,omitempty"`
+
+	// PromptCountMax Only teams with at most this many prompts in the team (inclusive).
+	PromptCountMax *int64 `form:"prompt_count_max,omitempty" json:"prompt_count_max,omitempty"`
+
+	// MemoryCountMin Only teams with at least this many memories in the team (inclusive).
+	MemoryCountMin *int64 `form:"memory_count_min,omitempty" json:"memory_count_min,omitempty"`
+
+	// MemoryCountMax Only teams with at most this many memories in the team (inclusive).
+	MemoryCountMax *int64 `form:"memory_count_max,omitempty" json:"memory_count_max,omitempty"`
+
+	// ArtifactCountMin Only teams with at least this many artifacts in the team (inclusive).
+	ArtifactCountMin *int64 `form:"artifact_count_min,omitempty" json:"artifact_count_min,omitempty"`
+
+	// ArtifactCountMax Only teams with at most this many artifacts in the team (inclusive).
+	ArtifactCountMax *int64 `form:"artifact_count_max,omitempty" json:"artifact_count_max,omitempty"`
+
+	// BlueprintCountMin Only teams with at least this many blueprints in the team (inclusive).
+	BlueprintCountMin *int64 `form:"blueprint_count_min,omitempty" json:"blueprint_count_min,omitempty"`
+
+	// BlueprintCountMax Only teams with at most this many blueprints in the team (inclusive).
+	BlueprintCountMax *int64 `form:"blueprint_count_max,omitempty" json:"blueprint_count_max,omitempty"`
+
+	// AgentCountMin Only teams with at least this many agents in the team (inclusive).
+	AgentCountMin *int64 `form:"agent_count_min,omitempty" json:"agent_count_min,omitempty"`
+
+	// AgentCountMax Only teams with at most this many agents in the team (inclusive).
+	AgentCountMax *int64 `form:"agent_count_max,omitempty" json:"agent_count_max,omitempty"`
+
+	// FeedCountMin Only teams with at least this many feeds in the team (inclusive).
+	FeedCountMin *int64 `form:"feed_count_min,omitempty" json:"feed_count_min,omitempty"`
+
+	// FeedCountMax Only teams with at most this many feeds in the team (inclusive).
+	FeedCountMax *int64 `form:"feed_count_max,omitempty" json:"feed_count_max,omitempty"`
+
+	// FeedItemCountMin Only teams with at least this many feed items in the team (inclusive).
+	FeedItemCountMin *int64 `form:"feed_item_count_min,omitempty" json:"feed_item_count_min,omitempty"`
+
+	// FeedItemCountMax Only teams with at most this many feed items in the team (inclusive).
+	FeedItemCountMax *int64 `form:"feed_item_count_max,omitempty" json:"feed_item_count_max,omitempty"`
+
+	// CommentCountMin Only teams with at least this many comments in the team (inclusive).
+	CommentCountMin *int64 `form:"comment_count_min,omitempty" json:"comment_count_min,omitempty"`
+
+	// CommentCountMax Only teams with at most this many comments in the team (inclusive).
+	CommentCountMax *int64 `form:"comment_count_max,omitempty" json:"comment_count_max,omitempty"`
+
+	// AttachmentCountMin Only teams with at least this many attachments in the team (inclusive).
+	AttachmentCountMin *int64 `form:"attachment_count_min,omitempty" json:"attachment_count_min,omitempty"`
+
+	// AttachmentCountMax Only teams with at most this many attachments in the team (inclusive).
+	AttachmentCountMax *int64 `form:"attachment_count_max,omitempty" json:"attachment_count_max,omitempty"`
+
+	// TotalResourceCountMin Only teams with at least this many resources in the team across all nine types (the sum of resource_counts) (inclusive).
+	TotalResourceCountMin *int64 `form:"total_resource_count_min,omitempty" json:"total_resource_count_min,omitempty"`
+
+	// TotalResourceCountMax Only teams with at most this many resources in the team across all nine types (the sum of resource_counts) (inclusive).
+	TotalResourceCountMax *int64 `form:"total_resource_count_max,omitempty" json:"total_resource_count_max,omitempty"`
+
+	// OwnerEmail Case-insensitive exact match on the team owner's email (the user referenced by the team's owner). For substring matching use `search`.
+	OwnerEmail *openapi_types.Email `form:"owner_email,omitempty" json:"owner_email,omitempty"`
+
+	// EmbeddingConfigured true = the team has at least one embedding provider of its own; false = it does not; omit = any. Instance-level fallback configuration never counts.
+	EmbeddingConfigured *bool `form:"embedding_configured,omitempty" json:"embedding_configured,omitempty"`
+
+	// LlmConfigured true = the team has at least one LLM model provider of its own; false = it does not; omit = any. Instance-level fallback configuration never counts.
+	LlmConfigured *bool `form:"llm_configured,omitempty" json:"llm_configured,omitempty"`
+
+	// AiSummaryEnabled true = the team has its own AI summary settings with summaries enabled; false = it does not; omit = any. Instance-level fallback configuration never counts.
+	AiSummaryEnabled *bool `form:"ai_summary_enabled,omitempty" json:"ai_summary_enabled,omitempty"`
+
+	// EmailConfigured true = the team has its own email provider (regardless of its delivery health); false = it does not; omit = any. Instance-level fallback configuration never counts.
+	EmailConfigured *bool `form:"email_configured,omitempty" json:"email_configured,omitempty"`
+
+	// GithubConfigured true = the team has its own GitHub App configuration or at least one GitHub App installation (suspended installations included); false = it does not; omit = any. Instance-level fallback configuration never counts.
+	GithubConfigured *bool `form:"github_configured,omitempty" json:"github_configured,omitempty"`
+
+	// SearchSettingsCustomized true = the team has its own search settings; false = it does not; omit = any. Instance-level fallback configuration never counts.
+	SearchSettingsCustomized *bool `form:"search_settings_customized,omitempty" json:"search_settings_customized,omitempty"`
+
+	// FreshnessEnabled true = the team has at least one enabled freshness rule; false = it does not; omit = any. Instance-level fallback configuration never counts.
+	FreshnessEnabled *bool `form:"freshness_enabled,omitempty" json:"freshness_enabled,omitempty"`
+
+	// SortBy Column to sort by. Ties are always broken by team id so paging is stable.
+	SortBy *ExportAdminTeamsParamsSortBy `form:"sort_by,omitempty" json:"sort_by,omitempty"`
+
+	// SortOrder Sort direction.
+	SortOrder *ExportAdminTeamsParamsSortOrder `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+}
+
+// ExportAdminTeamsParamsSortBy defines parameters for ExportAdminTeams.
+type ExportAdminTeamsParamsSortBy string
+
+// ExportAdminTeamsParamsSortOrder defines parameters for ExportAdminTeams.
+type ExportAdminTeamsParamsSortOrder string
+
 // ListAdminTeamSettingsAuditParams defines parameters for ListAdminTeamSettingsAudit.
 type ListAdminTeamSettingsAuditParams struct {
 	// Page Page number (1-based).
@@ -2500,6 +2945,121 @@ type ListAdminUsersParamsSortBy string
 // ListAdminUsersParamsSortOrder defines parameters for ListAdminUsers.
 type ListAdminUsersParamsSortOrder string
 
+// ExportAdminUsersParams defines parameters for ExportAdminUsers.
+type ExportAdminUsersParams struct {
+	// Search Case-insensitive substring match over the user's email and name.
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// IdpProvider Exact match on the user's identity-provider name (e.g. "google", "oidc").
+	IdpProvider *string `form:"idp_provider,omitempty" json:"idp_provider,omitempty"`
+
+	// CreatedFrom Only users created at or after this instant (inclusive).
+	CreatedFrom *time.Time `form:"created_from,omitempty" json:"created_from,omitempty"`
+
+	// CreatedTo Only users created at or before this instant (inclusive).
+	CreatedTo *time.Time `form:"created_to,omitempty" json:"created_to,omitempty"`
+
+	// Status Narrow to accounts in this lifecycle state.
+	Status *ExportAdminUsersParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// TeamCountMin Only users with at least this many teams the user belongs to (inclusive).
+	TeamCountMin *int64 `form:"team_count_min,omitempty" json:"team_count_min,omitempty"`
+
+	// TeamCountMax Only users with at most this many teams the user belongs to (inclusive).
+	TeamCountMax *int64 `form:"team_count_max,omitempty" json:"team_count_max,omitempty"`
+
+	// ProjectCountMin Only users with at least this many projects the user created (inclusive).
+	ProjectCountMin *int64 `form:"project_count_min,omitempty" json:"project_count_min,omitempty"`
+
+	// ProjectCountMax Only users with at most this many projects the user created (inclusive).
+	ProjectCountMax *int64 `form:"project_count_max,omitempty" json:"project_count_max,omitempty"`
+
+	// PromptCountMin Only users with at least this many prompts the user authored (inclusive).
+	PromptCountMin *int64 `form:"prompt_count_min,omitempty" json:"prompt_count_min,omitempty"`
+
+	// PromptCountMax Only users with at most this many prompts the user authored (inclusive).
+	PromptCountMax *int64 `form:"prompt_count_max,omitempty" json:"prompt_count_max,omitempty"`
+
+	// MemoryCountMin Only users with at least this many memories the user authored (inclusive).
+	MemoryCountMin *int64 `form:"memory_count_min,omitempty" json:"memory_count_min,omitempty"`
+
+	// MemoryCountMax Only users with at most this many memories the user authored (inclusive).
+	MemoryCountMax *int64 `form:"memory_count_max,omitempty" json:"memory_count_max,omitempty"`
+
+	// ArtifactCountMin Only users with at least this many artifacts the user authored (inclusive).
+	ArtifactCountMin *int64 `form:"artifact_count_min,omitempty" json:"artifact_count_min,omitempty"`
+
+	// ArtifactCountMax Only users with at most this many artifacts the user authored (inclusive).
+	ArtifactCountMax *int64 `form:"artifact_count_max,omitempty" json:"artifact_count_max,omitempty"`
+
+	// BlueprintCountMin Only users with at least this many blueprints the user authored (inclusive).
+	BlueprintCountMin *int64 `form:"blueprint_count_min,omitempty" json:"blueprint_count_min,omitempty"`
+
+	// BlueprintCountMax Only users with at most this many blueprints the user authored (inclusive).
+	BlueprintCountMax *int64 `form:"blueprint_count_max,omitempty" json:"blueprint_count_max,omitempty"`
+
+	// AgentCountMin Only users with at least this many agents the user created (inclusive).
+	AgentCountMin *int64 `form:"agent_count_min,omitempty" json:"agent_count_min,omitempty"`
+
+	// AgentCountMax Only users with at most this many agents the user created (inclusive).
+	AgentCountMax *int64 `form:"agent_count_max,omitempty" json:"agent_count_max,omitempty"`
+
+	// FeedCountMin Only users with at least this many feeds the user created (inclusive).
+	FeedCountMin *int64 `form:"feed_count_min,omitempty" json:"feed_count_min,omitempty"`
+
+	// FeedCountMax Only users with at most this many feeds the user created (inclusive).
+	FeedCountMax *int64 `form:"feed_count_max,omitempty" json:"feed_count_max,omitempty"`
+
+	// FeedItemCountMin Only users with at least this many feed items the user posted (inclusive).
+	FeedItemCountMin *int64 `form:"feed_item_count_min,omitempty" json:"feed_item_count_min,omitempty"`
+
+	// FeedItemCountMax Only users with at most this many feed items the user posted (inclusive).
+	FeedItemCountMax *int64 `form:"feed_item_count_max,omitempty" json:"feed_item_count_max,omitempty"`
+
+	// CommentCountMin Only users with at least this many comments the user wrote (inclusive).
+	CommentCountMin *int64 `form:"comment_count_min,omitempty" json:"comment_count_min,omitempty"`
+
+	// CommentCountMax Only users with at most this many comments the user wrote (inclusive).
+	CommentCountMax *int64 `form:"comment_count_max,omitempty" json:"comment_count_max,omitempty"`
+
+	// AttachmentCountMin Only users with at least this many attachments the user uploaded (inclusive).
+	AttachmentCountMin *int64 `form:"attachment_count_min,omitempty" json:"attachment_count_min,omitempty"`
+
+	// AttachmentCountMax Only users with at most this many attachments the user uploaded (inclusive).
+	AttachmentCountMax *int64 `form:"attachment_count_max,omitempty" json:"attachment_count_max,omitempty"`
+
+	// TotalResourceCountMin Only users with at least this many resources the user authored across all nine types (the sum of resource_counts) (inclusive).
+	TotalResourceCountMin *int64 `form:"total_resource_count_min,omitempty" json:"total_resource_count_min,omitempty"`
+
+	// TotalResourceCountMax Only users with at most this many resources the user authored across all nine types (the sum of resource_counts) (inclusive).
+	TotalResourceCountMax *int64 `form:"total_resource_count_max,omitempty" json:"total_resource_count_max,omitempty"`
+
+	// LastResourceCreatedFrom Only users whose most recent resource (any of the nine types) was created
+	// at or after this instant (inclusive). Users with no resources never match.
+	LastResourceCreatedFrom *time.Time `form:"last_resource_created_from,omitempty" json:"last_resource_created_from,omitempty"`
+
+	// LastResourceCreatedTo Only users whose most recent resource (any of the nine types) was created
+	// at or before this instant (inclusive). Users with no resources never match.
+	LastResourceCreatedTo *time.Time `form:"last_resource_created_to,omitempty" json:"last_resource_created_to,omitempty"`
+
+	// SortBy Column to sort by. Ties are always broken by user id so paging is stable.
+	// Sorting by last_resource_created_at places users with no resources last
+	// in both directions.
+	SortBy *ExportAdminUsersParamsSortBy `form:"sort_by,omitempty" json:"sort_by,omitempty"`
+
+	// SortOrder Sort direction.
+	SortOrder *ExportAdminUsersParamsSortOrder `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+}
+
+// ExportAdminUsersParamsStatus defines parameters for ExportAdminUsers.
+type ExportAdminUsersParamsStatus string
+
+// ExportAdminUsersParamsSortBy defines parameters for ExportAdminUsers.
+type ExportAdminUsersParamsSortBy string
+
+// ExportAdminUsersParamsSortOrder defines parameters for ExportAdminUsers.
+type ExportAdminUsersParamsSortOrder string
+
 // GetAdminUserResourceAccessMetricsParams defines parameters for GetAdminUserResourceAccessMetrics.
 type GetAdminUserResourceAccessMetricsParams struct {
 	// From Inclusive start of the range. Defaults to 30 days before `to`.
@@ -2571,6 +3131,9 @@ type ServerInterface interface {
 	// List instance projects
 	// (GET /api/v1/admin/projects)
 	ListAdminProjects(w http.ResponseWriter, r *http.Request, params ListAdminProjectsParams)
+	// Export instance projects as CSV
+	// (GET /api/v1/admin/projects/export)
+	ExportAdminProjects(w http.ResponseWriter, r *http.Request, params ExportAdminProjectsParams)
 	// Get an instance project
 	// (GET /api/v1/admin/projects/{id})
 	GetAdminProject(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -2598,6 +3161,9 @@ type ServerInterface interface {
 	// List instance teams
 	// (GET /api/v1/admin/teams)
 	ListAdminTeams(w http.ResponseWriter, r *http.Request, params ListAdminTeamsParams)
+	// Export instance teams as CSV
+	// (GET /api/v1/admin/teams/export)
+	ExportAdminTeams(w http.ResponseWriter, r *http.Request, params ExportAdminTeamsParams)
 	// Get an instance team
 	// (GET /api/v1/admin/teams/{id})
 	GetAdminTeam(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -2634,6 +3200,9 @@ type ServerInterface interface {
 	// Create an instance user
 	// (POST /api/v1/admin/users)
 	CreateAdminUser(w http.ResponseWriter, r *http.Request)
+	// Export instance users as CSV
+	// (GET /api/v1/admin/users/export)
+	ExportAdminUsers(w http.ResponseWriter, r *http.Request, params ExportAdminUsersParams)
 	// Delete an instance user
 	// (DELETE /api/v1/admin/users/{id})
 	DeleteAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -2691,6 +3260,12 @@ func (_ Unimplemented) ListAdminProjects(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Export instance projects as CSV
+// (GET /api/v1/admin/projects/export)
+func (_ Unimplemented) ExportAdminProjects(w http.ResponseWriter, r *http.Request, params ExportAdminProjectsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Get an instance project
 // (GET /api/v1/admin/projects/{id})
 func (_ Unimplemented) GetAdminProject(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
@@ -2742,6 +3317,12 @@ func (_ Unimplemented) GetAdminStats(w http.ResponseWriter, r *http.Request) {
 // List instance teams
 // (GET /api/v1/admin/teams)
 func (_ Unimplemented) ListAdminTeams(w http.ResponseWriter, r *http.Request, params ListAdminTeamsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Export instance teams as CSV
+// (GET /api/v1/admin/teams/export)
+func (_ Unimplemented) ExportAdminTeams(w http.ResponseWriter, r *http.Request, params ExportAdminTeamsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2814,6 +3395,12 @@ func (_ Unimplemented) ListAdminUsers(w http.ResponseWriter, r *http.Request, pa
 // Create an instance user
 // (POST /api/v1/admin/users)
 func (_ Unimplemented) CreateAdminUser(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Export instance users as CSV
+// (GET /api/v1/admin/users/export)
+func (_ Unimplemented) ExportAdminUsers(w http.ResponseWriter, r *http.Request, params ExportAdminUsersParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3299,6 +3886,307 @@ func (siw *ServerInterfaceWrapper) ListAdminProjects(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListAdminProjects(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExportAdminProjects operation middleware
+func (siw *ServerInterfaceWrapper) ExportAdminProjects(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportAdminProjectsParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "team_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "team_id", r.URL.Query(), &params.TeamId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "team_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "created_from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "created_from", r.URL.Query(), &params.CreatedFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "created_to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "created_to", r.URL.Query(), &params.CreatedTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "prompt_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "prompt_count_min", r.URL.Query(), &params.PromptCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "prompt_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "prompt_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "prompt_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "prompt_count_max", r.URL.Query(), &params.PromptCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "prompt_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "prompt_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "memory_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "memory_count_min", r.URL.Query(), &params.MemoryCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "memory_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memory_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "memory_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "memory_count_max", r.URL.Query(), &params.MemoryCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "memory_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memory_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "artifact_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "artifact_count_min", r.URL.Query(), &params.ArtifactCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "artifact_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "artifact_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "artifact_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "artifact_count_max", r.URL.Query(), &params.ArtifactCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "artifact_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "artifact_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "blueprint_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "blueprint_count_min", r.URL.Query(), &params.BlueprintCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "blueprint_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "blueprint_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "blueprint_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "blueprint_count_max", r.URL.Query(), &params.BlueprintCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "blueprint_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "blueprint_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "feed_item_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "feed_item_count_min", r.URL.Query(), &params.FeedItemCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "feed_item_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "feed_item_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "feed_item_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "feed_item_count_max", r.URL.Query(), &params.FeedItemCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "feed_item_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "feed_item_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "total_resource_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "total_resource_count_min", r.URL.Query(), &params.TotalResourceCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "total_resource_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "total_resource_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "total_resource_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "total_resource_count_max", r.URL.Query(), &params.TotalResourceCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "total_resource_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "total_resource_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "owner_email" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "owner_email", r.URL.Query(), &params.OwnerEmail, runtime.BindQueryParameterOptions{Type: "string", Format: "email"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "owner_email"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "owner_email", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "last_resource_created_from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "last_resource_created_from", r.URL.Query(), &params.LastResourceCreatedFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "last_resource_created_from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "last_resource_created_from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "last_resource_created_to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "last_resource_created_to", r.URL.Query(), &params.LastResourceCreatedTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "last_resource_created_to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "last_resource_created_to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort_by" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_by", r.URL.Query(), &params.SortBy, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort_by"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort_by", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort_order" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_order", r.URL.Query(), &params.SortOrder, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort_order"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort_order", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportAdminProjects(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4294,6 +5182,580 @@ func (siw *ServerInterfaceWrapper) ListAdminTeams(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// ExportAdminTeams operation middleware
+func (siw *ServerInterfaceWrapper) ExportAdminTeams(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportAdminTeamsParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "is_personal" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "is_personal", r.URL.Query(), &params.IsPersonal, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "is_personal"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "is_personal", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "created_from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "created_from", r.URL.Query(), &params.CreatedFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "created_to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "created_to", r.URL.Query(), &params.CreatedTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "member_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "member_count_min", r.URL.Query(), &params.MemberCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "member_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "member_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "member_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "member_count_max", r.URL.Query(), &params.MemberCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "member_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "member_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "owner_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "owner_count_min", r.URL.Query(), &params.OwnerCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "owner_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "owner_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "owner_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "owner_count_max", r.URL.Query(), &params.OwnerCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "owner_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "owner_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "admin_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "admin_count_min", r.URL.Query(), &params.AdminCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "admin_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "admin_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "admin_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "admin_count_max", r.URL.Query(), &params.AdminCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "admin_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "admin_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "project_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "project_count_min", r.URL.Query(), &params.ProjectCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "project_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "project_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "project_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "project_count_max", r.URL.Query(), &params.ProjectCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "project_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "project_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "prompt_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "prompt_count_min", r.URL.Query(), &params.PromptCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "prompt_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "prompt_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "prompt_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "prompt_count_max", r.URL.Query(), &params.PromptCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "prompt_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "prompt_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "memory_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "memory_count_min", r.URL.Query(), &params.MemoryCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "memory_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memory_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "memory_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "memory_count_max", r.URL.Query(), &params.MemoryCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "memory_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memory_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "artifact_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "artifact_count_min", r.URL.Query(), &params.ArtifactCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "artifact_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "artifact_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "artifact_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "artifact_count_max", r.URL.Query(), &params.ArtifactCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "artifact_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "artifact_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "blueprint_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "blueprint_count_min", r.URL.Query(), &params.BlueprintCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "blueprint_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "blueprint_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "blueprint_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "blueprint_count_max", r.URL.Query(), &params.BlueprintCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "blueprint_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "blueprint_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "agent_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "agent_count_min", r.URL.Query(), &params.AgentCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "agent_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "agent_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "agent_count_max", r.URL.Query(), &params.AgentCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "agent_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "feed_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "feed_count_min", r.URL.Query(), &params.FeedCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "feed_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "feed_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "feed_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "feed_count_max", r.URL.Query(), &params.FeedCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "feed_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "feed_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "feed_item_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "feed_item_count_min", r.URL.Query(), &params.FeedItemCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "feed_item_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "feed_item_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "feed_item_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "feed_item_count_max", r.URL.Query(), &params.FeedItemCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "feed_item_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "feed_item_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "comment_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "comment_count_min", r.URL.Query(), &params.CommentCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "comment_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "comment_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "comment_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "comment_count_max", r.URL.Query(), &params.CommentCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "comment_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "comment_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "attachment_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "attachment_count_min", r.URL.Query(), &params.AttachmentCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "attachment_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "attachment_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "attachment_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "attachment_count_max", r.URL.Query(), &params.AttachmentCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "attachment_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "attachment_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "total_resource_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "total_resource_count_min", r.URL.Query(), &params.TotalResourceCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "total_resource_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "total_resource_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "total_resource_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "total_resource_count_max", r.URL.Query(), &params.TotalResourceCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "total_resource_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "total_resource_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "owner_email" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "owner_email", r.URL.Query(), &params.OwnerEmail, runtime.BindQueryParameterOptions{Type: "string", Format: "email"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "owner_email"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "owner_email", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "embedding_configured" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "embedding_configured", r.URL.Query(), &params.EmbeddingConfigured, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "embedding_configured"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "embedding_configured", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "llm_configured" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "llm_configured", r.URL.Query(), &params.LlmConfigured, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "llm_configured"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "llm_configured", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "ai_summary_enabled" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "ai_summary_enabled", r.URL.Query(), &params.AiSummaryEnabled, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "ai_summary_enabled"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ai_summary_enabled", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "email_configured" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "email_configured", r.URL.Query(), &params.EmailConfigured, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "email_configured"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "email_configured", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "github_configured" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "github_configured", r.URL.Query(), &params.GithubConfigured, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "github_configured"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "github_configured", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "search_settings_customized" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search_settings_customized", r.URL.Query(), &params.SearchSettingsCustomized, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search_settings_customized"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search_settings_customized", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "freshness_enabled" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "freshness_enabled", r.URL.Query(), &params.FreshnessEnabled, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "freshness_enabled"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "freshness_enabled", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort_by" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_by", r.URL.Query(), &params.SortBy, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort_by"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort_by", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort_order" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_order", r.URL.Query(), &params.SortOrder, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort_order"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort_order", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportAdminTeams(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetAdminTeam operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminTeam(w http.ResponseWriter, r *http.Request) {
 
@@ -5168,6 +6630,463 @@ func (siw *ServerInterfaceWrapper) CreateAdminUser(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// ExportAdminUsers operation middleware
+func (siw *ServerInterfaceWrapper) ExportAdminUsers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportAdminUsersParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "idp_provider" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "idp_provider", r.URL.Query(), &params.IdpProvider, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "idp_provider"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "idp_provider", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "created_from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "created_from", r.URL.Query(), &params.CreatedFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "created_to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "created_to", r.URL.Query(), &params.CreatedTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "team_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "team_count_min", r.URL.Query(), &params.TeamCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "team_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "team_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "team_count_max", r.URL.Query(), &params.TeamCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "team_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "project_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "project_count_min", r.URL.Query(), &params.ProjectCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "project_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "project_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "project_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "project_count_max", r.URL.Query(), &params.ProjectCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "project_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "project_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "prompt_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "prompt_count_min", r.URL.Query(), &params.PromptCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "prompt_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "prompt_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "prompt_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "prompt_count_max", r.URL.Query(), &params.PromptCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "prompt_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "prompt_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "memory_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "memory_count_min", r.URL.Query(), &params.MemoryCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "memory_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memory_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "memory_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "memory_count_max", r.URL.Query(), &params.MemoryCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "memory_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memory_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "artifact_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "artifact_count_min", r.URL.Query(), &params.ArtifactCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "artifact_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "artifact_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "artifact_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "artifact_count_max", r.URL.Query(), &params.ArtifactCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "artifact_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "artifact_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "blueprint_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "blueprint_count_min", r.URL.Query(), &params.BlueprintCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "blueprint_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "blueprint_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "blueprint_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "blueprint_count_max", r.URL.Query(), &params.BlueprintCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "blueprint_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "blueprint_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "agent_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "agent_count_min", r.URL.Query(), &params.AgentCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "agent_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "agent_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "agent_count_max", r.URL.Query(), &params.AgentCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "agent_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "agent_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "feed_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "feed_count_min", r.URL.Query(), &params.FeedCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "feed_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "feed_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "feed_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "feed_count_max", r.URL.Query(), &params.FeedCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "feed_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "feed_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "feed_item_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "feed_item_count_min", r.URL.Query(), &params.FeedItemCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "feed_item_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "feed_item_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "feed_item_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "feed_item_count_max", r.URL.Query(), &params.FeedItemCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "feed_item_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "feed_item_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "comment_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "comment_count_min", r.URL.Query(), &params.CommentCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "comment_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "comment_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "comment_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "comment_count_max", r.URL.Query(), &params.CommentCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "comment_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "comment_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "attachment_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "attachment_count_min", r.URL.Query(), &params.AttachmentCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "attachment_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "attachment_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "attachment_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "attachment_count_max", r.URL.Query(), &params.AttachmentCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "attachment_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "attachment_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "total_resource_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "total_resource_count_min", r.URL.Query(), &params.TotalResourceCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "total_resource_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "total_resource_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "total_resource_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "total_resource_count_max", r.URL.Query(), &params.TotalResourceCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "total_resource_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "total_resource_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "last_resource_created_from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "last_resource_created_from", r.URL.Query(), &params.LastResourceCreatedFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "last_resource_created_from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "last_resource_created_from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "last_resource_created_to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "last_resource_created_to", r.URL.Query(), &params.LastResourceCreatedTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "last_resource_created_to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "last_resource_created_to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort_by" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_by", r.URL.Query(), &params.SortBy, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort_by"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort_by", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort_order" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_order", r.URL.Query(), &params.SortOrder, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort_order"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort_order", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportAdminUsers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteAdminUser operation middleware
 func (siw *ServerInterfaceWrapper) DeleteAdminUser(w http.ResponseWriter, r *http.Request) {
 
@@ -5820,6 +7739,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/admin/projects", wrapper.ListAdminProjects)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/projects/export", wrapper.ExportAdminProjects)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/projects/{id}", wrapper.GetAdminProject)
 	})
 	r.Group(func(r chi.Router) {
@@ -5845,6 +7767,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/teams", wrapper.ListAdminTeams)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/teams/export", wrapper.ExportAdminTeams)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/teams/{id}", wrapper.GetAdminTeam)
@@ -5881,6 +7806,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/admin/users", wrapper.CreateAdminUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/users/export", wrapper.ExportAdminUsers)
 	})
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/admin/users/{id}", wrapper.DeleteAdminUser)
@@ -6085,6 +8013,86 @@ func (response ListAdminProjects404ApplicationProblemPlusJSONResponse) VisitList
 type ListAdminProjects500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response ListAdminProjects500ApplicationProblemPlusJSONResponse) VisitListAdminProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportAdminProjectsRequestObject struct {
+	Params ExportAdminProjectsParams
+}
+
+type ExportAdminProjectsResponseObject interface {
+	VisitExportAdminProjectsResponse(w http.ResponseWriter) error
+}
+
+type ExportAdminProjects200ResponseHeaders struct {
+	ContentDisposition string
+	XExportTotalCount  int64
+	XExportTruncated   bool
+}
+
+type ExportAdminProjects200TextcsvResponse struct {
+	Body          io.Reader
+	Headers       ExportAdminProjects200ResponseHeaders
+	ContentLength int64
+}
+
+func (response ExportAdminProjects200TextcsvResponse) VisitExportAdminProjectsResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/csv")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprint(response.Headers.ContentDisposition))
+	w.Header().Set("X-Export-Total-Count", fmt.Sprint(response.Headers.XExportTotalCount))
+	w.Header().Set("X-Export-Truncated", fmt.Sprint(response.Headers.XExportTruncated))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ExportAdminProjects400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ExportAdminProjects400ApplicationProblemPlusJSONResponse) VisitExportAdminProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportAdminProjects404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ExportAdminProjects404ApplicationProblemPlusJSONResponse) VisitExportAdminProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportAdminProjects500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ExportAdminProjects500ApplicationProblemPlusJSONResponse) VisitExportAdminProjectsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6664,6 +8672,86 @@ func (response ListAdminTeams404ApplicationProblemPlusJSONResponse) VisitListAdm
 type ListAdminTeams500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response ListAdminTeams500ApplicationProblemPlusJSONResponse) VisitListAdminTeamsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportAdminTeamsRequestObject struct {
+	Params ExportAdminTeamsParams
+}
+
+type ExportAdminTeamsResponseObject interface {
+	VisitExportAdminTeamsResponse(w http.ResponseWriter) error
+}
+
+type ExportAdminTeams200ResponseHeaders struct {
+	ContentDisposition string
+	XExportTotalCount  int64
+	XExportTruncated   bool
+}
+
+type ExportAdminTeams200TextcsvResponse struct {
+	Body          io.Reader
+	Headers       ExportAdminTeams200ResponseHeaders
+	ContentLength int64
+}
+
+func (response ExportAdminTeams200TextcsvResponse) VisitExportAdminTeamsResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/csv")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprint(response.Headers.ContentDisposition))
+	w.Header().Set("X-Export-Total-Count", fmt.Sprint(response.Headers.XExportTotalCount))
+	w.Header().Set("X-Export-Truncated", fmt.Sprint(response.Headers.XExportTruncated))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ExportAdminTeams400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ExportAdminTeams400ApplicationProblemPlusJSONResponse) VisitExportAdminTeamsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportAdminTeams404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ExportAdminTeams404ApplicationProblemPlusJSONResponse) VisitExportAdminTeamsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportAdminTeams500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ExportAdminTeams500ApplicationProblemPlusJSONResponse) VisitExportAdminTeamsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -7444,6 +9532,86 @@ func (response CreateAdminUser500ApplicationProblemPlusJSONResponse) VisitCreate
 	return err
 }
 
+type ExportAdminUsersRequestObject struct {
+	Params ExportAdminUsersParams
+}
+
+type ExportAdminUsersResponseObject interface {
+	VisitExportAdminUsersResponse(w http.ResponseWriter) error
+}
+
+type ExportAdminUsers200ResponseHeaders struct {
+	ContentDisposition string
+	XExportTotalCount  int64
+	XExportTruncated   bool
+}
+
+type ExportAdminUsers200TextcsvResponse struct {
+	Body          io.Reader
+	Headers       ExportAdminUsers200ResponseHeaders
+	ContentLength int64
+}
+
+func (response ExportAdminUsers200TextcsvResponse) VisitExportAdminUsersResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/csv")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprint(response.Headers.ContentDisposition))
+	w.Header().Set("X-Export-Total-Count", fmt.Sprint(response.Headers.XExportTotalCount))
+	w.Header().Set("X-Export-Truncated", fmt.Sprint(response.Headers.XExportTruncated))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ExportAdminUsers400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ExportAdminUsers400ApplicationProblemPlusJSONResponse) VisitExportAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportAdminUsers404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ExportAdminUsers404ApplicationProblemPlusJSONResponse) VisitExportAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportAdminUsers500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ExportAdminUsers500ApplicationProblemPlusJSONResponse) VisitExportAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteAdminUserRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -8172,6 +10340,9 @@ type StrictServerInterface interface {
 	// List instance projects
 	// (GET /api/v1/admin/projects)
 	ListAdminProjects(ctx context.Context, request ListAdminProjectsRequestObject) (ListAdminProjectsResponseObject, error)
+	// Export instance projects as CSV
+	// (GET /api/v1/admin/projects/export)
+	ExportAdminProjects(ctx context.Context, request ExportAdminProjectsRequestObject) (ExportAdminProjectsResponseObject, error)
 	// Get an instance project
 	// (GET /api/v1/admin/projects/{id})
 	GetAdminProject(ctx context.Context, request GetAdminProjectRequestObject) (GetAdminProjectResponseObject, error)
@@ -8199,6 +10370,9 @@ type StrictServerInterface interface {
 	// List instance teams
 	// (GET /api/v1/admin/teams)
 	ListAdminTeams(ctx context.Context, request ListAdminTeamsRequestObject) (ListAdminTeamsResponseObject, error)
+	// Export instance teams as CSV
+	// (GET /api/v1/admin/teams/export)
+	ExportAdminTeams(ctx context.Context, request ExportAdminTeamsRequestObject) (ExportAdminTeamsResponseObject, error)
 	// Get an instance team
 	// (GET /api/v1/admin/teams/{id})
 	GetAdminTeam(ctx context.Context, request GetAdminTeamRequestObject) (GetAdminTeamResponseObject, error)
@@ -8235,6 +10409,9 @@ type StrictServerInterface interface {
 	// Create an instance user
 	// (POST /api/v1/admin/users)
 	CreateAdminUser(ctx context.Context, request CreateAdminUserRequestObject) (CreateAdminUserResponseObject, error)
+	// Export instance users as CSV
+	// (GET /api/v1/admin/users/export)
+	ExportAdminUsers(ctx context.Context, request ExportAdminUsersRequestObject) (ExportAdminUsersResponseObject, error)
 	// Delete an instance user
 	// (DELETE /api/v1/admin/users/{id})
 	DeleteAdminUser(ctx context.Context, request DeleteAdminUserRequestObject) (DeleteAdminUserResponseObject, error)
@@ -8368,6 +10545,32 @@ func (sh *strictHandler) ListAdminProjects(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAdminProjectsResponseObject); ok {
 		if err := validResponse.VisitListAdminProjectsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ExportAdminProjects operation middleware
+func (sh *strictHandler) ExportAdminProjects(w http.ResponseWriter, r *http.Request, params ExportAdminProjectsParams) {
+	var request ExportAdminProjectsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ExportAdminProjects(ctx, request.(ExportAdminProjectsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ExportAdminProjects")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ExportAdminProjectsResponseObject); ok {
+		if err := validResponse.VisitExportAdminProjectsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -8610,6 +10813,32 @@ func (sh *strictHandler) ListAdminTeams(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAdminTeamsResponseObject); ok {
 		if err := validResponse.VisitListAdminTeamsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ExportAdminTeams operation middleware
+func (sh *strictHandler) ExportAdminTeams(w http.ResponseWriter, r *http.Request, params ExportAdminTeamsParams) {
+	var request ExportAdminTeamsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ExportAdminTeams(ctx, request.(ExportAdminTeamsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ExportAdminTeams")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ExportAdminTeamsResponseObject); ok {
+		if err := validResponse.VisitExportAdminTeamsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -8928,6 +11157,32 @@ func (sh *strictHandler) CreateAdminUser(w http.ResponseWriter, r *http.Request)
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateAdminUserResponseObject); ok {
 		if err := validResponse.VisitCreateAdminUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ExportAdminUsers operation middleware
+func (sh *strictHandler) ExportAdminUsers(w http.ResponseWriter, r *http.Request, params ExportAdminUsersParams) {
+	var request ExportAdminUsersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ExportAdminUsers(ctx, request.(ExportAdminUsersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ExportAdminUsers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ExportAdminUsersResponseObject); ok {
+		if err := validResponse.VisitExportAdminUsersResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -2870,3 +2870,1050 @@ api-v1-admin-saved-filters-list:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-users-export:
+  get:
+    summary: Export instance users as CSV
+    description: |
+      Streams the full filtered `users` listing as a CSV download.
+
+      Columns, in order: `id`, `email`, `name`, `idp_provider`, `status`, `created_at`, `team_count`, `project_count`, `prompt_count`, `memory_count`, `artifact_count`, `blueprint_count`, `agent_count`, `feed_count`, `feed_item_count`, `comment_count`, `attachment_count`, `total_resource_count`, `last_resource_created_at`.
+
+      The export accepts exactly the filter and sort parameters of `listAdminUsers`
+      (no `page`/`limit`) and streams every matching row, in the list's order,
+      as RFC 4180 CSV (CRLF line endings, UTF-8, no BOM) with a header row.
+      Nested list fields are flattened; only counts are exported, never a
+      resource title or content.
+
+      Output is capped at 50,000 data rows. `X-Export-Total-Count` is the size
+      of the filtered set and `X-Export-Truncated` is `true` when it exceeds the
+      cap; both come from a count taken just before streaming, so rows written
+      concurrently can make the streamed row count differ slightly. When the
+      export is truncated a final marker row is appended whose first cell reads
+      `# TRUNCATED: exported 50000 of <total> rows; narrow the filters` and whose
+      remaining cells are empty.
+
+      Free-text cells (`email`, `name`, `idp_provider`) that begin with `=`, `+`, `-`, `@`, a tab or
+      a carriage return are prefixed with a single quote (`'`) to defuse
+      spreadsheet formula injection. Numeric, boolean, UUID and timestamp
+      (RFC 3339, UTC) cells are never altered.
+
+      A failure after streaming has started aborts the connection, so a client
+      never receives a well-formed but silently short file. Each completed
+      export is recorded as an `admin_users_exported` activity of the acting admin.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: exportAdminUsers
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: search
+        in: query
+        description: Case-insensitive substring match over the user's email and name.
+        required: false
+        schema:
+          type: string
+      - name: idp_provider
+        in: query
+        description: Exact match on the user's identity-provider name (e.g. "google", "oidc").
+        required: false
+        schema:
+          type: string
+      - name: created_from
+        in: query
+        description: Only users created at or after this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: created_to
+        in: query
+        description: Only users created at or before this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: status
+        in: query
+        description: Narrow to accounts in this lifecycle state.
+        required: false
+        schema:
+          type: string
+          enum:
+            - active
+            - suspended
+      - name: team_count_min
+        in: query
+        description: Only users with at least this many teams the user belongs to (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: team_count_max
+        in: query
+        description: Only users with at most this many teams the user belongs to (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: project_count_min
+        in: query
+        description: Only users with at least this many projects the user created (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: project_count_max
+        in: query
+        description: Only users with at most this many projects the user created (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: prompt_count_min
+        in: query
+        description: Only users with at least this many prompts the user authored (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: prompt_count_max
+        in: query
+        description: Only users with at most this many prompts the user authored (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: memory_count_min
+        in: query
+        description: Only users with at least this many memories the user authored (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: memory_count_max
+        in: query
+        description: Only users with at most this many memories the user authored (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: artifact_count_min
+        in: query
+        description: Only users with at least this many artifacts the user authored (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: artifact_count_max
+        in: query
+        description: Only users with at most this many artifacts the user authored (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: blueprint_count_min
+        in: query
+        description: Only users with at least this many blueprints the user authored (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: blueprint_count_max
+        in: query
+        description: Only users with at most this many blueprints the user authored (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: agent_count_min
+        in: query
+        description: Only users with at least this many agents the user created (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: agent_count_max
+        in: query
+        description: Only users with at most this many agents the user created (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: feed_count_min
+        in: query
+        description: Only users with at least this many feeds the user created (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: feed_count_max
+        in: query
+        description: Only users with at most this many feeds the user created (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: feed_item_count_min
+        in: query
+        description: Only users with at least this many feed items the user posted (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: feed_item_count_max
+        in: query
+        description: Only users with at most this many feed items the user posted (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: comment_count_min
+        in: query
+        description: Only users with at least this many comments the user wrote (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: comment_count_max
+        in: query
+        description: Only users with at most this many comments the user wrote (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: attachment_count_min
+        in: query
+        description: Only users with at least this many attachments the user uploaded (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: attachment_count_max
+        in: query
+        description: Only users with at most this many attachments the user uploaded (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: total_resource_count_min
+        in: query
+        description: Only users with at least this many resources the user authored across all nine types (the sum of resource_counts) (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: total_resource_count_max
+        in: query
+        description: Only users with at most this many resources the user authored across all nine types (the sum of resource_counts) (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: last_resource_created_from
+        in: query
+        description: |
+          Only users whose most recent resource (any of the nine types) was created
+          at or after this instant (inclusive). Users with no resources never match.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: last_resource_created_to
+        in: query
+        description: |
+          Only users whose most recent resource (any of the nine types) was created
+          at or before this instant (inclusive). Users with no resources never match.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: sort_by
+        in: query
+        description: |
+          Column to sort by. Ties are always broken by user id so paging is stable.
+          Sorting by last_resource_created_at places users with no resources last
+          in both directions.
+        required: false
+        schema:
+          type: string
+          enum:
+            - created_at
+            - email
+            - name
+            - team_count
+            - project_count
+            - prompt_count
+            - memory_count
+            - artifact_count
+            - blueprint_count
+            - agent_count
+            - feed_count
+            - feed_item_count
+            - comment_count
+            - attachment_count
+            - total_resource_count
+            - last_resource_created_at
+          default: created_at
+      - name: sort_order
+        in: query
+        description: Sort direction.
+        required: false
+        schema:
+          type: string
+          enum:
+            - asc
+            - desc
+          default: desc
+    responses:
+      '200':
+        description: CSV of every matching row (capped at 50,000)
+        headers:
+          Content-Disposition:
+            description: '`attachment; filename="admin-users-YYYYMMDD.csv"` (UTC date)'
+            required: true
+            schema:
+              type: string
+          X-Export-Total-Count:
+            description: Number of rows in the filtered set, before the cap
+            required: true
+            schema:
+              type: integer
+              format: int64
+          X-Export-Truncated:
+            description: Whether the filtered set exceeded the 50,000-row cap
+            required: true
+            schema:
+              type: boolean
+        content:
+          text/csv:
+            schema:
+              type: string
+      '400':
+        description: >-
+          Bad request — a query parameter is malformed or outside its enum, a count bound is
+          negative, or a min/max or from/to pair is inverted. Nothing is streamed.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (before streaming started)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-teams-export:
+  get:
+    summary: Export instance teams as CSV
+    description: |
+      Streams the full filtered `teams` listing as a CSV download.
+
+      Columns, in order: `id`, `name`, `slug`, `is_personal`, `owner_id`, `owner_email`, `owner_name`, `member_count`, `owner_count`, `admin_count`, `project_count`, `prompt_count`, `memory_count`, `artifact_count`, `blueprint_count`, `agent_count`, `feed_count`, `feed_item_count`, `comment_count`, `attachment_count`, `total_resource_count`, `embedding_configured`, `llm_configured`, `ai_summary_enabled`, `email_configured`, `github_configured`, `search_settings_customized`, `freshness_enabled`, `created_at`.
+
+      The export accepts exactly the filter and sort parameters of `listAdminTeams`
+      (no `page`/`limit`) and streams every matching row, in the list's order,
+      as RFC 4180 CSV (CRLF line endings, UTF-8, no BOM) with a header row.
+      Nested list fields are flattened; only counts are exported, never a
+      resource title or content.
+
+      Output is capped at 50,000 data rows. `X-Export-Total-Count` is the size
+      of the filtered set and `X-Export-Truncated` is `true` when it exceeds the
+      cap; both come from a count taken just before streaming, so rows written
+      concurrently can make the streamed row count differ slightly. When the
+      export is truncated a final marker row is appended whose first cell reads
+      `# TRUNCATED: exported 50000 of <total> rows; narrow the filters` and whose
+      remaining cells are empty.
+
+      Free-text cells (`name`, `slug`, `owner_email`, `owner_name`) that begin with `=`, `+`, `-`, `@`, a tab or
+      a carriage return are prefixed with a single quote (`'`) to defuse
+      spreadsheet formula injection. Numeric, boolean, UUID and timestamp
+      (RFC 3339, UTC) cells are never altered.
+
+      A failure after streaming has started aborts the connection, so a client
+      never receives a well-formed but silently short file. Each completed
+      export is recorded as an `admin_teams_exported` activity of the acting admin.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: exportAdminTeams
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: search
+        in: query
+        description: Case-insensitive substring match over the team name, team slug, and the owner's email.
+        required: false
+        schema:
+          type: string
+      - name: is_personal
+        in: query
+        description: Narrow to personal workspaces (true) or shared team workspaces (false).
+        required: false
+        schema:
+          type: boolean
+      - name: created_from
+        in: query
+        description: Only teams created at or after this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: created_to
+        in: query
+        description: Only teams created at or before this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: member_count_min
+        in: query
+        description: Only teams with at least this many members (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: member_count_max
+        in: query
+        description: Only teams with at most this many members (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: owner_count_min
+        in: query
+        description: Only teams with at least this many members holding the owner role (always 1 by application invariant; any other value is integrity drift) (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: owner_count_max
+        in: query
+        description: Only teams with at most this many members holding the owner role (always 1 by application invariant; any other value is integrity drift) (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: admin_count_min
+        in: query
+        description: Only teams with at least this many members holding the admin role (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: admin_count_max
+        in: query
+        description: Only teams with at most this many members holding the admin role (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: project_count_min
+        in: query
+        description: Only teams with at least this many projects in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: project_count_max
+        in: query
+        description: Only teams with at most this many projects in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: prompt_count_min
+        in: query
+        description: Only teams with at least this many prompts in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: prompt_count_max
+        in: query
+        description: Only teams with at most this many prompts in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: memory_count_min
+        in: query
+        description: Only teams with at least this many memories in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: memory_count_max
+        in: query
+        description: Only teams with at most this many memories in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: artifact_count_min
+        in: query
+        description: Only teams with at least this many artifacts in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: artifact_count_max
+        in: query
+        description: Only teams with at most this many artifacts in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: blueprint_count_min
+        in: query
+        description: Only teams with at least this many blueprints in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: blueprint_count_max
+        in: query
+        description: Only teams with at most this many blueprints in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: agent_count_min
+        in: query
+        description: Only teams with at least this many agents in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: agent_count_max
+        in: query
+        description: Only teams with at most this many agents in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: feed_count_min
+        in: query
+        description: Only teams with at least this many feeds in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: feed_count_max
+        in: query
+        description: Only teams with at most this many feeds in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: feed_item_count_min
+        in: query
+        description: Only teams with at least this many feed items in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: feed_item_count_max
+        in: query
+        description: Only teams with at most this many feed items in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: comment_count_min
+        in: query
+        description: Only teams with at least this many comments in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: comment_count_max
+        in: query
+        description: Only teams with at most this many comments in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: attachment_count_min
+        in: query
+        description: Only teams with at least this many attachments in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: attachment_count_max
+        in: query
+        description: Only teams with at most this many attachments in the team (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: total_resource_count_min
+        in: query
+        description: Only teams with at least this many resources in the team across all nine types (the sum of resource_counts) (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: total_resource_count_max
+        in: query
+        description: Only teams with at most this many resources in the team across all nine types (the sum of resource_counts) (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: owner_email
+        in: query
+        description: Case-insensitive exact match on the team owner's email (the user referenced by the team's owner). For substring matching use `search`.
+        required: false
+        schema:
+          type: string
+          format: email
+      - name: embedding_configured
+        in: query
+        description: true = the team has at least one embedding provider of its own; false = it does not; omit = any. Instance-level fallback configuration never counts.
+        required: false
+        schema:
+          type: boolean
+      - name: llm_configured
+        in: query
+        description: true = the team has at least one LLM model provider of its own; false = it does not; omit = any. Instance-level fallback configuration never counts.
+        required: false
+        schema:
+          type: boolean
+      - name: ai_summary_enabled
+        in: query
+        description: true = the team has its own AI summary settings with summaries enabled; false = it does not; omit = any. Instance-level fallback configuration never counts.
+        required: false
+        schema:
+          type: boolean
+      - name: email_configured
+        in: query
+        description: true = the team has its own email provider (regardless of its delivery health); false = it does not; omit = any. Instance-level fallback configuration never counts.
+        required: false
+        schema:
+          type: boolean
+      - name: github_configured
+        in: query
+        description: true = the team has its own GitHub App configuration or at least one GitHub App installation (suspended installations included); false = it does not; omit = any. Instance-level fallback configuration never counts.
+        required: false
+        schema:
+          type: boolean
+      - name: search_settings_customized
+        in: query
+        description: true = the team has its own search settings; false = it does not; omit = any. Instance-level fallback configuration never counts.
+        required: false
+        schema:
+          type: boolean
+      - name: freshness_enabled
+        in: query
+        description: true = the team has at least one enabled freshness rule; false = it does not; omit = any. Instance-level fallback configuration never counts.
+        required: false
+        schema:
+          type: boolean
+      - name: sort_by
+        in: query
+        description: Column to sort by. Ties are always broken by team id so paging is stable.
+        required: false
+        schema:
+          type: string
+          enum:
+            - created_at
+            - name
+            - member_count
+            - owner_count
+            - admin_count
+            - project_count
+            - prompt_count
+            - memory_count
+            - artifact_count
+            - blueprint_count
+            - agent_count
+            - feed_count
+            - feed_item_count
+            - comment_count
+            - attachment_count
+            - total_resource_count
+          default: created_at
+      - name: sort_order
+        in: query
+        description: Sort direction.
+        required: false
+        schema:
+          type: string
+          enum:
+            - asc
+            - desc
+          default: desc
+    responses:
+      '200':
+        description: CSV of every matching row (capped at 50,000)
+        headers:
+          Content-Disposition:
+            description: '`attachment; filename="admin-teams-YYYYMMDD.csv"` (UTC date)'
+            required: true
+            schema:
+              type: string
+          X-Export-Total-Count:
+            description: Number of rows in the filtered set, before the cap
+            required: true
+            schema:
+              type: integer
+              format: int64
+          X-Export-Truncated:
+            description: Whether the filtered set exceeded the 50,000-row cap
+            required: true
+            schema:
+              type: boolean
+        content:
+          text/csv:
+            schema:
+              type: string
+      '400':
+        description: >-
+          Bad request — a query parameter is malformed or outside its enum, a count bound is
+          negative, or a min/max or from/to pair is inverted. Nothing is streamed.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (before streaming started)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-projects-export:
+  get:
+    summary: Export instance projects as CSV
+    description: |
+      Streams the full filtered `projects` listing as a CSV download.
+
+      Columns, in order: `id`, `name`, `slug`, `team_id`, `team_name`, `team_slug`, `owner_id`, `owner_email`, `owner_name`, `prompt_count`, `memory_count`, `artifact_count`, `blueprint_count`, `feed_item_count`, `total_resource_count`, `last_resource_created_at`, `created_at`, `updated_at`.
+
+      The export accepts exactly the filter and sort parameters of `listAdminProjects`
+      (no `page`/`limit`) and streams every matching row, in the list's order,
+      as RFC 4180 CSV (CRLF line endings, UTF-8, no BOM) with a header row.
+      Nested list fields are flattened; only counts are exported, never a
+      resource title or content.
+
+      Output is capped at 50,000 data rows. `X-Export-Total-Count` is the size
+      of the filtered set and `X-Export-Truncated` is `true` when it exceeds the
+      cap; both come from a count taken just before streaming, so rows written
+      concurrently can make the streamed row count differ slightly. When the
+      export is truncated a final marker row is appended whose first cell reads
+      `# TRUNCATED: exported 50000 of <total> rows; narrow the filters` and whose
+      remaining cells are empty.
+
+      Free-text cells (`name`, `slug`, `team_name`, `team_slug`, `owner_email`, `owner_name`) that begin with `=`, `+`, `-`, `@`, a tab or
+      a carriage return are prefixed with a single quote (`'`) to defuse
+      spreadsheet formula injection. Numeric, boolean, UUID and timestamp
+      (RFC 3339, UTC) cells are never altered.
+
+      A failure after streaming has started aborts the connection, so a client
+      never receives a well-formed but silently short file. Each completed
+      export is recorded as an `admin_projects_exported` activity of the acting admin.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: exportAdminProjects
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: search
+        in: query
+        description: Case-insensitive substring match over the project name and slug.
+        required: false
+        schema:
+          type: string
+      - name: team_id
+        in: query
+        description: Narrow to projects belonging to one team.
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: created_from
+        in: query
+        description: Only projects created at or after this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: created_to
+        in: query
+        description: Only projects created at or before this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: prompt_count_min
+        in: query
+        description: Only projects with at least this many prompts in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: prompt_count_max
+        in: query
+        description: Only projects with at most this many prompts in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: memory_count_min
+        in: query
+        description: Only projects with at least this many memories in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: memory_count_max
+        in: query
+        description: Only projects with at most this many memories in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: artifact_count_min
+        in: query
+        description: Only projects with at least this many artifacts in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: artifact_count_max
+        in: query
+        description: Only projects with at most this many artifacts in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: blueprint_count_min
+        in: query
+        description: Only projects with at least this many blueprints in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: blueprint_count_max
+        in: query
+        description: Only projects with at most this many blueprints in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: feed_item_count_min
+        in: query
+        description: Only projects with at least this many feed items in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: feed_item_count_max
+        in: query
+        description: Only projects with at most this many feed items in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: total_resource_count_min
+        in: query
+        description: Only projects with at least this many project-scoped resources in the project (inclusive). The total is the sum of the five project-scoped types.
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: total_resource_count_max
+        in: query
+        description: Only projects with at most this many project-scoped resources in the project (inclusive). The total is the sum of the five project-scoped types.
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: owner_email
+        in: query
+        description: Case-insensitive exact match on the email of the project's creator (`projects.user_id`, the `owner` field), not the owning team's owner. For substring matching on name/slug use `search`.
+        required: false
+        schema:
+          type: string
+          format: email
+      - name: last_resource_created_from
+        in: query
+        description: |
+          Only projects whose most recent project-scoped resource (any of the five
+          types) was created at or after this instant (inclusive). Projects with
+          no resources never match.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: last_resource_created_to
+        in: query
+        description: |
+          Only projects whose most recent project-scoped resource (any of the five
+          types) was created at or before this instant (inclusive). Projects with
+          no resources never match.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: sort_by
+        in: query
+        description: |
+          Column to sort by. Ties are always broken by project id so paging is stable.
+          Sorting by last_resource_created_at places projects with no resources
+          last in both directions.
+        required: false
+        schema:
+          type: string
+          enum:
+            - created_at
+            - name
+            - prompt_count
+            - memory_count
+            - artifact_count
+            - blueprint_count
+            - feed_item_count
+            - total_resource_count
+            - last_resource_created_at
+          default: created_at
+      - name: sort_order
+        in: query
+        description: Sort direction.
+        required: false
+        schema:
+          type: string
+          enum:
+            - asc
+            - desc
+          default: desc
+    responses:
+      '200':
+        description: CSV of every matching row (capped at 50,000)
+        headers:
+          Content-Disposition:
+            description: '`attachment; filename="admin-projects-YYYYMMDD.csv"` (UTC date)'
+            required: true
+            schema:
+              type: string
+          X-Export-Total-Count:
+            description: Number of rows in the filtered set, before the cap
+            required: true
+            schema:
+              type: integer
+              format: int64
+          X-Export-Truncated:
+            description: Whether the filtered set exceeded the 50,000-row cap
+            required: true
+            schema:
+              type: boolean
+        content:
+          text/csv:
+            schema:
+              type: string
+      '400':
+        description: >-
+          Bad request — a query parameter is malformed or outside its enum, a count bound is
+          negative, or a min/max or from/to pair is inverted. Nothing is streamed.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (before streaming started)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'

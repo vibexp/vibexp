@@ -151,6 +151,177 @@ func (_c *MockAdminServiceInterface_DeleteUser_Call) RunAndReturn(run func(conte
 	return _c
 }
 
+// ExportProjects provides a mock function with given fields: ctx, filters
+func (_m *MockAdminServiceInterface) ExportProjects(ctx context.Context, filters repositories.AdminProjectFilters) (services.AdminExport, error) {
+	ret := _m.Called(ctx, filters)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExportProjects")
+	}
+
+	var r0 services.AdminExport
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminProjectFilters) (services.AdminExport, error)); ok {
+		return rf(ctx, filters)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminProjectFilters) services.AdminExport); ok {
+		r0 = rf(ctx, filters)
+	} else {
+		r0 = ret.Get(0).(services.AdminExport)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, repositories.AdminProjectFilters) error); ok {
+		r1 = rf(ctx, filters)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_ExportProjects_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExportProjects'
+type MockAdminServiceInterface_ExportProjects_Call struct {
+	*mock.Call
+}
+
+// ExportProjects is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filters repositories.AdminProjectFilters
+func (_e *MockAdminServiceInterface_Expecter) ExportProjects(ctx interface{}, filters interface{}) *MockAdminServiceInterface_ExportProjects_Call {
+	return &MockAdminServiceInterface_ExportProjects_Call{Call: _e.mock.On("ExportProjects", ctx, filters)}
+}
+
+func (_c *MockAdminServiceInterface_ExportProjects_Call) Run(run func(ctx context.Context, filters repositories.AdminProjectFilters)) *MockAdminServiceInterface_ExportProjects_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(repositories.AdminProjectFilters))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ExportProjects_Call) Return(_a0 services.AdminExport, _a1 error) *MockAdminServiceInterface_ExportProjects_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ExportProjects_Call) RunAndReturn(run func(context.Context, repositories.AdminProjectFilters) (services.AdminExport, error)) *MockAdminServiceInterface_ExportProjects_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ExportTeams provides a mock function with given fields: ctx, filters
+func (_m *MockAdminServiceInterface) ExportTeams(ctx context.Context, filters repositories.AdminTeamFilters) (services.AdminExport, error) {
+	ret := _m.Called(ctx, filters)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExportTeams")
+	}
+
+	var r0 services.AdminExport
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminTeamFilters) (services.AdminExport, error)); ok {
+		return rf(ctx, filters)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminTeamFilters) services.AdminExport); ok {
+		r0 = rf(ctx, filters)
+	} else {
+		r0 = ret.Get(0).(services.AdminExport)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, repositories.AdminTeamFilters) error); ok {
+		r1 = rf(ctx, filters)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_ExportTeams_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExportTeams'
+type MockAdminServiceInterface_ExportTeams_Call struct {
+	*mock.Call
+}
+
+// ExportTeams is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filters repositories.AdminTeamFilters
+func (_e *MockAdminServiceInterface_Expecter) ExportTeams(ctx interface{}, filters interface{}) *MockAdminServiceInterface_ExportTeams_Call {
+	return &MockAdminServiceInterface_ExportTeams_Call{Call: _e.mock.On("ExportTeams", ctx, filters)}
+}
+
+func (_c *MockAdminServiceInterface_ExportTeams_Call) Run(run func(ctx context.Context, filters repositories.AdminTeamFilters)) *MockAdminServiceInterface_ExportTeams_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(repositories.AdminTeamFilters))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ExportTeams_Call) Return(_a0 services.AdminExport, _a1 error) *MockAdminServiceInterface_ExportTeams_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ExportTeams_Call) RunAndReturn(run func(context.Context, repositories.AdminTeamFilters) (services.AdminExport, error)) *MockAdminServiceInterface_ExportTeams_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ExportUsers provides a mock function with given fields: ctx, filters
+func (_m *MockAdminServiceInterface) ExportUsers(ctx context.Context, filters repositories.AdminUserFilters) (services.AdminExport, error) {
+	ret := _m.Called(ctx, filters)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExportUsers")
+	}
+
+	var r0 services.AdminExport
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminUserFilters) (services.AdminExport, error)); ok {
+		return rf(ctx, filters)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminUserFilters) services.AdminExport); ok {
+		r0 = rf(ctx, filters)
+	} else {
+		r0 = ret.Get(0).(services.AdminExport)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, repositories.AdminUserFilters) error); ok {
+		r1 = rf(ctx, filters)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_ExportUsers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExportUsers'
+type MockAdminServiceInterface_ExportUsers_Call struct {
+	*mock.Call
+}
+
+// ExportUsers is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filters repositories.AdminUserFilters
+func (_e *MockAdminServiceInterface_Expecter) ExportUsers(ctx interface{}, filters interface{}) *MockAdminServiceInterface_ExportUsers_Call {
+	return &MockAdminServiceInterface_ExportUsers_Call{Call: _e.mock.On("ExportUsers", ctx, filters)}
+}
+
+func (_c *MockAdminServiceInterface_ExportUsers_Call) Run(run func(ctx context.Context, filters repositories.AdminUserFilters)) *MockAdminServiceInterface_ExportUsers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(repositories.AdminUserFilters))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ExportUsers_Call) Return(_a0 services.AdminExport, _a1 error) *MockAdminServiceInterface_ExportUsers_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ExportUsers_Call) RunAndReturn(run func(context.Context, repositories.AdminUserFilters) (services.AdminExport, error)) *MockAdminServiceInterface_ExportUsers_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetDashboardOverview provides a mock function with given fields: ctx, version
 func (_m *MockAdminServiceInterface) GetDashboardOverview(ctx context.Context, version string) (models.AdminDashboardOverview, error) {
 	ret := _m.Called(ctx, version)

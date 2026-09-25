@@ -527,6 +527,27 @@ func (s *Server) adminBindErrorHandler(w http.ResponseWriter, r *http.Request, e
 // implementations. *apierrors.APIError carries the intended RFC 9457 error;
 // anything else is defensive and maps to a generic 500.
 func (s *Server) adminResponseErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	// A CSV export that failed mid-stream has already sent its 200 and part of
+	// the body. Writing a problem document now would only append JSON to the
+	// CSV, and ending the response normally would hand the admin a well-formed
+	// but silently short file. Aborting resets the connection instead
+	// (panicLoggerMiddleware re-panics http.ErrAbortHandler for net/http).
+	//
+	// Two kinds of error reach here once the export response started: a
+	// producer failure (the pipe's adminExportStreamError) and a consumer one
+	// (the client went away, or the write deadline passed), which io.Copy
+	// reports unwrapped. The generated text/csv visitor sets Content-Type
+	// before WriteHeader, so that header is what marks a started export.
+	var streamErr *adminExportStreamError
+	if errors.As(err, &streamErr) {
+		s.logger.With("error", err).Error("Admin export aborted mid-stream")
+		panic(http.ErrAbortHandler) //nolint:forbidigo // intentional connection abort, see above
+	}
+	if w.Header().Get("Content-Type") == adminExportContentType {
+		s.logger.With("error", err).Warn("Admin export client went away mid-stream")
+		panic(http.ErrAbortHandler) //nolint:forbidigo // intentional connection abort, see above
+	}
+
 	// A blocked hard delete is a documented 409 payload, not a problem document:
 	// the SPA renders the blocker list so the admin knows which teams to transfer
 	// (#455). It travels as an error because the strict server's handler
