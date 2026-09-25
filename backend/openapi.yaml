@@ -1364,6 +1364,12 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-projects-id-config"
   /api/v1/admin/saved-filters/{list}:
     $ref: "./paths/admin.yaml#/api-v1-admin-saved-filters-list"
+  /api/v1/admin/users/export:
+    $ref: "./paths/admin.yaml#/api-v1-admin-users-export"
+  /api/v1/admin/teams/export:
+    $ref: "./paths/admin.yaml#/api-v1-admin-teams-export"
+  /api/v1/admin/projects/export:
+    $ref: "./paths/admin.yaml#/api-v1-admin-projects-export"
   /api/v1/{team_id}/comments:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
   /api/v1/{team_id}/comments/recent:

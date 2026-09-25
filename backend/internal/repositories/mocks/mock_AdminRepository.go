@@ -26,6 +26,177 @@ func (_m *MockAdminRepository) EXPECT() *MockAdminRepository_Expecter {
 	return &MockAdminRepository_Expecter{mock: &_m.Mock}
 }
 
+// CountProjects provides a mock function with given fields: ctx, filters
+func (_m *MockAdminRepository) CountProjects(ctx context.Context, filters repositories.AdminProjectFilters) (int, error) {
+	ret := _m.Called(ctx, filters)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountProjects")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminProjectFilters) (int, error)); ok {
+		return rf(ctx, filters)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminProjectFilters) int); ok {
+		r0 = rf(ctx, filters)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, repositories.AdminProjectFilters) error); ok {
+		r1 = rf(ctx, filters)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_CountProjects_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountProjects'
+type MockAdminRepository_CountProjects_Call struct {
+	*mock.Call
+}
+
+// CountProjects is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filters repositories.AdminProjectFilters
+func (_e *MockAdminRepository_Expecter) CountProjects(ctx interface{}, filters interface{}) *MockAdminRepository_CountProjects_Call {
+	return &MockAdminRepository_CountProjects_Call{Call: _e.mock.On("CountProjects", ctx, filters)}
+}
+
+func (_c *MockAdminRepository_CountProjects_Call) Run(run func(ctx context.Context, filters repositories.AdminProjectFilters)) *MockAdminRepository_CountProjects_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(repositories.AdminProjectFilters))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_CountProjects_Call) Return(_a0 int, _a1 error) *MockAdminRepository_CountProjects_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_CountProjects_Call) RunAndReturn(run func(context.Context, repositories.AdminProjectFilters) (int, error)) *MockAdminRepository_CountProjects_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CountTeams provides a mock function with given fields: ctx, filters
+func (_m *MockAdminRepository) CountTeams(ctx context.Context, filters repositories.AdminTeamFilters) (int, error) {
+	ret := _m.Called(ctx, filters)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountTeams")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminTeamFilters) (int, error)); ok {
+		return rf(ctx, filters)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminTeamFilters) int); ok {
+		r0 = rf(ctx, filters)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, repositories.AdminTeamFilters) error); ok {
+		r1 = rf(ctx, filters)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_CountTeams_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountTeams'
+type MockAdminRepository_CountTeams_Call struct {
+	*mock.Call
+}
+
+// CountTeams is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filters repositories.AdminTeamFilters
+func (_e *MockAdminRepository_Expecter) CountTeams(ctx interface{}, filters interface{}) *MockAdminRepository_CountTeams_Call {
+	return &MockAdminRepository_CountTeams_Call{Call: _e.mock.On("CountTeams", ctx, filters)}
+}
+
+func (_c *MockAdminRepository_CountTeams_Call) Run(run func(ctx context.Context, filters repositories.AdminTeamFilters)) *MockAdminRepository_CountTeams_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(repositories.AdminTeamFilters))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_CountTeams_Call) Return(_a0 int, _a1 error) *MockAdminRepository_CountTeams_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_CountTeams_Call) RunAndReturn(run func(context.Context, repositories.AdminTeamFilters) (int, error)) *MockAdminRepository_CountTeams_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CountUsers provides a mock function with given fields: ctx, filters
+func (_m *MockAdminRepository) CountUsers(ctx context.Context, filters repositories.AdminUserFilters) (int, error) {
+	ret := _m.Called(ctx, filters)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountUsers")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminUserFilters) (int, error)); ok {
+		return rf(ctx, filters)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminUserFilters) int); ok {
+		r0 = rf(ctx, filters)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, repositories.AdminUserFilters) error); ok {
+		r1 = rf(ctx, filters)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_CountUsers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountUsers'
+type MockAdminRepository_CountUsers_Call struct {
+	*mock.Call
+}
+
+// CountUsers is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filters repositories.AdminUserFilters
+func (_e *MockAdminRepository_Expecter) CountUsers(ctx interface{}, filters interface{}) *MockAdminRepository_CountUsers_Call {
+	return &MockAdminRepository_CountUsers_Call{Call: _e.mock.On("CountUsers", ctx, filters)}
+}
+
+func (_c *MockAdminRepository_CountUsers_Call) Run(run func(ctx context.Context, filters repositories.AdminUserFilters)) *MockAdminRepository_CountUsers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(repositories.AdminUserFilters))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_CountUsers_Call) Return(_a0 int, _a1 error) *MockAdminRepository_CountUsers_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_CountUsers_Call) RunAndReturn(run func(context.Context, repositories.AdminUserFilters) (int, error)) *MockAdminRepository_CountUsers_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteUserIfUnblocked provides a mock function with given fields: ctx, id
 func (_m *MockAdminRepository) DeleteUserIfUnblocked(ctx context.Context, id string) ([]models.AdminDeleteBlocker, bool, error) {
 	ret := _m.Called(ctx, id)
@@ -1430,6 +1601,153 @@ func (_c *MockAdminRepository_ProjectTeamID_Call) Return(teamID string, found bo
 }
 
 func (_c *MockAdminRepository_ProjectTeamID_Call) RunAndReturn(run func(context.Context, string) (string, bool, error)) *MockAdminRepository_ProjectTeamID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// StreamProjects provides a mock function with given fields: ctx, filters, limit, fn
+func (_m *MockAdminRepository) StreamProjects(ctx context.Context, filters repositories.AdminProjectFilters, limit int, fn func(models.AdminProjectListItem) error) error {
+	ret := _m.Called(ctx, filters, limit, fn)
+
+	if len(ret) == 0 {
+		panic("no return value specified for StreamProjects")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminProjectFilters, int, func(models.AdminProjectListItem) error) error); ok {
+		r0 = rf(ctx, filters, limit, fn)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAdminRepository_StreamProjects_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'StreamProjects'
+type MockAdminRepository_StreamProjects_Call struct {
+	*mock.Call
+}
+
+// StreamProjects is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filters repositories.AdminProjectFilters
+//   - limit int
+//   - fn func(models.AdminProjectListItem) error
+func (_e *MockAdminRepository_Expecter) StreamProjects(ctx interface{}, filters interface{}, limit interface{}, fn interface{}) *MockAdminRepository_StreamProjects_Call {
+	return &MockAdminRepository_StreamProjects_Call{Call: _e.mock.On("StreamProjects", ctx, filters, limit, fn)}
+}
+
+func (_c *MockAdminRepository_StreamProjects_Call) Run(run func(ctx context.Context, filters repositories.AdminProjectFilters, limit int, fn func(models.AdminProjectListItem) error)) *MockAdminRepository_StreamProjects_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(repositories.AdminProjectFilters), args[2].(int), args[3].(func(models.AdminProjectListItem) error))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_StreamProjects_Call) Return(_a0 error) *MockAdminRepository_StreamProjects_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAdminRepository_StreamProjects_Call) RunAndReturn(run func(context.Context, repositories.AdminProjectFilters, int, func(models.AdminProjectListItem) error) error) *MockAdminRepository_StreamProjects_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// StreamTeams provides a mock function with given fields: ctx, filters, limit, fn
+func (_m *MockAdminRepository) StreamTeams(ctx context.Context, filters repositories.AdminTeamFilters, limit int, fn func(models.AdminTeamListItem) error) error {
+	ret := _m.Called(ctx, filters, limit, fn)
+
+	if len(ret) == 0 {
+		panic("no return value specified for StreamTeams")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminTeamFilters, int, func(models.AdminTeamListItem) error) error); ok {
+		r0 = rf(ctx, filters, limit, fn)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAdminRepository_StreamTeams_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'StreamTeams'
+type MockAdminRepository_StreamTeams_Call struct {
+	*mock.Call
+}
+
+// StreamTeams is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filters repositories.AdminTeamFilters
+//   - limit int
+//   - fn func(models.AdminTeamListItem) error
+func (_e *MockAdminRepository_Expecter) StreamTeams(ctx interface{}, filters interface{}, limit interface{}, fn interface{}) *MockAdminRepository_StreamTeams_Call {
+	return &MockAdminRepository_StreamTeams_Call{Call: _e.mock.On("StreamTeams", ctx, filters, limit, fn)}
+}
+
+func (_c *MockAdminRepository_StreamTeams_Call) Run(run func(ctx context.Context, filters repositories.AdminTeamFilters, limit int, fn func(models.AdminTeamListItem) error)) *MockAdminRepository_StreamTeams_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(repositories.AdminTeamFilters), args[2].(int), args[3].(func(models.AdminTeamListItem) error))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_StreamTeams_Call) Return(_a0 error) *MockAdminRepository_StreamTeams_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAdminRepository_StreamTeams_Call) RunAndReturn(run func(context.Context, repositories.AdminTeamFilters, int, func(models.AdminTeamListItem) error) error) *MockAdminRepository_StreamTeams_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// StreamUsers provides a mock function with given fields: ctx, filters, limit, fn
+func (_m *MockAdminRepository) StreamUsers(ctx context.Context, filters repositories.AdminUserFilters, limit int, fn func(models.AdminUserListItem) error) error {
+	ret := _m.Called(ctx, filters, limit, fn)
+
+	if len(ret) == 0 {
+		panic("no return value specified for StreamUsers")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminUserFilters, int, func(models.AdminUserListItem) error) error); ok {
+		r0 = rf(ctx, filters, limit, fn)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAdminRepository_StreamUsers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'StreamUsers'
+type MockAdminRepository_StreamUsers_Call struct {
+	*mock.Call
+}
+
+// StreamUsers is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filters repositories.AdminUserFilters
+//   - limit int
+//   - fn func(models.AdminUserListItem) error
+func (_e *MockAdminRepository_Expecter) StreamUsers(ctx interface{}, filters interface{}, limit interface{}, fn interface{}) *MockAdminRepository_StreamUsers_Call {
+	return &MockAdminRepository_StreamUsers_Call{Call: _e.mock.On("StreamUsers", ctx, filters, limit, fn)}
+}
+
+func (_c *MockAdminRepository_StreamUsers_Call) Run(run func(ctx context.Context, filters repositories.AdminUserFilters, limit int, fn func(models.AdminUserListItem) error)) *MockAdminRepository_StreamUsers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(repositories.AdminUserFilters), args[2].(int), args[3].(func(models.AdminUserListItem) error))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_StreamUsers_Call) Return(_a0 error) *MockAdminRepository_StreamUsers_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAdminRepository_StreamUsers_Call) RunAndReturn(run func(context.Context, repositories.AdminUserFilters, int, func(models.AdminUserListItem) error) error) *MockAdminRepository_StreamUsers_Call {
 	_c.Call.Return(run)
 	return _c
 }

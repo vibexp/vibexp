@@ -367,31 +367,95 @@ func (r *AdminRepository) queryAdminUsers(
 		OrderBy(buildAdminUserOrderBy(filters)).
 		Limit(limit).
 		Offset(offset)
+	return collectAdminListRows(ctx, r, sb, "user", scanAdminUserListItem)
+}
 
-	rows, err := r.runAdminListQuery(ctx, sb, "user")
+// scanAdminUserListItem scans one row of adminUserListSelectColumns. The page
+// query and the export stream share it, so their columns cannot drift.
+func scanAdminUserListItem(rows *sql.Rows) (models.AdminUserListItem, error) {
+	var u models.AdminUserListItem
+	rc := &u.ResourceCounts
+	err := rows.Scan(
+		&u.ID, &u.Email, &u.Name, &u.IDPProvider, &u.Status, &u.CreatedAt, &u.TeamCount, &u.ProjectCount,
+		&rc.Prompts, &rc.Memories, &rc.Artifacts, &rc.Blueprints, &rc.Agents,
+		&rc.Feeds, &rc.FeedItems, &rc.Comments, &rc.Attachments, &rc.Total,
+		&u.LastResourceCreatedAt,
+	)
+	return u, err
+}
+
+// CountUsers returns the size of the filtered user set, from the same count
+// query the listing's pagination envelope uses.
+func (r *AdminRepository) CountUsers(ctx context.Context, filters repositories.AdminUserFilters) (int, error) {
+	return r.countAdminUsers(ctx, buildAdminUserWhere(filters))
+}
+
+// StreamUsers calls fn for each user matching the filters, in the listing's
+// order, up to limit rows (#1149). It is the listing's page query without
+// OFFSET, so an export can never disagree with the list.
+func (r *AdminRepository) StreamUsers(
+	ctx context.Context, filters repositories.AdminUserFilters, limit int,
+	fn func(models.AdminUserListItem) error,
+) error {
+	sb := applyAdminWhere(adminUserListFrom(psql.Select(adminUserListSelectColumns...)), buildAdminUserWhere(filters)).
+		OrderBy(buildAdminUserOrderBy(filters)).
+		Limit(adminStreamLimit(limit))
+	return eachAdminListRow(ctx, r, sb, "user", scanAdminUserListItem, fn)
+}
+
+// adminStreamLimit converts a stream row cap to squirrel's unsigned LIMIT; a
+// non-positive cap streams nothing, matching adminPageBounds.
+func adminStreamLimit(limit int) uint64 {
+	if limit <= 0 {
+		return 0
+	}
+	return uint64(limit)
+}
+
+// eachAdminListRow runs an admin listing query and calls fn for each scanned
+// row, stopping at the first scan, callback or iteration error. The rows are
+// closed on every path, which is what releases the connection when an export's
+// consumer goes away mid-stream.
+func eachAdminListRow[T any](
+	ctx context.Context, r *AdminRepository, sb squirrel.SelectBuilder, noun string,
+	scan func(*sql.Rows) (T, error), fn func(T) error,
+) error {
+	rows, err := r.runAdminListQuery(ctx, sb, noun)
+	if err != nil {
+		return err
+	}
+	defer closeAdminListRows(rows, noun)
+
+	for rows.Next() {
+		item, scanErr := scan(rows)
+		if scanErr != nil {
+			return fmt.Errorf("failed to scan admin %s: %w", noun, scanErr)
+		}
+		if fnErr := fn(item); fnErr != nil {
+			return fnErr
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("failed to iterate admin %ss: %w", noun, err)
+	}
+	return nil
+}
+
+// collectAdminListRows is eachAdminListRow gathering every row into a non-nil
+// slice, for the paginated page queries.
+func collectAdminListRows[T any](
+	ctx context.Context, r *AdminRepository, sb squirrel.SelectBuilder, noun string,
+	scan func(*sql.Rows) (T, error),
+) ([]T, error) {
+	out := make([]T, 0)
+	err := eachAdminListRow(ctx, r, sb, noun, scan, func(item T) error {
+		out = append(out, item)
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer closeAdminListRows(rows, "user")
-
-	users := make([]models.AdminUserListItem, 0)
-	for rows.Next() {
-		var u models.AdminUserListItem
-		rc := &u.ResourceCounts
-		if scanErr := rows.Scan(
-			&u.ID, &u.Email, &u.Name, &u.IDPProvider, &u.Status, &u.CreatedAt, &u.TeamCount, &u.ProjectCount,
-			&rc.Prompts, &rc.Memories, &rc.Artifacts, &rc.Blueprints, &rc.Agents,
-			&rc.Feeds, &rc.FeedItems, &rc.Comments, &rc.Attachments, &rc.Total,
-			&u.LastResourceCreatedAt,
-		); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan admin user: %w", scanErr)
-		}
-		users = append(users, u)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate admin users: %w", err)
-	}
-	return users, nil
+	return out, nil
 }
 
 // runAdminListQuery renders and runs an admin listing page query; noun ("user",

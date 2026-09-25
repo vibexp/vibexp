@@ -162,6 +162,12 @@ const (
 	// with them (activities.user_id is ON DELETE CASCADE), erasing the audit
 	// trail of the deletion at the moment it happens.
 	ActivityTypeAdminUserDeleted = "admin_user_deleted"
+	// ActivityTypeAdminUsersExported, ActivityTypeAdminTeamsExported and
+	// ActivityTypeAdminProjectsExported record an instance admin's CSV export of
+	// a listing (#1149), against the acting admin with entity type system.
+	ActivityTypeAdminUsersExported    = "admin_users_exported"
+	ActivityTypeAdminTeamsExported    = "admin_teams_exported"
+	ActivityTypeAdminProjectsExported = "admin_projects_exported"
 )
 
 // Entity Type Constants

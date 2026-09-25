@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/Masterminds/squirrel"
@@ -287,31 +288,40 @@ func (r *AdminRepository) queryAdminTeams(
 		Limit(limit).
 		Offset(offset)
 
-	rows, err := r.runAdminListQuery(ctx, sb, "team")
-	if err != nil {
-		return nil, err
-	}
-	defer closeAdminListRows(rows, "team")
+	return collectAdminListRows(ctx, r, sb, "team", scanAdminTeamListItem)
+}
 
-	teams := make([]models.AdminTeamListItem, 0)
-	for rows.Next() {
-		var t models.AdminTeamListItem
-		rc, cfg := &t.ResourceCounts, &t.Configuration
-		if scanErr := rows.Scan(
-			&t.ID, &t.Name, &t.Slug, &t.IsPersonal, &t.CreatedAt,
-			&t.Owner.ID, &t.Owner.Email, &t.Owner.Name,
-			&t.MemberCount, &t.OwnerCount, &t.AdminCount, &t.ProjectCount,
-			&rc.Prompts, &rc.Memories, &rc.Artifacts, &rc.Blueprints, &rc.Agents,
-			&rc.Feeds, &rc.FeedItems, &rc.Comments, &rc.Attachments, &rc.Total,
-			&cfg.EmbeddingConfigured, &cfg.LLMConfigured, &cfg.AISummaryEnabled, &cfg.EmailConfigured,
-			&cfg.GitHubConfigured, &cfg.SearchSettingsCustomized, &cfg.FreshnessEnabled,
-		); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan admin team: %w", scanErr)
-		}
-		teams = append(teams, t)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate admin teams: %w", err)
-	}
-	return teams, nil
+// scanAdminTeamListItem scans one row of adminTeamListSelectColumns, shared by
+// the page query and the export stream.
+func scanAdminTeamListItem(rows *sql.Rows) (models.AdminTeamListItem, error) {
+	var t models.AdminTeamListItem
+	rc, cfg := &t.ResourceCounts, &t.Configuration
+	err := rows.Scan(
+		&t.ID, &t.Name, &t.Slug, &t.IsPersonal, &t.CreatedAt,
+		&t.Owner.ID, &t.Owner.Email, &t.Owner.Name,
+		&t.MemberCount, &t.OwnerCount, &t.AdminCount, &t.ProjectCount,
+		&rc.Prompts, &rc.Memories, &rc.Artifacts, &rc.Blueprints, &rc.Agents,
+		&rc.Feeds, &rc.FeedItems, &rc.Comments, &rc.Attachments, &rc.Total,
+		&cfg.EmbeddingConfigured, &cfg.LLMConfigured, &cfg.AISummaryEnabled, &cfg.EmailConfigured,
+		&cfg.GitHubConfigured, &cfg.SearchSettingsCustomized, &cfg.FreshnessEnabled,
+	)
+	return t, err
+}
+
+// CountTeams returns the size of the filtered team set, from the same count
+// query the listing's pagination envelope uses.
+func (r *AdminRepository) CountTeams(ctx context.Context, filters repositories.AdminTeamFilters) (int, error) {
+	return r.countAdminTeams(ctx, buildAdminTeamWhere(filters))
+}
+
+// StreamTeams calls fn for each team matching the filters, in the listing's
+// order, up to limit rows (#1149).
+func (r *AdminRepository) StreamTeams(
+	ctx context.Context, filters repositories.AdminTeamFilters, limit int,
+	fn func(models.AdminTeamListItem) error,
+) error {
+	sb := applyAdminWhere(adminTeamListFrom(psql.Select(adminTeamListSelectColumns...)), buildAdminTeamWhere(filters)).
+		OrderBy(buildAdminTeamOrderBy(filters)).
+		Limit(adminStreamLimit(limit))
+	return eachAdminListRow(ctx, r, sb, "team", scanAdminTeamListItem, fn)
 }

@@ -126,6 +126,12 @@ type AdminServiceInterface interface {
 	// split into its own and the team-wide ones; (nil, nil) for an unknown
 	// project.
 	GetProjectConfig(ctx context.Context, id string) (*models.AdminProjectConfig, error)
+	// ExportUsers, ExportTeams and ExportProjects count a listing's filtered set
+	// and return its streaming CSV export, capped at 50,000 rows (#1149). The
+	// filters are the listing's own; Page/Limit are ignored.
+	ExportUsers(ctx context.Context, filters repositories.AdminUserFilters) (AdminExport, error)
+	ExportTeams(ctx context.Context, filters repositories.AdminTeamFilters) (AdminExport, error)
+	ExportProjects(ctx context.Context, filters repositories.AdminProjectFilters) (AdminExport, error)
 }
 
 // AdminService implements AdminServiceInterface.
@@ -144,6 +150,9 @@ type AdminService struct {
 	userRepo       repositories.UserRepository
 	eventPublisher events.EventPublisher
 	freshness      FreshnessServiceInterface
+
+	// exportCap overrides adminExportRowCap when positive; tests only.
+	exportCap int
 }
 
 // NewAdminService creates a new AdminService.

@@ -228,31 +228,42 @@ func (r *AdminRepository) queryAdminProjects(
 		Limit(limit).
 		Offset(offset)
 
-	rows, err := r.runAdminListQuery(ctx, sb, "project")
-	if err != nil {
-		return nil, err
-	}
-	defer closeAdminListRows(rows, "project")
+	return collectAdminListRows(ctx, r, sb, "project", scanAdminProjectListItem)
+}
 
-	projects := make([]models.AdminProjectListItem, 0)
-	for rows.Next() {
-		var p models.AdminProjectListItem
-		rc := &p.ResourceCounts
-		if scanErr := rows.Scan(
-			&p.ID, &p.Name, &p.Slug, &p.CreatedAt, &p.UpdatedAt,
-			&p.Team.ID, &p.Team.Name, &p.Team.Slug,
-			&p.Owner.ID, &p.Owner.Email, &p.Owner.Name,
-			&rc.Prompts, &rc.Memories, &rc.Artifacts, &rc.Blueprints, &rc.FeedItems, &rc.Total,
-			&p.LastResourceCreatedAt,
-		); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan admin project: %w", scanErr)
-		}
-		projects = append(projects, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate admin projects: %w", err)
-	}
-	return projects, nil
+// scanAdminProjectListItem scans one row of adminProjectListSelectColumns,
+// shared by the page query and the export stream.
+func scanAdminProjectListItem(rows *sql.Rows) (models.AdminProjectListItem, error) {
+	var p models.AdminProjectListItem
+	rc := &p.ResourceCounts
+	err := rows.Scan(
+		&p.ID, &p.Name, &p.Slug, &p.CreatedAt, &p.UpdatedAt,
+		&p.Team.ID, &p.Team.Name, &p.Team.Slug,
+		&p.Owner.ID, &p.Owner.Email, &p.Owner.Name,
+		&rc.Prompts, &rc.Memories, &rc.Artifacts, &rc.Blueprints, &rc.FeedItems, &rc.Total,
+		&p.LastResourceCreatedAt,
+	)
+	return p, err
+}
+
+// CountProjects returns the size of the filtered project set, from the same
+// count query the listing's pagination envelope uses.
+func (r *AdminRepository) CountProjects(ctx context.Context, filters repositories.AdminProjectFilters) (int, error) {
+	return r.countAdminProjects(ctx, buildAdminProjectWhere(filters))
+}
+
+// StreamProjects calls fn for each project matching the filters, in the
+// listing's order, up to limit rows (#1149).
+func (r *AdminRepository) StreamProjects(
+	ctx context.Context, filters repositories.AdminProjectFilters, limit int,
+	fn func(models.AdminProjectListItem) error,
+) error {
+	sb := applyAdminWhere(
+		adminProjectListFrom(psql.Select(adminProjectListSelectColumns...)), buildAdminProjectWhere(filters),
+	).
+		OrderBy(buildAdminProjectOrderBy(filters)).
+		Limit(adminStreamLimit(limit))
+	return eachAdminListRow(ctx, r, sb, "project", scanAdminProjectListItem, fn)
 }
 
 // adminProjectDetailQuery reads one project with its team and owner. Nullable
