@@ -1,3 +1,4 @@
+import { sanitizeAdvanced } from '@/pages/admin/filters/advancedFilterParams'
 import type { AdminTeamListParams } from '@/services/adminService'
 
 import type { TeamListContext } from '../teamListParams'
@@ -12,7 +13,11 @@ import {
   TEAM_SETUP_TRISTATES,
 } from '../teamListParams'
 
-const CTX: TeamListContext = {
+/** The page passes the hook's cleaned `advancedParams`; derive them the same way. */
+const advancedOf = (filters: Record<string, string>) =>
+  sanitizeAdvanced(TEAM_ADVANCED_FILTERS, filters).params
+
+const CTX: Omit<TeamListContext, 'advanced'> = {
   page: 2,
   limit: 20,
   sortBy: 'created_at',
@@ -20,7 +25,7 @@ const CTX: TeamListContext = {
 }
 
 const build = (filters: Record<string, string>) =>
-  buildTeamListParams(filters, CTX)
+  buildTeamListParams(filters, { ...CTX, advanced: advancedOf(filters) })
 
 /** Only the params that are actually present (not `undefined`). */
 const present = (params: AdminTeamListParams) =>
@@ -102,8 +107,35 @@ describe('owner_email', () => {
 
   it('is omitted when it is not an address', () => {
     // The API answers a malformed owner_email with a 400.
-    for (const value of ['boss', '@corp.com', 'boss@', 'a b@c.d', 'a@b@c']) {
+    // Each of these is refused by the server's mail.ParseAddress round-trip.
+    for (const value of [
+      'boss',
+      '@corp.com',
+      'boss@',
+      'a b@c.d',
+      'a@b@c',
+      'john..doe@corp.com',
+      'a@b..com',
+      'john.@corp.com',
+      '.john@corp.com',
+      'a,b@c.com',
+      '<a@b.co>',
+      '"a"@b.co',
+      'a@[1.2.3.4]',
+    ]) {
       expect(build({ owner_email: value }).owner_email).toBeUndefined()
+    }
+  })
+
+  it('accepts ordinary and plus-tagged addresses', () => {
+    for (const value of [
+      'x@corp.com',
+      'first.last+tag@sub.corp.co',
+      "o'brien@corp.ie",
+      'user_1@a-b.io',
+      'jürgen@corp.de',
+    ]) {
+      expect(ownerEmailParam(value)).toBe(value)
     }
   })
 
@@ -122,25 +154,24 @@ it('maps the team kind onto is_personal unchanged', () => {
 })
 
 it('combines base, range, tri-state and owner filters', () => {
-  const params = buildTeamListParams(
-    {
-      search: 'eng',
-      kind: 'shared',
-      owner_email: 'x@corp.com',
-      member_count_min: '10',
-      total_resource_count_max: '500',
-      embedding_configured: 'false',
-      github_configured: 'true',
-    },
-    {
-      page: 1,
-      limit: 20,
-      createdFrom: '2026-01-01T00:00:00.000Z',
-      createdTo: '2026-02-01T00:00:00.000Z',
-      sortBy: 'owner_count',
-      sortOrder: 'asc',
-    }
-  )
+  const filters = {
+    search: 'eng',
+    kind: 'shared',
+    owner_email: 'x@corp.com',
+    member_count_min: '10',
+    total_resource_count_max: '500',
+    embedding_configured: 'false',
+    github_configured: 'true',
+  }
+  const params = buildTeamListParams(filters, {
+    advanced: advancedOf(filters),
+    page: 1,
+    limit: 20,
+    createdFrom: '2026-01-01T00:00:00.000Z',
+    createdTo: '2026-02-01T00:00:00.000Z',
+    sortBy: 'owner_count',
+    sortOrder: 'asc',
+  })
 
   expect(present(params)).toEqual({
     page: 1,

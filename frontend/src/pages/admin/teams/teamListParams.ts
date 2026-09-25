@@ -1,5 +1,7 @@
-import type { AdvancedFilterSpec } from '@/pages/admin/filters/advancedFilterParams'
-import { sanitizeAdvanced } from '@/pages/admin/filters/advancedFilterParams'
+import type {
+  AdvancedFilterSpec,
+  AdvancedParamValue,
+} from '@/pages/admin/filters/advancedFilterParams'
 import type { AdminTeamListParams } from '@/services/adminService'
 
 /**
@@ -121,11 +123,16 @@ export function isPersonalParam(kind: string): boolean | undefined {
 }
 
 /**
- * One `@` with something on both sides and no whitespace. Deliberately loose:
- * it only has to keep a half-typed value from reaching the API, which answers a
- * malformed `owner_email` with a 400 (the server does the strict parse).
+ * A bare RFC 5322 dot-atom address: the shape the server's check
+ * (`mail.ParseAddress` round-tripping to the same string) accepts. Anything else
+ * — `boss`, `john..doe@corp.com`, `<a@b.co>`, `"a"@b.co` — is answered with a
+ * 400, so it must never leave the browser. Non-ASCII is allowed, as Go's parser
+ * allows UTF-8 atoms (RFC 6532); quoted local parts and domain literals are
+ * refused, being valid but vanishingly rare for an owner lookup.
  */
-const PLAUSIBLE_EMAIL = /^[^\s@]+@[^\s@]+$/
+const ATOM = "[\\w!#$%&'*+/=?^`{|}~\\u0080-\\uffff-]+"
+const DOT_ATOM = `${ATOM}(?:\\.${ATOM})*`
+const EMAIL = new RegExp(`^${DOT_ATOM}@${DOT_ATOM}$`, 'u')
 
 /**
  * The trimmed owner email, or `undefined` when blank or not an address — a
@@ -133,10 +140,15 @@ const PLAUSIBLE_EMAIL = /^[^\s@]+@[^\s@]+$/
  */
 export function ownerEmailParam(value: string | undefined): string | undefined {
   const trimmed = value?.trim() ?? ''
-  return PLAUSIBLE_EMAIL.test(trimmed) ? trimmed : undefined
+  return EMAIL.test(trimmed) ? trimmed : undefined
 }
 
 export interface TeamListContext {
+  /**
+   * The cleaned range and tri-state params — `useAdminListFilters`'s
+   * `advancedParams`, which already drops invalid URL values.
+   */
+  advanced: Readonly<Record<string, AdvancedParamValue>>
   page: number
   limit: number
   createdFrom?: string
@@ -154,8 +166,6 @@ export function buildTeamListParams(
   filters: Readonly<Record<string, string | undefined>>,
   ctx: TeamListContext
 ): AdminTeamListParams {
-  // Invalid URL values (non-integer, min > max) never reach `params`.
-  const { params: advanced } = sanitizeAdvanced(TEAM_ADVANCED_FILTERS, filters)
   return {
     page: ctx.page,
     limit: ctx.limit,
@@ -166,6 +176,6 @@ export function buildTeamListParams(
     created_to: ctx.createdTo,
     sort_by: ctx.sortBy,
     sort_order: ctx.sortOrder,
-    ...advanced,
+    ...ctx.advanced,
   }
 }

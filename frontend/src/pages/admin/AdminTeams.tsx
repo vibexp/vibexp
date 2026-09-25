@@ -109,6 +109,7 @@ export function AdminTeams() {
     hasActiveFilters,
     handleSortChange,
     handleClear,
+    advancedParams,
     advancedActiveCount,
     getRange,
     setRange,
@@ -134,6 +135,7 @@ export function AdminTeams() {
   const params = useMemo(
     () =>
       buildTeamListParams(filters, {
+        advanced: advancedParams,
         page,
         limit: PAGE_SIZE,
         createdFrom,
@@ -141,7 +143,7 @@ export function AdminTeams() {
         sortBy,
         sortOrder,
       }),
-    [filters, page, createdFrom, createdTo, sortBy, sortOrder]
+    [filters, advancedParams, page, createdFrom, createdTo, sortBy, sortOrder]
   )
 
   useEffect(() => {
