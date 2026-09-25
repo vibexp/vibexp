@@ -286,6 +286,12 @@ type AdminProjectListItem struct {
 	Owner     AdminTeamOwner
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	// ResourceCounts are the five project-scoped counts, identical to the
+	// detail view's.
+	ResourceCounts AdminProjectResourceCounts
+	// LastResourceCreatedAt is when the project's most recent project-scoped
+	// resource was created; nil for a project with none.
+	LastResourceCreatedAt *time.Time
 }
 
 // AdminProjectList is a page of the admin project listing plus pagination
@@ -309,6 +315,9 @@ type AdminProjectResourceCounts struct {
 	Artifacts  int64
 	Memories   int64
 	Blueprints int64
+	FeedItems  int64
+	// Total is the sum of the five project-scoped counts above.
+	Total int64
 }
 
 // AdminProjectDetail is the per-project admin view

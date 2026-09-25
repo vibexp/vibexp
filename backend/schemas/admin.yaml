@@ -930,6 +930,8 @@ AdminProjectListItem:
     - owner
     - created_at
     - updated_at
+    - resource_counts
+    - last_resource_created_at
   properties:
     id:
       type: string
@@ -955,6 +957,16 @@ AdminProjectListItem:
     updated_at:
       type: string
       format: date-time
+    resource_counts:
+      $ref: '#/AdminProjectResourceCounts'
+    last_resource_created_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: |
+        When the project's most recent project-scoped resource (any of the five
+        types counted in resource_counts) was created; null for a project with
+        none.
 
 AdminProjectListResponse:
   type: object
@@ -988,17 +1000,24 @@ AdminProjectListResponse:
 AdminProjectResourceCounts:
   type: object
   description: |
-    How many of each PROJECT-SCOPED resource type the project contains.
+    How many of each PROJECT-SCOPED resource type the project contains, plus
+    their total. Shared by the project listing and the project detail, which
+    always agree.
 
-    Only these four types belong to a project. Agents and feeds are deliberately
-    absent: neither table has a project_id column (both are team-scoped), so
-    reporting zero for them would read as "this project has no agents" rather
-    than "agents do not belong to projects".
+    Only the five tables with a direct project_id belong to a project: prompts,
+    artifacts, memories, blueprints and feed items (a feed item posted without
+    a project counts for none). Agents and feeds are deliberately absent: both
+    are team-scoped and have no project_id, so reporting zero for them would
+    read as "this project has no agents" rather than "agents do not belong to
+    projects". Comments and attachments are absent too: they reach a project
+    only indirectly, through the resource they are attached to.
   required:
     - prompts
     - artifacts
     - memories
     - blueprints
+    - feed_items
+    - total
   properties:
     prompts:
       type: integer
@@ -1016,6 +1035,15 @@ AdminProjectResourceCounts:
       type: integer
       format: int64
       example: 3
+    feed_items:
+      type: integer
+      format: int64
+      example: 9
+    total:
+      type: integer
+      format: int64
+      description: Sum of the five project-scoped counts.
+      example: 55
 
 AdminProjectDetail:
   type: object

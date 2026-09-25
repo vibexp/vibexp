@@ -49,7 +49,43 @@ func toAdminProjectFilters(p admingen.ListAdminProjectsParams) (repositories.Adm
 		filters.SortOrder = string(*p.SortOrder)
 	}
 
+	if err := applyAdminProjectAggregateFilters(&filters, p); err != nil {
+		return repositories.AdminProjectFilters{}, err
+	}
+
 	return filters, nil
+}
+
+// applyAdminProjectAggregateFilters validates the count ranges, the owner-email
+// match and the last-resource-created range (#1143) and sets them on filters.
+func applyAdminProjectAggregateFilters(
+	filters *repositories.AdminProjectFilters, p admingen.ListAdminProjectsParams,
+) error {
+	if err := applyAdminCountRanges([]adminCountRangeParam{
+		{"prompt_count", p.PromptCountMin, p.PromptCountMax, &filters.PromptCount},
+		{"memory_count", p.MemoryCountMin, p.MemoryCountMax, &filters.MemoryCount},
+		{"artifact_count", p.ArtifactCountMin, p.ArtifactCountMax, &filters.ArtifactCount},
+		{"blueprint_count", p.BlueprintCountMin, p.BlueprintCountMax, &filters.BlueprintCount},
+		{"feed_item_count", p.FeedItemCountMin, p.FeedItemCountMax, &filters.FeedItemCount},
+		{"total_resource_count", p.TotalResourceCountMin, p.TotalResourceCountMax, &filters.TotalResourceCount},
+	}); err != nil {
+		return err
+	}
+
+	ownerEmail, err := adminEmailFilterParam("owner_email", p.OwnerEmail)
+	if err != nil {
+		return err
+	}
+	filters.OwnerEmail = ownerEmail
+
+	if err := validateAdminTimeRange(
+		"last_resource_created", p.LastResourceCreatedFrom, p.LastResourceCreatedTo,
+	); err != nil {
+		return err
+	}
+	filters.LastResourceCreatedFrom = p.LastResourceCreatedFrom
+	filters.LastResourceCreatedTo = p.LastResourceCreatedTo
+	return nil
 }
 
 // ListAdminProjects returns a paginated, filtered, instance-wide project listing.
@@ -129,14 +165,29 @@ func toGenAdminProjectListItem(p models.AdminProjectListItem) (admingen.AdminPro
 		return admingen.AdminProjectListItem{}, err
 	}
 	return admingen.AdminProjectListItem{
-		Id:        id,
-		Name:      p.Name,
-		Slug:      p.Slug,
-		Team:      team,
-		Owner:     owner,
-		CreatedAt: p.CreatedAt,
-		UpdatedAt: p.UpdatedAt,
+		Id:                    id,
+		Name:                  p.Name,
+		Slug:                  p.Slug,
+		Team:                  team,
+		Owner:                 owner,
+		CreatedAt:             p.CreatedAt,
+		UpdatedAt:             p.UpdatedAt,
+		ResourceCounts:        toGenAdminProjectResourceCounts(p.ResourceCounts),
+		LastResourceCreatedAt: p.LastResourceCreatedAt,
 	}, nil
+}
+
+// toGenAdminProjectResourceCounts converts the project-scoped counts, shared by
+// the list row and the detail so the two can never disagree.
+func toGenAdminProjectResourceCounts(c models.AdminProjectResourceCounts) admingen.AdminProjectResourceCounts {
+	return admingen.AdminProjectResourceCounts{
+		Prompts:    c.Prompts,
+		Artifacts:  c.Artifacts,
+		Memories:   c.Memories,
+		Blueprints: c.Blueprints,
+		FeedItems:  c.FeedItems,
+		Total:      c.Total,
+	}
 }
 
 // toGenAdminProjectList converts a project page. The projects slice is always
@@ -174,21 +225,16 @@ func toGenAdminProjectDetail(d *models.AdminProjectDetail) (admingen.AdminProjec
 		return admingen.AdminProjectDetail{}, err
 	}
 	return admingen.AdminProjectDetail{
-		Id:          id,
-		Name:        d.Name,
-		Slug:        d.Slug,
-		Description: d.Description,
-		GitUrl:      d.GitURL,
-		Homepage:    d.Homepage,
-		Team:        team,
-		Owner:       owner,
-		ResourceCounts: admingen.AdminProjectResourceCounts{
-			Prompts:    d.ResourceCounts.Prompts,
-			Artifacts:  d.ResourceCounts.Artifacts,
-			Memories:   d.ResourceCounts.Memories,
-			Blueprints: d.ResourceCounts.Blueprints,
-		},
-		CreatedAt: d.CreatedAt,
-		UpdatedAt: d.UpdatedAt,
+		Id:             id,
+		Name:           d.Name,
+		Slug:           d.Slug,
+		Description:    d.Description,
+		GitUrl:         d.GitURL,
+		Homepage:       d.Homepage,
+		Team:           team,
+		Owner:          owner,
+		ResourceCounts: toGenAdminProjectResourceCounts(d.ResourceCounts),
+		CreatedAt:      d.CreatedAt,
+		UpdatedAt:      d.UpdatedAt,
 	}, nil
 }

@@ -12,12 +12,20 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// Instance-wide project reads for the admin surface (#453).
+// Instance-wide project reads for the admin surface (#453, #1143).
 //
-// Both joins are many-to-one (`projects` → its one `team`, → its one owning
-// `user`), so no row can fan out and COUNT(*) stays exact. Deliberately no
-// LEFT JOIN onto a resource table here: that would multiply rows per project.
-// Resource counts live on the DETAIL endpoint only, as correlated subqueries.
+// The listing applies the admin list count-aggregate pattern (see the comment
+// above adminUserStatsCTE in admin.go): one pre-aggregated CTE per
+// project-scoped resource table, each unique on project_id and LEFT JOINed 1:1
+// onto projects. The team and creator joins are many-to-one. No join can fan
+// out, so COUNT(*) stays exact and the count and page queries share one FROM
+// and one WHERE.
+//
+// Project-scoped means a direct project_id column: prompts, memories,
+// artifacts, blueprints and feed_items (nullable there, so a feed item posted
+// without a project counts for none). agents and feeds are team-scoped;
+// comments and attachments reach a project only through the resource they
+// belong to. All four are excluded rather than reported as zero.
 //
 // Cross-tenant reads with no role predicate (decision D3) — the only
 // authorization is instanceAdminMiddleware at the transport layer.
@@ -26,21 +34,80 @@ import (
 // projection, the date-range filters and the default sort.
 const colProjectCreatedAt = "p.created_at"
 
-// adminProjectListSelectColumns is the projection for the project listing.
+// adminProjectStatsCTE holds one aggregate per project-scoped table. The naive
+// memories.created_at is normalized inside its CTE (rule 4 of the pattern), and
+// feed_items has no created_at: its creation time is posted_at.
+const adminProjectStatsCTE = `WITH
+	pr AS (SELECT project_id, COUNT(*) AS n, MAX(created_at) AS last_at FROM prompts GROUP BY project_id),
+	me AS (SELECT project_id, COUNT(*) AS n, MAX(created_at) AT TIME ZONE 'UTC' AS last_at
+		FROM memories GROUP BY project_id),
+	ar AS (SELECT project_id, COUNT(*) AS n, MAX(created_at) AS last_at FROM artifacts GROUP BY project_id),
+	bp AS (SELECT project_id, COUNT(*) AS n, MAX(created_at) AS last_at FROM blueprints GROUP BY project_id),
+	fi AS (SELECT project_id, COUNT(*) AS n, MAX(posted_at) AS last_at
+		FROM feed_items WHERE project_id IS NOT NULL GROUP BY project_id)`
+
+// adminProjectStatsAliases are the CTE aliases of adminProjectStatsCTE, each
+// LEFT JOINed onto projects on project_id.
+var adminProjectStatsAliases = []string{"pr", "me", "ar", "bp", "fi"}
+
+// Aggregate expressions over adminProjectStatsCTE, shared by the projection, the
+// filters and the sort allowlist so the three can never disagree.
+const (
+	colProjectPromptCount    = "COALESCE(pr.n, 0)"
+	colProjectMemoryCount    = "COALESCE(me.n, 0)"
+	colProjectArtifactCount  = "COALESCE(ar.n, 0)"
+	colProjectBlueprintCount = "COALESCE(bp.n, 0)"
+	colProjectFeedItemCount  = "COALESCE(fi.n, 0)"
+
+	colProjectTotalResourceCount = "(" + colProjectPromptCount + " + " + colProjectMemoryCount + " + " +
+		colProjectArtifactCount + " + " + colProjectBlueprintCount + " + " + colProjectFeedItemCount + ")"
+
+	// GREATEST ignores NULLs, so this is NULL only for a project with no resources.
+	colProjectLastResourceCreatedAt = "GREATEST(pr.last_at, me.last_at, ar.last_at, bp.last_at, fi.last_at)"
+)
+
+// adminProjectListSelectColumns is the projection for the project listing, in
+// the order queryAdminProjects scans it.
 // `owner` is projects.user_id, the project's creator — NOT the team's owner_id.
 var adminProjectListSelectColumns = []string{
 	"p.id", "p.name", "p.slug", colProjectCreatedAt, "p.updated_at",
 	"t.id", "t.name", "t.slug",
 	"u.id", "u.email", "u.name",
+	colProjectPromptCount + " AS prompt_count",
+	colProjectMemoryCount + " AS memory_count",
+	colProjectArtifactCount + " AS artifact_count",
+	colProjectBlueprintCount + " AS blueprint_count",
+	colProjectFeedItemCount + " AS feed_item_count",
+	colProjectTotalResourceCount + " AS total_resource_count",
+	colProjectLastResourceCreatedAt + " AS last_resource_created_at",
+}
+
+// adminProjectSortColumns is the ORDER BY allowlist: sort_by enum value -> fixed
+// expression. Anything absent falls back to p.created_at.
+var adminProjectSortColumns = map[string]string{
+	"name":                     "p.name",
+	"created_at":               colProjectCreatedAt,
+	"prompt_count":             colProjectPromptCount,
+	"memory_count":             colProjectMemoryCount,
+	"artifact_count":           colProjectArtifactCount,
+	"blueprint_count":          colProjectBlueprintCount,
+	"feed_item_count":          colProjectFeedItemCount,
+	"total_resource_count":     colProjectTotalResourceCount,
+	"last_resource_created_at": colProjectLastResourceCreatedAt,
 }
 
 // adminProjectListFrom is the FROM/JOIN shared by the count and page queries, so
-// both see the same row set before filtering.
+// both see the same row set before filtering: projects, its team and creator
+// (inner, NOT NULL FKs) and the aggregate CTEs, all at most one row per project.
 func adminProjectListFrom(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
-	return sb.
+	sb = sb.Prefix(adminProjectStatsCTE).
 		From("projects p").
 		Join("teams t ON t.id = p.team_id").
 		Join("users u ON u.id = p.user_id")
+	for _, alias := range adminProjectStatsAliases {
+		sb = sb.LeftJoin(alias + " ON " + alias + ".project_id = p.id")
+	}
+	return sb
 }
 
 // buildAdminProjectWhere builds the shared WHERE conditions, consumed by BOTH
@@ -61,6 +128,34 @@ func buildAdminProjectWhere(filters repositories.AdminProjectFilters) squirrel.A
 	if filters.CreatedTo != nil {
 		where = append(where, squirrel.LtOrEq{colProjectCreatedAt: *filters.CreatedTo})
 	}
+	// The creator (projects.user_id), matching the `owner` column; emails
+	// created via an identity provider may carry mixed case.
+	if filters.OwnerEmail != nil && *filters.OwnerEmail != "" {
+		where = append(where, squirrel.Expr("lower(u.email) = lower(?)", *filters.OwnerEmail))
+	}
+
+	for _, cr := range []struct {
+		col string
+		r   repositories.AdminCountRange
+	}{
+		{colProjectPromptCount, filters.PromptCount},
+		{colProjectMemoryCount, filters.MemoryCount},
+		{colProjectArtifactCount, filters.ArtifactCount},
+		{colProjectBlueprintCount, filters.BlueprintCount},
+		{colProjectFeedItemCount, filters.FeedItemCount},
+		{colProjectTotalResourceCount, filters.TotalResourceCount},
+	} {
+		where = appendAdminCountRange(where, cr.col, cr.r)
+	}
+
+	// A NULL GREATEST (no resources) fails both comparisons, so such projects
+	// never match a last-resource bound.
+	if filters.LastResourceCreatedFrom != nil {
+		where = append(where, squirrel.GtOrEq{colProjectLastResourceCreatedAt: *filters.LastResourceCreatedFrom})
+	}
+	if filters.LastResourceCreatedTo != nil {
+		where = append(where, squirrel.LtOrEq{colProjectLastResourceCreatedAt: *filters.LastResourceCreatedTo})
+	}
 
 	return where
 }
@@ -68,13 +163,18 @@ func buildAdminProjectWhere(filters repositories.AdminProjectFilters) squirrel.A
 // buildAdminProjectOrderBy builds the ORDER BY from an allowlist — the same
 // SQL-injection control as the users/teams listings. The p.id tie-breaker keeps
 // paging stable when the sort column has duplicates (project names are not
-// unique across teams).
+// unique across teams). last_resource_created_at is NULL for projects with no
+// resources; NULLS LAST keeps them at the end in both directions.
 func buildAdminProjectOrderBy(filters repositories.AdminProjectFilters) string {
-	column := colProjectCreatedAt
-	if filters.SortBy == "name" {
-		column = "p.name"
+	column, ok := adminProjectSortColumns[filters.SortBy]
+	if !ok {
+		column = colProjectCreatedAt
 	}
-	return column + " " + adminSortDirection(filters.SortOrder) + ", p.id"
+	clause := column + " " + adminSortDirection(filters.SortOrder)
+	if column == colProjectLastResourceCreatedAt {
+		clause += " NULLS LAST"
+	}
+	return clause + ", p.id"
 }
 
 // ListProjects returns a page of projects matching the filters, plus the total
@@ -98,8 +198,10 @@ func (r *AdminRepository) ListProjects(
 }
 
 // countAdminProjects counts projects matching the shared WHERE over the same
-// FROM/JOIN as the page query. Both joins are inner on NOT NULL FKs, so COUNT(*)
-// neither drops nor duplicates a project.
+// FROM/JOIN as the page query. The team and creator joins are inner on NOT NULL
+// FKs and every aggregate join is 1:1, so COUNT(*) neither drops nor duplicates
+// a project. Aggregates no predicate references are removed by the planner
+// (rule 5 of the pattern above adminUserStatsCTE).
 func (r *AdminRepository) countAdminProjects(ctx context.Context, where squirrel.And) (int, error) {
 	query, args, err := applyAdminWhere(adminProjectListFrom(psql.Select("COUNT(*)")), where).ToSql()
 	if err != nil {
@@ -126,24 +228,22 @@ func (r *AdminRepository) queryAdminProjects(
 		Limit(limit).
 		Offset(offset)
 
-	query, args, err := sb.ToSql()
+	rows, err := r.runAdminListQuery(ctx, sb, "project")
 	if err != nil {
-		return nil, fmt.Errorf("failed to build admin project list query: %w", err)
+		return nil, err
 	}
-
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list projects: %w", err)
-	}
-	defer closeAdminRows(rows, "admin project")
+	defer closeAdminListRows(rows, "project")
 
 	projects := make([]models.AdminProjectListItem, 0)
 	for rows.Next() {
 		var p models.AdminProjectListItem
+		rc := &p.ResourceCounts
 		if scanErr := rows.Scan(
 			&p.ID, &p.Name, &p.Slug, &p.CreatedAt, &p.UpdatedAt,
 			&p.Team.ID, &p.Team.Name, &p.Team.Slug,
 			&p.Owner.ID, &p.Owner.Email, &p.Owner.Name,
+			&rc.Prompts, &rc.Memories, &rc.Artifacts, &rc.Blueprints, &rc.FeedItems, &rc.Total,
+			&p.LastResourceCreatedAt,
 		); scanErr != nil {
 			return nil, fmt.Errorf("failed to scan admin project: %w", scanErr)
 		}
@@ -171,19 +271,15 @@ WHERE p.id = $1
 `
 
 // adminProjectResourceCountsQuery counts the project-scoped resource types in one
-// round-trip.
-//
-// It covers exactly the four tables that HAVE a project_id column, verified
-// against migrations/001_baseline.up.sql. `agents` and `feeds` are team-scoped
-// and have no such column, so they are absent rather than reported as zero —
-// a zero would read as "this project has no agents" instead of "agents do not
-// belong to projects".
+// round-trip: exactly the five tables with a direct project_id, the same set the
+// listing aggregates (see the header of this file), so list and detail agree.
 const adminProjectResourceCountsQuery = `
 SELECT
 	(SELECT COUNT(*) FROM prompts    WHERE project_id = $1) AS prompts,
 	(SELECT COUNT(*) FROM artifacts  WHERE project_id = $1) AS artifacts,
 	(SELECT COUNT(*) FROM memories   WHERE project_id = $1) AS memories,
-	(SELECT COUNT(*) FROM blueprints WHERE project_id = $1) AS blueprints
+	(SELECT COUNT(*) FROM blueprints WHERE project_id = $1) AS blueprints,
+	(SELECT COUNT(*) FROM feed_items WHERE project_id = $1) AS feed_items
 `
 
 // GetProjectDetail returns one project with its team, owner and resource counts,
@@ -222,10 +318,11 @@ func (r *AdminRepository) projectResourceCounts(
 ) (models.AdminProjectResourceCounts, error) {
 	var counts models.AdminProjectResourceCounts
 	err := r.db.QueryRowContext(ctx, adminProjectResourceCountsQuery, projectID).Scan(
-		&counts.Prompts, &counts.Artifacts, &counts.Memories, &counts.Blueprints,
+		&counts.Prompts, &counts.Artifacts, &counts.Memories, &counts.Blueprints, &counts.FeedItems,
 	)
 	if err != nil {
 		return models.AdminProjectResourceCounts{}, fmt.Errorf("failed to count project resources: %w", err)
 	}
+	counts.Total = counts.Prompts + counts.Artifacts + counts.Memories + counts.Blueprints + counts.FeedItems
 	return counts, nil
 }

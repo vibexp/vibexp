@@ -333,16 +333,37 @@ func (e GetAdminDashboardTimeseriesParamsGranularity) Valid() bool {
 
 // Defines values for ListAdminProjectsParamsSortBy.
 const (
-	ListAdminProjectsParamsSortByCreatedAt ListAdminProjectsParamsSortBy = "created_at"
-	ListAdminProjectsParamsSortByName      ListAdminProjectsParamsSortBy = "name"
+	ListAdminProjectsParamsSortByArtifactCount         ListAdminProjectsParamsSortBy = "artifact_count"
+	ListAdminProjectsParamsSortByBlueprintCount        ListAdminProjectsParamsSortBy = "blueprint_count"
+	ListAdminProjectsParamsSortByCreatedAt             ListAdminProjectsParamsSortBy = "created_at"
+	ListAdminProjectsParamsSortByFeedItemCount         ListAdminProjectsParamsSortBy = "feed_item_count"
+	ListAdminProjectsParamsSortByLastResourceCreatedAt ListAdminProjectsParamsSortBy = "last_resource_created_at"
+	ListAdminProjectsParamsSortByMemoryCount           ListAdminProjectsParamsSortBy = "memory_count"
+	ListAdminProjectsParamsSortByName                  ListAdminProjectsParamsSortBy = "name"
+	ListAdminProjectsParamsSortByPromptCount           ListAdminProjectsParamsSortBy = "prompt_count"
+	ListAdminProjectsParamsSortByTotalResourceCount    ListAdminProjectsParamsSortBy = "total_resource_count"
 )
 
 // Valid indicates whether the value is a known member of the ListAdminProjectsParamsSortBy enum.
 func (e ListAdminProjectsParamsSortBy) Valid() bool {
 	switch e {
+	case ListAdminProjectsParamsSortByArtifactCount:
+		return true
+	case ListAdminProjectsParamsSortByBlueprintCount:
+		return true
 	case ListAdminProjectsParamsSortByCreatedAt:
 		return true
+	case ListAdminProjectsParamsSortByFeedItemCount:
+		return true
+	case ListAdminProjectsParamsSortByLastResourceCreatedAt:
+		return true
+	case ListAdminProjectsParamsSortByMemoryCount:
+		return true
 	case ListAdminProjectsParamsSortByName:
+		return true
+	case ListAdminProjectsParamsSortByPromptCount:
+		return true
+	case ListAdminProjectsParamsSortByTotalResourceCount:
 		return true
 	default:
 		return false
@@ -886,12 +907,17 @@ type AdminProjectDetail struct {
 	// Owner The project's creator (projects.user_id); see AdminProjectListItem.owner.
 	Owner AdminTeamOwner `json:"owner"`
 
-	// ResourceCounts How many of each PROJECT-SCOPED resource type the project contains.
+	// ResourceCounts How many of each PROJECT-SCOPED resource type the project contains, plus
+	// their total. Shared by the project listing and the project detail, which
+	// always agree.
 	//
-	// Only these four types belong to a project. Agents and feeds are deliberately
-	// absent: neither table has a project_id column (both are team-scoped), so
-	// reporting zero for them would read as "this project has no agents" rather
-	// than "agents do not belong to projects".
+	// Only the five tables with a direct project_id belong to a project: prompts,
+	// artifacts, memories, blueprints and feed items (a feed item posted without
+	// a project counts for none). Agents and feeds are deliberately absent: both
+	// are team-scoped and have no project_id, so reporting zero for them would
+	// read as "this project has no agents" rather than "agents do not belong to
+	// projects". Comments and attachments are absent too: they reach a project
+	// only indirectly, through the resource they are attached to.
 	ResourceCounts AdminProjectResourceCounts `json:"resource_counts"`
 	Slug           string                     `json:"slug"`
 
@@ -904,13 +930,31 @@ type AdminProjectDetail struct {
 type AdminProjectListItem struct {
 	CreatedAt time.Time          `json:"created_at"`
 	Id        openapi_types.UUID `json:"id"`
-	Name      string             `json:"name"`
+
+	// LastResourceCreatedAt When the project's most recent project-scoped resource (any of the five
+	// types counted in resource_counts) was created; null for a project with
+	// none.
+	LastResourceCreatedAt *time.Time `json:"last_resource_created_at"`
+	Name                  string     `json:"name"`
 
 	// Owner The project's creator (projects.user_id). This is NOT necessarily the
 	// owning team's owner — a project carries both a team and a creating user,
 	// and the two can differ.
 	Owner AdminTeamOwner `json:"owner"`
-	Slug  string         `json:"slug"`
+
+	// ResourceCounts How many of each PROJECT-SCOPED resource type the project contains, plus
+	// their total. Shared by the project listing and the project detail, which
+	// always agree.
+	//
+	// Only the five tables with a direct project_id belong to a project: prompts,
+	// artifacts, memories, blueprints and feed items (a feed item posted without
+	// a project counts for none). Agents and feeds are deliberately absent: both
+	// are team-scoped and have no project_id, so reporting zero for them would
+	// read as "this project has no agents" rather than "agents do not belong to
+	// projects". Comments and attachments are absent too: they reach a project
+	// only indirectly, through the resource they are attached to.
+	ResourceCounts AdminProjectResourceCounts `json:"resource_counts"`
+	Slug           string                     `json:"slug"`
 
 	// Team The team a project belongs to.
 	Team      AdminProjectTeam `json:"team"`
@@ -930,17 +974,26 @@ type AdminProjectListResponse struct {
 	TotalPages int `json:"total_pages"`
 }
 
-// AdminProjectResourceCounts How many of each PROJECT-SCOPED resource type the project contains.
+// AdminProjectResourceCounts How many of each PROJECT-SCOPED resource type the project contains, plus
+// their total. Shared by the project listing and the project detail, which
+// always agree.
 //
-// Only these four types belong to a project. Agents and feeds are deliberately
-// absent: neither table has a project_id column (both are team-scoped), so
-// reporting zero for them would read as "this project has no agents" rather
-// than "agents do not belong to projects".
+// Only the five tables with a direct project_id belong to a project: prompts,
+// artifacts, memories, blueprints and feed items (a feed item posted without
+// a project counts for none). Agents and feeds are deliberately absent: both
+// are team-scoped and have no project_id, so reporting zero for them would
+// read as "this project has no agents" rather than "agents do not belong to
+// projects". Comments and attachments are absent too: they reach a project
+// only indirectly, through the resource they are attached to.
 type AdminProjectResourceCounts struct {
 	Artifacts  int64 `json:"artifacts"`
 	Blueprints int64 `json:"blueprints"`
+	FeedItems  int64 `json:"feed_items"`
 	Memories   int64 `json:"memories"`
 	Prompts    int64 `json:"prompts"`
+
+	// Total Sum of the five project-scoped counts.
+	Total int64 `json:"total"`
 }
 
 // AdminProjectTeam The team a project belongs to.
@@ -1585,12 +1638,17 @@ type AdminUserNotificationPreferences struct {
 // four types with a NOT NULL project_id are attributed to a project; every
 // other type is counted at the team level only.
 type AdminUserProjectResourceCounts struct {
-	// Counts How many of each PROJECT-SCOPED resource type the project contains.
+	// Counts How many of each PROJECT-SCOPED resource type the project contains, plus
+	// their total. Shared by the project listing and the project detail, which
+	// always agree.
 	//
-	// Only these four types belong to a project. Agents and feeds are deliberately
-	// absent: neither table has a project_id column (both are team-scoped), so
-	// reporting zero for them would read as "this project has no agents" rather
-	// than "agents do not belong to projects".
+	// Only the five tables with a direct project_id belong to a project: prompts,
+	// artifacts, memories, blueprints and feed items (a feed item posted without
+	// a project counts for none). Agents and feeds are deliberately absent: both
+	// are team-scoped and have no project_id, so reporting zero for them would
+	// read as "this project has no agents" rather than "agents do not belong to
+	// projects". Comments and attachments are absent too: they reach a project
+	// only indirectly, through the resource they are attached to.
 	Counts      AdminProjectResourceCounts `json:"counts"`
 	ProjectId   openapi_types.UUID         `json:"project_id"`
 	ProjectName string                     `json:"project_name"`
@@ -1813,7 +1871,58 @@ type ListAdminProjectsParams struct {
 	// CreatedTo Only projects created at or before this instant (inclusive).
 	CreatedTo *time.Time `form:"created_to,omitempty" json:"created_to,omitempty"`
 
+	// PromptCountMin Only projects with at least this many prompts in the project (inclusive).
+	PromptCountMin *int64 `form:"prompt_count_min,omitempty" json:"prompt_count_min,omitempty"`
+
+	// PromptCountMax Only projects with at most this many prompts in the project (inclusive).
+	PromptCountMax *int64 `form:"prompt_count_max,omitempty" json:"prompt_count_max,omitempty"`
+
+	// MemoryCountMin Only projects with at least this many memories in the project (inclusive).
+	MemoryCountMin *int64 `form:"memory_count_min,omitempty" json:"memory_count_min,omitempty"`
+
+	// MemoryCountMax Only projects with at most this many memories in the project (inclusive).
+	MemoryCountMax *int64 `form:"memory_count_max,omitempty" json:"memory_count_max,omitempty"`
+
+	// ArtifactCountMin Only projects with at least this many artifacts in the project (inclusive).
+	ArtifactCountMin *int64 `form:"artifact_count_min,omitempty" json:"artifact_count_min,omitempty"`
+
+	// ArtifactCountMax Only projects with at most this many artifacts in the project (inclusive).
+	ArtifactCountMax *int64 `form:"artifact_count_max,omitempty" json:"artifact_count_max,omitempty"`
+
+	// BlueprintCountMin Only projects with at least this many blueprints in the project (inclusive).
+	BlueprintCountMin *int64 `form:"blueprint_count_min,omitempty" json:"blueprint_count_min,omitempty"`
+
+	// BlueprintCountMax Only projects with at most this many blueprints in the project (inclusive).
+	BlueprintCountMax *int64 `form:"blueprint_count_max,omitempty" json:"blueprint_count_max,omitempty"`
+
+	// FeedItemCountMin Only projects with at least this many feed items in the project (inclusive).
+	FeedItemCountMin *int64 `form:"feed_item_count_min,omitempty" json:"feed_item_count_min,omitempty"`
+
+	// FeedItemCountMax Only projects with at most this many feed items in the project (inclusive).
+	FeedItemCountMax *int64 `form:"feed_item_count_max,omitempty" json:"feed_item_count_max,omitempty"`
+
+	// TotalResourceCountMin Only projects with at least this many project-scoped resources in the project (inclusive). The total is the sum of the five project-scoped types.
+	TotalResourceCountMin *int64 `form:"total_resource_count_min,omitempty" json:"total_resource_count_min,omitempty"`
+
+	// TotalResourceCountMax Only projects with at most this many project-scoped resources in the project (inclusive). The total is the sum of the five project-scoped types.
+	TotalResourceCountMax *int64 `form:"total_resource_count_max,omitempty" json:"total_resource_count_max,omitempty"`
+
+	// OwnerEmail Case-insensitive exact match on the email of the project's creator (`projects.user_id`, the `owner` field), not the owning team's owner. For substring matching on name/slug use `search`.
+	OwnerEmail *openapi_types.Email `form:"owner_email,omitempty" json:"owner_email,omitempty"`
+
+	// LastResourceCreatedFrom Only projects whose most recent project-scoped resource (any of the five
+	// types) was created at or after this instant (inclusive). Projects with
+	// no resources never match.
+	LastResourceCreatedFrom *time.Time `form:"last_resource_created_from,omitempty" json:"last_resource_created_from,omitempty"`
+
+	// LastResourceCreatedTo Only projects whose most recent project-scoped resource (any of the five
+	// types) was created at or before this instant (inclusive). Projects with
+	// no resources never match.
+	LastResourceCreatedTo *time.Time `form:"last_resource_created_to,omitempty" json:"last_resource_created_to,omitempty"`
+
 	// SortBy Column to sort by. Ties are always broken by project id so paging is stable.
+	// Sorting by last_resource_created_at places projects with no resources
+	// last in both directions.
 	SortBy *ListAdminProjectsParamsSortBy `form:"sort_by,omitempty" json:"sort_by,omitempty"`
 
 	// SortOrder Sort direction.
@@ -2612,6 +2721,201 @@ func (siw *ServerInterfaceWrapper) ListAdminProjects(w http.ResponseWriter, r *h
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_to"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "prompt_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "prompt_count_min", r.URL.Query(), &params.PromptCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "prompt_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "prompt_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "prompt_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "prompt_count_max", r.URL.Query(), &params.PromptCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "prompt_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "prompt_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "memory_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "memory_count_min", r.URL.Query(), &params.MemoryCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "memory_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memory_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "memory_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "memory_count_max", r.URL.Query(), &params.MemoryCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "memory_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memory_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "artifact_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "artifact_count_min", r.URL.Query(), &params.ArtifactCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "artifact_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "artifact_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "artifact_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "artifact_count_max", r.URL.Query(), &params.ArtifactCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "artifact_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "artifact_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "blueprint_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "blueprint_count_min", r.URL.Query(), &params.BlueprintCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "blueprint_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "blueprint_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "blueprint_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "blueprint_count_max", r.URL.Query(), &params.BlueprintCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "blueprint_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "blueprint_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "feed_item_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "feed_item_count_min", r.URL.Query(), &params.FeedItemCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "feed_item_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "feed_item_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "feed_item_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "feed_item_count_max", r.URL.Query(), &params.FeedItemCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "feed_item_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "feed_item_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "total_resource_count_min" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "total_resource_count_min", r.URL.Query(), &params.TotalResourceCountMin, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "total_resource_count_min"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "total_resource_count_min", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "total_resource_count_max" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "total_resource_count_max", r.URL.Query(), &params.TotalResourceCountMax, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "total_resource_count_max"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "total_resource_count_max", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "owner_email" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "owner_email", r.URL.Query(), &params.OwnerEmail, runtime.BindQueryParameterOptions{Type: "string", Format: "email"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "owner_email"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "owner_email", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "last_resource_created_from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "last_resource_created_from", r.URL.Query(), &params.LastResourceCreatedFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "last_resource_created_from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "last_resource_created_from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "last_resource_created_to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "last_resource_created_to", r.URL.Query(), &params.LastResourceCreatedTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "last_resource_created_to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "last_resource_created_to", Err: err})
 		}
 		return
 	}
