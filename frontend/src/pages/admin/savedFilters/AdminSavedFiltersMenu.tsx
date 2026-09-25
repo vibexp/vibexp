@@ -38,8 +38,6 @@ export interface AdminSavedFiltersMenuProps {
   currentQuery: PresetQuery
   /** Replaces the page's filters with a preset's (`useAdminListFilters().applyQuery`). */
   onApply: (query: PresetQuery) => void
-  /** Whether any filter is applied; saving an empty preset is pointless. */
-  canSave: boolean
 }
 
 /**
@@ -55,7 +53,6 @@ export function AdminSavedFiltersMenu({
   list,
   currentQuery,
   onApply,
-  canSave,
 }: Readonly<AdminSavedFiltersMenuProps>) {
   const saved = useAdminSavedFilters(list)
   const [saveOpen, setSaveOpen] = useState(false)
@@ -63,6 +60,9 @@ export function AdminSavedFiltersMenu({
 
   const ready = saved.status === 'ready'
   const atCap = saved.presets.length >= MAX_PRESETS
+  // Saving an empty preset is pointless. Sort counts: a sorted-only view is a
+  // real slice ("power users by resource count").
+  const canSave = Object.keys(currentQuery).length > 0
 
   return (
     <>

@@ -113,7 +113,6 @@ export function ProjectFilters({
           list="projects"
           currentQuery={currentQuery}
           onApply={onApplyPreset}
-          canSave={hasActiveFilters}
         />
       }
     >

@@ -110,7 +110,6 @@ export function UserFilters({
           list="users"
           currentQuery={currentQuery}
           onApply={onApplyPreset}
-          canSave={hasActiveFilters}
         />
       }
     >

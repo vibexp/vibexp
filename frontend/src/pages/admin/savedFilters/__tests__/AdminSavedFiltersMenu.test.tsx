@@ -45,7 +45,6 @@ function renderMenu(props: Partial<AdminSavedFiltersMenuProps> = {}) {
       list="users"
       currentQuery={{ status: 'suspended' }}
       onApply={onApply}
-      canSave
       {...props}
     />
   )
@@ -143,13 +142,25 @@ it('saves the current filters under a validated name', async () => {
 })
 
 it('disables saving without filters', async () => {
-  renderMenu({ canSave: false, currentQuery: {} })
+  renderMenu({ currentQuery: {} })
   await screen.findByTestId('saved-filters-count')
   const menu = await openMenu()
   expect(
     within(menu).getByRole('menuitem', { name: 'Save current filters…' })
   ).toHaveAttribute('data-disabled')
   expect(within(menu).getByText('Apply some filters first')).toBeVisible()
+})
+
+it('allows saving a view that is only sorted', async () => {
+  renderMenu({ currentQuery: { sort_by: 'resource_count' } })
+  await screen.findByTestId('saved-filters-count')
+  const menu = await openMenu()
+  expect(
+    within(menu).getByRole('menuitem', { name: 'Save current filters…' })
+  ).not.toHaveAttribute('data-disabled')
+  expect(
+    within(menu).queryByText('Apply some filters first')
+  ).not.toBeInTheDocument()
 })
 
 it('disables saving at the 20-preset cap with a visible reason', async () => {

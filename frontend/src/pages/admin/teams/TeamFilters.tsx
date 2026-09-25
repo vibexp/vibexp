@@ -137,7 +137,6 @@ export function TeamFilters({
           list="teams"
           currentQuery={currentQuery}
           onApply={onApplyPreset}
-          canSave={hasActiveFilters}
         />
       }
     >
