@@ -862,6 +862,8 @@ components:
       $ref: "./schemas/admin.yaml#/AdminStatsResponse"
     AdminUserListItem:
       $ref: "./schemas/admin.yaml#/AdminUserListItem"
+    AdminResourceCounts:
+      $ref: "./schemas/admin.yaml#/AdminResourceCounts"
     AdminUserListResponse:
       $ref: "./schemas/admin.yaml#/AdminUserListResponse"
     AdminTeamMembership:

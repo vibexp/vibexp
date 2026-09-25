@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
@@ -68,21 +67,6 @@ const (
 	colTeamCreatedAt   = "t.created_at"
 )
 
-// adminUserListSelectColumns is the projection for the admin user listing. The
-// team count comes from a LEFT JOIN aggregate over team_members; no role
-// predicate (decision D3) — the join is on user_id only.
-var adminUserListSelectColumns = append(
-	slices.Clone(adminUserListGroupByColumns),
-	"COUNT(tm.team_id) AS team_count",
-)
-
-// adminUserListGroupByColumns are the non-aggregated projection columns, which
-// must all appear in GROUP BY alongside the team_count aggregate. The select
-// projection is derived from it, so the two can never diverge.
-var adminUserListGroupByColumns = []string{
-	"u.id", colUserEmail, colUserName, colUserIDPProvider, colUserStatus, colUserCreatedAt,
-}
-
 // applyAdminWhere attaches the shared conditions to a select builder, skipping
 // an empty conjunction (squirrel would emit a dangling "WHERE" for it).
 func applyAdminWhere(sb squirrel.SelectBuilder, where squirrel.And) squirrel.SelectBuilder {
@@ -118,11 +102,154 @@ func adminPageBounds(page, limit int) (boundedLimit, offset uint64) {
 	return boundedLimit, offset
 }
 
+// # The admin list count-aggregate pattern (#1133)
+//
+// The admin user listing exposes eleven per-user aggregates (teams, projects and
+// nine authored-resource types) that can each be filtered and sorted on. The
+// team (#1138) and project (#1143) listings copy this shape, so its rules are
+// stated here once:
+//
+//  1. One CTE per source table, pre-aggregated and GROUP BY'd on the key the
+//     listing joins on (here the author column). Each yields (user_id, n) plus,
+//     for resource tables, last_at = MAX(<created column>).
+//  2. Every CTE is LEFT JOINed 1:1 onto the listing's base table. Because each
+//     CTE is unique on its join key there is no row fan-out, hence no outer
+//     GROUP BY and no COUNT(DISTINCT). Joining the raw tables instead would
+//     multiply rows across every extra LEFT JOIN.
+//  3. Filters are plain WHERE predicates on COALESCE(alias.n, 0) — never HAVING —
+//     so they compose with the base table's own predicates unchanged.
+//  4. A `timestamp without time zone` column (memories.created_at) is normalized
+//     INSIDE its CTE (`MAX(created_at) AT TIME ZONE 'UTC'`, which assumes UTC and
+//     yields an aware value; see the admin_dashboard.go header). Every last_at is
+//     then timestamptz, so no bound placeholder ever meets a naive column and the
+//     split-placeholder rule does not arise.
+//  5. The count query and the page query share one FROM builder and one WHERE
+//     builder, so total_count always equals the rows the filter can page through.
+//     An aggregate no predicate references is dropped by the planner's join
+//     removal (a LEFT JOIN to a subquery unique on the join key), so an
+//     unfiltered count still plans as a scan of the base table alone.
+//  6. Sort keys map to constant expressions through an allowlist; the request's
+//     sort_by never reaches the query text. Nullable sort keys use NULLS LAST.
+//  7. Every row counts regardless of status or archive state, matching the
+//     dashboard and project-detail counts.
+//
+// None of the source tables is soft-deleted. feed_items has no created_at: its
+// creation time is posted_at. attachments.user_id is nullable (ON DELETE SET
+// NULL), and rows without an author count for nobody.
+const adminUserStatsCTE = `WITH
+	tc AS (SELECT user_id, COUNT(*) AS n FROM team_members GROUP BY user_id),
+	pj AS (SELECT user_id, COUNT(*) AS n FROM projects GROUP BY user_id),
+	pr AS (SELECT user_id, COUNT(*) AS n, MAX(created_at) AS last_at FROM prompts GROUP BY user_id),
+	me AS (SELECT user_id, COUNT(*) AS n, MAX(created_at) AT TIME ZONE 'UTC' AS last_at
+		FROM memories GROUP BY user_id),
+	ar AS (SELECT user_id, COUNT(*) AS n, MAX(created_at) AS last_at FROM artifacts GROUP BY user_id),
+	bp AS (SELECT user_id, COUNT(*) AS n, MAX(created_at) AS last_at FROM blueprints GROUP BY user_id),
+	ag AS (SELECT user_id, COUNT(*) AS n, MAX(created_at) AS last_at FROM agents GROUP BY user_id),
+	fd AS (SELECT created_by_user_id AS user_id, COUNT(*) AS n, MAX(created_at) AS last_at
+		FROM feeds GROUP BY created_by_user_id),
+	fi AS (SELECT posted_by_user_id AS user_id, COUNT(*) AS n, MAX(posted_at) AS last_at
+		FROM feed_items GROUP BY posted_by_user_id),
+	cm AS (SELECT user_id, COUNT(*) AS n, MAX(created_at) AS last_at FROM comments GROUP BY user_id),
+	att AS (SELECT user_id, COUNT(*) AS n, MAX(created_at) AS last_at
+		FROM attachments WHERE user_id IS NOT NULL GROUP BY user_id)`
+
+// adminUserStatsAliases are the CTE aliases of adminUserStatsCTE, each LEFT
+// JOINed onto users on user_id.
+var adminUserStatsAliases = []string{"tc", "pj", "pr", "me", "ar", "bp", "ag", "fd", "fi", "cm", "att"}
+
+// Aggregate expressions over adminUserStatsCTE, shared by the projection, the
+// filters and the sort allowlist so the three can never disagree.
+const (
+	colUserTeamCount       = "COALESCE(tc.n, 0)"
+	colUserProjectCount    = "COALESCE(pj.n, 0)"
+	colUserPromptCount     = "COALESCE(pr.n, 0)"
+	colUserMemoryCount     = "COALESCE(me.n, 0)"
+	colUserArtifactCount   = "COALESCE(ar.n, 0)"
+	colUserBlueprintCount  = "COALESCE(bp.n, 0)"
+	colUserAgentCount      = "COALESCE(ag.n, 0)"
+	colUserFeedCount       = "COALESCE(fd.n, 0)"
+	colUserFeedItemCount   = "COALESCE(fi.n, 0)"
+	colUserCommentCount    = "COALESCE(cm.n, 0)"
+	colUserAttachmentCount = "COALESCE(att.n, 0)"
+
+	colUserTotalResourceCount = "(" + colUserPromptCount + " + " + colUserMemoryCount + " + " +
+		colUserArtifactCount + " + " + colUserBlueprintCount + " + " + colUserAgentCount + " + " +
+		colUserFeedCount + " + " + colUserFeedItemCount + " + " + colUserCommentCount + " + " +
+		colUserAttachmentCount + ")"
+
+	// GREATEST ignores NULLs, so this is NULL only for a user with no resources.
+	colUserLastResourceCreatedAt = "GREATEST(pr.last_at, me.last_at, ar.last_at, bp.last_at, " +
+		"ag.last_at, fd.last_at, fi.last_at, cm.last_at, att.last_at)"
+)
+
+// adminUserListSelectColumns is the projection for the admin user listing, in
+// the order queryAdminUsers scans it. No role predicate (decision D3) — the
+// team_members aggregate is keyed on user_id only.
+var adminUserListSelectColumns = []string{
+	"u.id", colUserEmail, colUserName, colUserIDPProvider, colUserStatus, colUserCreatedAt,
+	colUserTeamCount + " AS team_count",
+	colUserProjectCount + " AS project_count",
+	colUserPromptCount + " AS prompt_count",
+	colUserMemoryCount + " AS memory_count",
+	colUserArtifactCount + " AS artifact_count",
+	colUserBlueprintCount + " AS blueprint_count",
+	colUserAgentCount + " AS agent_count",
+	colUserFeedCount + " AS feed_count",
+	colUserFeedItemCount + " AS feed_item_count",
+	colUserCommentCount + " AS comment_count",
+	colUserAttachmentCount + " AS attachment_count",
+	colUserTotalResourceCount + " AS total_resource_count",
+	colUserLastResourceCreatedAt + " AS last_resource_created_at",
+}
+
+// adminUserSortColumns is the ORDER BY allowlist: sort_by enum value -> fixed
+// expression. Anything absent falls back to u.created_at.
+var adminUserSortColumns = map[string]string{
+	"email":                    colUserEmail,
+	"name":                     colUserName,
+	"created_at":               colUserCreatedAt,
+	"team_count":               colUserTeamCount,
+	"project_count":            colUserProjectCount,
+	"prompt_count":             colUserPromptCount,
+	"memory_count":             colUserMemoryCount,
+	"artifact_count":           colUserArtifactCount,
+	"blueprint_count":          colUserBlueprintCount,
+	"agent_count":              colUserAgentCount,
+	"feed_count":               colUserFeedCount,
+	"feed_item_count":          colUserFeedItemCount,
+	"comment_count":            colUserCommentCount,
+	"attachment_count":         colUserAttachmentCount,
+	"total_resource_count":     colUserTotalResourceCount,
+	"last_resource_created_at": colUserLastResourceCreatedAt,
+}
+
+// adminUserListFrom is the FROM/JOIN shared by the count and page queries: the
+// aggregate CTEs plus one 1:1 LEFT JOIN each onto users.
+func adminUserListFrom(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
+	sb = sb.Prefix(adminUserStatsCTE).From("users u")
+	for _, alias := range adminUserStatsAliases {
+		sb = sb.LeftJoin(alias + " ON " + alias + ".user_id = u.id")
+	}
+	return sb
+}
+
+// appendAdminCountRange appends the inclusive bounds of r on the aggregate
+// expression col. An open bound adds nothing. Reusable by the team and project
+// listings (#1138, #1143).
+func appendAdminCountRange(where squirrel.And, col string, r repositories.AdminCountRange) squirrel.And {
+	if r.Min != nil {
+		where = append(where, squirrel.GtOrEq{col: *r.Min})
+	}
+	if r.Max != nil {
+		where = append(where, squirrel.LtOrEq{col: *r.Max})
+	}
+	return where
+}
+
 // buildAdminUserWhere builds the shared WHERE conditions for the admin user
-// listing. The count and page queries consume the same conditions, so the
-// pagination envelope can never diverge from the returned rows. Every predicate
-// here references only columns of `users`, which is why the count query can skip
-// the team_members join entirely.
+// listing. The count and page queries consume the same conditions over the same
+// FROM (adminUserListFrom), so the pagination envelope can never diverge from
+// the returned rows.
 func buildAdminUserWhere(filters repositories.AdminUserFilters) squirrel.And {
 	where := squirrel.And{}
 
@@ -143,26 +270,58 @@ func buildAdminUserWhere(filters repositories.AdminUserFilters) squirrel.And {
 		where = append(where, squirrel.LtOrEq{colUserCreatedAt: *filters.CreatedTo})
 	}
 
+	for _, cr := range []struct {
+		col string
+		r   repositories.AdminCountRange
+	}{
+		{colUserTeamCount, filters.TeamCount},
+		{colUserProjectCount, filters.ProjectCount},
+		{colUserPromptCount, filters.PromptCount},
+		{colUserMemoryCount, filters.MemoryCount},
+		{colUserArtifactCount, filters.ArtifactCount},
+		{colUserBlueprintCount, filters.BlueprintCount},
+		{colUserAgentCount, filters.AgentCount},
+		{colUserFeedCount, filters.FeedCount},
+		{colUserFeedItemCount, filters.FeedItemCount},
+		{colUserCommentCount, filters.CommentCount},
+		{colUserAttachmentCount, filters.AttachmentCount},
+		{colUserTotalResourceCount, filters.TotalResourceCount},
+	} {
+		where = appendAdminCountRange(where, cr.col, cr.r)
+	}
+
+	// A NULL GREATEST (no resources) fails both comparisons, so such users never
+	// match a last-resource bound.
+	if filters.LastResourceCreatedFrom != nil {
+		where = append(where, squirrel.GtOrEq{colUserLastResourceCreatedAt: *filters.LastResourceCreatedFrom})
+	}
+	if filters.LastResourceCreatedTo != nil {
+		where = append(where, squirrel.LtOrEq{colUserLastResourceCreatedAt: *filters.LastResourceCreatedTo})
+	}
+
 	return where
 }
 
 // buildAdminUserOrderBy builds the ORDER BY clause from an allowlist. This is an
 // SQL-injection control: the request's sort_by never reaches the query text, only
-// a column name selected by the switch. The u.id tie-breaker keeps paging stable
-// when the sort column has duplicates.
+// an expression selected from adminUserSortColumns. The u.id tie-breaker keeps
+// paging stable when the sort column has duplicates. last_resource_created_at is
+// NULL for users with no resources; NULLS LAST keeps them at the end in both
+// directions.
 func buildAdminUserOrderBy(filters repositories.AdminUserFilters) string {
-	column := colUserCreatedAt
-	switch filters.SortBy {
-	case "email", "name", "created_at":
-		column = "u." + filters.SortBy
-	case "team_count":
-		column = "COUNT(tm.team_id)"
+	column, ok := adminUserSortColumns[filters.SortBy]
+	if !ok {
+		column = colUserCreatedAt
 	}
-	return column + " " + adminSortDirection(filters.SortOrder) + ", u.id"
+	clause := column + " " + adminSortDirection(filters.SortOrder)
+	if column == colUserLastResourceCreatedAt {
+		clause += " NULLS LAST"
+	}
+	return clause + ", u.id"
 }
 
-// ListUsers returns a page of users matching the filters with team counts, plus
-// the total count of the filtered set.
+// ListUsers returns a page of users matching the filters with their team,
+// project and resource counts, plus the total count of the filtered set.
 func (r *AdminRepository) ListUsers(
 	ctx context.Context, filters repositories.AdminUserFilters,
 ) ([]models.AdminUserListItem, int, error) {
@@ -181,11 +340,12 @@ func (r *AdminRepository) ListUsers(
 	return users, totalCount, nil
 }
 
-// countAdminUsers counts users matching the shared WHERE conditions. The
-// team_members join is deliberately absent: no filter predicate references it,
-// and joining would require a COUNT(DISTINCT) over every membership row.
+// countAdminUsers counts users matching the shared WHERE conditions over the
+// same aggregate FROM as the page query. Aggregates no predicate references are
+// removed by the planner (rule 5 of the pattern above), so an unfiltered count
+// costs a scan of users alone.
 func (r *AdminRepository) countAdminUsers(ctx context.Context, where squirrel.And) (int, error) {
-	query, args, err := applyAdminWhere(psql.Select("COUNT(*)").From("users u"), where).ToSql()
+	query, args, err := applyAdminWhere(adminUserListFrom(psql.Select("COUNT(*)")), where).ToSql()
 	if err != nil {
 		return 0, fmt.Errorf("failed to build admin user count query: %w", err)
 	}
@@ -197,19 +357,13 @@ func (r *AdminRepository) countAdminUsers(ctx context.Context, where squirrel.An
 	return totalCount, nil
 }
 
-// queryAdminUsers runs the paginated page query using the same WHERE conditions
-// as countAdminUsers.
+// queryAdminUsers runs the paginated page query using the same FROM and WHERE
+// conditions as countAdminUsers.
 func (r *AdminRepository) queryAdminUsers(
 	ctx context.Context, where squirrel.And, filters repositories.AdminUserFilters,
 ) ([]models.AdminUserListItem, error) {
 	limit, offset := adminPageBounds(filters.Page, filters.Limit)
-	sb := applyAdminWhere(
-		psql.Select(adminUserListSelectColumns...).
-			From("users u").
-			LeftJoin("team_members tm ON tm.user_id = u.id"),
-		where,
-	).
-		GroupBy(adminUserListGroupByColumns...).
+	sb := applyAdminWhere(adminUserListFrom(psql.Select(adminUserListSelectColumns...)), where).
 		OrderBy(buildAdminUserOrderBy(filters)).
 		Limit(limit).
 		Offset(offset)
@@ -232,8 +386,12 @@ func (r *AdminRepository) queryAdminUsers(
 	users := make([]models.AdminUserListItem, 0)
 	for rows.Next() {
 		var u models.AdminUserListItem
+		rc := &u.ResourceCounts
 		if scanErr := rows.Scan(
-			&u.ID, &u.Email, &u.Name, &u.IDPProvider, &u.Status, &u.CreatedAt, &u.TeamCount,
+			&u.ID, &u.Email, &u.Name, &u.IDPProvider, &u.Status, &u.CreatedAt, &u.TeamCount, &u.ProjectCount,
+			&rc.Prompts, &rc.Memories, &rc.Artifacts, &rc.Blueprints, &rc.Agents,
+			&rc.Feeds, &rc.FeedItems, &rc.Comments, &rc.Attachments, &rc.Total,
+			&u.LastResourceCreatedAt,
 		); scanErr != nil {
 			return nil, fmt.Errorf("failed to scan admin user: %w", scanErr)
 		}

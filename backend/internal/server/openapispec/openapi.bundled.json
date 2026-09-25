@@ -13369,7 +13369,7 @@
       },
       "get": {
         "summary": "List instance users",
-        "description": "Returns a paginated, instance-wide listing of users with each user's team\ncount. Supports case-insensitive search, typed filters, and allowlisted\nsorting; filters combine with AND and the pagination envelope reflects the\nfiltered set. Instance-admin only; non-admin and unauthenticated requests\nreceive 404.\n",
+        "description": "Returns a paginated, instance-wide listing of users with each user's team\nand project counts, per-type authored-resource counts and the time of their\nmost recent resource. Supports case-insensitive search, typed filters, and allowlisted\nsorting; filters combine with AND and the pagination envelope reflects the\nfiltered set. Instance-admin only; non-admin and unauthenticated requests\nreceive 404.\n",
         "operationId": "listAdminUsers",
         "tags": [
           "Admin"
@@ -13458,9 +13458,293 @@
             }
           },
           {
+            "name": "team_count_min",
+            "in": "query",
+            "description": "Only users with at least this many teams the user belongs to (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "team_count_max",
+            "in": "query",
+            "description": "Only users with at most this many teams the user belongs to (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "project_count_min",
+            "in": "query",
+            "description": "Only users with at least this many projects the user created (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "project_count_max",
+            "in": "query",
+            "description": "Only users with at most this many projects the user created (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "prompt_count_min",
+            "in": "query",
+            "description": "Only users with at least this many prompts the user authored (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "prompt_count_max",
+            "in": "query",
+            "description": "Only users with at most this many prompts the user authored (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "memory_count_min",
+            "in": "query",
+            "description": "Only users with at least this many memories the user authored (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "memory_count_max",
+            "in": "query",
+            "description": "Only users with at most this many memories the user authored (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "artifact_count_min",
+            "in": "query",
+            "description": "Only users with at least this many artifacts the user authored (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "artifact_count_max",
+            "in": "query",
+            "description": "Only users with at most this many artifacts the user authored (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "blueprint_count_min",
+            "in": "query",
+            "description": "Only users with at least this many blueprints the user authored (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "blueprint_count_max",
+            "in": "query",
+            "description": "Only users with at most this many blueprints the user authored (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "agent_count_min",
+            "in": "query",
+            "description": "Only users with at least this many agents the user created (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "agent_count_max",
+            "in": "query",
+            "description": "Only users with at most this many agents the user created (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "feed_count_min",
+            "in": "query",
+            "description": "Only users with at least this many feeds the user created (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "feed_count_max",
+            "in": "query",
+            "description": "Only users with at most this many feeds the user created (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "feed_item_count_min",
+            "in": "query",
+            "description": "Only users with at least this many feed items the user posted (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "feed_item_count_max",
+            "in": "query",
+            "description": "Only users with at most this many feed items the user posted (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "comment_count_min",
+            "in": "query",
+            "description": "Only users with at least this many comments the user wrote (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "comment_count_max",
+            "in": "query",
+            "description": "Only users with at most this many comments the user wrote (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "attachment_count_min",
+            "in": "query",
+            "description": "Only users with at least this many attachments the user uploaded (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "attachment_count_max",
+            "in": "query",
+            "description": "Only users with at most this many attachments the user uploaded (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "total_resource_count_min",
+            "in": "query",
+            "description": "Only users with at least this many resources the user authored across all nine types (the sum of resource_counts) (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "total_resource_count_max",
+            "in": "query",
+            "description": "Only users with at most this many resources the user authored across all nine types (the sum of resource_counts) (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "last_resource_created_from",
+            "in": "query",
+            "description": "Only users whose most recent resource (any of the nine types) was created\nat or after this instant (inclusive). Users with no resources never match.\n",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "last_resource_created_to",
+            "in": "query",
+            "description": "Only users whose most recent resource (any of the nine types) was created\nat or before this instant (inclusive). Users with no resources never match.\n",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
             "name": "sort_by",
             "in": "query",
-            "description": "Column to sort by. Ties are always broken by user id so paging is stable.",
+            "description": "Column to sort by. Ties are always broken by user id so paging is stable.\nSorting by last_resource_created_at places users with no resources last\nin both directions.\n",
             "required": false,
             "schema": {
               "type": "string",
@@ -13468,7 +13752,19 @@
                 "created_at",
                 "email",
                 "name",
-                "team_count"
+                "team_count",
+                "project_count",
+                "prompt_count",
+                "memory_count",
+                "artifact_count",
+                "blueprint_count",
+                "agent_count",
+                "feed_count",
+                "feed_item_count",
+                "comment_count",
+                "attachment_count",
+                "total_resource_count",
+                "last_resource_created_at"
               ],
               "default": "created_at"
             }
@@ -13500,7 +13796,7 @@
             }
           },
           "400": {
-            "description": "Bad request — a query parameter is malformed or outside its enum",
+            "description": "Bad request — a query parameter is malformed or outside its enum, a count bound is negative, or a min/max or from/to pair is inverted",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -32924,7 +33220,9 @@
           "name",
           "status",
           "created_at",
-          "team_count"
+          "team_count",
+          "project_count",
+          "resource_counts"
         ],
         "properties": {
           "id": {
@@ -32965,6 +33263,90 @@
             "format": "int64",
             "description": "Number of teams the user belongs to.",
             "example": 3
+          },
+          "project_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of projects the user created.",
+            "example": 2
+          },
+          "resource_counts": {
+            "$ref": "#/components/schemas/AdminResourceCounts"
+          },
+          "last_resource_created_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the user's most recent resource (any of the nine types counted in\nresource_counts) was created; null for a user who has authored none.\n"
+          }
+        }
+      },
+      "AdminResourceCounts": {
+        "type": "object",
+        "description": "How many resources of each type a user authored, counted by the author\ncolumn of each table (feeds by creator, feed items by poster). Every row\ncounts regardless of its status or archive state. `total` is the sum of the\nnine types.\n",
+        "required": [
+          "prompts",
+          "memories",
+          "artifacts",
+          "blueprints",
+          "agents",
+          "feeds",
+          "feed_items",
+          "comments",
+          "attachments",
+          "total"
+        ],
+        "properties": {
+          "prompts": {
+            "type": "integer",
+            "format": "int64",
+            "example": 12
+          },
+          "memories": {
+            "type": "integer",
+            "format": "int64",
+            "example": 40
+          },
+          "artifacts": {
+            "type": "integer",
+            "format": "int64",
+            "example": 5
+          },
+          "blueprints": {
+            "type": "integer",
+            "format": "int64",
+            "example": 3
+          },
+          "agents": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "feeds": {
+            "type": "integer",
+            "format": "int64",
+            "example": 2
+          },
+          "feed_items": {
+            "type": "integer",
+            "format": "int64",
+            "example": 18
+          },
+          "comments": {
+            "type": "integer",
+            "format": "int64",
+            "example": 7
+          },
+          "attachments": {
+            "type": "integer",
+            "format": "int64",
+            "example": 4
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sum of the nine per-type counts.",
+            "example": 92
           }
         }
       },

@@ -56,11 +56,14 @@ func TestAdminService_ListUsers_ForwardsFiltersAndPagesFilteredTotal(t *testing.
 	idp := "google"
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)
+	lower, upper := int64(2), int64(9)
+	promptRange := repositories.AdminCountRange{Min: &lower, Max: &upper}
 
 	// Only Page/Limit are clamped; the filter fields must arrive unchanged.
 	want := repositories.AdminUserFilters{
 		Search: &search, IDPProvider: &idp, CreatedFrom: &from, CreatedTo: &to,
-		SortBy: "email", SortOrder: "asc", Page: 1, Limit: 20,
+		PromptCount: promptRange, LastResourceCreatedFrom: &from,
+		SortBy: "total_resource_count", SortOrder: "asc", Page: 1, Limit: 20,
 	}
 	repo := repomocks.NewMockAdminRepository(t)
 	repo.On("ListUsers", mock.Anything, want).
@@ -68,7 +71,8 @@ func TestAdminService_ListUsers_ForwardsFiltersAndPagesFilteredTotal(t *testing.
 
 	got, err := newReadOnlyAdminService(repo).ListUsers(context.Background(), repositories.AdminUserFilters{
 		Search: &search, IDPProvider: &idp, CreatedFrom: &from, CreatedTo: &to,
-		SortBy: "email", SortOrder: "asc", Page: 0, Limit: 0,
+		PromptCount: promptRange, LastResourceCreatedFrom: &from,
+		SortBy: "total_resource_count", SortOrder: "asc", Page: 0, Limit: 0,
 	})
 	require.NoError(t, err)
 	// 3 filtered matches, not the instance-wide user count.
