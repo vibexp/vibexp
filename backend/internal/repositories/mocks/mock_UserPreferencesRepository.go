@@ -22,6 +22,73 @@ func (_m *MockUserPreferencesRepository) EXPECT() *MockUserPreferencesRepository
 	return &MockUserPreferencesRepository_Expecter{mock: &_m.Mock}
 }
 
+// GetAdminSavedFilters provides a mock function with given fields: ctx, userID, list
+func (_m *MockUserPreferencesRepository) GetAdminSavedFilters(ctx context.Context, userID string, list string) ([]models.AdminSavedFilterPreset, int64, error) {
+	ret := _m.Called(ctx, userID, list)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAdminSavedFilters")
+	}
+
+	var r0 []models.AdminSavedFilterPreset
+	var r1 int64
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]models.AdminSavedFilterPreset, int64, error)); ok {
+		return rf(ctx, userID, list)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) []models.AdminSavedFilterPreset); ok {
+		r0 = rf(ctx, userID, list)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AdminSavedFilterPreset)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) int64); ok {
+		r1 = rf(ctx, userID, list)
+	} else {
+		r1 = ret.Get(1).(int64)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string, string) error); ok {
+		r2 = rf(ctx, userID, list)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockUserPreferencesRepository_GetAdminSavedFilters_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAdminSavedFilters'
+type MockUserPreferencesRepository_GetAdminSavedFilters_Call struct {
+	*mock.Call
+}
+
+// GetAdminSavedFilters is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - list string
+func (_e *MockUserPreferencesRepository_Expecter) GetAdminSavedFilters(ctx interface{}, userID interface{}, list interface{}) *MockUserPreferencesRepository_GetAdminSavedFilters_Call {
+	return &MockUserPreferencesRepository_GetAdminSavedFilters_Call{Call: _e.mock.On("GetAdminSavedFilters", ctx, userID, list)}
+}
+
+func (_c *MockUserPreferencesRepository_GetAdminSavedFilters_Call) Run(run func(ctx context.Context, userID string, list string)) *MockUserPreferencesRepository_GetAdminSavedFilters_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockUserPreferencesRepository_GetAdminSavedFilters_Call) Return(_a0 []models.AdminSavedFilterPreset, _a1 int64, _a2 error) *MockUserPreferencesRepository_GetAdminSavedFilters_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockUserPreferencesRepository_GetAdminSavedFilters_Call) RunAndReturn(run func(context.Context, string, string) ([]models.AdminSavedFilterPreset, int64, error)) *MockUserPreferencesRepository_GetAdminSavedFilters_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetByUserID provides a mock function with given fields: ctx, userID
 func (_m *MockUserPreferencesRepository) GetByUserID(ctx context.Context, userID string) (*models.UserPreferences, error) {
 	ret := _m.Called(ctx, userID)
@@ -77,6 +144,67 @@ func (_c *MockUserPreferencesRepository_GetByUserID_Call) Return(_a0 *models.Use
 }
 
 func (_c *MockUserPreferencesRepository_GetByUserID_Call) RunAndReturn(run func(context.Context, string) (*models.UserPreferences, error)) *MockUserPreferencesRepository_GetByUserID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ReplaceAdminSavedFilters provides a mock function with given fields: ctx, userID, list, presets, seed, expectedVersion
+func (_m *MockUserPreferencesRepository) ReplaceAdminSavedFilters(ctx context.Context, userID string, list string, presets []models.AdminSavedFilterPreset, seed models.Preferences, expectedVersion int64) (int64, error) {
+	ret := _m.Called(ctx, userID, list, presets, seed, expectedVersion)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReplaceAdminSavedFilters")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []models.AdminSavedFilterPreset, models.Preferences, int64) (int64, error)); ok {
+		return rf(ctx, userID, list, presets, seed, expectedVersion)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []models.AdminSavedFilterPreset, models.Preferences, int64) int64); ok {
+		r0 = rf(ctx, userID, list, presets, seed, expectedVersion)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, []models.AdminSavedFilterPreset, models.Preferences, int64) error); ok {
+		r1 = rf(ctx, userID, list, presets, seed, expectedVersion)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockUserPreferencesRepository_ReplaceAdminSavedFilters_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReplaceAdminSavedFilters'
+type MockUserPreferencesRepository_ReplaceAdminSavedFilters_Call struct {
+	*mock.Call
+}
+
+// ReplaceAdminSavedFilters is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - list string
+//   - presets []models.AdminSavedFilterPreset
+//   - seed models.Preferences
+//   - expectedVersion int64
+func (_e *MockUserPreferencesRepository_Expecter) ReplaceAdminSavedFilters(ctx interface{}, userID interface{}, list interface{}, presets interface{}, seed interface{}, expectedVersion interface{}) *MockUserPreferencesRepository_ReplaceAdminSavedFilters_Call {
+	return &MockUserPreferencesRepository_ReplaceAdminSavedFilters_Call{Call: _e.mock.On("ReplaceAdminSavedFilters", ctx, userID, list, presets, seed, expectedVersion)}
+}
+
+func (_c *MockUserPreferencesRepository_ReplaceAdminSavedFilters_Call) Run(run func(ctx context.Context, userID string, list string, presets []models.AdminSavedFilterPreset, seed models.Preferences, expectedVersion int64)) *MockUserPreferencesRepository_ReplaceAdminSavedFilters_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]models.AdminSavedFilterPreset), args[4].(models.Preferences), args[5].(int64))
+	})
+	return _c
+}
+
+func (_c *MockUserPreferencesRepository_ReplaceAdminSavedFilters_Call) Return(_a0 int64, _a1 error) *MockUserPreferencesRepository_ReplaceAdminSavedFilters_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockUserPreferencesRepository_ReplaceAdminSavedFilters_Call) RunAndReturn(run func(context.Context, string, string, []models.AdminSavedFilterPreset, models.Preferences, int64) (int64, error)) *MockUserPreferencesRepository_ReplaceAdminSavedFilters_Call {
 	_c.Call.Return(run)
 	return _c
 }

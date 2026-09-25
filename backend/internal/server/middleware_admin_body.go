@@ -43,29 +43,41 @@ type adminGuardedBody struct {
 	method   string
 	path     *regexp.Regexp
 	bodyType any
+	// hint is appended to the rejection message; empty for none.
+	hint string
 }
+
+// adminIdentityFieldsHint explains why the user-edit bodies are so narrow.
+const adminIdentityFieldsHint = " Email and identity-provider fields are owned by the identity provider."
 
 var adminGuardedBodies = []adminGuardedBody{
 	{
 		method:   http.MethodPost,
 		path:     regexp.MustCompile(`^/api/v1/admin/users$`),
 		bodyType: admingen.AdminUserCreateRequest{},
+		hint:     adminIdentityFieldsHint,
 	},
 	{
 		method:   http.MethodPatch,
 		path:     regexp.MustCompile(`^/api/v1/admin/users/[^/]+$`),
 		bodyType: admingen.AdminUserUpdateRequest{},
+		hint:     adminIdentityFieldsHint,
+	},
+	{
+		method:   http.MethodPut,
+		path:     regexp.MustCompile(`^/api/v1/admin/saved-filters/[^/]+$`),
+		bodyType: admingen.AdminSavedFiltersReplaceRequest{},
 	},
 }
 
 // guardedBodyFor returns the guarded-operation entry matching this request.
-func guardedBodyFor(r *http.Request) (any, bool) {
+func guardedBodyFor(r *http.Request) (adminGuardedBody, bool) {
 	for _, g := range adminGuardedBodies {
 		if r.Method == g.method && g.path.MatchString(r.URL.Path) {
-			return g.bodyType, true
+			return g, true
 		}
 	}
-	return nil, false
+	return adminGuardedBody{}, false
 }
 
 // allowedJSONFields returns the set of JSON object keys a struct declares,
@@ -96,7 +108,7 @@ func allowedJSONFields(v any) map[string]struct{} {
 // decoder downstream still sees a readable stream.
 func (s *Server) rejectUnknownAdminBodyFields(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		bodyType, guarded := guardedBodyFor(r)
+		guard, guarded := guardedBodyFor(r)
 		if !guarded || r.Body == nil {
 			next.ServeHTTP(w, r)
 			return
@@ -122,11 +134,11 @@ func (s *Server) rejectUnknownAdminBodyFields(next http.Handler) http.Handler {
 			return
 		}
 
-		if unknown := unknownFields(fields, allowedJSONFields(bodyType)); len(unknown) > 0 {
+		allowed := allowedJSONFields(guard.bodyType)
+		if unknown := unknownFields(fields, allowed); len(unknown) > 0 {
 			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(fmt.Sprintf(
-				"Unknown or non-editable field(s): %s. Only %s may be changed here; "+
-					"email and identity-provider fields are owned by the identity provider.",
-				strings.Join(unknown, ", "), strings.Join(sortedKeys(allowedJSONFields(bodyType)), ", "),
+				"Unknown or non-editable field(s): %s. Only %s may be sent here.%s",
+				strings.Join(unknown, ", "), strings.Join(sortedKeys(allowed), ", "), guard.hint,
 			)))
 			return
 		}

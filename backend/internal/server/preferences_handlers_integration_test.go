@@ -794,3 +794,19 @@ func TestHandleGetPreferences_DifferentUsers(t *testing.T) {
 		})
 	}
 }
+
+func (m *MockUserPreferencesService) GetAdminSavedFilters(
+	ctx context.Context, userID, list string,
+) ([]models.AdminSavedFilterPreset, int64, error) {
+	args := m.Called(ctx, userID, list)
+	presets, _ := args.Get(0).([]models.AdminSavedFilterPreset)
+	return presets, args.Get(1).(int64), args.Error(2)
+}
+
+func (m *MockUserPreferencesService) ReplaceAdminSavedFilters(
+	ctx context.Context, userID, list string, presets []models.AdminSavedFilterPreset, expectedVersion int64,
+) ([]models.AdminSavedFilterPreset, int64, error) {
+	args := m.Called(ctx, userID, list, presets, expectedVersion)
+	saved, _ := args.Get(0).([]models.AdminSavedFilterPreset)
+	return saved, args.Get(1).(int64), args.Error(2)
+}

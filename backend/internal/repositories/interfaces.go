@@ -43,6 +43,12 @@ var (
 	// caller should re-read and retry.
 	ErrGitHubAppConfigVersionConflict = errors.New("GitHub App configuration was modified concurrently")
 
+	// ErrUserPreferencesVersionConflict is returned by
+	// UserPreferencesRepository.ReplaceAdminSavedFilters when the supplied
+	// version no longer matches the stored row (optimistic locking). Nothing is
+	// mutated; the caller should re-read and retry.
+	ErrUserPreferencesVersionConflict = errors.New("user preferences were modified concurrently")
+
 	// ErrGitHubAppWebhookTokenTaken is returned by GitHubAppConfigRepository
 	// Create/Update when the minted webhook token collides with an existing one
 	// (idx_github_app_configs_webhook_token). With 32 bytes of crypto/rand this
@@ -1229,7 +1235,22 @@ type BlueprintFilters struct {
 type UserPreferencesRepository interface {
 	// GetByUserID returns (nil, nil) — not an error — when the user has no preferences row.
 	GetByUserID(ctx context.Context, userID string) (*models.UserPreferences, error)
+	// Upsert merges the typed preference keys into the stored document at the
+	// top level, so keys the typed struct does not model (e.g. `admin`) survive.
 	Upsert(ctx context.Context, prefs *models.UserPreferences) error
+	// GetAdminSavedFilters returns the presets stored under
+	// admin.saved_filters.<list> and the row version; (empty, 0, nil) when the
+	// user has no preferences row.
+	GetAdminSavedFilters(
+		ctx context.Context, userID, list string,
+	) ([]models.AdminSavedFilterPreset, int64, error)
+	// ReplaceAdminSavedFilters replaces admin.saved_filters.<list> and nothing
+	// else, returning the new version. expectedVersion 0 creates the row, seeded
+	// with seed. A stale version returns ErrUserPreferencesVersionConflict.
+	ReplaceAdminSavedFilters(
+		ctx context.Context, userID, list string, presets []models.AdminSavedFilterPreset,
+		seed models.Preferences, expectedVersion int64,
+	) (int64, error)
 }
 
 // TeamSearchSettingsRepository defines the interface for per-team search

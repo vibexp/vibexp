@@ -11254,6 +11254,116 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/saved-filters/{list}:
+    get:
+      summary: Get the caller's saved filter presets for an admin list
+      description: |
+        Returns the calling instance admin's own named filter presets for one admin
+        list, plus the `version` to send back when replacing them. An admin with
+        nothing saved gets `presets: []` and `version: 0`. Presets are private to
+        the admin who saved them.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: getAdminSavedFilters
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: list
+          in: path
+          required: true
+          description: Which admin list the presets belong to.
+          schema:
+            $ref: '#/components/schemas/AdminSavedFilterListName'
+      responses:
+        '200':
+          description: The caller's presets for this list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSavedFilters'
+        '400':
+          description: Bad request — unknown list name
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Replace the caller's saved filter presets for an admin list
+      description: |
+        Atomically replaces the calling instance admin's presets for one admin
+        list. At most 20 presets; names are trimmed and must be 1–80 characters and
+        unique case-insensitively; ids must be unique (a missing id is assigned by
+        the server, a sent id is kept). The request's `version` must match the
+        stored one, otherwise nothing is saved and 409 is returned. A body carrying
+        an unknown field is rejected with 400.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: replaceAdminSavedFilters
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: list
+          in: path
+          required: true
+          description: Which admin list the presets belong to.
+          schema:
+            $ref: '#/components/schemas/AdminSavedFilterListName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminSavedFiltersReplaceRequest'
+      responses:
+        '200':
+          description: The saved presets and the new version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSavedFilters'
+        '400':
+          description: |
+            Bad request — unknown list name, an invalid preset (over the cap,
+            duplicate or out-of-range name, duplicate id, invalid query key or
+            value), or a body carrying an unknown field
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict — the presets were changed elsewhere (stale `version`); nothing was saved
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/{team_id}/comments:
     get:
       summary: List a resource's comments
@@ -26727,6 +26837,124 @@ components:
           description: Rules with no project scope, which apply to every project of the team. `[]` when there are none.
           items:
             $ref: '#/components/schemas/AdminFreshnessRule'
+    AdminSavedFilterListName:
+      type: string
+      description: The admin list a set of saved filter presets belongs to.
+      enum:
+        - users
+        - teams
+        - projects
+    AdminSavedFilterQuery:
+      type: object
+      description: |
+        The list's filter state as URL query parameters (parameter name → value).
+        Stored as given and never executed server-side; the client owns its meaning.
+        At most 40 keys, each matching `^[a-z0-9_]{1,64}$`, each value at most 512
+        characters.
+      maxProperties: 40
+      additionalProperties:
+        type: string
+        maxLength: 512
+      example:
+        status: suspended
+        sort_by: created_at
+    AdminSavedFilterPreset:
+      type: object
+      description: One named filter preset saved by an instance admin.
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - query
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Stable preset id. Kept across renames.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Display name, unique (case-insensitively) within the list.
+          example: Dormant teams
+        query:
+          $ref: '#/components/schemas/AdminSavedFilterQuery'
+    AdminSavedFilterPresetInput:
+      type: object
+      description: |
+        A preset as sent in a replace request. Omit `id` for a new preset and the
+        server assigns one; send the existing `id` to keep it (e.g. on rename).
+      additionalProperties: false
+      required:
+        - name
+        - query
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Existing preset id to keep; omitted for a new preset.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: |
+            Display name. Surrounding whitespace is trimmed; must be unique
+            (case-insensitively) within the list.
+          example: Dormant teams
+        query:
+          $ref: '#/components/schemas/AdminSavedFilterQuery'
+    AdminSavedFilters:
+      type: object
+      description: |
+        The calling instance admin's saved filter presets for one admin list
+        (GET/PUT /api/v1/admin/saved-filters/{list}). Presets are private to the
+        admin who saved them.
+      additionalProperties: false
+      required:
+        - list
+        - presets
+        - version
+      properties:
+        list:
+          $ref: '#/components/schemas/AdminSavedFilterListName'
+        presets:
+          type: array
+          maxItems: 20
+          description: The presets in their saved order. `[]` when there are none.
+          items:
+            $ref: '#/components/schemas/AdminSavedFilterPreset'
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          description: |
+            Optimistic-lock version of the admin's preferences record. `0` when
+            nothing has been saved yet. Send it back unchanged in the next replace
+            request; it is shared with the user's other preferences, so a change
+            made elsewhere also advances it.
+    AdminSavedFiltersReplaceRequest:
+      type: object
+      description: |
+        Replaces the whole preset list for one admin list. Renaming and deleting are
+        done by sending the edited list.
+      additionalProperties: false
+      required:
+        - presets
+        - version
+      properties:
+        presets:
+          type: array
+          maxItems: 20
+          description: The complete new preset list, in order (at most 20).
+          items:
+            $ref: '#/components/schemas/AdminSavedFilterPresetInput'
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          description: |
+            The `version` last read. A stale value is rejected with 409 and nothing
+            is saved.
     ProjectResponse:
       allOf:
         - $ref: '#/components/schemas/Project'

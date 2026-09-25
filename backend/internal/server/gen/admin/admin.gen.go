@@ -85,6 +85,27 @@ func (e AdminProjectResourceCreationMetricsGranularity) Valid() bool {
 	}
 }
 
+// Defines values for AdminSavedFilterListName.
+const (
+	Projects AdminSavedFilterListName = "projects"
+	Teams    AdminSavedFilterListName = "teams"
+	Users    AdminSavedFilterListName = "users"
+)
+
+// Valid indicates whether the value is a known member of the AdminSavedFilterListName enum.
+func (e AdminSavedFilterListName) Valid() bool {
+	switch e {
+	case Projects:
+		return true
+	case Teams:
+		return true
+	case Users:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminTeamConfigSource.
 const (
 	Instance AdminTeamConfigSource = "instance"
@@ -1184,6 +1205,75 @@ type AdminResourceCounts struct {
 type AdminSMTPSettings struct {
 	Host string `json:"host"`
 	Port string `json:"port"`
+}
+
+// AdminSavedFilterListName The admin list a set of saved filter presets belongs to.
+type AdminSavedFilterListName string
+
+// AdminSavedFilterPreset One named filter preset saved by an instance admin.
+type AdminSavedFilterPreset struct {
+	// Id Stable preset id. Kept across renames.
+	Id openapi_types.UUID `json:"id"`
+
+	// Name Display name, unique (case-insensitively) within the list.
+	Name string `json:"name"`
+
+	// Query The list's filter state as URL query parameters (parameter name → value).
+	// Stored as given and never executed server-side; the client owns its meaning.
+	// At most 40 keys, each matching `^[a-z0-9_]{1,64}$`, each value at most 512
+	// characters.
+	Query AdminSavedFilterQuery `json:"query"`
+}
+
+// AdminSavedFilterPresetInput A preset as sent in a replace request. Omit `id` for a new preset and the
+// server assigns one; send the existing `id` to keep it (e.g. on rename).
+type AdminSavedFilterPresetInput struct {
+	// Id Existing preset id to keep; omitted for a new preset.
+	Id *openapi_types.UUID `json:"id,omitempty"`
+
+	// Name Display name. Surrounding whitespace is trimmed; must be unique
+	// (case-insensitively) within the list.
+	Name string `json:"name"`
+
+	// Query The list's filter state as URL query parameters (parameter name → value).
+	// Stored as given and never executed server-side; the client owns its meaning.
+	// At most 40 keys, each matching `^[a-z0-9_]{1,64}$`, each value at most 512
+	// characters.
+	Query AdminSavedFilterQuery `json:"query"`
+}
+
+// AdminSavedFilterQuery The list's filter state as URL query parameters (parameter name → value).
+// Stored as given and never executed server-side; the client owns its meaning.
+// At most 40 keys, each matching `^[a-z0-9_]{1,64}$`, each value at most 512
+// characters.
+type AdminSavedFilterQuery map[string]string
+
+// AdminSavedFilters The calling instance admin's saved filter presets for one admin list
+// (GET/PUT /api/v1/admin/saved-filters/{list}). Presets are private to the
+// admin who saved them.
+type AdminSavedFilters struct {
+	// List The admin list a set of saved filter presets belongs to.
+	List AdminSavedFilterListName `json:"list"`
+
+	// Presets The presets in their saved order. `[]` when there are none.
+	Presets []AdminSavedFilterPreset `json:"presets"`
+
+	// Version Optimistic-lock version of the admin's preferences record. `0` when
+	// nothing has been saved yet. Send it back unchanged in the next replace
+	// request; it is shared with the user's other preferences, so a change
+	// made elsewhere also advances it.
+	Version int64 `json:"version"`
+}
+
+// AdminSavedFiltersReplaceRequest Replaces the whole preset list for one admin list. Renaming and deleting are
+// done by sending the edited list.
+type AdminSavedFiltersReplaceRequest struct {
+	// Presets The complete new preset list, in order (at most 20).
+	Presets []AdminSavedFilterPresetInput `json:"presets"`
+
+	// Version The `version` last read. A stale value is rejected with 409 and nothing
+	// is saved.
+	Version int64 `json:"version"`
 }
 
 // AdminSearchValues A complete search ranking profile.
@@ -2461,6 +2551,9 @@ type GetAdminUserTopAccessedResourcesParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ReplaceAdminSavedFiltersJSONRequestBody defines body for ReplaceAdminSavedFilters for application/json ContentType.
+type ReplaceAdminSavedFiltersJSONRequestBody = AdminSavedFiltersReplaceRequest
+
 // CreateAdminUserJSONRequestBody defines body for CreateAdminUser for application/json ContentType.
 type CreateAdminUserJSONRequestBody = AdminUserCreateRequest
 
@@ -2493,6 +2586,12 @@ type ServerInterface interface {
 	// Get a project's most-accessed resources
 	// (GET /api/v1/admin/projects/{id}/top-accessed-resources)
 	GetAdminProjectTopAccessedResources(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminProjectTopAccessedResourcesParams)
+	// Get the caller's saved filter presets for an admin list
+	// (GET /api/v1/admin/saved-filters/{list})
+	GetAdminSavedFilters(w http.ResponseWriter, r *http.Request, list AdminSavedFilterListName)
+	// Replace the caller's saved filter presets for an admin list
+	// (PUT /api/v1/admin/saved-filters/{list})
+	ReplaceAdminSavedFilters(w http.ResponseWriter, r *http.Request, list AdminSavedFilterListName)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(w http.ResponseWriter, r *http.Request)
@@ -2619,6 +2718,18 @@ func (_ Unimplemented) GetAdminProjectResourceCreationMetrics(w http.ResponseWri
 // Get a project's most-accessed resources
 // (GET /api/v1/admin/projects/{id}/top-accessed-resources)
 func (_ Unimplemented) GetAdminProjectTopAccessedResources(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminProjectTopAccessedResourcesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the caller's saved filter presets for an admin list
+// (GET /api/v1/admin/saved-filters/{list})
+func (_ Unimplemented) GetAdminSavedFilters(w http.ResponseWriter, r *http.Request, list AdminSavedFilterListName) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace the caller's saved filter presets for an admin list
+// (PUT /api/v1/admin/saved-filters/{list})
+func (_ Unimplemented) ReplaceAdminSavedFilters(w http.ResponseWriter, r *http.Request, list AdminSavedFilterListName) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3484,6 +3595,74 @@ func (siw *ServerInterfaceWrapper) GetAdminProjectTopAccessedResources(w http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdminProjectTopAccessedResources(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminSavedFilters operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminSavedFilters(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "list" -------------
+	var list AdminSavedFilterListName
+
+	err = runtime.BindStyledParameterWithOptions("simple", "list", chi.URLParam(r, "list"), &list, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "list", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminSavedFilters(w, r, list)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceAdminSavedFilters operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceAdminSavedFilters(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "list" -------------
+	var list AdminSavedFilterListName
+
+	err = runtime.BindStyledParameterWithOptions("simple", "list", chi.URLParam(r, "list"), &list, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "list", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceAdminSavedFilters(w, r, list)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5656,6 +5835,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/admin/projects/{id}/top-accessed-resources", wrapper.GetAdminProjectTopAccessedResources)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/saved-filters/{list}", wrapper.GetAdminSavedFilters)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/admin/saved-filters/{list}", wrapper.ReplaceAdminSavedFilters)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/stats", wrapper.GetAdminStats)
 	})
 	r.Group(func(r chi.Router) {
@@ -6223,6 +6408,149 @@ func (response GetAdminProjectTopAccessedResources404ApplicationProblemPlusJSONR
 type GetAdminProjectTopAccessedResources500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response GetAdminProjectTopAccessedResources500ApplicationProblemPlusJSONResponse) VisitGetAdminProjectTopAccessedResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSavedFiltersRequestObject struct {
+	List AdminSavedFilterListName `json:"list"`
+}
+
+type GetAdminSavedFiltersResponseObject interface {
+	VisitGetAdminSavedFiltersResponse(w http.ResponseWriter) error
+}
+
+type GetAdminSavedFilters200JSONResponse AdminSavedFilters
+
+func (response GetAdminSavedFilters200JSONResponse) VisitGetAdminSavedFiltersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSavedFilters400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminSavedFilters400ApplicationProblemPlusJSONResponse) VisitGetAdminSavedFiltersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSavedFilters404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminSavedFilters404ApplicationProblemPlusJSONResponse) VisitGetAdminSavedFiltersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSavedFilters500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminSavedFilters500ApplicationProblemPlusJSONResponse) VisitGetAdminSavedFiltersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceAdminSavedFiltersRequestObject struct {
+	List AdminSavedFilterListName `json:"list"`
+	Body *ReplaceAdminSavedFiltersJSONRequestBody
+}
+
+type ReplaceAdminSavedFiltersResponseObject interface {
+	VisitReplaceAdminSavedFiltersResponse(w http.ResponseWriter) error
+}
+
+type ReplaceAdminSavedFilters200JSONResponse AdminSavedFilters
+
+func (response ReplaceAdminSavedFilters200JSONResponse) VisitReplaceAdminSavedFiltersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceAdminSavedFilters400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ReplaceAdminSavedFilters400ApplicationProblemPlusJSONResponse) VisitReplaceAdminSavedFiltersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceAdminSavedFilters404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ReplaceAdminSavedFilters404ApplicationProblemPlusJSONResponse) VisitReplaceAdminSavedFiltersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceAdminSavedFilters409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ReplaceAdminSavedFilters409ApplicationProblemPlusJSONResponse) VisitReplaceAdminSavedFiltersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceAdminSavedFilters500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ReplaceAdminSavedFilters500ApplicationProblemPlusJSONResponse) VisitReplaceAdminSavedFiltersResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -7859,6 +8187,12 @@ type StrictServerInterface interface {
 	// Get a project's most-accessed resources
 	// (GET /api/v1/admin/projects/{id}/top-accessed-resources)
 	GetAdminProjectTopAccessedResources(ctx context.Context, request GetAdminProjectTopAccessedResourcesRequestObject) (GetAdminProjectTopAccessedResourcesResponseObject, error)
+	// Get the caller's saved filter presets for an admin list
+	// (GET /api/v1/admin/saved-filters/{list})
+	GetAdminSavedFilters(ctx context.Context, request GetAdminSavedFiltersRequestObject) (GetAdminSavedFiltersResponseObject, error)
+	// Replace the caller's saved filter presets for an admin list
+	// (PUT /api/v1/admin/saved-filters/{list})
+	ReplaceAdminSavedFilters(ctx context.Context, request ReplaceAdminSavedFiltersRequestObject) (ReplaceAdminSavedFiltersResponseObject, error)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(ctx context.Context, request GetAdminStatsRequestObject) (GetAdminStatsResponseObject, error)
@@ -8167,6 +8501,65 @@ func (sh *strictHandler) GetAdminProjectTopAccessedResources(w http.ResponseWrit
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminProjectTopAccessedResourcesResponseObject); ok {
 		if err := validResponse.VisitGetAdminProjectTopAccessedResourcesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminSavedFilters operation middleware
+func (sh *strictHandler) GetAdminSavedFilters(w http.ResponseWriter, r *http.Request, list AdminSavedFilterListName) {
+	var request GetAdminSavedFiltersRequestObject
+
+	request.List = list
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminSavedFilters(ctx, request.(GetAdminSavedFiltersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminSavedFilters")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminSavedFiltersResponseObject); ok {
+		if err := validResponse.VisitGetAdminSavedFiltersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReplaceAdminSavedFilters operation middleware
+func (sh *strictHandler) ReplaceAdminSavedFilters(w http.ResponseWriter, r *http.Request, list AdminSavedFilterListName) {
+	var request ReplaceAdminSavedFiltersRequestObject
+
+	request.List = list
+
+	var body ReplaceAdminSavedFiltersJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReplaceAdminSavedFilters(ctx, request.(ReplaceAdminSavedFiltersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReplaceAdminSavedFilters")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReplaceAdminSavedFiltersResponseObject); ok {
+		if err := validResponse.VisitReplaceAdminSavedFiltersResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
