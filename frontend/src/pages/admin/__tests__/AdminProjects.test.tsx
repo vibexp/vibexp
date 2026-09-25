@@ -86,6 +86,16 @@ function project(
     owner: { id: 'u1', email: 'creator@example.com', name: 'Creator' },
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-02T00:00:00Z',
+    // Distinct per type, so a transposed breakdown cannot pass unnoticed.
+    resource_counts: {
+      prompts: 3,
+      memories: 7,
+      artifacts: 2,
+      blueprints: 1,
+      feed_items: 5,
+      total: 18,
+    },
+    last_resource_created_at: '2026-03-04T10:00:00Z',
     ...overrides,
   }
 }
@@ -197,6 +207,7 @@ it('requests the default sort and sends no filter params on first load', async (
     limit: 20,
     search: undefined,
     team_id: undefined,
+    owner_email: undefined,
     created_from: undefined,
     created_to: undefined,
     sort_by: 'created_at',
@@ -281,7 +292,7 @@ describe('sorting', () => {
   })
 
   it('rejects a sort column the API does not accept', async () => {
-    // #453 allows created_at and name only; team_name would be a 400.
+    // team_name is not in the published sort_by enum; it would be a 400.
     renderProjects('/admin/projects?sort_by=team_name')
 
     await waitFor(() => {
@@ -505,5 +516,190 @@ describe('empty states', () => {
     expect(
       screen.getByRole('textbox', { name: 'Search projects' })
     ).toHaveValue('')
+  })
+})
+
+describe('advanced filters (#1144)', () => {
+  it('sends advanced params from the URL and opens the panel', async () => {
+    renderProjects(
+      '/admin/projects?prompt_count_min=5&total_resource_count_max=100&last_resource_created_from=2026-01-01&owner_email=creator@example.com&team_id=t1'
+    )
+
+    await waitFor(() => {
+      expect(mockAdminService.listProjects).toHaveBeenCalled()
+    })
+    expect(lastQuery()).toMatchObject({
+      team_id: 't1',
+      prompt_count_min: 5,
+      total_resource_count_max: 100,
+      owner_email: 'creator@example.com',
+    })
+    // A local-day lower bound, sent as the start of that day.
+    const from = new Date(String(lastQuery().last_resource_created_from))
+    expect(from.getDate()).toBe(1)
+    expect(from.getHours()).toBe(0)
+    // Empty bounds send nothing.
+    expect(lastQuery()).not.toHaveProperty('prompt_count_max')
+    expect(lastQuery()).not.toHaveProperty('memory_count_min')
+    expect(lastQuery()).not.toHaveProperty('last_resource_created_to')
+    // A shared link carrying an advanced filter opens with the panel visible.
+    expect(
+      await screen.findByRole('spinbutton', { name: 'Prompts minimum' })
+    ).toHaveValue(5)
+    expect(screen.getByRole('textbox', { name: 'Creator email' })).toHaveValue(
+      'creator@example.com'
+    )
+    expect(
+      screen.getByRole('group', { name: 'Last resource created' })
+    ).toBeInTheDocument()
+    // Two ranges, the date range and the creator email; team_id is main-row.
+    expect(screen.getByTestId('advanced-filters-count')).toHaveTextContent('4')
+  })
+
+  it('offers no control for a type that is not project-scoped', async () => {
+    renderProjects('/admin/projects?prompt_count_min=1')
+
+    await screen.findByRole('spinbutton', { name: 'Prompts minimum' })
+    for (const label of ['Agents', 'Feeds', 'Comments', 'Attachments']) {
+      expect(
+        screen.queryByRole('spinbutton', { name: `${label} minimum` })
+      ).not.toBeInTheDocument()
+    }
+    expect(
+      screen.getByRole('spinbutton', { name: 'Feed items minimum' })
+    ).toBeInTheDocument()
+  })
+
+  it('does not send a malformed creator email restored from the URL', async () => {
+    renderProjects('/admin/projects?owner_email=boss')
+
+    await waitFor(() => {
+      expect(mockAdminService.listProjects).toHaveBeenCalled()
+    })
+    expect(lastQuery().owner_email).toBeUndefined()
+    const input = await screen.findByRole('textbox', { name: 'Creator email' })
+    expect(input).toHaveValue('boss')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByTestId('advanced-filters-count')).toHaveTextContent('1')
+  })
+
+  it('commits the creator email on Enter, trimmed', async () => {
+    renderProjects()
+    await screen.findByText('Platform')
+    await userEvent.click(
+      screen.getByRole('button', { name: /Advanced filters/ })
+    )
+    const initialCalls = mockAdminService.listProjects.mock.calls.length
+
+    const input = await screen.findByRole('textbox', { name: 'Creator email' })
+    await userEvent.type(input, '  x@corp.com  ')
+    expect(mockAdminService.listProjects.mock.calls).toHaveLength(initialCalls)
+    await userEvent.keyboard('{Enter}')
+
+    await waitFor(() => {
+      expect(lastQuery().owner_email).toBe('x@corp.com')
+    })
+    expect(currentSearch).toContain('owner_email=x%40corp.com')
+  })
+
+  it('clears every advanced key and a rejected creator-email draft', async () => {
+    renderProjects(
+      '/admin/projects?blueprint_count_min=2&last_resource_created_to=2026-02-01'
+    )
+    await screen.findByText('Platform')
+    const input = await screen.findByRole('textbox', { name: 'Creator email' })
+    await userEvent.type(input, 'boss{Enter}')
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+
+    await waitFor(() => {
+      expect(currentSearch).toBe('')
+    })
+    expect(lastQuery()).not.toHaveProperty('blueprint_count_min')
+    expect(lastQuery()).not.toHaveProperty('last_resource_created_to')
+    expect(lastQuery().owner_email).toBeUndefined()
+    expect(screen.getByRole('textbox', { name: 'Creator email' })).toHaveValue(
+      ''
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+describe('resource columns (#1144)', () => {
+  it('renders the total and the last resource date', async () => {
+    renderProjects()
+    const row = (await screen.findByText('Platform')).closest('tr')
+    const cells = within(row as HTMLElement)
+    expect(
+      cells.getByRole('img', {
+        name: '18 resources: 3 prompts, 7 memories, 2 artifacts, 1 blueprint, 5 feed items',
+      })
+    ).toHaveTextContent('18')
+    expect(cells.getByText('Mar 4, 2026')).toBeInTheDocument()
+  })
+
+  it('shows a dash for a project with no resources yet', async () => {
+    mockAdminService.listProjects.mockResolvedValue(
+      page({ projects: [project({ last_resource_created_at: null })] })
+    )
+    renderProjects()
+    const row = (await screen.findByText('Platform')).closest('tr')
+    expect(within(row as HTMLElement).getByText('—')).toBeInTheDocument()
+  })
+
+  it('places Resources and Last resource before Created', async () => {
+    renderProjects()
+    await screen.findByText('Platform')
+    const headers = Array.from(document.querySelectorAll('thead th')).map(th =>
+      th.textContent.trim()
+    )
+    expect(headers).toEqual([
+      expect.stringMatching(/^Name/),
+      'Team',
+      'Owner',
+      expect.stringMatching(/^Resources/),
+      expect.stringMatching(/^Last resource/),
+      expect.stringMatching(/^Created/),
+    ])
+  })
+
+  it.each([
+    ['Resources', 'total_resource_count'],
+    ['Last resource', 'last_resource_created_at'],
+  ])('sorts by %s', async (header, sortBy) => {
+    renderProjects()
+    await screen.findByText('Platform')
+
+    await userEvent.click(
+      screen.getByRole('button', { name: new RegExp(`^${header}`) })
+    )
+
+    await waitFor(() => {
+      expect(lastQuery().sort_by).toBe(sortBy)
+    })
+    expect(currentSearch).toContain(`sort_by=${sortBy}`)
+  })
+
+  it('restores a count sort from the URL', async () => {
+    renderProjects(
+      '/admin/projects?sort_by=last_resource_created_at&sort_order=asc'
+    )
+
+    await waitFor(() => {
+      expect(mockAdminService.listProjects).toHaveBeenCalled()
+    })
+    expect(lastQuery().sort_by).toBe('last_resource_created_at')
+    expect(lastQuery().sort_order).toBe('asc')
+  })
+
+  it('falls back from a per-type sort that has no column', async () => {
+    // prompt_count is in the API enum but not displayed, so not sortable here.
+    renderProjects('/admin/projects?sort_by=prompt_count')
+
+    await waitFor(() => {
+      expect(mockAdminService.listProjects).toHaveBeenCalled()
+    })
+    expect(lastQuery().sort_by).toBe('created_at')
   })
 })

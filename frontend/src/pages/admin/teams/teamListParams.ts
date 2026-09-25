@@ -2,6 +2,7 @@ import type {
   AdvancedFilterSpec,
   AdvancedParamValue,
 } from '@/pages/admin/filters/advancedFilterParams'
+import { ownerEmailParam } from '@/pages/admin/filters/advancedFilterParams'
 import type { AdminTeamListParams } from '@/services/adminService'
 
 /**
@@ -120,27 +121,6 @@ export function isPersonalParam(kind: string): boolean | undefined {
   if (kind === 'personal') return true
   if (kind === 'shared') return false
   return undefined
-}
-
-/**
- * A bare RFC 5322 dot-atom address: the shape the server's check
- * (`mail.ParseAddress` round-tripping to the same string) accepts. Anything else
- * — `boss`, `john..doe@corp.com`, `<a@b.co>`, `"a"@b.co` — is answered with a
- * 400, so it must never leave the browser. Non-ASCII is allowed, as Go's parser
- * allows UTF-8 atoms (RFC 6532); quoted local parts and domain literals are
- * refused, being valid but vanishingly rare for an owner lookup.
- */
-const ATOM = "[\\w!#$%&'*+/=?^`{|}~\\u0080-\\uffff-]+"
-const DOT_ATOM = `${ATOM}(?:\\.${ATOM})*`
-const EMAIL = new RegExp(`^${DOT_ATOM}@${DOT_ATOM}$`, 'u')
-
-/**
- * The trimmed owner email, or `undefined` when blank or not an address — a
- * hand-edited `?owner_email=boss` must not turn every reload into an error.
- */
-export function ownerEmailParam(value: string | undefined): string | undefined {
-  const trimmed = value?.trim() ?? ''
-  return EMAIL.test(trimmed) ? trimmed : undefined
 }
 
 export interface TeamListContext {

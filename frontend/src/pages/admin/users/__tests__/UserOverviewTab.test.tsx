@@ -65,7 +65,14 @@ const INSIGHTS: AdminUserInsights = {
         {
           project_id: 'p1',
           project_name: 'Core',
-          counts: { prompts: 12, artifacts: 0, memories: 3, blueprints: 0 },
+          counts: {
+            prompts: 12,
+            artifacts: 0,
+            memories: 3,
+            blueprints: 0,
+            feed_items: 0,
+            total: 15,
+          },
         },
       ],
     },
