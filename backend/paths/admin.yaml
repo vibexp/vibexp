@@ -2109,3 +2109,204 @@ api-v1-admin-teams-id-config-settings-audit:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+# --- Team configuration, read-only, part 2: credential-bearing sections (#1141) ---
+
+api-v1-admin-teams-id-config-model-providers:
+  get:
+    summary: Get a team's model providers
+    description: |
+      Returns the team's model (LLM) providers. No API key or configuration value
+      is ever included: a stored key surfaces only as `has_api_key`, the
+      provider `configuration` only as its sorted top-level key names, and
+      `base_url` without userinfo, query string or fragment.
+      Read-only. Instance-admin only; non-admin and unauthenticated requests
+      receive 404, as does an unknown team id.
+    operationId: getAdminTeamModelProviders
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The team's model providers
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTeamModelProvidersConfig'
+      '400':
+        description: Bad request — malformed team id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown team id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-teams-id-config-embedding-providers:
+  get:
+    summary: Get a team's embedding providers and coverage
+    description: |
+      Returns the team's embedding providers, redacted exactly like the model
+      providers, plus per-entity-type embedding coverage counts under the active
+      provider's model.
+      Read-only. Instance-admin only; non-admin and unauthenticated requests
+      receive 404, as does an unknown team id.
+    operationId: getAdminTeamEmbeddingProviders
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The team's embedding providers and coverage
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTeamEmbeddingProvidersConfig'
+      '400':
+        description: Bad request — malformed team id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown team id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-teams-id-config-email-provider:
+  get:
+    summary: Get a team's email provider
+    description: |
+      Returns the team's effective email provider: its own when configured
+      (`source: team`), otherwise the instance provider (`source: instance`).
+      The credential surfaces only as `has_secret`; the last error text and the
+      SMTP username are never included. `status` is derived from the last
+      success/error timestamps.
+      Read-only. Instance-admin only; non-admin and unauthenticated requests
+      receive 404, as does an unknown team id.
+    operationId: getAdminTeamEmailProvider
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The team's email provider
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTeamEmailProviderConfig'
+      '400':
+        description: Bad request — malformed team id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown team id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-teams-id-config-github:
+  get:
+    summary: Get a team's GitHub integration
+    description: |
+      Returns the team's GitHub App registration (secrets as `has_*` booleans, no
+      webhook URL or routing token; `null` when none is registered) and its
+      installation status as last recorded. Makes no call to GitHub.
+      Read-only. Instance-admin only; non-admin and unauthenticated requests
+      receive 404, as does an unknown team id.
+    operationId: getAdminTeamGitHubConfig
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The team's GitHub integration
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTeamGitHubConfig'
+      '400':
+        description: Bad request — malformed team id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown team id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'

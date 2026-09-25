@@ -45,6 +45,15 @@ type adminMockContainer struct {
 	aiSummaryService      services.TeamAISummarySettingsServiceInterface
 	freshnessService      services.FreshnessServiceInterface
 	typeService           services.TypeServiceInterface
+
+	// Credential-bearing team configuration reads (#1141). Nil unless a suite
+	// installs them.
+	modelProviderService     services.ModelProviderServiceInterface
+	embeddingProviderService services.EmbeddingProviderServiceInterface
+	embeddingStatusService   services.EmbeddingCoverageGetter
+	emailProviderService     services.TeamEmailProviderServiceInterface
+	githubAppConfigService   services.GitHubAppConfigServiceInterface
+	githubAppService         services.GitHubAppServiceInterface
 }
 
 func (c *adminMockContainer) TeamRepository() repositories.TeamRepository { return c.teamRepo }
@@ -73,6 +82,24 @@ func (c *adminMockContainer) FreshnessService() services.FreshnessServiceInterfa
 	return c.freshnessService
 }
 func (c *adminMockContainer) TypeService() services.TypeServiceInterface { return c.typeService }
+func (c *adminMockContainer) ModelProviderService() services.ModelProviderServiceInterface {
+	return c.modelProviderService
+}
+func (c *adminMockContainer) EmbeddingProviderService() services.EmbeddingProviderServiceInterface {
+	return c.embeddingProviderService
+}
+func (c *adminMockContainer) EmbeddingStatusService() services.EmbeddingCoverageGetter {
+	return c.embeddingStatusService
+}
+func (c *adminMockContainer) TeamEmailProviderService() services.TeamEmailProviderServiceInterface {
+	return c.emailProviderService
+}
+func (c *adminMockContainer) GitHubAppConfigService() services.GitHubAppConfigServiceInterface {
+	return c.githubAppConfigService
+}
+func (c *adminMockContainer) GitHubAppService() services.GitHubAppServiceInterface {
+	return c.githubAppService
+}
 
 func (c *adminMockContainer) AuthService() services.AuthServiceInterface   { return c.authService }
 func (c *adminMockContainer) AdminService() services.AdminServiceInterface { return c.adminService }
