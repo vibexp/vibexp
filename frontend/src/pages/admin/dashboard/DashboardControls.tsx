@@ -23,11 +23,14 @@ export function DashboardControls({
   onRangeChange,
   granularity,
   onGranularityChange,
+  ariaLabel = 'Dashboard date range',
 }: Readonly<{
   range: DateRangeValue
   onRangeChange: (value: DateRangeValue) => void
   granularity: Granularity
   onGranularityChange: (value: Granularity) => void
+  /** Accessible name of the date-range picker, for pages other than the dashboard. */
+  ariaLabel?: string
 }>) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -35,7 +38,7 @@ export function DashboardControls({
         value={range}
         onChange={onRangeChange}
         placeholder="Last 30 days"
-        ariaLabel="Dashboard date range"
+        ariaLabel={ariaLabel}
       />
       <Select
         value={granularity}
