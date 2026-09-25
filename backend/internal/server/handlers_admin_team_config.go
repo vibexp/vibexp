@@ -186,15 +186,9 @@ func (a *adminStrictServer) GetAdminTeamFreshnessConfig(
 		return nil, a.adminConfigInternalError(handler, teamID, err)
 	}
 
-	// make(...,0,...): `rules` is a required array on a generated type, so an
-	// empty rule set must serialize as `[]`, not `null`.
-	genRules := make([]admingen.AdminFreshnessRule, 0, len(rules))
-	for _, rule := range rules {
-		converted, cerr := toGenAdminFreshnessRule(rule)
-		if cerr != nil {
-			return nil, a.adminConfigInternalError(handler, teamID, cerr)
-		}
-		genRules = append(genRules, converted)
+	genRules, err := toGenAdminFreshnessRules(rules)
+	if err != nil {
+		return nil, a.adminConfigInternalError(handler, teamID, err)
 	}
 
 	return admingen.GetAdminTeamFreshnessConfig200JSONResponse(admingen.AdminTeamFreshnessConfig{
@@ -231,6 +225,21 @@ func toGenAdminFreshnessRule(r *models.FreshnessRule) (admingen.AdminFreshnessRu
 		CreatedAt:     r.CreatedAt,
 		UpdatedAt:     r.UpdatedAt,
 	}, nil
+}
+
+// toGenAdminFreshnessRules converts rules through toGenAdminFreshnessRule. The
+// result is make(...,0): both config arrays are required, so an empty rule set
+// serializes as `[]`, not `null`.
+func toGenAdminFreshnessRules(rules []*models.FreshnessRule) ([]admingen.AdminFreshnessRule, error) {
+	out := make([]admingen.AdminFreshnessRule, 0, len(rules))
+	for _, rule := range rules {
+		converted, err := toGenAdminFreshnessRule(rule)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, converted)
+	}
+	return out, nil
 }
 
 // GetAdminTeamArtifactTypes returns the system and custom artifact types the

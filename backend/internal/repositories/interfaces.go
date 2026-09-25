@@ -1151,6 +1151,27 @@ type AdminRepository interface {
 	GetUserTopAccessedResources(
 		ctx context.Context, userID string, from, to time.Time, limit int,
 	) ([]models.AdminTopAccessedResource, error)
+
+	// ProjectTeamID returns a project's team; found is false for an unknown
+	// project (#1145).
+	ProjectTeamID(ctx context.Context, id string) (teamID string, found bool, err error)
+	// GetProjectCreationSeries returns SPARSE (type, bucket, count) rows of the
+	// resources created in a project in [from, to); the caller gap-fills.
+	GetProjectCreationSeries(
+		ctx context.Context, projectID string, from, to time.Time, granularity string,
+	) ([]models.AdminGrowthCount, error)
+	// GetProjectAccessBySourceSeries returns SPARSE (bucket, source, count) rows
+	// of accesses to a project's current resources and to the project itself in
+	// [from, to). teamID must be the project's own team.
+	GetProjectAccessBySourceSeries(
+		ctx context.Context, projectID, teamID string, from, to time.Time, granularity string,
+	) ([]models.AdminSourcePoint, error)
+	// GetProjectTopAccessedResources returns up to limit opaque rows of a
+	// project's most-accessed resources in [from, to), access_count DESC then
+	// resource id. teamID must be the project's own team.
+	GetProjectTopAccessedResources(
+		ctx context.Context, projectID, teamID string, from, to time.Time, limit int,
+	) ([]models.AdminTopAccessedResource, error)
 }
 
 // BlueprintRepository defines the interface for blueprint data access operations

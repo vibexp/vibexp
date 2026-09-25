@@ -30,24 +30,8 @@ func (r *AdminRepository) GetUserAccessBySourceSeries(
 	ctx context.Context, userID string, from, to time.Time, granularity string,
 ) ([]models.AdminSourcePoint, error) {
 	query := fmt.Sprintf(adminUserAccessBySourceQueryFmt, adminTruncUnit(granularity))
-	rows, err := r.db.QueryContext(ctx, query, userID, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query user access-by-source series: %w", err)
-	}
-	defer closeAdminRows(rows, "user access-by-source series")
-
-	points := make([]models.AdminSourcePoint, 0)
-	for rows.Next() {
-		var p models.AdminSourcePoint
-		if scanErr := rows.Scan(&p.Bucket, &p.Source, &p.Count); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan user access-by-source row: %w", scanErr)
-		}
-		points = append(points, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate user access-by-source series: %w", err)
-	}
-	return points, nil
+	return queryAdminRows(ctx, r.db, "user access-by-source series", scanAdminSourcePoint,
+		query, userID, from, to)
 }
 
 // adminUserTopAccessedQuery ranks one user's accessed resources, then resolves
@@ -95,23 +79,6 @@ ORDER BY r.access_count DESC, r.resource_id
 func (r *AdminRepository) GetUserTopAccessedResources(
 	ctx context.Context, userID string, from, to time.Time, limit int,
 ) ([]models.AdminTopAccessedResource, error) {
-	rows, err := r.db.QueryContext(ctx, adminUserTopAccessedQuery, userID, from, to, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query user top accessed resources: %w", err)
-	}
-	defer closeAdminRows(rows, "user top accessed resources")
-
-	items := make([]models.AdminTopAccessedResource, 0)
-	for rows.Next() {
-		var it models.AdminTopAccessedResource
-		if scanErr := rows.Scan(&it.ResourceType, &it.ResourceID, &it.TeamID, &it.TeamName,
-			&it.ProjectID, &it.ProjectName, &it.ResourceDeleted, &it.AccessCount); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan user top accessed resource: %w", scanErr)
-		}
-		items = append(items, it)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate user top accessed resources: %w", err)
-	}
-	return items, nil
+	return queryAdminRows(ctx, r.db, "user top accessed resources", scanAdminTopAccessedResource,
+		adminUserTopAccessedQuery, userID, from, to, limit)
 }

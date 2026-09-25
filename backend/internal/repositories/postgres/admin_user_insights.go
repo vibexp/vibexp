@@ -149,24 +149,8 @@ func (r *AdminRepository) GetUserCreationSeries(
 	ctx context.Context, userID string, from, to time.Time, granularity string,
 ) ([]models.AdminGrowthCount, error) {
 	query := fmt.Sprintf(adminUserCreationQueryFmt, adminTruncUnit(granularity))
-	rows, err := r.db.QueryContext(ctx, query, userID, from, to, from.UTC(), to.UTC())
-	if err != nil {
-		return nil, fmt.Errorf("failed to query user creation series: %w", err)
-	}
-	defer closeAdminRows(rows, "user creation series")
-
-	counts := make([]models.AdminGrowthCount, 0)
-	for rows.Next() {
-		var c models.AdminGrowthCount
-		if scanErr := rows.Scan(&c.Entity, &c.Bucket, &c.Count); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan user creation row: %w", scanErr)
-		}
-		counts = append(counts, c)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate user creation series: %w", err)
-	}
-	return counts, nil
+	return queryAdminRows(ctx, r.db, "user creation series", scanAdminGrowthCount,
+		query, userID, from, to, from.UTC(), to.UTC())
 }
 
 // adminUserTimelineEventsSQL is the inner event set of a user's timeline: one

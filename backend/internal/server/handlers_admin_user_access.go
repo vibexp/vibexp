@@ -41,15 +41,11 @@ func (a *adminStrictServer) GetAdminUserResourceAccessMetrics(
 		return nil, apierrors.NewResourceNotFoundError("user", adminMsgUserNotFound)
 	}
 
-	access := make([]admingen.AdminSourcePoint, 0, len(metrics.AccessBySource))
-	for _, p := range metrics.AccessBySource {
-		access = append(access, admingen.AdminSourcePoint{Bucket: p.Bucket, Source: p.Source, Count: p.Count})
-	}
 	return admingen.GetAdminUserResourceAccessMetrics200JSONResponse(admingen.AdminUserAccessMetrics{
 		From:               metrics.From,
 		To:                 metrics.To,
 		Granularity:        admingen.AdminUserAccessMetricsGranularity(metrics.Granularity),
-		AccessBySource:     access,
+		AccessBySource:     toGenAdminSourcePoints(metrics.AccessBySource),
 		EarliestRetainedAt: a.accessEventsEarliestRetainedAt(),
 	}), nil
 }
@@ -59,14 +55,9 @@ func (a *adminStrictServer) GetAdminUserResourceAccessMetrics(
 func (a *adminStrictServer) GetAdminUserTopAccessedResources(
 	ctx context.Context, request admingen.GetAdminUserTopAccessedResourcesRequestObject,
 ) (admingen.GetAdminUserTopAccessedResourcesResponseObject, error) {
-	limit := 0
-	if request.Params.Limit != nil {
-		limit = *request.Params.Limit
-		// The generated binder does not enforce minimum/maximum.
-		if limit < 1 || limit > services.AdminTopResourcesMaxLimit {
-			return nil, apierrors.NewBadRequestError(
-				fmt.Sprintf("invalid limit %d: must be between 1 and %d", limit, services.AdminTopResourcesMaxLimit))
-		}
+	limit, err := adminTopResourcesLimitParam(request.Params.Limit)
+	if err != nil {
+		return nil, err
 	}
 
 	top, err := a.s.container.AdminService().GetUserTopAccessedResources(ctx, request.Id.String(),
@@ -143,4 +134,28 @@ func toGenAdminTopAccessedResources(
 		})
 	}
 	return items, nil
+}
+
+// toGenAdminSourcePoints converts a per-source series. The result is
+// make(...,0) so an empty series serializes as `[]`.
+func toGenAdminSourcePoints(points []models.AdminSourcePoint) []admingen.AdminSourcePoint {
+	out := make([]admingen.AdminSourcePoint, 0, len(points))
+	for _, p := range points {
+		out = append(out, admingen.AdminSourcePoint{Bucket: p.Bucket, Source: p.Source, Count: p.Count})
+	}
+	return out
+}
+
+// adminTopResourcesLimitParam validates the optional top-resources limit; 0
+// means "use the default". The generated binder does not enforce
+// minimum/maximum.
+func adminTopResourcesLimitParam(limit *int) (int, error) {
+	if limit == nil {
+		return 0, nil
+	}
+	if *limit < 1 || *limit > services.AdminTopResourcesMaxLimit {
+		return 0, apierrors.NewBadRequestError(
+			fmt.Sprintf("invalid limit %d: must be between 1 and %d", *limit, services.AdminTopResourcesMaxLimit))
+	}
+	return *limit, nil
 }

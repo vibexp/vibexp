@@ -1398,7 +1398,8 @@ AdminTopAccessedResource:
   type: object
   description: |
     One opaque most-accessed resource: its type, where it lives and how often
-    the user accessed it. Deliberately carries no title, slug or content — only
+    the user accessed it (or, for a project, how often it was accessed).
+    Deliberately carries no title, slug or content — only
     the first 8 characters of the resource id. The identity fields share their
     names with AdminUserTimelineEvent.
   required:
@@ -1441,7 +1442,11 @@ AdminTopAccessedResource:
       nullable: true
     resource_deleted:
       type: boolean
-      description: True when the resource no longer exists (access events outlive their resource until pruned).
+      description: |
+        True when the resource no longer exists (access events outlive their
+        resource until pruned). Always `false` for a project's top resources
+        (GET /api/v1/admin/projects/{id}/top-accessed-resources), where a
+        deleted resource has no current project and drops out.
     access_count:
       type: integer
       format: int64
@@ -1450,7 +1455,8 @@ AdminTopAccessedResourcesResponse:
   type: object
   description: |
     The resources a user accessed most in a range
-    (GET /api/v1/admin/users/{id}/top-accessed-resources).
+    (GET /api/v1/admin/users/{id}/top-accessed-resources), or a project's
+    most-accessed resources (GET /api/v1/admin/projects/{id}/top-accessed-resources).
   required:
     - from
     - to
@@ -2230,3 +2236,139 @@ AdminTeamGitHubConfig:
       description: '`null` when the team has not registered a GitHub App.'
     installation:
       $ref: '#/AdminGitHubInstallation'
+
+# --- Project detail analytics and configuration, read-only (#1145) ---
+
+AdminProjectCreationPoint:
+  type: object
+  description: How many resources of each project-scoped type were created in the project within one time bucket.
+  required:
+    - bucket
+    - prompts
+    - memories
+    - artifacts
+    - blueprints
+    - feed_items
+  properties:
+    bucket:
+      type: string
+      format: date-time
+      description: Start of the bucket, in UTC.
+    prompts:
+      type: integer
+      format: int64
+    memories:
+      type: integer
+      format: int64
+    artifacts:
+      type: integer
+      format: int64
+    blueprints:
+      type: integer
+      format: int64
+    feed_items:
+      type: integer
+      format: int64
+
+AdminProjectResourceCreationMetrics:
+  type: object
+  description: |
+    Resources created in the project per bucket, stacked by type
+    (GET /api/v1/admin/projects/{id}/resource-creation-metrics). Every bucket in
+    the range is present with an explicit 0 for every type.
+  required:
+    - from
+    - to
+    - granularity
+    - series
+  properties:
+    from:
+      type: string
+      format: date-time
+      description: |
+        Inclusive start of the range actually used, snapped DOWN to the start of
+        its bucket (same rule as AdminTimeseriesResponse.from).
+    to:
+      type: string
+      format: date-time
+      description: Exclusive end of the range actually used (after defaulting); not snapped.
+    granularity:
+      type: string
+      enum:
+        - day
+        - week
+        - month
+      description: Bucket size actually used.
+    series:
+      type: array
+      description: One point per bucket, ascending by bucket.
+      items:
+        $ref: '#/AdminProjectCreationPoint'
+
+AdminProjectAccessMetrics:
+  type: object
+  description: |
+    Accesses to the project's resources and to the project itself per bucket and
+    source (GET /api/v1/admin/projects/{id}/resource-access-metrics). An event
+    is attributed to the project its resource belongs to now, so accesses to a
+    deleted resource drop out and a migrated resource brings its history with
+    it. Every bucket in the range is present with an explicit 0 for each source
+    that appears.
+  required:
+    - from
+    - to
+    - granularity
+    - access_by_source
+    - earliest_retained_at
+  properties:
+    from:
+      type: string
+      format: date-time
+      description: |
+        Inclusive start of the range actually used, snapped DOWN to the start of
+        its bucket (same rule as AdminTimeseriesResponse.from).
+    to:
+      type: string
+      format: date-time
+      description: Exclusive end of the range actually used (after defaulting); not snapped.
+    granularity:
+      type: string
+      enum:
+        - day
+        - week
+        - month
+      description: Bucket size actually used.
+    access_by_source:
+      type: array
+      description: One point per (bucket, source), ascending by bucket then source.
+      items:
+        $ref: '#/AdminSourcePoint'
+    earliest_retained_at:
+      type: string
+      format: date-time
+      description: |
+        Oldest access event still retained (now minus
+        `retention.access_event_days`); buckets before it read as zeros.
+
+AdminProjectConfig:
+  type: object
+  description: |
+    The configuration that applies to a project
+    (GET /api/v1/admin/projects/{id}/config): the freshness rules scoped to it
+    and the team-wide rules that also apply. Both lists are oldest first and
+    include disabled rules.
+  additionalProperties: false
+  required:
+    - project_rules
+    - team_wide_rules
+  properties:
+    project_rules:
+      type: array
+      description: Rules scoped to this project. `[]` when there are none.
+      items:
+        $ref: '#/AdminFreshnessRule'
+    team_wide_rules:
+      type: array
+      description: Rules with no project scope, which apply to every project of the team. `[]` when there are none.
+      items:
+        $ref: '#/AdminFreshnessRule'

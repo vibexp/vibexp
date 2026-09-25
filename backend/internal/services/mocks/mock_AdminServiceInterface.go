@@ -322,6 +322,185 @@ func (_c *MockAdminServiceInterface_GetInstanceCounts_Call) RunAndReturn(run fun
 	return _c
 }
 
+// GetProjectAccessMetrics provides a mock function with given fields: ctx, id, q
+func (_m *MockAdminServiceInterface) GetProjectAccessMetrics(ctx context.Context, id string, q services.AdminTimeseriesQuery) (*models.AdminProjectAccessMetrics, error) {
+	ret := _m.Called(ctx, id, q)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProjectAccessMetrics")
+	}
+
+	var r0 *models.AdminProjectAccessMetrics
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, services.AdminTimeseriesQuery) (*models.AdminProjectAccessMetrics, error)); ok {
+		return rf(ctx, id, q)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, services.AdminTimeseriesQuery) *models.AdminProjectAccessMetrics); ok {
+		r0 = rf(ctx, id, q)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminProjectAccessMetrics)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, services.AdminTimeseriesQuery) error); ok {
+		r1 = rf(ctx, id, q)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_GetProjectAccessMetrics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProjectAccessMetrics'
+type MockAdminServiceInterface_GetProjectAccessMetrics_Call struct {
+	*mock.Call
+}
+
+// GetProjectAccessMetrics is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - q services.AdminTimeseriesQuery
+func (_e *MockAdminServiceInterface_Expecter) GetProjectAccessMetrics(ctx interface{}, id interface{}, q interface{}) *MockAdminServiceInterface_GetProjectAccessMetrics_Call {
+	return &MockAdminServiceInterface_GetProjectAccessMetrics_Call{Call: _e.mock.On("GetProjectAccessMetrics", ctx, id, q)}
+}
+
+func (_c *MockAdminServiceInterface_GetProjectAccessMetrics_Call) Run(run func(ctx context.Context, id string, q services.AdminTimeseriesQuery)) *MockAdminServiceInterface_GetProjectAccessMetrics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(services.AdminTimeseriesQuery))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetProjectAccessMetrics_Call) Return(_a0 *models.AdminProjectAccessMetrics, _a1 error) *MockAdminServiceInterface_GetProjectAccessMetrics_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetProjectAccessMetrics_Call) RunAndReturn(run func(context.Context, string, services.AdminTimeseriesQuery) (*models.AdminProjectAccessMetrics, error)) *MockAdminServiceInterface_GetProjectAccessMetrics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetProjectConfig provides a mock function with given fields: ctx, id
+func (_m *MockAdminServiceInterface) GetProjectConfig(ctx context.Context, id string) (*models.AdminProjectConfig, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProjectConfig")
+	}
+
+	var r0 *models.AdminProjectConfig
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.AdminProjectConfig, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.AdminProjectConfig); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminProjectConfig)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_GetProjectConfig_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProjectConfig'
+type MockAdminServiceInterface_GetProjectConfig_Call struct {
+	*mock.Call
+}
+
+// GetProjectConfig is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockAdminServiceInterface_Expecter) GetProjectConfig(ctx interface{}, id interface{}) *MockAdminServiceInterface_GetProjectConfig_Call {
+	return &MockAdminServiceInterface_GetProjectConfig_Call{Call: _e.mock.On("GetProjectConfig", ctx, id)}
+}
+
+func (_c *MockAdminServiceInterface_GetProjectConfig_Call) Run(run func(ctx context.Context, id string)) *MockAdminServiceInterface_GetProjectConfig_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetProjectConfig_Call) Return(_a0 *models.AdminProjectConfig, _a1 error) *MockAdminServiceInterface_GetProjectConfig_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetProjectConfig_Call) RunAndReturn(run func(context.Context, string) (*models.AdminProjectConfig, error)) *MockAdminServiceInterface_GetProjectConfig_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetProjectCreationMetrics provides a mock function with given fields: ctx, id, q
+func (_m *MockAdminServiceInterface) GetProjectCreationMetrics(ctx context.Context, id string, q services.AdminTimeseriesQuery) (*models.AdminProjectCreationMetrics, error) {
+	ret := _m.Called(ctx, id, q)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProjectCreationMetrics")
+	}
+
+	var r0 *models.AdminProjectCreationMetrics
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, services.AdminTimeseriesQuery) (*models.AdminProjectCreationMetrics, error)); ok {
+		return rf(ctx, id, q)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, services.AdminTimeseriesQuery) *models.AdminProjectCreationMetrics); ok {
+		r0 = rf(ctx, id, q)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminProjectCreationMetrics)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, services.AdminTimeseriesQuery) error); ok {
+		r1 = rf(ctx, id, q)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_GetProjectCreationMetrics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProjectCreationMetrics'
+type MockAdminServiceInterface_GetProjectCreationMetrics_Call struct {
+	*mock.Call
+}
+
+// GetProjectCreationMetrics is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - q services.AdminTimeseriesQuery
+func (_e *MockAdminServiceInterface_Expecter) GetProjectCreationMetrics(ctx interface{}, id interface{}, q interface{}) *MockAdminServiceInterface_GetProjectCreationMetrics_Call {
+	return &MockAdminServiceInterface_GetProjectCreationMetrics_Call{Call: _e.mock.On("GetProjectCreationMetrics", ctx, id, q)}
+}
+
+func (_c *MockAdminServiceInterface_GetProjectCreationMetrics_Call) Run(run func(ctx context.Context, id string, q services.AdminTimeseriesQuery)) *MockAdminServiceInterface_GetProjectCreationMetrics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(services.AdminTimeseriesQuery))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetProjectCreationMetrics_Call) Return(_a0 *models.AdminProjectCreationMetrics, _a1 error) *MockAdminServiceInterface_GetProjectCreationMetrics_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetProjectCreationMetrics_Call) RunAndReturn(run func(context.Context, string, services.AdminTimeseriesQuery) (*models.AdminProjectCreationMetrics, error)) *MockAdminServiceInterface_GetProjectCreationMetrics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetProjectDetail provides a mock function with given fields: ctx, id
 func (_m *MockAdminServiceInterface) GetProjectDetail(ctx context.Context, id string) (*models.AdminProjectDetail, error) {
 	ret := _m.Called(ctx, id)
@@ -377,6 +556,66 @@ func (_c *MockAdminServiceInterface_GetProjectDetail_Call) Return(_a0 *models.Ad
 }
 
 func (_c *MockAdminServiceInterface_GetProjectDetail_Call) RunAndReturn(run func(context.Context, string) (*models.AdminProjectDetail, error)) *MockAdminServiceInterface_GetProjectDetail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetProjectTopAccessedResources provides a mock function with given fields: ctx, id, q
+func (_m *MockAdminServiceInterface) GetProjectTopAccessedResources(ctx context.Context, id string, q services.AdminTopResourcesQuery) (*models.AdminTopAccessedResources, error) {
+	ret := _m.Called(ctx, id, q)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProjectTopAccessedResources")
+	}
+
+	var r0 *models.AdminTopAccessedResources
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, services.AdminTopResourcesQuery) (*models.AdminTopAccessedResources, error)); ok {
+		return rf(ctx, id, q)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, services.AdminTopResourcesQuery) *models.AdminTopAccessedResources); ok {
+		r0 = rf(ctx, id, q)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminTopAccessedResources)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, services.AdminTopResourcesQuery) error); ok {
+		r1 = rf(ctx, id, q)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_GetProjectTopAccessedResources_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProjectTopAccessedResources'
+type MockAdminServiceInterface_GetProjectTopAccessedResources_Call struct {
+	*mock.Call
+}
+
+// GetProjectTopAccessedResources is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - q services.AdminTopResourcesQuery
+func (_e *MockAdminServiceInterface_Expecter) GetProjectTopAccessedResources(ctx interface{}, id interface{}, q interface{}) *MockAdminServiceInterface_GetProjectTopAccessedResources_Call {
+	return &MockAdminServiceInterface_GetProjectTopAccessedResources_Call{Call: _e.mock.On("GetProjectTopAccessedResources", ctx, id, q)}
+}
+
+func (_c *MockAdminServiceInterface_GetProjectTopAccessedResources_Call) Run(run func(ctx context.Context, id string, q services.AdminTopResourcesQuery)) *MockAdminServiceInterface_GetProjectTopAccessedResources_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(services.AdminTopResourcesQuery))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetProjectTopAccessedResources_Call) Return(_a0 *models.AdminTopAccessedResources, _a1 error) *MockAdminServiceInterface_GetProjectTopAccessedResources_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetProjectTopAccessedResources_Call) RunAndReturn(run func(context.Context, string, services.AdminTopResourcesQuery) (*models.AdminTopAccessedResources, error)) *MockAdminServiceInterface_GetProjectTopAccessedResources_Call {
 	_c.Call.Return(run)
 	return _c
 }

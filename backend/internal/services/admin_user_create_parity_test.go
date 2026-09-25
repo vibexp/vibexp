@@ -128,7 +128,7 @@ func TestCreateUser_DrivesTheRealProvisioningListener(t *testing.T) {
 
 	adminRepo := repomocks.NewMockAdminRepository(t)
 	userRepo := repomocks.NewMockUserRepository(t)
-	svc := NewAdminService(adminRepo, userRepo, publisher)
+	svc := NewAdminService(adminRepo, userRepo, publisher, nil)
 
 	userRepo.On("GetByEmail", mock.Anything, "new.user@example.com").
 		Return(nil, repositories.ErrUserNotFound)
@@ -169,7 +169,7 @@ func TestCreateUser_EventPayloadMatchesWhatTheListenerReads(t *testing.T) {
 	adminRepo := repomocks.NewMockAdminRepository(t)
 	userRepo := repomocks.NewMockUserRepository(t)
 	pub := &stubPublisher{}
-	svc := NewAdminService(adminRepo, userRepo, pub)
+	svc := NewAdminService(adminRepo, userRepo, pub, nil)
 
 	userRepo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound)
 	userRepo.On("Create", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
@@ -203,7 +203,7 @@ func TestCreateUser_SucceedsEvenIfProvisioningLaterFails(t *testing.T) {
 
 	adminRepo := repomocks.NewMockAdminRepository(t)
 	userRepo := repomocks.NewMockUserRepository(t)
-	svc := NewAdminService(adminRepo, userRepo, publisher)
+	svc := NewAdminService(adminRepo, userRepo, publisher, nil)
 
 	userRepo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound)
 	userRepo.On("Create", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {

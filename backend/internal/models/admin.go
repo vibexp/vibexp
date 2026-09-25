@@ -478,3 +478,38 @@ type AdminTopAccessedResources struct {
 	To    time.Time
 	Items []AdminTopAccessedResource
 }
+
+// AdminProjectCreationPoint counts the resources of each project-scoped type
+// created in a project within one bucket (#1145).
+type AdminProjectCreationPoint struct {
+	Bucket     time.Time
+	Prompts    int64
+	Memories   int64
+	Artifacts  int64
+	Blueprints int64
+	FeedItems  int64
+}
+
+// AdminProjectCreationMetrics is the gap-filled creation series for one project.
+type AdminProjectCreationMetrics struct {
+	From        time.Time
+	To          time.Time
+	Granularity string
+	Series      []AdminProjectCreationPoint
+}
+
+// AdminProjectAccessMetrics is the gap-filled per-source access series for one
+// project, attributed by each resource's current project.
+type AdminProjectAccessMetrics struct {
+	From           time.Time
+	To             time.Time
+	Granularity    string
+	AccessBySource []AdminSourcePoint
+}
+
+// AdminProjectConfig is the configuration that applies to one project: the
+// freshness rules scoped to it and the team-wide rules of its team.
+type AdminProjectConfig struct {
+	ProjectRules  []*FreshnessRule
+	TeamWideRules []*FreshnessRule
+}
