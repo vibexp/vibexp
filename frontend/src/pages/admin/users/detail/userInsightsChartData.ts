@@ -59,21 +59,31 @@ export const RESOURCE_TYPE_SERIES: readonly ChartSeries[] =
   }))
 
 /**
- * Creation points as chart data, one key per resource type.
+ * Creation points as chart data, one key per resource type in `keys`.
  *
  * The server gap-fills buckets, so points pass through without inventing any.
+ * Generic over the keys so the project detail (#1146), whose points carry only
+ * the project-scoped types, maps through the same code.
  */
-export function creationToChartData(
-  points: readonly AdminUserCreationPoint[]
+export function seriesToChartData<K extends string>(
+  points: readonly ({ bucket: string } & Record<K, number>)[],
+  keys: readonly K[]
 ): TimeSeriesDatum[] {
   return points.map(point => {
     const datum: TimeSeriesDatum = { date: bucketKey(point.bucket), total: 0 }
-    for (const key of RESOURCE_TYPE_KEYS) {
+    for (const key of keys) {
       datum[key] = point[key]
       datum.total += point[key]
     }
     return datum
   })
+}
+
+/** A user's creation points as chart data, one key per resource type. */
+export function creationToChartData(
+  points: readonly AdminUserCreationPoint[]
+): TimeSeriesDatum[] {
+  return seriesToChartData(points, RESOURCE_TYPE_KEYS)
 }
 
 /** Breakdowns of the user's resources by type, by team and by project. */

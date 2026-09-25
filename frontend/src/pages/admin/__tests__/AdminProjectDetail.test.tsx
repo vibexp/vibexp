@@ -1,8 +1,9 @@
 /**
  * AdminProjectDetail (#461): metadata, team, creator, resource counts, and the
- * not-found path.
+ * not-found path; plus the Overview / Configuration tabs (#1146).
  */
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mocked } from 'vitest'
 
@@ -10,6 +11,35 @@ import type { AdminProjectDetail as AdminProjectDetailType } from '@/services/ad
 
 vi.mock('@/services/adminService', () => ({
   adminService: { getProject: vi.fn() },
+}))
+
+// The self-fetching tabs are covered by their own suites; here they are stubbed
+// so the shell's tab routing is observable without their requests.
+const tabStubs = vi.hoisted(() => ({
+  overview: function OverviewStub({ projectId }: { projectId: string }) {
+    return <div data-testid="overview-tab">overview {projectId}</div>
+  },
+  config: function ConfigStub({
+    projectId,
+    projectName,
+    teamId,
+  }: {
+    projectId: string
+    projectName: string
+    teamId: string
+  }) {
+    return (
+      <div data-testid="config-tab">
+        config {projectId} {projectName} {teamId}
+      </div>
+    )
+  },
+}))
+vi.mock('@/pages/admin/projects/detail/ProjectOverviewTab', () => ({
+  ProjectOverviewTab: tabStubs.overview,
+}))
+vi.mock('@/pages/admin/projects/detail/ProjectConfigTab', () => ({
+  ProjectConfigTab: tabStubs.config,
 }))
 
 import { adminService } from '@/services/adminService'
@@ -46,9 +76,9 @@ function detail(
   }
 }
 
-function renderDetail(id = 'p1') {
+function renderDetail(id = 'p1', search = '') {
   return render(
-    <MemoryRouter initialEntries={[`/admin/projects/${id}`]}>
+    <MemoryRouter initialEntries={[`/admin/projects/${id}${search}`]}>
       <Routes>
         <Route path="/admin/projects/:id" element={<AdminProjectDetail />} />
       </Routes>
@@ -178,4 +208,49 @@ it('offers a way back to the list', async () => {
   expect(
     await screen.findByRole('link', { name: 'Back to projects' })
   ).toHaveAttribute('href', '/admin/projects')
+})
+
+describe('tabs (#1146)', () => {
+  it('opens on Overview and does not mount Configuration', async () => {
+    mockAdminService.getProject.mockResolvedValue(detail())
+    renderDetail()
+
+    expect(await screen.findByTestId('overview-tab')).toHaveTextContent(
+      'overview p1'
+    )
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+      'data-state',
+      'active'
+    )
+    expect(screen.queryByTestId('config-tab')).not.toBeInTheDocument()
+  })
+
+  it('mounts Configuration only when it is opened, keeping the counts above', async () => {
+    mockAdminService.getProject.mockResolvedValue(detail())
+    renderDetail()
+    await screen.findByTestId('overview-tab')
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Configuration' }))
+    expect(screen.getByTestId('config-tab')).toHaveTextContent(
+      'config p1 Platform t1'
+    )
+    expect(screen.queryByTestId('overview-tab')).not.toBeInTheDocument()
+    expect(screen.getByText('Total resources')).toBeInTheDocument()
+  })
+
+  it('opens the tab named in ?tab=', async () => {
+    mockAdminService.getProject.mockResolvedValue(detail())
+    renderDetail('p1', '?tab=configuration')
+
+    expect(await screen.findByTestId('config-tab')).toBeInTheDocument()
+    expect(screen.queryByTestId('overview-tab')).not.toBeInTheDocument()
+  })
+
+  it('falls back to Overview for an unknown ?tab=', async () => {
+    mockAdminService.getProject.mockResolvedValue(detail())
+    renderDetail('p1', '?tab=bogus')
+
+    expect(await screen.findByTestId('overview-tab')).toBeInTheDocument()
+    expect(screen.queryByTestId('config-tab')).not.toBeInTheDocument()
+  })
 })

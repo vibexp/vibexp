@@ -496,3 +496,49 @@ describe('the other admin reads', () => {
     )
   })
 })
+
+describe('the project detail reads (#1146)', () => {
+  const range = { from: '2026-09-01T00:00:00Z', to: '2026-09-25T00:00:00Z' }
+
+  it.each([
+    [
+      'getProjectResourceCreationMetrics',
+      '/api/v1/admin/projects/{id}/resource-creation-metrics',
+      { ...range, granularity: 'week' as const },
+    ],
+    [
+      'getProjectResourceAccessMetrics',
+      '/api/v1/admin/projects/{id}/resource-access-metrics',
+      { ...range, granularity: 'week' as const },
+    ],
+    [
+      'getProjectTopAccessedResources',
+      '/api/v1/admin/projects/{id}/top-accessed-resources',
+      range,
+    ],
+  ] as const)(
+    '%s sends the id as a path param and the range as the query',
+    async (method, path, query) => {
+      const body = { marker: method }
+      mockGeneratedClient.GET.mockReturnValue(success(body))
+
+      const result = await adminService[method]('p1', query)
+
+      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(path, {
+        params: { path: { id: 'p1' }, query },
+      })
+      expect(result).toEqual(body)
+    }
+  )
+
+  it('gets the project config by id', async () => {
+    const config = { project_rules: [], team_wide_rules: [] }
+    mockGeneratedClient.GET.mockReturnValue(success(config))
+
+    await expect(adminService.getProjectConfig('p1')).resolves.toEqual(config)
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/admin/projects/{id}/config',
+      { params: { path: { id: 'p1' } } }
+    )
+  })
+})

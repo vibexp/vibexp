@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatDate } from '@/lib/time'
 import { AdminDetailScaffold } from '@/pages/admin/AdminDetailScaffold'
+import { resourceCountLabel } from '@/pages/admin/projects/detail/projectChartData'
+import { ProjectConfigTab } from '@/pages/admin/projects/detail/ProjectConfigTab'
+import { ProjectOverviewTab } from '@/pages/admin/projects/detail/ProjectOverviewTab'
 import type { AdminProjectDetail as AdminProjectDetailType } from '@/services/adminService'
 import { adminService } from '@/services/adminService'
 import { getErrorMessage } from '@/utils/errorHandling'
@@ -33,15 +37,6 @@ function Field({
  * not belong to projects". A hardcoded list here would reintroduce exactly that
  * lie, and would silently drop a type the API adds later.
  */
-const COUNT_LABELS: Record<string, string> = {
-  prompts: 'Prompts',
-  artifacts: 'Artifacts',
-  memories: 'Memories',
-  blueprints: 'Blueprints',
-  feed_items: 'Feed items',
-  total: 'Total resources',
-}
-
 function ResourceCounts({
   counts,
 }: Readonly<{ counts: AdminProjectDetailType['resource_counts'] }>) {
@@ -56,7 +51,7 @@ function ResourceCounts({
               <p className="text-muted-foreground text-xs">
                 {/* Fall back to the raw key so a type added to the API shows up
                     labelled-ish rather than not at all. */}
-                {COUNT_LABELS[key] ?? key}
+                {resourceCountLabel(key) ?? key}
               </p>
               <p className="text-2xl font-semibold tabular-nums">
                 {String(value)}
@@ -69,9 +64,34 @@ function ResourceCounts({
   )
 }
 
-/** Instance project detail — metadata, team, creator and resource counts (#461). */
+const TABS = ['overview', 'configuration'] as const
+type ProjectDetailTab = (typeof TABS)[number]
+
+function isTab(value: string | null): value is ProjectDetailTab {
+  return TABS.includes(value as ProjectDetailTab)
+}
+
+/**
+ * Instance project detail — metadata, team, creator and resource counts (#461)
+ * above two read-only tabs (#1146). The active tab lives in `?tab=` so it
+ * survives a reload and can be linked to; Radix unmounts inactive tabs, so
+ * the configuration is fetched only when its tab is opened.
+ */
 export function AdminProjectDetail() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const tab: ProjectDetailTab = isTab(requestedTab) ? requestedTab : 'overview'
+  const setTab = (value: string) => {
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev)
+        next.set('tab', value)
+        return next
+      },
+      { replace: true }
+    )
+  }
   const [project, setProject] = useState<AdminProjectDetailType | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -149,6 +169,26 @@ export function AdminProjectDetail() {
           </Card>
 
           <ResourceCounts counts={project.resource_counts} />
+
+          <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="configuration">Configuration</TabsTrigger>
+            </TabsList>
+            <TabsContent value="overview">
+              <ProjectOverviewTab
+                projectId={project.id}
+                resourceCounts={project.resource_counts}
+              />
+            </TabsContent>
+            <TabsContent value="configuration">
+              <ProjectConfigTab
+                projectId={project.id}
+                projectName={project.name}
+                teamId={project.team.id}
+              />
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </AdminDetailScaffold>
