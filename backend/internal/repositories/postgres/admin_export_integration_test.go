@@ -92,10 +92,12 @@ func TestAdminTeamExport_StreamEqualsPagedList(t *testing.T) {
 	ctx := context.Background()
 
 	filters := repositories.AdminTeamFilters{
-		Search:      &f.token,
-		MemberCount: repositories.AdminCountRange{Min: int64p(1)},
-		SortBy:      "admin_count",
-		SortOrder:   "asc",
+		Search:       &f.token,
+		MemberCount:  repositories.AdminCountRange{Min: int64p(1)},
+		ProjectCount: repositories.AdminCountRange{Min: int64p(1)},
+		PromptCount:  repositories.AdminCountRange{Max: int64p(100)},
+		SortBy:       "admin_count",
+		SortOrder:    "asc",
 	}
 
 	paged, total := pageAdminIDs(t, func(n int) ([]string, int) {
@@ -109,7 +111,7 @@ func TestAdminTeamExport_StreamEqualsPagedList(t *testing.T) {
 		return repo.StreamTeams(ctx, filters, 100, fn)
 	}, func(tm models.AdminTeamListItem) string { return tm.ID })
 
-	assert.Len(t, paged, 2, "heavy and light have members; empty does not")
+	assert.Len(t, paged, 2, "heavy and light have members and a project; empty has neither")
 	assert.Equal(t, paged, streamed)
 	count, err := repo.CountTeams(ctx, filters)
 	require.NoError(t, err)
@@ -124,6 +126,8 @@ func TestAdminProjectExport_StreamEqualsPagedList(t *testing.T) {
 	filters := repositories.AdminProjectFilters{
 		Search:             &f.token,
 		TotalResourceCount: repositories.AdminCountRange{Min: int64p(1)},
+		PromptCount:        repositories.AdminCountRange{Min: int64p(1)},
+		FeedItemCount:      repositories.AdminCountRange{Max: int64p(100)},
 		SortBy:             "feed_item_count",
 		SortOrder:          "asc",
 	}
