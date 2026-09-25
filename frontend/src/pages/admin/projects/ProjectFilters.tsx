@@ -9,6 +9,8 @@ import {
   LAST_RESOURCE_CREATED,
   PROJECT_RESOURCE_RANGES,
 } from '@/pages/admin/projects/projectListParams'
+import { AdminSavedFiltersMenu } from '@/pages/admin/savedFilters/AdminSavedFiltersMenu'
+import type { PresetQuery } from '@/pages/admin/savedFilters/useAdminSavedFilters'
 import { AdminTeamPicker } from '@/pages/admin/teams/AdminTeamPicker'
 
 export interface ProjectFiltersProps {
@@ -34,6 +36,9 @@ export interface ProjectFiltersProps {
    */
   ownerEmailResetKey: number
   advancedActiveCount: number
+  /** Saved filter presets (#1148): the current filters as a preset query. */
+  currentQuery: PresetQuery
+  onApplyPreset: (query: PresetQuery) => void
 }
 
 export function ProjectFilters({
@@ -53,6 +58,8 @@ export function ProjectFilters({
   onOwnerEmailChange,
   ownerEmailResetKey,
   advancedActiveCount,
+  currentQuery,
+  onApplyPreset,
 }: Readonly<ProjectFiltersProps>) {
   const advanced = (
     <>
@@ -101,6 +108,13 @@ export function ProjectFilters({
       hasActiveFilters={hasActiveFilters}
       advanced={advanced}
       advancedActiveCount={advancedActiveCount}
+      presets={
+        <AdminSavedFiltersMenu
+          list="projects"
+          currentQuery={currentQuery}
+          onApply={onApplyPreset}
+        />
+      }
     >
       <AdminTeamPicker value={teamId} onChange={onTeamIdChange} />
     </AdminFilterBar>

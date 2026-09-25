@@ -172,6 +172,17 @@ export type AdminTeamSettingsAuditParams = NonNullable<
   operations['listAdminTeamSettingsAudit']['parameters']['query']
 >
 
+/** Which admin list a saved filter preset belongs to (#1147). */
+export type AdminSavedFilterListName =
+  components['schemas']['AdminSavedFilterListName']
+export type AdminSavedFilterPreset =
+  components['schemas']['AdminSavedFilterPreset']
+export type AdminSavedFilterPresetInput =
+  components['schemas']['AdminSavedFilterPresetInput']
+export type AdminSavedFilters = components['schemas']['AdminSavedFilters']
+export type AdminSavedFiltersReplaceRequest =
+  components['schemas']['AdminSavedFiltersReplaceRequest']
+
 /** Query parameters for the instance-wide project listing (#453). */
 export type AdminProjectListParams = NonNullable<
   operations['listAdminProjects']['parameters']['query']
@@ -559,6 +570,33 @@ class AdminService {
     return unwrap(
       generatedClient.GET('/api/v1/admin/projects/{id}', {
         params: { path: { id } },
+      })
+    )
+  }
+
+  /** The calling admin's saved filter presets for one admin list (#1147). */
+  async getSavedFilters(
+    list: AdminSavedFilterListName
+  ): Promise<AdminSavedFilters> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/saved-filters/{list}', {
+        params: { path: { list } },
+      })
+    )
+  }
+
+  /**
+   * Replace the whole preset list for one admin list. A stale `version` is
+   * rejected with 409 (an `ApiError` with `status === 409`) and nothing is saved.
+   */
+  async replaceSavedFilters(
+    list: AdminSavedFilterListName,
+    body: AdminSavedFiltersReplaceRequest
+  ): Promise<AdminSavedFilters> {
+    return unwrap(
+      generatedClient.PUT('/api/v1/admin/saved-filters/{list}', {
+        params: { path: { list } },
+        body,
       })
     )
   }

@@ -19,6 +19,7 @@ const mockGeneratedClient = vi.hoisted(() => ({
   GET: vi.fn(),
   POST: vi.fn(),
   PATCH: vi.fn(),
+  PUT: vi.fn(),
   DELETE: vi.fn(),
 }))
 
@@ -202,6 +203,67 @@ describe('getProject', () => {
       feed_items: 8,
       total: 54,
     })
+  })
+})
+
+describe('saved filter presets (#1148)', () => {
+  const presets = {
+    list: 'teams' as const,
+    presets: [{ id: 'p1', name: 'Dormant', query: { kind: 'shared' } }],
+    version: 3,
+  }
+
+  it('getSavedFilters sends the list as a path param', async () => {
+    mockGeneratedClient.GET.mockReturnValue(success(presets))
+
+    await expect(adminService.getSavedFilters('teams')).resolves.toEqual(
+      presets
+    )
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/admin/saved-filters/{list}',
+      { params: { path: { list: 'teams' } } }
+    )
+  })
+
+  it('replaceSavedFilters PUTs the whole list with the version', async () => {
+    mockGeneratedClient.PUT.mockReturnValue(success(presets))
+    const body = {
+      presets: [{ name: 'Dormant', query: { kind: 'shared' } }],
+      version: 2,
+    }
+
+    await expect(
+      adminService.replaceSavedFilters('teams', body)
+    ).resolves.toEqual(presets)
+    expect(mockGeneratedClient.PUT).toHaveBeenCalledWith(
+      '/api/v1/admin/saved-filters/{list}',
+      { params: { path: { list: 'teams' } }, body }
+    )
+  })
+
+  it('replaceSavedFilters surfaces a stale version as a 409 ApiError', async () => {
+    mockGeneratedClient.PUT.mockReturnValue(
+      Promise.resolve({
+        error: {
+          type: 'about:blank',
+          title: 'Conflict',
+          status: 409,
+          detail: 'version is stale',
+          code: 'CONFLICT',
+          request_id: 'r1',
+          timestamp: '2026-01-01T00:00:00Z',
+        },
+        response: {
+          ok: false,
+          status: 409,
+          statusText: 'Conflict',
+        } as Response,
+      })
+    )
+
+    await expect(
+      adminService.replaceSavedFilters('teams', { presets: [], version: 1 })
+    ).rejects.toMatchObject({ status: 409 })
   })
 })
 

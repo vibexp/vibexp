@@ -10,6 +10,8 @@ import { AdminFilterBar } from '@/pages/admin/AdminFilterBar'
 import type { NumberRangeValue } from '@/pages/admin/filters/advancedFilterParams'
 import { DateTimeRangeFilter } from '@/pages/admin/filters/DateTimeRangeFilter'
 import { NumberRangeFilter } from '@/pages/admin/filters/NumberRangeFilter'
+import { AdminSavedFiltersMenu } from '@/pages/admin/savedFilters/AdminSavedFiltersMenu'
+import type { PresetQuery } from '@/pages/admin/savedFilters/useAdminSavedFilters'
 import {
   LAST_RESOURCE_CREATED,
   USER_RANGE_FILTERS,
@@ -45,6 +47,9 @@ export interface UserFiltersProps {
   getDateRange: (name: string) => DateRangeValue
   onDateRangeChange: (name: string, value: DateRangeValue) => void
   advancedActiveCount: number
+  /** Saved filter presets (#1148): the current filters as a preset query. */
+  currentQuery: PresetQuery
+  onApplyPreset: (query: PresetQuery) => void
 }
 
 export function UserFilters({
@@ -63,6 +68,8 @@ export function UserFilters({
   getDateRange,
   onDateRangeChange,
   advancedActiveCount,
+  currentQuery,
+  onApplyPreset,
 }: Readonly<UserFiltersProps>) {
   const advanced = (
     <>
@@ -98,6 +105,13 @@ export function UserFilters({
       hasActiveFilters={hasActiveFilters}
       advanced={advanced}
       advancedActiveCount={advancedActiveCount}
+      presets={
+        <AdminSavedFiltersMenu
+          list="users"
+          currentQuery={currentQuery}
+          onApply={onApplyPreset}
+        />
+      }
     >
       <Select
         value={status}

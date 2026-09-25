@@ -77,6 +77,8 @@ export interface UseAdminListFiltersOptions<TSort extends string> {
  * - the date range travels as readable local days in the URL and as instants in
  *   the request, with the upper bound at local end-of-day
  * - clearing resets the search box too, so the next debounce tick cannot restore it
+ * - the filter state round-trips as a flat query (`currentQuery` / `applyQuery`),
+ *   which is what saved filter presets store and restore (#1148)
  */
 export function useAdminListFilters<TSort extends string>({
   defaults,
@@ -87,10 +89,18 @@ export function useAdminListFilters<TSort extends string>({
 }: UseAdminListFiltersOptions<TSort>) {
   // Advanced keys join the defaults as `''`, which is what makes Clear
   // (`resetFilters`) remove them from the URL too.
-  const { filters, setFilters, resetFilters } = useUrlFilters({
+  const urlDefaults: AdminListBaseFilters = {
     ...Object.fromEntries(advancedKeys(advanced).map(key => [key, ''])),
     ...defaults,
-  })
+  }
+  const { filters, setFilters, resetFilters } = useUrlFilters(urlDefaults)
+  // Every URL key this page owns except `page`: what a saved preset captures
+  // and what applying one overwrites (#1148). Frozen like `useUrlFilters`' own
+  // copy, since `defaults` and `advanced` are module-level constants.
+  const [presetKeys] = useState(() =>
+    Object.keys(urlDefaults).filter(key => key !== 'page')
+  )
+  const [presetDefaults] = useState(urlDefaults)
   // Uncommitted text in the search box, debounced into the URL below.
   const [searchInput, setSearchInput] = useState(filters.search)
 
@@ -216,6 +226,33 @@ export function useAdminListFilters<TSort extends string>({
     [setFilters]
   )
 
+  // The owned filters that differ from their defaults — exactly what a saved
+  // preset stores. Sort is part of the slice; the page number is not.
+  const currentQuery = useMemo(
+    () =>
+      Object.fromEntries(
+        presetKeys
+          .filter(key => filters[key] && filters[key] !== presetDefaults[key])
+          .map(key => [key, filters[key]])
+      ),
+    [filters, presetKeys, presetDefaults]
+  )
+
+  const applyQuery = useCallback(
+    (query: Readonly<Record<string, string | undefined>>) => {
+      // Same reason as Clear: the box must show the preset's search, or the next
+      // debounce tick re-commits the old text over it.
+      setSearchInput(query.search ?? '')
+      // One update covering every owned key, so the filters the preset lacks are
+      // removed rather than left in place. Keys this page does not own are
+      // ignored; malformed values fall out through the usual URL guards.
+      setFilters(
+        Object.fromEntries(presetKeys.map(key => [key, query[key] ?? '']))
+      )
+    },
+    [presetKeys, setFilters]
+  )
+
   const handleClear = useCallback(() => {
     // Stale text left in the box would be re-committed on the next debounce tick
     // and undo the clear.
@@ -239,6 +276,8 @@ export function useAdminListFilters<TSort extends string>({
     hasActiveFilters,
     handleSortChange,
     handleClear,
+    currentQuery,
+    applyQuery,
     advancedParams,
     advancedActiveCount,
     getRange,
