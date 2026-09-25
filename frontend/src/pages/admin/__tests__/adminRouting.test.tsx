@@ -42,6 +42,12 @@ vi.mock('@/services/adminService', () => ({
     listUsers: vi.fn(),
     listTeams: vi.fn(),
     getUser: vi.fn(),
+    // The user detail's default Overview tab fetches these on mount (#1137);
+    // left pending, since routing is all this suite asserts.
+    getUserInsights: vi.fn(() => new Promise(() => {})),
+    getUserResourceCreationMetrics: vi.fn(() => new Promise(() => {})),
+    getUserResourceAccessMetrics: vi.fn(() => new Promise(() => {})),
+    getUserTopAccessedResources: vi.fn(() => new Promise(() => {})),
     getTeam: vi.fn(),
     listProjects: vi.fn(),
     getProject: vi.fn(),

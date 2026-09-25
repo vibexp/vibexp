@@ -34,13 +34,16 @@ test.describe('Admin portal — happy path', () => {
     // first one.
     await expect(page.getByText(/Backend version/i)).toBeVisible()
 
-    // Users list → the admin's own row → user detail (team memberships).
+    // Users list → the admin's own row → user detail → Teams tab (memberships).
     await page.getByRole('link', { name: 'Users' }).click()
     await expect(page).toHaveURL(/\/admin\/users$/)
     // Exact match: nonadmin-e2e@vibexp.test contains admin-e2e@vibexp.test as a
     // substring, so a non-exact getByText would match both rows.
     await page.getByText(ADMIN_EMAIL, { exact: true }).click()
     await expect(page).toHaveURL(/\/admin\/users\/[^/]+$/)
+    // Memberships live on the Teams tab since #1137; Overview is the default.
+    await page.getByRole('tab', { name: 'Teams' }).click()
+    await expect(page).toHaveURL(/\/admin\/users\/[^/]+\?tab=teams$/)
     await expect(
       page.getByRole('heading', { name: 'Team memberships' })
     ).toBeVisible()

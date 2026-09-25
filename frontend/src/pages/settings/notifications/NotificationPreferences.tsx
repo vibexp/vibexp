@@ -15,6 +15,8 @@ import {
   preferencesService,
 } from '@/services/preferencesService'
 
+import { NOTIFICATION_TYPE_LABELS } from './notificationTypeLabels'
+
 // Email delivery mode enum for a single notification type.
 type EmailDeliveryMode = NotificationTypePreference['email']
 
@@ -64,12 +66,6 @@ function PreferenceRow({
       />
     </div>
   )
-}
-
-const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
-  'feed.item.created': 'New feed items',
-  'feed.reply.created': 'Replies to your feed posts',
-  'team.invitation': 'Team invitations',
 }
 
 // ---------------------------------------------------------------------------

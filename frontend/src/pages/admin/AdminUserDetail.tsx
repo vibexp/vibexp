@@ -1,6 +1,6 @@
 import { Ban, Pencil, Trash2, UserCheck } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -8,14 +8,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/useAuth'
 import { formatDate } from '@/lib/time'
 import { AdminDetailScaffold } from '@/pages/admin/AdminDetailScaffold'
@@ -24,6 +17,10 @@ import {
   canActOn,
 } from '@/pages/admin/users/adminUserGuards'
 import { DeleteUserDialog } from '@/pages/admin/users/DeleteUserDialog'
+import { UserActivityTab } from '@/pages/admin/users/detail/UserActivityTab'
+import { UserNotificationsTab } from '@/pages/admin/users/detail/UserNotificationsTab'
+import { UserOverviewTab } from '@/pages/admin/users/detail/UserOverviewTab'
+import { UserTeamsTab } from '@/pages/admin/users/detail/UserTeamsTab'
 import type { UserFormValues } from '@/pages/admin/users/UserFormDialog'
 import { UserFormDialog } from '@/pages/admin/users/UserFormDialog'
 import type {
@@ -33,10 +30,34 @@ import type {
 import { adminService } from '@/services/adminService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
-/** Instance user detail — profile, memberships, and the admin actions (#459). */
+const TABS = ['overview', 'activity', 'teams', 'notifications'] as const
+type UserDetailTab = (typeof TABS)[number]
+
+function isTab(value: string | null): value is UserDetailTab {
+  return TABS.includes(value as UserDetailTab)
+}
+
+/**
+ * Instance user detail — the admin actions (#459) above four read-only tabs
+ * (#1137). The active tab lives in `?tab=` so it survives a reload and can be
+ * linked to; Radix unmounts inactive tabs, so each one fetches only when opened.
+ */
 export function AdminUserDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const tab: UserDetailTab = isTab(requestedTab) ? requestedTab : 'overview'
+  const setTab = (value: string) => {
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev)
+        next.set('tab', value)
+        return next
+      },
+      { replace: true }
+    )
+  }
   const { user: actingAdmin } = useAuth()
   const [user, setUser] = useState<AdminUserDetailType | null>(null)
   const [loading, setLoading] = useState(true)
@@ -134,9 +155,8 @@ export function AdminUserDetail() {
     adminService
       .deleteUser(user.id)
       .then(result => {
-        // Narrowed with `in` rather than on `result.deleted`: the two are
-        // equivalent under tsc's project build but ts-jest's config does not
-        // narrow the boolean discriminant, and the test suite would not compile.
+        // Narrowed with `in` rather than on `result.deleted`, which keeps the
+        // refusal branch typed without relying on boolean-discriminant narrowing.
         if (!('refusal' in result)) {
           toast.success('User deleted')
           void navigate('/admin/users')
@@ -249,41 +269,26 @@ export function AdminUserDetail() {
             </CardContent>
           </Card>
 
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold">Team memberships</h2>
-            {user.memberships.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                This user is not a member of any team.
-              </p>
-            ) : (
-              <Card className="overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableHead className="h-9 text-xs font-medium">
-                        Team
-                      </TableHead>
-                      <TableHead className="h-9 text-xs font-medium">
-                        Role
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {user.memberships.map(m => (
-                      <TableRow key={m.team_id}>
-                        <TableCell className="py-3 text-sm">
-                          {m.team_name}
-                        </TableCell>
-                        <TableCell className="py-3">
-                          <Badge variant="outline">{m.role}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
-            )}
-          </div>
+          <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="activity">Activity</TabsTrigger>
+              <TabsTrigger value="teams">Teams</TabsTrigger>
+              <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            </TabsList>
+            <TabsContent value="overview">
+              <UserOverviewTab userId={user.id} />
+            </TabsContent>
+            <TabsContent value="activity">
+              <UserActivityTab userId={user.id} />
+            </TabsContent>
+            <TabsContent value="teams">
+              <UserTeamsTab memberships={user.memberships} />
+            </TabsContent>
+            <TabsContent value="notifications">
+              <UserNotificationsTab userId={user.id} />
+            </TabsContent>
+          </Tabs>
 
           <UserFormDialog
             open={editOpen}

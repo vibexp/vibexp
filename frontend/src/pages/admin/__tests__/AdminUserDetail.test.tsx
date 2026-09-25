@@ -27,7 +27,32 @@ vi.mock('@/services/adminService', () => ({
     suspendUser: vi.fn(),
     reactivateUser: vi.fn(),
     deleteUser: vi.fn(),
+    getUserInsights: vi.fn(),
+    getUserResourceCreationMetrics: vi.fn(),
+    getUserResourceAccessMetrics: vi.fn(),
+    getUserTopAccessedResources: vi.fn(),
+    getUserTimeline: vi.fn(),
+    getUserNotificationPreferences: vi.fn(),
   },
+}))
+
+// The self-fetching tabs are covered by their own suites; here they are stubbed
+// so the shell's tab routing is observable without their requests. The Teams tab
+// stays real: it only renders the memberships the page already loaded.
+vi.mock('@/pages/admin/users/detail/UserOverviewTab', () => ({
+  UserOverviewTab: ({ userId }: { userId: string }) => (
+    <div data-testid="overview-tab">overview {userId}</div>
+  ),
+}))
+vi.mock('@/pages/admin/users/detail/UserActivityTab', () => ({
+  UserActivityTab: ({ userId }: { userId: string }) => (
+    <div data-testid="activity-tab">activity {userId}</div>
+  ),
+}))
+vi.mock('@/pages/admin/users/detail/UserNotificationsTab', () => ({
+  UserNotificationsTab: ({ userId }: { userId: string }) => (
+    <div data-testid="notifications-tab">notifications {userId}</div>
+  ),
 }))
 
 vi.mock('sonner', () => ({
@@ -66,9 +91,9 @@ function user(
   }
 }
 
-function renderDetail(id = 'u1') {
+function renderDetail(id = 'u1', search = '') {
   return render(
-    <MemoryRouter initialEntries={[`/admin/users/${id}`]}>
+    <MemoryRouter initialEntries={[`/admin/users/${id}${search}`]}>
       <Routes>
         <Route path="/admin/users/:id" element={<AdminUserDetail />} />
       </Routes>
@@ -97,8 +122,71 @@ it('renders the profile, status and memberships', async () => {
   ).toBeInTheDocument()
   expect(screen.getByText('ada@example.com')).toBeInTheDocument()
   expect(screen.getByText('Active')).toBeInTheDocument()
+
+  // Memberships moved to the Teams tab (#1137).
+  await userEvent.click(screen.getByRole('tab', { name: 'Teams' }))
+  expect(
+    screen.getByRole('heading', { name: 'Team memberships' })
+  ).toBeInTheDocument()
   expect(screen.getByText('Engineering')).toBeInTheDocument()
   expect(screen.getByText('Design')).toBeInTheDocument()
+})
+
+it('says so when the user belongs to no team', async () => {
+  mockAdminService.getUser.mockResolvedValue(user({ memberships: [] }))
+  renderDetail('u1', '?tab=teams')
+
+  expect(
+    await screen.findByText('This user is not a member of any team.')
+  ).toBeInTheDocument()
+})
+
+describe('tabs (#1137)', () => {
+  it('opens on Overview and mounts no other tab', async () => {
+    renderDetail()
+
+    expect(await screen.findByTestId('overview-tab')).toHaveTextContent(
+      'overview u1'
+    )
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    expect(screen.queryByTestId('activity-tab')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('notifications-tab')).not.toBeInTheDocument()
+  })
+
+  it('mounts a tab only when it is opened, keeping the header above it', async () => {
+    renderDetail()
+    await screen.findByTestId('overview-tab')
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Activity' }))
+    expect(screen.getByTestId('activity-tab')).toHaveTextContent('activity u1')
+    expect(screen.queryByTestId('overview-tab')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Ada' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Suspend/ })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Notifications' }))
+    expect(screen.getByTestId('notifications-tab')).toBeInTheDocument()
+    expect(screen.queryByTestId('activity-tab')).not.toBeInTheDocument()
+  })
+
+  it('opens the tab named in ?tab=', async () => {
+    renderDetail('u1', '?tab=notifications')
+
+    expect(await screen.findByTestId('notifications-tab')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Notifications' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    expect(screen.queryByTestId('overview-tab')).not.toBeInTheDocument()
+  })
+
+  it('falls back to Overview for an unknown ?tab=', async () => {
+    renderDetail('u1', '?tab=bogus')
+
+    expect(await screen.findByTestId('overview-tab')).toBeInTheDocument()
+  })
 })
 
 it('badges a suspended account and flips the action', async () => {

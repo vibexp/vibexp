@@ -83,6 +83,40 @@ export type AdminProjectResourceCounts =
   components['schemas']['AdminProjectResourceCounts']
 export type AdminProjectDetail = components['schemas']['AdminProjectDetail']
 
+// Per-user insight reads behind the user detail page (#1135, #1136). Every
+// resource is opaque — type, short id, team and project, never a title.
+export type AdminResourceCounts = components['schemas']['AdminResourceCounts']
+export type AdminUserInsights = components['schemas']['AdminUserInsights']
+export type AdminUserTeamResourceCounts =
+  components['schemas']['AdminUserTeamResourceCounts']
+export type AdminUserCreationPoint =
+  components['schemas']['AdminUserCreationPoint']
+export type AdminUserResourceCreationMetrics =
+  components['schemas']['AdminUserResourceCreationMetrics']
+export type AdminUserAccessMetrics =
+  components['schemas']['AdminUserAccessMetrics']
+export type AdminTopAccessedResource =
+  components['schemas']['AdminTopAccessedResource']
+export type AdminTopAccessedResourcesResponse =
+  components['schemas']['AdminTopAccessedResourcesResponse']
+export type AdminUserTimelineEvent =
+  components['schemas']['AdminUserTimelineEvent']
+export type AdminUserTimelinePage =
+  components['schemas']['AdminUserTimelinePage']
+export type AdminUserNotificationPreferences =
+  components['schemas']['AdminUserNotificationPreferences']
+
+/** Range + bucket size shared by the per-user creation and access series. */
+export type AdminUserSeriesParams = NonNullable<
+  operations['getAdminUserResourceCreationMetrics']['parameters']['query']
+>
+export type AdminUserTopAccessedParams = NonNullable<
+  operations['getAdminUserTopAccessedResources']['parameters']['query']
+>
+export type AdminUserTimelineParams = NonNullable<
+  operations['getAdminUserTimeline']['parameters']['query']
+>
+
 /** Query parameters for the instance-wide project listing (#453). */
 export type AdminProjectListParams = NonNullable<
   operations['listAdminProjects']['parameters']['query']
@@ -213,6 +247,75 @@ class AdminService {
   async getUser(id: string): Promise<AdminUserDetail> {
     return unwrap(
       generatedClient.GET('/api/v1/admin/users/{id}', {
+        params: { path: { id } },
+      })
+    )
+  }
+
+  /** Resource counts for one user, instance-wide and per team/project. */
+  async getUserInsights(id: string): Promise<AdminUserInsights> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/users/{id}/insights', {
+        params: { path: { id } },
+      })
+    )
+  }
+
+  /** Resources the user created, bucketed per type over a range. */
+  async getUserResourceCreationMetrics(
+    id: string,
+    params: AdminUserSeriesParams
+  ): Promise<AdminUserResourceCreationMetrics> {
+    return unwrap(
+      generatedClient.GET(
+        '/api/v1/admin/users/{id}/resource-creation-metrics',
+        { params: { path: { id }, query: params } }
+      )
+    )
+  }
+
+  /** The user's resource accesses, bucketed per source over a range. */
+  async getUserResourceAccessMetrics(
+    id: string,
+    params: AdminUserSeriesParams
+  ): Promise<AdminUserAccessMetrics> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/users/{id}/resource-access-metrics', {
+        params: { path: { id }, query: params },
+      })
+    )
+  }
+
+  /** The resources the user accessed most in a range, as opaque references. */
+  async getUserTopAccessedResources(
+    id: string,
+    params: AdminUserTopAccessedParams
+  ): Promise<AdminTopAccessedResourcesResponse> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/users/{id}/top-accessed-resources', {
+        params: { path: { id }, query: params },
+      })
+    )
+  }
+
+  /** One cursor page of the user's opaque create/update timeline, newest first. */
+  async getUserTimeline(
+    id: string,
+    params: AdminUserTimelineParams = {}
+  ): Promise<AdminUserTimelinePage> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/users/{id}/timeline', {
+        params: { path: { id }, query: params },
+      })
+    )
+  }
+
+  /** The user's notification settings, read-only for the admin. */
+  async getUserNotificationPreferences(
+    id: string
+  ): Promise<AdminUserNotificationPreferences> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/users/{id}/notification-preferences', {
         params: { path: { id } },
       })
     )
