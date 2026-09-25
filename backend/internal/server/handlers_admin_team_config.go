@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/google/uuid"
-
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -215,9 +213,9 @@ func toGenAdminFreshnessValues(v models.FreshnessSettingsValues) admingen.AdminF
 }
 
 func toGenAdminFreshnessRule(r *models.FreshnessRule) (admingen.AdminFreshnessRule, error) {
-	id, err := uuid.Parse(r.ID)
+	id, err := parseAdminUUID("freshness rule", r.ID)
 	if err != nil {
-		return admingen.AdminFreshnessRule{}, fmt.Errorf("freshness rule id %q is not a uuid: %w", r.ID, err)
+		return admingen.AdminFreshnessRule{}, err
 	}
 	projectID, err := optionalGenUUID(r.ProjectID)
 	if err != nil {
@@ -254,10 +252,9 @@ func (a *adminStrictServer) GetAdminTeamArtifactTypes(
 	// make(...,0,...): `types` is a required array on a generated type.
 	genTypes := make([]admingen.AdminArtifactType, 0, len(types))
 	for _, t := range types {
-		id, perr := uuid.Parse(t.ID)
+		id, perr := parseAdminUUID("type", t.ID)
 		if perr != nil {
-			return nil, a.adminConfigInternalError(handler, teamID,
-				fmt.Errorf("type id %q is not a uuid: %w", t.ID, perr))
+			return nil, a.adminConfigInternalError(handler, teamID, perr)
 		}
 		genTypes = append(genTypes, admingen.AdminArtifactType{
 			Id:        id,
@@ -356,10 +353,9 @@ func toGenAdminTeamSettingsAuditEntry(
 ) (admingen.AdminTeamSettingsAuditEntry, error) {
 	entry := view.Entry
 
-	id, err := uuid.Parse(entry.ID)
+	id, err := parseAdminUUID("settings audit entry", entry.ID)
 	if err != nil {
-		return admingen.AdminTeamSettingsAuditEntry{},
-			fmt.Errorf("settings audit entry id %q is not a uuid: %w", entry.ID, err)
+		return admingen.AdminTeamSettingsAuditEntry{}, err
 	}
 	actorID, err := optionalGenUUID(entry.ActorUserID)
 	if err != nil {
