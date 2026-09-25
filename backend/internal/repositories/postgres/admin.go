@@ -368,20 +368,11 @@ func (r *AdminRepository) queryAdminUsers(
 		Limit(limit).
 		Offset(offset)
 
-	query, args, err := sb.ToSql()
+	rows, err := r.runAdminListQuery(ctx, sb, "user")
 	if err != nil {
-		return nil, fmt.Errorf("failed to build admin user list query: %w", err)
+		return nil, err
 	}
-
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list users: %w", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			slog.Error("Failed to close admin user rows", "error", closeErr)
-		}
-	}()
+	defer closeAdminListRows(rows, "user")
 
 	users := make([]models.AdminUserListItem, 0)
 	for rows.Next() {
@@ -401,6 +392,30 @@ func (r *AdminRepository) queryAdminUsers(
 		return nil, fmt.Errorf("failed to iterate admin users: %w", err)
 	}
 	return users, nil
+}
+
+// runAdminListQuery renders and runs an admin listing page query; noun ("user",
+// "team") only shapes the error text.
+func (r *AdminRepository) runAdminListQuery(
+	ctx context.Context, sb squirrel.SelectBuilder, noun string,
+) (*sql.Rows, error) {
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build admin %s list query: %w", noun, err)
+	}
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list %ss: %w", noun, err)
+	}
+	return rows, nil
+}
+
+// closeAdminListRows closes a listing's rows, logging (not returning) a close
+// error, as every repository in this package does.
+func closeAdminListRows(rows *sql.Rows, noun string) {
+	if closeErr := rows.Close(); closeErr != nil {
+		slog.Error("Failed to close admin "+noun+" rows", "error", closeErr)
+	}
 }
 
 // adminUserMembershipsQuery returns the teams a user belongs to with the user's

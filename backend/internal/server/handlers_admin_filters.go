@@ -33,6 +33,27 @@ func validateAdminCountRange(name string, lower, upper *int64) (repositories.Adm
 	return repositories.AdminCountRange{Min: lower, Max: upper}, nil
 }
 
+// adminCountRangeParam binds one <name>_min/<name>_max query pair to the
+// repository range it validates into.
+type adminCountRangeParam struct {
+	name         string
+	lower, upper *int64
+	dst          *repositories.AdminCountRange
+}
+
+// applyAdminCountRanges validates every pair with validateAdminCountRange and
+// stores each valid range in its dst, stopping at the first 400.
+func applyAdminCountRanges(params []adminCountRangeParam) error {
+	for _, cr := range params {
+		r, err := validateAdminCountRange(cr.name, cr.lower, cr.upper)
+		if err != nil {
+			return err
+		}
+		*cr.dst = r
+	}
+	return nil
+}
+
 // validateAdminTimeRange rejects an inverted <name>_from/<name>_to pair. The
 // RFC 3339 format itself is already enforced by the generated binding.
 func validateAdminTimeRange(name string, from, to *time.Time) error {

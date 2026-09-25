@@ -112,11 +112,7 @@ func toAdminUserFilters(p admingen.ListAdminUsersParams) (repositories.AdminUser
 // applyAdminUserAggregateFilters validates the count ranges and the
 // last-resource-created range (#1133) and sets them on filters.
 func applyAdminUserAggregateFilters(filters *repositories.AdminUserFilters, p admingen.ListAdminUsersParams) error {
-	for _, cr := range []struct {
-		name         string
-		lower, upper *int64
-		dst          *repositories.AdminCountRange
-	}{
+	if err := applyAdminCountRanges([]adminCountRangeParam{
 		{"team_count", p.TeamCountMin, p.TeamCountMax, &filters.TeamCount},
 		{"project_count", p.ProjectCountMin, p.ProjectCountMax, &filters.ProjectCount},
 		{"prompt_count", p.PromptCountMin, p.PromptCountMax, &filters.PromptCount},
@@ -129,12 +125,8 @@ func applyAdminUserAggregateFilters(filters *repositories.AdminUserFilters, p ad
 		{"comment_count", p.CommentCountMin, p.CommentCountMax, &filters.CommentCount},
 		{"attachment_count", p.AttachmentCountMin, p.AttachmentCountMax, &filters.AttachmentCount},
 		{"total_resource_count", p.TotalResourceCountMin, p.TotalResourceCountMax, &filters.TotalResourceCount},
-	} {
-		r, err := validateAdminCountRange(cr.name, cr.lower, cr.upper)
-		if err != nil {
-			return err
-		}
-		*cr.dst = r
+	}); err != nil {
+		return err
 	}
 
 	if err := validateAdminTimeRange(
@@ -324,11 +316,7 @@ func toAdminTeamFilters(p admingen.ListAdminTeamsParams) (repositories.AdminTeam
 // applyAdminTeamAggregateFilters validates the count ranges (#1138) and sets
 // them, the owner-email match and the configured tri-states on filters.
 func applyAdminTeamAggregateFilters(filters *repositories.AdminTeamFilters, p admingen.ListAdminTeamsParams) error {
-	for _, cr := range []struct {
-		name         string
-		lower, upper *int64
-		dst          *repositories.AdminCountRange
-	}{
+	if err := applyAdminCountRanges([]adminCountRangeParam{
 		{"member_count", p.MemberCountMin, p.MemberCountMax, &filters.MemberCount},
 		{"owner_count", p.OwnerCountMin, p.OwnerCountMax, &filters.OwnerCount},
 		{"admin_count", p.AdminCountMin, p.AdminCountMax, &filters.AdminCount},
@@ -343,12 +331,8 @@ func applyAdminTeamAggregateFilters(filters *repositories.AdminTeamFilters, p ad
 		{"comment_count", p.CommentCountMin, p.CommentCountMax, &filters.CommentCount},
 		{"attachment_count", p.AttachmentCountMin, p.AttachmentCountMax, &filters.AttachmentCount},
 		{"total_resource_count", p.TotalResourceCountMin, p.TotalResourceCountMax, &filters.TotalResourceCount},
-	} {
-		r, err := validateAdminCountRange(cr.name, cr.lower, cr.upper)
-		if err != nil {
-			return err
-		}
-		*cr.dst = r
+	}); err != nil {
+		return err
 	}
 
 	if p.OwnerEmail != nil {

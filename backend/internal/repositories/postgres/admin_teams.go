@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/Masterminds/squirrel"
 
@@ -288,20 +287,11 @@ func (r *AdminRepository) queryAdminTeams(
 		Limit(limit).
 		Offset(offset)
 
-	query, args, err := sb.ToSql()
+	rows, err := r.runAdminListQuery(ctx, sb, "team")
 	if err != nil {
-		return nil, fmt.Errorf("failed to build admin team list query: %w", err)
+		return nil, err
 	}
-
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list teams: %w", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			slog.Error("Failed to close admin team rows", "error", closeErr)
-		}
-	}()
+	defer closeAdminListRows(rows, "team")
 
 	teams := make([]models.AdminTeamListItem, 0)
 	for rows.Next() {
