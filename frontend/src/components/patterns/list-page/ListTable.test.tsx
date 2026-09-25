@@ -98,6 +98,34 @@ describe('<ListTable> sort behavior', () => {
     expect(onSortChange).toHaveBeenCalledWith('name')
   })
 
+  it('sorts a column without an accessorKey by its id', async () => {
+    const user = userEvent.setup()
+    const onSortChange = vi.fn()
+    const columns: ColumnDef<Row>[] = [
+      {
+        id: 'doubled',
+        header: 'Doubled',
+        cell: ({ row }) => <span>{row.original.count * 2}</span>,
+      },
+    ]
+
+    render(
+      <ListTable<Row, 'doubled'>
+        rows={ROWS}
+        columns={columns}
+        sortableKeys={['doubled']}
+        sortKey="doubled"
+        sortDir="asc"
+        onSortChange={onSortChange}
+      />
+    )
+
+    const header = screen.getByRole('button', { name: /Doubled/ })
+    expect(header).toHaveAttribute('aria-sort', 'ascending')
+    await user.click(header)
+    expect(onSortChange).toHaveBeenCalledWith('doubled')
+  })
+
   it('pressing Enter on a sortable header invokes onSortChange', async () => {
     const user = userEvent.setup()
     const onSortChange = vi.fn()

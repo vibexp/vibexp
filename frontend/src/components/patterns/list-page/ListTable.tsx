@@ -31,7 +31,10 @@ export interface ListTableColumnMeta {
 interface ListTableProps<T, SortKey extends string = string> {
   rows: T[]
   columns: ColumnDef<T>[]
-  /** Accessor keys allowed to be sorted. Header cells become click-to-sort when present. */
+  /**
+   * Keys allowed to be sorted, matched against a column's `accessorKey` (or its
+   * `id` when it has none). Header cells become click-to-sort when present.
+   */
   sortableKeys?: readonly SortKey[]
   sortKey?: SortKey
   sortDir?: SortDir
@@ -142,14 +145,16 @@ export function ListTable<
           {columns.map(col => {
             const accessorKey = (col as { accessorKey?: string }).accessorKey
             const key = col.id ?? accessorKey
+            // A column reading a nested value has no `accessorKey`, so its `id`
+            // names the sort key instead (e.g. `prompt_count` for
+            // `resource_counts.prompts`).
+            const sortId = accessorKey ?? col.id
             const isSortable =
-              sortingEnabled &&
-              accessorKey !== undefined &&
-              sortable.has(accessorKey)
-            const active = isSortable && sortKey === accessorKey
+              sortingEnabled && sortId !== undefined && sortable.has(sortId)
+            const active = isSortable && sortKey === sortId
             const triggerSort = isSortable
               ? () => {
-                  onSortChange(accessorKey as SortKey)
+                  onSortChange(sortId as SortKey)
                 }
               : undefined
             return (
