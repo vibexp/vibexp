@@ -377,9 +377,8 @@ test.describe.serial('Admin panel v3 journey', () => {
     }
   })
 
-  // Optional chaining: a `beforeAll` failing partway leaves contexts unset.
   test.afterAll(async () => {
-    for (const context of contexts) await context?.close()
+    for (const context of contexts) await context.close()
   })
 
   test('users: advanced filter round-trips through the URL, sorts by a count, exports', async () => {
@@ -706,6 +705,11 @@ test.describe.serial('Admin panel v3 journey', () => {
         .getByTestId('timeseries-bar-chart')
         .filter({ hasText: 'Resource access by source' })
     ).toContainText(/Total accesses:\s*\d+/, { timeout: UI_TIMEOUT })
+    // A failed access series still prints "Total accesses: 0", so rule the
+    // error out explicitly.
+    await expect(
+      page.getByText('Failed to load the access series')
+    ).toHaveCount(0)
     await snapshot(page)
 
     await page.getByRole('tab', { name: 'Configuration' }).click()
