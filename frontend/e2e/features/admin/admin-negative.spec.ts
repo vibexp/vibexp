@@ -36,4 +36,39 @@ test.describe('Admin portal — non-admin negative path', () => {
     const response = await page.request.get('/api/v1/admin/stats')
     expect(response.status()).toBe(404)
   })
+
+  test('a non-admin is kept out of every admin panel v3 surface', async ({
+    page,
+  }) => {
+    await devLogin(page, NON_ADMIN_EMAIL, 'Non Admin E2E')
+
+    // The v3 list pages and a detail URL (#1131) redirect home without chrome.
+    // A well-formed id that matches nothing: the guard must fire before any
+    // lookup, so whether the row exists is irrelevant.
+    const someId = '00000000-0000-4000-8000-000000000000'
+    for (const path of [
+      '/admin/users',
+      '/admin/teams',
+      '/admin/projects',
+      `/admin/projects/${someId}?tab=configuration`,
+    ]) {
+      await page.goto(path)
+      await expect(page, `${path} was not redirected`).toHaveURL(
+        /^https?:\/\/[^/]+\/$/
+      )
+      await expect(page.getByRole('link', { name: 'Back to app' })).toHaveCount(
+        0
+      )
+    }
+
+    // Presets, export and team configuration 404 like the rest of /admin.
+    for (const url of [
+      '/api/v1/admin/saved-filters/users',
+      '/api/v1/admin/users/export',
+      `/api/v1/admin/teams/${someId}/config/search`,
+    ]) {
+      const res = await page.request.get(url)
+      expect(res.status(), `GET ${url}`).toBe(404)
+    }
+  })
 })

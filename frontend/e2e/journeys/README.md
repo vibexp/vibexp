@@ -14,6 +14,7 @@ e2e/journeys/
 ├── resource-freshness.journey.spec.ts       # Freshness loop (gated on the docker stack)
 ├── cross-team-settings-copy.journey.spec.ts # Copying settings between two teams
 ├── ai-summary.journey.spec.ts               # AI Summary on search (gated on the docker stack)
+├── admin-panel-v3.journey.spec.ts           # Admin filters, presets, CSV export, detail pages
 └── README.md                                # This file
 ```
 
@@ -46,6 +47,43 @@ Names that a locator matches on are scoped per **attempt**, not per file:
 `describe.serial` re-runs `beforeAll` on a retry, and a file-scoped team name
 would leave the source-team picker offering two identical options on the second
 attempt — a red ship gate caused by the harness rather than the feature.
+
+## Admin panel v3 (`admin-panel-v3.journey.spec.ts`)
+
+The ship gate for epic #1131. It seeds three users, two shared teams and three
+projects through the public API (never SQL), gives one team real configuration
+(a model provider and an email provider holding a known secret, search / AI
+summary / freshness settings, a custom artifact type), then drives the admin
+surface as the instance admin (`ADMIN_EMAIL`):
+
+- **users / teams / projects lists**: a count sort (desc, then flipped), an
+  advanced filter asserted in the URL **and** in the rows, surviving a reload
+  (and, on users, a detail round trip with `goBack`);
+- **presets** on the teams list: save, clear, apply (the URL is restored),
+  delete through the manage dialog;
+- **CSV export** of each filtered list: filename, header row, and exactly the
+  filtered rows;
+- **detail pages**: the four user tabs, every team configuration tab (secrets
+  shown as `Configured ✓` only), and the project Overview charts plus its
+  Configuration tab.
+
+The last test makes two claims about the whole session, recording every
+`/api/v1/` body (the browsers' and the spec's own `page.request` calls) plus the
+HTML of every admin page it asserted on:
+
+- **Redaction**: the seeded secret is in no body and on no page, and no admin
+  payload carries a secret-bearing key (`api_key`, `secret`, `webhook_url`,
+  `webhook_secret`, `last_error`). Paired with a check that it saw a
+  `has_api_key` admin payload, so a run that recorded nothing cannot pass.
+- **Counts only, never titles**: no seeded resource title is in any
+  `/api/v1/admin/` body or on any admin page.
+
+Other specs share the database, so no assertion reads a global total: each list
+is narrowed to the attempt's rows by searching for a per-attempt tag first.
+Presets this spec saved on an earlier failed attempt are pruned in `beforeAll`,
+so the per-admin cap of 20 is never reached. The non-admin half (redirects from
+the v3 pages, 404 from the preset, export and team-config APIs) lives in
+`e2e/features/admin/admin-negative.spec.ts`.
 
 ## AI Summary (`ai-summary.journey.spec.ts`)
 
