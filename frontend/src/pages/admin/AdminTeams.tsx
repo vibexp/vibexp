@@ -14,6 +14,12 @@ import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/time'
 import type { TeamKindFilter } from '@/pages/admin/teams/TeamFilters'
 import { TeamFilters } from '@/pages/admin/teams/TeamFilters'
+import type { TeamSortKey } from '@/pages/admin/teams/teamListParams'
+import {
+  buildTeamListParams,
+  TEAM_ADVANCED_FILTERS,
+} from '@/pages/admin/teams/teamListParams'
+import { TeamSetupIndicators } from '@/pages/admin/teams/TeamSetupIndicators'
 import { useAdminListFilters } from '@/pages/admin/useAdminListFilters'
 import type { AdminTeamListItem } from '@/services/adminService'
 import { adminService } from '@/services/adminService'
@@ -21,7 +27,18 @@ import { getErrorMessage } from '@/utils/errorHandling'
 
 const PAGE_SIZE = 20
 
-const SORTABLE_KEYS = ['name', 'member_count', 'created_at'] as const
+// `satisfies` pins these to the published `sort_by` enum: a renamed value fails
+// `tsc -b` rather than becoming a silent 400. Per-type resource counts are
+// filterable but not displayed, so only the columns shown here are listed.
+const SORTABLE_KEYS = [
+  'name',
+  'member_count',
+  'owner_count',
+  'admin_count',
+  'project_count',
+  'total_resource_count',
+  'created_at',
+] as const satisfies readonly TeamSortKey[]
 type SortKey = (typeof SORTABLE_KEYS)[number]
 
 /**
@@ -32,6 +49,7 @@ const FILTER_DEFAULTS = {
   page: '1',
   search: '',
   kind: 'all',
+  owner_email: '',
   created_from: '',
   created_to: '',
   sort_by: 'created_at',
@@ -56,16 +74,20 @@ const INITIAL: State = {
   total: 0,
 }
 
-/**
- * Maps the tri-state UI filter onto the optional `is_personal` boolean.
- *
- * `undefined` for "all" is the whole point: sending `is_personal=false` would
- * mean "shared only" and silently hide every personal workspace.
- */
-function isPersonalParam(kind: string): boolean | undefined {
-  if (kind === 'personal') return true
-  if (kind === 'shared') return false
-  return undefined
+/** A right-aligned count column; `id` doubles as the `sort_by` value sent. */
+function countColumn(
+  id: SortKey,
+  header: string,
+  get: (team: AdminTeamListItem) => number
+): ColumnDef<AdminTeamListItem> {
+  return {
+    id,
+    header,
+    meta: { align: 'right' },
+    cell: ({ row }) => (
+      <span className="text-sm tabular-nums">{get(row.original)}</span>
+    ),
+  }
 }
 
 /** Instance-wide teams list: server-side filtering, sorting and pagination (#460). */
@@ -87,28 +109,40 @@ export function AdminTeams() {
     hasActiveFilters,
     handleSortChange,
     handleClear,
+    advancedActiveCount,
+    getRange,
+    setRange,
+    getTriState,
+    setTriState,
   } = useAdminListFilters<SortKey>({
     defaults: FILTER_DEFAULTS,
     sortableKeys: SORTABLE_KEYS,
     defaultSort: 'created_at',
-    filterKeys: ['kind'],
+    filterKeys: ['kind', 'owner_email'],
+    advanced: TEAM_ADVANCED_FILTERS,
   })
   const [state, setState] = useState<State>(INITIAL)
+
+  // One memoised request object, so the fetch effect depends on it alone rather
+  // than on every one of the ~40 URL keys.
+  const params = useMemo(
+    () =>
+      buildTeamListParams(filters, {
+        page,
+        limit: PAGE_SIZE,
+        createdFrom,
+        createdTo,
+        sortBy,
+        sortOrder,
+      }),
+    [filters, page, createdFrom, createdTo, sortBy, sortOrder]
+  )
 
   useEffect(() => {
     let cancelled = false
     setState(prev => ({ ...prev, loading: true, error: null }))
     adminService
-      .listTeams({
-        page,
-        limit: PAGE_SIZE,
-        search: filters.search || undefined,
-        is_personal: isPersonalParam(filters.kind),
-        created_from: createdFrom,
-        created_to: createdTo,
-        sort_by: sortBy,
-        sort_order: sortOrder,
-      })
+      .listTeams(params)
       .then(response => {
         if (cancelled) return
         setState({
@@ -133,15 +167,7 @@ export function AdminTeams() {
       // must not overwrite the results of a newer one.
       cancelled = true
     }
-  }, [
-    page,
-    filters.search,
-    filters.kind,
-    createdFrom,
-    createdTo,
-    sortBy,
-    sortOrder,
-  ])
+  }, [params])
 
   const columns = useMemo<ColumnDef<AdminTeamListItem>[]>(
     () => [
@@ -175,14 +201,20 @@ export function AdminTeams() {
           </span>
         ),
       },
+      countColumn('member_count', 'Members', team => team.member_count),
+      countColumn('owner_count', 'Owners', team => team.owner_count),
+      countColumn('admin_count', 'Admins', team => team.admin_count),
+      countColumn('project_count', 'Projects', team => team.project_count),
+      countColumn(
+        'total_resource_count',
+        'Total resources',
+        team => team.resource_counts.total
+      ),
       {
-        accessorKey: 'member_count',
-        header: 'Members',
-        meta: { align: 'right' },
+        id: 'setup',
+        header: 'Setup',
         cell: ({ row }) => (
-          <span className="text-sm tabular-nums">
-            {row.original.member_count}
-          </span>
+          <TeamSetupIndicators configuration={row.original.configuration} />
         ),
       },
       {
@@ -226,6 +258,19 @@ export function AdminTeams() {
             onCreatedChange={setCreated}
             onClear={handleClear}
             hasActiveFilters={hasActiveFilters}
+            getRange={getRange}
+            onRangeChange={setRange}
+            getTriState={getTriState}
+            onTriStateChange={setTriState}
+            ownerEmail={filters.owner_email}
+            onOwnerEmailChange={value => {
+              setFilters({ owner_email: value })
+            }}
+            // Owner email lives in the panel too, so it counts toward the badge
+            // and opens the panel when a shared link carries it.
+            advancedActiveCount={
+              advancedActiveCount + (filters.owner_email.trim() === '' ? 0 : 1)
+            }
           />
         </ListPage.Filters>
 
@@ -241,7 +286,7 @@ export function AdminTeams() {
               <EmptyState
                 icon={UsersRound}
                 title="No teams match your filters"
-                description="Try a different search, team type, or date range."
+                description="Try a different search, team type, date range, or advanced filter."
                 actions={
                   <Button variant="outline" onClick={handleClear}>
                     Clear filters

@@ -1,0 +1,152 @@
+import type { AdminTeamListParams } from '@/services/adminService'
+
+import type { TeamListContext } from '../teamListParams'
+import {
+  buildTeamListParams,
+  isPersonalParam,
+  ownerEmailParam,
+  TEAM_ADVANCED_FILTERS,
+  TEAM_MEMBERSHIP_RANGES,
+  TEAM_RESOURCE_RANGES,
+  TEAM_SETUP_TRISTATES,
+} from '../teamListParams'
+
+const CTX: TeamListContext = {
+  page: 2,
+  limit: 20,
+  sortBy: 'created_at',
+  sortOrder: 'desc',
+}
+
+const build = (filters: Record<string, string>) =>
+  buildTeamListParams(filters, CTX)
+
+/** Only the params that are actually present (not `undefined`). */
+const present = (params: AdminTeamListParams) =>
+  Object.fromEntries(
+    Object.entries(params as Record<string, unknown>).filter(
+      ([, value]) => value !== undefined
+    )
+  )
+
+const BASE = { page: 2, limit: 20, sort_by: 'created_at', sort_order: 'desc' }
+
+const RANGE_NAMES = [...TEAM_MEMBERSHIP_RANGES, ...TEAM_RESOURCE_RANGES].map(
+  filter => filter.name
+)
+const TRISTATE_NAMES = TEAM_SETUP_TRISTATES.map(filter => filter.name)
+
+it('sends only the base params when nothing is filtered', () => {
+  expect(present(build({ kind: 'all', search: '', owner_email: '' }))).toEqual(
+    BASE
+  )
+})
+
+it('declares every range and tri-state #1138 publishes', () => {
+  // A new API param with no control would be unreachable from the UI.
+  expect(TEAM_ADVANCED_FILTERS.ranges).toEqual(RANGE_NAMES)
+  expect(RANGE_NAMES).toHaveLength(14)
+  expect(TEAM_ADVANCED_FILTERS.triStates).toEqual(TRISTATE_NAMES)
+  expect(TRISTATE_NAMES).toHaveLength(7)
+})
+
+describe.each(RANGE_NAMES)('the %s range', name => {
+  const minKey = `${name}_min`
+  const maxKey = `${name}_max`
+
+  it('sends min alone', () => {
+    expect(present(build({ [minKey]: '3' }))).toEqual({ ...BASE, [minKey]: 3 })
+  })
+
+  it('sends max alone', () => {
+    expect(present(build({ [maxKey]: '7' }))).toEqual({ ...BASE, [maxKey]: 7 })
+  })
+
+  it('sends both bounds', () => {
+    expect(present(build({ [minKey]: '0', [maxKey]: '7' }))).toEqual({
+      ...BASE,
+      [minKey]: 0,
+      [maxKey]: 7,
+    })
+  })
+
+  it('omits empty and garbage bounds', () => {
+    expect(present(build({ [minKey]: '', [maxKey]: 'abc' }))).toEqual(BASE)
+    expect(present(build({ [minKey]: '-1', [maxKey]: '1.5' }))).toEqual(BASE)
+  })
+
+  it('drops a contradictory pair whole', () => {
+    expect(present(build({ [minKey]: '9', [maxKey]: '2' }))).toEqual(BASE)
+  })
+})
+
+describe.each(TRISTATE_NAMES)('the %s tri-state', name => {
+  it('sends nothing for "any"', () => {
+    expect(present(build({ [name]: '' }))).toEqual(BASE)
+    expect(present(build({ [name]: 'maybe' }))).toEqual(BASE)
+  })
+
+  it('sends true for yes and false for no', () => {
+    expect(build({ [name]: 'true' })).toHaveProperty(name, true)
+    // `false` is a real filter, never a stand-in for "any".
+    expect(build({ [name]: 'false' })).toHaveProperty(name, false)
+  })
+})
+
+describe('owner_email', () => {
+  it('is trimmed', () => {
+    expect(build({ owner_email: '  a@b.co ' }).owner_email).toBe('a@b.co')
+    expect(ownerEmailParam(' a@b.co')).toBe('a@b.co')
+  })
+
+  it('is omitted when blank', () => {
+    expect(build({ owner_email: '   ' }).owner_email).toBeUndefined()
+    expect(ownerEmailParam(undefined)).toBeUndefined()
+  })
+})
+
+it('maps the team kind onto is_personal unchanged', () => {
+  expect(isPersonalParam('personal')).toBe(true)
+  expect(isPersonalParam('shared')).toBe(false)
+  expect(isPersonalParam('all')).toBeUndefined()
+  expect(build({ kind: 'shared' }).is_personal).toBe(false)
+  expect(build({}).is_personal).toBeUndefined()
+})
+
+it('combines base, range, tri-state and owner filters', () => {
+  const params = buildTeamListParams(
+    {
+      search: 'eng',
+      kind: 'shared',
+      owner_email: 'x@corp.com',
+      member_count_min: '10',
+      total_resource_count_max: '500',
+      embedding_configured: 'false',
+      github_configured: 'true',
+    },
+    {
+      page: 1,
+      limit: 20,
+      createdFrom: '2026-01-01T00:00:00.000Z',
+      createdTo: '2026-02-01T00:00:00.000Z',
+      sortBy: 'owner_count',
+      sortOrder: 'asc',
+    }
+  )
+
+  expect(present(params)).toEqual({
+    page: 1,
+    limit: 20,
+    search: 'eng',
+    is_personal: false,
+    owner_email: 'x@corp.com',
+    created_from: '2026-01-01T00:00:00.000Z',
+    created_to: '2026-02-01T00:00:00.000Z',
+    sort_by: 'owner_count',
+    sort_order: 'asc',
+    member_count_min: 10,
+    total_resource_count_max: 500,
+    embedding_configured: false,
+    github_configured: true,
+  } satisfies AdminTeamListParams)
+})
