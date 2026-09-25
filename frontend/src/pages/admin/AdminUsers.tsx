@@ -116,6 +116,8 @@ export function AdminUsers() {
     hasActiveFilters,
     handleSortChange,
     handleClear,
+    currentQuery,
+    applyQuery,
     advancedParams,
     advancedActiveCount,
     getRange,
@@ -301,6 +303,8 @@ export function AdminUsers() {
               getDateRange={getDateRange}
               onDateRangeChange={setDateRange}
               advancedActiveCount={advancedActiveCount}
+              currentQuery={currentQuery}
+              onApplyPreset={applyQuery}
             />
             <div className="flex items-center gap-2">
               <UserColumnChooser

@@ -31,7 +31,12 @@ vi.mock('react-router', async () => ({
 }))
 
 vi.mock('@/services/adminService', () => ({
-  adminService: { listProjects: vi.fn(), listTeams: vi.fn() },
+  adminService: {
+    listProjects: vi.fn(),
+    listTeams: vi.fn(),
+    getSavedFilters: vi.fn(),
+    replaceSavedFilters: vi.fn(),
+  },
 }))
 
 import { adminService } from '@/services/adminService'
@@ -168,6 +173,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockAdminService.listProjects.mockResolvedValue(page())
   mockAdminService.listTeams.mockResolvedValue(teamPage)
+  mockAdminService.getSavedFilters.mockResolvedValue({
+    list: 'projects',
+    presets: [],
+    version: 0,
+  })
 })
 
 it('renders a row with its slug, team and owner', async () => {
@@ -702,4 +712,30 @@ describe('resource columns (#1144)', () => {
     })
     expect(lastQuery().sort_by).toBe('created_at')
   })
+})
+
+it('applies a saved preset as the whole URL query (#1148)', async () => {
+  mockAdminService.getSavedFilters.mockResolvedValue({
+    list: 'projects',
+    presets: [
+      { id: 'p1', name: 'Team two', query: { team_id: 't2', search: 'plat' } },
+    ],
+    version: 1,
+  })
+  renderProjects('/admin/projects?sort_by=name')
+  await screen.findByTestId('saved-filters-count')
+  expect(mockAdminService.getSavedFilters).toHaveBeenCalledWith('projects')
+
+  await userEvent.click(screen.getByRole('button', { name: /Presets/ }))
+  await userEvent.click(
+    await screen.findByRole('menuitem', { name: 'Team two' })
+  )
+
+  await waitFor(() => {
+    expect(lastQuery()).toMatchObject({ team_id: 't2', search: 'plat' })
+  })
+  expect(lastQuery().sort_by).toBe('created_at')
+  expect(screen.getByRole('textbox', { name: 'Search projects' })).toHaveValue(
+    'plat'
+  )
 })

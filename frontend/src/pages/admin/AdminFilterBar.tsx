@@ -34,6 +34,11 @@ export interface AdminFilterBarProps {
   advanced?: ReactNode
   /** Active advanced filters, shown as a badge on the toggle (a range counts once). */
   advancedActiveCount?: number
+  /**
+   * The saved filter presets control (#1148), rendered after Clear and before
+   * the Advanced toggle.
+   */
+  presets?: ReactNode
 }
 
 /**
@@ -59,6 +64,7 @@ export function AdminFilterBar({
   children,
   advanced,
   advancedActiveCount = 0,
+  presets,
 }: Readonly<AdminFilterBarProps>) {
   // Evaluated once on mount: a shared link carrying an advanced filter opens
   // with the panel visible. After that the admin controls it, and clearing a
@@ -94,6 +100,8 @@ export function AdminFilterBar({
           Clear filters
         </Button>
       )}
+
+      {presets}
 
       {advanced !== undefined && (
         <CollapsibleTrigger asChild>

@@ -109,6 +109,8 @@ export function AdminTeams() {
     hasActiveFilters,
     handleSortChange,
     handleClear,
+    currentQuery,
+    applyQuery,
     advancedParams,
     advancedActiveCount,
     getRange,
@@ -129,6 +131,16 @@ export function AdminTeams() {
     setClearCount(count => count + 1)
     handleClear()
   }, [handleClear])
+
+  // Applying a preset may change the owner email under a rejected draft, so it
+  // remounts that input the same way Clear does (#1148).
+  const applyPreset = useCallback(
+    (query: Record<string, string>) => {
+      setClearCount(count => count + 1)
+      applyQuery(query)
+    },
+    [applyQuery]
+  )
 
   // One memoised request object, so the fetch effect depends on it alone rather
   // than on every one of the ~40 URL keys.
@@ -281,6 +293,8 @@ export function AdminTeams() {
             advancedActiveCount={
               advancedActiveCount + (filters.owner_email.trim() === '' ? 0 : 1)
             }
+            currentQuery={currentQuery}
+            onApplyPreset={applyPreset}
           />
         </ListPage.Filters>
 

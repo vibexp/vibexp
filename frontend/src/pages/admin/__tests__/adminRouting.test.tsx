@@ -55,6 +55,8 @@ vi.mock('@/services/adminService', () => ({
     getProjectResourceCreationMetrics: vi.fn(() => new Promise(() => {})),
     getProjectResourceAccessMetrics: vi.fn(() => new Promise(() => {})),
     getProjectTopAccessedResources: vi.fn(() => new Promise(() => {})),
+    // Every list page's presets menu loads on mount (#1148).
+    getSavedFilters: vi.fn(() => new Promise(() => {})),
   },
 }))
 

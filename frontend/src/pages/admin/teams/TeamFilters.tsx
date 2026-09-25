@@ -12,6 +12,8 @@ import { GroupHeading } from '@/pages/admin/filters/GroupHeading'
 import { NumberRangeFilter } from '@/pages/admin/filters/NumberRangeFilter'
 import { OwnerEmailFilter } from '@/pages/admin/filters/OwnerEmailFilter'
 import { TriStateFilter } from '@/pages/admin/filters/TriStateFilter'
+import { AdminSavedFiltersMenu } from '@/pages/admin/savedFilters/AdminSavedFiltersMenu'
+import type { PresetQuery } from '@/pages/admin/savedFilters/useAdminSavedFilters'
 import type { TeamRangeFilter } from '@/pages/admin/teams/teamListParams'
 import {
   TEAM_MEMBERSHIP_RANGES,
@@ -53,6 +55,9 @@ export interface TeamFiltersProps {
    */
   ownerEmailResetKey: number
   advancedActiveCount: number
+  /** Saved filter presets (#1148): the current filters as a preset query. */
+  currentQuery: PresetQuery
+  onApplyPreset: (query: PresetQuery) => void
 }
 
 export function TeamFilters({
@@ -72,6 +77,8 @@ export function TeamFilters({
   onOwnerEmailChange,
   ownerEmailResetKey,
   advancedActiveCount,
+  currentQuery,
+  onApplyPreset,
 }: Readonly<TeamFiltersProps>) {
   const range = (filter: TeamRangeFilter) => (
     <NumberRangeFilter
@@ -125,6 +132,14 @@ export function TeamFilters({
       hasActiveFilters={hasActiveFilters}
       advanced={advanced}
       advancedActiveCount={advancedActiveCount}
+      presets={
+        <AdminSavedFiltersMenu
+          list="teams"
+          currentQuery={currentQuery}
+          onApply={onApplyPreset}
+          canSave={hasActiveFilters}
+        />
+      }
     >
       <Select
         value={kind}

@@ -173,3 +173,88 @@ describe('useAdminListFilters — advanced filters', () => {
     expect(params().get('prompt_count_min')).toBe('1')
   })
 })
+
+describe('useAdminListFilters — preset round-trip (#1148)', () => {
+  beforeEach(() => {
+    currentSearch = ''
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('currentQuery holds the non-default owned keys, without page', () => {
+    const { result } = renderFilters(
+      '/admin/users?page=3&search=ada&status=all&sort_by=name&sort_order=desc&prompt_count_min=2&has_projects=false&foreign=1'
+    )
+    expect(result.current.currentQuery).toEqual({
+      search: 'ada',
+      sort_by: 'name',
+      prompt_count_min: '2',
+      has_projects: 'false',
+    })
+  })
+
+  it('currentQuery is empty for an unfiltered view', () => {
+    const { result } = renderFilters('/admin/users?page=2')
+    expect(result.current.currentQuery).toEqual({})
+  })
+
+  it('applyQuery replaces the owned keys in one update and resets page', () => {
+    const { result } = renderFilters(
+      '/admin/users?page=4&status=active&prompt_count_min=2&created_from=2026-01-01&foreign=keep'
+    )
+
+    act(() => {
+      result.current.applyQuery({
+        has_projects: 'true',
+        sort_order: 'asc',
+        unknown_key: 'x',
+      })
+    })
+
+    const url = params()
+    expect(url.get('has_projects')).toBe('true')
+    expect(url.get('sort_order')).toBe('asc')
+    // Filters the preset lacks are cleared, not left in place.
+    expect(url.get('status')).toBeNull()
+    expect(url.get('prompt_count_min')).toBeNull()
+    expect(url.get('created_from')).toBeNull()
+    expect(url.get('page')).toBeNull()
+    // Keys the page does not own are neither written nor removed.
+    expect(url.get('unknown_key')).toBeNull()
+    expect(url.get('foreign')).toBe('keep')
+    expect(result.current.currentQuery).toEqual({
+      has_projects: 'true',
+      sort_order: 'asc',
+    })
+  })
+
+  it('applyQuery syncs the search box, so the debounce cannot restore the old text', () => {
+    vi.useFakeTimers()
+    const { result } = renderFilters('/admin/users?search=old')
+
+    act(() => {
+      result.current.setSearchInput('typed but not committed')
+    })
+    act(() => {
+      result.current.applyQuery({ search: 'preset' })
+    })
+    expect(result.current.searchInput).toBe('preset')
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(params().get('search')).toBe('preset')
+
+    act(() => {
+      result.current.applyQuery({ status: 'active' })
+    })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(result.current.searchInput).toBe('')
+    expect(params().get('search')).toBeNull()
+    expect(params().get('status')).toBe('active')
+  })
+})

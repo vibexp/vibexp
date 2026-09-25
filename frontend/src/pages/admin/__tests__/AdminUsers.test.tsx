@@ -23,7 +23,12 @@ vi.mock('react-router', async () => ({
 }))
 
 vi.mock('@/services/adminService', () => ({
-  adminService: { listUsers: vi.fn(), createUser: vi.fn() },
+  adminService: {
+    listUsers: vi.fn(),
+    createUser: vi.fn(),
+    getSavedFilters: vi.fn(),
+    replaceSavedFilters: vi.fn(),
+  },
 }))
 
 import { formatDate } from '@/lib/time'
@@ -111,6 +116,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   storage.remove(STORAGE_KEYS.ADMIN_USERS_COLUMNS)
   mockAdminService.listUsers.mockResolvedValue(page())
+  mockAdminService.getSavedFilters.mockResolvedValue({
+    list: 'users',
+    presets: [],
+    version: 0,
+  })
 })
 
 it('renders a row with provider and team count, unbadged when active', async () => {
@@ -750,4 +760,26 @@ it('shows an error state on failure', async () => {
   renderUsers()
 
   expect(await screen.findByText('Failed to load users')).toBeInTheDocument()
+})
+
+it('applies a saved preset as the whole URL query (#1148)', async () => {
+  mockAdminService.getSavedFilters.mockResolvedValue({
+    list: 'users',
+    presets: [{ id: 'p1', name: 'Suspended', query: { status: 'suspended' } }],
+    version: 1,
+  })
+  renderUsers('/admin/users?idp_provider=google&page=3')
+  await screen.findByTestId('saved-filters-count')
+  expect(mockAdminService.getSavedFilters).toHaveBeenCalledWith('users')
+
+  await userEvent.click(screen.getByRole('button', { name: /Presets/ }))
+  await userEvent.click(
+    await screen.findByRole('menuitem', { name: 'Suspended' })
+  )
+
+  await waitFor(() => {
+    expect(lastQuery()).toMatchObject({ status: 'suspended', page: 1 })
+  })
+  expect(lastQuery().idp_provider).toBeUndefined()
+  expect(currentSearch).toBe('?status=suspended')
 })
