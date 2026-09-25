@@ -634,6 +634,7 @@ func TestListAdminUsers_InvalidAggregateFiltersReturn400(t *testing.T) {
 
 			require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 			assert.Contains(t, rr.Header().Get("Content-Type"), "application/problem+json")
+			specconformance.AssertConformsToSpec(t, req, rr)
 		})
 	}
 }
