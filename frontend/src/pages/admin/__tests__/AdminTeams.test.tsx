@@ -479,7 +479,7 @@ describe('advanced filters (#1139)', () => {
       await screen.findByRole('spinbutton', { name: 'Members minimum' })
     ).toHaveValue(10)
     expect(
-      screen.getByRole('textbox', { name: 'Owner email (any owner)' })
+      screen.getByRole('textbox', { name: 'Primary owner email' })
     ).toHaveValue('boss@example.com')
     // Two ranges, one tri-state and the owner email; a range counts once.
     expect(screen.getByTestId('advanced-filters-count')).toHaveTextContent('4')
@@ -525,7 +525,7 @@ describe('advanced filters (#1139)', () => {
     const initialCalls = mockAdminService.listTeams.mock.calls.length
 
     const input = await screen.findByRole('textbox', {
-      name: 'Owner email (any owner)',
+      name: 'Primary owner email',
     })
     await userEvent.type(input, '  x@corp.com  ')
     expect(mockAdminService.listTeams.mock.calls).toHaveLength(initialCalls)
@@ -536,6 +536,36 @@ describe('advanced filters (#1139)', () => {
     })
     expect(mockAdminService.listTeams.mock.calls).toHaveLength(initialCalls + 1)
     expect(currentSearch).toContain('owner_email=x%40corp.com')
+  })
+
+  it('refuses a malformed owner email instead of sending it', async () => {
+    renderTeams()
+    await screen.findByText('Engineering')
+    await userEvent.click(
+      screen.getByRole('button', { name: /Advanced filters/ })
+    )
+    const initialCalls = mockAdminService.listTeams.mock.calls.length
+
+    const input = await screen.findByRole('textbox', {
+      name: 'Primary owner email',
+    })
+    await userEvent.type(input, 'boss{Enter}')
+
+    // The API answers a malformed address with a 400, which would replace the
+    // list with an error and stick in the URL.
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Enter a full email address'
+    )
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(mockAdminService.listTeams.mock.calls).toHaveLength(initialCalls)
+    expect(currentSearch).not.toContain('owner_email')
+
+    await userEvent.type(input, '@corp.com{Enter}')
+
+    await waitFor(() => {
+      expect(lastQuery().owner_email).toBe('boss@corp.com')
+    })
+    expect(input).not.toHaveAttribute('aria-invalid')
   })
 
   it('clears every advanced key from the URL', async () => {
@@ -557,7 +587,7 @@ describe('advanced filters (#1139)', () => {
     expect(lastQuery()).not.toHaveProperty('freshness_enabled')
     expect(lastQuery().owner_email).toBeUndefined()
     expect(
-      screen.getByRole('textbox', { name: 'Owner email (any owner)' })
+      screen.getByRole('textbox', { name: 'Primary owner email' })
     ).toHaveValue('')
   })
 })

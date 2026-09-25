@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 
 import type { DateRangeValue } from '@/components/ui/date-range'
 import { Input } from '@/components/ui/input'
@@ -62,13 +62,21 @@ function GroupHeading({ children }: Readonly<{ children: string }>) {
 /**
  * Owner email, committed on blur or Enter like the range inputs, so typing an
  * address does not fire a request per keystroke.
+ *
+ * The API matches the team's primary owner (`teams.owner_id`) exactly, and
+ * rejects a malformed address with a 400 — so a half-typed address is marked
+ * invalid and never committed, rather than replacing the list with an error that
+ * a reload would repeat.
  */
 function OwnerEmailFilter({
   value,
   onChange,
 }: Readonly<{ value: string; onChange: (value: string) => void }>) {
   const id = useId()
+  const errorId = `${id}-error`
+  const inputRef = useRef<HTMLInputElement>(null)
   const [draft, setDraft] = useState(value)
+  const [invalid, setInvalid] = useState(false)
 
   // Follow the committed value when it changes from outside (URL restore,
   // Clear), adjusting state during render rather than in an effect.
@@ -76,19 +84,26 @@ function OwnerEmailFilter({
   if (committed !== value) {
     setCommitted(value)
     setDraft(value)
+    setInvalid(false)
   }
 
   const commit = () => {
     const next = draft.trim()
+    if (next !== '' && inputRef.current?.validity.typeMismatch === true) {
+      setInvalid(true)
+      return
+    }
+    setInvalid(false)
     if (next !== value) onChange(next)
   }
 
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-medium leading-none">
-        Owner email (any owner)
+        Primary owner email
       </label>
       <Input
+        ref={inputRef}
         id={id}
         type="email"
         placeholder="owner@example.com"
@@ -96,11 +111,18 @@ function OwnerEmailFilter({
         onChange={event => {
           setDraft(event.target.value)
         }}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? errorId : undefined}
         onBlur={commit}
         onKeyDown={event => {
           if (event.key === 'Enter') commit()
         }}
       />
+      {invalid && (
+        <p id={errorId} role="alert" className="text-destructive text-xs">
+          Enter a full email address
+        </p>
+      )}
     </div>
   )
 }
