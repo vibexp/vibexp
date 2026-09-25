@@ -77,6 +77,21 @@ type AdminServiceInterface interface {
 	// GetProjectDetail returns one project with its team, owner and resource
 	// counts, or (nil, nil) when no project with that id exists (handler: 404).
 	GetProjectDetail(ctx context.Context, id string) (*models.AdminProjectDetail, error)
+	// UserExists reports whether a user with that id exists.
+	UserExists(ctx context.Context, id string) (bool, error)
+	// GetUserInsights returns per-type counts of the resources a user authored,
+	// in total, per team and per project; (nil, nil) for an unknown user.
+	GetUserInsights(ctx context.Context, id string) (*models.AdminUserInsights, error)
+	// GetUserCreationMetrics returns the gap-filled per-type creation series for
+	// a user; *ErrAdminTimeseriesRange for an invalid range (handler: 400) and
+	// (nil, nil) for an unknown user.
+	GetUserCreationMetrics(
+		ctx context.Context, id string, q AdminTimeseriesQuery,
+	) (*models.AdminUserCreationMetrics, error)
+	// GetUserTimeline returns one page of a user's opaque resource timeline;
+	// *ErrAdminInvalidCursor for a malformed cursor (handler: 400) and
+	// (nil, nil) for an unknown user.
+	GetUserTimeline(ctx context.Context, id, cursor string, limit int) (*models.AdminUserTimelinePage, error)
 }
 
 // AdminService implements AdminServiceInterface.

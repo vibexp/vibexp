@@ -79,6 +79,105 @@ func (e AdminUserListItemStatus) Valid() bool {
 	}
 }
 
+// Defines values for AdminUserResourceCreationMetricsGranularity.
+const (
+	AdminUserResourceCreationMetricsGranularityDay   AdminUserResourceCreationMetricsGranularity = "day"
+	AdminUserResourceCreationMetricsGranularityMonth AdminUserResourceCreationMetricsGranularity = "month"
+	AdminUserResourceCreationMetricsGranularityWeek  AdminUserResourceCreationMetricsGranularity = "week"
+)
+
+// Valid indicates whether the value is a known member of the AdminUserResourceCreationMetricsGranularity enum.
+func (e AdminUserResourceCreationMetricsGranularity) Valid() bool {
+	switch e {
+	case AdminUserResourceCreationMetricsGranularityDay:
+		return true
+	case AdminUserResourceCreationMetricsGranularityMonth:
+		return true
+	case AdminUserResourceCreationMetricsGranularityWeek:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminUserTimelineEventAction.
+const (
+	Created AdminUserTimelineEventAction = "created"
+	Updated AdminUserTimelineEventAction = "updated"
+)
+
+// Valid indicates whether the value is a known member of the AdminUserTimelineEventAction enum.
+func (e AdminUserTimelineEventAction) Valid() bool {
+	switch e {
+	case Created:
+		return true
+	case Updated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminUserTimelineEventResourceType.
+const (
+	Agent      AdminUserTimelineEventResourceType = "agent"
+	Artifact   AdminUserTimelineEventResourceType = "artifact"
+	Attachment AdminUserTimelineEventResourceType = "attachment"
+	Blueprint  AdminUserTimelineEventResourceType = "blueprint"
+	Comment    AdminUserTimelineEventResourceType = "comment"
+	Feed       AdminUserTimelineEventResourceType = "feed"
+	FeedItem   AdminUserTimelineEventResourceType = "feed_item"
+	Memory     AdminUserTimelineEventResourceType = "memory"
+	Prompt     AdminUserTimelineEventResourceType = "prompt"
+)
+
+// Valid indicates whether the value is a known member of the AdminUserTimelineEventResourceType enum.
+func (e AdminUserTimelineEventResourceType) Valid() bool {
+	switch e {
+	case Agent:
+		return true
+	case Artifact:
+		return true
+	case Attachment:
+		return true
+	case Blueprint:
+		return true
+	case Comment:
+		return true
+	case Feed:
+		return true
+	case FeedItem:
+		return true
+	case Memory:
+		return true
+	case Prompt:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NotificationTypePreferenceEmail.
+const (
+	Digest  NotificationTypePreferenceEmail = "digest"
+	Instant NotificationTypePreferenceEmail = "instant"
+	None    NotificationTypePreferenceEmail = "none"
+)
+
+// Valid indicates whether the value is a known member of the NotificationTypePreferenceEmail enum.
+func (e NotificationTypePreferenceEmail) Valid() bool {
+	switch e {
+	case Digest:
+		return true
+	case Instant:
+		return true
+	case None:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetAdminDashboardTimeseriesParamsGranularity.
 const (
 	GetAdminDashboardTimeseriesParamsGranularityDay   GetAdminDashboardTimeseriesParamsGranularity = "day"
@@ -265,6 +364,27 @@ func (e ListAdminUsersParamsSortOrder) Valid() bool {
 	case Asc:
 		return true
 	case Desc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminUserResourceCreationMetricsParamsGranularity.
+const (
+	GetAdminUserResourceCreationMetricsParamsGranularityDay   GetAdminUserResourceCreationMetricsParamsGranularity = "day"
+	GetAdminUserResourceCreationMetricsParamsGranularityMonth GetAdminUserResourceCreationMetricsParamsGranularity = "month"
+	GetAdminUserResourceCreationMetricsParamsGranularityWeek  GetAdminUserResourceCreationMetricsParamsGranularity = "week"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminUserResourceCreationMetricsParamsGranularity enum.
+func (e GetAdminUserResourceCreationMetricsParamsGranularity) Valid() bool {
+	switch e {
+	case GetAdminUserResourceCreationMetricsParamsGranularityDay:
+		return true
+	case GetAdminUserResourceCreationMetricsParamsGranularityMonth:
+		return true
+	case GetAdminUserResourceCreationMetricsParamsGranularityWeek:
 		return true
 	default:
 		return false
@@ -655,6 +775,22 @@ type AdminUserCreateRequest struct {
 	Name        string  `json:"name"`
 }
 
+// AdminUserCreationPoint How many resources of each type the user created within one time bucket.
+type AdminUserCreationPoint struct {
+	Agents      int64 `json:"agents"`
+	Artifacts   int64 `json:"artifacts"`
+	Attachments int64 `json:"attachments"`
+	Blueprints  int64 `json:"blueprints"`
+
+	// Bucket Start of the bucket, in UTC.
+	Bucket    time.Time `json:"bucket"`
+	Comments  int64     `json:"comments"`
+	FeedItems int64     `json:"feed_items"`
+	Feeds     int64     `json:"feeds"`
+	Memories  int64     `json:"memories"`
+	Prompts   int64     `json:"prompts"`
+}
+
 // AdminUserDeleteBlockedResponse Returned with 409 when a hard delete is refused. NOTHING was deleted: the
 // user and every listed team still exist.
 type AdminUserDeleteBlockedResponse struct {
@@ -690,6 +826,22 @@ type AdminUserDetail struct {
 // tokens stop working immediately, not at expiry. Instance-local: it does
 // not disable the account at the upstream identity provider.
 type AdminUserDetailStatus string
+
+// AdminUserInsights Per-type counts of the resources one user authored, instance-wide, per team
+// and per project (GET /api/v1/admin/users/{id}/insights). For every type the
+// per-team counts sum to `totals`. An attachment whose author was deleted
+// (user_id set to NULL) counts for nobody.
+type AdminUserInsights struct {
+	// Teams Teams the user authored at least one resource in, ordered by team name.
+	Teams []AdminUserTeamResourceCounts `json:"teams"`
+
+	// Totals How many resources of each type a user authored, counted by the author
+	// column of each table (feeds by creator, feed items by poster). Every row
+	// counts regardless of its status or archive state. `total` is the sum of the
+	// nine types.
+	Totals AdminResourceCounts `json:"totals"`
+	UserId openapi_types.UUID  `json:"user_id"`
+}
 
 // AdminUserListItem One user in the instance-wide admin user listing.
 type AdminUserListItem struct {
@@ -748,6 +900,107 @@ type AdminUserListResponse struct {
 	Users []AdminUserListItem `json:"users"`
 }
 
+// AdminUserNotificationPreferences A user's notification preferences, read-only
+// (GET /api/v1/admin/users/{id}/notification-preferences). When the user has
+// never saved preferences, the defaults are returned with `is_default: true`
+// and `updated_at: null`.
+type AdminUserNotificationPreferences struct {
+	EmailNotification EmailNotificationPreferences `json:"email_notification"`
+
+	// IsDefault True when the user has no stored preferences and the defaults are shown.
+	IsDefault     bool                    `json:"is_default"`
+	Notifications NotificationPreferences `json:"notifications"`
+
+	// UpdatedAt When the user last saved their preferences; null when defaults are returned.
+	UpdatedAt *time.Time `json:"updated_at"`
+}
+
+// AdminUserProjectResourceCounts How many PROJECT-SCOPED resources the user authored in one project. Only the
+// four types with a NOT NULL project_id are attributed to a project; every
+// other type is counted at the team level only.
+type AdminUserProjectResourceCounts struct {
+	// Counts How many of each PROJECT-SCOPED resource type the project contains.
+	//
+	// Only these four types belong to a project. Agents and feeds are deliberately
+	// absent: neither table has a project_id column (both are team-scoped), so
+	// reporting zero for them would read as "this project has no agents" rather
+	// than "agents do not belong to projects".
+	Counts      AdminProjectResourceCounts `json:"counts"`
+	ProjectId   openapi_types.UUID         `json:"project_id"`
+	ProjectName string                     `json:"project_name"`
+}
+
+// AdminUserResourceCreationMetrics Resources the user created per bucket, stacked by type
+// (GET /api/v1/admin/users/{id}/resource-creation-metrics). Every bucket in
+// the range is present with an explicit 0 for every type.
+type AdminUserResourceCreationMetrics struct {
+	// From Inclusive start of the range actually used, snapped DOWN to the start of
+	// its bucket (same rule as AdminTimeseriesResponse.from).
+	From time.Time `json:"from"`
+
+	// Granularity Bucket size actually used.
+	Granularity AdminUserResourceCreationMetricsGranularity `json:"granularity"`
+
+	// Series One point per bucket, ascending by bucket.
+	Series []AdminUserCreationPoint `json:"series"`
+
+	// To Exclusive end of the range actually used (after defaulting); not snapped.
+	To time.Time `json:"to"`
+}
+
+// AdminUserResourceCreationMetricsGranularity Bucket size actually used.
+type AdminUserResourceCreationMetricsGranularity string
+
+// AdminUserTeamResourceCounts How many resources the user authored in one team, with the per-project breakdown.
+type AdminUserTeamResourceCounts struct {
+	// Counts How many resources of each type a user authored, counted by the author
+	// column of each table (feeds by creator, feed items by poster). Every row
+	// counts regardless of its status or archive state. `total` is the sum of the
+	// nine types.
+	Counts AdminResourceCounts `json:"counts"`
+
+	// IsMember Whether the user is still a member of the team. A former member's
+	// authored resources stay in the team and are still counted here.
+	IsMember bool `json:"is_member"`
+
+	// Projects Per-project counts, ordered by project name.
+	Projects []AdminUserProjectResourceCounts `json:"projects"`
+	TeamId   openapi_types.UUID               `json:"team_id"`
+	TeamName string                           `json:"team_name"`
+}
+
+// AdminUserTimelineEvent One opaque timeline entry: which kind of resource the user created or last
+// updated, where, and when. Deliberately carries no title, slug or content —
+// only the first 8 characters of the resource id.
+type AdminUserTimelineEvent struct {
+	Action     AdminUserTimelineEventAction `json:"action"`
+	OccurredAt time.Time                    `json:"occurred_at"`
+
+	// ProjectId Null for team-scoped resources and for feed items posted without a project.
+	ProjectId   *openapi_types.UUID `json:"project_id"`
+	ProjectName *string             `json:"project_name"`
+
+	// ResourceShortId First 8 characters of the resource id.
+	ResourceShortId string                             `json:"resource_short_id"`
+	ResourceType    AdminUserTimelineEventResourceType `json:"resource_type"`
+	TeamId          openapi_types.UUID                 `json:"team_id"`
+	TeamName        string                             `json:"team_name"`
+}
+
+// AdminUserTimelineEventAction defines model for AdminUserTimelineEvent.Action.
+type AdminUserTimelineEventAction string
+
+// AdminUserTimelineEventResourceType defines model for AdminUserTimelineEvent.ResourceType.
+type AdminUserTimelineEventResourceType string
+
+// AdminUserTimelinePage One page of a user's resource timeline, newest first.
+type AdminUserTimelinePage struct {
+	Items []AdminUserTimelineEvent `json:"items"`
+
+	// NextCursor Opaque cursor for the next page; null on the last page.
+	NextCursor *string `json:"next_cursor"`
+}
+
 // AdminUserUpdateRequest Fields an instance admin may change on a user. Deliberately minimal: email
 // and the identity-provider fields (idp_provider, idp_subject) are owned by the
 // upstream IdP and are not editable here — sending them is a 400 rather than a
@@ -755,6 +1008,21 @@ type AdminUserListResponse struct {
 type AdminUserUpdateRequest struct {
 	// Name The user's display name.
 	Name string `json:"name"`
+}
+
+// EmailNotificationPreferences defines model for EmailNotificationPreferences.
+type EmailNotificationPreferences struct {
+	// AccountSecurity Receive account security emails
+	AccountSecurity bool `json:"account_security"`
+
+	// MarketingPromotional Receive marketing and promotional emails
+	MarketingPromotional bool `json:"marketing_promotional"`
+
+	// NewFeature Receive new feature emails
+	NewFeature bool `json:"new_feature"`
+
+	// PlatformAnnouncement Receive platform announcement emails
+	PlatformAnnouncement bool `json:"platform_announcement"`
 }
 
 // ErrorResponse RFC 9457 Problem Details for HTTP APIs
@@ -786,6 +1054,35 @@ type ErrorResponse struct {
 	// ValidationErrors Field-level validation errors (present for validation failures)
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
 }
+
+// NotificationChannelPreferences defines model for NotificationChannelPreferences.
+type NotificationChannelPreferences struct {
+	// Email Enable email notifications globally
+	Email bool `json:"email"`
+
+	// InApp Enable in-app notifications globally
+	InApp bool `json:"in_app"`
+}
+
+// NotificationPreferences defines model for NotificationPreferences.
+type NotificationPreferences struct {
+	Channels NotificationChannelPreferences `json:"channels"`
+
+	// Types Per-type delivery preferences keyed by notification type (e.g. "feed.item.created", "feed.reply.created")
+	Types map[string]NotificationTypePreference `json:"types"`
+}
+
+// NotificationTypePreference defines model for NotificationTypePreference.
+type NotificationTypePreference struct {
+	// Email Email delivery mode for this notification type
+	Email NotificationTypePreferenceEmail `json:"email"`
+
+	// InApp Deliver this notification type in-app
+	InApp bool `json:"in_app"`
+}
+
+// NotificationTypePreferenceEmail Email delivery mode for this notification type
+type NotificationTypePreferenceEmail string
 
 // ValidationError Field-level validation error details
 type ValidationError struct {
@@ -1016,6 +1313,30 @@ type ListAdminUsersParamsSortBy string
 // ListAdminUsersParamsSortOrder defines parameters for ListAdminUsers.
 type ListAdminUsersParamsSortOrder string
 
+// GetAdminUserResourceCreationMetricsParams defines parameters for GetAdminUserResourceCreationMetrics.
+type GetAdminUserResourceCreationMetricsParams struct {
+	// From Inclusive start of the range. Defaults to 30 days before `to`.
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Exclusive end of the range. Defaults to now.
+	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Granularity Bucket size.
+	Granularity *GetAdminUserResourceCreationMetricsParamsGranularity `form:"granularity,omitempty" json:"granularity,omitempty"`
+}
+
+// GetAdminUserResourceCreationMetricsParamsGranularity defines parameters for GetAdminUserResourceCreationMetrics.
+type GetAdminUserResourceCreationMetricsParamsGranularity string
+
+// GetAdminUserTimelineParams defines parameters for GetAdminUserTimeline.
+type GetAdminUserTimelineParams struct {
+	// Cursor Opaque cursor from a previous page's `next_cursor`.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // CreateAdminUserJSONRequestBody defines body for CreateAdminUser for application/json ContentType.
 type CreateAdminUserJSONRequestBody = AdminUserCreateRequest
 
@@ -1060,12 +1381,24 @@ type ServerInterface interface {
 	// Update an instance user
 	// (PATCH /api/v1/admin/users/{id})
 	UpdateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get a user's resource counts
+	// (GET /api/v1/admin/users/{id}/insights)
+	GetAdminUserInsights(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get a user's notification preferences
+	// (GET /api/v1/admin/users/{id}/notification-preferences)
+	GetAdminUserNotificationPreferences(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Reactivate a suspended user
 	// (POST /api/v1/admin/users/{id}/reactivate)
 	ReactivateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get a user's resource creation series
+	// (GET /api/v1/admin/users/{id}/resource-creation-metrics)
+	GetAdminUserResourceCreationMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserResourceCreationMetricsParams)
 	// Suspend a user
 	// (POST /api/v1/admin/users/{id}/suspend)
 	SuspendAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get a user's resource timeline
+	// (GET /api/v1/admin/users/{id}/timeline)
+	GetAdminUserTimeline(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserTimelineParams)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -1144,15 +1477,39 @@ func (_ Unimplemented) UpdateAdminUser(w http.ResponseWriter, r *http.Request, i
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Get a user's resource counts
+// (GET /api/v1/admin/users/{id}/insights)
+func (_ Unimplemented) GetAdminUserInsights(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a user's notification preferences
+// (GET /api/v1/admin/users/{id}/notification-preferences)
+func (_ Unimplemented) GetAdminUserNotificationPreferences(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Reactivate a suspended user
 // (POST /api/v1/admin/users/{id}/reactivate)
 func (_ Unimplemented) ReactivateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Get a user's resource creation series
+// (GET /api/v1/admin/users/{id}/resource-creation-metrics)
+func (_ Unimplemented) GetAdminUserResourceCreationMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserResourceCreationMetricsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Suspend a user
 // (POST /api/v1/admin/users/{id}/suspend)
 func (_ Unimplemented) SuspendAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a user's resource timeline
+// (GET /api/v1/admin/users/{id}/timeline)
+func (_ Unimplemented) GetAdminUserTimeline(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserTimelineParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2215,6 +2572,74 @@ func (siw *ServerInterfaceWrapper) UpdateAdminUser(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// GetAdminUserInsights operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminUserInsights(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminUserInsights(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminUserNotificationPreferences operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminUserNotificationPreferences(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminUserNotificationPreferences(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ReactivateAdminUser operation middleware
 func (siw *ServerInterfaceWrapper) ReactivateAdminUser(w http.ResponseWriter, r *http.Request) {
 
@@ -2249,6 +2674,82 @@ func (siw *ServerInterfaceWrapper) ReactivateAdminUser(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// GetAdminUserResourceCreationMetrics operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminUserResourceCreationMetrics(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminUserResourceCreationMetricsParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "granularity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "granularity", r.URL.Query(), &params.Granularity, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "granularity"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "granularity", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminUserResourceCreationMetrics(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SuspendAdminUser operation middleware
 func (siw *ServerInterfaceWrapper) SuspendAdminUser(w http.ResponseWriter, r *http.Request) {
 
@@ -2274,6 +2775,69 @@ func (siw *ServerInterfaceWrapper) SuspendAdminUser(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SuspendAdminUser(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminUserTimeline operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminUserTimeline(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminUserTimelineParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminUserTimeline(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2433,10 +2997,22 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Patch(options.BaseURL+"/api/v1/admin/users/{id}", wrapper.UpdateAdminUser)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/users/{id}/insights", wrapper.GetAdminUserInsights)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/users/{id}/notification-preferences", wrapper.GetAdminUserNotificationPreferences)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/admin/users/{id}/reactivate", wrapper.ReactivateAdminUser)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/users/{id}/resource-creation-metrics", wrapper.GetAdminUserResourceCreationMetrics)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/admin/users/{id}/suspend", wrapper.SuspendAdminUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/users/{id}/timeline", wrapper.GetAdminUserTimeline)
 	})
 
 	return r
@@ -3175,6 +3751,134 @@ func (response UpdateAdminUser500ApplicationProblemPlusJSONResponse) VisitUpdate
 	return err
 }
 
+type GetAdminUserInsightsRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdminUserInsightsResponseObject interface {
+	VisitGetAdminUserInsightsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminUserInsights200JSONResponse AdminUserInsights
+
+func (response GetAdminUserInsights200JSONResponse) VisitGetAdminUserInsightsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserInsights400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserInsights400ApplicationProblemPlusJSONResponse) VisitGetAdminUserInsightsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserInsights404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserInsights404ApplicationProblemPlusJSONResponse) VisitGetAdminUserInsightsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserInsights500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserInsights500ApplicationProblemPlusJSONResponse) VisitGetAdminUserInsightsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserNotificationPreferencesRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdminUserNotificationPreferencesResponseObject interface {
+	VisitGetAdminUserNotificationPreferencesResponse(w http.ResponseWriter) error
+}
+
+type GetAdminUserNotificationPreferences200JSONResponse AdminUserNotificationPreferences
+
+func (response GetAdminUserNotificationPreferences200JSONResponse) VisitGetAdminUserNotificationPreferencesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserNotificationPreferences400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserNotificationPreferences400ApplicationProblemPlusJSONResponse) VisitGetAdminUserNotificationPreferencesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserNotificationPreferences404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserNotificationPreferences404ApplicationProblemPlusJSONResponse) VisitGetAdminUserNotificationPreferencesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserNotificationPreferences500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserNotificationPreferences500ApplicationProblemPlusJSONResponse) VisitGetAdminUserNotificationPreferencesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ReactivateAdminUserRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -3228,6 +3932,71 @@ func (response ReactivateAdminUser404ApplicationProblemPlusJSONResponse) VisitRe
 type ReactivateAdminUser500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response ReactivateAdminUser500ApplicationProblemPlusJSONResponse) VisitReactivateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserResourceCreationMetricsRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetAdminUserResourceCreationMetricsParams
+}
+
+type GetAdminUserResourceCreationMetricsResponseObject interface {
+	VisitGetAdminUserResourceCreationMetricsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminUserResourceCreationMetrics200JSONResponse AdminUserResourceCreationMetrics
+
+func (response GetAdminUserResourceCreationMetrics200JSONResponse) VisitGetAdminUserResourceCreationMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserResourceCreationMetrics400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserResourceCreationMetrics400ApplicationProblemPlusJSONResponse) VisitGetAdminUserResourceCreationMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserResourceCreationMetrics404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserResourceCreationMetrics404ApplicationProblemPlusJSONResponse) VisitGetAdminUserResourceCreationMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserResourceCreationMetrics500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserResourceCreationMetrics500ApplicationProblemPlusJSONResponse) VisitGetAdminUserResourceCreationMetricsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -3317,6 +4086,71 @@ func (response SuspendAdminUser500ApplicationProblemPlusJSONResponse) VisitSuspe
 	return err
 }
 
+type GetAdminUserTimelineRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetAdminUserTimelineParams
+}
+
+type GetAdminUserTimelineResponseObject interface {
+	VisitGetAdminUserTimelineResponse(w http.ResponseWriter) error
+}
+
+type GetAdminUserTimeline200JSONResponse AdminUserTimelinePage
+
+func (response GetAdminUserTimeline200JSONResponse) VisitGetAdminUserTimelineResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserTimeline400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserTimeline400ApplicationProblemPlusJSONResponse) VisitGetAdminUserTimelineResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserTimeline404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserTimeline404ApplicationProblemPlusJSONResponse) VisitGetAdminUserTimelineResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserTimeline500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserTimeline500ApplicationProblemPlusJSONResponse) VisitGetAdminUserTimelineResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Get admin dashboard overview
@@ -3355,12 +4189,24 @@ type StrictServerInterface interface {
 	// Update an instance user
 	// (PATCH /api/v1/admin/users/{id})
 	UpdateAdminUser(ctx context.Context, request UpdateAdminUserRequestObject) (UpdateAdminUserResponseObject, error)
+	// Get a user's resource counts
+	// (GET /api/v1/admin/users/{id}/insights)
+	GetAdminUserInsights(ctx context.Context, request GetAdminUserInsightsRequestObject) (GetAdminUserInsightsResponseObject, error)
+	// Get a user's notification preferences
+	// (GET /api/v1/admin/users/{id}/notification-preferences)
+	GetAdminUserNotificationPreferences(ctx context.Context, request GetAdminUserNotificationPreferencesRequestObject) (GetAdminUserNotificationPreferencesResponseObject, error)
 	// Reactivate a suspended user
 	// (POST /api/v1/admin/users/{id}/reactivate)
 	ReactivateAdminUser(ctx context.Context, request ReactivateAdminUserRequestObject) (ReactivateAdminUserResponseObject, error)
+	// Get a user's resource creation series
+	// (GET /api/v1/admin/users/{id}/resource-creation-metrics)
+	GetAdminUserResourceCreationMetrics(ctx context.Context, request GetAdminUserResourceCreationMetricsRequestObject) (GetAdminUserResourceCreationMetricsResponseObject, error)
 	// Suspend a user
 	// (POST /api/v1/admin/users/{id}/suspend)
 	SuspendAdminUser(ctx context.Context, request SuspendAdminUserRequestObject) (SuspendAdminUserResponseObject, error)
+	// Get a user's resource timeline
+	// (GET /api/v1/admin/users/{id}/timeline)
+	GetAdminUserTimeline(ctx context.Context, request GetAdminUserTimelineRequestObject) (GetAdminUserTimelineResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -3712,6 +4558,58 @@ func (sh *strictHandler) UpdateAdminUser(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// GetAdminUserInsights operation middleware
+func (sh *strictHandler) GetAdminUserInsights(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdminUserInsightsRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminUserInsights(ctx, request.(GetAdminUserInsightsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminUserInsights")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminUserInsightsResponseObject); ok {
+		if err := validResponse.VisitGetAdminUserInsightsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminUserNotificationPreferences operation middleware
+func (sh *strictHandler) GetAdminUserNotificationPreferences(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdminUserNotificationPreferencesRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminUserNotificationPreferences(ctx, request.(GetAdminUserNotificationPreferencesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminUserNotificationPreferences")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminUserNotificationPreferencesResponseObject); ok {
+		if err := validResponse.VisitGetAdminUserNotificationPreferencesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ReactivateAdminUser operation middleware
 func (sh *strictHandler) ReactivateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	var request ReactivateAdminUserRequestObject
@@ -3738,6 +4636,33 @@ func (sh *strictHandler) ReactivateAdminUser(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// GetAdminUserResourceCreationMetrics operation middleware
+func (sh *strictHandler) GetAdminUserResourceCreationMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserResourceCreationMetricsParams) {
+	var request GetAdminUserResourceCreationMetricsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminUserResourceCreationMetrics(ctx, request.(GetAdminUserResourceCreationMetricsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminUserResourceCreationMetrics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminUserResourceCreationMetricsResponseObject); ok {
+		if err := validResponse.VisitGetAdminUserResourceCreationMetricsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // SuspendAdminUser operation middleware
 func (sh *strictHandler) SuspendAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	var request SuspendAdminUserRequestObject
@@ -3757,6 +4682,33 @@ func (sh *strictHandler) SuspendAdminUser(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SuspendAdminUserResponseObject); ok {
 		if err := validResponse.VisitSuspendAdminUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminUserTimeline operation middleware
+func (sh *strictHandler) GetAdminUserTimeline(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserTimelineParams) {
+	var request GetAdminUserTimelineRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminUserTimeline(ctx, request.(GetAdminUserTimelineRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminUserTimeline")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminUserTimelineResponseObject); ok {
+		if err := validResponse.VisitGetAdminUserTimelineResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

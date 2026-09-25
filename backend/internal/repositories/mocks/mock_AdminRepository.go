@@ -619,6 +619,68 @@ func (_c *MockAdminRepository_GetTeamDetail_Call) RunAndReturn(run func(context.
 	return _c
 }
 
+// GetUserCreationSeries provides a mock function with given fields: ctx, userID, from, to, granularity
+func (_m *MockAdminRepository) GetUserCreationSeries(ctx context.Context, userID string, from time.Time, to time.Time, granularity string) ([]models.AdminGrowthCount, error) {
+	ret := _m.Called(ctx, userID, from, to, granularity)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserCreationSeries")
+	}
+
+	var r0 []models.AdminGrowthCount
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time, string) ([]models.AdminGrowthCount, error)); ok {
+		return rf(ctx, userID, from, to, granularity)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time, string) []models.AdminGrowthCount); ok {
+		r0 = rf(ctx, userID, from, to, granularity)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AdminGrowthCount)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, time.Time, time.Time, string) error); ok {
+		r1 = rf(ctx, userID, from, to, granularity)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_GetUserCreationSeries_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserCreationSeries'
+type MockAdminRepository_GetUserCreationSeries_Call struct {
+	*mock.Call
+}
+
+// GetUserCreationSeries is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - from time.Time
+//   - to time.Time
+//   - granularity string
+func (_e *MockAdminRepository_Expecter) GetUserCreationSeries(ctx interface{}, userID interface{}, from interface{}, to interface{}, granularity interface{}) *MockAdminRepository_GetUserCreationSeries_Call {
+	return &MockAdminRepository_GetUserCreationSeries_Call{Call: _e.mock.On("GetUserCreationSeries", ctx, userID, from, to, granularity)}
+}
+
+func (_c *MockAdminRepository_GetUserCreationSeries_Call) Run(run func(ctx context.Context, userID string, from time.Time, to time.Time, granularity string)) *MockAdminRepository_GetUserCreationSeries_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(time.Time), args[3].(time.Time), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_GetUserCreationSeries_Call) Return(_a0 []models.AdminGrowthCount, _a1 error) *MockAdminRepository_GetUserCreationSeries_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_GetUserCreationSeries_Call) RunAndReturn(run func(context.Context, string, time.Time, time.Time, string) ([]models.AdminGrowthCount, error)) *MockAdminRepository_GetUserCreationSeries_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetUserDetail provides a mock function with given fields: ctx, id
 func (_m *MockAdminRepository) GetUserDetail(ctx context.Context, id string) (*models.AdminUserDetail, error) {
 	ret := _m.Called(ctx, id)
@@ -674,6 +736,65 @@ func (_c *MockAdminRepository_GetUserDetail_Call) Return(_a0 *models.AdminUserDe
 }
 
 func (_c *MockAdminRepository_GetUserDetail_Call) RunAndReturn(run func(context.Context, string) (*models.AdminUserDetail, error)) *MockAdminRepository_GetUserDetail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetUserResourceCounts provides a mock function with given fields: ctx, userID
+func (_m *MockAdminRepository) GetUserResourceCounts(ctx context.Context, userID string) ([]models.AdminUserResourceCountRow, error) {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserResourceCounts")
+	}
+
+	var r0 []models.AdminUserResourceCountRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]models.AdminUserResourceCountRow, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []models.AdminUserResourceCountRow); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AdminUserResourceCountRow)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_GetUserResourceCounts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserResourceCounts'
+type MockAdminRepository_GetUserResourceCounts_Call struct {
+	*mock.Call
+}
+
+// GetUserResourceCounts is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+func (_e *MockAdminRepository_Expecter) GetUserResourceCounts(ctx interface{}, userID interface{}) *MockAdminRepository_GetUserResourceCounts_Call {
+	return &MockAdminRepository_GetUserResourceCounts_Call{Call: _e.mock.On("GetUserResourceCounts", ctx, userID)}
+}
+
+func (_c *MockAdminRepository_GetUserResourceCounts_Call) Run(run func(ctx context.Context, userID string)) *MockAdminRepository_GetUserResourceCounts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_GetUserResourceCounts_Call) Return(_a0 []models.AdminUserResourceCountRow, _a1 error) *MockAdminRepository_GetUserResourceCounts_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_GetUserResourceCounts_Call) RunAndReturn(run func(context.Context, string) ([]models.AdminUserResourceCountRow, error)) *MockAdminRepository_GetUserResourceCounts_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -806,6 +927,67 @@ func (_c *MockAdminRepository_ListTeams_Call) Return(_a0 []models.AdminTeamListI
 }
 
 func (_c *MockAdminRepository_ListTeams_Call) RunAndReturn(run func(context.Context, repositories.AdminTeamFilters) ([]models.AdminTeamListItem, int, error)) *MockAdminRepository_ListTeams_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListUserTimeline provides a mock function with given fields: ctx, userID, cursor, limit
+func (_m *MockAdminRepository) ListUserTimeline(ctx context.Context, userID string, cursor *models.AdminTimelineCursor, limit int) ([]models.AdminUserTimelineEvent, error) {
+	ret := _m.Called(ctx, userID, cursor, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListUserTimeline")
+	}
+
+	var r0 []models.AdminUserTimelineEvent
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *models.AdminTimelineCursor, int) ([]models.AdminUserTimelineEvent, error)); ok {
+		return rf(ctx, userID, cursor, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, *models.AdminTimelineCursor, int) []models.AdminUserTimelineEvent); ok {
+		r0 = rf(ctx, userID, cursor, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AdminUserTimelineEvent)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, *models.AdminTimelineCursor, int) error); ok {
+		r1 = rf(ctx, userID, cursor, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_ListUserTimeline_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListUserTimeline'
+type MockAdminRepository_ListUserTimeline_Call struct {
+	*mock.Call
+}
+
+// ListUserTimeline is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - cursor *models.AdminTimelineCursor
+//   - limit int
+func (_e *MockAdminRepository_Expecter) ListUserTimeline(ctx interface{}, userID interface{}, cursor interface{}, limit interface{}) *MockAdminRepository_ListUserTimeline_Call {
+	return &MockAdminRepository_ListUserTimeline_Call{Call: _e.mock.On("ListUserTimeline", ctx, userID, cursor, limit)}
+}
+
+func (_c *MockAdminRepository_ListUserTimeline_Call) Run(run func(ctx context.Context, userID string, cursor *models.AdminTimelineCursor, limit int)) *MockAdminRepository_ListUserTimeline_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(*models.AdminTimelineCursor), args[3].(int))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_ListUserTimeline_Call) Return(_a0 []models.AdminUserTimelineEvent, _a1 error) *MockAdminRepository_ListUserTimeline_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_ListUserTimeline_Call) RunAndReturn(run func(context.Context, string, *models.AdminTimelineCursor, int) ([]models.AdminUserTimelineEvent, error)) *MockAdminRepository_ListUserTimeline_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -988,6 +1170,63 @@ func (_c *MockAdminRepository_UpdateUserStatus_Call) Return(_a0 bool, _a1 error)
 }
 
 func (_c *MockAdminRepository_UpdateUserStatus_Call) RunAndReturn(run func(context.Context, string, string) (bool, error)) *MockAdminRepository_UpdateUserStatus_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UserExists provides a mock function with given fields: ctx, id
+func (_m *MockAdminRepository) UserExists(ctx context.Context, id string) (bool, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UserExists")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (bool, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) bool); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_UserExists_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UserExists'
+type MockAdminRepository_UserExists_Call struct {
+	*mock.Call
+}
+
+// UserExists is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockAdminRepository_Expecter) UserExists(ctx interface{}, id interface{}) *MockAdminRepository_UserExists_Call {
+	return &MockAdminRepository_UserExists_Call{Call: _e.mock.On("UserExists", ctx, id)}
+}
+
+func (_c *MockAdminRepository_UserExists_Call) Run(run func(ctx context.Context, id string)) *MockAdminRepository_UserExists_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_UserExists_Call) Return(_a0 bool, _a1 error) *MockAdminRepository_UserExists_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_UserExists_Call) RunAndReturn(run func(context.Context, string) (bool, error)) *MockAdminRepository_UserExists_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -34,10 +34,14 @@ type adminMockContainer struct {
 	authService     services.AuthServiceInterface
 	adminService    services.AdminServiceInterface
 	activityService activities.ActivityService
+	prefsService    services.UserPreferencesServiceInterface
 }
 
 func (c *adminMockContainer) AuthService() services.AuthServiceInterface   { return c.authService }
 func (c *adminMockContainer) AdminService() services.AdminServiceInterface { return c.adminService }
+func (c *adminMockContainer) UserPreferencesService() services.UserPreferencesServiceInterface {
+	return c.prefsService
+}
 
 // ActivityService backs the audit rows the suspension handlers write (#454). A
 // nil service is a supported no-op, so tests that do not care simply omit it.

@@ -1006,3 +1006,258 @@ AdminProjectDetail:
     updated_at:
       type: string
       format: date-time
+
+# ---------------------------------------------------------------------------
+# Admin user detail insights (#1135). Counts, buckets and opaque ids only:
+# no response here carries a resource title, slug or body.
+# ---------------------------------------------------------------------------
+
+AdminUserProjectResourceCounts:
+  type: object
+  description: |
+    How many PROJECT-SCOPED resources the user authored in one project. Only the
+    four types with a NOT NULL project_id are attributed to a project; every
+    other type is counted at the team level only.
+  required:
+    - project_id
+    - project_name
+    - counts
+  properties:
+    project_id:
+      type: string
+      format: uuid
+    project_name:
+      type: string
+      example: "Platform"
+    counts:
+      $ref: '#/AdminProjectResourceCounts'
+
+AdminUserTeamResourceCounts:
+  type: object
+  description: How many resources the user authored in one team, with the per-project breakdown.
+  required:
+    - team_id
+    - team_name
+    - is_member
+    - counts
+    - projects
+  properties:
+    team_id:
+      type: string
+      format: uuid
+    team_name:
+      type: string
+      example: "Acme"
+    is_member:
+      type: boolean
+      description: |
+        Whether the user is still a member of the team. A former member's
+        authored resources stay in the team and are still counted here.
+    counts:
+      $ref: '#/AdminResourceCounts'
+    projects:
+      type: array
+      description: Per-project counts, ordered by project name.
+      items:
+        $ref: '#/AdminUserProjectResourceCounts'
+
+AdminUserInsights:
+  type: object
+  description: |
+    Per-type counts of the resources one user authored, instance-wide, per team
+    and per project (GET /api/v1/admin/users/{id}/insights). For every type the
+    per-team counts sum to `totals`. An attachment whose author was deleted
+    (user_id set to NULL) counts for nobody.
+  required:
+    - user_id
+    - totals
+    - teams
+  properties:
+    user_id:
+      type: string
+      format: uuid
+    totals:
+      $ref: '#/AdminResourceCounts'
+    teams:
+      type: array
+      description: Teams the user authored at least one resource in, ordered by team name.
+      items:
+        $ref: '#/AdminUserTeamResourceCounts'
+
+AdminUserCreationPoint:
+  type: object
+  description: How many resources of each type the user created within one time bucket.
+  required:
+    - bucket
+    - prompts
+    - memories
+    - artifacts
+    - blueprints
+    - agents
+    - feeds
+    - feed_items
+    - comments
+    - attachments
+  properties:
+    bucket:
+      type: string
+      format: date-time
+      description: Start of the bucket, in UTC.
+    prompts:
+      type: integer
+      format: int64
+    memories:
+      type: integer
+      format: int64
+    artifacts:
+      type: integer
+      format: int64
+    blueprints:
+      type: integer
+      format: int64
+    agents:
+      type: integer
+      format: int64
+    feeds:
+      type: integer
+      format: int64
+    feed_items:
+      type: integer
+      format: int64
+    comments:
+      type: integer
+      format: int64
+    attachments:
+      type: integer
+      format: int64
+
+AdminUserResourceCreationMetrics:
+  type: object
+  description: |
+    Resources the user created per bucket, stacked by type
+    (GET /api/v1/admin/users/{id}/resource-creation-metrics). Every bucket in
+    the range is present with an explicit 0 for every type.
+  required:
+    - from
+    - to
+    - granularity
+    - series
+  properties:
+    from:
+      type: string
+      format: date-time
+      description: |
+        Inclusive start of the range actually used, snapped DOWN to the start of
+        its bucket (same rule as AdminTimeseriesResponse.from).
+    to:
+      type: string
+      format: date-time
+      description: Exclusive end of the range actually used (after defaulting); not snapped.
+    granularity:
+      type: string
+      enum:
+        - day
+        - week
+        - month
+      description: Bucket size actually used.
+    series:
+      type: array
+      description: One point per bucket, ascending by bucket.
+      items:
+        $ref: '#/AdminUserCreationPoint'
+
+AdminUserTimelineEvent:
+  type: object
+  description: |
+    One opaque timeline entry: which kind of resource the user created or last
+    updated, where, and when. Deliberately carries no title, slug or content —
+    only the first 8 characters of the resource id.
+  required:
+    - resource_type
+    - action
+    - team_id
+    - team_name
+    - project_id
+    - project_name
+    - resource_short_id
+    - occurred_at
+  properties:
+    resource_type:
+      type: string
+      enum:
+        - prompt
+        - memory
+        - artifact
+        - blueprint
+        - agent
+        - feed
+        - feed_item
+        - comment
+        - attachment
+    action:
+      type: string
+      enum:
+        - created
+        - updated
+    team_id:
+      type: string
+      format: uuid
+    team_name:
+      type: string
+    project_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Null for team-scoped resources and for feed items posted without a project.
+    project_name:
+      type: string
+      nullable: true
+    resource_short_id:
+      type: string
+      description: First 8 characters of the resource id.
+      example: "3f2a9c1e"
+    occurred_at:
+      type: string
+      format: date-time
+
+AdminUserTimelinePage:
+  type: object
+  description: One page of a user's resource timeline, newest first.
+  required:
+    - items
+    - next_cursor
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AdminUserTimelineEvent'
+    next_cursor:
+      type: string
+      nullable: true
+      description: Opaque cursor for the next page; null on the last page.
+
+AdminUserNotificationPreferences:
+  type: object
+  description: |
+    A user's notification preferences, read-only
+    (GET /api/v1/admin/users/{id}/notification-preferences). When the user has
+    never saved preferences, the defaults are returned with `is_default: true`
+    and `updated_at: null`.
+  required:
+    - email_notification
+    - notifications
+    - updated_at
+    - is_default
+  properties:
+    email_notification:
+      $ref: '../openapi.yaml#/components/schemas/EmailNotificationPreferences'
+    notifications:
+      $ref: '../openapi.yaml#/components/schemas/NotificationPreferences'
+    updated_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the user last saved their preferences; null when defaults are returned.
+    is_default:
+      type: boolean
+      description: True when the user has no stored preferences and the defaults are shown.

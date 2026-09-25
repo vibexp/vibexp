@@ -63,15 +63,22 @@ func (a *adminStrictServer) GetAdminDashboardTimeseries(
 	return admingen.GetAdminDashboardTimeseries200JSONResponse(toGenAdminTimeseries(series)), nil
 }
 
+// adminGranularityEnum is any generated granularity query-parameter enum. Each
+// operation gets its own generated type, all with the same values and Valid().
+type adminGranularityEnum interface {
+	~string
+	Valid() bool
+}
+
 // adminGranularityParam validates the granularity enum the generated binder
 // accepted verbatim — see validateAdminSortEnum in handlers_admin.go for why
 // this cannot be left to oapi-codegen. An absent parameter is not an error; the
 // service applies the default.
-func adminGranularityParam(g *admingen.GetAdminDashboardTimeseriesParamsGranularity) (string, error) {
+func adminGranularityParam[G adminGranularityEnum](g *G) (string, error) {
 	if g == nil {
 		return "", nil
 	}
-	if err := validateAdminSortEnum("granularity", string(*g), g.Valid()); err != nil {
+	if err := validateAdminSortEnum("granularity", string(*g), (*g).Valid()); err != nil {
 		return "", err
 	}
 	return string(*g), nil

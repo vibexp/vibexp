@@ -1080,6 +1080,22 @@ type AdminRepository interface {
 	DeleteUserIfUnblocked(
 		ctx context.Context, id string,
 	) ([]models.AdminDeleteBlocker, bool, error)
+
+	// UserExists reports whether a user with that id exists.
+	UserExists(ctx context.Context, id string) (bool, error)
+	// GetUserResourceCounts returns SPARSE (type, team, project) counts of the
+	// resources a user authored (#1135); the caller pivots them.
+	GetUserResourceCounts(ctx context.Context, userID string) ([]models.AdminUserResourceCountRow, error)
+	// GetUserCreationSeries returns SPARSE (type, bucket, count) rows of the
+	// resources a user created in [from, to); the caller gap-fills.
+	GetUserCreationSeries(
+		ctx context.Context, userID string, from, to time.Time, granularity string,
+	) ([]models.AdminGrowthCount, error)
+	// ListUserTimeline returns up to limit opaque events of a user's timeline,
+	// newest first, strictly after cursor when it is non-nil.
+	ListUserTimeline(
+		ctx context.Context, userID string, cursor *models.AdminTimelineCursor, limit int,
+	) ([]models.AdminUserTimelineEvent, error)
 }
 
 // BlueprintRepository defines the interface for blueprint data access operations

@@ -14782,6 +14782,350 @@
         }
       }
     },
+    "/api/v1/admin/users/{id}/insights": {
+      "get": {
+        "summary": "Get a user's resource counts",
+        "description": "Returns how many resources of each of the nine counted types (prompts,\nmemories, artifacts, blueprints, agents, feeds, feed items, comments,\nattachments) the user authored: instance-wide totals, per team, and per\nproject for the four project-scoped types. Counts only — no titles, slugs or\ncontent.\n\nInstance-admin only; non-admin and unauthenticated requests receive 404, as\ndoes an unknown user id.\n",
+        "operationId": "getAdminUserInsights",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The user's per-type resource counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserInsights"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed user id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown user id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{id}/resource-creation-metrics": {
+      "get": {
+        "summary": "Get a user's resource creation series",
+        "description": "Returns how many resources of each type the user created per bucket over a\ntime range. Omitting the parameters yields the last 30 days at `day`\ngranularity, and the range rules match getAdminDashboardTimeseries. Every\nbucket is present with an explicit 0 for every type.\n\nInstance-admin only; non-admin and unauthenticated requests receive 404, as\ndoes an unknown user id.\n",
+        "operationId": "getAdminUserResourceCreationMetrics",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive start of the range. Defaults to 30 days before `to`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Exclusive end of the range. Defaults to now.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "description": "Bucket size.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "default": "day"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bucketed creation counts per type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserResourceCreationMetrics"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed user id, `to` is not after `from`, the range\nexceeds the maximum span, or `granularity` is outside its enum\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown user id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{id}/timeline": {
+      "get": {
+        "summary": "Get a user's resource timeline",
+        "description": "Returns an opaque, newest-first timeline of the resources the user created\nor updated: resource type, action, team, project and the first 8 characters\nof the resource id — never a title, slug or content. Cursor-paginated: pass\nthe previous page's `next_cursor` to continue.\n\n`updated` events are APPROXIMATE, by construction of the data:\n\n- Only the latest `updated_at` is stored, so a resource edited many times\n  appears as ONE `updated` event, at its latest edit.\n- There is no `updated_by` column. The event means \"a resource authored by\n  this user was last modified\", not \"this user edited it\" — a teammate's\n  edit, or a system write that bumps `updated_at` (for example a blueprint\n  GitHub re-sync or a team-wide artifact type rename), shows up here too.\n- An update is only reported when `updated_at` is more than one second after\n  `created_at`, so a never-edited resource produces no `updated` event.\n- Agents, feed items and attachments only ever produce `created` events.\n\nDeleted resources leave no trace (resources are hard-deleted).\n\nInstance-admin only; non-admin and unauthenticated requests receive 404, as\ndoes an unknown user id.\n",
+        "operationId": "getAdminUserTimeline",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from a previous page's `next_cursor`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of timeline events, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserTimelinePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed user id, malformed cursor, or `limit` out of range",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown user id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{id}/notification-preferences": {
+      "get": {
+        "summary": "Get a user's notification preferences",
+        "description": "Returns the user's notification preferences, read-only. A user who has never\nsaved preferences gets the defaults with `is_default: true`.\n\nInstance-admin only; non-admin and unauthenticated requests receive 404, as\ndoes an unknown user id.\n",
+        "operationId": "getAdminUserNotificationPreferences",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The user's notification preferences",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserNotificationPreferences"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed user id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown user id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/{team_id}/comments": {
       "get": {
         "summary": "List a resource's comments",
@@ -34315,6 +34659,297 @@
           }
         }
       },
+      "AdminUserProjectResourceCounts": {
+        "type": "object",
+        "description": "How many PROJECT-SCOPED resources the user authored in one project. Only the\nfour types with a NOT NULL project_id are attributed to a project; every\nother type is counted at the team level only.\n",
+        "required": [
+          "project_id",
+          "project_name",
+          "counts"
+        ],
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_name": {
+            "type": "string",
+            "example": "Platform"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/AdminProjectResourceCounts"
+          }
+        }
+      },
+      "AdminUserTeamResourceCounts": {
+        "type": "object",
+        "description": "How many resources the user authored in one team, with the per-project breakdown.",
+        "required": [
+          "team_id",
+          "team_name",
+          "is_member",
+          "counts",
+          "projects"
+        ],
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "team_name": {
+            "type": "string",
+            "example": "Acme"
+          },
+          "is_member": {
+            "type": "boolean",
+            "description": "Whether the user is still a member of the team. A former member's\nauthored resources stay in the team and are still counted here.\n"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/AdminResourceCounts"
+          },
+          "projects": {
+            "type": "array",
+            "description": "Per-project counts, ordered by project name.",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserProjectResourceCounts"
+            }
+          }
+        }
+      },
+      "AdminUserInsights": {
+        "type": "object",
+        "description": "Per-type counts of the resources one user authored, instance-wide, per team\nand per project (GET /api/v1/admin/users/{id}/insights). For every type the\nper-team counts sum to `totals`. An attachment whose author was deleted\n(user_id set to NULL) counts for nobody.\n",
+        "required": [
+          "user_id",
+          "totals",
+          "teams"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/AdminResourceCounts"
+          },
+          "teams": {
+            "type": "array",
+            "description": "Teams the user authored at least one resource in, ordered by team name.",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserTeamResourceCounts"
+            }
+          }
+        }
+      },
+      "AdminUserCreationPoint": {
+        "type": "object",
+        "description": "How many resources of each type the user created within one time bucket.",
+        "required": [
+          "bucket",
+          "prompts",
+          "memories",
+          "artifacts",
+          "blueprints",
+          "agents",
+          "feeds",
+          "feed_items",
+          "comments",
+          "attachments"
+        ],
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the bucket, in UTC."
+          },
+          "prompts": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memories": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "artifacts": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "blueprints": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "agents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "feeds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "feed_items": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "comments": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "attachments": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AdminUserResourceCreationMetrics": {
+        "type": "object",
+        "description": "Resources the user created per bucket, stacked by type\n(GET /api/v1/admin/users/{id}/resource-creation-metrics). Every bucket in\nthe range is present with an explicit 0 for every type.\n",
+        "required": [
+          "from",
+          "to",
+          "granularity",
+          "series"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Inclusive start of the range actually used, snapped DOWN to the start of\nits bucket (same rule as AdminTimeseriesResponse.from).\n"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Exclusive end of the range actually used (after defaulting); not snapped."
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "description": "Bucket size actually used."
+          },
+          "series": {
+            "type": "array",
+            "description": "One point per bucket, ascending by bucket.",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserCreationPoint"
+            }
+          }
+        }
+      },
+      "AdminUserTimelineEvent": {
+        "type": "object",
+        "description": "One opaque timeline entry: which kind of resource the user created or last\nupdated, where, and when. Deliberately carries no title, slug or content —\nonly the first 8 characters of the resource id.\n",
+        "required": [
+          "resource_type",
+          "action",
+          "team_id",
+          "team_name",
+          "project_id",
+          "project_name",
+          "resource_short_id",
+          "occurred_at"
+        ],
+        "properties": {
+          "resource_type": {
+            "type": "string",
+            "enum": [
+              "prompt",
+              "memory",
+              "artifact",
+              "blueprint",
+              "agent",
+              "feed",
+              "feed_item",
+              "comment",
+              "attachment"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "created",
+              "updated"
+            ]
+          },
+          "team_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "team_name": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null for team-scoped resources and for feed items posted without a project."
+          },
+          "project_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "resource_short_id": {
+            "type": "string",
+            "description": "First 8 characters of the resource id.",
+            "example": "3f2a9c1e"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminUserTimelinePage": {
+        "type": "object",
+        "description": "One page of a user's resource timeline, newest first.",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserTimelineEvent"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Opaque cursor for the next page; null on the last page."
+          }
+        }
+      },
+      "AdminUserNotificationPreferences": {
+        "type": "object",
+        "description": "A user's notification preferences, read-only\n(GET /api/v1/admin/users/{id}/notification-preferences). When the user has\nnever saved preferences, the defaults are returned with `is_default: true`\nand `updated_at: null`.\n",
+        "required": [
+          "email_notification",
+          "notifications",
+          "updated_at",
+          "is_default"
+        ],
+        "properties": {
+          "email_notification": {
+            "$ref": "#/components/schemas/EmailNotificationPreferences"
+          },
+          "notifications": {
+            "$ref": "#/components/schemas/NotificationPreferences"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the user last saved their preferences; null when defaults are returned."
+          },
+          "is_default": {
+            "type": "boolean",
+            "description": "True when the user has no stored preferences and the defaults are shown."
+          }
+        }
+      },
       "ProjectResponse": {
         "allOf": [
           {
@@ -34662,6 +35297,56 @@
           "status",
           "message",
           "data"
+        ]
+      },
+      "EmailNotificationPreferences": {
+        "type": "object",
+        "properties": {
+          "platform_announcement": {
+            "type": "boolean",
+            "description": "Receive platform announcement emails",
+            "example": true
+          },
+          "account_security": {
+            "type": "boolean",
+            "description": "Receive account security emails",
+            "example": true
+          },
+          "new_feature": {
+            "type": "boolean",
+            "description": "Receive new feature emails",
+            "example": true
+          },
+          "marketing_promotional": {
+            "type": "boolean",
+            "description": "Receive marketing and promotional emails",
+            "example": false
+          }
+        },
+        "required": [
+          "platform_announcement",
+          "account_security",
+          "new_feature",
+          "marketing_promotional"
+        ]
+      },
+      "NotificationPreferences": {
+        "type": "object",
+        "properties": {
+          "channels": {
+            "$ref": "#/components/schemas/NotificationChannelPreferences"
+          },
+          "types": {
+            "type": "object",
+            "description": "Per-type delivery preferences keyed by notification type (e.g. \"feed.item.created\", \"feed.reply.created\")",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NotificationTypePreference"
+            }
+          }
+        },
+        "required": [
+          "channels",
+          "types"
         ]
       },
       "PreferencesResponse": {
@@ -35247,37 +35932,6 @@
           }
         }
       },
-      "EmailNotificationPreferences": {
-        "type": "object",
-        "properties": {
-          "platform_announcement": {
-            "type": "boolean",
-            "description": "Receive platform announcement emails",
-            "example": true
-          },
-          "account_security": {
-            "type": "boolean",
-            "description": "Receive account security emails",
-            "example": true
-          },
-          "new_feature": {
-            "type": "boolean",
-            "description": "Receive new feature emails",
-            "example": true
-          },
-          "marketing_promotional": {
-            "type": "boolean",
-            "description": "Receive marketing and promotional emails",
-            "example": false
-          }
-        },
-        "required": [
-          "platform_announcement",
-          "account_security",
-          "new_feature",
-          "marketing_promotional"
-        ]
-      },
       "NotificationChannelPreferences": {
         "type": "object",
         "properties": {
@@ -35319,25 +35973,6 @@
         "required": [
           "in_app",
           "email"
-        ]
-      },
-      "NotificationPreferences": {
-        "type": "object",
-        "properties": {
-          "channels": {
-            "$ref": "#/components/schemas/NotificationChannelPreferences"
-          },
-          "types": {
-            "type": "object",
-            "description": "Per-type delivery preferences keyed by notification type (e.g. \"feed.item.created\", \"feed.reply.created\")",
-            "additionalProperties": {
-              "$ref": "#/components/schemas/NotificationTypePreference"
-            }
-          }
-        },
-        "required": [
-          "channels",
-          "types"
         ]
       },
       "Preferences": {
