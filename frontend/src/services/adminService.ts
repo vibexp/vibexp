@@ -117,6 +117,43 @@ export type AdminUserTimelineParams = NonNullable<
   operations['getAdminUserTimeline']['parameters']['query']
 >
 
+// Read-only team configuration behind the team detail tabs (#1140, #1141).
+// Secrets arrive already redacted: credentials as `has_*` booleans,
+// configuration as key names only, and no free-text error.
+export type AdminTeamConfigSource =
+  components['schemas']['AdminTeamConfigSource']
+export type AdminSearchValues = components['schemas']['AdminSearchValues']
+export type AdminTeamSearchConfig =
+  components['schemas']['AdminTeamSearchConfig']
+export type AdminTeamAISummaryConfig =
+  components['schemas']['AdminTeamAISummaryConfig']
+export type AdminFreshnessRule = components['schemas']['AdminFreshnessRule']
+export type AdminTeamFreshnessConfig =
+  components['schemas']['AdminTeamFreshnessConfig']
+export type AdminArtifactType = components['schemas']['AdminArtifactType']
+export type AdminTeamArtifactTypes =
+  components['schemas']['AdminTeamArtifactTypes']
+export type AdminTeamSettingsAuditEntry =
+  components['schemas']['AdminTeamSettingsAuditEntry']
+export type AdminTeamSettingsAuditListResponse =
+  components['schemas']['AdminTeamSettingsAuditListResponse']
+export type AdminModelProvider = components['schemas']['AdminModelProvider']
+export type AdminTeamModelProvidersConfig =
+  components['schemas']['AdminTeamModelProvidersConfig']
+export type AdminEmbeddingProvider =
+  components['schemas']['AdminEmbeddingProvider']
+export type AdminTeamEmbeddingProvidersConfig =
+  components['schemas']['AdminTeamEmbeddingProvidersConfig']
+export type AdminTeamEmailProviderConfig =
+  components['schemas']['AdminTeamEmailProviderConfig']
+export type AdminTeamGitHubConfig =
+  components['schemas']['AdminTeamGitHubConfig']
+
+/** Paging for a team's settings audit log (`page` 1-based, `limit` 1–100). */
+export type AdminTeamSettingsAuditParams = NonNullable<
+  operations['listAdminTeamSettingsAudit']['parameters']['query']
+>
+
 /** Query parameters for the instance-wide project listing (#453). */
 export type AdminProjectListParams = NonNullable<
   operations['listAdminProjects']['parameters']['query']
@@ -339,6 +376,97 @@ class AdminService {
   async getTeam(id: string): Promise<AdminTeamDetail> {
     return unwrap(
       generatedClient.GET('/api/v1/admin/teams/{id}', {
+        params: { path: { id } },
+      })
+    )
+  }
+
+  /** A team's effective search ranking settings, with the instance defaults. */
+  async getTeamSearchConfig(id: string): Promise<AdminTeamSearchConfig> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/teams/{id}/config/search', {
+        params: { path: { id } },
+      })
+    )
+  }
+
+  /** A team's effective AI summary settings and provider availability. */
+  async getTeamAISummaryConfig(id: string): Promise<AdminTeamAISummaryConfig> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/teams/{id}/config/ai-summary', {
+        params: { path: { id } },
+      })
+    )
+  }
+
+  /** A team's freshness evaluation settings and every freshness rule. */
+  async getTeamFreshnessConfig(id: string): Promise<AdminTeamFreshnessConfig> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/teams/{id}/config/freshness', {
+        params: { path: { id } },
+      })
+    )
+  }
+
+  /** The artifact types a team sees: system defaults plus its own. */
+  async getTeamArtifactTypes(id: string): Promise<AdminTeamArtifactTypes> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/teams/{id}/config/artifact-types', {
+        params: { path: { id } },
+      })
+    )
+  }
+
+  /** One page of a team's settings audit log, newest first. */
+  async listTeamSettingsAudit(
+    id: string,
+    params: AdminTeamSettingsAuditParams = {}
+  ): Promise<AdminTeamSettingsAuditListResponse> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/teams/{id}/config/settings-audit', {
+        params: { path: { id }, query: params },
+      })
+    )
+  }
+
+  /** A team's own model providers, credentials redacted. */
+  async getTeamModelProviders(
+    id: string
+  ): Promise<AdminTeamModelProvidersConfig> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/teams/{id}/config/model-providers', {
+        params: { path: { id } },
+      })
+    )
+  }
+
+  /** A team's own embedding providers plus its embedding coverage counts. */
+  async getTeamEmbeddingProviders(
+    id: string
+  ): Promise<AdminTeamEmbeddingProvidersConfig> {
+    return unwrap(
+      generatedClient.GET(
+        '/api/v1/admin/teams/{id}/config/embedding-providers',
+        { params: { path: { id } } }
+      )
+    )
+  }
+
+  /** A team's effective email provider and its delivery health. */
+  async getTeamEmailProvider(
+    id: string
+  ): Promise<AdminTeamEmailProviderConfig> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/teams/{id}/config/email-provider', {
+        params: { path: { id } },
+      })
+    )
+  }
+
+  /** A team's GitHub App registration and installation, as last recorded. */
+  async getTeamGitHubConfig(id: string): Promise<AdminTeamGitHubConfig> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/teams/{id}/config/github', {
         params: { path: { id } },
       })
     )

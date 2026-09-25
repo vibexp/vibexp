@@ -16,71 +16,19 @@ import {
 } from '@/components/ui/table'
 import { usePermissions } from '@/hooks/usePermissions'
 import { formatDateTime } from '@/lib/time'
+import {
+  carriedCredential,
+  describeResource,
+  surfaceLabel,
+} from '@/pages/teams/settings/audit/settingsAuditFormat'
 import type { Team } from '@/services/teamService'
 import type {
   TeamSettingsAuditEntry,
   TeamSettingsAuditListResponse,
-  TeamSettingsAuditSurface,
 } from '@/services/teamSettingsAuditService'
 import { teamSettingsAuditService } from '@/services/teamSettingsAuditService'
 
 const PER_PAGE = 20
-
-const SURFACE_LABELS: Record<TeamSettingsAuditSurface, string> = {
-  model_provider: 'Model provider',
-  embedding_provider: 'Embedding provider',
-  custom_types: 'Artifact types',
-}
-
-/**
- * Epic #827 grows the surface enum, and the frontend's copy of it is the one
- * link in the API change flow that is bumped by hand — so the server can emit a
- * surface this build has no label for. Falling back to the raw value keeps the
- * What column readable instead of blank, which matters more here than anywhere:
- * a silently empty cell in the epic's compensating control reads as "nothing
- * happened". Same guard as `FreshnessAudit`'s `typeLabel`.
- */
-function surfaceLabel(surface: TeamSettingsAuditSurface): string {
-  return SURFACE_LABELS[surface] || surface
-}
-
-type Detail = TeamSettingsAuditEntry['detail']
-
-function detailString(detail: Detail, key: string): string | null {
-  const value = detail[key]
-  return typeof value === 'string' && value.trim() !== '' ? value : null
-}
-
-function detailStrings(detail: Detail, key: string): string[] {
-  const value = detail[key]
-  if (!Array.isArray(value)) return []
-  return value.filter((item): item is string => typeof item === 'string')
-}
-
-/**
- * What arrived, in the entry's own words.
- *
- * The entry is a SNAPSHOT: the copy services write the resource names into
- * `detail` at write time precisely because the rows they name are polymorphic
- * and may be deleted afterwards (#832). So the name is read from `detail`, never
- * resolved live — a live lookup is the thing that breaks for a deleted resource.
- *
- * `custom_types` is the one surface where a single action copies a whole set, so
- * it has no `source_resource_id`/`created_resource_id` and its names live in
- * `detail.added_slugs` instead.
- */
-function describeResource(entry: TeamSettingsAuditEntry): string {
-  if (entry.surface === 'custom_types') {
-    const slugs = detailStrings(entry.detail, 'added_slugs')
-    if (slugs.length === 0) return 'No new types — every one already existed'
-    return `${String(slugs.length)} type${slugs.length === 1 ? '' : 's'}: ${slugs.join(', ')}`
-  }
-  return (
-    detailString(entry.detail, 'created_name') ??
-    detailString(entry.detail, 'source_name') ??
-    'Unnamed'
-  )
-}
 
 /**
  * The source team, by the name the server resolved.
@@ -108,8 +56,6 @@ function SourceTeamCell({
 }
 
 function AuditRow({ entry }: Readonly<{ entry: TeamSettingsAuditEntry }>) {
-  const carriedCredential = entry.detail.has_api_key === true
-
   return (
     <TableRow data-testid="settings-audit-row">
       <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
@@ -124,7 +70,7 @@ function AuditRow({ entry }: Readonly<{ entry: TeamSettingsAuditEntry }>) {
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{surfaceLabel(entry.surface)}</span>
           <span>{describeResource(entry)}</span>
-          {carriedCredential && (
+          {carriedCredential(entry) && (
             <Badge variant="secondary" data-testid="carried-credential">
               Included an API key
             </Badge>
