@@ -124,3 +124,8 @@ export function formatResourceType(type: string): string {
   const spaced = type.replaceAll('_', ' ')
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }
+
+/** Headline total of a breakdown: the sum of its own rows. */
+export function sumCounts(data: readonly CategoryDatum[]): number {
+  return data.reduce((sum, datum) => sum + datum.count, 0)
+}

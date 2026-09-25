@@ -35,6 +35,7 @@ import { accessToChartData, sumTotals } from '@/pages/admin/dashboard/buckets'
 import type { Granularity } from '@/pages/admin/dashboard/DashboardControls'
 import { DashboardControls } from '@/pages/admin/dashboard/DashboardControls'
 import { DataWindowNote } from '@/pages/admin/dashboard/DataWindowNote'
+import { Section } from '@/pages/admin/dashboard/Section'
 import type { ResourceTypeKey } from '@/pages/admin/users/detail/userInsightsChartData'
 import {
   CHART_FILLS,
@@ -44,8 +45,10 @@ import {
   RESOURCE_TYPE_KEYS,
   RESOURCE_TYPE_LABELS,
   RESOURCE_TYPE_SERIES,
+  sumCounts,
 } from '@/pages/admin/users/detail/userInsightsChartData'
 import type {
+  AdminResourceCounts,
   AdminTopAccessedResource,
   AdminUserAccessMetrics,
   AdminUserInsights,
@@ -75,33 +78,15 @@ interface Slot<T> {
 
 const LOADING: Slot<never> = { data: null, loading: true, error: null }
 
-function Section({
-  title,
-  description,
-  children,
-}: Readonly<{
-  title: string
-  description?: string
-  children: React.ReactNode
-}>) {
-  return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {description && (
-          <p className="text-muted-foreground text-xs">{description}</p>
-        )}
-      </div>
-      {children}
-    </section>
-  )
-}
-
 function CountCards({
   insights,
   loading,
 }: Readonly<{ insights: AdminUserInsights | null; loading: boolean }>) {
-  const cards: { key: string; label: string; icon: LucideIcon }[] = [
+  const cards: {
+    key: keyof AdminResourceCounts
+    label: string
+    icon: LucideIcon
+  }[] = [
     { key: 'total', label: 'Total', icon: Layers },
     ...RESOURCE_TYPE_KEYS.map(key => ({
       key,
@@ -138,9 +123,7 @@ function CountCards({
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold tabular-nums">
-              {insights.totals[
-                key as keyof AdminUserInsights['totals']
-              ].toLocaleString()}
+              {insights.totals[key].toLocaleString()}
             </p>
           </CardContent>
         </Card>
@@ -350,7 +333,6 @@ export function UserOverviewTab({ userId }: Readonly<{ userId: string }>) {
   )
 
   const breakdownProps = {
-    total: insights.data?.totals.total ?? 0,
     loading: insights.loading,
     error: insights.error !== null,
     errorMessage: insights.error ?? '',
@@ -375,6 +357,7 @@ export function UserOverviewTab({ userId }: Readonly<{ userId: string }>) {
             title="By type"
             totalLabel="Resources"
             data={breakdowns?.byType ?? []}
+            total={sumCounts(breakdowns?.byType ?? [])}
             emptyMessage="This user has created nothing yet."
             maxRows={9}
             {...breakdownProps}
@@ -383,6 +366,7 @@ export function UserOverviewTab({ userId }: Readonly<{ userId: string }>) {
             title="By team"
             totalLabel="Resources"
             data={breakdowns?.byTeam ?? []}
+            total={sumCounts(breakdowns?.byTeam ?? [])}
             emptyMessage="No resources in any team."
             {...breakdownProps}
           />
@@ -390,6 +374,7 @@ export function UserOverviewTab({ userId }: Readonly<{ userId: string }>) {
             title="By project"
             totalLabel="Resources"
             data={breakdowns?.byProject ?? []}
+            total={sumCounts(breakdowns?.byProject ?? [])}
             emptyMessage="No project-scoped resources."
             {...breakdownProps}
           />

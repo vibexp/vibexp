@@ -15,6 +15,7 @@ import {
 import type { Granularity } from '@/pages/admin/dashboard/DashboardControls'
 import { DashboardControls } from '@/pages/admin/dashboard/DashboardControls'
 import { DataWindowNote } from '@/pages/admin/dashboard/DataWindowNote'
+import { Section } from '@/pages/admin/dashboard/Section'
 import { StatCards } from '@/pages/admin/dashboard/StatCards'
 import { SystemHealthPanel } from '@/pages/admin/dashboard/SystemHealthPanel'
 import type {
@@ -45,28 +46,6 @@ const SOURCE_FILLS = [
   'var(--chart-4)',
   'var(--chart-5)',
 ]
-
-function Section({
-  title,
-  description,
-  children,
-}: Readonly<{
-  title: string
-  description?: string
-  children: React.ReactNode
-}>) {
-  return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {description && (
-          <p className="text-muted-foreground text-xs">{description}</p>
-        )}
-      </div>
-      {children}
-    </section>
-  )
-}
 
 /**
  * The instance dashboard — totals, breakdowns, growth, activity and system health

@@ -9,6 +9,7 @@ import {
   insightsToBreakdowns,
   RESOURCE_TYPE_KEYS,
   RESOURCE_TYPE_SERIES,
+  sumCounts,
 } from '../detail/userInsightsChartData'
 
 function counts(overrides: Partial<AdminUserInsights['totals']> = {}) {
@@ -145,5 +146,17 @@ describe('formatResourceType', () => {
   it('labels singular wire types', () => {
     expect(formatResourceType('feed_item')).toBe('Feed item')
     expect(formatResourceType('prompt')).toBe('Prompt')
+  })
+})
+
+describe('sumCounts', () => {
+  it('totals a breakdown from its own rows', () => {
+    expect(
+      sumCounts([
+        { key: 'a', label: 'A', count: 3 },
+        { key: 'b', label: 'B', count: 4 },
+      ])
+    ).toBe(7)
+    expect(sumCounts([])).toBe(0)
   })
 })
