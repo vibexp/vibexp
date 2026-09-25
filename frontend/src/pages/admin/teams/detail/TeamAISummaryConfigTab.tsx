@@ -9,12 +9,14 @@ import { ConfigField, ConfigGrid, OnOffBadge, SourceBadge } from './ConfigField'
 import { useAdminTeamSection } from './useAdminTeamSection'
 
 /**
- * The provider name, or why there is none: no id means "no provider selected",
- * an id without a name means the selected provider no longer exists.
+ * The provider name, or what stands in for it. A null id means the team's
+ * default provider (when it has one); an id without a name means the selected
+ * provider no longer exists.
  */
 function providerLabel(config: AdminTeamAISummaryConfig): string {
   if (config.model_provider_name) return config.model_provider_name
-  return config.values.model_provider_id ? 'Provider removed' : 'No provider'
+  if (config.values.model_provider_id) return 'Provider removed'
+  return config.available ? 'Team default' : 'No provider'
 }
 
 /** AI summary settings in effect for the team (read-only). */

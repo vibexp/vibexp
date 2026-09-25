@@ -64,9 +64,55 @@ function AuditRow({ entry }: Readonly<{ entry: AdminTeamSettingsAuditEntry }>) {
   )
 }
 
+function Pager({
+  page,
+  totalPages,
+  totalCount,
+  onPageChange,
+}: Readonly<{
+  page: number
+  totalPages: number
+  totalCount: number | null
+  onPageChange: (next: number) => void
+}>) {
+  return (
+    <div className="flex items-center justify-between">
+      <p className="text-muted-foreground text-sm">
+        Page {page} of {Math.max(totalPages, page)}
+        {totalCount !== null && ` · ${String(totalCount)} entries`}
+      </p>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => {
+            onPageChange(page - 1)
+          }}
+        >
+          Previous
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page >= totalPages}
+          onClick={() => {
+            onPageChange(page + 1)
+          }}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 /**
  * The team's settings audit log — configuration copied in from other teams —
  * newest first, 20 per page (read-only).
+ *
+ * The pager sits outside the panel so a failed later page still offers a way
+ * back rather than stranding the admin on an error.
  */
 export function TeamSettingsAuditTab({ teamId }: Readonly<{ teamId: string }>) {
   const [page, setPage] = useState(1)
@@ -78,18 +124,19 @@ export function TeamSettingsAuditTab({ teamId }: Readonly<{ teamId: string }>) {
     load,
     'Failed to load the settings audit log'
   )
-  const totalPages = data?.total_pages ?? 1
+  const hasEntries = !error && (data?.entries.length ?? 0) > 0
+  const showPager = !loading && (page > 1 || hasEntries)
 
   return (
-    <AdminConfigPanel
-      loading={loading}
-      error={error}
-      errorTitle="Failed to load the settings audit log"
-      empty={data?.entries.length === 0 && page === 1}
-      emptyMessage="Nothing has been copied into this team from another one."
-    >
-      {data && (
-        <>
+    <div className="space-y-4">
+      <AdminConfigPanel
+        loading={loading}
+        error={error}
+        errorTitle="Failed to load the settings audit log"
+        empty={data?.entries.length === 0 && page === 1}
+        emptyMessage="Nothing has been copied into this team from another one."
+      >
+        {data && (
           <Card className="overflow-hidden">
             <Table>
               <TableHeader>
@@ -118,36 +165,16 @@ export function TeamSettingsAuditTab({ teamId }: Readonly<{ teamId: string }>) {
               </TableBody>
             </Table>
           </Card>
-          <div className="flex items-center justify-between">
-            <p className="text-muted-foreground text-sm">
-              Page {page} of {Math.max(totalPages, 1)} · {data.total_count}{' '}
-              entries
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => {
-                  setPage(p => p - 1)
-                }}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => {
-                  setPage(p => p + 1)
-                }}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        </>
+        )}
+      </AdminConfigPanel>
+      {showPager && (
+        <Pager
+          page={page}
+          totalPages={error ? page : (data?.total_pages ?? 1)}
+          totalCount={error ? null : (data?.total_count ?? null)}
+          onPageChange={setPage}
+        />
       )}
-    </AdminConfigPanel>
+    </div>
   )
 }

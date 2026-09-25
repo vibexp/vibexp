@@ -1,6 +1,7 @@
 import {
   displayValue,
   emailStatusMeta,
+  formatSender,
   shortId,
   sourceLabel,
 } from '../detail/teamConfigFormat'
@@ -35,4 +36,11 @@ it('renders missing values as a dash', () => {
   expect(displayValue('  ')).toBe('—')
   expect(displayValue(0)).toBe('0')
   expect(displayValue('x')).toBe('x')
+})
+
+it('formats a sender from whichever parts are set', () => {
+  expect(formatSender('Team', 'a@example.com')).toBe('Team <a@example.com>')
+  expect(formatSender(null, 'a@example.com')).toBe('a@example.com')
+  expect(formatSender('Team', null)).toBe('Team')
+  expect(formatSender(null, null)).toBe('—')
 })

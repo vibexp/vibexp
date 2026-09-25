@@ -88,3 +88,19 @@ it('disables Next on the last page', async () => {
   render(<TeamSettingsAuditTab teamId="t1" />)
   expect(await screen.findByRole('button', { name: 'Next' })).toBeDisabled()
 })
+
+it('keeps a way back when a later page fails to load', async () => {
+  mockList
+    .mockResolvedValueOnce(auditPage())
+    .mockRejectedValueOnce(new Error('page 2 down'))
+    .mockResolvedValueOnce(auditPage())
+  render(<TeamSettingsAuditTab teamId="t1" />)
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
+  expect(await screen.findByText('page 2 down')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
+  expect(await screen.findByText('Copied OpenAI')).toBeInTheDocument()
+  expect(mockList).toHaveBeenLastCalledWith('t1', { page: 1, limit: 20 })
+})

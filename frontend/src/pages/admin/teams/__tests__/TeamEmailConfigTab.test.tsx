@@ -50,6 +50,7 @@ it('renders the team provider without secrets or error text', async () => {
   expect(screen.getByTestId('config-source')).toHaveTextContent('Team')
   expect(screen.getByText('587')).toBeInTheDocument()
   expect(screen.getByText('reply@example.com')).toBeInTheDocument()
+  expect(screen.getByText('Team Mail <team@example.com>')).toBeInTheDocument()
   expect(screen.getByText('Configured ✓')).toBeInTheDocument()
   expect(screen.getByText('Healthy')).toBeInTheDocument()
   expect(screen.queryByText(/username/i)).not.toBeInTheDocument()

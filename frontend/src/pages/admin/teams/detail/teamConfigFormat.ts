@@ -47,3 +47,12 @@ export function displayValue(
   const text = String(value)
   return text.trim() === '' ? '—' : text
 }
+
+/** A sender as `Name <address>`, either part alone, or `—` when both are unset. */
+export function formatSender(
+  name: string | null,
+  address: string | null
+): string {
+  if (name && address) return `${name} <${address}>`
+  return displayValue(name ?? address)
+}

@@ -64,8 +64,19 @@ it('says "Provider removed" when the selected provider no longer resolves', asyn
   expect(screen.getByText('No model provider')).toBeInTheDocument()
 })
 
-it('says "No provider" when none is selected', async () => {
+it('says "Team default" when none is selected and the team has a provider', async () => {
   const config = aiSummaryConfig({ model_provider_name: null })
+  config.values.model_provider_id = null
+  mockGet.mockResolvedValue(config)
+  render(<TeamAISummaryConfigTab teamId="t1" />)
+  expect(await screen.findByText('Team default')).toBeInTheDocument()
+})
+
+it('says "No provider" when none is selected and the team has none', async () => {
+  const config = aiSummaryConfig({
+    model_provider_name: null,
+    available: false,
+  })
   config.values.model_provider_id = null
   mockGet.mockResolvedValue(config)
   render(<TeamAISummaryConfigTab teamId="t1" />)

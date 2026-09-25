@@ -12,7 +12,7 @@ import {
   SecretState,
   SourceBadge,
 } from './ConfigField'
-import { displayValue, emailStatusMeta } from './teamConfigFormat'
+import { displayValue, emailStatusMeta, formatSender } from './teamConfigFormat'
 import { useAdminTeamSection } from './useAdminTeamSection'
 
 /**
@@ -105,8 +105,7 @@ export function TeamEmailConfigTab({ teamId }: Readonly<{ teamId: string }>) {
                   {displayValue(data.provider_type)}
                 </ConfigField>
                 <ConfigField label="From">
-                  {displayValue(data.from_name)}{' '}
-                  {data.from_address && `<${data.from_address}>`}
+                  {formatSender(data.from_name, data.from_address)}
                 </ConfigField>
                 <ConfigField label="Reply-to">
                   {displayValue(data.reply_to)}
