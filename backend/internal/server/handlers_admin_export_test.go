@@ -248,6 +248,50 @@ func TestAdminResponseErrorHandler_StreamErrorAborts(t *testing.T) {
 	assert.Equal(t, "admin export stream failed: boom", (&adminExportStreamError{err: errors.New("boom")}).Error())
 }
 
+// failingWriteRecorder accepts headers but fails every body write, like a
+// client that disconnected (or a passed write deadline) mid-download.
+type failingWriteRecorder struct {
+	*httptest.ResponseRecorder
+}
+
+func (failingWriteRecorder) Write([]byte) (int, error) { return 0, errors.New("broken pipe") }
+
+// TestExportAdmin_ClientGoneAbortsInsteadOfWriting500 covers the consumer side:
+// a write failure after the CSV response started must abort the connection,
+// never append a problem document to the half-sent CSV.
+func TestExportAdmin_ClientGoneAbortsInsteadOfWriting500(t *testing.T) {
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("ExportUsers", mock.Anything, mock.Anything).
+		Return(fakeAdminExport(1, false, "id\r\nu-1\r\n", 1, nil), nil).Once()
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/users/export", nil)
+	rec := failingWriteRecorder{httptest.NewRecorder()}
+	assert.PanicsWithValue(t, http.ErrAbortHandler, func() {
+		mountAdminStrictRouter(srv).ServeHTTP(rec, req)
+	})
+	assert.Equal(t, "text/csv", rec.Header().Get("Content-Type"), "no problem document replaced the CSV")
+}
+
+// TestExportAdmin_ClientGoneRecordsNoActivity pins that an export the client
+// never fully received is not recorded as done: the activity is written on the
+// body's clean EOF, which io.Copy only reaches after every write succeeded.
+func TestExportAdmin_ClientGoneRecordsNoActivity(t *testing.T) {
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("ExportTeams", mock.Anything, mock.Anything).
+		Return(fakeAdminExport(1, false, "id\r\nt-1\r\n", 1, nil), nil).Once()
+	activitySvc := &MockActivityService{}
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
+		adminService: mockAdmin, activityService: activitySvc,
+	})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/teams/export", nil)
+	assert.Panics(t, func() {
+		mountAdminStrictRouter(srv).ServeHTTP(failingWriteRecorder{httptest.NewRecorder()}, req)
+	})
+	activitySvc.AssertNotCalled(t, "RecordResourceActivity")
+}
+
 // setEveryField fills every field of a generated params struct with a non-zero
 // value, so a converter that drops a field is caught.
 func setEveryField(t *testing.T, v reflect.Value) {

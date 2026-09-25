@@ -3,9 +3,11 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
+	"sync"
 	"time"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
@@ -26,6 +28,10 @@ const (
 	adminExportDefaultSortBy    = "created_at"
 	adminExportDefaultSortOrder = "desc"
 )
+
+// adminExportContentType is the media type the generated export visitors set
+// before writing the 200.
+const adminExportContentType = "text/csv"
 
 // adminExportStreamError marks a failure AFTER the 200 and its headers went out.
 // adminResponseErrorHandler aborts the connection for it instead of appending a
@@ -90,33 +96,50 @@ type adminExportRequest struct {
 	sortOrder    string
 }
 
-// startAdminExport starts writing exp into a pipe and returns its reader. The
-// writer goroutine closes the pipe with an adminExportStreamError on failure
-// (the response visitor's io.Copy surfaces it to adminResponseErrorHandler),
-// and records the export activity once the stream completed, before the EOF.
-// When the client goes away, the visitor closes the reader, the next write
-// fails, and the repository closes its rows.
+// adminExportBody is the export response body: the pipe's reader, recording
+// the export activity when it reads a clean EOF. The visitor's io.Copy only
+// reads again after its previous write to the client succeeded, so EOF is the
+// point where the whole CSV went out; a client that goes away first, or a
+// producer failure (a non-EOF read error), records nothing.
+type adminExportBody struct {
+	*io.PipeReader
+	onEOF func()
+	once  sync.Once
+}
+
+func (b *adminExportBody) Read(p []byte) (int, error) {
+	n, err := b.PipeReader.Read(p)
+	if errors.Is(err, io.EOF) {
+		b.once.Do(b.onEOF)
+	}
+	return n, err
+}
+
+// startAdminExport starts writing exp into a pipe and returns the response
+// body reading it. The writer goroutine closes the pipe with an
+// adminExportStreamError on failure (the visitor's io.Copy surfaces it to
+// adminResponseErrorHandler). When the client goes away, the visitor closes
+// the reader, the next write fails, and the repository closes its rows.
 func (a *adminStrictServer) startAdminExport(
 	ctx context.Context, req adminExportRequest, exp services.AdminExport,
-) *io.PipeReader {
+) io.ReadCloser {
 	pr, pw := io.Pipe()
+	var rows int
 	go func() {
-		rows, err := exp.WriteCSV(ctx, pw)
+		n, err := exp.WriteCSV(ctx, pw)
+		rows = n // published to the reader by the close below
 		var closeWith error
 		if err != nil {
 			closeWith = &adminExportStreamError{err: err}
-		} else {
-			// Record before closing: every byte has already been consumed (pipe
-			// writes block until read), and the reader's EOF then also means the
-			// activity is in place.
-			a.recordExportActivity(context.WithoutCancel(ctx), req, exp, rows)
 		}
 		// CloseWithError(nil) is Close; either way it only ever returns nil.
 		if closeErr := pw.CloseWithError(closeWith); closeErr != nil {
 			a.s.logger.With("error", closeErr).Error("Failed to close admin export pipe")
 		}
 	}()
-	return pr
+	return &adminExportBody{PipeReader: pr, onEOF: func() {
+		a.recordExportActivity(context.WithoutCancel(ctx), req, exp, rows)
+	}}
 }
 
 // recordExportActivity records the admin_<list>_exported activity for the
