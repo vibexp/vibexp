@@ -874,6 +874,8 @@ components:
       $ref: "./schemas/admin.yaml#/AdminTeamOwner"
     AdminTeamListItem:
       $ref: "./schemas/admin.yaml#/AdminTeamListItem"
+    AdminTeamConfiguration:
+      $ref: "./schemas/admin.yaml#/AdminTeamConfiguration"
     AdminTeamListResponse:
       $ref: "./schemas/admin.yaml#/AdminTeamListResponse"
     AdminTeamMember:

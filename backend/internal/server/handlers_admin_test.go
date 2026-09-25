@@ -489,7 +489,15 @@ func TestListAdminTeams(t *testing.T) {
 		Teams: []models.AdminTeamListItem{
 			{
 				ID: uuid.NewString(), Name: "Acme", Slug: "acme", IsPersonal: false,
-				Owner: owner, MemberCount: 3, CreatedAt: time.Now(),
+				Owner: owner, MemberCount: 3, OwnerCount: 1, AdminCount: 2, ProjectCount: 4,
+				ResourceCounts: models.AdminResourceCounts{
+					Prompts: 1, Memories: 2, Artifacts: 3, Blueprints: 4, Agents: 5,
+					Feeds: 6, FeedItems: 7, Comments: 8, Attachments: 9, Total: 45,
+				},
+				Configuration: models.AdminTeamConfiguration{
+					EmbeddingConfigured: true, AISummaryEnabled: true, GitHubConfigured: true, FreshnessEnabled: true,
+				},
+				CreatedAt: time.Now(),
 			},
 			{
 				ID: uuid.NewString(), Name: "Beta", Slug: "beta", IsPersonal: true,
@@ -531,6 +539,17 @@ func TestListAdminTeams(t *testing.T) {
 				assert.False(t, resp.Teams[0].IsPersonal)
 				assert.Equal(t, "beta", resp.Teams[1].Slug)
 				assert.True(t, resp.Teams[1].IsPersonal)
+				// #1138's counts and configuration flags, for the same reason.
+				assert.Equal(t, int64(1), resp.Teams[0].OwnerCount)
+				assert.Equal(t, int64(2), resp.Teams[0].AdminCount)
+				assert.Equal(t, int64(4), resp.Teams[0].ProjectCount)
+				assert.Equal(t, int64(9), resp.Teams[0].ResourceCounts.Attachments)
+				assert.Equal(t, int64(45), resp.Teams[0].ResourceCounts.Total)
+				assert.Equal(t, admingen.AdminTeamConfiguration{
+					EmbeddingConfigured: true, AiSummaryEnabled: true, GithubConfigured: true, FreshnessEnabled: true,
+				}, resp.Teams[0].Configuration)
+				assert.Equal(t, admingen.AdminTeamConfiguration{}, resp.Teams[1].Configuration)
+				assert.Contains(t, rr.Body.String(), `"search_settings_customized":false`)
 			}
 			specconformance.AssertConformsToSpec(t, req, rr)
 		})
@@ -666,19 +685,44 @@ func TestListAdminUsers_EqualBoundsAccepted(t *testing.T) {
 	specconformance.AssertConformsToSpec(t, req, rr)
 }
 
-// TestListAdminTeams_MapsQueryParams is the team mirror of the user mapping test.
+// TestListAdminTeams_MapsQueryParams is the team mirror of the user mapping test,
+// covering every #1138 range, the owner-email match and each tri-state.
 func TestListAdminTeams_MapsQueryParams(t *testing.T) {
 	search := "acme"
 	isPersonal := false
+	ownerEmail := "Owner@Example.com"
+	yes, no := true, false
 	want := repositories.AdminTeamFilters{
-		Search:      &search,
-		IsPersonal:  &isPersonal,
-		CreatedFrom: &adminFilterQueryTime,
-		CreatedTo:   &adminFilterQueryTime,
-		SortBy:      "member_count",
-		SortOrder:   "desc",
-		Page:        1,
-		Limit:       10,
+		Search:                   &search,
+		IsPersonal:               &isPersonal,
+		CreatedFrom:              &adminFilterQueryTime,
+		CreatedTo:                &adminFilterQueryTime,
+		MemberCount:              adminCountRange(0, 1),
+		OwnerCount:               adminCountRange(1, 1),
+		AdminCount:               adminCountRange(1, 2),
+		ProjectCount:             adminCountRange(2, 3),
+		PromptCount:              adminCountRange(3, 4),
+		MemoryCount:              adminCountRange(4, 5),
+		ArtifactCount:            adminCountRange(5, 6),
+		BlueprintCount:           adminCountRange(6, 7),
+		AgentCount:               adminCountRange(7, 8),
+		FeedCount:                adminCountRange(8, 9),
+		FeedItemCount:            adminCountRange(9, 10),
+		CommentCount:             adminCountRange(10, 11),
+		AttachmentCount:          adminCountRange(11, 12),
+		TotalResourceCount:       adminCountRange(12, 13),
+		OwnerEmail:               &ownerEmail,
+		EmbeddingConfigured:      &yes,
+		LLMConfigured:            &no,
+		AISummaryEnabled:         &yes,
+		EmailConfigured:          &no,
+		GitHubConfigured:         &yes,
+		SearchSettingsCustomized: &no,
+		FreshnessEnabled:         &yes,
+		SortBy:                   "total_resource_count",
+		SortOrder:                "desc",
+		Page:                     1,
+		Limit:                    10,
 	}
 	list := models.AdminTeamList{
 		Teams: []models.AdminTeamListItem{}, TotalCount: 0, Page: 1, PerPage: 10, TotalPages: 0,
@@ -691,12 +735,79 @@ func TestListAdminTeams_MapsQueryParams(t *testing.T) {
 	stamp := adminFilterQueryTime.Format(time.RFC3339)
 	req := httptest.NewRequest("GET", "/api/v1/admin/teams?page=1&limit=10&search=acme"+
 		"&is_personal=false&created_from="+stamp+"&created_to="+stamp+
-		"&sort_by=member_count&sort_order=desc", nil)
+		"&member_count_min=0&member_count_max=1&owner_count_min=1&owner_count_max=1"+
+		"&admin_count_min=1&admin_count_max=2&project_count_min=2&project_count_max=3"+
+		"&prompt_count_min=3&prompt_count_max=4&memory_count_min=4&memory_count_max=5"+
+		"&artifact_count_min=5&artifact_count_max=6&blueprint_count_min=6&blueprint_count_max=7"+
+		"&agent_count_min=7&agent_count_max=8&feed_count_min=8&feed_count_max=9"+
+		"&feed_item_count_min=9&feed_item_count_max=10&comment_count_min=10&comment_count_max=11"+
+		"&attachment_count_min=11&attachment_count_max=12"+
+		"&total_resource_count_min=12&total_resource_count_max=13"+
+		"&owner_email=%20Owner%40Example.com%20"+
+		"&embedding_configured=true&llm_configured=false&ai_summary_enabled=true"+
+		"&email_configured=false&github_configured=true&search_settings_customized=false"+
+		"&freshness_enabled=true"+
+		"&sort_by=total_resource_count&sort_order=desc", nil)
 	rr := httptest.NewRecorder()
 	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
 
-	require.Equal(t, http.StatusOK, rr.Code)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	specconformance.AssertConformsToSpec(t, req, rr)
+}
+
+// TestListAdminTeams_AbsentTriStatesAreAny pins "omit = any": with no tri-state
+// in the query every configured filter reaches the service as nil.
+func TestListAdminTeams_AbsentTriStatesAreAny(t *testing.T) {
+	list := models.AdminTeamList{Teams: []models.AdminTeamListItem{}, Page: 1, PerPage: 20}
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("ListTeams", mock.Anything, mock.MatchedBy(func(f repositories.AdminTeamFilters) bool {
+		return f.EmbeddingConfigured == nil && f.LLMConfigured == nil && f.AISummaryEnabled == nil &&
+			f.EmailConfigured == nil && f.GitHubConfigured == nil && f.SearchSettingsCustomized == nil &&
+			f.FreshnessEnabled == nil && f.OwnerEmail == nil
+	})).Return(list, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/teams?member_count_min=2", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+}
+
+// TestListAdminTeams_InvalidAggregateFiltersReturn400 is the team mirror of the
+// user validation test: bad bounds, a non-boolean tri-state and an unknown
+// sort_by are rejected before the service is called.
+func TestListAdminTeams_InvalidAggregateFiltersReturn400(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+	}{
+		{"negative min", "member_count_min=-1"},
+		{"negative max", "admin_count_max=-2"},
+		{"inverted owner range", "owner_count_min=2&owner_count_max=1"},
+		{"inverted project range", "project_count_min=5&project_count_max=4"},
+		{"inverted total range", "total_resource_count_min=10&total_resource_count_max=1"},
+		{"non-integer bound", "feed_item_count_min=lots"},
+		{"non-boolean tri-state", "embedding_configured=maybe"},
+		{"non-boolean freshness tri-state", "freshness_enabled=2x"},
+		{"unknown sort_by", "sort_by=embedding_configured"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// No service call is expected: the request must be rejected first.
+			mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+			req := httptest.NewRequest("GET", "/api/v1/admin/teams?"+tc.query, nil)
+			rr := httptest.NewRecorder()
+			mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+			assert.Contains(t, rr.Header().Get("Content-Type"), "application/problem+json")
+			specconformance.AssertConformsToSpec(t, req, rr)
+		})
+	}
 }
 
 // TestListAdmin_InvalidSortEnumReturns400 pins the acceptance criterion that an

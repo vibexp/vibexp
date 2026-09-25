@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -313,11 +314,61 @@ func toAdminTeamFilters(p admingen.ListAdminTeamsParams) (repositories.AdminTeam
 		filters.SortOrder = string(*p.SortOrder)
 	}
 
+	if err := applyAdminTeamAggregateFilters(&filters, p); err != nil {
+		return repositories.AdminTeamFilters{}, err
+	}
+
 	return filters, nil
 }
 
+// applyAdminTeamAggregateFilters validates the count ranges (#1138) and sets
+// them, the owner-email match and the configured tri-states on filters.
+func applyAdminTeamAggregateFilters(filters *repositories.AdminTeamFilters, p admingen.ListAdminTeamsParams) error {
+	for _, cr := range []struct {
+		name         string
+		lower, upper *int64
+		dst          *repositories.AdminCountRange
+	}{
+		{"member_count", p.MemberCountMin, p.MemberCountMax, &filters.MemberCount},
+		{"owner_count", p.OwnerCountMin, p.OwnerCountMax, &filters.OwnerCount},
+		{"admin_count", p.AdminCountMin, p.AdminCountMax, &filters.AdminCount},
+		{"project_count", p.ProjectCountMin, p.ProjectCountMax, &filters.ProjectCount},
+		{"prompt_count", p.PromptCountMin, p.PromptCountMax, &filters.PromptCount},
+		{"memory_count", p.MemoryCountMin, p.MemoryCountMax, &filters.MemoryCount},
+		{"artifact_count", p.ArtifactCountMin, p.ArtifactCountMax, &filters.ArtifactCount},
+		{"blueprint_count", p.BlueprintCountMin, p.BlueprintCountMax, &filters.BlueprintCount},
+		{"agent_count", p.AgentCountMin, p.AgentCountMax, &filters.AgentCount},
+		{"feed_count", p.FeedCountMin, p.FeedCountMax, &filters.FeedCount},
+		{"feed_item_count", p.FeedItemCountMin, p.FeedItemCountMax, &filters.FeedItemCount},
+		{"comment_count", p.CommentCountMin, p.CommentCountMax, &filters.CommentCount},
+		{"attachment_count", p.AttachmentCountMin, p.AttachmentCountMax, &filters.AttachmentCount},
+		{"total_resource_count", p.TotalResourceCountMin, p.TotalResourceCountMax, &filters.TotalResourceCount},
+	} {
+		r, err := validateAdminCountRange(cr.name, cr.lower, cr.upper)
+		if err != nil {
+			return err
+		}
+		*cr.dst = r
+	}
+
+	if p.OwnerEmail != nil {
+		if email := strings.TrimSpace(string(*p.OwnerEmail)); email != "" {
+			filters.OwnerEmail = &email
+		}
+	}
+
+	filters.EmbeddingConfigured = p.EmbeddingConfigured
+	filters.LLMConfigured = p.LlmConfigured
+	filters.AISummaryEnabled = p.AiSummaryEnabled
+	filters.EmailConfigured = p.EmailConfigured
+	filters.GitHubConfigured = p.GithubConfigured
+	filters.SearchSettingsCustomized = p.SearchSettingsCustomized
+	filters.FreshnessEnabled = p.FreshnessEnabled
+	return nil
+}
+
 // ListAdminTeams returns a paginated, filtered, instance-wide team listing with
-// owner and member counts.
+// owner, member/role/project/resource counts and own-configuration state.
 func (a *adminStrictServer) ListAdminTeams(
 	ctx context.Context, request admingen.ListAdminTeamsRequestObject,
 ) (admingen.ListAdminTeamsResponseObject, error) {
@@ -389,14 +440,33 @@ func toGenAdminTeamListItem(t models.AdminTeamListItem) (admingen.AdminTeamListI
 		return admingen.AdminTeamListItem{}, err
 	}
 	return admingen.AdminTeamListItem{
-		Id:          id,
-		Name:        t.Name,
-		Slug:        t.Slug,
-		IsPersonal:  t.IsPersonal,
-		Owner:       owner,
-		MemberCount: t.MemberCount,
-		CreatedAt:   t.CreatedAt,
+		Id:             id,
+		Name:           t.Name,
+		Slug:           t.Slug,
+		IsPersonal:     t.IsPersonal,
+		Owner:          owner,
+		MemberCount:    t.MemberCount,
+		OwnerCount:     t.OwnerCount,
+		AdminCount:     t.AdminCount,
+		ProjectCount:   t.ProjectCount,
+		ResourceCounts: toGenAdminResourceCounts(t.ResourceCounts),
+		Configuration:  toGenAdminTeamConfiguration(t.Configuration),
+		CreatedAt:      t.CreatedAt,
 	}, nil
+}
+
+// toGenAdminTeamConfiguration converts a team's own-configuration flags to the
+// generated type.
+func toGenAdminTeamConfiguration(c models.AdminTeamConfiguration) admingen.AdminTeamConfiguration {
+	return admingen.AdminTeamConfiguration{
+		EmbeddingConfigured:      c.EmbeddingConfigured,
+		LlmConfigured:            c.LLMConfigured,
+		AiSummaryEnabled:         c.AISummaryEnabled,
+		EmailConfigured:          c.EmailConfigured,
+		GithubConfigured:         c.GitHubConfigured,
+		SearchSettingsCustomized: c.SearchSettingsCustomized,
+		FreshnessEnabled:         c.FreshnessEnabled,
+	}
 }
 
 // toGenAdminTeamList converts a domain team page to the generated response. The

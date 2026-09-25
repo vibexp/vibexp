@@ -34,8 +34,8 @@ type AdminUserListItem struct {
 	LastResourceCreatedAt *time.Time
 }
 
-// AdminResourceCounts counts the resources one user authored, per type, plus
-// their sum. Shared by the admin list endpoints (#1133).
+// AdminResourceCounts counts resources per type, plus their sum: those a user
+// authored on a user row (#1133), those in the team on a team row (#1138).
 type AdminResourceCounts struct {
 	Prompts     int64
 	Memories    int64
@@ -86,15 +86,34 @@ type AdminTeamOwner struct {
 }
 
 // AdminTeamListItem is one row of the instance-wide admin team listing
-// (GET /api/v1/admin/teams): identity, owner, and member count.
+// (GET /api/v1/admin/teams): identity, owner, member/role/project/resource
+// counts and the team's own configuration state.
 type AdminTeamListItem struct {
-	ID          string
-	Name        string
-	Slug        string
-	IsPersonal  bool
-	Owner       AdminTeamOwner
-	MemberCount int64
-	CreatedAt   time.Time
+	ID             string
+	Name           string
+	Slug           string
+	IsPersonal     bool
+	Owner          AdminTeamOwner
+	MemberCount    int64
+	OwnerCount     int64
+	AdminCount     int64
+	ProjectCount   int64
+	ResourceCounts AdminResourceCounts
+	Configuration  AdminTeamConfiguration
+	CreatedAt      time.Time
+}
+
+// AdminTeamConfiguration reports which settings a team configured itself
+// (#1138). Each flag reflects the team's OWN rows; instance-level fallback
+// configuration never counts (epic #1131 decision 11).
+type AdminTeamConfiguration struct {
+	EmbeddingConfigured      bool
+	LLMConfigured            bool
+	AISummaryEnabled         bool
+	EmailConfigured          bool
+	GitHubConfigured         bool
+	SearchSettingsCustomized bool
+	FreshnessEnabled         bool
 }
 
 // AdminTeamList is a page of the admin team listing plus pagination metadata.

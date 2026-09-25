@@ -100,13 +100,26 @@ func adminUserRows() *sqlmock.Rows {
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, nil)
 }
 
+// adminTeamListFromRE matches the shared FROM of the admin team count and page
+// queries: teams, the inner owner join, the fifteen 1:1 LEFT JOINed stats CTEs
+// and the four settings singletons.
+const adminTeamListFromRE = `FROM teams t JOIN users u ON u.id = t.owner_id LEFT JOIN mc ON mc.team_id = t.id ` +
+	`.*LEFT JOIN fr ON fr.team_id = t.id LEFT JOIN team_ai_summary_settings ais ON ais.team_id = t.id ` +
+	`.*LEFT JOIN team_search_settings tss ON tss.team_id = t.id`
+
 func adminTeamRows() *sqlmock.Rows {
 	return sqlmock.NewRows([]string{
 		"id", "name", "slug", "is_personal", "created_at",
-		"owner_id", "owner_email", "owner_name", "member_count",
+		"owner_id", "owner_email", "owner_name", "member_count", "owner_count", "admin_count", "project_count",
+		"prompt_count", "memory_count", "artifact_count", "blueprint_count", "agent_count",
+		"feed_count", "feed_item_count", "comment_count", "attachment_count", "total_resource_count",
+		"embedding_configured", "llm_configured", "ai_summary_enabled", "email_configured",
+		"github_configured", "search_settings_customized", "freshness_enabled",
 	}).
-		AddRow("t1", "Acme", "acme", false, time.Now(), "o1", "o@example.com", "Owner", 3).
-		AddRow("t2", "Beta", "beta", true, time.Now(), "o1", "o@example.com", "Owner", 0)
+		AddRow("t1", "Acme", "acme", false, time.Now(), "o1", "o@example.com", "Owner", 3, 1, 2, 4,
+			1, 2, 3, 4, 5, 6, 7, 8, 9, 45, true, false, true, false, true, false, true).
+		AddRow("t2", "Beta", "beta", true, time.Now(), "o1", "o@example.com", "Owner", 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, true, false, true, false, true, false)
 }
 
 // TestAdminRepository_ListUsers is the no-filter regression case: the unfiltered
@@ -504,7 +517,7 @@ func TestAdminRepository_GetUserDetail_MembershipError(t *testing.T) {
 }
 
 // TestAdminRepository_ListTeams is the no-filter regression case, and also pins
-// the two additive payload fields (slug, is_personal) to their scan positions.
+// every payload field to its scan position.
 func TestAdminRepository_ListTeams(t *testing.T) {
 	repo, mock, mockDB := newAdminRepoMock(t)
 	defer func() {
@@ -513,7 +526,7 @@ func TestAdminRepository_ListTeams(t *testing.T) {
 		}
 	}()
 
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM teams t JOIN users u ON u.id = t.owner_id$`).
+	mock.ExpectQuery(`^WITH mc AS .* SELECT COUNT\(\*\) ` + adminTeamListFromRE + `$`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 	mock.ExpectQuery(`ORDER BY t.created_at DESC, t.id LIMIT 20 OFFSET 0`).
 		WillReturnRows(adminTeamRows())
@@ -524,6 +537,19 @@ func TestAdminRepository_ListTeams(t *testing.T) {
 	require.Len(t, teams, 2)
 	assert.Equal(t, "Owner", teams[0].Owner.Name)
 	assert.Equal(t, int64(3), teams[0].MemberCount)
+	assert.Equal(t, int64(1), teams[0].OwnerCount)
+	assert.Equal(t, int64(2), teams[0].AdminCount)
+	assert.Equal(t, int64(4), teams[0].ProjectCount)
+	assert.Equal(t, models.AdminResourceCounts{
+		Prompts: 1, Memories: 2, Artifacts: 3, Blueprints: 4, Agents: 5,
+		Feeds: 6, FeedItems: 7, Comments: 8, Attachments: 9, Total: 45,
+	}, teams[0].ResourceCounts)
+	assert.Equal(t, models.AdminTeamConfiguration{
+		EmbeddingConfigured: true, AISummaryEnabled: true, GitHubConfigured: true, FreshnessEnabled: true,
+	}, teams[0].Configuration)
+	assert.Equal(t, models.AdminTeamConfiguration{
+		LLMConfigured: true, EmailConfigured: true, SearchSettingsCustomized: true,
+	}, teams[1].Configuration)
 	assert.Equal(t, "acme", teams[0].Slug)
 	assert.False(t, teams[0].IsPersonal)
 	assert.True(t, teams[1].IsPersonal)
@@ -536,8 +562,11 @@ func TestAdminRepository_ListTeams_Filters(t *testing.T) {
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)
 	search := "acme"
+	ownerEmail := "Owner@Example.com"
 	personal := true
 	shared := false
+	one, five := int64(1), int64(5)
+	rng := repositories.AdminCountRange{Min: &one, Max: &five}
 
 	tests := []struct {
 		name     string
@@ -547,43 +576,47 @@ func TestAdminRepository_ListTeams_Filters(t *testing.T) {
 	}{
 		{
 			name:     "search matches name, slug or owner email",
-			filters:  repositories.AdminTeamFilters{Search: &search, Page: 1, Limit: 20},
+			filters:  repositories.AdminTeamFilters{Search: &search},
 			wantSQL:  `\(t.name ILIKE \$1 OR t.slug ILIKE \$2 OR u.email ILIKE \$3\)`,
 			wantArgs: []driver.Value{"%acme%", "%acme%", "%acme%"},
 		},
-		{
-			name:     "is_personal true narrows to personal workspaces",
-			filters:  repositories.AdminTeamFilters{IsPersonal: &personal, Page: 1, Limit: 20},
-			wantSQL:  `t.is_personal = \$1`,
-			wantArgs: []driver.Value{true},
-		},
-		{
-			name:     "is_personal false narrows to shared workspaces",
-			filters:  repositories.AdminTeamFilters{IsPersonal: &shared, Page: 1, Limit: 20},
-			wantSQL:  `t.is_personal = \$1`,
-			wantArgs: []driver.Value{false},
-		},
-		{
-			name:     "created_from is inclusive",
-			filters:  repositories.AdminTeamFilters{CreatedFrom: &from, Page: 1, Limit: 20},
-			wantSQL:  `t.created_at >= \$1`,
-			wantArgs: []driver.Value{from},
-		},
-		{
-			name:     "created_to is inclusive",
-			filters:  repositories.AdminTeamFilters{CreatedTo: &to, Page: 1, Limit: 20},
-			wantSQL:  `t.created_at <= \$1`,
-			wantArgs: []driver.Value{to},
-		},
+		{"is_personal true narrows to personal workspaces", repositories.AdminTeamFilters{IsPersonal: &personal}, `t.is_personal = \$1`, []driver.Value{true}},
+		{"is_personal false narrows to shared workspaces", repositories.AdminTeamFilters{IsPersonal: &shared}, `t.is_personal = \$1`, []driver.Value{false}},
+		{"created_from is inclusive", repositories.AdminTeamFilters{CreatedFrom: &from}, `t.created_at >= \$1`, []driver.Value{from}},
+		{"created_to is inclusive", repositories.AdminTeamFilters{CreatedTo: &to}, `t.created_at <= \$1`, []driver.Value{to}},
+		{"owner_email is a case-insensitive exact match", repositories.AdminTeamFilters{OwnerEmail: &ownerEmail}, `lower\(u.email\) = lower\(\$1\)`, []driver.Value{ownerEmail}},
+		{"member_count", repositories.AdminTeamFilters{MemberCount: rng}, `COALESCE\(mc.n, 0\) >= \$1 AND COALESCE\(mc.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"owner_count", repositories.AdminTeamFilters{OwnerCount: rng}, `COALESCE\(mc.owners, 0\) >= \$1 AND COALESCE\(mc.owners, 0\) <= \$2`, []driver.Value{one, five}},
+		{"admin_count min only", repositories.AdminTeamFilters{AdminCount: repositories.AdminCountRange{Min: &one}}, `COALESCE\(mc.admins, 0\) >= \$1`, []driver.Value{one}},
+		{"project_count max only", repositories.AdminTeamFilters{ProjectCount: repositories.AdminCountRange{Max: &five}}, `COALESCE\(pj.n, 0\) <= \$1`, []driver.Value{five}},
+		{"prompt_count", repositories.AdminTeamFilters{PromptCount: rng}, `COALESCE\(pr.n, 0\) >= \$1 AND COALESCE\(pr.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"memory_count", repositories.AdminTeamFilters{MemoryCount: rng}, `COALESCE\(me.n, 0\) >= \$1 AND COALESCE\(me.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"artifact_count", repositories.AdminTeamFilters{ArtifactCount: rng}, `COALESCE\(ar.n, 0\) >= \$1 AND COALESCE\(ar.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"blueprint_count", repositories.AdminTeamFilters{BlueprintCount: rng}, `COALESCE\(bp.n, 0\) >= \$1 AND COALESCE\(bp.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"agent_count", repositories.AdminTeamFilters{AgentCount: rng}, `COALESCE\(ag.n, 0\) >= \$1 AND COALESCE\(ag.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"feed_count", repositories.AdminTeamFilters{FeedCount: rng}, `COALESCE\(fd.n, 0\) >= \$1 AND COALESCE\(fd.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"feed_item_count", repositories.AdminTeamFilters{FeedItemCount: rng}, `COALESCE\(fi.n, 0\) >= \$1 AND COALESCE\(fi.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"comment_count", repositories.AdminTeamFilters{CommentCount: rng}, `COALESCE\(cm.n, 0\) >= \$1 AND COALESCE\(cm.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"attachment_count", repositories.AdminTeamFilters{AttachmentCount: rng}, `COALESCE\(att.n, 0\) >= \$1 AND COALESCE\(att.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"total_resource_count", repositories.AdminTeamFilters{TotalResourceCount: repositories.AdminCountRange{Min: &five}}, `\(COALESCE\(pr.n, 0\) \+ .*COALESCE\(att.n, 0\)\) >= \$1`, []driver.Value{five}},
+		{"embedding_configured true", repositories.AdminTeamFilters{EmbeddingConfigured: &personal}, `\(ep.team_id IS NOT NULL\) = \$1`, []driver.Value{true}},
+		{"llm_configured false", repositories.AdminTeamFilters{LLMConfigured: &shared}, `\(mp.team_id IS NOT NULL\) = \$1`, []driver.Value{false}},
+		{"ai_summary_enabled", repositories.AdminTeamFilters{AISummaryEnabled: &personal}, `COALESCE\(ais.enabled, false\) = \$1`, []driver.Value{true}},
+		{"email_configured", repositories.AdminTeamFilters{EmailConfigured: &personal}, `\(tep.team_id IS NOT NULL\) = \$1`, []driver.Value{true}},
+		{"github_configured", repositories.AdminTeamFilters{GitHubConfigured: &shared}, `\(gac.team_id IS NOT NULL OR gi.team_id IS NOT NULL\) = \$1`, []driver.Value{false}},
+		{"search_settings_customized", repositories.AdminTeamFilters{SearchSettingsCustomized: &personal}, `\(tss.team_id IS NOT NULL\) = \$1`, []driver.Value{true}},
+		{"freshness_enabled", repositories.AdminTeamFilters{FreshnessEnabled: &shared}, `\(fr.team_id IS NOT NULL\) = \$1`, []driver.Value{false}},
 		{
 			name: "all filters combine with AND",
 			filters: repositories.AdminTeamFilters{
-				Search: &search, IsPersonal: &shared, CreatedFrom: &from, CreatedTo: &to,
-				Page: 1, Limit: 20,
+				Search: &search, IsPersonal: &shared, CreatedFrom: &from, CreatedTo: &to, OwnerEmail: &ownerEmail,
+				MemberCount: repositories.AdminCountRange{Min: &one}, EmbeddingConfigured: &shared,
 			},
 			wantSQL: `\(t.name ILIKE \$1 OR t.slug ILIKE \$2 OR u.email ILIKE \$3\) ` +
-				`AND t.is_personal = \$4 AND t.created_at >= \$5 AND t.created_at <= \$6`,
-			wantArgs: []driver.Value{"%acme%", "%acme%", "%acme%", false, from, to},
+				`AND t.is_personal = \$4 AND t.created_at >= \$5 AND t.created_at <= \$6 ` +
+				`AND lower\(u.email\) = lower\(\$7\) AND COALESCE\(mc.n, 0\) >= \$8 ` +
+				`AND \(ep.team_id IS NOT NULL\) = \$9`,
+			wantArgs: []driver.Value{"%acme%", "%acme%", "%acme%", false, from, to, ownerEmail, one, false},
 		},
 	}
 
@@ -596,10 +629,11 @@ func TestAdminRepository_ListTeams_Filters(t *testing.T) {
 				}
 			}()
 
-			mock.ExpectQuery(`SELECT COUNT\(\*\) FROM teams t JOIN users u .* WHERE \(` + tc.wantSQL + `\)`).
+			tc.filters.Page, tc.filters.Limit = 1, 20
+			mock.ExpectQuery(`SELECT COUNT\(\*\) ` + adminTeamListFromRE + ` WHERE \(` + tc.wantSQL + `\)$`).
 				WithArgs(tc.wantArgs...).
 				WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-			mock.ExpectQuery(`member_count FROM teams t JOIN users u .* WHERE \(` + tc.wantSQL + `\)`).
+			mock.ExpectQuery(`AS freshness_enabled ` + adminTeamListFromRE + ` WHERE \(` + tc.wantSQL + `\) ORDER BY`).
 				WithArgs(tc.wantArgs...).
 				WillReturnRows(adminTeamRows())
 
@@ -609,6 +643,14 @@ func TestAdminRepository_ListTeams_Filters(t *testing.T) {
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
+}
+
+// TestAdminRepository_ListTeams_UnsetTriStatesAddNothing pins "absent = any":
+// with no filter set the shared WHERE is empty, so no tri-state narrows.
+func TestAdminRepository_ListTeams_UnsetTriStatesAddNothing(t *testing.T) {
+	assert.Empty(t, buildAdminTeamWhere(defaultAdminTeamFilters()))
+	empty := ""
+	assert.Empty(t, buildAdminTeamWhere(repositories.AdminTeamFilters{OwnerEmail: &empty}))
 }
 
 // TestAdminRepository_ListTeams_Sorting asserts the team ORDER BY allowlist.
@@ -622,7 +664,20 @@ func TestAdminRepository_ListTeams_Sorting(t *testing.T) {
 		{"default", "", "", "t.created_at DESC, t.id"},
 		{"name asc", "name", "asc", "t.name ASC, t.id"},
 		{"created_at asc", "created_at", "asc", "t.created_at ASC, t.id"},
-		{"member_count uses the subquery alias", "member_count", "desc", "member_count DESC, t.id"},
+		{"member_count uses the aggregate", "member_count", "desc", "COALESCE(mc.n, 0) DESC, t.id"},
+		{"owner_count", "owner_count", "asc", "COALESCE(mc.owners, 0) ASC, t.id"},
+		{"admin_count", "admin_count", "desc", "COALESCE(mc.admins, 0) DESC, t.id"},
+		{"project_count", "project_count", "desc", "COALESCE(pj.n, 0) DESC, t.id"},
+		{"prompt_count", "prompt_count", "desc", "COALESCE(pr.n, 0) DESC, t.id"},
+		{"memory_count", "memory_count", "desc", "COALESCE(me.n, 0) DESC, t.id"},
+		{"artifact_count", "artifact_count", "desc", "COALESCE(ar.n, 0) DESC, t.id"},
+		{"blueprint_count", "blueprint_count", "desc", "COALESCE(bp.n, 0) DESC, t.id"},
+		{"agent_count", "agent_count", "desc", "COALESCE(ag.n, 0) DESC, t.id"},
+		{"feed_count", "feed_count", "desc", "COALESCE(fd.n, 0) DESC, t.id"},
+		{"feed_item_count", "feed_item_count", "desc", "COALESCE(fi.n, 0) DESC, t.id"},
+		{"comment_count", "comment_count", "desc", "COALESCE(cm.n, 0) DESC, t.id"},
+		{"attachment_count", "attachment_count", "desc", "COALESCE(att.n, 0) DESC, t.id"},
+		{"total_resource_count", "total_resource_count", "desc", colTeamTotalResourceCount + " DESC, t.id"},
 		{"unknown sort_by falls back", "owner", "asc", "t.created_at ASC, t.id"},
 		{
 			name:      "injection-shaped sort_by never reaches SQL",
@@ -666,7 +721,7 @@ func TestAdminRepository_ListTeams_QueryError(t *testing.T) {
 
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM teams`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(`member_count FROM teams t`).WillReturnError(errors.New("boom"))
+	mock.ExpectQuery(`AS freshness_enabled FROM teams t`).WillReturnError(errors.New("boom"))
 	_, _, err := repo.ListTeams(context.Background(), defaultAdminTeamFilters())
 	require.Error(t, err)
 }

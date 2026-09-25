@@ -9133,8 +9133,10 @@ paths:
     get:
       summary: List instance teams
       description: |
-        Returns a paginated, instance-wide listing of teams with each team's owner
-        and member count. Supports case-insensitive search, typed filters, and
+        Returns a paginated, instance-wide listing of teams with each team's owner,
+        member/owner/admin/project counts, per-type resource counts and which
+        settings the team has configured itself (instance-level fallback never
+        counts as configured). Supports case-insensitive search, typed filters, and
         allowlisted sorting; filters combine with AND and the pagination envelope
         reflects the filtered set. Instance-admin only; non-admin and
         unauthenticated requests receive 404.
@@ -9188,6 +9190,279 @@ paths:
           schema:
             type: string
             format: date-time
+        - name: member_count_min
+          in: query
+          description: Only teams with at least this many members (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: member_count_max
+          in: query
+          description: Only teams with at most this many members (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: owner_count_min
+          in: query
+          description: Only teams with at least this many members holding the owner role (always 1 by application invariant; any other value is integrity drift) (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: owner_count_max
+          in: query
+          description: Only teams with at most this many members holding the owner role (always 1 by application invariant; any other value is integrity drift) (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: admin_count_min
+          in: query
+          description: Only teams with at least this many members holding the admin role (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: admin_count_max
+          in: query
+          description: Only teams with at most this many members holding the admin role (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: project_count_min
+          in: query
+          description: Only teams with at least this many projects in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: project_count_max
+          in: query
+          description: Only teams with at most this many projects in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: prompt_count_min
+          in: query
+          description: Only teams with at least this many prompts in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: prompt_count_max
+          in: query
+          description: Only teams with at most this many prompts in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: memory_count_min
+          in: query
+          description: Only teams with at least this many memories in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: memory_count_max
+          in: query
+          description: Only teams with at most this many memories in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: artifact_count_min
+          in: query
+          description: Only teams with at least this many artifacts in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: artifact_count_max
+          in: query
+          description: Only teams with at most this many artifacts in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: blueprint_count_min
+          in: query
+          description: Only teams with at least this many blueprints in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: blueprint_count_max
+          in: query
+          description: Only teams with at most this many blueprints in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: agent_count_min
+          in: query
+          description: Only teams with at least this many agents in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: agent_count_max
+          in: query
+          description: Only teams with at most this many agents in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: feed_count_min
+          in: query
+          description: Only teams with at least this many feeds in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: feed_count_max
+          in: query
+          description: Only teams with at most this many feeds in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: feed_item_count_min
+          in: query
+          description: Only teams with at least this many feed items in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: feed_item_count_max
+          in: query
+          description: Only teams with at most this many feed items in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: comment_count_min
+          in: query
+          description: Only teams with at least this many comments in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: comment_count_max
+          in: query
+          description: Only teams with at most this many comments in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: attachment_count_min
+          in: query
+          description: Only teams with at least this many attachments in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: attachment_count_max
+          in: query
+          description: Only teams with at most this many attachments in the team (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: total_resource_count_min
+          in: query
+          description: Only teams with at least this many resources in the team across all nine types (the sum of resource_counts) (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: total_resource_count_max
+          in: query
+          description: Only teams with at most this many resources in the team across all nine types (the sum of resource_counts) (inclusive).
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: owner_email
+          in: query
+          description: Case-insensitive exact match on the team owner's email (the user referenced by the team's owner). For substring matching use `search`.
+          required: false
+          schema:
+            type: string
+            format: email
+        - name: embedding_configured
+          in: query
+          description: true = the team has at least one embedding provider of its own; false = it does not; omit = any. Instance-level fallback configuration never counts.
+          required: false
+          schema:
+            type: boolean
+        - name: llm_configured
+          in: query
+          description: true = the team has at least one LLM model provider of its own; false = it does not; omit = any. Instance-level fallback configuration never counts.
+          required: false
+          schema:
+            type: boolean
+        - name: ai_summary_enabled
+          in: query
+          description: true = the team has its own AI summary settings with summaries enabled; false = it does not; omit = any. Instance-level fallback configuration never counts.
+          required: false
+          schema:
+            type: boolean
+        - name: email_configured
+          in: query
+          description: true = the team has its own email provider (regardless of its delivery health); false = it does not; omit = any. Instance-level fallback configuration never counts.
+          required: false
+          schema:
+            type: boolean
+        - name: github_configured
+          in: query
+          description: true = the team has its own GitHub App configuration or at least one GitHub App installation (suspended installations included); false = it does not; omit = any. Instance-level fallback configuration never counts.
+          required: false
+          schema:
+            type: boolean
+        - name: search_settings_customized
+          in: query
+          description: true = the team has its own search settings; false = it does not; omit = any. Instance-level fallback configuration never counts.
+          required: false
+          schema:
+            type: boolean
+        - name: freshness_enabled
+          in: query
+          description: true = the team has at least one enabled freshness rule; false = it does not; omit = any. Instance-level fallback configuration never counts.
+          required: false
+          schema:
+            type: boolean
         - name: sort_by
           in: query
           description: Column to sort by. Ties are always broken by team id so paging is stable.
@@ -9198,6 +9473,19 @@ paths:
               - created_at
               - name
               - member_count
+              - owner_count
+              - admin_count
+              - project_count
+              - prompt_count
+              - memory_count
+              - artifact_count
+              - blueprint_count
+              - agent_count
+              - feed_count
+              - feed_item_count
+              - comment_count
+              - attachment_count
+              - total_resource_count
             default: created_at
         - name: sort_order
           in: query
@@ -23398,10 +23686,11 @@ components:
     AdminResourceCounts:
       type: object
       description: |
-        How many resources of each type a user authored, counted by the author
-        column of each table (feeds by creator, feed items by poster). Every row
-        counts regardless of its status or archive state. `total` is the sum of the
-        nine types.
+        How many resources of each type belong to the listed row. On a user row
+        these are the resources the user authored, counted by the author column of
+        each table (feeds by creator, feed items by poster); on a team row they are
+        the resources in the team, counted by team_id. Every row counts regardless
+        of its status or archive state. `total` is the sum of the nine types.
       required:
         - prompts
         - memories
@@ -23583,6 +23872,11 @@ components:
         - is_personal
         - owner
         - member_count
+        - owner_count
+        - admin_count
+        - project_count
+        - resource_counts
+        - configuration
         - created_at
       properties:
         id:
@@ -23607,9 +23901,64 @@ components:
           format: int64
           description: Number of members in the team.
           example: 8
+        owner_count:
+          type: integer
+          format: int64
+          description: Number of members holding the owner role. Always 1 by application invariant; any other value signals integrity drift.
+          example: 1
+        admin_count:
+          type: integer
+          format: int64
+          description: Number of members holding the admin role.
+          example: 2
+        project_count:
+          type: integer
+          format: int64
+          description: Number of projects in the team.
+          example: 3
+        resource_counts:
+          $ref: '#/components/schemas/AdminResourceCounts'
+        configuration:
+          $ref: '#/components/schemas/AdminTeamConfiguration'
         created_at:
           type: string
           format: date-time
+    AdminTeamConfiguration:
+      type: object
+      description: |
+        Which settings a team has configured itself. Each flag reflects the team's
+        OWN rows only; instance-level fallback configuration (config.yaml) never
+        counts as configured.
+      required:
+        - embedding_configured
+        - llm_configured
+        - ai_summary_enabled
+        - email_configured
+        - github_configured
+        - search_settings_customized
+        - freshness_enabled
+      properties:
+        embedding_configured:
+          type: boolean
+          description: The team has at least one embedding provider of its own.
+        llm_configured:
+          type: boolean
+          description: The team has at least one LLM model provider of its own.
+        ai_summary_enabled:
+          type: boolean
+          description: The team has its own AI summary settings with summaries enabled.
+        email_configured:
+          type: boolean
+          description: The team has its own email provider, regardless of its delivery health.
+        github_configured:
+          type: boolean
+          description: The team has its own GitHub App configuration or at least one GitHub App installation (suspended installations included).
+        search_settings_customized:
+          type: boolean
+          description: The team has its own search settings.
+        freshness_enabled:
+          type: boolean
+          description: The team has at least one enabled freshness rule.
     AdminTeamListResponse:
       type: object
       description: A page of the instance-wide team listing, newest first.
