@@ -101,11 +101,53 @@ func toAdminUserFilters(p admingen.ListAdminUsersParams) (repositories.AdminUser
 		filters.SortOrder = string(*p.SortOrder)
 	}
 
+	if err := applyAdminUserAggregateFilters(&filters, p); err != nil {
+		return repositories.AdminUserFilters{}, err
+	}
+
 	return filters, nil
 }
 
+// applyAdminUserAggregateFilters validates the count ranges and the
+// last-resource-created range (#1133) and sets them on filters.
+func applyAdminUserAggregateFilters(filters *repositories.AdminUserFilters, p admingen.ListAdminUsersParams) error {
+	for _, cr := range []struct {
+		name         string
+		lower, upper *int64
+		dst          *repositories.AdminCountRange
+	}{
+		{"team_count", p.TeamCountMin, p.TeamCountMax, &filters.TeamCount},
+		{"project_count", p.ProjectCountMin, p.ProjectCountMax, &filters.ProjectCount},
+		{"prompt_count", p.PromptCountMin, p.PromptCountMax, &filters.PromptCount},
+		{"memory_count", p.MemoryCountMin, p.MemoryCountMax, &filters.MemoryCount},
+		{"artifact_count", p.ArtifactCountMin, p.ArtifactCountMax, &filters.ArtifactCount},
+		{"blueprint_count", p.BlueprintCountMin, p.BlueprintCountMax, &filters.BlueprintCount},
+		{"agent_count", p.AgentCountMin, p.AgentCountMax, &filters.AgentCount},
+		{"feed_count", p.FeedCountMin, p.FeedCountMax, &filters.FeedCount},
+		{"feed_item_count", p.FeedItemCountMin, p.FeedItemCountMax, &filters.FeedItemCount},
+		{"comment_count", p.CommentCountMin, p.CommentCountMax, &filters.CommentCount},
+		{"attachment_count", p.AttachmentCountMin, p.AttachmentCountMax, &filters.AttachmentCount},
+		{"total_resource_count", p.TotalResourceCountMin, p.TotalResourceCountMax, &filters.TotalResourceCount},
+	} {
+		r, err := validateAdminCountRange(cr.name, cr.lower, cr.upper)
+		if err != nil {
+			return err
+		}
+		*cr.dst = r
+	}
+
+	if err := validateAdminTimeRange(
+		"last_resource_created", p.LastResourceCreatedFrom, p.LastResourceCreatedTo,
+	); err != nil {
+		return err
+	}
+	filters.LastResourceCreatedFrom = p.LastResourceCreatedFrom
+	filters.LastResourceCreatedTo = p.LastResourceCreatedTo
+	return nil
+}
+
 // ListAdminUsers returns a paginated, filtered, instance-wide user listing with
-// team counts.
+// team, project and per-type resource counts.
 func (a *adminStrictServer) ListAdminUsers(
 	ctx context.Context, request admingen.ListAdminUsersRequestObject,
 ) (admingen.ListAdminUsersResponseObject, error) {
@@ -165,14 +207,34 @@ func toGenAdminUserListItem(u models.AdminUserListItem) (admingen.AdminUserListI
 		return admingen.AdminUserListItem{}, fmt.Errorf("user id %q is not a UUID: %w", u.ID, err)
 	}
 	return admingen.AdminUserListItem{
-		Id:          id,
-		Email:       openapi_types.Email(u.Email),
-		Name:        u.Name,
-		IdpProvider: u.IDPProvider,
-		Status:      admingen.AdminUserListItemStatus(u.Status),
-		CreatedAt:   u.CreatedAt,
-		TeamCount:   u.TeamCount,
+		Id:                    id,
+		Email:                 openapi_types.Email(u.Email),
+		Name:                  u.Name,
+		IdpProvider:           u.IDPProvider,
+		Status:                admingen.AdminUserListItemStatus(u.Status),
+		CreatedAt:             u.CreatedAt,
+		TeamCount:             u.TeamCount,
+		ProjectCount:          u.ProjectCount,
+		ResourceCounts:        toGenAdminResourceCounts(u.ResourceCounts),
+		LastResourceCreatedAt: u.LastResourceCreatedAt,
 	}, nil
+}
+
+// toGenAdminResourceCounts converts per-type authored-resource counts to the
+// generated shared AdminResourceCounts schema.
+func toGenAdminResourceCounts(c models.AdminResourceCounts) admingen.AdminResourceCounts {
+	return admingen.AdminResourceCounts{
+		Prompts:     c.Prompts,
+		Memories:    c.Memories,
+		Artifacts:   c.Artifacts,
+		Blueprints:  c.Blueprints,
+		Agents:      c.Agents,
+		Feeds:       c.Feeds,
+		FeedItems:   c.FeedItems,
+		Comments:    c.Comments,
+		Attachments: c.Attachments,
+		Total:       c.Total,
+	}
 }
 
 // toGenAdminUserList converts a domain user page to the generated response. The

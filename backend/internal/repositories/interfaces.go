@@ -949,10 +949,36 @@ type AdminUserFilters struct {
 	Status      *string
 	CreatedFrom *time.Time
 	CreatedTo   *time.Time
-	SortBy      string
-	SortOrder   string
-	Page        int
-	Limit       int
+	// Count ranges over the user's aggregates (#1133). A zero-value range is
+	// "no filter"; bounds are inclusive and already validated (non-negative,
+	// Min <= Max) by the handler.
+	TeamCount          AdminCountRange
+	ProjectCount       AdminCountRange
+	PromptCount        AdminCountRange
+	MemoryCount        AdminCountRange
+	ArtifactCount      AdminCountRange
+	BlueprintCount     AdminCountRange
+	AgentCount         AdminCountRange
+	FeedCount          AdminCountRange
+	FeedItemCount      AdminCountRange
+	CommentCount       AdminCountRange
+	AttachmentCount    AdminCountRange
+	TotalResourceCount AdminCountRange
+	// LastResourceCreatedFrom/To bound the time of the user's most recent
+	// resource (inclusive). A user with no resources never matches either bound.
+	LastResourceCreatedFrom *time.Time
+	LastResourceCreatedTo   *time.Time
+	SortBy                  string
+	SortOrder               string
+	Page                    int
+	Limit                   int
+}
+
+// AdminCountRange is an inclusive [Min, Max] bound on an aggregate count used
+// by the admin list filters. A nil bound is open; the zero value filters nothing.
+type AdminCountRange struct {
+	Min *int64
+	Max *int64
 }
 
 // AdminTeamFilters narrows and orders the instance-wide admin team listing.

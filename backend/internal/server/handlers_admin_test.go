@@ -281,7 +281,12 @@ func TestListAdminUsers(t *testing.T) {
 		Users: []models.AdminUserListItem{
 			{
 				ID: uuid.NewString(), Email: "a@example.com", Name: "A", IDPProvider: &idp,
-				Status: models.UserStatusActive, CreatedAt: time.Now(), TeamCount: 2,
+				Status: models.UserStatusActive, CreatedAt: time.Now(), TeamCount: 2, ProjectCount: 3,
+				ResourceCounts: models.AdminResourceCounts{
+					Prompts: 1, Memories: 2, Artifacts: 3, Blueprints: 4, Agents: 5,
+					Feeds: 6, FeedItems: 7, Comments: 8, Attachments: 9, Total: 45,
+				},
+				LastResourceCreatedAt: &adminFilterQueryTime,
 			},
 			{
 				ID: uuid.NewString(), Email: "b@example.com", Name: "B",
@@ -322,6 +327,17 @@ func TestListAdminUsers(t *testing.T) {
 			if tc.wantUsers > 0 {
 				assert.Equal(t, admingen.AdminUserListItemStatus("active"), resp.Users[0].Status)
 				assert.Equal(t, admingen.AdminUserListItemStatus("suspended"), resp.Users[1].Status)
+				// #1133's aggregates are mapped; a user with no resources has no
+				// last_resource_created_at and all-zero counts.
+				assert.Equal(t, int64(3), resp.Users[0].ProjectCount)
+				assert.Equal(t, admingen.AdminResourceCounts{
+					Prompts: 1, Memories: 2, Artifacts: 3, Blueprints: 4, Agents: 5,
+					Feeds: 6, FeedItems: 7, Comments: 8, Attachments: 9, Total: 45,
+				}, resp.Users[0].ResourceCounts)
+				require.NotNil(t, resp.Users[0].LastResourceCreatedAt)
+				assert.True(t, adminFilterQueryTime.Equal(*resp.Users[0].LastResourceCreatedAt))
+				assert.Nil(t, resp.Users[1].LastResourceCreatedAt)
+				assert.Equal(t, admingen.AdminResourceCounts{}, resp.Users[1].ResourceCounts)
 			}
 
 			specconformance.AssertConformsToSpec(t, req, rr)
@@ -528,14 +544,28 @@ func TestListAdminUsers_MapsQueryParams(t *testing.T) {
 	search := "alice"
 	idp := "google"
 	want := repositories.AdminUserFilters{
-		Search:      &search,
-		IDPProvider: &idp,
-		CreatedFrom: &adminFilterQueryTime,
-		CreatedTo:   &adminFilterQueryTime,
-		SortBy:      "email",
-		SortOrder:   "asc",
-		Page:        2,
-		Limit:       50,
+		Search:                  &search,
+		IDPProvider:             &idp,
+		CreatedFrom:             &adminFilterQueryTime,
+		CreatedTo:               &adminFilterQueryTime,
+		TeamCount:               adminCountRange(0, 1),
+		ProjectCount:            adminCountRange(1, 2),
+		PromptCount:             adminCountRange(2, 3),
+		MemoryCount:             adminCountRange(3, 4),
+		ArtifactCount:           adminCountRange(4, 5),
+		BlueprintCount:          adminCountRange(5, 6),
+		AgentCount:              adminCountRange(6, 7),
+		FeedCount:               adminCountRange(7, 8),
+		FeedItemCount:           adminCountRange(8, 9),
+		CommentCount:            adminCountRange(9, 10),
+		AttachmentCount:         adminCountRange(10, 11),
+		TotalResourceCount:      adminCountRange(11, 12),
+		LastResourceCreatedFrom: &adminFilterQueryTime,
+		LastResourceCreatedTo:   &adminFilterQueryTime,
+		SortBy:                  "total_resource_count",
+		SortOrder:               "asc",
+		Page:                    2,
+		Limit:                   50,
 	}
 	list := models.AdminUserList{
 		Users: []models.AdminUserListItem{}, TotalCount: 0, Page: 2, PerPage: 50, TotalPages: 0,
@@ -548,11 +578,87 @@ func TestListAdminUsers_MapsQueryParams(t *testing.T) {
 	stamp := adminFilterQueryTime.Format(time.RFC3339)
 	req := httptest.NewRequest("GET", "/api/v1/admin/users?page=2&limit=50&search=alice"+
 		"&idp_provider=google&created_from="+stamp+"&created_to="+stamp+
-		"&sort_by=email&sort_order=asc", nil)
+		"&team_count_min=0&team_count_max=1&project_count_min=1&project_count_max=2"+
+		"&prompt_count_min=2&prompt_count_max=3&memory_count_min=3&memory_count_max=4"+
+		"&artifact_count_min=4&artifact_count_max=5&blueprint_count_min=5&blueprint_count_max=6"+
+		"&agent_count_min=6&agent_count_max=7&feed_count_min=7&feed_count_max=8"+
+		"&feed_item_count_min=8&feed_item_count_max=9&comment_count_min=9&comment_count_max=10"+
+		"&attachment_count_min=10&attachment_count_max=11"+
+		"&total_resource_count_min=11&total_resource_count_max=12"+
+		"&last_resource_created_from="+stamp+"&last_resource_created_to="+stamp+
+		"&sort_by=total_resource_count&sort_order=asc", nil)
 	rr := httptest.NewRecorder()
 	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
+}
+
+// adminCountRange builds a closed repositories.AdminCountRange.
+func adminCountRange(lower, upper int64) repositories.AdminCountRange {
+	return repositories.AdminCountRange{Min: &lower, Max: &upper}
+}
+
+// TestListAdminUsers_InvalidAggregateFiltersReturn400 pins #1133's validation:
+// the generated binder enforces neither `minimum` nor any cross-field rule, so a
+// negative bound, an inverted min/max or from/to pair, or a malformed date must
+// be rejected before the service is called.
+func TestListAdminUsers_InvalidAggregateFiltersReturn400(t *testing.T) {
+	later := adminFilterQueryTime.Add(time.Hour).Format(time.RFC3339)
+	stamp := adminFilterQueryTime.Format(time.RFC3339)
+
+	tests := []struct {
+		name  string
+		query string
+	}{
+		{"negative min", "team_count_min=-1"},
+		{"negative max", "prompt_count_max=-3"},
+		{"inverted count range", "memory_count_min=5&memory_count_max=4"},
+		{"inverted total range", "total_resource_count_min=10&total_resource_count_max=1"},
+		{"inverted attachment range", "attachment_count_min=2&attachment_count_max=1"},
+		{"non-integer bound", "feed_count_min=many"},
+		{"inverted last_resource_created range", "last_resource_created_from=" + later + "&last_resource_created_to=" + stamp},
+		{"malformed last_resource_created date", "last_resource_created_from=last-week"},
+		{"unknown sort_by", "sort_by=resource_title"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// No service call is expected: the request must be rejected first.
+			mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+			req := httptest.NewRequest("GET", "/api/v1/admin/users?"+tc.query, nil)
+			rr := httptest.NewRecorder()
+			mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+			assert.Contains(t, rr.Header().Get("Content-Type"), "application/problem+json")
+			specconformance.AssertConformsToSpec(t, req, rr)
+		})
+	}
+}
+
+// TestListAdminUsers_EqualBoundsAccepted confirms min == max (and from == to) is
+// a valid, inclusive range rather than an inverted one.
+func TestListAdminUsers_EqualBoundsAccepted(t *testing.T) {
+	want := repositories.AdminUserFilters{
+		PromptCount:             adminCountRange(3, 3),
+		LastResourceCreatedFrom: &adminFilterQueryTime,
+		LastResourceCreatedTo:   &adminFilterQueryTime,
+	}
+	list := models.AdminUserList{Users: []models.AdminUserListItem{}, Page: 1, PerPage: 20}
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("ListUsers", mock.Anything, want).Return(list, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	stamp := adminFilterQueryTime.Format(time.RFC3339)
+	req := httptest.NewRequest("GET", "/api/v1/admin/users?prompt_count_min=3&prompt_count_max=3"+
+		"&last_resource_created_from="+stamp+"&last_resource_created_to="+stamp, nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	specconformance.AssertConformsToSpec(t, req, rr)
 }
 

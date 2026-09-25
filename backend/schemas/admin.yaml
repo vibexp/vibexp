@@ -61,6 +61,8 @@ AdminUserListItem:
     - status
     - created_at
     - team_count
+    - project_count
+    - resource_counts
   properties:
     id:
       type: string
@@ -97,6 +99,81 @@ AdminUserListItem:
       format: int64
       description: Number of teams the user belongs to.
       example: 3
+    project_count:
+      type: integer
+      format: int64
+      description: Number of projects the user created.
+      example: 2
+    resource_counts:
+      $ref: '#/AdminResourceCounts'
+    last_resource_created_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: |
+        When the user's most recent resource (any of the nine types counted in
+        resource_counts) was created; null for a user who has authored none.
+
+AdminResourceCounts:
+  type: object
+  description: |
+    How many resources of each type a user authored, counted by the author
+    column of each table (feeds by creator, feed items by poster). Every row
+    counts regardless of its status or archive state. `total` is the sum of the
+    nine types.
+  required:
+    - prompts
+    - memories
+    - artifacts
+    - blueprints
+    - agents
+    - feeds
+    - feed_items
+    - comments
+    - attachments
+    - total
+  properties:
+    prompts:
+      type: integer
+      format: int64
+      example: 12
+    memories:
+      type: integer
+      format: int64
+      example: 40
+    artifacts:
+      type: integer
+      format: int64
+      example: 5
+    blueprints:
+      type: integer
+      format: int64
+      example: 3
+    agents:
+      type: integer
+      format: int64
+      example: 1
+    feeds:
+      type: integer
+      format: int64
+      example: 2
+    feed_items:
+      type: integer
+      format: int64
+      example: 18
+    comments:
+      type: integer
+      format: int64
+      example: 7
+    attachments:
+      type: integer
+      format: int64
+      example: 4
+    total:
+      type: integer
+      format: int64
+      description: Sum of the nine per-type counts.
+      example: 92
 
 AdminUserListResponse:
   type: object

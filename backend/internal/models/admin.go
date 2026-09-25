@@ -25,6 +25,28 @@ type AdminUserListItem struct {
 	Status      string
 	CreatedAt   time.Time
 	TeamCount   int64
+	// ProjectCount is the number of projects the user created.
+	ProjectCount int64
+	// ResourceCounts are the per-type counts of resources the user authored.
+	ResourceCounts AdminResourceCounts
+	// LastResourceCreatedAt is when the user's most recent resource was
+	// created; nil when they have authored none.
+	LastResourceCreatedAt *time.Time
+}
+
+// AdminResourceCounts counts the resources one user authored, per type, plus
+// their sum. Shared by the admin list endpoints (#1133).
+type AdminResourceCounts struct {
+	Prompts     int64
+	Memories    int64
+	Artifacts   int64
+	Blueprints  int64
+	Agents      int64
+	Feeds       int64
+	FeedItems   int64
+	Comments    int64
+	Attachments int64
+	Total       int64
 }
 
 // AdminUserList is a page of the admin user listing plus pagination metadata.

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/database"
+	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
@@ -76,12 +77,27 @@ func defaultAdminTeamFilters() repositories.AdminTeamFilters {
 	return repositories.AdminTeamFilters{Page: 1, Limit: 20}
 }
 
+// adminUserListFromRE matches the shared aggregate FROM of the admin user count
+// and page queries: users plus the eleven 1:1 LEFT JOINed stats CTEs.
+const adminUserListFromRE = `FROM users u LEFT JOIN tc ON tc.user_id = u.id .*LEFT JOIN att ON att.user_id = u.id`
+
+// adminUserCountRE matches the unfiltered admin user count query.
+const adminUserCountRE = `^WITH .* SELECT COUNT\(\*\) ` + adminUserListFromRE + `$`
+
+// adminUserLastResourceAt is the last_resource_created_at of adminUserRows' u1.
+var adminUserLastResourceAt = time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
+
 func adminUserRows() *sqlmock.Rows {
 	return sqlmock.NewRows([]string{
-		"id", "email", "name", "idp_provider", "status", "created_at", "team_count",
+		"id", "email", "name", "idp_provider", "status", "created_at", "team_count", "project_count",
+		"prompt_count", "memory_count", "artifact_count", "blueprint_count", "agent_count",
+		"feed_count", "feed_item_count", "comment_count", "attachment_count", "total_resource_count",
+		"last_resource_created_at",
 	}).
-		AddRow("u1", "a@example.com", "A", "oidc", "active", time.Now(), 2).
-		AddRow("u2", "b@example.com", "B", nil, "suspended", time.Now(), 0)
+		AddRow("u1", "a@example.com", "A", "oidc", "active", time.Now(), 2, 3,
+			1, 2, 3, 4, 5, 6, 7, 8, 9, 45, adminUserLastResourceAt).
+		AddRow("u2", "b@example.com", "B", nil, "suspended", time.Now(), 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, nil)
 }
 
 func adminTeamRows() *sqlmock.Rows {
@@ -103,7 +119,7 @@ func TestAdminRepository_ListUsers(t *testing.T) {
 		}
 	}()
 
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users u$`).
+	mock.ExpectQuery(adminUserCountRE).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 	mock.ExpectQuery(`ORDER BY u.created_at DESC, u.id LIMIT 20 OFFSET 0`).
 		WillReturnRows(adminUserRows())
@@ -116,6 +132,111 @@ func TestAdminRepository_ListUsers(t *testing.T) {
 	require.NotNil(t, users[0].IDPProvider)
 	assert.Nil(t, users[1].IDPProvider)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestAdminRepository_ListUsers_ScansAggregates proves every aggregate column
+// lands in its model field, including a NULL last_resource_created_at for a
+// user with no resources.
+func TestAdminRepository_ListUsers_ScansAggregates(t *testing.T) {
+	repo, mock, mockDB := newAdminRepoMock(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(adminUserCountRE).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+	mock.ExpectQuery(`AS last_resource_created_at ` + adminUserListFromRE + ` ORDER BY`).
+		WillReturnRows(adminUserRows())
+
+	users, _, err := repo.ListUsers(context.Background(), defaultAdminUserFilters())
+	require.NoError(t, err)
+	require.Len(t, users, 2)
+	assert.Equal(t, int64(3), users[0].ProjectCount)
+	assert.Equal(t, models.AdminResourceCounts{
+		Prompts: 1, Memories: 2, Artifacts: 3, Blueprints: 4, Agents: 5,
+		Feeds: 6, FeedItems: 7, Comments: 8, Attachments: 9, Total: 45,
+	}, users[0].ResourceCounts)
+	require.NotNil(t, users[0].LastResourceCreatedAt)
+	assert.True(t, adminUserLastResourceAt.Equal(*users[0].LastResourceCreatedAt))
+	assert.Equal(t, models.AdminResourceCounts{}, users[1].ResourceCounts)
+	assert.Nil(t, users[1].LastResourceCreatedAt)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestAdminRepository_ListUsers_AggregateFilters covers the count ranges and the
+// last-resource-created range (#1133): each becomes an inclusive WHERE
+// predicate on its fixed aggregate expression (never HAVING), and the count and
+// page queries carry the same predicates and arguments.
+func TestAdminRepository_ListUsers_AggregateFilters(t *testing.T) {
+	one, five := int64(1), int64(5)
+	from := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)
+	search := "alice"
+	rng := repositories.AdminCountRange{Min: &one, Max: &five}
+
+	tests := []struct {
+		name     string
+		filters  repositories.AdminUserFilters
+		wantSQL  string
+		wantArgs []driver.Value
+	}{
+		{"team_count", repositories.AdminUserFilters{TeamCount: rng}, `COALESCE\(tc.n, 0\) >= \$1 AND COALESCE\(tc.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"project_count min only", repositories.AdminUserFilters{ProjectCount: repositories.AdminCountRange{Min: &one}}, `COALESCE\(pj.n, 0\) >= \$1`, []driver.Value{one}},
+		{"prompt_count max only", repositories.AdminUserFilters{PromptCount: repositories.AdminCountRange{Max: &five}}, `COALESCE\(pr.n, 0\) <= \$1`, []driver.Value{five}},
+		{"memory_count", repositories.AdminUserFilters{MemoryCount: rng}, `COALESCE\(me.n, 0\) >= \$1 AND COALESCE\(me.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"artifact_count", repositories.AdminUserFilters{ArtifactCount: rng}, `COALESCE\(ar.n, 0\) >= \$1 AND COALESCE\(ar.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"blueprint_count", repositories.AdminUserFilters{BlueprintCount: rng}, `COALESCE\(bp.n, 0\) >= \$1 AND COALESCE\(bp.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"agent_count", repositories.AdminUserFilters{AgentCount: rng}, `COALESCE\(ag.n, 0\) >= \$1 AND COALESCE\(ag.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"feed_count", repositories.AdminUserFilters{FeedCount: rng}, `COALESCE\(fd.n, 0\) >= \$1 AND COALESCE\(fd.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"feed_item_count", repositories.AdminUserFilters{FeedItemCount: rng}, `COALESCE\(fi.n, 0\) >= \$1 AND COALESCE\(fi.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"comment_count", repositories.AdminUserFilters{CommentCount: rng}, `COALESCE\(cm.n, 0\) >= \$1 AND COALESCE\(cm.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"attachment_count", repositories.AdminUserFilters{AttachmentCount: rng}, `COALESCE\(att.n, 0\) >= \$1 AND COALESCE\(att.n, 0\) <= \$2`, []driver.Value{one, five}},
+		{"total_resource_count", repositories.AdminUserFilters{TotalResourceCount: repositories.AdminCountRange{Min: &five}}, `\(COALESCE\(pr.n, 0\) \+ .*COALESCE\(att.n, 0\)\) >= \$1`, []driver.Value{five}},
+		{"last_resource_created range", repositories.AdminUserFilters{LastResourceCreatedFrom: &from, LastResourceCreatedTo: &to}, `GREATEST\(pr.last_at, .*att.last_at\) >= \$1 AND GREATEST\(pr.last_at, .*att.last_at\) <= \$2`, []driver.Value{from, to}},
+		{
+			name: "mixed with a users predicate",
+			filters: repositories.AdminUserFilters{
+				Search: &search, PromptCount: repositories.AdminCountRange{Min: &one}, LastResourceCreatedFrom: &from,
+			},
+			wantSQL:  `\(u.email ILIKE \$1 OR u.name ILIKE \$2\) AND COALESCE\(pr.n, 0\) >= \$3 AND GREATEST\(.*\) >= \$4`,
+			wantArgs: []driver.Value{"%alice%", "%alice%", one, from},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, mock, mockDB := newAdminRepoMock(t)
+			defer func() {
+				if closeErr := mockDB.Close(); closeErr != nil {
+					t.Logf("failed to close mock DB: %v", closeErr)
+				}
+			}()
+
+			tc.filters.Page, tc.filters.Limit = 1, 20
+			mock.ExpectQuery(`SELECT COUNT\(\*\) ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\)$`).
+				WithArgs(tc.wantArgs...).
+				WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+			mock.ExpectQuery(`AS last_resource_created_at ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\) ORDER BY`).
+				WithArgs(tc.wantArgs...).
+				WillReturnRows(adminUserRows())
+
+			_, total, err := repo.ListUsers(context.Background(), tc.filters)
+			require.NoError(t, err)
+			assert.Equal(t, 1, total)
+			assert.NotContains(t, buildAdminUserWhereSQL(t, tc.filters), "HAVING")
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+// buildAdminUserWhereSQL renders the shared WHERE for inspection.
+func buildAdminUserWhereSQL(t *testing.T, filters repositories.AdminUserFilters) string {
+	t.Helper()
+	sqlText, _, err := buildAdminUserWhere(filters).ToSql()
+	require.NoError(t, err)
+	return sqlText
 }
 
 // TestAdminRepository_ListUsers_Filters covers each user filter individually and
@@ -179,10 +300,10 @@ func TestAdminRepository_ListUsers_Filters(t *testing.T) {
 			}()
 
 			// The count query and the page query must carry identical WHERE args.
-			mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users u WHERE \(` + tc.wantSQL + `\)`).
+			mock.ExpectQuery(`SELECT COUNT\(\*\) ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\)$`).
 				WithArgs(tc.wantArgs...).
 				WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-			mock.ExpectQuery(`FROM users u LEFT JOIN team_members tm .* WHERE \(` + tc.wantSQL + `\)`).
+			mock.ExpectQuery(`AS last_resource_created_at ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\) ORDER BY`).
 				WithArgs(tc.wantArgs...).
 				WillReturnRows(adminUserRows())
 
@@ -208,7 +329,30 @@ func TestAdminRepository_ListUsers_Sorting(t *testing.T) {
 		{"email asc", "email", "asc", "u.email ASC, u.id"},
 		{"name desc", "name", "desc", "u.name DESC, u.id"},
 		{"created_at asc", "created_at", "asc", "u.created_at ASC, u.id"},
-		{"team_count uses the aggregate", "team_count", "desc", "COUNT(tm.team_id) DESC, u.id"},
+		{"team_count uses the aggregate", "team_count", "desc", "COALESCE(tc.n, 0) DESC, u.id"},
+		{"project_count asc", "project_count", "asc", "COALESCE(pj.n, 0) ASC, u.id"},
+		{"prompt_count", "prompt_count", "desc", "COALESCE(pr.n, 0) DESC, u.id"},
+		{"memory_count", "memory_count", "asc", "COALESCE(me.n, 0) ASC, u.id"},
+		{"artifact_count", "artifact_count", "desc", "COALESCE(ar.n, 0) DESC, u.id"},
+		{"blueprint_count", "blueprint_count", "asc", "COALESCE(bp.n, 0) ASC, u.id"},
+		{"agent_count", "agent_count", "desc", "COALESCE(ag.n, 0) DESC, u.id"},
+		{"feed_count", "feed_count", "asc", "COALESCE(fd.n, 0) ASC, u.id"},
+		{"feed_item_count", "feed_item_count", "desc", "COALESCE(fi.n, 0) DESC, u.id"},
+		{"comment_count", "comment_count", "asc", "COALESCE(cm.n, 0) ASC, u.id"},
+		{"attachment_count", "attachment_count", "desc", "COALESCE(att.n, 0) DESC, u.id"},
+		{"total_resource_count", "total_resource_count", "desc", colUserTotalResourceCount + " DESC, u.id"},
+		{
+			name:      "last_resource_created_at keeps no-resource users last ascending",
+			sortBy:    "last_resource_created_at",
+			sortOrder: "asc",
+			want:      colUserLastResourceCreatedAt + " ASC NULLS LAST, u.id",
+		},
+		{
+			name:      "last_resource_created_at keeps no-resource users last descending",
+			sortBy:    "last_resource_created_at",
+			sortOrder: "desc",
+			want:      colUserLastResourceCreatedAt + " DESC NULLS LAST, u.id",
+		},
 		{"unknown sort_by falls back", "totally_unknown", "asc", "u.created_at ASC, u.id"},
 		{
 			name:      "injection-shaped sort_by never reaches SQL",
@@ -239,7 +383,7 @@ func TestAdminRepository_ListUsers_Paging(t *testing.T) {
 		}
 	}()
 
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users u$`).
+	mock.ExpectQuery(adminUserCountRE).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(45))
 	mock.ExpectQuery(`LIMIT 20 OFFSET 40`).WillReturnRows(adminUserRows())
 
@@ -320,7 +464,7 @@ func TestAdminRepository_ListUsers_QueryError(t *testing.T) {
 
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
-	mock.ExpectQuery(`LEFT JOIN team_members`).WillReturnError(errors.New("boom"))
+	mock.ExpectQuery(`AS last_resource_created_at`).WillReturnError(errors.New("boom"))
 
 	_, _, err := repo.ListUsers(context.Background(), defaultAdminUserFilters())
 	require.Error(t, err)
@@ -630,10 +774,10 @@ func TestAdminRepository_ListUsers_StatusFilter(t *testing.T) {
 				}
 			}()
 
-			mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users u WHERE \(` + tc.wantSQL + `\)`).
+			mock.ExpectQuery(`SELECT COUNT\(\*\) ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\)$`).
 				WithArgs(tc.wantArgs...).
 				WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-			mock.ExpectQuery(`FROM users u LEFT JOIN team_members tm .* WHERE \(` + tc.wantSQL + `\)`).
+			mock.ExpectQuery(`AS last_resource_created_at ` + adminUserListFromRE + ` WHERE \(` + tc.wantSQL + `\) ORDER BY`).
 				WithArgs(tc.wantArgs...).
 				WillReturnRows(adminUserRows())
 
@@ -656,7 +800,7 @@ func TestAdminRepository_ListUsers_ScansStatus(t *testing.T) {
 		}
 	}()
 
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users u$`).
+	mock.ExpectQuery(adminUserCountRE).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 	mock.ExpectQuery(`u.status`).WillReturnRows(adminUserRows())
 
