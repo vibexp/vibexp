@@ -791,6 +791,8 @@ func TestListAdminTeams_InvalidAggregateFiltersReturn400(t *testing.T) {
 		{"non-boolean tri-state", "embedding_configured=maybe"},
 		{"non-boolean freshness tri-state", "freshness_enabled=2x"},
 		{"unknown sort_by", "sort_by=embedding_configured"},
+		{"malformed owner_email", "owner_email=foo"},
+		{"owner_email with a display name", "owner_email=Owner%20%3Cowner%40example.com%3E"},
 	}
 
 	for _, tc := range tests {

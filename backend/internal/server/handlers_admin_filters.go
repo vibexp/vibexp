@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"net/mail"
 	"time"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
@@ -60,6 +61,17 @@ func validateAdminTimeRange(name string, from, to *time.Time) error {
 	if from != nil && to != nil && from.After(*to) {
 		return apierrors.NewBadRequestError(
 			fmt.Sprintf("%s_from must not be after %s_to", name, name))
+	}
+	return nil
+}
+
+// validateAdminEmailParam enforces the spec's `format: email` on a query param,
+// which the generated binder does not: the value must be a bare address (no
+// display name), or it is a 400 rather than a silently empty page.
+func validateAdminEmailParam(name, value string) error {
+	addr, err := mail.ParseAddress(value)
+	if err != nil || addr.Address != value {
+		return apierrors.NewBadRequestError(fmt.Sprintf("%s must be a valid email address", name))
 	}
 	return nil
 }

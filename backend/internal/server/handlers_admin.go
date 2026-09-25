@@ -337,6 +337,9 @@ func applyAdminTeamAggregateFilters(filters *repositories.AdminTeamFilters, p ad
 
 	if p.OwnerEmail != nil {
 		if email := strings.TrimSpace(string(*p.OwnerEmail)); email != "" {
+			if err := validateAdminEmailParam("owner_email", email); err != nil {
+				return err
+			}
 			filters.OwnerEmail = &email
 		}
 	}
