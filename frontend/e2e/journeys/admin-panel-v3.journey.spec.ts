@@ -446,17 +446,23 @@ test.describe.serial('Admin panel v3 journey', () => {
       timeout: UI_TIMEOUT,
     })
 
+    // Loaded counts, not just the section heading: A created 4 prompts (a
+    // skeleton stands in while loading, an alert on failure).
     await expect(
       page.getByRole('heading', { name: 'Resource counts' })
     ).toBeVisible({ timeout: UI_TIMEOUT })
-    await snapshot(page)
-
-    await page.getByRole('tab', { name: 'Activity' }).click()
-    await expect(page).toHaveURL(/tab=activity/)
-    await expect(page.getByRole('tabpanel')).toBeVisible()
-    await expect(page.getByTestId('activity-loading')).toHaveCount(0, {
+    await expect(page.getByTestId('count-prompts')).toContainText('4', {
       timeout: UI_TIMEOUT,
     })
+    await snapshot(page)
+
+    // The timeline lists A's creations as opaque rows (type, action, short id).
+    await page.getByRole('tab', { name: 'Activity' }).click()
+    await expect(page).toHaveURL(/tab=activity/)
+    await expect(
+      page.getByRole('tabpanel').locator('tbody tr').first()
+    ).toBeVisible({ timeout: UI_TIMEOUT })
+    await expect(page.getByText('Failed to load activity')).toHaveCount(0)
     await snapshot(page)
 
     await page.getByRole('tab', { name: 'Teams' }).click()
@@ -681,13 +687,25 @@ test.describe.serial('Admin panel v3 journey', () => {
     await expect(
       page.getByRole('heading', { name: 'Access over time' })
     ).toBeVisible()
-    // Non-empty data, not pixels: the creation chart has something to plot.
+    // Non-empty data, not pixels. Each total renders only once its request has
+    // settled (a Skeleton stands in while loading, an error message on
+    // failure), so these fail on a broken endpoint rather than passing early.
+    // alpha-one holds 3 prompts + 1 memory + 1 artifact + 1 blueprint.
     await expect(
-      page.getByText('Nothing was created in this range.')
-    ).toHaveCount(0, { timeout: UI_TIMEOUT })
+      page
+        .getByTestId('category-breakdown-chart')
+        .filter({ hasText: 'By type' })
+    ).toContainText(/Resources:\s*6/, { timeout: UI_TIMEOUT })
     await expect(
-      page.getByText('This project has no resources yet.')
-    ).toHaveCount(0)
+      page
+        .getByTestId('timeseries-bar-chart')
+        .filter({ hasText: 'Resources created' })
+    ).toContainText(/Total created:\s*6/, { timeout: UI_TIMEOUT })
+    await expect(
+      page
+        .getByTestId('timeseries-bar-chart')
+        .filter({ hasText: 'Resource access by source' })
+    ).toContainText(/Total accesses:\s*\d+/, { timeout: UI_TIMEOUT })
     await snapshot(page)
 
     await page.getByRole('tab', { name: 'Configuration' }).click()
