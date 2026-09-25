@@ -322,6 +322,7 @@ func TestGetAdminUserNotificationPreferences(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 		specconformance.AssertConformsToSpec(t, req, rr)
+		assertNoResourceContent(t, rr.Body.String())
 
 		var resp struct {
 			IsDefault bool       `json:"is_default"`
@@ -359,6 +360,7 @@ func TestGetAdminUserNotificationPreferences(t *testing.T) {
 		require.Equal(t, http.StatusOK, rr.Code)
 		specconformance.AssertConformsToSpec(t, req, rr)
 		body := rr.Body.String()
+		assertNoResourceContent(t, body)
 		assert.Contains(t, body, `"is_default":false`)
 		assert.Contains(t, body, `"updated_at":"2026-09-20T10:00:00Z"`)
 		assert.Contains(t, body, `"marketing_promotional":true`)

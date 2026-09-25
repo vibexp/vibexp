@@ -34718,7 +34718,7 @@
       },
       "AdminUserInsights": {
         "type": "object",
-        "description": "Per-type counts of the resources one user authored, instance-wide, per team\nand per project (GET /api/v1/admin/users/{id}/insights). For every type the\nper-team counts sum to `totals`. Attachments whose team no longer exists\ncannot occur (they cascade with the team).\n",
+        "description": "Per-type counts of the resources one user authored, instance-wide, per team\nand per project (GET /api/v1/admin/users/{id}/insights). For every type the\nper-team counts sum to `totals`. An attachment whose author was deleted\n(user_id set to NULL) counts for nobody.\n",
         "required": [
           "user_id",
           "totals",

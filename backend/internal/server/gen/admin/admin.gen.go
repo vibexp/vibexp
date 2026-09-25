@@ -829,8 +829,8 @@ type AdminUserDetailStatus string
 
 // AdminUserInsights Per-type counts of the resources one user authored, instance-wide, per team
 // and per project (GET /api/v1/admin/users/{id}/insights). For every type the
-// per-team counts sum to `totals`. Attachments whose team no longer exists
-// cannot occur (they cascade with the team).
+// per-team counts sum to `totals`. An attachment whose author was deleted
+// (user_id set to NULL) counts for nobody.
 type AdminUserInsights struct {
 	// Teams Teams the user authored at least one resource in, ordered by team name.
 	Teams []AdminUserTeamResourceCounts `json:"teams"`
