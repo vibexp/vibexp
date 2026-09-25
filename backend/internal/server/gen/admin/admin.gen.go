@@ -43,6 +43,57 @@ func (e AdminTimeseriesResponseGranularity) Valid() bool {
 	}
 }
 
+// Defines values for AdminTopAccessedResourceResourceType.
+const (
+	AdminTopAccessedResourceResourceTypeAgent     AdminTopAccessedResourceResourceType = "agent"
+	AdminTopAccessedResourceResourceTypeArtifact  AdminTopAccessedResourceResourceType = "artifact"
+	AdminTopAccessedResourceResourceTypeBlueprint AdminTopAccessedResourceResourceType = "blueprint"
+	AdminTopAccessedResourceResourceTypeMemory    AdminTopAccessedResourceResourceType = "memory"
+	AdminTopAccessedResourceResourceTypeProject   AdminTopAccessedResourceResourceType = "project"
+	AdminTopAccessedResourceResourceTypePrompt    AdminTopAccessedResourceResourceType = "prompt"
+)
+
+// Valid indicates whether the value is a known member of the AdminTopAccessedResourceResourceType enum.
+func (e AdminTopAccessedResourceResourceType) Valid() bool {
+	switch e {
+	case AdminTopAccessedResourceResourceTypeAgent:
+		return true
+	case AdminTopAccessedResourceResourceTypeArtifact:
+		return true
+	case AdminTopAccessedResourceResourceTypeBlueprint:
+		return true
+	case AdminTopAccessedResourceResourceTypeMemory:
+		return true
+	case AdminTopAccessedResourceResourceTypeProject:
+		return true
+	case AdminTopAccessedResourceResourceTypePrompt:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminUserAccessMetricsGranularity.
+const (
+	AdminUserAccessMetricsGranularityDay   AdminUserAccessMetricsGranularity = "day"
+	AdminUserAccessMetricsGranularityMonth AdminUserAccessMetricsGranularity = "month"
+	AdminUserAccessMetricsGranularityWeek  AdminUserAccessMetricsGranularity = "week"
+)
+
+// Valid indicates whether the value is a known member of the AdminUserAccessMetricsGranularity enum.
+func (e AdminUserAccessMetricsGranularity) Valid() bool {
+	switch e {
+	case AdminUserAccessMetricsGranularityDay:
+		return true
+	case AdminUserAccessMetricsGranularityMonth:
+		return true
+	case AdminUserAccessMetricsGranularityWeek:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminUserDetailStatus.
 const (
 	AdminUserDetailStatusActive    AdminUserDetailStatus = "active"
@@ -120,37 +171,37 @@ func (e AdminUserTimelineEventAction) Valid() bool {
 
 // Defines values for AdminUserTimelineEventResourceType.
 const (
-	Agent      AdminUserTimelineEventResourceType = "agent"
-	Artifact   AdminUserTimelineEventResourceType = "artifact"
-	Attachment AdminUserTimelineEventResourceType = "attachment"
-	Blueprint  AdminUserTimelineEventResourceType = "blueprint"
-	Comment    AdminUserTimelineEventResourceType = "comment"
-	Feed       AdminUserTimelineEventResourceType = "feed"
-	FeedItem   AdminUserTimelineEventResourceType = "feed_item"
-	Memory     AdminUserTimelineEventResourceType = "memory"
-	Prompt     AdminUserTimelineEventResourceType = "prompt"
+	AdminUserTimelineEventResourceTypeAgent      AdminUserTimelineEventResourceType = "agent"
+	AdminUserTimelineEventResourceTypeArtifact   AdminUserTimelineEventResourceType = "artifact"
+	AdminUserTimelineEventResourceTypeAttachment AdminUserTimelineEventResourceType = "attachment"
+	AdminUserTimelineEventResourceTypeBlueprint  AdminUserTimelineEventResourceType = "blueprint"
+	AdminUserTimelineEventResourceTypeComment    AdminUserTimelineEventResourceType = "comment"
+	AdminUserTimelineEventResourceTypeFeed       AdminUserTimelineEventResourceType = "feed"
+	AdminUserTimelineEventResourceTypeFeedItem   AdminUserTimelineEventResourceType = "feed_item"
+	AdminUserTimelineEventResourceTypeMemory     AdminUserTimelineEventResourceType = "memory"
+	AdminUserTimelineEventResourceTypePrompt     AdminUserTimelineEventResourceType = "prompt"
 )
 
 // Valid indicates whether the value is a known member of the AdminUserTimelineEventResourceType enum.
 func (e AdminUserTimelineEventResourceType) Valid() bool {
 	switch e {
-	case Agent:
+	case AdminUserTimelineEventResourceTypeAgent:
 		return true
-	case Artifact:
+	case AdminUserTimelineEventResourceTypeArtifact:
 		return true
-	case Attachment:
+	case AdminUserTimelineEventResourceTypeAttachment:
 		return true
-	case Blueprint:
+	case AdminUserTimelineEventResourceTypeBlueprint:
 		return true
-	case Comment:
+	case AdminUserTimelineEventResourceTypeComment:
 		return true
-	case Feed:
+	case AdminUserTimelineEventResourceTypeFeed:
 		return true
-	case FeedItem:
+	case AdminUserTimelineEventResourceTypeFeedItem:
 		return true
-	case Memory:
+	case AdminUserTimelineEventResourceTypeMemory:
 		return true
-	case Prompt:
+	case AdminUserTimelineEventResourceTypePrompt:
 		return true
 	default:
 		return false
@@ -364,6 +415,27 @@ func (e ListAdminUsersParamsSortOrder) Valid() bool {
 	case Asc:
 		return true
 	case Desc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminUserResourceAccessMetricsParamsGranularity.
+const (
+	GetAdminUserResourceAccessMetricsParamsGranularityDay   GetAdminUserResourceAccessMetricsParamsGranularity = "day"
+	GetAdminUserResourceAccessMetricsParamsGranularityMonth GetAdminUserResourceAccessMetricsParamsGranularity = "month"
+	GetAdminUserResourceAccessMetricsParamsGranularityWeek  GetAdminUserResourceAccessMetricsParamsGranularity = "week"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminUserResourceAccessMetricsParamsGranularity enum.
+func (e GetAdminUserResourceAccessMetricsParamsGranularity) Valid() bool {
+	switch e {
+	case GetAdminUserResourceAccessMetricsParamsGranularityDay:
+		return true
+	case GetAdminUserResourceAccessMetricsParamsGranularityMonth:
+		return true
+	case GetAdminUserResourceAccessMetricsParamsGranularityWeek:
 		return true
 	default:
 		return false
@@ -760,6 +832,73 @@ type AdminTimeseriesResponse struct {
 
 // AdminTimeseriesResponseGranularity Bucket size actually used.
 type AdminTimeseriesResponseGranularity string
+
+// AdminTopAccessedResource One opaque most-accessed resource: its type, where it lives and how often
+// the user accessed it. Deliberately carries no title, slug or content — only
+// the first 8 characters of the resource id. The identity fields share their
+// names with AdminUserTimelineEvent.
+type AdminTopAccessedResource struct {
+	AccessCount int64 `json:"access_count"`
+
+	// ProjectId The resource's project (for a `project` row, the project itself). Null
+	// for agents and for deleted resources.
+	ProjectId   *openapi_types.UUID `json:"project_id"`
+	ProjectName *string             `json:"project_name"`
+
+	// ResourceDeleted True when the resource no longer exists (access events outlive their resource until pruned).
+	ResourceDeleted bool `json:"resource_deleted"`
+
+	// ResourceShortId First 8 characters of the resource id.
+	ResourceShortId string                               `json:"resource_short_id"`
+	ResourceType    AdminTopAccessedResourceResourceType `json:"resource_type"`
+	TeamId          openapi_types.UUID                   `json:"team_id"`
+	TeamName        string                               `json:"team_name"`
+}
+
+// AdminTopAccessedResourceResourceType defines model for AdminTopAccessedResource.ResourceType.
+type AdminTopAccessedResourceResourceType string
+
+// AdminTopAccessedResourcesResponse The resources a user accessed most in a range
+// (GET /api/v1/admin/users/{id}/top-accessed-resources).
+type AdminTopAccessedResourcesResponse struct {
+	// EarliestRetainedAt Oldest access event still retained (now minus
+	// `retention.access_event_days`); accesses before it are not counted.
+	EarliestRetainedAt time.Time `json:"earliest_retained_at"`
+
+	// From Inclusive start of the range actually used (after defaulting); not snapped.
+	From time.Time `json:"from"`
+
+	// Items Most accessed first; ties broken by resource id.
+	Items []AdminTopAccessedResource `json:"items"`
+
+	// To Exclusive end of the range actually used (after defaulting).
+	To time.Time `json:"to"`
+}
+
+// AdminUserAccessMetrics Resource accesses by the user per bucket and source, across every team
+// (GET /api/v1/admin/users/{id}/resource-access-metrics). Every bucket in the
+// range is present with an explicit 0 for each source that appears.
+type AdminUserAccessMetrics struct {
+	// AccessBySource One point per (bucket, source), ascending by bucket then source.
+	AccessBySource []AdminSourcePoint `json:"access_by_source"`
+
+	// EarliestRetainedAt Oldest access event still retained (now minus
+	// `retention.access_event_days`); buckets before it read as zeros.
+	EarliestRetainedAt time.Time `json:"earliest_retained_at"`
+
+	// From Inclusive start of the range actually used, snapped DOWN to the start of
+	// its bucket (same rule as AdminTimeseriesResponse.from).
+	From time.Time `json:"from"`
+
+	// Granularity Bucket size actually used.
+	Granularity AdminUserAccessMetricsGranularity `json:"granularity"`
+
+	// To Exclusive end of the range actually used (after defaulting); not snapped.
+	To time.Time `json:"to"`
+}
+
+// AdminUserAccessMetricsGranularity Bucket size actually used.
+type AdminUserAccessMetricsGranularity string
 
 // AdminUserCreateRequest A user to create directly, without waiting for them to complete an
 // identity-provider sign-in. No password is set: VibeXP has no password
@@ -1313,6 +1452,21 @@ type ListAdminUsersParamsSortBy string
 // ListAdminUsersParamsSortOrder defines parameters for ListAdminUsers.
 type ListAdminUsersParamsSortOrder string
 
+// GetAdminUserResourceAccessMetricsParams defines parameters for GetAdminUserResourceAccessMetrics.
+type GetAdminUserResourceAccessMetricsParams struct {
+	// From Inclusive start of the range. Defaults to 30 days before `to`.
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Exclusive end of the range. Defaults to now.
+	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Granularity Bucket size.
+	Granularity *GetAdminUserResourceAccessMetricsParamsGranularity `form:"granularity,omitempty" json:"granularity,omitempty"`
+}
+
+// GetAdminUserResourceAccessMetricsParamsGranularity defines parameters for GetAdminUserResourceAccessMetrics.
+type GetAdminUserResourceAccessMetricsParamsGranularity string
+
 // GetAdminUserResourceCreationMetricsParams defines parameters for GetAdminUserResourceCreationMetrics.
 type GetAdminUserResourceCreationMetricsParams struct {
 	// From Inclusive start of the range. Defaults to 30 days before `to`.
@@ -1334,6 +1488,18 @@ type GetAdminUserTimelineParams struct {
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 
 	// Limit Page size.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetAdminUserTopAccessedResourcesParams defines parameters for GetAdminUserTopAccessedResources.
+type GetAdminUserTopAccessedResourcesParams struct {
+	// From Inclusive start of the range. Defaults to 30 days before `to`.
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Exclusive end of the range. Defaults to now.
+	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Limit Maximum number of rows.
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
@@ -1390,6 +1556,9 @@ type ServerInterface interface {
 	// Reactivate a suspended user
 	// (POST /api/v1/admin/users/{id}/reactivate)
 	ReactivateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get a user's resource access series by source
+	// (GET /api/v1/admin/users/{id}/resource-access-metrics)
+	GetAdminUserResourceAccessMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserResourceAccessMetricsParams)
 	// Get a user's resource creation series
 	// (GET /api/v1/admin/users/{id}/resource-creation-metrics)
 	GetAdminUserResourceCreationMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserResourceCreationMetricsParams)
@@ -1399,6 +1568,9 @@ type ServerInterface interface {
 	// Get a user's resource timeline
 	// (GET /api/v1/admin/users/{id}/timeline)
 	GetAdminUserTimeline(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserTimelineParams)
+	// Get the resources a user accessed most
+	// (GET /api/v1/admin/users/{id}/top-accessed-resources)
+	GetAdminUserTopAccessedResources(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserTopAccessedResourcesParams)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -1495,6 +1667,12 @@ func (_ Unimplemented) ReactivateAdminUser(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Get a user's resource access series by source
+// (GET /api/v1/admin/users/{id}/resource-access-metrics)
+func (_ Unimplemented) GetAdminUserResourceAccessMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserResourceAccessMetricsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Get a user's resource creation series
 // (GET /api/v1/admin/users/{id}/resource-creation-metrics)
 func (_ Unimplemented) GetAdminUserResourceCreationMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserResourceCreationMetricsParams) {
@@ -1510,6 +1688,12 @@ func (_ Unimplemented) SuspendAdminUser(w http.ResponseWriter, r *http.Request, 
 // Get a user's resource timeline
 // (GET /api/v1/admin/users/{id}/timeline)
 func (_ Unimplemented) GetAdminUserTimeline(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserTimelineParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the resources a user accessed most
+// (GET /api/v1/admin/users/{id}/top-accessed-resources)
+func (_ Unimplemented) GetAdminUserTopAccessedResources(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserTopAccessedResourcesParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2674,6 +2858,82 @@ func (siw *ServerInterfaceWrapper) ReactivateAdminUser(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// GetAdminUserResourceAccessMetrics operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminUserResourceAccessMetrics(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminUserResourceAccessMetricsParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "granularity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "granularity", r.URL.Query(), &params.Granularity, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "granularity"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "granularity", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminUserResourceAccessMetrics(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetAdminUserResourceCreationMetrics operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminUserResourceCreationMetrics(w http.ResponseWriter, r *http.Request) {
 
@@ -2847,6 +3107,82 @@ func (siw *ServerInterfaceWrapper) GetAdminUserTimeline(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// GetAdminUserTopAccessedResources operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminUserTopAccessedResources(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminUserTopAccessedResourcesParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminUserTopAccessedResources(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -3006,6 +3342,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/admin/users/{id}/reactivate", wrapper.ReactivateAdminUser)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/users/{id}/resource-access-metrics", wrapper.GetAdminUserResourceAccessMetrics)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/users/{id}/resource-creation-metrics", wrapper.GetAdminUserResourceCreationMetrics)
 	})
 	r.Group(func(r chi.Router) {
@@ -3013,6 +3352,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/users/{id}/timeline", wrapper.GetAdminUserTimeline)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/users/{id}/top-accessed-resources", wrapper.GetAdminUserTopAccessedResources)
 	})
 
 	return r
@@ -3943,6 +4285,71 @@ func (response ReactivateAdminUser500ApplicationProblemPlusJSONResponse) VisitRe
 	return err
 }
 
+type GetAdminUserResourceAccessMetricsRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetAdminUserResourceAccessMetricsParams
+}
+
+type GetAdminUserResourceAccessMetricsResponseObject interface {
+	VisitGetAdminUserResourceAccessMetricsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminUserResourceAccessMetrics200JSONResponse AdminUserAccessMetrics
+
+func (response GetAdminUserResourceAccessMetrics200JSONResponse) VisitGetAdminUserResourceAccessMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserResourceAccessMetrics400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserResourceAccessMetrics400ApplicationProblemPlusJSONResponse) VisitGetAdminUserResourceAccessMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserResourceAccessMetrics404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserResourceAccessMetrics404ApplicationProblemPlusJSONResponse) VisitGetAdminUserResourceAccessMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserResourceAccessMetrics500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserResourceAccessMetrics500ApplicationProblemPlusJSONResponse) VisitGetAdminUserResourceAccessMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminUserResourceCreationMetricsRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params GetAdminUserResourceCreationMetricsParams
@@ -4151,6 +4558,71 @@ func (response GetAdminUserTimeline500ApplicationProblemPlusJSONResponse) VisitG
 	return err
 }
 
+type GetAdminUserTopAccessedResourcesRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetAdminUserTopAccessedResourcesParams
+}
+
+type GetAdminUserTopAccessedResourcesResponseObject interface {
+	VisitGetAdminUserTopAccessedResourcesResponse(w http.ResponseWriter) error
+}
+
+type GetAdminUserTopAccessedResources200JSONResponse AdminTopAccessedResourcesResponse
+
+func (response GetAdminUserTopAccessedResources200JSONResponse) VisitGetAdminUserTopAccessedResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserTopAccessedResources400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserTopAccessedResources400ApplicationProblemPlusJSONResponse) VisitGetAdminUserTopAccessedResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserTopAccessedResources404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserTopAccessedResources404ApplicationProblemPlusJSONResponse) VisitGetAdminUserTopAccessedResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserTopAccessedResources500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminUserTopAccessedResources500ApplicationProblemPlusJSONResponse) VisitGetAdminUserTopAccessedResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Get admin dashboard overview
@@ -4198,6 +4670,9 @@ type StrictServerInterface interface {
 	// Reactivate a suspended user
 	// (POST /api/v1/admin/users/{id}/reactivate)
 	ReactivateAdminUser(ctx context.Context, request ReactivateAdminUserRequestObject) (ReactivateAdminUserResponseObject, error)
+	// Get a user's resource access series by source
+	// (GET /api/v1/admin/users/{id}/resource-access-metrics)
+	GetAdminUserResourceAccessMetrics(ctx context.Context, request GetAdminUserResourceAccessMetricsRequestObject) (GetAdminUserResourceAccessMetricsResponseObject, error)
 	// Get a user's resource creation series
 	// (GET /api/v1/admin/users/{id}/resource-creation-metrics)
 	GetAdminUserResourceCreationMetrics(ctx context.Context, request GetAdminUserResourceCreationMetricsRequestObject) (GetAdminUserResourceCreationMetricsResponseObject, error)
@@ -4207,6 +4682,9 @@ type StrictServerInterface interface {
 	// Get a user's resource timeline
 	// (GET /api/v1/admin/users/{id}/timeline)
 	GetAdminUserTimeline(ctx context.Context, request GetAdminUserTimelineRequestObject) (GetAdminUserTimelineResponseObject, error)
+	// Get the resources a user accessed most
+	// (GET /api/v1/admin/users/{id}/top-accessed-resources)
+	GetAdminUserTopAccessedResources(ctx context.Context, request GetAdminUserTopAccessedResourcesRequestObject) (GetAdminUserTopAccessedResourcesResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -4636,6 +5114,33 @@ func (sh *strictHandler) ReactivateAdminUser(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// GetAdminUserResourceAccessMetrics operation middleware
+func (sh *strictHandler) GetAdminUserResourceAccessMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserResourceAccessMetricsParams) {
+	var request GetAdminUserResourceAccessMetricsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminUserResourceAccessMetrics(ctx, request.(GetAdminUserResourceAccessMetricsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminUserResourceAccessMetrics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminUserResourceAccessMetricsResponseObject); ok {
+		if err := validResponse.VisitGetAdminUserResourceAccessMetricsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetAdminUserResourceCreationMetrics operation middleware
 func (sh *strictHandler) GetAdminUserResourceCreationMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserResourceCreationMetricsParams) {
 	var request GetAdminUserResourceCreationMetricsRequestObject
@@ -4709,6 +5214,33 @@ func (sh *strictHandler) GetAdminUserTimeline(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminUserTimelineResponseObject); ok {
 		if err := validResponse.VisitGetAdminUserTimelineResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminUserTopAccessedResources operation middleware
+func (sh *strictHandler) GetAdminUserTopAccessedResources(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminUserTopAccessedResourcesParams) {
+	var request GetAdminUserTopAccessedResourcesRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminUserTopAccessedResources(ctx, request.(GetAdminUserTopAccessedResourcesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminUserTopAccessedResources")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminUserTopAccessedResourcesResponseObject); ok {
+		if err := validResponse.VisitGetAdminUserTopAccessedResourcesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

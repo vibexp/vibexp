@@ -1347,6 +1347,169 @@ api-v1-admin-users-id-timeline:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
 
+api-v1-admin-users-id-resource-access-metrics:
+  get:
+    summary: Get a user's resource access series by source
+    description: |
+      Returns how many times the user accessed (opened) resources per bucket and
+      per access source (web, cli, mcp, api), across every team. Omitting the
+      parameters yields the last 30 days at `day` granularity, and the range
+      rules match getAdminDashboardTimeseries. Every bucket is present with an
+      explicit 0 for each source that appears in the range.
+
+      Access events are TTL-pruned (`retention.access_event_days`), so a range
+      reaching back before `earliest_retained_at` reads as zeros there.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404, as
+      does an unknown user id.
+    operationId: getAdminUserResourceAccessMetrics
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: User id (UUID)
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        description: Inclusive start of the range. Defaults to 30 days before `to`.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: Exclusive end of the range. Defaults to now.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: granularity
+        in: query
+        description: Bucket size.
+        required: false
+        schema:
+          type: string
+          enum:
+            - day
+            - week
+            - month
+          default: day
+    responses:
+      '200':
+        description: Bucketed access counts per source
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminUserAccessMetrics'
+      '400':
+        description: |
+          Bad request — malformed user id, `to` is not after `from`, the range
+          exceeds the maximum span, or `granularity` is outside its enum
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown user id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-users-id-top-accessed-resources:
+  get:
+    summary: Get the resources a user accessed most
+    description: |
+      Returns the resources the user accessed most often in a time range, across
+      every team, ranked by access count (ties broken by resource id). Rows are
+      OPAQUE: resource type, team, project and the first 8 characters of the
+      resource id — never a title, slug or content. A resource deleted since it
+      was accessed is still listed, with `resource_deleted: true` and no project.
+
+      `from` defaults to 30 days before `to`, and `to` to now. Access events are
+      TTL-pruned (`retention.access_event_days`), so accesses before
+      `earliest_retained_at` are not counted.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404, as
+      does an unknown user id.
+    operationId: getAdminUserTopAccessedResources
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: User id (UUID)
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        description: Inclusive start of the range. Defaults to 30 days before `to`.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: Exclusive end of the range. Defaults to now.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: limit
+        in: query
+        description: Maximum number of rows.
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+    responses:
+      '200':
+        description: The most-accessed resources, most accessed first
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTopAccessedResourcesResponse'
+      '400':
+        description: |
+          Bad request — malformed user id, `to` is not after `from`, the range
+          exceeds the maximum span, or `limit` is out of range
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown user id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
 api-v1-admin-users-id-notification-preferences:
   get:
     summary: Get a user's notification preferences

@@ -15054,6 +15054,217 @@
         }
       }
     },
+    "/api/v1/admin/users/{id}/resource-access-metrics": {
+      "get": {
+        "summary": "Get a user's resource access series by source",
+        "description": "Returns how many times the user accessed (opened) resources per bucket and\nper access source (web, cli, mcp, api), across every team. Omitting the\nparameters yields the last 30 days at `day` granularity, and the range\nrules match getAdminDashboardTimeseries. Every bucket is present with an\nexplicit 0 for each source that appears in the range.\n\nAccess events are TTL-pruned (`retention.access_event_days`), so a range\nreaching back before `earliest_retained_at` reads as zeros there.\n\nInstance-admin only; non-admin and unauthenticated requests receive 404, as\ndoes an unknown user id.\n",
+        "operationId": "getAdminUserResourceAccessMetrics",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive start of the range. Defaults to 30 days before `to`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Exclusive end of the range. Defaults to now.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "description": "Bucket size.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "default": "day"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bucketed access counts per source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserAccessMetrics"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed user id, `to` is not after `from`, the range\nexceeds the maximum span, or `granularity` is outside its enum\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown user id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{id}/top-accessed-resources": {
+      "get": {
+        "summary": "Get the resources a user accessed most",
+        "description": "Returns the resources the user accessed most often in a time range, across\nevery team, ranked by access count (ties broken by resource id). Rows are\nOPAQUE: resource type, team, project and the first 8 characters of the\nresource id — never a title, slug or content. A resource deleted since it\nwas accessed is still listed, with `resource_deleted: true` and no project.\n\n`from` defaults to 30 days before `to`, and `to` to now. Access events are\nTTL-pruned (`retention.access_event_days`), so accesses before\n`earliest_retained_at` are not counted.\n\nInstance-admin only; non-admin and unauthenticated requests receive 404, as\ndoes an unknown user id.\n",
+        "operationId": "getAdminUserTopAccessedResources",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive start of the range. Defaults to 30 days before `to`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Exclusive end of the range. Defaults to now.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of rows.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The most-accessed resources, most accessed first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTopAccessedResourcesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed user id, `to` is not after `from`, the range\nexceeds the maximum span, or `limit` is out of range\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown user id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/users/{id}/notification-preferences": {
       "get": {
         "summary": "Get a user's notification preferences",
@@ -34947,6 +35158,141 @@
           "is_default": {
             "type": "boolean",
             "description": "True when the user has no stored preferences and the defaults are shown."
+          }
+        }
+      },
+      "AdminUserAccessMetrics": {
+        "type": "object",
+        "description": "Resource accesses by the user per bucket and source, across every team\n(GET /api/v1/admin/users/{id}/resource-access-metrics). Every bucket in the\nrange is present with an explicit 0 for each source that appears.\n",
+        "required": [
+          "from",
+          "to",
+          "granularity",
+          "access_by_source",
+          "earliest_retained_at"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Inclusive start of the range actually used, snapped DOWN to the start of\nits bucket (same rule as AdminTimeseriesResponse.from).\n"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Exclusive end of the range actually used (after defaulting); not snapped."
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "description": "Bucket size actually used."
+          },
+          "access_by_source": {
+            "type": "array",
+            "description": "One point per (bucket, source), ascending by bucket then source.",
+            "items": {
+              "$ref": "#/components/schemas/AdminSourcePoint"
+            }
+          },
+          "earliest_retained_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Oldest access event still retained (now minus\n`retention.access_event_days`); buckets before it read as zeros.\n"
+          }
+        }
+      },
+      "AdminTopAccessedResource": {
+        "type": "object",
+        "description": "One opaque most-accessed resource: its type, where it lives and how often\nthe user accessed it. Deliberately carries no title, slug or content — only\nthe first 8 characters of the resource id. The identity fields share their\nnames with AdminUserTimelineEvent.\n",
+        "required": [
+          "resource_type",
+          "resource_short_id",
+          "team_id",
+          "team_name",
+          "project_id",
+          "project_name",
+          "resource_deleted",
+          "access_count"
+        ],
+        "properties": {
+          "resource_type": {
+            "type": "string",
+            "enum": [
+              "prompt",
+              "artifact",
+              "blueprint",
+              "memory",
+              "project",
+              "agent"
+            ]
+          },
+          "resource_short_id": {
+            "type": "string",
+            "description": "First 8 characters of the resource id.",
+            "example": "3f2a9c1e"
+          },
+          "team_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "team_name": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The resource's project (for a `project` row, the project itself). Null\nfor agents and for deleted resources.\n"
+          },
+          "project_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "resource_deleted": {
+            "type": "boolean",
+            "description": "True when the resource no longer exists (access events outlive their resource until pruned)."
+          },
+          "access_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AdminTopAccessedResourcesResponse": {
+        "type": "object",
+        "description": "The resources a user accessed most in a range\n(GET /api/v1/admin/users/{id}/top-accessed-resources).\n",
+        "required": [
+          "from",
+          "to",
+          "items",
+          "earliest_retained_at"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Inclusive start of the range actually used (after defaulting); not snapped."
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Exclusive end of the range actually used (after defaulting)."
+          },
+          "items": {
+            "type": "array",
+            "description": "Most accessed first; ties broken by resource id.",
+            "items": {
+              "$ref": "#/components/schemas/AdminTopAccessedResource"
+            }
+          },
+          "earliest_retained_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Oldest access event still retained (now minus\n`retention.access_event_days`); accesses before it are not counted.\n"
           }
         }
       },

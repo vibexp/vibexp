@@ -420,3 +420,33 @@ type AdminUserTimelinePage struct {
 	Items      []AdminUserTimelineEvent
 	NextCursor *string
 }
+
+// AdminUserAccessMetrics is the gap-filled per-source access series for one
+// user (#1136).
+type AdminUserAccessMetrics struct {
+	From           time.Time
+	To             time.Time
+	Granularity    string
+	AccessBySource []AdminSourcePoint
+}
+
+// AdminTopAccessedResource is one opaque most-accessed row. ResourceID is the
+// full id; the API exposes just its first 8 characters. There is deliberately
+// no title, slug or content field.
+type AdminTopAccessedResource struct {
+	ResourceType    string
+	ResourceID      string
+	TeamID          string
+	TeamName        string
+	ProjectID       *string
+	ProjectName     *string
+	ResourceDeleted bool
+	AccessCount     int64
+}
+
+// AdminTopAccessedResources is the ranked list for one user and range.
+type AdminTopAccessedResources struct {
+	From  time.Time
+	To    time.Time
+	Items []AdminTopAccessedResource
+}

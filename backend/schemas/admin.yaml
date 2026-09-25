@@ -1261,3 +1261,128 @@ AdminUserNotificationPreferences:
     is_default:
       type: boolean
       description: True when the user has no stored preferences and the defaults are shown.
+
+AdminUserAccessMetrics:
+  type: object
+  description: |
+    Resource accesses by the user per bucket and source, across every team
+    (GET /api/v1/admin/users/{id}/resource-access-metrics). Every bucket in the
+    range is present with an explicit 0 for each source that appears.
+  required:
+    - from
+    - to
+    - granularity
+    - access_by_source
+    - earliest_retained_at
+  properties:
+    from:
+      type: string
+      format: date-time
+      description: |
+        Inclusive start of the range actually used, snapped DOWN to the start of
+        its bucket (same rule as AdminTimeseriesResponse.from).
+    to:
+      type: string
+      format: date-time
+      description: Exclusive end of the range actually used (after defaulting); not snapped.
+    granularity:
+      type: string
+      enum:
+        - day
+        - week
+        - month
+      description: Bucket size actually used.
+    access_by_source:
+      type: array
+      description: One point per (bucket, source), ascending by bucket then source.
+      items:
+        $ref: '#/AdminSourcePoint'
+    earliest_retained_at:
+      type: string
+      format: date-time
+      description: |
+        Oldest access event still retained (now minus
+        `retention.access_event_days`); buckets before it read as zeros.
+
+AdminTopAccessedResource:
+  type: object
+  description: |
+    One opaque most-accessed resource: its type, where it lives and how often
+    the user accessed it. Deliberately carries no title, slug or content — only
+    the first 8 characters of the resource id. The identity fields share their
+    names with AdminUserTimelineEvent.
+  required:
+    - resource_type
+    - resource_short_id
+    - team_id
+    - team_name
+    - project_id
+    - project_name
+    - resource_deleted
+    - access_count
+  properties:
+    resource_type:
+      type: string
+      enum:
+        - prompt
+        - artifact
+        - blueprint
+        - memory
+        - project
+        - agent
+    resource_short_id:
+      type: string
+      description: First 8 characters of the resource id.
+      example: "3f2a9c1e"
+    team_id:
+      type: string
+      format: uuid
+    team_name:
+      type: string
+    project_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: |
+        The resource's project (for a `project` row, the project itself). Null
+        for agents and for deleted resources.
+    project_name:
+      type: string
+      nullable: true
+    resource_deleted:
+      type: boolean
+      description: True when the resource no longer exists (access events outlive their resource until pruned).
+    access_count:
+      type: integer
+      format: int64
+
+AdminTopAccessedResourcesResponse:
+  type: object
+  description: |
+    The resources a user accessed most in a range
+    (GET /api/v1/admin/users/{id}/top-accessed-resources).
+  required:
+    - from
+    - to
+    - items
+    - earliest_retained_at
+  properties:
+    from:
+      type: string
+      format: date-time
+      description: Inclusive start of the range actually used (after defaulting); not snapped.
+    to:
+      type: string
+      format: date-time
+      description: Exclusive end of the range actually used (after defaulting).
+    items:
+      type: array
+      description: Most accessed first; ties broken by resource id.
+      items:
+        $ref: '#/AdminTopAccessedResource'
+    earliest_retained_at:
+      type: string
+      format: date-time
+      description: |
+        Oldest access event still retained (now minus
+        `retention.access_event_days`); accesses before it are not counted.

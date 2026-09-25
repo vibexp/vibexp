@@ -1096,6 +1096,16 @@ type AdminRepository interface {
 	ListUserTimeline(
 		ctx context.Context, userID string, cursor *models.AdminTimelineCursor, limit int,
 	) ([]models.AdminUserTimelineEvent, error)
+	// GetUserAccessBySourceSeries returns SPARSE (bucket, source, count) rows of
+	// one user's resource accesses in [from, to), across every team (#1136).
+	GetUserAccessBySourceSeries(
+		ctx context.Context, userID string, from, to time.Time, granularity string,
+	) ([]models.AdminSourcePoint, error)
+	// GetUserTopAccessedResources returns up to limit opaque rows of one user's
+	// most-accessed resources in [from, to), access_count DESC then resource id.
+	GetUserTopAccessedResources(
+		ctx context.Context, userID string, from, to time.Time, limit int,
+	) ([]models.AdminTopAccessedResource, error)
 }
 
 // BlueprintRepository defines the interface for blueprint data access operations
