@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react'
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 
 import { Input } from '@/components/ui/input'
 
@@ -31,6 +31,8 @@ export function NumberRangeFilter({
 }: Readonly<NumberRangeFilterProps>) {
   const id = useId()
   const errorId = `${id}-error`
+  const minRef = useRef<HTMLInputElement>(null)
+  const maxRef = useRef<HTMLInputElement>(null)
   const [minDraft, setMinDraft] = useState(toDraft(value.min))
   const [maxDraft, setMaxDraft] = useState(toDraft(value.max))
   const [error, setError] = useState<{
@@ -48,16 +50,21 @@ export function NumberRangeFilter({
     setError(null)
   }
 
+  // A number input reports unparseable text (e.g. a half-typed `1e`) as an
+  // empty value; `badInput` is what tells it apart from a cleared field, which
+  // would otherwise silently drop the bound.
+  const isBad = (raw: string, input: HTMLInputElement | null) =>
+    input?.validity.badInput === true ||
+    (raw.trim() !== '' && parseCount(raw.trim()) === undefined)
+
   const commit = () => {
-    const trimmedMin = minDraft.trim()
-    const trimmedMax = maxDraft.trim()
-    const min = parseCount(trimmedMin)
-    const max = parseCount(trimmedMax)
-    if (trimmedMin !== '' && min === undefined) {
+    const min = parseCount(minDraft.trim())
+    const max = parseCount(maxDraft.trim())
+    if (isBad(minDraft, minRef.current)) {
       setError({ field: 'min', message: 'Whole number ≥ 0' })
       return
     }
-    if (trimmedMax !== '' && max === undefined) {
+    if (isBad(maxDraft, maxRef.current)) {
       setError({ field: 'max', message: 'Whole number ≥ 0' })
       return
     }
@@ -85,6 +92,7 @@ export function NumberRangeFilter({
       </legend>
       <div className="flex items-center gap-2">
         <Input
+          ref={minRef}
           type="number"
           inputMode="numeric"
           min={0}
@@ -104,6 +112,7 @@ export function NumberRangeFilter({
           –
         </span>
         <Input
+          ref={maxRef}
           type="number"
           inputMode="numeric"
           min={0}

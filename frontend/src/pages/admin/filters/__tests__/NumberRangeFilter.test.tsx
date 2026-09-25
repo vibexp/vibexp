@@ -55,6 +55,19 @@ describe('NumberRangeFilter', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Whole number ≥ 0')
   })
 
+  it('rejects text the browser cannot parse instead of clearing the bound', async () => {
+    const { onChange, max } = renderFilter({ max: 4 })
+    // A real browser reports a half-typed `1e` as value '' + badInput; jsdom
+    // has no such state, so simulate it.
+    Object.defineProperty(max, 'validity', {
+      value: { badInput: true },
+    })
+    await userEvent.clear(max)
+    await userEvent.tab()
+    expect(onChange).not.toHaveBeenCalled()
+    expect(max).toHaveAttribute('aria-invalid', 'true')
+  })
+
   it('rejects min above max', async () => {
     const { onChange, min, max } = renderFilter({ max: 2 })
     await userEvent.type(min, '5{Enter}')
