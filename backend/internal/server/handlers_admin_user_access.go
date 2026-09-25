@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -133,4 +134,28 @@ func toGenAdminTopAccessedResources(
 		})
 	}
 	return items, nil
+}
+
+// toGenAdminSourcePoints converts a per-source series. The result is
+// make(...,0) so an empty series serializes as `[]`.
+func toGenAdminSourcePoints(points []models.AdminSourcePoint) []admingen.AdminSourcePoint {
+	out := make([]admingen.AdminSourcePoint, 0, len(points))
+	for _, p := range points {
+		out = append(out, admingen.AdminSourcePoint{Bucket: p.Bucket, Source: p.Source, Count: p.Count})
+	}
+	return out
+}
+
+// adminTopResourcesLimitParam validates the optional top-resources limit; 0
+// means "use the default". The generated binder does not enforce
+// minimum/maximum.
+func adminTopResourcesLimitParam(limit *int) (int, error) {
+	if limit == nil {
+		return 0, nil
+	}
+	if *limit < 1 || *limit > services.AdminTopResourcesMaxLimit {
+		return 0, apierrors.NewBadRequestError(
+			fmt.Sprintf("invalid limit %d: must be between 1 and %d", *limit, services.AdminTopResourcesMaxLimit))
+	}
+	return *limit, nil
 }

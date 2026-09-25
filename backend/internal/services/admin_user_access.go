@@ -81,6 +81,27 @@ func (s *AdminService) GetUserTopAccessedResources(
 	return &models.AdminTopAccessedResources{From: from, To: to, Items: items}, nil
 }
 
+// resolveAdminTopResourcesQuery applies resolveAdminWindow and the limit
+// default and bounds shared by the top-resources ops.
+func resolveAdminTopResourcesQuery(
+	q AdminTopResourcesQuery, now time.Time,
+) (from, to time.Time, limit int, err error) {
+	from, to, err = resolveAdminWindow(q.From, q.To, now)
+	if err != nil {
+		return time.Time{}, time.Time{}, 0, err
+	}
+	limit = q.Limit
+	if limit == 0 {
+		limit = AdminTopResourcesDefaultLimit
+	}
+	if limit < 1 || limit > AdminTopResourcesMaxLimit {
+		return time.Time{}, time.Time{}, 0, &ErrAdminTimeseriesRange{
+			Detail: fmt.Sprintf("invalid limit %d: must be between 1 and %d", limit, AdminTopResourcesMaxLimit),
+		}
+	}
+	return from, to, limit, nil
+}
+
 // resolveAdminWindow applies resolveAdminRange's defaults and validation to an
 // un-bucketed window: to defaults to now, from to 30 days before to, to must be
 // after from, and the span is capped at adminTimeseriesMaxDays.

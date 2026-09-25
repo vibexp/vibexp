@@ -37,6 +37,8 @@ type adminProjectFixture struct {
 //	P's memory    2 cli
 //	P's artifact  2 web (ties with the memory)
 //	P itself      1 web (counts in the series, never in top resources)
+//	P's prompt    +1 web exactly at the window start, +1 mcp one second before
+//	              its end (both inside the window)
 //	Q's prompt    4 web, and T's agent 3 api (both must be excluded)
 //
 // plus one access to P's prompt just before and one just after the window
@@ -103,6 +105,9 @@ func seedAdminProjectFixture(t *testing.T) adminProjectFixture {
 		insertAccessEvent(t, f.team, f.user, "agent", f.agent, "api", projectDay)
 	}
 	insertAccessEvent(t, f.team, f.user, "project", f.sibling, "web", projectDay)
+	windowStart := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
+	insertAccessEvent(t, f.team, f.user, "prompt", f.prompt, "web", windowStart)
+	insertAccessEvent(t, f.team, f.user, "prompt", f.prompt, "mcp", windowEnd.Add(-time.Second))
 	insertAccessEvent(t, f.team, f.user, "prompt", f.prompt, "web", time.Date(2026, 5, 11, 23, 59, 59, 0, time.UTC))
 	insertAccessEvent(t, f.team, f.user, "prompt", f.prompt, "web", windowEnd)
 	return f
@@ -171,10 +176,11 @@ func TestAdminProjectAnalytics_AccessBySourceSeries(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []models.AdminSourcePoint{
 		{Bucket: from, Source: "cli", Count: 2},
-		{Bucket: from, Source: "web", Count: 6},
-		{Bucket: next, Source: "mcp", Count: 1},
+		{Bucket: from, Source: "web", Count: 7},
+		{Bucket: next, Source: "mcp", Count: 2},
 	}, normalizeSourcePoints(got),
-		"the project's own page counts; the sibling project, the agent and both window edges do not")
+		"the project's own page and both just-inside edges count; the sibling project, "+
+			"the agent and both just-outside edges do not")
 
 	// A wrong team yields nothing: events are filtered on the project's team.
 	got, err = repo.GetProjectAccessBySourceSeries(context.Background(), f.project, uuid.New().String(),
@@ -194,7 +200,7 @@ func TestAdminProjectAnalytics_TopAccessedResources(t *testing.T) {
 
 	assert.Equal(t, f.prompt, got[0].ResourceID)
 	assert.Equal(t, "prompt", got[0].ResourceType)
-	assert.Equal(t, int64(4), got[0].AccessCount)
+	assert.Equal(t, int64(6), got[0].AccessCount, "both just-inside edge events count, both just-outside do not")
 	for _, r := range got {
 		assert.Equal(t, f.team, r.TeamID)
 		assert.NotEmpty(t, r.TeamName)

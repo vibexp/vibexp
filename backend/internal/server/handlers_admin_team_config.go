@@ -227,6 +227,21 @@ func toGenAdminFreshnessRule(r *models.FreshnessRule) (admingen.AdminFreshnessRu
 	}, nil
 }
 
+// toGenAdminFreshnessRules converts rules through toGenAdminFreshnessRule. The
+// result is make(...,0): both config arrays are required, so an empty rule set
+// serializes as `[]`, not `null`.
+func toGenAdminFreshnessRules(rules []*models.FreshnessRule) ([]admingen.AdminFreshnessRule, error) {
+	out := make([]admingen.AdminFreshnessRule, 0, len(rules))
+	for _, rule := range rules {
+		converted, err := toGenAdminFreshnessRule(rule)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, converted)
+	}
+	return out, nil
+}
+
 // GetAdminTeamArtifactTypes returns the system and custom artifact types the
 // team sees.
 func (a *adminStrictServer) GetAdminTeamArtifactTypes(
