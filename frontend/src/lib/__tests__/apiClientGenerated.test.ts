@@ -3,6 +3,7 @@ import {
   createTimeoutFetch,
   LONG_RUNNING_REQUEST_TIMEOUT_MS,
   unwrap,
+  unwrapWithResponse,
 } from '../apiClientGenerated'
 
 const response = (status: number, statusText = ''): Response =>
@@ -119,6 +120,40 @@ describe('unwrap', () => {
     const abort = new DOMException('Aborted', 'AbortError')
 
     await expect(unwrap(Promise.reject(abort))).rejects.toBe(abort)
+  })
+})
+
+describe('unwrapWithResponse', () => {
+  it('resolves with the data and the raw response', async () => {
+    const ok = response(200, 'OK')
+
+    const result = await unwrapWithResponse(
+      Promise.resolve({ data: 'id,email', response: ok })
+    )
+
+    expect(result.data).toBe('id,email')
+    expect(result.response).toBe(ok)
+  })
+
+  it('maps an error response to the same ApiError as unwrap', async () => {
+    const promise = unwrapWithResponse(
+      Promise.resolve({
+        error: problemBody,
+        response: response(404, 'Not Found'),
+      })
+    )
+
+    await expect(promise).rejects.toThrow(ApiError)
+    await expect(promise).rejects.toMatchObject({
+      status: 404,
+      code: 'RESOURCE_NOT_FOUND',
+    })
+  })
+
+  it('wraps fetch TypeError rejections as a network error', async () => {
+    await expect(
+      unwrapWithResponse(Promise.reject(new TypeError('Failed to fetch')))
+    ).rejects.toThrow('Network error: Unable to connect to server')
   })
 })
 

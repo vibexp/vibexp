@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import type { DateRangeValue } from '@/components/ui/date-range'
 import {
   Select,
@@ -50,6 +52,8 @@ export interface UserFiltersProps {
   /** Saved filter presets (#1148): the current filters as a preset query. */
   currentQuery: PresetQuery
   onApplyPreset: (query: PresetQuery) => void
+  /** Actions on the filtered set (the CSV export, #1150). */
+  actions?: ReactNode
 }
 
 export function UserFilters({
@@ -70,6 +74,7 @@ export function UserFilters({
   advancedActiveCount,
   currentQuery,
   onApplyPreset,
+  actions,
 }: Readonly<UserFiltersProps>) {
   const advanced = (
     <>
@@ -105,6 +110,7 @@ export function UserFilters({
       hasActiveFilters={hasActiveFilters}
       advanced={advanced}
       advancedActiveCount={advancedActiveCount}
+      actions={actions}
       presets={
         <AdminSavedFiltersMenu
           list="users"

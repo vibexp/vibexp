@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import type { DateRangeValue } from '@/components/ui/date-range'
 import { AdminFilterBar } from '@/pages/admin/AdminFilterBar'
 import type { NumberRangeValue } from '@/pages/admin/filters/advancedFilterParams'
@@ -39,6 +41,8 @@ export interface ProjectFiltersProps {
   /** Saved filter presets (#1148): the current filters as a preset query. */
   currentQuery: PresetQuery
   onApplyPreset: (query: PresetQuery) => void
+  /** Actions on the filtered set (the CSV export, #1150). */
+  actions?: ReactNode
 }
 
 export function ProjectFilters({
@@ -60,6 +64,7 @@ export function ProjectFilters({
   advancedActiveCount,
   currentQuery,
   onApplyPreset,
+  actions,
 }: Readonly<ProjectFiltersProps>) {
   const advanced = (
     <>
@@ -108,6 +113,7 @@ export function ProjectFilters({
       hasActiveFilters={hasActiveFilters}
       advanced={advanced}
       advancedActiveCount={advancedActiveCount}
+      actions={actions}
       presets={
         <AdminSavedFiltersMenu
           list="projects"

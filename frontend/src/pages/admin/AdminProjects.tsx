@@ -11,6 +11,8 @@ import {
 } from '@/components/patterns/list-page'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/time'
+import { AdminExportButton } from '@/pages/admin/AdminExportButton'
+import { withoutPaging } from '@/pages/admin/exportParams'
 import { ProjectFilters } from '@/pages/admin/projects/ProjectFilters'
 import type { ProjectSortKey } from '@/pages/admin/projects/projectListParams'
 import {
@@ -275,6 +277,15 @@ export function AdminProjects() {
             }
             currentQuery={currentQuery}
             onApplyPreset={applyPreset}
+            actions={
+              <AdminExportButton
+                noun="projects"
+                disabled={state.total === 0}
+                onExport={() =>
+                  adminService.exportProjects(withoutPaging(params))
+                }
+              />
+            }
           />
         </ListPage.Filters>
 

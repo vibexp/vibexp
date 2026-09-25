@@ -36,8 +36,12 @@ vi.mock('@/services/adminService', () => ({
     listTeams: vi.fn(),
     getSavedFilters: vi.fn(),
     replaceSavedFilters: vi.fn(),
+    exportProjects: vi.fn(),
   },
 }))
+
+// jsdom has no object URLs; the download itself is covered by its own test.
+vi.mock('@/utils/downloadBlob', () => ({ downloadBlob: vi.fn() }))
 
 import { adminService } from '@/services/adminService'
 
@@ -738,4 +742,62 @@ it('applies a saved preset as the whole URL query (#1148)', async () => {
   expect(screen.getByRole('textbox', { name: 'Search projects' })).toHaveValue(
     'plat'
   )
+})
+
+describe('CSV export (#1150)', () => {
+  const exportButton = () => screen.getByRole('button', { name: /export csv/i })
+
+  it('exports exactly the list query, minus page and limit', async () => {
+    mockAdminService.exportProjects.mockResolvedValue({
+      blob: new Blob([]),
+      filename: 'admin-projects.csv',
+      totalCount: 1,
+      truncated: false,
+    })
+    renderProjects(
+      '/admin/projects?page=2&search=plat&team_id=t1&created_from=2026-07-01&created_to=2026-07-24&owner_email=ada@example.com&prompt_count_min=2&last_resource_created_from=2026-07-01&sort_by=name&sort_order=asc'
+    )
+
+    await waitFor(() => {
+      expect(exportButton()).toBeEnabled()
+    })
+    await userEvent.click(exportButton())
+
+    await waitFor(() => {
+      expect(mockAdminService.exportProjects).toHaveBeenCalledTimes(1)
+    })
+    const listFilters = Object.fromEntries(
+      Object.entries(lastQuery()).filter(
+        ([key]) => key !== 'page' && key !== 'limit'
+      )
+    )
+    const exported = mockAdminService.exportProjects.mock.calls[0][0]
+    expect(exported).toStrictEqual(listFilters)
+    expect(exported).not.toHaveProperty('page')
+    expect(exported).not.toHaveProperty('limit')
+    // Guard against both sides being empty: the URL's filters really are there.
+    expect(exported).toMatchObject({
+      search: 'plat',
+      team_id: 't1',
+      owner_email: 'ada@example.com',
+      prompt_count_min: 2,
+      sort_by: 'name',
+      sort_order: 'asc',
+    })
+    expect(exported.created_from).toEqual(expect.any(String))
+    expect(exported.created_to).toEqual(expect.any(String))
+    expect(exported.last_resource_created_from).toEqual(expect.any(String))
+  })
+
+  it('is disabled when the filtered list is empty', async () => {
+    mockAdminService.listProjects.mockResolvedValue(
+      page({ projects: [], total_count: 0, total_pages: 0 })
+    )
+    renderProjects()
+
+    // Settled on the empty result, not still loading.
+    expect(await screen.findByText('No projects yet')).toBeInTheDocument()
+    expect(exportButton()).toBeDisabled()
+    expect(mockAdminService.exportProjects).not.toHaveBeenCalled()
+  })
 })

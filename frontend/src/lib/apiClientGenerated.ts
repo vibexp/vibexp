@@ -110,6 +110,17 @@ function toApiError(error: unknown, response: Response): ApiError {
  * an errored 204/Content-Length:0 response).
  */
 export async function unwrap<T>(request: Promise<FetchResult<T>>): Promise<T> {
+  return (await unwrapWithResponse(request)).data
+}
+
+/**
+ * `unwrap`, plus the raw `Response` — for the calls that need its headers (the
+ * admin CSV exports read their row count and truncation flag there, #1150).
+ * Errors are mapped exactly as `unwrap` maps them.
+ */
+export async function unwrapWithResponse<T>(
+  request: Promise<FetchResult<T>>
+): Promise<{ data: T; response: Response }> {
   let result: FetchResult<T>
   try {
     result = await request
@@ -129,5 +140,5 @@ export async function unwrap<T>(request: Promise<FetchResult<T>>): Promise<T> {
 
   // 204 No Content resolves with `data: undefined`; callers of body-less
   // operations type the result as void.
-  return result.data as T
+  return { data: result.data as T, response: result.response }
 }

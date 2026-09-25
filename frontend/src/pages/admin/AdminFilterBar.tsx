@@ -39,6 +39,11 @@ export interface AdminFilterBarProps {
    * the Advanced toggle.
    */
   presets?: ReactNode
+  /**
+   * Page-level actions on the filtered set (the CSV export, #1150), rendered at
+   * the end of the row and pushed right. Shown with or without `advanced`.
+   */
+  actions?: ReactNode
 }
 
 /**
@@ -65,6 +70,7 @@ export function AdminFilterBar({
   advanced,
   advancedActiveCount = 0,
   presets,
+  actions,
 }: Readonly<AdminFilterBarProps>) {
   // Evaluated once on mount: a shared link carrying an advanced filter opens
   // with the panel visible. After that the admin controls it, and clearing a
@@ -119,6 +125,10 @@ export function AdminFilterBar({
             )}
           </Button>
         </CollapsibleTrigger>
+      )}
+
+      {actions !== undefined && (
+        <div className="ml-auto flex items-center gap-2">{actions}</div>
       )}
     </div>
   )
