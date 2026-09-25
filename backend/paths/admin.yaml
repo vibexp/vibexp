@@ -1276,6 +1276,14 @@ api-v1-admin-projects:
       `owner` is the project's creator (`projects.user_id`), which is not
       necessarily the owning team's owner.
 
+      Resource counts cover exactly the five PROJECT-SCOPED types, the tables
+      that carry a direct `project_id`: prompts, memories, artifacts, blueprints
+      and feed items (a feed item posted without a project counts for none).
+      Agents and feeds are team-scoped and have no project association;
+      comments and attachments reach a project only indirectly, through the
+      resource they belong to. All four are therefore excluded from every count,
+      count filter, sort and `last_resource_created_at`.
+
       Instance-admin only; non-admin and unauthenticated requests receive 404.
     operationId: listAdminProjects
     tags:
@@ -1328,15 +1336,148 @@ api-v1-admin-projects:
         schema:
           type: string
           format: date-time
+      - name: prompt_count_min
+        in: query
+        description: Only projects with at least this many prompts in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: prompt_count_max
+        in: query
+        description: Only projects with at most this many prompts in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: memory_count_min
+        in: query
+        description: Only projects with at least this many memories in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: memory_count_max
+        in: query
+        description: Only projects with at most this many memories in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: artifact_count_min
+        in: query
+        description: Only projects with at least this many artifacts in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: artifact_count_max
+        in: query
+        description: Only projects with at most this many artifacts in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: blueprint_count_min
+        in: query
+        description: Only projects with at least this many blueprints in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: blueprint_count_max
+        in: query
+        description: Only projects with at most this many blueprints in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: feed_item_count_min
+        in: query
+        description: Only projects with at least this many feed items in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: feed_item_count_max
+        in: query
+        description: Only projects with at most this many feed items in the project (inclusive).
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: total_resource_count_min
+        in: query
+        description: Only projects with at least this many project-scoped resources in the project (inclusive). The total is the sum of the five project-scoped types.
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: total_resource_count_max
+        in: query
+        description: Only projects with at most this many project-scoped resources in the project (inclusive). The total is the sum of the five project-scoped types.
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+      - name: owner_email
+        in: query
+        description: Case-insensitive exact match on the email of the project's creator (`projects.user_id`, the `owner` field), not the owning team's owner. For substring matching on name/slug use `search`.
+        required: false
+        schema:
+          type: string
+          format: email
+      - name: last_resource_created_from
+        in: query
+        description: |
+          Only projects whose most recent project-scoped resource (any of the five
+          types) was created at or after this instant (inclusive). Projects with
+          no resources never match.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: last_resource_created_to
+        in: query
+        description: |
+          Only projects whose most recent project-scoped resource (any of the five
+          types) was created at or before this instant (inclusive). Projects with
+          no resources never match.
+        required: false
+        schema:
+          type: string
+          format: date-time
       - name: sort_by
         in: query
-        description: Column to sort by. Ties are always broken by project id so paging is stable.
+        description: |
+          Column to sort by. Ties are always broken by project id so paging is stable.
+          Sorting by last_resource_created_at places projects with no resources
+          last in both directions.
         required: false
         schema:
           type: string
           enum:
             - created_at
             - name
+            - prompt_count
+            - memory_count
+            - artifact_count
+            - blueprint_count
+            - feed_item_count
+            - total_resource_count
+            - last_resource_created_at
           default: created_at
       - name: sort_order
         in: query
@@ -1380,8 +1521,9 @@ api-v1-admin-projects-id:
     description: |
       Returns one project with its owning team, its creator, and how many of each
       PROJECT-SCOPED resource type it contains (prompts, artifacts, memories,
-      blueprints). Agents and feeds are not included because they are team-scoped
-      and have no project association.
+      blueprints, feed items) plus their total. Agents and feeds are not included
+      because they are team-scoped and have no project association; comments and
+      attachments are not included because they reach a project only indirectly.
 
       Instance-admin only; non-admin and unauthenticated requests receive 404, as
       does an unknown project id.

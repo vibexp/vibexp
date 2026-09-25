@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -335,14 +334,11 @@ func applyAdminTeamAggregateFilters(filters *repositories.AdminTeamFilters, p ad
 		return err
 	}
 
-	if p.OwnerEmail != nil {
-		if email := strings.TrimSpace(string(*p.OwnerEmail)); email != "" {
-			if err := validateAdminEmailParam("owner_email", email); err != nil {
-				return err
-			}
-			filters.OwnerEmail = &email
-		}
+	ownerEmail, err := adminEmailFilterParam("owner_email", p.OwnerEmail)
+	if err != nil {
+		return err
 	}
+	filters.OwnerEmail = ownerEmail
 
 	filters.EmbeddingConfigured = p.EmbeddingConfigured
 	filters.LLMConfigured = p.LlmConfigured

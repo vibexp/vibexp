@@ -33,11 +33,16 @@ func adminProjectOwner() models.AdminTeamOwner {
 // [], and spec conformance.
 func TestListAdminProjects(t *testing.T) {
 	team, owner := adminProjectTeam(), adminProjectOwner()
+	lastAt := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	populated := models.AdminProjectList{
 		Projects: []models.AdminProjectListItem{
 			{
 				ID: uuid.NewString(), Name: "Platform", Slug: "platform",
 				Team: team, Owner: owner, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+				ResourceCounts: models.AdminProjectResourceCounts{
+					Prompts: 1, Artifacts: 2, Memories: 3, Blueprints: 4, FeedItems: 5, Total: 15,
+				},
+				LastResourceCreatedAt: &lastAt,
 			},
 			{
 				ID: uuid.NewString(), Name: "Website", Slug: "website",
@@ -83,6 +88,16 @@ func TestListAdminProjects(t *testing.T) {
 				assert.Equal(t, "Acme Engineering", resp.Projects[0].Team.Name)
 				assert.Equal(t, "acme-engineering", resp.Projects[0].Team.Slug)
 				assert.Equal(t, "creator@example.com", string(resp.Projects[0].Owner.Email))
+				// Distinct values per count, so a transposed mapping fails.
+				assert.Equal(t, admingen.AdminProjectResourceCounts{
+					Prompts: 1, Artifacts: 2, Memories: 3, Blueprints: 4, FeedItems: 5, Total: 15,
+				}, resp.Projects[0].ResourceCounts)
+				require.NotNil(t, resp.Projects[0].LastResourceCreatedAt)
+				assert.True(t, lastAt.Equal(*resp.Projects[0].LastResourceCreatedAt))
+				// A project with no resources carries an explicit null, not an
+				// omitted field: the property is required.
+				assert.Nil(t, resp.Projects[1].LastResourceCreatedAt)
+				assert.Contains(t, rr.Body.String(), `"last_resource_created_at":null`)
 			}
 
 			specconformance.AssertConformsToSpec(t, req, rr)
@@ -98,15 +113,28 @@ func TestListAdminProjects_MapsQueryParams(t *testing.T) {
 	search := "plat"
 	teamIDStr := teamID.String()
 
+	ownerEmail := "Creator@Example.com"
+	later := stamp.Add(time.Hour)
+	n := func(v int64) *int64 { return &v }
+
 	want := repositories.AdminProjectFilters{
-		Search:      &search,
-		TeamID:      &teamIDStr,
-		CreatedFrom: &stamp,
-		CreatedTo:   &stamp,
-		SortBy:      "name",
-		SortOrder:   "asc",
-		Page:        2,
-		Limit:       50,
+		Search:                  &search,
+		TeamID:                  &teamIDStr,
+		CreatedFrom:             &stamp,
+		CreatedTo:               &stamp,
+		OwnerEmail:              &ownerEmail,
+		PromptCount:             repositories.AdminCountRange{Min: n(1), Max: n(2)},
+		MemoryCount:             repositories.AdminCountRange{Min: n(3), Max: n(4)},
+		ArtifactCount:           repositories.AdminCountRange{Min: n(5), Max: n(6)},
+		BlueprintCount:          repositories.AdminCountRange{Min: n(7), Max: n(8)},
+		FeedItemCount:           repositories.AdminCountRange{Min: n(9), Max: n(10)},
+		TotalResourceCount:      repositories.AdminCountRange{Min: n(11), Max: n(12)},
+		LastResourceCreatedFrom: &stamp,
+		LastResourceCreatedTo:   &later,
+		SortBy:                  "last_resource_created_at",
+		SortOrder:               "asc",
+		Page:                    2,
+		Limit:                   50,
 	}
 
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
@@ -118,7 +146,14 @@ func TestListAdminProjects_MapsQueryParams(t *testing.T) {
 	req := httptest.NewRequest("GET",
 		"/api/v1/admin/projects?page=2&limit=50&search=plat&team_id="+teamID.String()+
 			"&created_from="+stamp.Format(time.RFC3339)+"&created_to="+stamp.Format(time.RFC3339)+
-			"&sort_by=name&sort_order=asc", nil)
+			"&owner_email=Creator@Example.com"+
+			"&prompt_count_min=1&prompt_count_max=2&memory_count_min=3&memory_count_max=4"+
+			"&artifact_count_min=5&artifact_count_max=6&blueprint_count_min=7&blueprint_count_max=8"+
+			"&feed_item_count_min=9&feed_item_count_max=10"+
+			"&total_resource_count_min=11&total_resource_count_max=12"+
+			"&last_resource_created_from="+stamp.Format(time.RFC3339)+
+			"&last_resource_created_to="+later.Format(time.RFC3339)+
+			"&sort_by=last_resource_created_at&sort_order=asc", nil)
 	rr := httptest.NewRecorder()
 	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
 
@@ -154,6 +189,54 @@ func TestListAdminProjects_InvalidSortEnumReturns400(t *testing.T) {
 	}
 }
 
+// TestListAdminProjects_InvalidAdvancedFiltersReturn400 pins the cross-field and
+// format checks the generated binder does not perform (#1143): each must be a
+// 400 before the service is reached, not a silently empty page.
+func TestListAdminProjects_InvalidAdvancedFiltersReturn400(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+	}{
+		{"negative min", "prompt_count_min=-1"},
+		{"negative max", "feed_item_count_max=-1"},
+		{"min above max", "total_resource_count_min=5&total_resource_count_max=2"},
+		{"inverted last_resource_created range", "last_resource_created_from=2026-09-02T00:00:00Z&last_resource_created_to=2026-09-01T00:00:00Z"},
+		{"malformed owner_email", "owner_email=not-an-email"},
+		{"owner_email with a display name", "owner_email=Creator+%3Ccreator%40example.com%3E"},
+		{"unknown sort_by", "sort_by=comment_count"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// No service expectation: the request must be rejected first.
+			mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+			req := httptest.NewRequest("GET", "/api/v1/admin/projects?"+tc.query, nil)
+			rr := httptest.NewRecorder()
+			mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusBadRequest, rr.Code)
+			specconformance.AssertConformsToSpec(t, req, rr)
+		})
+	}
+}
+
+// TestListAdminProjects_BlankOwnerEmailIsNoFilter pins that an empty or
+// whitespace-only owner_email narrows nothing rather than 400ing.
+func TestListAdminProjects_BlankOwnerEmailIsNoFilter(t *testing.T) {
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("ListProjects", mock.Anything, repositories.AdminProjectFilters{}).
+		Return(models.AdminProjectList{Projects: []models.AdminProjectListItem{}}, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/projects?owner_email=+", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+}
+
 func TestListAdminProjects_ServiceErrorReturns500(t *testing.T) {
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
 	mockAdmin.On("ListProjects", mock.Anything, mock.Anything).
@@ -183,8 +266,8 @@ func TestListAdminProjects_ConversionErrorReturns500(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 }
 
-// TestGetAdminProject_Found asserts the detail payload, including the four
-// resource counts and the explicit absence of agents/feeds.
+// TestGetAdminProject_Found asserts the detail payload, including the five
+// resource counts plus total and the explicit absence of the excluded types.
 func TestGetAdminProject_Found(t *testing.T) {
 	id := uuid.NewString()
 	detail := &models.AdminProjectDetail{
@@ -194,7 +277,7 @@ func TestGetAdminProject_Found(t *testing.T) {
 		Homepage:    "https://platform.acme.dev",
 		Team:        adminProjectTeam(), Owner: adminProjectOwner(),
 		ResourceCounts: models.AdminProjectResourceCounts{
-			Prompts: 12, Artifacts: 4, Memories: 27, Blueprints: 3,
+			Prompts: 12, Artifacts: 4, Memories: 27, Blueprints: 3, FeedItems: 9, Total: 55,
 		},
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
@@ -221,10 +304,14 @@ func TestGetAdminProject_Found(t *testing.T) {
 	assert.Equal(t, int64(4), resp.ResourceCounts.Artifacts)
 	assert.Equal(t, int64(27), resp.ResourceCounts.Memories)
 	assert.Equal(t, int64(3), resp.ResourceCounts.Blueprints)
+	assert.Equal(t, int64(9), resp.ResourceCounts.FeedItems)
+	assert.Equal(t, int64(55), resp.ResourceCounts.Total)
 
-	// agents/feeds are NOT part of the payload: neither table is project-scoped.
-	assert.NotContains(t, rr.Body.String(), `"agents"`)
-	assert.NotContains(t, rr.Body.String(), `"feeds"`)
+	// agents/feeds/comments/attachments are NOT part of the payload: none of
+	// those tables carries a project_id.
+	for _, key := range []string{`"agents"`, `"feeds"`, `"comments"`, `"attachments"`} {
+		assert.NotContains(t, rr.Body.String(), key)
+	}
 
 	specconformance.AssertConformsToSpec(t, req, rr)
 }

@@ -3,7 +3,10 @@ package server
 import (
 	"fmt"
 	"net/mail"
+	"strings"
 	"time"
+
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -74,4 +77,20 @@ func validateAdminEmailParam(name, value string) error {
 		return apierrors.NewBadRequestError(fmt.Sprintf("%s must be a valid email address", name))
 	}
 	return nil
+}
+
+// adminEmailFilterParam trims and validates an optional email query param. An
+// absent or blank value yields nil (no filter); a malformed one is a 400.
+func adminEmailFilterParam(name string, value *openapi_types.Email) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	email := strings.TrimSpace(string(*value))
+	if email == "" {
+		return nil, nil
+	}
+	if err := validateAdminEmailParam(name, email); err != nil {
+		return nil, err
+	}
+	return &email, nil
 }

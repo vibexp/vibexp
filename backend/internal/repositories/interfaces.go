@@ -1031,10 +1031,27 @@ type AdminProjectFilters struct {
 	TeamID      *string
 	CreatedFrom *time.Time
 	CreatedTo   *time.Time
-	SortBy      string
-	SortOrder   string
-	Page        int
-	Limit       int
+	// OwnerEmail is a case-insensitive exact match on the project creator's
+	// email (projects.user_id), not the owning team's owner.
+	OwnerEmail *string
+
+	// Inclusive count ranges over the five project-scoped types (#1143).
+	PromptCount        AdminCountRange
+	MemoryCount        AdminCountRange
+	ArtifactCount      AdminCountRange
+	BlueprintCount     AdminCountRange
+	FeedItemCount      AdminCountRange
+	TotalResourceCount AdminCountRange
+
+	// Inclusive bounds on the most recent project-scoped resource creation;
+	// a project with no resources never matches either bound.
+	LastResourceCreatedFrom *time.Time
+	LastResourceCreatedTo   *time.Time
+
+	SortBy    string
+	SortOrder string
+	Page      int
+	Limit     int
 }
 
 // AdminRepository defines instance-level administrative data access for the
