@@ -12,6 +12,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/time'
 import { ProjectFilters } from '@/pages/admin/projects/ProjectFilters'
+import type { ProjectSortKey } from '@/pages/admin/projects/projectListParams'
+import {
+  buildProjectListParams,
+  PROJECT_ADVANCED_FILTERS,
+} from '@/pages/admin/projects/projectListParams'
+import { ProjectResourceSummary } from '@/pages/admin/projects/ProjectResourceSummary'
 import { useAdminListFilters } from '@/pages/admin/useAdminListFilters'
 import type { AdminProjectListItem } from '@/services/adminService'
 import { adminService } from '@/services/adminService'
@@ -19,14 +25,22 @@ import { getErrorMessage } from '@/utils/errorHandling'
 
 const PAGE_SIZE = 20
 
-/** #453 allows sorting by these two only; anything else is a 400. */
-const SORTABLE_KEYS = ['name', 'created_at'] as const
+// `satisfies` pins these to the published `sort_by` enum: a renamed value fails
+// `tsc -b` rather than becoming a silent 400. Per-type resource counts are
+// filterable but not displayed, so only the columns shown here are listed.
+const SORTABLE_KEYS = [
+  'name',
+  'total_resource_count',
+  'last_resource_created_at',
+  'created_at',
+] as const satisfies readonly ProjectSortKey[]
 type SortKey = (typeof SORTABLE_KEYS)[number]
 
 const FILTER_DEFAULTS = {
   page: '1',
   search: '',
   team_id: '',
+  owner_email: '',
   created_from: '',
   created_to: '',
   sort_by: 'created_at',
@@ -70,28 +84,48 @@ export function AdminProjects() {
     hasActiveFilters,
     handleSortChange,
     handleClear,
+    advancedParams,
+    advancedActiveCount,
+    getRange,
+    setRange,
+    getDateRange,
+    setDateRange,
   } = useAdminListFilters<SortKey>({
     defaults: FILTER_DEFAULTS,
     sortableKeys: SORTABLE_KEYS,
     defaultSort: 'created_at',
-    filterKeys: ['team_id'],
+    filterKeys: ['team_id', 'owner_email'],
+    advanced: PROJECT_ADVANCED_FILTERS,
   })
   const [state, setState] = useState<State>(INITIAL)
+  const [clearCount, setClearCount] = useState(0)
+
+  const clearAll = useCallback(() => {
+    setClearCount(count => count + 1)
+    handleClear()
+  }, [handleClear])
+
+  // One memoised request object, so the fetch effect depends on it alone rather
+  // than on every one of the URL keys.
+  const params = useMemo(
+    () =>
+      buildProjectListParams(filters, {
+        advanced: advancedParams,
+        page,
+        limit: PAGE_SIZE,
+        createdFrom,
+        createdTo,
+        sortBy,
+        sortOrder,
+      }),
+    [filters, advancedParams, page, createdFrom, createdTo, sortBy, sortOrder]
+  )
 
   useEffect(() => {
     let cancelled = false
     setState(prev => ({ ...prev, loading: true, error: null }))
     adminService
-      .listProjects({
-        page,
-        limit: PAGE_SIZE,
-        search: filters.search || undefined,
-        team_id: filters.team_id || undefined,
-        created_from: createdFrom,
-        created_to: createdTo,
-        sort_by: sortBy,
-        sort_order: sortOrder,
-      })
+      .listProjects(params)
       .then(response => {
         if (cancelled) return
         setState({
@@ -116,15 +150,7 @@ export function AdminProjects() {
       // must not overwrite the results of a newer one.
       cancelled = true
     }
-  }, [
-    page,
-    filters.search,
-    filters.team_id,
-    createdFrom,
-    createdTo,
-    sortBy,
-    sortOrder,
-  ])
+  }, [params])
 
   const columns = useMemo<ColumnDef<AdminProjectListItem>[]>(
     () => [
@@ -157,6 +183,27 @@ export function AdminProjects() {
             {row.original.owner.email}
           </span>
         ),
+      },
+      {
+        // `id` doubles as the `sort_by` value sent.
+        id: 'total_resource_count',
+        header: 'Resources',
+        meta: { align: 'right' },
+        cell: ({ row }) => (
+          <ProjectResourceSummary counts={row.original.resource_counts} />
+        ),
+      },
+      {
+        id: 'last_resource_created_at',
+        header: 'Last resource',
+        cell: ({ row }) => {
+          const at = row.original.last_resource_created_at
+          return (
+            <span className="text-muted-foreground whitespace-nowrap text-xs">
+              {at ? formatDate(at) : '—'}
+            </span>
+          )
+        },
       },
       {
         accessorKey: 'created_at',
@@ -197,8 +244,23 @@ export function AdminProjects() {
             }}
             created={created}
             onCreatedChange={setCreated}
-            onClear={handleClear}
+            onClear={clearAll}
             hasActiveFilters={hasActiveFilters}
+            getRange={getRange}
+            onRangeChange={setRange}
+            getDateRange={getDateRange}
+            onDateRangeChange={setDateRange}
+            ownerEmail={filters.owner_email}
+            onOwnerEmailChange={value => {
+              setFilters({ owner_email: value })
+            }}
+            ownerEmailResetKey={clearCount}
+            // Creator email lives in the panel too, so it counts toward the
+            // badge and opens the panel when a shared link carries it — a
+            // malformed one included, so its invalid marker is visible.
+            advancedActiveCount={
+              advancedActiveCount + (filters.owner_email.trim() === '' ? 0 : 1)
+            }
           />
         </ListPage.Filters>
 
@@ -211,9 +273,9 @@ export function AdminProjects() {
               <EmptyState
                 icon={FolderKanban}
                 title="No projects match your filters"
-                description="Try a different search, team, or date range."
+                description="Try a different search, team, date range, or advanced filter."
                 actions={
-                  <Button variant="outline" onClick={handleClear}>
+                  <Button variant="outline" onClick={clearAll}>
                     Clear filters
                   </Button>
                 }

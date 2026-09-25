@@ -1,11 +1,13 @@
-import { sanitizeAdvanced } from '@/pages/admin/filters/advancedFilterParams'
+import {
+  ownerEmailParam,
+  sanitizeAdvanced,
+} from '@/pages/admin/filters/advancedFilterParams'
 import type { AdminTeamListParams } from '@/services/adminService'
 
 import type { TeamListContext } from '../teamListParams'
 import {
   buildTeamListParams,
   isPersonalParam,
-  ownerEmailParam,
   TEAM_ADVANCED_FILTERS,
   TEAM_FILTERS_EXHAUSTIVE,
   TEAM_MEMBERSHIP_RANGES,

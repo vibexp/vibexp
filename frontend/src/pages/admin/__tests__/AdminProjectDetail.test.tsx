@@ -37,6 +37,8 @@ function detail(
       artifacts: 4,
       memories: 27,
       blueprints: 3,
+      feed_items: 8,
+      total: 54,
     },
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-02-03T00:00:00Z',
