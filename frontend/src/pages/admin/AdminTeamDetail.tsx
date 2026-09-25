@@ -1,26 +1,77 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router'
+import { useParams, useSearchParams } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatDate } from '@/lib/time'
 import { AdminDetailScaffold } from '@/pages/admin/AdminDetailScaffold'
+import { TeamAISummaryConfigTab } from '@/pages/admin/teams/detail/TeamAISummaryConfigTab'
+import { TeamArtifactTypesTab } from '@/pages/admin/teams/detail/TeamArtifactTypesTab'
+import { TeamEmailConfigTab } from '@/pages/admin/teams/detail/TeamEmailConfigTab'
+import { TeamEmbeddingProvidersTab } from '@/pages/admin/teams/detail/TeamEmbeddingProvidersTab'
+import { TeamFreshnessConfigTab } from '@/pages/admin/teams/detail/TeamFreshnessConfigTab'
+import { TeamGitHubConfigTab } from '@/pages/admin/teams/detail/TeamGitHubConfigTab'
+import { TeamMembersTab } from '@/pages/admin/teams/detail/TeamMembersTab'
+import { TeamModelProvidersTab } from '@/pages/admin/teams/detail/TeamModelProvidersTab'
+import { TeamSearchConfigTab } from '@/pages/admin/teams/detail/TeamSearchConfigTab'
+import { TeamSettingsAuditTab } from '@/pages/admin/teams/detail/TeamSettingsAuditTab'
 import type { AdminTeamDetail as AdminTeamDetailType } from '@/services/adminService'
 import { adminService } from '@/services/adminService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
-/** Instance team detail — owner + member list (#316). */
+const TABS = [
+  'members',
+  'search',
+  'ai-summary',
+  'freshness',
+  'model-providers',
+  'embedding-providers',
+  'email',
+  'github',
+  'artifact-types',
+  'settings-audit',
+] as const
+type TeamDetailTab = (typeof TABS)[number]
+
+const TAB_LABELS: Record<TeamDetailTab, string> = {
+  members: 'Members',
+  search: 'Search',
+  'ai-summary': 'AI summary',
+  freshness: 'Freshness',
+  'model-providers': 'Model providers',
+  'embedding-providers': 'Embedding providers',
+  email: 'Email',
+  github: 'GitHub',
+  'artifact-types': 'Artifact types',
+  'settings-audit': 'Settings audit',
+}
+
+function isTab(value: string | null): value is TeamDetailTab {
+  return TABS.includes(value as TeamDetailTab)
+}
+
+/**
+ * Instance team detail — owner and summary (#316) above a Members tab and
+ * nine read-only configuration tabs (#1142). The active tab lives in `?tab=`
+ * so it survives a reload and can be linked to; Radix unmounts inactive tabs,
+ * so each configuration tab fetches only when it is opened.
+ */
 export function AdminTeamDetail() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const tab: TeamDetailTab = isTab(requestedTab) ? requestedTab : 'members'
+  const setTab = (value: string) => {
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev)
+        next.set('tab', value)
+        return next
+      },
+      { replace: true }
+    )
+  }
   const [team, setTeam] = useState<AdminTeamDetailType | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -74,53 +125,45 @@ export function AdminTeamDetail() {
             </CardContent>
           </Card>
 
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold">Members</h2>
-            {team.members.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                This team has no members.
-              </p>
-            ) : (
-              <Card className="overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableHead className="h-9 text-xs font-medium">
-                        Email
-                      </TableHead>
-                      <TableHead className="h-9 text-xs font-medium">
-                        Name
-                      </TableHead>
-                      <TableHead className="h-9 text-xs font-medium">
-                        Role
-                      </TableHead>
-                      <TableHead className="h-9 text-xs font-medium">
-                        Joined
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {team.members.map(m => (
-                      <TableRow key={m.user_id}>
-                        <TableCell className="py-3 text-sm">
-                          {m.email}
-                        </TableCell>
-                        <TableCell className="py-3 text-sm">
-                          {m.name || '—'}
-                        </TableCell>
-                        <TableCell className="py-3">
-                          <Badge variant="outline">{m.role}</Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground py-3 text-xs">
-                          {formatDate(m.joined_at)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
-            )}
-          </div>
+          <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+            <TabsList className="h-auto w-full justify-start overflow-x-auto">
+              {TABS.map(value => (
+                <TabsTrigger key={value} value={value} className="shrink-0">
+                  {TAB_LABELS[value]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <TabsContent value="members">
+              <TeamMembersTab members={team.members} />
+            </TabsContent>
+            <TabsContent value="search">
+              <TeamSearchConfigTab teamId={team.id} />
+            </TabsContent>
+            <TabsContent value="ai-summary">
+              <TeamAISummaryConfigTab teamId={team.id} />
+            </TabsContent>
+            <TabsContent value="freshness">
+              <TeamFreshnessConfigTab teamId={team.id} />
+            </TabsContent>
+            <TabsContent value="model-providers">
+              <TeamModelProvidersTab teamId={team.id} />
+            </TabsContent>
+            <TabsContent value="embedding-providers">
+              <TeamEmbeddingProvidersTab teamId={team.id} />
+            </TabsContent>
+            <TabsContent value="email">
+              <TeamEmailConfigTab teamId={team.id} />
+            </TabsContent>
+            <TabsContent value="github">
+              <TeamGitHubConfigTab teamId={team.id} />
+            </TabsContent>
+            <TabsContent value="artifact-types">
+              <TeamArtifactTypesTab teamId={team.id} />
+            </TabsContent>
+            <TabsContent value="settings-audit">
+              <TeamSettingsAuditTab teamId={team.id} />
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </AdminDetailScaffold>

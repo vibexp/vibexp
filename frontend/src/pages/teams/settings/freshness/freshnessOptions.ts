@@ -153,6 +153,18 @@ export function describeInterval(seconds: number): string {
 }
 
 /**
+ * The fields `describeRule` reads. Wider than `FreshnessRule` so the admin team
+ * detail (#1142) can describe its `AdminFreshnessRule`, whose resource types and
+ * mediums are plain strings; unknown values fall back to the raw string.
+ */
+export interface DescribableRule {
+  resource_types: readonly string[]
+  mediums: readonly string[]
+  project_id: string | null
+  threshold_days: number
+}
+
+/**
  * Renders a rule as the sentence the rules table shows, e.g.
  * "Artifacts in Marketing not accessed via the CLI for 90 days".
  *
@@ -160,7 +172,7 @@ export function describeInterval(seconds: number): string {
  * an unknown id degrades to "a project" rather than blocking on a lookup.
  */
 export function describeRule(
-  rule: FreshnessRule,
+  rule: DescribableRule,
   projectName?: string
 ): string {
   const types = rule.resource_types
