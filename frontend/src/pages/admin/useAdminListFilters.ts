@@ -8,6 +8,22 @@ import {
 } from '@/components/ui/date-range'
 import { useUrlFilters } from '@/hooks/useUrlFilters'
 
+import type {
+  AdvancedFilterSpec,
+  NumberRangeValue,
+} from './filters/advancedFilterParams'
+import {
+  advancedKeys,
+  dateRangeKeys,
+  parseDateRange,
+  parseRange,
+  parseTriState,
+  rangeKeys,
+  sanitizeAdvanced,
+  serializeRange,
+  serializeTriState,
+} from './filters/advancedFilterParams'
+
 /** Every admin list page carries these; a page adds its own domain filters. */
 export interface AdminListBaseFilters {
   page: string
@@ -32,6 +48,16 @@ export interface UseAdminListFiltersOptions<TSort extends string> {
    * date range. Drives which empty state is shown and whether Clear is offered.
    */
   filterKeys: readonly string[]
+  /**
+   * Filters shown in the "Advanced filters" panel (#1132). Their URL keys are
+   * owned by this hook: cleaned into `advancedParams`, counted in
+   * `hasActiveFilters`, and reset by Clear.
+   *
+   * Must be a **module-level constant**, like `defaults`: `useUrlFilters` freezes
+   * the keys it owns on the first render, so a declaration that changes later
+   * would not be picked up.
+   */
+  advanced?: AdvancedFilterSpec
 }
 
 /**
@@ -57,8 +83,14 @@ export function useAdminListFilters<TSort extends string>({
   sortableKeys,
   defaultSort,
   filterKeys,
+  advanced,
 }: UseAdminListFiltersOptions<TSort>) {
-  const { filters, setFilters, resetFilters } = useUrlFilters({ ...defaults })
+  // Advanced keys join the defaults as `''`, which is what makes Clear
+  // (`resetFilters`) remove them from the URL too.
+  const { filters, setFilters, resetFilters } = useUrlFilters({
+    ...Object.fromEntries(advancedKeys(advanced).map(key => [key, ''])),
+    ...defaults,
+  })
   // Uncommitted text in the search box, debounced into the URL below.
   const [searchInput, setSearchInput] = useState(filters.search)
 
@@ -94,11 +126,65 @@ export function useAdminListFilters<TSort extends string>({
   const sortOrder: 'asc' | 'desc' =
     filters.sort_order === 'asc' ? 'asc' : 'desc'
 
+  // Invalid URL values (non-integer, min > max, malformed day) never reach
+  // `advancedParams`, so they are never sent to the API.
+  const { params: advancedParams, activeCount: advancedActiveCount } = useMemo(
+    () => sanitizeAdvanced(advanced, filters),
+    [advanced, filters]
+  )
+
   const hasActiveFilters =
     filters.search !== '' ||
     filters.created_from !== '' ||
     filters.created_to !== '' ||
-    filterKeys.some(key => filters[key] !== defaults[key])
+    filterKeys.some(key => filters[key] !== defaults[key]) ||
+    advancedActiveCount > 0
+
+  const getRange = useCallback(
+    (name: string): NumberRangeValue => {
+      const [minKey, maxKey] = rangeKeys(name)
+      return parseRange(filters[minKey], filters[maxKey])
+    },
+    [filters]
+  )
+
+  const setRange = useCallback(
+    (name: string, value: NumberRangeValue) => {
+      setFilters(serializeRange(name, value))
+    },
+    [setFilters]
+  )
+
+  const getDateRange = useCallback(
+    (name: string): DateRangeValue => {
+      const [fromKey, toKey] = dateRangeKeys(name)
+      return parseDateRange(filters[fromKey], filters[toKey])
+    },
+    [filters]
+  )
+
+  const setDateRange = useCallback(
+    (name: string, value: DateRangeValue) => {
+      const [fromKey, toKey] = dateRangeKeys(name)
+      setFilters({
+        [fromKey]: value.from ? toDateParam(value.from) : '',
+        [toKey]: value.to ? toDateParam(value.to) : '',
+      })
+    },
+    [setFilters]
+  )
+
+  const getTriState = useCallback(
+    (name: string): boolean | undefined => parseTriState(filters[name]),
+    [filters]
+  )
+
+  const setTriState = useCallback(
+    (name: string, value: boolean | undefined) => {
+      setFilters({ [name]: serializeTriState(value) })
+    },
+    [setFilters]
+  )
 
   const handleSortChange = useCallback(
     (key: TSort) => {
@@ -153,5 +239,13 @@ export function useAdminListFilters<TSort extends string>({
     hasActiveFilters,
     handleSortChange,
     handleClear,
+    advancedParams,
+    advancedActiveCount,
+    getRange,
+    setRange,
+    getDateRange,
+    setDateRange,
+    getTriState,
+    setTriState,
   }
 }
