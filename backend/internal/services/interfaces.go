@@ -574,6 +574,17 @@ type UserPreferencesServiceInterface interface {
 		userID string,
 		req models.UpdatePreferencesRequest,
 	) (*models.PreferencesResponse, error)
+	// GetAdminSavedFilters returns the caller's saved filter presets for one
+	// admin list and the version to send back when replacing them (#1147).
+	GetAdminSavedFilters(
+		ctx context.Context, userID, list string,
+	) ([]models.AdminSavedFilterPreset, int64, error)
+	// ReplaceAdminSavedFilters validates and replaces the caller's presets for
+	// one admin list. Invalid input returns *ErrAdminSavedFiltersInvalid; a stale
+	// version returns repositories.ErrUserPreferencesVersionConflict.
+	ReplaceAdminSavedFilters(
+		ctx context.Context, userID, list string, presets []models.AdminSavedFilterPreset, expectedVersion int64,
+	) ([]models.AdminSavedFilterPreset, int64, error)
 }
 
 // TeamServiceInterface defines the interface for team operations

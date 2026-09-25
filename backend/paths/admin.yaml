@@ -2759,3 +2759,114 @@ api-v1-admin-projects-id-config:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-saved-filters-list:
+  get:
+    summary: Get the caller's saved filter presets for an admin list
+    description: |
+      Returns the calling instance admin's own named filter presets for one admin
+      list, plus the `version` to send back when replacing them. An admin with
+      nothing saved gets `presets: []` and `version: 0`. Presets are private to
+      the admin who saved them.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: getAdminSavedFilters
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: list
+        in: path
+        required: true
+        description: Which admin list the presets belong to.
+        schema:
+          $ref: '../openapi.yaml#/components/schemas/AdminSavedFilterListName'
+    responses:
+      '200':
+        description: The caller's presets for this list
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminSavedFilters'
+      '400':
+        description: Bad request — unknown list name
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  put:
+    summary: Replace the caller's saved filter presets for an admin list
+    description: |
+      Atomically replaces the calling instance admin's presets for one admin
+      list. At most 20 presets; names are trimmed and must be 1–80 characters and
+      unique case-insensitively; ids must be unique (a missing id is assigned by
+      the server, a sent id is kept). The request's `version` must match the
+      stored one, otherwise nothing is saved and 409 is returned. A body carrying
+      an unknown field is rejected with 400.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: replaceAdminSavedFilters
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: list
+        in: path
+        required: true
+        description: Which admin list the presets belong to.
+        schema:
+          $ref: '../openapi.yaml#/components/schemas/AdminSavedFilterListName'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AdminSavedFiltersReplaceRequest'
+    responses:
+      '200':
+        description: The saved presets and the new version
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminSavedFilters'
+      '400':
+        description: |
+          Bad request — unknown list name, an invalid preset (over the cap,
+          duplicate or out-of-range name, duplicate id, invalid query key or
+          value), or a body carrying an unknown field
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict — the presets were changed elsewhere (stale `version`); nothing was saved
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'

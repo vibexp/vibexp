@@ -1011,6 +1011,19 @@ components:
       $ref: "./schemas/admin.yaml#/AdminProjectAccessMetrics"
     AdminProjectConfig:
       $ref: "./schemas/admin.yaml#/AdminProjectConfig"
+    # Admin saved filter presets (#1147)
+    AdminSavedFilterListName:
+      $ref: "./schemas/admin.yaml#/AdminSavedFilterListName"
+    AdminSavedFilterQuery:
+      $ref: "./schemas/admin.yaml#/AdminSavedFilterQuery"
+    AdminSavedFilterPreset:
+      $ref: "./schemas/admin.yaml#/AdminSavedFilterPreset"
+    AdminSavedFilterPresetInput:
+      $ref: "./schemas/admin.yaml#/AdminSavedFilterPresetInput"
+    AdminSavedFilters:
+      $ref: "./schemas/admin.yaml#/AdminSavedFilters"
+    AdminSavedFiltersReplaceRequest:
+      $ref: "./schemas/admin.yaml#/AdminSavedFiltersReplaceRequest"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
@@ -1349,6 +1362,8 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-projects-id-top-accessed-resources"
   /api/v1/admin/projects/{id}/config:
     $ref: "./paths/admin.yaml#/api-v1-admin-projects-id-config"
+  /api/v1/admin/saved-filters/{list}:
+    $ref: "./paths/admin.yaml#/api-v1-admin-saved-filters-list"
   /api/v1/{team_id}/comments:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
   /api/v1/{team_id}/comments/recent:

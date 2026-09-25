@@ -36,6 +36,22 @@ func (m *MockUserPreferencesRepository) Upsert(
 	return args.Error(0)
 }
 
+func (m *MockUserPreferencesRepository) GetAdminSavedFilters(
+	ctx context.Context, userID, list string,
+) ([]models.AdminSavedFilterPreset, int64, error) {
+	args := m.Called(ctx, userID, list)
+	presets, _ := args.Get(0).([]models.AdminSavedFilterPreset)
+	return presets, args.Get(1).(int64), args.Error(2)
+}
+
+func (m *MockUserPreferencesRepository) ReplaceAdminSavedFilters(
+	ctx context.Context, userID, list string, presets []models.AdminSavedFilterPreset,
+	seed models.Preferences, expectedVersion int64,
+) (int64, error) {
+	args := m.Called(ctx, userID, list, presets, seed, expectedVersion)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 //nolint:funlen // table-driven test with multiple test cases
 func TestUserPreferencesService_GetPreferences(t *testing.T) {
 	tests := []struct {

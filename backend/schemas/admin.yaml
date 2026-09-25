@@ -2372,3 +2372,127 @@ AdminProjectConfig:
       description: Rules with no project scope, which apply to every project of the team. `[]` when there are none.
       items:
         $ref: '#/AdminFreshnessRule'
+
+AdminSavedFilterListName:
+  type: string
+  description: The admin list a set of saved filter presets belongs to.
+  enum:
+    - users
+    - teams
+    - projects
+
+AdminSavedFilterQuery:
+  type: object
+  description: |
+    The list's filter state as URL query parameters (parameter name → value).
+    Stored as given and never executed server-side; the client owns its meaning.
+    At most 40 keys, each matching `^[a-z0-9_]{1,64}$`, each value at most 512
+    characters.
+  maxProperties: 40
+  additionalProperties:
+    type: string
+    maxLength: 512
+  example:
+    status: suspended
+    sort_by: created_at
+
+AdminSavedFilterPreset:
+  type: object
+  description: One named filter preset saved by an instance admin.
+  additionalProperties: false
+  required:
+    - id
+    - name
+    - query
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Stable preset id. Kept across renames.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      description: Display name, unique (case-insensitively) within the list.
+      example: "Dormant teams"
+    query:
+      $ref: '#/AdminSavedFilterQuery'
+
+AdminSavedFilterPresetInput:
+  type: object
+  description: |
+    A preset as sent in a replace request. Omit `id` for a new preset and the
+    server assigns one; send the existing `id` to keep it (e.g. on rename).
+  additionalProperties: false
+  required:
+    - name
+    - query
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Existing preset id to keep; omitted for a new preset.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      description: |
+        Display name. Surrounding whitespace is trimmed; must be unique
+        (case-insensitively) within the list.
+      example: "Dormant teams"
+    query:
+      $ref: '#/AdminSavedFilterQuery'
+
+AdminSavedFilters:
+  type: object
+  description: |
+    The calling instance admin's saved filter presets for one admin list
+    (GET/PUT /api/v1/admin/saved-filters/{list}). Presets are private to the
+    admin who saved them.
+  additionalProperties: false
+  required:
+    - list
+    - presets
+    - version
+  properties:
+    list:
+      $ref: '#/AdminSavedFilterListName'
+    presets:
+      type: array
+      maxItems: 20
+      description: The presets in their saved order. `[]` when there are none.
+      items:
+        $ref: '#/AdminSavedFilterPreset'
+    version:
+      type: integer
+      format: int64
+      minimum: 0
+      description: |
+        Optimistic-lock version of the admin's preferences record. `0` when
+        nothing has been saved yet. Send it back unchanged in the next replace
+        request; it is shared with the user's other preferences, so a change
+        made elsewhere also advances it.
+
+AdminSavedFiltersReplaceRequest:
+  type: object
+  description: |
+    Replaces the whole preset list for one admin list. Renaming and deleting are
+    done by sending the edited list.
+  additionalProperties: false
+  required:
+    - presets
+    - version
+  properties:
+    presets:
+      type: array
+      maxItems: 20
+      description: The complete new preset list, in order (at most 20).
+      items:
+        $ref: '#/AdminSavedFilterPresetInput'
+    version:
+      type: integer
+      format: int64
+      minimum: 0
+      description: |
+        The `version` last read. A stale value is rejected with 409 and nothing
+        is saved.

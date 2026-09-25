@@ -95,3 +95,23 @@ func DefaultPreferences() Preferences {
 		Notifications: DefaultNotificationPreferences(),
 	}
 }
+
+// Admin saved filter presets (#1147). They live in the admin's own
+// preferences document under admin.saved_filters.<list>, outside the typed
+// Preferences struct, so the user-facing /preferences payload never shows them.
+const (
+	AdminSavedFilterListUsers    = "users"
+	AdminSavedFilterListTeams    = "teams"
+	AdminSavedFilterListProjects = "projects"
+
+	// MaxAdminSavedFilterPresets caps the presets one admin may keep per list.
+	MaxAdminSavedFilterPresets = 20
+)
+
+// AdminSavedFilterPreset is one named filter preset of an admin list. Query is
+// the list's URL filter state (param → value); the server stores it opaquely.
+type AdminSavedFilterPreset struct {
+	ID    string            `json:"id"`
+	Name  string            `json:"name"`
+	Query map[string]string `json:"query"`
+}
