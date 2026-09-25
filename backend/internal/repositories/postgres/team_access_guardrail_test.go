@@ -449,21 +449,79 @@ var roleColumnCRUDFiles = map[string]bool{
 // leave the SQL scoping by team membership.
 func TestNoRolePredicatesInRepositorySQL(t *testing.T) {
 	forEachPackageFile(t, func(name string, fset *token.FileSet, file *ast.File) {
-		if roleColumnCRUDFiles[name] {
+		if roleColumnCRUDFiles[name] || roleAsDataFiles[name] {
 			return
 		}
-		for _, lit := range sqlStringLiterals(fset, file) {
-			if !strings.Contains(strings.ToLower(lit.value), "role") {
-				continue
-			}
-			if loc := rolePredicateRe.FindString(lit.value); loc != "" {
-				t.Errorf(
-					"%s:%d: role predicate in repository SQL (%q).\n"+
-						"Repository SQL enforces tenancy only (epic #220 D3); the role decision "+
-						"belongs in the service layer via AuthorizationService.",
-					name, lit.line, strings.TrimSpace(loc),
-				)
-			}
+		for _, v := range rolePredicateViolations(fset, file) {
+			t.Errorf(
+				"%s:%d: role predicate in repository SQL (%q).\n"+
+					"Repository SQL enforces tenancy only (epic #220 D3); the role decision "+
+					"belongs in the service layer via AuthorizationService.",
+				name, v.line, v.value,
+			)
 		}
 	})
+}
+
+// rolePredicateViolations returns every SQL string constant in file that filters
+// on the role column, with the matched fragment as its value.
+func rolePredicateViolations(fset *token.FileSet, file *ast.File) []stringLiteral {
+	var out []stringLiteral
+	for _, lit := range sqlStringLiterals(fset, file) {
+		if !strings.Contains(strings.ToLower(lit.value), "role") {
+			continue
+		}
+		if loc := rolePredicateRe.FindString(lit.value); loc != "" {
+			out = append(out, stringLiteral{value: strings.TrimSpace(loc), line: lit.line})
+		}
+	}
+	return out
+}
+
+// roleAsDataFiles hold cross-tenant admin REPORTING SQL that reads the role
+// column as data — counting owners/admins per team for the instance-admin team
+// listing (#1138) — and never authorizes anything: the admin surface is gated by
+// instance-admin middleware, not by team role. The exemption is file-scoped and
+// TestRoleAsDataFilesStayNarrow pins each file to exactly one SQL constant, so it
+// cannot grow into a home for authorization predicates. Approved by the
+// maintainer (2026-09-25) on #1138; do not add files here to silence the rule.
+var roleAsDataFiles = map[string]bool{
+	"admin_team_role_counts.go": true,
+}
+
+// TestRoleAsDataFilesStayNarrow keeps the roleAsDataFiles exemption from growing:
+// each exempt file must exist and declare exactly one string constant (its one
+// role-count aggregate). Anything else belongs in a file the role rule covers.
+func TestRoleAsDataFilesStayNarrow(t *testing.T) {
+	seen := map[string]bool{}
+	forEachPackageFile(t, func(name string, fset *token.FileSet, file *ast.File) {
+		if !roleAsDataFiles[name] {
+			return
+		}
+		seen[name] = true
+		lits := sqlStringLiterals(fset, file)
+		require.Lenf(t, lits, 1,
+			"%s is exempt from TestNoRolePredicatesInRepositorySQL and must hold exactly one SQL constant", name)
+	})
+	for name := range roleAsDataFiles {
+		require.Truef(t, seen[name], "roleAsDataFiles lists %s, which no longer exists", name)
+	}
+}
+
+// TestNoRolePredicatesInRepositorySQL_StillFiresOutsideExemptions proves the
+// role-as-data exemption is file-scoped: the same role-count aggregate placed in
+// admin.go (or any other non-exempt file) is still reported.
+func TestNoRolePredicatesInRepositorySQL_StillFiresOutsideExemptions(t *testing.T) {
+	const src = `package postgres
+
+const q = "SELECT team_id, COUNT(*) FILTER (WHERE role = 'admin') FROM team_members GROUP BY team_id"
+`
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "admin.go", src, 0)
+	require.NoError(t, err)
+
+	require.False(t, roleColumnCRUDFiles["admin.go"] || roleAsDataFiles["admin.go"])
+	violations := rolePredicateViolations(fset, file)
+	require.Len(t, violations, 1)
+	require.Equal(t, "role =", violations[0].value)
 }

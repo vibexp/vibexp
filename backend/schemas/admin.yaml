@@ -117,10 +117,11 @@ AdminUserListItem:
 AdminResourceCounts:
   type: object
   description: |
-    How many resources of each type a user authored, counted by the author
-    column of each table (feeds by creator, feed items by poster). Every row
-    counts regardless of its status or archive state. `total` is the sum of the
-    nine types.
+    How many resources of each type belong to the listed row. On a user row
+    these are the resources the user authored, counted by the author column of
+    each table (feeds by creator, feed items by poster); on a team row they are
+    the resources in the team, counted by team_id. Every row counts regardless
+    of its status or archive state. `total` is the sum of the nine types.
   required:
     - prompts
     - memories
@@ -307,6 +308,11 @@ AdminTeamListItem:
     - is_personal
     - owner
     - member_count
+    - owner_count
+    - admin_count
+    - project_count
+    - resource_counts
+    - configuration
     - created_at
   properties:
     id:
@@ -331,9 +337,65 @@ AdminTeamListItem:
       format: int64
       description: Number of members in the team.
       example: 8
+    owner_count:
+      type: integer
+      format: int64
+      description: Number of members holding the owner role. Always 1 by application invariant; any other value signals integrity drift.
+      example: 1
+    admin_count:
+      type: integer
+      format: int64
+      description: Number of members holding the admin role.
+      example: 2
+    project_count:
+      type: integer
+      format: int64
+      description: Number of projects in the team.
+      example: 3
+    resource_counts:
+      $ref: '#/AdminResourceCounts'
+    configuration:
+      $ref: '#/AdminTeamConfiguration'
     created_at:
       type: string
       format: date-time
+
+AdminTeamConfiguration:
+  type: object
+  description: |
+    Which settings a team has configured itself. Each flag reflects the team's
+    OWN rows only; instance-level fallback configuration (config.yaml) never
+    counts as configured.
+  required:
+    - embedding_configured
+    - llm_configured
+    - ai_summary_enabled
+    - email_configured
+    - github_configured
+    - search_settings_customized
+    - freshness_enabled
+  properties:
+    embedding_configured:
+      type: boolean
+      description: The team has at least one embedding provider of its own.
+    llm_configured:
+      type: boolean
+      description: The team has at least one LLM model provider of its own.
+    ai_summary_enabled:
+      type: boolean
+      description: The team has its own AI summary settings with summaries enabled.
+    email_configured:
+      type: boolean
+      description: The team has its own email provider, regardless of its delivery health.
+    github_configured:
+      type: boolean
+      description: The team has its own GitHub App configuration or at least one GitHub App installation (suspended installations included).
+    search_settings_customized:
+      type: boolean
+      description: The team has its own search settings.
+    freshness_enabled:
+      type: boolean
+      description: The team has at least one enabled freshness rule.
 
 AdminTeamListResponse:
   type: object

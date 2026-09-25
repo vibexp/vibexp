@@ -989,10 +989,38 @@ type AdminTeamFilters struct {
 	IsPersonal  *bool
 	CreatedFrom *time.Time
 	CreatedTo   *time.Time
-	SortBy      string
-	SortOrder   string
-	Page        int
-	Limit       int
+	// Count ranges over the team's aggregates (#1138), same contract as
+	// AdminUserFilters: a zero-value range is "no filter", bounds are inclusive
+	// and already validated by the handler.
+	MemberCount        AdminCountRange
+	OwnerCount         AdminCountRange
+	AdminCount         AdminCountRange
+	ProjectCount       AdminCountRange
+	PromptCount        AdminCountRange
+	MemoryCount        AdminCountRange
+	ArtifactCount      AdminCountRange
+	BlueprintCount     AdminCountRange
+	AgentCount         AdminCountRange
+	FeedCount          AdminCountRange
+	FeedItemCount      AdminCountRange
+	CommentCount       AdminCountRange
+	AttachmentCount    AdminCountRange
+	TotalResourceCount AdminCountRange
+	// OwnerEmail is a case-insensitive exact match on the owner's email.
+	OwnerEmail *string
+	// Configured tri-states (#1138): nil = any, true/false = the team does /
+	// does not have its OWN row; instance-level fallback never counts.
+	EmbeddingConfigured      *bool
+	LLMConfigured            *bool
+	AISummaryEnabled         *bool
+	EmailConfigured          *bool
+	GitHubConfigured         *bool
+	SearchSettingsCustomized *bool
+	FreshnessEnabled         *bool
+	SortBy                   string
+	SortOrder                string
+	Page                     int
+	Limit                    int
 }
 
 // AdminProjectFilters narrows and orders the instance-wide admin project

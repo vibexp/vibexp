@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"net/mail"
 	"time"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
@@ -33,12 +34,44 @@ func validateAdminCountRange(name string, lower, upper *int64) (repositories.Adm
 	return repositories.AdminCountRange{Min: lower, Max: upper}, nil
 }
 
+// adminCountRangeParam binds one <name>_min/<name>_max query pair to the
+// repository range it validates into.
+type adminCountRangeParam struct {
+	name         string
+	lower, upper *int64
+	dst          *repositories.AdminCountRange
+}
+
+// applyAdminCountRanges validates every pair with validateAdminCountRange and
+// stores each valid range in its dst, stopping at the first 400.
+func applyAdminCountRanges(params []adminCountRangeParam) error {
+	for _, cr := range params {
+		r, err := validateAdminCountRange(cr.name, cr.lower, cr.upper)
+		if err != nil {
+			return err
+		}
+		*cr.dst = r
+	}
+	return nil
+}
+
 // validateAdminTimeRange rejects an inverted <name>_from/<name>_to pair. The
 // RFC 3339 format itself is already enforced by the generated binding.
 func validateAdminTimeRange(name string, from, to *time.Time) error {
 	if from != nil && to != nil && from.After(*to) {
 		return apierrors.NewBadRequestError(
 			fmt.Sprintf("%s_from must not be after %s_to", name, name))
+	}
+	return nil
+}
+
+// validateAdminEmailParam enforces the spec's `format: email` on a query param,
+// which the generated binder does not: the value must be a bare address (no
+// display name), or it is a 400 rather than a silently empty page.
+func validateAdminEmailParam(name, value string) error {
+	addr, err := mail.ParseAddress(value)
+	if err != nil || addr.Address != value {
+		return apierrors.NewBadRequestError(fmt.Sprintf("%s must be a valid email address", name))
 	}
 	return nil
 }
