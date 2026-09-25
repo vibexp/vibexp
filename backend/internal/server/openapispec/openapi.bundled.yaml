@@ -25847,7 +25847,11 @@ components:
           nullable: true
         resource_deleted:
           type: boolean
-          description: True when the resource no longer exists (access events outlive their resource until pruned).
+          description: |
+            True when the resource no longer exists (access events outlive their
+            resource until pruned). Always `false` for a project's top resources
+            (GET /api/v1/admin/projects/{id}/top-accessed-resources), where a
+            deleted resource has no current project and drops out.
         access_count:
           type: integer
           format: int64

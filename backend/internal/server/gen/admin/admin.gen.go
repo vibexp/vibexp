@@ -1581,7 +1581,10 @@ type AdminTopAccessedResource struct {
 	ProjectId   *openapi_types.UUID `json:"project_id"`
 	ProjectName *string             `json:"project_name"`
 
-	// ResourceDeleted True when the resource no longer exists (access events outlive their resource until pruned).
+	// ResourceDeleted True when the resource no longer exists (access events outlive their
+	// resource until pruned). Always `false` for a project's top resources
+	// (GET /api/v1/admin/projects/{id}/top-accessed-resources), where a
+	// deleted resource has no current project and drops out.
 	ResourceDeleted bool `json:"resource_deleted"`
 
 	// ResourceShortId First 8 characters of the resource id.

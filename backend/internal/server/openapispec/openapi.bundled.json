@@ -36975,7 +36975,7 @@
           },
           "resource_deleted": {
             "type": "boolean",
-            "description": "True when the resource no longer exists (access events outlive their resource until pruned)."
+            "description": "True when the resource no longer exists (access events outlive their\nresource until pruned). Always `false` for a project's top resources\n(GET /api/v1/admin/projects/{id}/top-accessed-resources), where a\ndeleted resource has no current project and drops out.\n"
           },
           "access_count": {
             "type": "integer",
