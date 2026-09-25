@@ -12,6 +12,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/time'
+import { AdminExportButton } from '@/pages/admin/AdminExportButton'
+import { withoutPaging } from '@/pages/admin/exportParams'
 import { useAdminListFilters } from '@/pages/admin/useAdminListFilters'
 import { USER_ADVANCED_FILTERS } from '@/pages/admin/users/userAdvancedFilters'
 import { UserColumnChooser } from '@/pages/admin/users/UserColumnChooser'
@@ -24,6 +26,7 @@ import type { UserStatusFilter } from '@/pages/admin/users/UserFilters'
 import { UserFilters } from '@/pages/admin/users/UserFilters'
 import type { UserFormValues } from '@/pages/admin/users/UserFormDialog'
 import { UserFormDialog } from '@/pages/admin/users/UserFormDialog'
+import { buildUserListParams } from '@/pages/admin/users/userListParams'
 import type { AdminUserListItem } from '@/services/adminService'
 import { adminService } from '@/services/adminService'
 import { getErrorMessage } from '@/utils/errorHandling'
@@ -92,11 +95,6 @@ function orDash(value: string | null | undefined): string {
   return value && value !== '' ? value : '—'
 }
 
-/** `all` must send nothing; the other two are the API's enum values. */
-function statusParam(value: string): 'active' | 'suspended' | undefined {
-  return value === 'active' || value === 'suspended' ? value : undefined
-}
-
 /** Instance-wide users list: server-side filtering, sorting, pagination (#459). */
 export function AdminUsers() {
   const navigate = useNavigate()
@@ -137,23 +135,27 @@ export function AdminUsers() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
+  // One memoised request object: the list call and the CSV export both derive
+  // from it, so they cannot send different filters (#1150).
+  const params = useMemo(
+    () =>
+      buildUserListParams(filters, {
+        advanced: advancedParams,
+        page,
+        limit: PAGE_SIZE,
+        createdFrom,
+        createdTo,
+        sortBy,
+        sortOrder,
+      }),
+    [filters, advancedParams, page, createdFrom, createdTo, sortBy, sortOrder]
+  )
+
   useEffect(() => {
     let cancelled = false
     setState(prev => ({ ...prev, loading: true, error: null }))
     adminService
-      .listUsers({
-        page,
-        limit: PAGE_SIZE,
-        search: filters.search || undefined,
-        status: statusParam(filters.status),
-        idp_provider: filters.idp_provider || undefined,
-        created_from: createdFrom,
-        created_to: createdTo,
-        sort_by: sortBy,
-        sort_order: sortOrder,
-        // Already validated and typed by the hook; invalid URL values are absent.
-        ...advancedParams,
-      })
+      .listUsers(params)
       .then(response => {
         if (cancelled) return
         setState({
@@ -176,17 +178,7 @@ export function AdminUsers() {
     return () => {
       cancelled = true
     }
-  }, [
-    page,
-    filters.search,
-    filters.status,
-    filters.idp_provider,
-    createdFrom,
-    createdTo,
-    sortBy,
-    sortOrder,
-    advancedParams,
-  ])
+  }, [params])
 
   const columns = useMemo<ColumnDef<AdminUserListItem>[]>(
     () => [
@@ -305,6 +297,15 @@ export function AdminUsers() {
               advancedActiveCount={advancedActiveCount}
               currentQuery={currentQuery}
               onApplyPreset={applyQuery}
+              actions={
+                <AdminExportButton
+                  noun="users"
+                  disabled={state.total === 0}
+                  onExport={() =>
+                    adminService.exportUsers(withoutPaging(params))
+                  }
+                />
+              }
             />
             <div className="flex items-center gap-2">
               <UserColumnChooser

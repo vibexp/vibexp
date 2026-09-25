@@ -28,8 +28,12 @@ vi.mock('@/services/adminService', () => ({
     createUser: vi.fn(),
     getSavedFilters: vi.fn(),
     replaceSavedFilters: vi.fn(),
+    exportUsers: vi.fn(),
   },
 }))
+
+// jsdom has no object URLs; the download itself is covered by its own test.
+vi.mock('@/utils/downloadBlob', () => ({ downloadBlob: vi.fn() }))
 
 import { formatDate } from '@/lib/time'
 import { advancedKeys } from '@/pages/admin/filters/advancedFilterParams'
@@ -782,4 +786,62 @@ it('applies a saved preset as the whole URL query (#1148)', async () => {
   })
   expect(lastQuery().idp_provider).toBeUndefined()
   expect(currentSearch).toBe('?status=suspended')
+})
+
+describe('CSV export (#1150)', () => {
+  const exportButton = () => screen.getByRole('button', { name: /export csv/i })
+
+  it('exports exactly the list query, minus page and limit', async () => {
+    mockAdminService.exportUsers.mockResolvedValue({
+      blob: new Blob([]),
+      filename: 'admin-users.csv',
+      totalCount: 1,
+      truncated: false,
+    })
+    renderUsers(
+      '/admin/users?page=2&search=ada&status=suspended&idp_provider=github&prompt_count_min=3&total_resource_count_max=9&last_resource_created_from=2026-07-01&last_resource_created_to=2026-07-24&sort_by=team_count&sort_order=asc'
+    )
+
+    await waitFor(() => {
+      expect(exportButton()).toBeEnabled()
+    })
+    await userEvent.click(exportButton())
+
+    await waitFor(() => {
+      expect(mockAdminService.exportUsers).toHaveBeenCalledTimes(1)
+    })
+    const listFilters = Object.fromEntries(
+      Object.entries(lastQuery()).filter(
+        ([key]) => key !== 'page' && key !== 'limit'
+      )
+    )
+    const exported = mockAdminService.exportUsers.mock.calls[0][0]
+    expect(exported).toStrictEqual(listFilters)
+    expect(exported).not.toHaveProperty('page')
+    expect(exported).not.toHaveProperty('limit')
+    // Guard against both sides being empty: the URL's filters really are there.
+    expect(exported).toMatchObject({
+      search: 'ada',
+      status: 'suspended',
+      idp_provider: 'github',
+      prompt_count_min: 3,
+      total_resource_count_max: 9,
+      sort_by: 'team_count',
+      sort_order: 'asc',
+    })
+    expect(exported.last_resource_created_from).toEqual(expect.any(String))
+    expect(exported.last_resource_created_to).toEqual(expect.any(String))
+  })
+
+  it('is disabled when the filtered list is empty', async () => {
+    mockAdminService.listUsers.mockResolvedValue(
+      page({ users: [], total_count: 0, total_pages: 0 })
+    )
+    renderUsers()
+
+    // Settled on the empty result, not still loading.
+    expect(await screen.findByText('No users yet')).toBeInTheDocument()
+    expect(exportButton()).toBeDisabled()
+    expect(mockAdminService.exportUsers).not.toHaveBeenCalled()
+  })
 })

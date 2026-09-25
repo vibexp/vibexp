@@ -4,6 +4,7 @@ import { AttachmentCard } from '@/components/attachments/AttachmentCard'
 import { useAlerts } from '@/hooks'
 import type { Attachment } from '@/services/attachmentService'
 import { attachmentService } from '@/services/attachmentService'
+import { downloadBlob } from '@/utils/downloadBlob'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 interface ResourceAttachmentsProps {
@@ -74,14 +75,7 @@ export function ResourceAttachments({
   const handleDownload = async (attachment: Attachment) => {
     try {
       const blob = await attachmentService.download(teamId, attachment.id)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = attachment.file_name
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
+      downloadBlob(blob, attachment.file_name)
     } catch (err) {
       showError(
         getErrorMessage(err, 'Failed to download attachment'),

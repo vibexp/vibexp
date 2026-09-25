@@ -1,6 +1,11 @@
 import type { components, operations } from '@vibexp/api-client'
 
-import { generatedClient, unwrap } from '../lib/apiClientGenerated'
+import {
+  generatedClient,
+  longRunningClient,
+  unwrap,
+  unwrapWithResponse,
+} from '../lib/apiClientGenerated'
 
 // Generated wire types for the instance-admin domain (#316) — the OpenAPI spec
 // is the single source of truth. These back the read-only `/api/v1/admin/*`
@@ -187,6 +192,92 @@ export type AdminSavedFiltersReplaceRequest =
 export type AdminProjectListParams = NonNullable<
   operations['listAdminProjects']['parameters']['query']
 >
+
+/** Query parameters of the CSV exports (#1149): the list's filters and sort. */
+export type AdminUserExportParams = NonNullable<
+  operations['exportAdminUsers']['parameters']['query']
+>
+export type AdminTeamExportParams = NonNullable<
+  operations['exportAdminTeams']['parameters']['query']
+>
+export type AdminProjectExportParams = NonNullable<
+  operations['exportAdminProjects']['parameters']['query']
+>
+
+type MutuallyAssignable<A, B> = [A] extends [B]
+  ? [B] extends [A]
+    ? true
+    : false
+  : false
+/**
+ * Same keys and mutually assignable values. Assignability alone would treat an
+ * optional param present on one side only as equal, so the key sets are
+ * compared too.
+ */
+type SameShape<A, B> =
+  MutuallyAssignable<A, B> extends true
+    ? MutuallyAssignable<keyof A, keyof B>
+    : false
+
+/**
+ * Compile-time parity: each export takes exactly its list's query minus
+ * `page`/`limit`. The pages derive the export query from the list query, so a
+ * param added to one op and not the other fails `tsc -b` here instead of an
+ * export silently ignoring a filter the table on screen applies.
+ */
+export const ADMIN_EXPORT_PARAMS_MATCH_LIST: [
+  SameShape<Omit<AdminUserListParams, 'page' | 'limit'>, AdminUserExportParams>,
+  SameShape<Omit<AdminTeamListParams, 'page' | 'limit'>, AdminTeamExportParams>,
+  SameShape<
+    Omit<AdminProjectListParams, 'page' | 'limit'>,
+    AdminProjectExportParams
+  >,
+] = [true, true, true]
+
+/**
+ * Rows a CSV export carries at most — fixed server-side and documented on the
+ * export ops (#1149); `truncated` means exactly this many arrived.
+ */
+export const ADMIN_EXPORT_ROW_CAP = 50_000
+
+/** A downloaded admin CSV export plus what its headers say about it. */
+export interface AdminCsvExport {
+  blob: Blob
+  filename: string
+  /** Size of the filtered set (`X-Export-Total-Count`). */
+  totalCount: number
+  /** The set exceeded the server's row cap (`X-Export-Truncated`). */
+  truncated: boolean
+}
+
+type AdminExportList = 'users' | 'teams' | 'projects'
+
+function yyyymmdd(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${String(date.getFullYear())}${pad(date.getMonth() + 1)}${pad(date.getDate())}`
+}
+
+/** `filename="…"` from a `Content-Disposition` header, if there is one. */
+function dispositionFilename(header: string | null): string | undefined {
+  const match = /filename="([^"]+)"/.exec(header ?? '')
+  return match?.[1]
+}
+
+function toCsvExport(
+  blob: Blob,
+  response: Response,
+  list: AdminExportList
+): AdminCsvExport {
+  const { headers } = response
+  return {
+    blob,
+    filename:
+      dispositionFilename(headers.get('Content-Disposition')) ??
+      `admin-${list}-${yyyymmdd(new Date())}.csv`,
+    totalCount: Number(headers.get('X-Export-Total-Count') ?? 0),
+    truncated: headers.get('X-Export-Truncated') === 'true',
+  }
+}
 
 /**
  * Structural check on the 409 body.
@@ -583,6 +674,47 @@ class AdminService {
         params: { path: { list } },
       })
     )
+  }
+
+  /*
+   * The CSV exports stream the whole filtered set (capped server-side), so they
+   * go through `longRunningClient`: the server's budget is 60s, over the 30s
+   * default.
+   */
+
+  /** The filtered users list as CSV (#1149). */
+  async exportUsers(params: AdminUserExportParams): Promise<AdminCsvExport> {
+    const { data, response } = await unwrapWithResponse(
+      longRunningClient.GET('/api/v1/admin/users/export', {
+        params: { query: params },
+        parseAs: 'blob',
+      })
+    )
+    return toCsvExport(data, response, 'users')
+  }
+
+  /** The filtered teams list as CSV (#1149). */
+  async exportTeams(params: AdminTeamExportParams): Promise<AdminCsvExport> {
+    const { data, response } = await unwrapWithResponse(
+      longRunningClient.GET('/api/v1/admin/teams/export', {
+        params: { query: params },
+        parseAs: 'blob',
+      })
+    )
+    return toCsvExport(data, response, 'teams')
+  }
+
+  /** The filtered projects list as CSV (#1149). */
+  async exportProjects(
+    params: AdminProjectExportParams
+  ): Promise<AdminCsvExport> {
+    const { data, response } = await unwrapWithResponse(
+      longRunningClient.GET('/api/v1/admin/projects/export', {
+        params: { query: params },
+        parseAs: 'blob',
+      })
+    )
+    return toCsvExport(data, response, 'projects')
   }
 
   /**

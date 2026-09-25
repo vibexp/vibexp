@@ -1,5 +1,6 @@
 /**
  * AdminFilterBar's "Advanced filters" toggle and badge (#1132).
+ * The `actions` slot (#1150).
  */
 import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
@@ -82,5 +83,26 @@ describe('AdminFilterBar — advanced filters', () => {
     expect(
       screen.queryByTestId('advanced-filters-count')
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('AdminFilterBar — actions slot', () => {
+  it('renders the actions without an advanced panel', () => {
+    renderBar({ actions: <button type="button">Export CSV</button> })
+    expect(
+      screen.getByRole('button', { name: 'Export CSV' })
+    ).toBeInTheDocument()
+  })
+
+  it('renders the actions after the advanced toggle', () => {
+    renderBar({
+      advanced: <p>panel body</p>,
+      actions: <button type="button">Export CSV</button>,
+    })
+    const buttons = screen.getAllByRole('button')
+    const names = buttons.map(b => b.textContent)
+    expect(names.indexOf('Export CSV')).toBeGreaterThan(
+      names.findIndex(name => name.includes('Advanced filters'))
+    )
   })
 })

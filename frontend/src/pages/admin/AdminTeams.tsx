@@ -12,6 +12,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/time'
+import { AdminExportButton } from '@/pages/admin/AdminExportButton'
+import { withoutPaging } from '@/pages/admin/exportParams'
 import type { TeamKindFilter } from '@/pages/admin/teams/TeamFilters'
 import { TeamFilters } from '@/pages/admin/teams/TeamFilters'
 import type { TeamSortKey } from '@/pages/admin/teams/teamListParams'
@@ -295,6 +297,13 @@ export function AdminTeams() {
             }
             currentQuery={currentQuery}
             onApplyPreset={applyPreset}
+            actions={
+              <AdminExportButton
+                noun="teams"
+                disabled={state.total === 0}
+                onExport={() => adminService.exportTeams(withoutPaging(params))}
+              />
+            }
           />
         </ListPage.Filters>
 

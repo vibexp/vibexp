@@ -26,8 +26,12 @@ vi.mock('@/services/adminService', () => ({
     listTeams: vi.fn(),
     getSavedFilters: vi.fn(),
     replaceSavedFilters: vi.fn(),
+    exportTeams: vi.fn(),
   },
 }))
+
+// jsdom has no object URLs; the download itself is covered by its own test.
+vi.mock('@/utils/downloadBlob', () => ({ downloadBlob: vi.fn() }))
 
 import { adminService } from '@/services/adminService'
 
@@ -744,4 +748,63 @@ it('applies a saved preset as the whole URL query (#1148)', async () => {
   })
   expect(lastQuery().search).toBeUndefined()
   expect(screen.getByRole('textbox', { name: 'Search teams' })).toHaveValue('')
+})
+
+describe('CSV export (#1150)', () => {
+  const exportButton = () => screen.getByRole('button', { name: /export csv/i })
+
+  it('exports exactly the list query, minus page and limit', async () => {
+    mockAdminService.exportTeams.mockResolvedValue({
+      blob: new Blob([]),
+      filename: 'admin-teams.csv',
+      totalCount: 1,
+      truncated: false,
+    })
+    renderTeams(
+      '/admin/teams?page=3&search=eng&kind=shared&created_from=2026-07-01&created_to=2026-07-24&member_count_min=10&embedding_configured=false&owner_email=boss@example.com&prompt_count_max=3&sort_by=member_count&sort_order=asc'
+    )
+
+    await waitFor(() => {
+      expect(exportButton()).toBeEnabled()
+    })
+    await userEvent.click(exportButton())
+
+    await waitFor(() => {
+      expect(mockAdminService.exportTeams).toHaveBeenCalledTimes(1)
+    })
+    const listFilters = Object.fromEntries(
+      Object.entries(lastQuery()).filter(
+        ([key]) => key !== 'page' && key !== 'limit'
+      )
+    )
+    const exported = mockAdminService.exportTeams.mock.calls[0][0]
+    expect(exported).toStrictEqual(listFilters)
+    expect(exported).not.toHaveProperty('page')
+    expect(exported).not.toHaveProperty('limit')
+    // Guard against both sides being empty: the URL's filters really are there.
+    expect(exported).toMatchObject({
+      search: 'eng',
+      is_personal: false,
+      owner_email: 'boss@example.com',
+      member_count_min: 10,
+      embedding_configured: false,
+      prompt_count_max: 3,
+      sort_by: 'member_count',
+      sort_order: 'asc',
+    })
+    expect(exported.created_from).toEqual(expect.any(String))
+    expect(exported.created_to).toEqual(expect.any(String))
+  })
+
+  it('is disabled when the filtered list is empty', async () => {
+    mockAdminService.listTeams.mockResolvedValue(
+      page({ teams: [], total_count: 0, total_pages: 0 })
+    )
+    renderTeams()
+
+    // Settled on the empty result, not still loading.
+    expect(await screen.findByText('No teams yet')).toBeInTheDocument()
+    expect(exportButton()).toBeDisabled()
+    expect(mockAdminService.exportTeams).not.toHaveBeenCalled()
+  })
 })

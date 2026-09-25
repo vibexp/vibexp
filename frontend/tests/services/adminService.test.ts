@@ -22,6 +22,7 @@ const mockGeneratedClient = vi.hoisted(() => ({
   PUT: vi.fn(),
   DELETE: vi.fn(),
 }))
+const mockLongRunningClient = vi.hoisted(() => ({ GET: vi.fn() }))
 
 vi.mock('../../src/lib/apiClientGenerated', async () => {
   const actual = await vi.importActual<
@@ -30,6 +31,7 @@ vi.mock('../../src/lib/apiClientGenerated', async () => {
   return {
     ...actual,
     generatedClient: mockGeneratedClient,
+    longRunningClient: mockLongRunningClient,
   }
 })
 
@@ -602,5 +604,117 @@ describe('the project detail reads (#1146)', () => {
       '/api/v1/admin/projects/{id}/config',
       { params: { path: { id: 'p1' } } }
     )
+  })
+})
+
+describe('CSV exports', () => {
+  const csv = new Blob(['id,email\r\n'], { type: 'text/csv' })
+
+  const csvResponse = (headers: Record<string, string>) =>
+    Promise.resolve({
+      data: csv,
+      response: {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers(headers),
+      } as Response,
+    })
+
+  it.each([
+    ['exportUsers', '/api/v1/admin/users/export', { status: 'active' }],
+    ['exportTeams', '/api/v1/admin/teams/export', { is_personal: false }],
+    ['exportProjects', '/api/v1/admin/projects/export', { team_id: 't1' }],
+  ] as const)(
+    '%s streams %s as a blob through the long-running client',
+    async (method, path, filter) => {
+      mockLongRunningClient.GET.mockReturnValue(
+        csvResponse({
+          'Content-Disposition': 'attachment; filename="admin-x-20260925.csv"',
+          'X-Export-Total-Count': '7',
+          'X-Export-Truncated': 'false',
+        })
+      )
+      const query = { ...filter, sort_by: 'created_at', sort_order: 'asc' }
+
+      const result = await (
+        adminService[method] as (
+          q: typeof query
+        ) => ReturnType<typeof adminService.exportUsers>
+      )(query)
+
+      expect(mockLongRunningClient.GET).toHaveBeenCalledWith(path, {
+        params: { query },
+        parseAs: 'blob',
+      })
+      expect(mockGeneratedClient.GET).not.toHaveBeenCalled()
+      expect(result).toEqual({
+        blob: csv,
+        filename: 'admin-x-20260925.csv',
+        totalCount: 7,
+        truncated: false,
+      })
+    }
+  )
+
+  it('reads a truncated export from its headers', async () => {
+    mockLongRunningClient.GET.mockReturnValue(
+      csvResponse({
+        'Content-Disposition':
+          'attachment; filename="admin-users-20260925.csv"',
+        'X-Export-Total-Count': '73210',
+        'X-Export-Truncated': 'true',
+      })
+    )
+
+    await expect(adminService.exportUsers({})).resolves.toMatchObject({
+      totalCount: 73210,
+      truncated: true,
+    })
+  })
+
+  it.each([
+    ['exportUsers', 'users'],
+    ['exportTeams', 'teams'],
+    ['exportProjects', 'projects'],
+  ] as const)(
+    '%s falls back to a dated name without Content-Disposition',
+    async (method, list) => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(2026, 8, 5, 12))
+      try {
+        mockLongRunningClient.GET.mockReturnValue(csvResponse({}))
+
+        const result = await adminService[method]({})
+
+        expect(result.filename).toBe(`admin-${list}-20260905.csv`)
+        expect(result.totalCount).toBe(0)
+        expect(result.truncated).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it('throws an ApiError for an error response', async () => {
+    mockLongRunningClient.GET.mockReturnValue(
+      Promise.resolve({
+        error: {
+          type: 'https://api.vibexp.io/errors/VALIDATION_ERROR',
+          title: 'Bad Request',
+          status: 400,
+          detail: 'owner_email must be a bare email address',
+          code: 'VALIDATION_ERROR',
+          request_id: 'req-1',
+          timestamp: '2026-09-25T10:00:00Z',
+        },
+        response: { ok: false, status: 400, statusText: 'Bad Request' },
+      })
+    )
+
+    await expect(adminService.exportTeams({})).rejects.toMatchObject({
+      status: 400,
+      message: 'owner_email must be a bare email address',
+    })
   })
 })
