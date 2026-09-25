@@ -2,6 +2,7 @@ import { endOfDay, startOfDay } from 'date-fns'
 
 import {
   advancedKeys,
+  ownerEmailParam,
   parseCount,
   parseRange,
   parseTriState,
@@ -137,5 +138,50 @@ describe('sanitizeAdvanced', () => {
       params: {},
       activeCount: 0,
     })
+  })
+})
+
+describe('ownerEmailParam', () => {
+  it('trims the address', () => {
+    expect(ownerEmailParam(' a@b.co ')).toBe('a@b.co')
+  })
+
+  it('refuses anything that is not a bare address', () => {
+    // Each of these is refused by the server's mail.ParseAddress round-trip,
+    // which answers with a 400.
+    for (const value of [
+      'boss',
+      '@corp.com',
+      'boss@',
+      'a b@c.d',
+      'a@b@c',
+      'john..doe@corp.com',
+      'a@b..com',
+      'john.@corp.com',
+      '.john@corp.com',
+      'a,b@c.com',
+      '<a@b.co>',
+      '"a"@b.co',
+      'a@[1.2.3.4]',
+    ]) {
+      expect(ownerEmailParam(value)).toBeUndefined()
+    }
+  })
+
+  it('accepts ordinary and plus-tagged addresses', () => {
+    for (const value of [
+      'x@corp.com',
+      'first.last+tag@sub.corp.co',
+      "o'brien@corp.ie",
+      'user_1@a-b.io',
+      'jürgen@corp.de',
+    ]) {
+      expect(ownerEmailParam(value)).toBe(value)
+    }
+  })
+
+  it('is undefined when blank or absent', () => {
+    expect(ownerEmailParam('   ')).toBeUndefined()
+    expect(ownerEmailParam(undefined)).toBeUndefined()
   })
 })

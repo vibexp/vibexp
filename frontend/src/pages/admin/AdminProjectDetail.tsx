@@ -26,8 +26,9 @@ function Field({
  * The resource-count panel is driven by the response, not by a hardcoded type
  * list.
  *
- * #453 deliberately reports only the four **project-scoped** tables — agents and
- * feeds have no `project_id`, so they are absent rather than reported as `0`,
+ * The API reports only the five **project-scoped** tables plus their total
+ * (#453, feed items and the total since #1143) — agents and feeds have no
+ * `project_id`, so they are absent rather than reported as `0`,
  * which would read as "this project has no agents" when the truth is "agents do
  * not belong to projects". A hardcoded list here would reintroduce exactly that
  * lie, and would silently drop a type the API adds later.
@@ -37,6 +38,8 @@ const COUNT_LABELS: Record<string, string> = {
   artifacts: 'Artifacts',
   memories: 'Memories',
   blueprints: 'Blueprints',
+  feed_items: 'Feed items',
+  total: 'Total resources',
 }
 
 function ResourceCounts({

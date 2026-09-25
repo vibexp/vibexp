@@ -95,11 +95,16 @@ it('renders each resource count against its own label', async () => {
   renderDetail()
 
   await screen.findByRole('heading', { name: 'Platform' })
+  // Labelled, never the raw API key (#1143 added feed_items and total).
+  expect(screen.queryByText('feed_items')).not.toBeInTheDocument()
+  expect(screen.queryByText('total')).not.toBeInTheDocument()
   for (const [label, value] of [
     ['Prompts', '12'],
     ['Artifacts', '4'],
     ['Memories', '27'],
     ['Blueprints', '3'],
+    ['Feed items', '8'],
+    ['Total resources', '54'],
   ]) {
     const cell = screen.getByText(label).parentElement
     expect(cell).not.toBeNull()

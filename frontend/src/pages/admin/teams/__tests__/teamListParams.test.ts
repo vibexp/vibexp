@@ -1,7 +1,4 @@
-import {
-  ownerEmailParam,
-  sanitizeAdvanced,
-} from '@/pages/admin/filters/advancedFilterParams'
+import { sanitizeAdvanced } from '@/pages/admin/filters/advancedFilterParams'
 import type { AdminTeamListParams } from '@/services/adminService'
 
 import type { TeamListContext } from '../teamListParams'
@@ -102,48 +99,17 @@ describe.each(TRISTATE_NAMES)('the %s tri-state', name => {
 })
 
 describe('owner_email', () => {
+  // The address rules themselves are ownerEmailParam's, tested beside it in
+  // filters/__tests__/advancedFilterParams.test.ts; this pins the wiring.
   it('is trimmed', () => {
     expect(build({ owner_email: '  a@b.co ' }).owner_email).toBe('a@b.co')
-    expect(ownerEmailParam(' a@b.co')).toBe('a@b.co')
   })
 
-  it('is omitted when it is not an address', () => {
+  it('is omitted when blank or not an address', () => {
     // The API answers a malformed owner_email with a 400.
-    // Each of these is refused by the server's mail.ParseAddress round-trip.
-    for (const value of [
-      'boss',
-      '@corp.com',
-      'boss@',
-      'a b@c.d',
-      'a@b@c',
-      'john..doe@corp.com',
-      'a@b..com',
-      'john.@corp.com',
-      '.john@corp.com',
-      'a,b@c.com',
-      '<a@b.co>',
-      '"a"@b.co',
-      'a@[1.2.3.4]',
-    ]) {
+    for (const value of ['   ', 'boss', 'john..doe@corp.com']) {
       expect(build({ owner_email: value }).owner_email).toBeUndefined()
     }
-  })
-
-  it('accepts ordinary and plus-tagged addresses', () => {
-    for (const value of [
-      'x@corp.com',
-      'first.last+tag@sub.corp.co',
-      "o'brien@corp.ie",
-      'user_1@a-b.io',
-      'jürgen@corp.de',
-    ]) {
-      expect(ownerEmailParam(value)).toBe(value)
-    }
-  })
-
-  it('is omitted when blank', () => {
-    expect(build({ owner_email: '   ' }).owner_email).toBeUndefined()
-    expect(ownerEmailParam(undefined)).toBeUndefined()
   })
 })
 
