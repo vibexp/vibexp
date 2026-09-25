@@ -83,12 +83,19 @@ func (ts *teamSettingsStrictServer) ListTeamSettingsAudit(
 // settingsAuditPaging applies the spec's defaults and bounds to the optional
 // page/limit query parameters.
 func settingsAuditPaging(params teamsettingsgen.ListTeamSettingsAuditParams) (page, limit int, err error) {
+	return boundSettingsAuditPaging(params.Page, params.Limit)
+}
+
+// boundSettingsAuditPaging is settingsAuditPaging over bare pointers, shared by
+// the instance-admin read of the same log (#1140) so both surfaces enforce one
+// set of bounds.
+func boundSettingsAuditPaging(pagePtr, limitPtr *int) (page, limit int, err error) {
 	page, limit = 1, defaultSettingsAuditLimit
-	if params.Page != nil {
-		page = *params.Page
+	if pagePtr != nil {
+		page = *pagePtr
 	}
-	if params.Limit != nil {
-		limit = *params.Limit
+	if limitPtr != nil {
+		limit = *limitPtr
 	}
 
 	if page < 1 || page > maxSettingsAuditPage {

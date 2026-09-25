@@ -22,6 +22,66 @@ const (
 	CookieAuthScopes cookieAuthContextKey = "CookieAuth.Scopes"
 )
 
+// Defines values for AdminAISummaryValuesStyle.
+const (
+	Balanced AdminAISummaryValuesStyle = "balanced"
+	Concise  AdminAISummaryValuesStyle = "concise"
+	Detailed AdminAISummaryValuesStyle = "detailed"
+)
+
+// Valid indicates whether the value is a known member of the AdminAISummaryValuesStyle enum.
+func (e AdminAISummaryValuesStyle) Valid() bool {
+	switch e {
+	case Balanced:
+		return true
+	case Concise:
+		return true
+	case Detailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminTeamConfigSource.
+const (
+	Instance AdminTeamConfigSource = "instance"
+	Team     AdminTeamConfigSource = "team"
+)
+
+// Valid indicates whether the value is a known member of the AdminTeamConfigSource enum.
+func (e AdminTeamConfigSource) Valid() bool {
+	switch e {
+	case Instance:
+		return true
+	case Team:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminTeamSettingsAuditEntrySurface.
+const (
+	CustomTypes       AdminTeamSettingsAuditEntrySurface = "custom_types"
+	EmbeddingProvider AdminTeamSettingsAuditEntrySurface = "embedding_provider"
+	ModelProvider     AdminTeamSettingsAuditEntrySurface = "model_provider"
+)
+
+// Valid indicates whether the value is a known member of the AdminTeamSettingsAuditEntrySurface enum.
+func (e AdminTeamSettingsAuditEntrySurface) Valid() bool {
+	switch e {
+	case CustomTypes:
+		return true
+	case EmbeddingProvider:
+		return true
+	case ModelProvider:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminTimeseriesResponseGranularity.
 const (
 	AdminTimeseriesResponseGranularityDay   AdminTimeseriesResponseGranularity = "day"
@@ -502,6 +562,32 @@ func (e GetAdminUserResourceCreationMetricsParamsGranularity) Valid() bool {
 	}
 }
 
+// AdminAISummaryValues A complete AI summary profile.
+type AdminAISummaryValues struct {
+	Enabled         bool `json:"enabled"`
+	MaxOutputTokens int  `json:"max_output_tokens"`
+
+	// ModelProviderId The selected model provider; `null` means the team's default provider.
+	ModelProviderId *openapi_types.UUID       `json:"model_provider_id"`
+	Style           AdminAISummaryValuesStyle `json:"style"`
+	TopN            int                       `json:"top_n"`
+}
+
+// AdminAISummaryValuesStyle defines model for AdminAISummaryValues.Style.
+type AdminAISummaryValuesStyle string
+
+// AdminArtifactType One artifact type visible to the team.
+type AdminArtifactType struct {
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// IsSystem True for a global system default, false for the team's own custom type.
+	IsSystem  bool      `json:"is_system"`
+	Name      string    `json:"name"`
+	Slug      string    `json:"slug"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 // AdminBreakdownBucket One value of a grouped column plus how many rows carry it.
 type AdminBreakdownBucket struct {
 	Count int64 `json:"count"`
@@ -580,6 +666,28 @@ type AdminExtendedCounts struct {
 	Prompts    int64 `json:"prompts"`
 	Teams      int64 `json:"teams"`
 	Users      int64 `json:"users"`
+}
+
+// AdminFreshnessRule One freshness rule.
+type AdminFreshnessRule struct {
+	CreatedAt time.Time          `json:"created_at"`
+	Enabled   bool               `json:"enabled"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// Mediums Access mediums that count as "accessed". Empty means any medium.
+	Mediums []string `json:"mediums"`
+
+	// ProjectId The project the rule is scoped to; `null` for a team-wide rule.
+	ProjectId     *openapi_types.UUID `json:"project_id"`
+	ResourceTypes []string            `json:"resource_types"`
+	ThresholdDays int                 `json:"threshold_days"`
+	UpdatedAt     time.Time           `json:"updated_at"`
+}
+
+// AdminFreshnessValues A team's freshness evaluation settings.
+type AdminFreshnessValues struct {
+	IntervalSeconds      int  `json:"interval_seconds"`
+	ReversibilityEnabled bool `json:"reversibility_enabled"`
 }
 
 // AdminGrowthPoint New rows created per entity within one time bucket.
@@ -715,6 +823,15 @@ type AdminResourceCounts struct {
 	Total int64 `json:"total"`
 }
 
+// AdminSearchValues A complete search ranking profile.
+type AdminSearchValues struct {
+	RankHalfLifeDays      float64 `json:"rank_half_life_days"`
+	RankWeightCreated     float64 `json:"rank_weight_created"`
+	RankWeightRelevance   float64 `json:"rank_weight_relevance"`
+	RankWeightUpdated     float64 `json:"rank_weight_updated"`
+	RecencyRankingEnabled bool    `json:"recency_ranking_enabled"`
+}
+
 // AdminSourcePoint A count for one access source within one time bucket.
 type AdminSourcePoint struct {
 	// Bucket Start of the bucket, in UTC.
@@ -751,6 +868,43 @@ type AdminTableStat struct {
 	EstimatedRows int64  `json:"estimated_rows"`
 	Table         string `json:"table"`
 }
+
+// AdminTeamAISummaryConfig A team's effective AI summary settings (GET /api/v1/admin/teams/{id}/config/ai-summary).
+type AdminTeamAISummaryConfig struct {
+	// Available Whether the team has at least one model provider (existence, not health).
+	Available bool `json:"available"`
+
+	// InstanceDefaults A complete AI summary profile.
+	InstanceDefaults AdminAISummaryValues `json:"instance_defaults"`
+
+	// MaxOutputTokensCeiling Instance-owned upper bound on `max_output_tokens`.
+	MaxOutputTokensCeiling int `json:"max_output_tokens_ceiling"`
+
+	// MaxTopN Instance-owned upper bound on `top_n`.
+	MaxTopN int `json:"max_top_n"`
+
+	// ModelProviderName Name of the provider `values.model_provider_id` selects. `null` when no
+	// provider is selected or the id no longer resolves to one of the team's
+	// providers.
+	ModelProviderName *string `json:"model_provider_name"`
+
+	// Source Where the values in effect came from: `team` when the team stored its own
+	// profile, `instance` when it has none and inherits the deployment defaults.
+	Source AdminTeamConfigSource `json:"source"`
+
+	// Values A complete AI summary profile.
+	Values AdminAISummaryValues `json:"values"`
+}
+
+// AdminTeamArtifactTypes The artifact types a team sees (GET /api/v1/admin/teams/{id}/config/artifact-types).
+type AdminTeamArtifactTypes struct {
+	// Types System types first, then custom types, each by name.
+	Types []AdminArtifactType `json:"types"`
+}
+
+// AdminTeamConfigSource Where the values in effect came from: `team` when the team stored its own
+// profile, `instance` when it has none and inherits the deployment defaults.
+type AdminTeamConfigSource string
 
 // AdminTeamConfiguration Which settings a team has configured itself. Each flag reflects the team's
 // OWN rows only; instance-level fallback configuration (config.yaml) never
@@ -797,6 +951,22 @@ type AdminTeamDetail struct {
 
 	// Slug URL-safe team identifier.
 	Slug string `json:"slug"`
+}
+
+// AdminTeamFreshnessConfig A team's freshness settings and rules (GET /api/v1/admin/teams/{id}/config/freshness).
+type AdminTeamFreshnessConfig struct {
+	// Defaults A team's freshness evaluation settings.
+	Defaults AdminFreshnessValues `json:"defaults"`
+
+	// Rules Every rule, oldest first. `[]` when the team has none.
+	Rules []AdminFreshnessRule `json:"rules"`
+
+	// Source Where the values in effect came from: `team` when the team stored its own
+	// profile, `instance` when it has none and inherits the deployment defaults.
+	Source AdminTeamConfigSource `json:"source"`
+
+	// Values A team's freshness evaluation settings.
+	Values AdminFreshnessValues `json:"values"`
 }
 
 // AdminTeamListItem One team in the instance-wide admin team listing.
@@ -879,6 +1049,56 @@ type AdminTeamOwner struct {
 	Email openapi_types.Email `json:"email"`
 	Id    openapi_types.UUID  `json:"id"`
 	Name  string              `json:"name"`
+}
+
+// AdminTeamSearchConfig A team's effective search ranking settings (GET /api/v1/admin/teams/{id}/config/search).
+type AdminTeamSearchConfig struct {
+	// InstanceDefaults A complete search ranking profile.
+	InstanceDefaults AdminSearchValues `json:"instance_defaults"`
+
+	// RankCandidateCap Instance-owned cap on rows re-ranked per search; never team-configurable.
+	RankCandidateCap int `json:"rank_candidate_cap"`
+
+	// Source Where the values in effect came from: `team` when the team stored its own
+	// profile, `instance` when it has none and inherits the deployment defaults.
+	Source AdminTeamConfigSource `json:"source"`
+
+	// Values A complete search ranking profile.
+	Values AdminSearchValues `json:"values"`
+}
+
+// AdminTeamSettingsAuditEntry One recorded settings copy into the team.
+type AdminTeamSettingsAuditEntry struct {
+	ActorName         *string             `json:"actor_name"`
+	ActorUserId       *openapi_types.UUID `json:"actor_user_id"`
+	CreatedAt         time.Time           `json:"created_at"`
+	CreatedResourceId *openapi_types.UUID `json:"created_resource_id"`
+
+	// Detail Surface-specific facts, filtered to a per-surface key allowlist
+	// (model_provider: source_name, created_name, provider_type, model,
+	// has_api_key; embedding_provider: the same plus becomes_active,
+	// displaced_model, displaced_embedded_resources; custom_types: added_ids,
+	// added_slugs, skipped_slugs). Any other stored key is dropped. Always an
+	// object, never null.
+	Detail           map[string]interface{}             `json:"detail"`
+	Id               openapi_types.UUID                 `json:"id"`
+	SourceResourceId *openapi_types.UUID                `json:"source_resource_id"`
+	SourceTeamId     *openapi_types.UUID                `json:"source_team_id"`
+	SourceTeamName   *string                            `json:"source_team_name"`
+	Surface          AdminTeamSettingsAuditEntrySurface `json:"surface"`
+}
+
+// AdminTeamSettingsAuditEntrySurface defines model for AdminTeamSettingsAuditEntry.Surface.
+type AdminTeamSettingsAuditEntrySurface string
+
+// AdminTeamSettingsAuditListResponse A page of the team's settings audit log, newest first.
+type AdminTeamSettingsAuditListResponse struct {
+	// Entries Serializes as `[]` when the page is empty, never `null`.
+	Entries    []AdminTeamSettingsAuditEntry `json:"entries"`
+	Page       int                           `json:"page"`
+	PerPage    int                           `json:"per_page"`
+	TotalCount int                           `json:"total_count"`
+	TotalPages int                           `json:"total_pages"`
 }
 
 // AdminTimeseriesResponse Bucketed metrics over a time range (GET /api/v1/admin/dashboard/timeseries).
@@ -1528,6 +1748,15 @@ type ListAdminTeamsParamsSortBy string
 // ListAdminTeamsParamsSortOrder defines parameters for ListAdminTeams.
 type ListAdminTeamsParamsSortOrder string
 
+// ListAdminTeamSettingsAuditParams defines parameters for ListAdminTeamSettingsAudit.
+type ListAdminTeamSettingsAuditParams struct {
+	// Page Page number (1-based).
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// Limit Page size.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListAdminUsersParams defines parameters for ListAdminUsers.
 type ListAdminUsersParams struct {
 	// Page 1-based page number
@@ -1729,6 +1958,21 @@ type ServerInterface interface {
 	// Get an instance team
 	// (GET /api/v1/admin/teams/{id})
 	GetAdminTeam(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get a team's AI summary settings
+	// (GET /api/v1/admin/teams/{id}/config/ai-summary)
+	GetAdminTeamAISummaryConfig(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get a team's artifact types
+	// (GET /api/v1/admin/teams/{id}/config/artifact-types)
+	GetAdminTeamArtifactTypes(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get a team's freshness settings and rules
+	// (GET /api/v1/admin/teams/{id}/config/freshness)
+	GetAdminTeamFreshnessConfig(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get a team's search ranking settings
+	// (GET /api/v1/admin/teams/{id}/config/search)
+	GetAdminTeamSearchConfig(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// List a team's settings audit log
+	// (GET /api/v1/admin/teams/{id}/config/settings-audit)
+	ListAdminTeamSettingsAudit(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ListAdminTeamSettingsAuditParams)
 	// List instance users
 	// (GET /api/v1/admin/users)
 	ListAdminUsers(w http.ResponseWriter, r *http.Request, params ListAdminUsersParams)
@@ -1813,6 +2057,36 @@ func (_ Unimplemented) ListAdminTeams(w http.ResponseWriter, r *http.Request, pa
 // Get an instance team
 // (GET /api/v1/admin/teams/{id})
 func (_ Unimplemented) GetAdminTeam(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a team's AI summary settings
+// (GET /api/v1/admin/teams/{id}/config/ai-summary)
+func (_ Unimplemented) GetAdminTeamAISummaryConfig(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a team's artifact types
+// (GET /api/v1/admin/teams/{id}/config/artifact-types)
+func (_ Unimplemented) GetAdminTeamArtifactTypes(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a team's freshness settings and rules
+// (GET /api/v1/admin/teams/{id}/config/freshness)
+func (_ Unimplemented) GetAdminTeamFreshnessConfig(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a team's search ranking settings
+// (GET /api/v1/admin/teams/{id}/config/search)
+func (_ Unimplemented) GetAdminTeamSearchConfig(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List a team's settings audit log
+// (GET /api/v1/admin/teams/{id}/config/settings-audit)
+func (_ Unimplemented) ListAdminTeamSettingsAudit(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ListAdminTeamSettingsAuditParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2805,6 +3079,205 @@ func (siw *ServerInterfaceWrapper) GetAdminTeam(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdminTeam(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminTeamAISummaryConfig operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminTeamAISummaryConfig(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminTeamAISummaryConfig(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminTeamArtifactTypes operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminTeamArtifactTypes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminTeamArtifactTypes(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminTeamFreshnessConfig operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminTeamFreshnessConfig(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminTeamFreshnessConfig(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminTeamSearchConfig operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminTeamSearchConfig(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminTeamSearchConfig(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminTeamSettingsAudit operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminTeamSettingsAudit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminTeamSettingsAuditParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminTeamSettingsAudit(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3983,6 +4456,21 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/admin/teams/{id}", wrapper.GetAdminTeam)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/teams/{id}/config/ai-summary", wrapper.GetAdminTeamAISummaryConfig)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/teams/{id}/config/artifact-types", wrapper.GetAdminTeamArtifactTypes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/teams/{id}/config/freshness", wrapper.GetAdminTeamFreshnessConfig)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/teams/{id}/config/search", wrapper.GetAdminTeamSearchConfig)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/teams/{id}/config/settings-audit", wrapper.ListAdminTeamSettingsAudit)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/users", wrapper.ListAdminUsers)
 	})
 	r.Group(func(r chi.Router) {
@@ -4418,6 +4906,327 @@ func (response GetAdminTeam404ApplicationProblemPlusJSONResponse) VisitGetAdminT
 type GetAdminTeam500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response GetAdminTeam500ApplicationProblemPlusJSONResponse) VisitGetAdminTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamAISummaryConfigRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdminTeamAISummaryConfigResponseObject interface {
+	VisitGetAdminTeamAISummaryConfigResponse(w http.ResponseWriter) error
+}
+
+type GetAdminTeamAISummaryConfig200JSONResponse AdminTeamAISummaryConfig
+
+func (response GetAdminTeamAISummaryConfig200JSONResponse) VisitGetAdminTeamAISummaryConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamAISummaryConfig400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamAISummaryConfig400ApplicationProblemPlusJSONResponse) VisitGetAdminTeamAISummaryConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamAISummaryConfig404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamAISummaryConfig404ApplicationProblemPlusJSONResponse) VisitGetAdminTeamAISummaryConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamAISummaryConfig500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamAISummaryConfig500ApplicationProblemPlusJSONResponse) VisitGetAdminTeamAISummaryConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamArtifactTypesRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdminTeamArtifactTypesResponseObject interface {
+	VisitGetAdminTeamArtifactTypesResponse(w http.ResponseWriter) error
+}
+
+type GetAdminTeamArtifactTypes200JSONResponse AdminTeamArtifactTypes
+
+func (response GetAdminTeamArtifactTypes200JSONResponse) VisitGetAdminTeamArtifactTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamArtifactTypes400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamArtifactTypes400ApplicationProblemPlusJSONResponse) VisitGetAdminTeamArtifactTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamArtifactTypes404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamArtifactTypes404ApplicationProblemPlusJSONResponse) VisitGetAdminTeamArtifactTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamArtifactTypes500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamArtifactTypes500ApplicationProblemPlusJSONResponse) VisitGetAdminTeamArtifactTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamFreshnessConfigRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdminTeamFreshnessConfigResponseObject interface {
+	VisitGetAdminTeamFreshnessConfigResponse(w http.ResponseWriter) error
+}
+
+type GetAdminTeamFreshnessConfig200JSONResponse AdminTeamFreshnessConfig
+
+func (response GetAdminTeamFreshnessConfig200JSONResponse) VisitGetAdminTeamFreshnessConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamFreshnessConfig400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamFreshnessConfig400ApplicationProblemPlusJSONResponse) VisitGetAdminTeamFreshnessConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamFreshnessConfig404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamFreshnessConfig404ApplicationProblemPlusJSONResponse) VisitGetAdminTeamFreshnessConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamFreshnessConfig500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamFreshnessConfig500ApplicationProblemPlusJSONResponse) VisitGetAdminTeamFreshnessConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamSearchConfigRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdminTeamSearchConfigResponseObject interface {
+	VisitGetAdminTeamSearchConfigResponse(w http.ResponseWriter) error
+}
+
+type GetAdminTeamSearchConfig200JSONResponse AdminTeamSearchConfig
+
+func (response GetAdminTeamSearchConfig200JSONResponse) VisitGetAdminTeamSearchConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamSearchConfig400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamSearchConfig400ApplicationProblemPlusJSONResponse) VisitGetAdminTeamSearchConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamSearchConfig404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamSearchConfig404ApplicationProblemPlusJSONResponse) VisitGetAdminTeamSearchConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamSearchConfig500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamSearchConfig500ApplicationProblemPlusJSONResponse) VisitGetAdminTeamSearchConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminTeamSettingsAuditRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params ListAdminTeamSettingsAuditParams
+}
+
+type ListAdminTeamSettingsAuditResponseObject interface {
+	VisitListAdminTeamSettingsAuditResponse(w http.ResponseWriter) error
+}
+
+type ListAdminTeamSettingsAudit200JSONResponse AdminTeamSettingsAuditListResponse
+
+func (response ListAdminTeamSettingsAudit200JSONResponse) VisitListAdminTeamSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminTeamSettingsAudit400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminTeamSettingsAudit400ApplicationProblemPlusJSONResponse) VisitListAdminTeamSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminTeamSettingsAudit404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminTeamSettingsAudit404ApplicationProblemPlusJSONResponse) VisitListAdminTeamSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminTeamSettingsAudit500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminTeamSettingsAudit500ApplicationProblemPlusJSONResponse) VisitListAdminTeamSettingsAuditResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5311,6 +6120,21 @@ type StrictServerInterface interface {
 	// Get an instance team
 	// (GET /api/v1/admin/teams/{id})
 	GetAdminTeam(ctx context.Context, request GetAdminTeamRequestObject) (GetAdminTeamResponseObject, error)
+	// Get a team's AI summary settings
+	// (GET /api/v1/admin/teams/{id}/config/ai-summary)
+	GetAdminTeamAISummaryConfig(ctx context.Context, request GetAdminTeamAISummaryConfigRequestObject) (GetAdminTeamAISummaryConfigResponseObject, error)
+	// Get a team's artifact types
+	// (GET /api/v1/admin/teams/{id}/config/artifact-types)
+	GetAdminTeamArtifactTypes(ctx context.Context, request GetAdminTeamArtifactTypesRequestObject) (GetAdminTeamArtifactTypesResponseObject, error)
+	// Get a team's freshness settings and rules
+	// (GET /api/v1/admin/teams/{id}/config/freshness)
+	GetAdminTeamFreshnessConfig(ctx context.Context, request GetAdminTeamFreshnessConfigRequestObject) (GetAdminTeamFreshnessConfigResponseObject, error)
+	// Get a team's search ranking settings
+	// (GET /api/v1/admin/teams/{id}/config/search)
+	GetAdminTeamSearchConfig(ctx context.Context, request GetAdminTeamSearchConfigRequestObject) (GetAdminTeamSearchConfigResponseObject, error)
+	// List a team's settings audit log
+	// (GET /api/v1/admin/teams/{id}/config/settings-audit)
+	ListAdminTeamSettingsAudit(ctx context.Context, request ListAdminTeamSettingsAuditRequestObject) (ListAdminTeamSettingsAuditResponseObject, error)
 	// List instance users
 	// (GET /api/v1/admin/users)
 	ListAdminUsers(ctx context.Context, request ListAdminUsersRequestObject) (ListAdminUsersResponseObject, error)
@@ -5552,6 +6376,137 @@ func (sh *strictHandler) GetAdminTeam(w http.ResponseWriter, r *http.Request, id
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminTeamResponseObject); ok {
 		if err := validResponse.VisitGetAdminTeamResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminTeamAISummaryConfig operation middleware
+func (sh *strictHandler) GetAdminTeamAISummaryConfig(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdminTeamAISummaryConfigRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminTeamAISummaryConfig(ctx, request.(GetAdminTeamAISummaryConfigRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminTeamAISummaryConfig")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminTeamAISummaryConfigResponseObject); ok {
+		if err := validResponse.VisitGetAdminTeamAISummaryConfigResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminTeamArtifactTypes operation middleware
+func (sh *strictHandler) GetAdminTeamArtifactTypes(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdminTeamArtifactTypesRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminTeamArtifactTypes(ctx, request.(GetAdminTeamArtifactTypesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminTeamArtifactTypes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminTeamArtifactTypesResponseObject); ok {
+		if err := validResponse.VisitGetAdminTeamArtifactTypesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminTeamFreshnessConfig operation middleware
+func (sh *strictHandler) GetAdminTeamFreshnessConfig(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdminTeamFreshnessConfigRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminTeamFreshnessConfig(ctx, request.(GetAdminTeamFreshnessConfigRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminTeamFreshnessConfig")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminTeamFreshnessConfigResponseObject); ok {
+		if err := validResponse.VisitGetAdminTeamFreshnessConfigResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminTeamSearchConfig operation middleware
+func (sh *strictHandler) GetAdminTeamSearchConfig(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdminTeamSearchConfigRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminTeamSearchConfig(ctx, request.(GetAdminTeamSearchConfigRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminTeamSearchConfig")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminTeamSearchConfigResponseObject); ok {
+		if err := validResponse.VisitGetAdminTeamSearchConfigResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminTeamSettingsAudit operation middleware
+func (sh *strictHandler) ListAdminTeamSettingsAudit(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ListAdminTeamSettingsAuditParams) {
+	var request ListAdminTeamSettingsAuditRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminTeamSettingsAudit(ctx, request.(ListAdminTeamSettingsAuditRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminTeamSettingsAudit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminTeamSettingsAuditResponseObject); ok {
+		if err := validResponse.VisitListAdminTeamSettingsAuditResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

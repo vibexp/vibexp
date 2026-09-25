@@ -47,6 +47,7 @@ type WireContainer struct {
 	backofficeRepo          repositories.BackofficeRepository
 	userPreferencesRepo     repositories.UserPreferencesRepository
 	teamRepo                repositories.TeamRepository
+	teamSettingsAuditRepo   repositories.TeamSettingsAuditRepository
 	teamMemberRepo          repositories.TeamMemberRepository
 	teamInvitationRepo      repositories.TeamInvitationRepository
 	projectRepo             repositories.ProjectRepository
@@ -246,6 +247,11 @@ func (c *WireContainer) UserPreferencesRepository() repositories.UserPreferences
 
 func (c *WireContainer) TeamRepository() repositories.TeamRepository {
 	return c.teamRepo
+}
+
+// TeamSettingsAuditRepository returns the team settings audit log repository.
+func (c *WireContainer) TeamSettingsAuditRepository() repositories.TeamSettingsAuditRepository {
+	return c.teamSettingsAuditRepo
 }
 
 func (c *WireContainer) TeamMemberRepository() repositories.TeamMemberRepository {

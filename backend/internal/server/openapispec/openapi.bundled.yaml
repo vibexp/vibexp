@@ -9562,6 +9562,262 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/teams/{id}/config/search:
+    get:
+      summary: Get a team's search ranking settings
+      description: |
+        Returns the team's effective search ranking settings, where they came from
+        (`team` or `instance`), the instance defaults and the instance-owned
+        candidate cap.
+        Read-only. Instance-admin only; non-admin and unauthenticated requests
+        receive 404, as does an unknown team id.
+      operationId: getAdminTeamSearchConfig
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Team id (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The team's search ranking settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTeamSearchConfig'
+        '400':
+          description: Bad request — malformed team id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — unknown team id, or the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/teams/{id}/config/ai-summary:
+    get:
+      summary: Get a team's AI summary settings
+      description: |
+        Returns the team's effective AI summary settings, their source, the instance
+        defaults and caps, whether a model provider exists, and the selected
+        provider's name. No provider credential is ever included.
+        Read-only. Instance-admin only; non-admin and unauthenticated requests
+        receive 404, as does an unknown team id.
+      operationId: getAdminTeamAISummaryConfig
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Team id (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The team's AI summary settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTeamAISummaryConfig'
+        '400':
+          description: Bad request — malformed team id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — unknown team id, or the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/teams/{id}/config/freshness:
+    get:
+      summary: Get a team's freshness settings and rules
+      description: |
+        Returns the team's freshness settings (with source and defaults) and every
+        freshness rule, including each rule's optional project scope.
+        Read-only. Instance-admin only; non-admin and unauthenticated requests
+        receive 404, as does an unknown team id.
+      operationId: getAdminTeamFreshnessConfig
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Team id (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The team's freshness settings and rules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTeamFreshnessConfig'
+        '400':
+          description: Bad request — malformed team id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — unknown team id, or the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/teams/{id}/config/artifact-types:
+    get:
+      summary: Get a team's artifact types
+      description: |
+        Returns the artifact types the team sees: the global system types and the
+        team's own custom types.
+        Read-only. Instance-admin only; non-admin and unauthenticated requests
+        receive 404, as does an unknown team id.
+      operationId: getAdminTeamArtifactTypes
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Team id (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The team's artifact types
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTeamArtifactTypes'
+        '400':
+          description: Bad request — malformed team id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — unknown team id, or the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/teams/{id}/config/settings-audit:
+    get:
+      summary: List a team's settings audit log
+      description: |
+        Returns one page of the team's settings-copy audit log, newest first, with
+        actor and source-team names resolved. Each entry's `detail` is filtered to
+        a per-surface key allowlist, so no credential can surface here.
+        Read-only. Instance-admin only; non-admin and unauthenticated requests
+        receive 404, as does an unknown team id.
+      operationId: listAdminTeamSettingsAudit
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Team id (UUID)
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          description: Page number (1-based).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000000
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Page size.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: One page of settings audit entries, newest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTeamSettingsAuditListResponse'
+        '400':
+          description: Bad request — malformed team id, or `page`/`limit` out of range
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — unknown team id, or the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/admin/dashboard/overview:
     get:
       summary: Get admin dashboard overview
@@ -24956,6 +25212,320 @@ components:
           description: |
             Oldest access event still retained (now minus
             `retention.access_event_days`); accesses before it are not counted.
+    AdminTeamConfigSource:
+      type: string
+      description: |
+        Where the values in effect came from: `team` when the team stored its own
+        profile, `instance` when it has none and inherits the deployment defaults.
+      enum:
+        - team
+        - instance
+      example: instance
+    AdminSearchValues:
+      type: object
+      description: A complete search ranking profile.
+      additionalProperties: false
+      required:
+        - recency_ranking_enabled
+        - rank_weight_relevance
+        - rank_weight_created
+        - rank_weight_updated
+        - rank_half_life_days
+      properties:
+        recency_ranking_enabled:
+          type: boolean
+        rank_weight_relevance:
+          type: number
+          format: double
+        rank_weight_created:
+          type: number
+          format: double
+        rank_weight_updated:
+          type: number
+          format: double
+        rank_half_life_days:
+          type: number
+          format: double
+    AdminTeamSearchConfig:
+      type: object
+      description: A team's effective search ranking settings (GET /api/v1/admin/teams/{id}/config/search).
+      additionalProperties: false
+      required:
+        - source
+        - values
+        - instance_defaults
+        - rank_candidate_cap
+      properties:
+        source:
+          $ref: '#/components/schemas/AdminTeamConfigSource'
+        values:
+          $ref: '#/components/schemas/AdminSearchValues'
+        instance_defaults:
+          $ref: '#/components/schemas/AdminSearchValues'
+        rank_candidate_cap:
+          type: integer
+          description: Instance-owned cap on rows re-ranked per search; never team-configurable.
+    AdminAISummaryValues:
+      type: object
+      description: A complete AI summary profile.
+      additionalProperties: false
+      required:
+        - enabled
+        - model_provider_id
+        - top_n
+        - style
+        - max_output_tokens
+      properties:
+        enabled:
+          type: boolean
+        model_provider_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The selected model provider; `null` means the team's default provider.
+        top_n:
+          type: integer
+        style:
+          type: string
+          enum:
+            - concise
+            - balanced
+            - detailed
+        max_output_tokens:
+          type: integer
+    AdminTeamAISummaryConfig:
+      type: object
+      description: A team's effective AI summary settings (GET /api/v1/admin/teams/{id}/config/ai-summary).
+      additionalProperties: false
+      required:
+        - source
+        - values
+        - instance_defaults
+        - model_provider_name
+        - max_top_n
+        - max_output_tokens_ceiling
+        - available
+      properties:
+        source:
+          $ref: '#/components/schemas/AdminTeamConfigSource'
+        values:
+          $ref: '#/components/schemas/AdminAISummaryValues'
+        instance_defaults:
+          $ref: '#/components/schemas/AdminAISummaryValues'
+        model_provider_name:
+          type: string
+          nullable: true
+          description: |
+            Name of the provider `values.model_provider_id` selects. `null` when no
+            provider is selected or the id no longer resolves to one of the team's
+            providers.
+        max_top_n:
+          type: integer
+          description: Instance-owned upper bound on `top_n`.
+        max_output_tokens_ceiling:
+          type: integer
+          description: Instance-owned upper bound on `max_output_tokens`.
+        available:
+          type: boolean
+          description: Whether the team has at least one model provider (existence, not health).
+    AdminFreshnessValues:
+      type: object
+      description: A team's freshness evaluation settings.
+      additionalProperties: false
+      required:
+        - interval_seconds
+        - reversibility_enabled
+      properties:
+        interval_seconds:
+          type: integer
+        reversibility_enabled:
+          type: boolean
+    AdminFreshnessRule:
+      type: object
+      description: One freshness rule.
+      additionalProperties: false
+      required:
+        - id
+        - project_id
+        - resource_types
+        - mediums
+        - threshold_days
+        - enabled
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The project the rule is scoped to; `null` for a team-wide rule.
+        resource_types:
+          type: array
+          items:
+            type: string
+        mediums:
+          type: array
+          description: Access mediums that count as "accessed". Empty means any medium.
+          items:
+            type: string
+        threshold_days:
+          type: integer
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AdminTeamFreshnessConfig:
+      type: object
+      description: A team's freshness settings and rules (GET /api/v1/admin/teams/{id}/config/freshness).
+      additionalProperties: false
+      required:
+        - source
+        - values
+        - defaults
+        - rules
+      properties:
+        source:
+          $ref: '#/components/schemas/AdminTeamConfigSource'
+        values:
+          $ref: '#/components/schemas/AdminFreshnessValues'
+        defaults:
+          $ref: '#/components/schemas/AdminFreshnessValues'
+        rules:
+          type: array
+          description: Every rule, oldest first. `[]` when the team has none.
+          items:
+            $ref: '#/components/schemas/AdminFreshnessRule'
+    AdminArtifactType:
+      type: object
+      description: One artifact type visible to the team.
+      additionalProperties: false
+      required:
+        - id
+        - slug
+        - name
+        - is_system
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        is_system:
+          type: boolean
+          description: True for a global system default, false for the team's own custom type.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AdminTeamArtifactTypes:
+      type: object
+      description: The artifact types a team sees (GET /api/v1/admin/teams/{id}/config/artifact-types).
+      additionalProperties: false
+      required:
+        - types
+      properties:
+        types:
+          type: array
+          description: System types first, then custom types, each by name.
+          items:
+            $ref: '#/components/schemas/AdminArtifactType'
+    AdminTeamSettingsAuditEntry:
+      type: object
+      description: One recorded settings copy into the team.
+      additionalProperties: false
+      required:
+        - id
+        - surface
+        - actor_user_id
+        - actor_name
+        - source_team_id
+        - source_team_name
+        - source_resource_id
+        - created_resource_id
+        - detail
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        surface:
+          type: string
+          enum:
+            - embedding_provider
+            - model_provider
+            - custom_types
+        actor_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        actor_name:
+          type: string
+          nullable: true
+        source_team_id:
+          type: string
+          format: uuid
+          nullable: true
+        source_team_name:
+          type: string
+          nullable: true
+        source_resource_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_resource_id:
+          type: string
+          format: uuid
+          nullable: true
+        detail:
+          type: object
+          additionalProperties: true
+          description: |
+            Surface-specific facts, filtered to a per-surface key allowlist
+            (model_provider: source_name, created_name, provider_type, model,
+            has_api_key; embedding_provider: the same plus becomes_active,
+            displaced_model, displaced_embedded_resources; custom_types: added_ids,
+            added_slugs, skipped_slugs). Any other stored key is dropped. Always an
+            object, never null.
+        created_at:
+          type: string
+          format: date-time
+    AdminTeamSettingsAuditListResponse:
+      type: object
+      description: A page of the team's settings audit log, newest first.
+      additionalProperties: false
+      required:
+        - entries
+        - total_count
+        - page
+        - per_page
+        - total_pages
+      properties:
+        entries:
+          type: array
+          description: Serializes as `[]` when the page is empty, never `null`.
+          items:
+            $ref: '#/components/schemas/AdminTeamSettingsAuditEntry'
+        total_count:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_pages:
+          type: integer
     ProjectResponse:
       allOf:
         - $ref: '#/components/schemas/Project'

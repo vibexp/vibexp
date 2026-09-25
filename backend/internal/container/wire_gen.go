@@ -46,6 +46,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	backofficeRepository := providers.ProvideBackofficeRepository(db)
 	userPreferencesRepository := providers.ProvideUserPreferencesRepository(db)
 	teamRepository := providers.ProvideTeamRepository(db)
+	teamSettingsAuditRepository := providers.ProvideTeamSettingsAuditRepository(db)
 	teamMemberRepository := providers.ProvideTeamMemberRepository(db)
 	teamInvitationRepository := providers.ProvideTeamInvitationRepository(db)
 	projectRepository := providers.ProvideProjectRepository(db)
@@ -112,7 +113,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	objectStore := providers.ProvideObjectStore(cfg, logger)
 	attachmentServiceInterface := providers.ProvideAttachmentService(attachmentRepository, objectStore, logger)
 	typeRepository := providers.ProvideTypeRepository(db)
-	teamSettingsAuditRepository := providers.ProvideTeamSettingsAuditRepository(db)
 	teamSettingsAuditServiceInterface := providers.ProvideTeamSettingsAuditService(teamSettingsAuditRepository, authorizationServiceInterface, userRepository, teamRepository, logger)
 	typeServiceInterface := providers.ProvideTypeService(typeRepository, authorizationServiceInterface, teamSettingsAuditServiceInterface, logger)
 	blueprintServiceDeps := services.BlueprintServiceDeps{
@@ -323,6 +323,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		backofficeRepo:               backofficeRepository,
 		userPreferencesRepo:          userPreferencesRepository,
 		teamRepo:                     teamRepository,
+		teamSettingsAuditRepo:        teamSettingsAuditRepository,
 		teamMemberRepo:               teamMemberRepository,
 		teamInvitationRepo:           teamInvitationRepository,
 		projectRepo:                  projectRepository,
