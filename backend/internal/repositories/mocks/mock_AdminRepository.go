@@ -619,6 +619,68 @@ func (_c *MockAdminRepository_GetTeamDetail_Call) RunAndReturn(run func(context.
 	return _c
 }
 
+// GetUserAccessBySourceSeries provides a mock function with given fields: ctx, userID, from, to, granularity
+func (_m *MockAdminRepository) GetUserAccessBySourceSeries(ctx context.Context, userID string, from time.Time, to time.Time, granularity string) ([]models.AdminSourcePoint, error) {
+	ret := _m.Called(ctx, userID, from, to, granularity)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserAccessBySourceSeries")
+	}
+
+	var r0 []models.AdminSourcePoint
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time, string) ([]models.AdminSourcePoint, error)); ok {
+		return rf(ctx, userID, from, to, granularity)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time, string) []models.AdminSourcePoint); ok {
+		r0 = rf(ctx, userID, from, to, granularity)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AdminSourcePoint)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, time.Time, time.Time, string) error); ok {
+		r1 = rf(ctx, userID, from, to, granularity)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_GetUserAccessBySourceSeries_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserAccessBySourceSeries'
+type MockAdminRepository_GetUserAccessBySourceSeries_Call struct {
+	*mock.Call
+}
+
+// GetUserAccessBySourceSeries is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - from time.Time
+//   - to time.Time
+//   - granularity string
+func (_e *MockAdminRepository_Expecter) GetUserAccessBySourceSeries(ctx interface{}, userID interface{}, from interface{}, to interface{}, granularity interface{}) *MockAdminRepository_GetUserAccessBySourceSeries_Call {
+	return &MockAdminRepository_GetUserAccessBySourceSeries_Call{Call: _e.mock.On("GetUserAccessBySourceSeries", ctx, userID, from, to, granularity)}
+}
+
+func (_c *MockAdminRepository_GetUserAccessBySourceSeries_Call) Run(run func(ctx context.Context, userID string, from time.Time, to time.Time, granularity string)) *MockAdminRepository_GetUserAccessBySourceSeries_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(time.Time), args[3].(time.Time), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_GetUserAccessBySourceSeries_Call) Return(_a0 []models.AdminSourcePoint, _a1 error) *MockAdminRepository_GetUserAccessBySourceSeries_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_GetUserAccessBySourceSeries_Call) RunAndReturn(run func(context.Context, string, time.Time, time.Time, string) ([]models.AdminSourcePoint, error)) *MockAdminRepository_GetUserAccessBySourceSeries_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetUserCreationSeries provides a mock function with given fields: ctx, userID, from, to, granularity
 func (_m *MockAdminRepository) GetUserCreationSeries(ctx context.Context, userID string, from time.Time, to time.Time, granularity string) ([]models.AdminGrowthCount, error) {
 	ret := _m.Called(ctx, userID, from, to, granularity)
@@ -795,6 +857,68 @@ func (_c *MockAdminRepository_GetUserResourceCounts_Call) Return(_a0 []models.Ad
 }
 
 func (_c *MockAdminRepository_GetUserResourceCounts_Call) RunAndReturn(run func(context.Context, string) ([]models.AdminUserResourceCountRow, error)) *MockAdminRepository_GetUserResourceCounts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetUserTopAccessedResources provides a mock function with given fields: ctx, userID, from, to, limit
+func (_m *MockAdminRepository) GetUserTopAccessedResources(ctx context.Context, userID string, from time.Time, to time.Time, limit int) ([]models.AdminTopAccessedResource, error) {
+	ret := _m.Called(ctx, userID, from, to, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserTopAccessedResources")
+	}
+
+	var r0 []models.AdminTopAccessedResource
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time, int) ([]models.AdminTopAccessedResource, error)); ok {
+		return rf(ctx, userID, from, to, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time, int) []models.AdminTopAccessedResource); ok {
+		r0 = rf(ctx, userID, from, to, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AdminTopAccessedResource)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, time.Time, time.Time, int) error); ok {
+		r1 = rf(ctx, userID, from, to, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_GetUserTopAccessedResources_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserTopAccessedResources'
+type MockAdminRepository_GetUserTopAccessedResources_Call struct {
+	*mock.Call
+}
+
+// GetUserTopAccessedResources is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - from time.Time
+//   - to time.Time
+//   - limit int
+func (_e *MockAdminRepository_Expecter) GetUserTopAccessedResources(ctx interface{}, userID interface{}, from interface{}, to interface{}, limit interface{}) *MockAdminRepository_GetUserTopAccessedResources_Call {
+	return &MockAdminRepository_GetUserTopAccessedResources_Call{Call: _e.mock.On("GetUserTopAccessedResources", ctx, userID, from, to, limit)}
+}
+
+func (_c *MockAdminRepository_GetUserTopAccessedResources_Call) Run(run func(ctx context.Context, userID string, from time.Time, to time.Time, limit int)) *MockAdminRepository_GetUserTopAccessedResources_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(time.Time), args[3].(time.Time), args[4].(int))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_GetUserTopAccessedResources_Call) Return(_a0 []models.AdminTopAccessedResource, _a1 error) *MockAdminRepository_GetUserTopAccessedResources_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_GetUserTopAccessedResources_Call) RunAndReturn(run func(context.Context, string, time.Time, time.Time, int) ([]models.AdminTopAccessedResource, error)) *MockAdminRepository_GetUserTopAccessedResources_Call {
 	_c.Call.Return(run)
 	return _c
 }

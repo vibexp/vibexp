@@ -92,6 +92,18 @@ type AdminServiceInterface interface {
 	// *ErrAdminInvalidCursor for a malformed cursor (handler: 400) and
 	// (nil, nil) for an unknown user.
 	GetUserTimeline(ctx context.Context, id, cursor string, limit int) (*models.AdminUserTimelinePage, error)
+	// GetUserAccessMetrics returns the gap-filled per-source access series for a
+	// user; *ErrAdminTimeseriesRange for an invalid range (handler: 400) and
+	// (nil, nil) for an unknown user.
+	GetUserAccessMetrics(
+		ctx context.Context, id string, q AdminTimeseriesQuery,
+	) (*models.AdminUserAccessMetrics, error)
+	// GetUserTopAccessedResources returns a user's most-accessed resources as
+	// opaque rows; *ErrAdminTimeseriesRange for an invalid range or limit
+	// (handler: 400) and (nil, nil) for an unknown user.
+	GetUserTopAccessedResources(
+		ctx context.Context, id string, q AdminTopResourcesQuery,
+	) (*models.AdminTopAccessedResources, error)
 }
 
 // AdminService implements AdminServiceInterface.

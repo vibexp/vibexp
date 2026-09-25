@@ -440,6 +440,66 @@ func (_c *MockAdminServiceInterface_GetTeamDetail_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// GetUserAccessMetrics provides a mock function with given fields: ctx, id, q
+func (_m *MockAdminServiceInterface) GetUserAccessMetrics(ctx context.Context, id string, q services.AdminTimeseriesQuery) (*models.AdminUserAccessMetrics, error) {
+	ret := _m.Called(ctx, id, q)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserAccessMetrics")
+	}
+
+	var r0 *models.AdminUserAccessMetrics
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, services.AdminTimeseriesQuery) (*models.AdminUserAccessMetrics, error)); ok {
+		return rf(ctx, id, q)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, services.AdminTimeseriesQuery) *models.AdminUserAccessMetrics); ok {
+		r0 = rf(ctx, id, q)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminUserAccessMetrics)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, services.AdminTimeseriesQuery) error); ok {
+		r1 = rf(ctx, id, q)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_GetUserAccessMetrics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserAccessMetrics'
+type MockAdminServiceInterface_GetUserAccessMetrics_Call struct {
+	*mock.Call
+}
+
+// GetUserAccessMetrics is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - q services.AdminTimeseriesQuery
+func (_e *MockAdminServiceInterface_Expecter) GetUserAccessMetrics(ctx interface{}, id interface{}, q interface{}) *MockAdminServiceInterface_GetUserAccessMetrics_Call {
+	return &MockAdminServiceInterface_GetUserAccessMetrics_Call{Call: _e.mock.On("GetUserAccessMetrics", ctx, id, q)}
+}
+
+func (_c *MockAdminServiceInterface_GetUserAccessMetrics_Call) Run(run func(ctx context.Context, id string, q services.AdminTimeseriesQuery)) *MockAdminServiceInterface_GetUserAccessMetrics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(services.AdminTimeseriesQuery))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetUserAccessMetrics_Call) Return(_a0 *models.AdminUserAccessMetrics, _a1 error) *MockAdminServiceInterface_GetUserAccessMetrics_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetUserAccessMetrics_Call) RunAndReturn(run func(context.Context, string, services.AdminTimeseriesQuery) (*models.AdminUserAccessMetrics, error)) *MockAdminServiceInterface_GetUserAccessMetrics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetUserCreationMetrics provides a mock function with given fields: ctx, id, q
 func (_m *MockAdminServiceInterface) GetUserCreationMetrics(ctx context.Context, id string, q services.AdminTimeseriesQuery) (*models.AdminUserCreationMetrics, error) {
 	ret := _m.Called(ctx, id, q)
@@ -675,6 +735,66 @@ func (_c *MockAdminServiceInterface_GetUserTimeline_Call) Return(_a0 *models.Adm
 }
 
 func (_c *MockAdminServiceInterface_GetUserTimeline_Call) RunAndReturn(run func(context.Context, string, string, int) (*models.AdminUserTimelinePage, error)) *MockAdminServiceInterface_GetUserTimeline_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetUserTopAccessedResources provides a mock function with given fields: ctx, id, q
+func (_m *MockAdminServiceInterface) GetUserTopAccessedResources(ctx context.Context, id string, q services.AdminTopResourcesQuery) (*models.AdminTopAccessedResources, error) {
+	ret := _m.Called(ctx, id, q)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserTopAccessedResources")
+	}
+
+	var r0 *models.AdminTopAccessedResources
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, services.AdminTopResourcesQuery) (*models.AdminTopAccessedResources, error)); ok {
+		return rf(ctx, id, q)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, services.AdminTopResourcesQuery) *models.AdminTopAccessedResources); ok {
+		r0 = rf(ctx, id, q)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminTopAccessedResources)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, services.AdminTopResourcesQuery) error); ok {
+		r1 = rf(ctx, id, q)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_GetUserTopAccessedResources_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserTopAccessedResources'
+type MockAdminServiceInterface_GetUserTopAccessedResources_Call struct {
+	*mock.Call
+}
+
+// GetUserTopAccessedResources is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - q services.AdminTopResourcesQuery
+func (_e *MockAdminServiceInterface_Expecter) GetUserTopAccessedResources(ctx interface{}, id interface{}, q interface{}) *MockAdminServiceInterface_GetUserTopAccessedResources_Call {
+	return &MockAdminServiceInterface_GetUserTopAccessedResources_Call{Call: _e.mock.On("GetUserTopAccessedResources", ctx, id, q)}
+}
+
+func (_c *MockAdminServiceInterface_GetUserTopAccessedResources_Call) Run(run func(ctx context.Context, id string, q services.AdminTopResourcesQuery)) *MockAdminServiceInterface_GetUserTopAccessedResources_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(services.AdminTopResourcesQuery))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetUserTopAccessedResources_Call) Return(_a0 *models.AdminTopAccessedResources, _a1 error) *MockAdminServiceInterface_GetUserTopAccessedResources_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetUserTopAccessedResources_Call) RunAndReturn(run func(context.Context, string, services.AdminTopResourcesQuery) (*models.AdminTopAccessedResources, error)) *MockAdminServiceInterface_GetUserTopAccessedResources_Call {
 	_c.Call.Return(run)
 	return _c
 }
