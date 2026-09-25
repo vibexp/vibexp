@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useState } from 'react'
 
 import type { DateRangeValue } from '@/components/ui/date-range'
 import { Input } from '@/components/ui/input'
@@ -15,6 +15,7 @@ import { NumberRangeFilter } from '@/pages/admin/filters/NumberRangeFilter'
 import { TriStateFilter } from '@/pages/admin/filters/TriStateFilter'
 import type { TeamRangeFilter } from '@/pages/admin/teams/teamListParams'
 import {
+  ownerEmailParam,
   TEAM_MEMBERSHIP_RANGES,
   TEAM_RESOURCE_RANGES,
   TEAM_SETUP_TRISTATES,
@@ -48,6 +49,11 @@ export interface TeamFiltersProps {
   onTriStateChange: (name: string, value: boolean | undefined) => void
   ownerEmail: string
   onOwnerEmailChange: (value: string) => void
+  /**
+   * Bumped on every Clear. Remounts the owner-email input, because a rejected
+   * draft never reached the URL, so the URL alone cannot tell it to reset.
+   */
+  ownerEmailResetKey: number
   advancedActiveCount: number
 }
 
@@ -66,7 +72,8 @@ function GroupHeading({ children }: Readonly<{ children: string }>) {
  * The API matches the team's primary owner (`teams.owner_id`) exactly, and
  * rejects a malformed address with a 400 — so a half-typed address is marked
  * invalid and never committed, rather than replacing the list with an error that
- * a reload would repeat.
+ * a reload would repeat. A malformed value restored from the URL is shown as
+ * invalid too (`buildTeamListParams` does not send it).
  */
 function OwnerEmailFilter({
   value,
@@ -74,9 +81,10 @@ function OwnerEmailFilter({
 }: Readonly<{ value: string; onChange: (value: string) => void }>) {
   const id = useId()
   const errorId = `${id}-error`
-  const inputRef = useRef<HTMLInputElement>(null)
+  const isInvalid = (raw: string) =>
+    raw.trim() !== '' && ownerEmailParam(raw) === undefined
   const [draft, setDraft] = useState(value)
-  const [invalid, setInvalid] = useState(false)
+  const [invalid, setInvalid] = useState(() => isInvalid(value))
 
   // Follow the committed value when it changes from outside (URL restore,
   // Clear), adjusting state during render rather than in an effect.
@@ -84,12 +92,12 @@ function OwnerEmailFilter({
   if (committed !== value) {
     setCommitted(value)
     setDraft(value)
-    setInvalid(false)
+    setInvalid(isInvalid(value))
   }
 
   const commit = () => {
     const next = draft.trim()
-    if (next !== '' && inputRef.current?.validity.typeMismatch === true) {
+    if (isInvalid(next)) {
       setInvalid(true)
       return
     }
@@ -103,7 +111,6 @@ function OwnerEmailFilter({
         Primary owner email
       </label>
       <Input
-        ref={inputRef}
         id={id}
         type="email"
         placeholder="owner@example.com"
@@ -142,6 +149,7 @@ export function TeamFilters({
   onTriStateChange,
   ownerEmail,
   onOwnerEmailChange,
+  ownerEmailResetKey,
   advancedActiveCount,
 }: Readonly<TeamFiltersProps>) {
   const range = (filter: TeamRangeFilter) => (
@@ -159,7 +167,11 @@ export function TeamFilters({
     <>
       <GroupHeading>Membership</GroupHeading>
       {TEAM_MEMBERSHIP_RANGES.map(range)}
-      <OwnerEmailFilter value={ownerEmail} onChange={onOwnerEmailChange} />
+      <OwnerEmailFilter
+        key={ownerEmailResetKey}
+        value={ownerEmail}
+        onChange={onOwnerEmailChange}
+      />
 
       <GroupHeading>Resources</GroupHeading>
       {TEAM_RESOURCE_RANGES.map(range)}

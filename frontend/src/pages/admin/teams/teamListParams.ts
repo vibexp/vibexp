@@ -99,10 +99,20 @@ export function isPersonalParam(kind: string): boolean | undefined {
   return undefined
 }
 
-/** The trimmed owner email, or `undefined` when blank. */
+/**
+ * One `@` with something on both sides and no whitespace. Deliberately loose:
+ * it only has to keep a half-typed value from reaching the API, which answers a
+ * malformed `owner_email` with a 400 (the server does the strict parse).
+ */
+const PLAUSIBLE_EMAIL = /^[^\s@]+@[^\s@]+$/
+
+/**
+ * The trimmed owner email, or `undefined` when blank or not an address — a
+ * hand-edited `?owner_email=boss` must not turn every reload into an error.
+ */
 export function ownerEmailParam(value: string | undefined): string | undefined {
   const trimmed = value?.trim() ?? ''
-  return trimmed === '' ? undefined : trimmed
+  return PLAUSIBLE_EMAIL.test(trimmed) ? trimmed : undefined
 }
 
 export interface TeamListContext {

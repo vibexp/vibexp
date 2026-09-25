@@ -99,6 +99,13 @@ describe('owner_email', () => {
     expect(ownerEmailParam(' a@b.co')).toBe('a@b.co')
   })
 
+  it('is omitted when it is not an address', () => {
+    // The API answers a malformed owner_email with a 400.
+    for (const value of ['boss', '@corp.com', 'boss@', 'a b@c.d', 'a@b@c']) {
+      expect(build({ owner_email: value }).owner_email).toBeUndefined()
+    }
+  })
+
   it('is omitted when blank', () => {
     expect(build({ owner_email: '   ' }).owner_email).toBeUndefined()
     expect(ownerEmailParam(undefined)).toBeUndefined()

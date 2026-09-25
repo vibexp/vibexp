@@ -568,6 +568,49 @@ describe('advanced filters (#1139)', () => {
     expect(input).not.toHaveAttribute('aria-invalid')
   })
 
+  it('does not send a malformed owner email restored from the URL', async () => {
+    renderTeams('/admin/teams?owner_email=boss')
+
+    await waitFor(() => {
+      expect(mockAdminService.listTeams).toHaveBeenCalled()
+    })
+    expect(lastQuery().owner_email).toBeUndefined()
+    // Still a filter the admin can see and clear.
+    expect(
+      screen.getByRole('button', { name: 'Clear filters' })
+    ).toBeInTheDocument()
+    await userEvent.click(
+      screen.getByRole('button', { name: /Advanced filters/ })
+    )
+    const input = await screen.findByRole('textbox', {
+      name: 'Primary owner email',
+    })
+    expect(input).toHaveValue('boss')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('clears a rejected owner-email draft that never reached the URL', async () => {
+    renderTeams('/admin/teams?kind=shared')
+    await screen.findByText('Engineering')
+    await userEvent.click(
+      screen.getByRole('button', { name: /Advanced filters/ })
+    )
+    const input = await screen.findByRole('textbox', {
+      name: 'Primary owner email',
+    })
+    await userEvent.type(input, 'boss{Enter}')
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('textbox', { name: 'Primary owner email' })
+      ).toHaveValue('')
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('clears every advanced key from the URL', async () => {
     mockAdminService.listTeams.mockResolvedValue(
       page({ teams: [], total_count: 0, total_pages: 0 })

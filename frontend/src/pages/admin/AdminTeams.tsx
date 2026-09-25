@@ -17,6 +17,7 @@ import { TeamFilters } from '@/pages/admin/teams/TeamFilters'
 import type { TeamSortKey } from '@/pages/admin/teams/teamListParams'
 import {
   buildTeamListParams,
+  ownerEmailParam,
   TEAM_ADVANCED_FILTERS,
 } from '@/pages/admin/teams/teamListParams'
 import { TeamSetupIndicators } from '@/pages/admin/teams/TeamSetupIndicators'
@@ -122,6 +123,12 @@ export function AdminTeams() {
     advanced: TEAM_ADVANCED_FILTERS,
   })
   const [state, setState] = useState<State>(INITIAL)
+  const [clearCount, setClearCount] = useState(0)
+
+  const clearAll = useCallback(() => {
+    setClearCount(count => count + 1)
+    handleClear()
+  }, [handleClear])
 
   // One memoised request object, so the fetch effect depends on it alone rather
   // than on every one of the ~40 URL keys.
@@ -256,7 +263,7 @@ export function AdminTeams() {
             }}
             created={created}
             onCreatedChange={setCreated}
-            onClear={handleClear}
+            onClear={clearAll}
             hasActiveFilters={hasActiveFilters}
             getRange={getRange}
             onRangeChange={setRange}
@@ -266,10 +273,12 @@ export function AdminTeams() {
             onOwnerEmailChange={value => {
               setFilters({ owner_email: value })
             }}
+            ownerEmailResetKey={clearCount}
             // Owner email lives in the panel too, so it counts toward the badge
             // and opens the panel when a shared link carries it.
             advancedActiveCount={
-              advancedActiveCount + (filters.owner_email.trim() === '' ? 0 : 1)
+              advancedActiveCount +
+              (ownerEmailParam(filters.owner_email) === undefined ? 0 : 1)
             }
           />
         </ListPage.Filters>
@@ -288,7 +297,7 @@ export function AdminTeams() {
                 title="No teams match your filters"
                 description="Try a different search, team type, date range, or advanced filter."
                 actions={
-                  <Button variant="outline" onClick={handleClear}>
+                  <Button variant="outline" onClick={clearAll}>
                     Clear filters
                   </Button>
                 }
