@@ -26,11 +26,9 @@ vi.mock('@/services/adminService', () => ({
   adminService: { listUsers: vi.fn(), createUser: vi.fn() },
 }))
 
+import { formatDate } from '@/lib/time'
 import { advancedKeys } from '@/pages/admin/filters/advancedFilterParams'
-import {
-  USER_ADVANCED_FILTERS,
-  USER_ADVANCED_QUERY_KEYS,
-} from '@/pages/admin/users/userAdvancedFilters'
+import { USER_ADVANCED_FILTERS } from '@/pages/admin/users/userAdvancedFilters'
 import { adminService } from '@/services/adminService'
 import { storage, STORAGE_KEYS } from '@/utils/storage'
 
@@ -498,9 +496,15 @@ describe('advanced filters (#1134)', () => {
     )
   }
 
-  it('declares exactly the params the published client accepts', () => {
-    expect([...advancedKeys(USER_ADVANCED_FILTERS)].sort()).toEqual(
-      [...USER_ADVANCED_QUERY_KEYS].sort()
+  it('declares all twelve count ranges and the last-resource range', () => {
+    expect(advancedKeys(USER_ADVANCED_FILTERS)).toHaveLength(26)
+    expect(advancedKeys(USER_ADVANCED_FILTERS)).toEqual(
+      expect.arrayContaining([
+        'total_resource_count_min',
+        'attachment_count_max',
+        'last_resource_created_from',
+        'last_resource_created_to',
+      ])
     )
   })
 
@@ -638,7 +642,9 @@ describe('activity columns (#1134)', () => {
     await screen.findByText('ada@example.com')
 
     const row = screen.getByText('ada@example.com').closest('tr')
-    expect(row?.querySelectorAll('td')[9].textContent).not.toBe('—')
+    expect(row?.querySelectorAll('td')[9].textContent).toBe(
+      formatDate('2026-07-20T10:00:00Z')
+    )
   })
 
   it('sorts a count column descending, then ascending', async () => {

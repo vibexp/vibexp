@@ -6,9 +6,23 @@ import type { AdminUserListParams } from '@/services/adminService'
  * last-activity params of `listAdminUsers` (#1133).
  */
 
+type UserListQueryKey = keyof NonNullable<AdminUserListParams>
+
+/**
+ * Base names whose `_min` / `_from` param the published client accepts. Typing
+ * the declarations with these makes a renamed API param fail `tsc -b` instead
+ * of being sent and silently ignored.
+ */
+type RangeBase = {
+  [K in UserListQueryKey]: K extends `${infer B}_min` ? B : never
+}[UserListQueryKey]
+type DateRangeBase = {
+  [K in UserListQueryKey]: K extends `${infer B}_from` ? B : never
+}[UserListQueryKey]
+
 /** A count range: its URL/API base name (`${name}_min` / `_max`) and label. */
 export interface UserRangeFilter {
-  name: string
+  name: RangeBase
   label: string
 }
 
@@ -28,7 +42,7 @@ export const USER_RANGE_FILTERS: readonly UserRangeFilter[] = [
   { name: 'attachment_count', label: 'Attachments' },
 ]
 
-export const LAST_RESOURCE_CREATED = 'last_resource_created'
+export const LAST_RESOURCE_CREATED: DateRangeBase = 'last_resource_created'
 
 /**
  * Module-level on purpose: `useAdminListFilters` freezes the URL keys it owns on
@@ -38,39 +52,3 @@ export const USER_ADVANCED_FILTERS: AdvancedFilterSpec = {
   ranges: USER_RANGE_FILTERS.map(filter => filter.name),
   dateRanges: [LAST_RESOURCE_CREATED],
 }
-
-type UserListQueryKey = keyof NonNullable<AdminUserListParams>
-
-/**
- * Every URL key the spec above owns, checked against the published client: a
- * key the API does not accept would be sent and silently ignored, so a renamed
- * param fails `tsc -b` here instead.
- */
-export const USER_ADVANCED_QUERY_KEYS = [
-  'team_count_min',
-  'team_count_max',
-  'project_count_min',
-  'project_count_max',
-  'total_resource_count_min',
-  'total_resource_count_max',
-  'prompt_count_min',
-  'prompt_count_max',
-  'memory_count_min',
-  'memory_count_max',
-  'artifact_count_min',
-  'artifact_count_max',
-  'blueprint_count_min',
-  'blueprint_count_max',
-  'agent_count_min',
-  'agent_count_max',
-  'feed_count_min',
-  'feed_count_max',
-  'feed_item_count_min',
-  'feed_item_count_max',
-  'comment_count_min',
-  'comment_count_max',
-  'attachment_count_min',
-  'attachment_count_max',
-  'last_resource_created_from',
-  'last_resource_created_to',
-] as const satisfies readonly UserListQueryKey[]
