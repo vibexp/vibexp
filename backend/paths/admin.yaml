@@ -1879,6 +1879,12 @@ api-v1-admin-teams-id-config-search:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/AdminTeamSearchConfig'
+      '400':
+        description: Bad request — malformed team id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Not found — unknown team id, or the caller is not an instance admin
         content:
@@ -1922,6 +1928,12 @@ api-v1-admin-teams-id-config-ai-summary:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/AdminTeamAISummaryConfig'
+      '400':
+        description: Bad request — malformed team id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Not found — unknown team id, or the caller is not an instance admin
         content:
@@ -1964,6 +1976,12 @@ api-v1-admin-teams-id-config-freshness:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/AdminTeamFreshnessConfig'
+      '400':
+        description: Bad request — malformed team id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Not found — unknown team id, or the caller is not an instance admin
         content:
@@ -2006,6 +2024,12 @@ api-v1-admin-teams-id-config-artifact-types:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/AdminTeamArtifactTypes'
+      '400':
+        description: Bad request — malformed team id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Not found — unknown team id, or the caller is not an instance admin
         content:

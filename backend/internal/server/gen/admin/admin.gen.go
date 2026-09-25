@@ -4939,6 +4939,20 @@ func (response GetAdminTeamAISummaryConfig200JSONResponse) VisitGetAdminTeamAISu
 	return err
 }
 
+type GetAdminTeamAISummaryConfig400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamAISummaryConfig400ApplicationProblemPlusJSONResponse) VisitGetAdminTeamAISummaryConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminTeamAISummaryConfig404ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response GetAdminTeamAISummaryConfig404ApplicationProblemPlusJSONResponse) VisitGetAdminTeamAISummaryConfigResponse(w http.ResponseWriter) error {
@@ -4985,6 +4999,20 @@ func (response GetAdminTeamArtifactTypes200JSONResponse) VisitGetAdminTeamArtifa
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamArtifactTypes400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamArtifactTypes400ApplicationProblemPlusJSONResponse) VisitGetAdminTeamArtifactTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5039,6 +5067,20 @@ func (response GetAdminTeamFreshnessConfig200JSONResponse) VisitGetAdminTeamFres
 	return err
 }
 
+type GetAdminTeamFreshnessConfig400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamFreshnessConfig400ApplicationProblemPlusJSONResponse) VisitGetAdminTeamFreshnessConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminTeamFreshnessConfig404ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response GetAdminTeamFreshnessConfig404ApplicationProblemPlusJSONResponse) VisitGetAdminTeamFreshnessConfigResponse(w http.ResponseWriter) error {
@@ -5085,6 +5127,20 @@ func (response GetAdminTeamSearchConfig200JSONResponse) VisitGetAdminTeamSearchC
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTeamSearchConfig400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminTeamSearchConfig400ApplicationProblemPlusJSONResponse) VisitGetAdminTeamSearchConfigResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
 	_, err := buf.WriteTo(w)
 	return err
 }

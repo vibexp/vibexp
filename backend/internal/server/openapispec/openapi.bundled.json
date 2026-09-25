@@ -14690,6 +14690,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request — malformed team id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not found — unknown team id, or the caller is not an instance admin",
             "content": {
@@ -14748,6 +14758,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminTeamAISummaryConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed team id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -14814,6 +14834,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request — malformed team id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not found — unknown team id, or the caller is not an instance admin",
             "content": {
@@ -14872,6 +14902,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminTeamArtifactTypes"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed team id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

@@ -54,12 +54,20 @@ func adminConfigPaths(teamID string) map[string]string {
 	}
 }
 
-// TestAdminTeamConfig_TeamGuard asserts every config op answers an unknown team
-// with 404 and a team lookup failure with 500 — without touching the settings
+// TestAdminTeamConfig_TeamGuard asserts every config op answers a malformed id
+// with 400, an unknown team with 404 and a team lookup failure with 500 — without touching the settings
 // getters, which would otherwise report `source: instance` for a bogus id.
 func TestAdminTeamConfig_TeamGuard(t *testing.T) {
 	teamID := uuid.NewString()
+	malformed := adminConfigPaths("not-a-uuid")
 	for name, path := range adminConfigPaths(teamID) {
+		t.Run(name+" malformed team id is 400", func(t *testing.T) {
+			// Rejected by the binder before the handler: no team lookup at all.
+			req, rr := serveAdminConfig(t, &adminMockContainer{}, malformed[name])
+
+			assert.Equal(t, http.StatusBadRequest, rr.Code)
+			specconformance.AssertConformsToSpec(t, req, rr)
+		})
 		t.Run(name+" unknown team is 404", func(t *testing.T) {
 			teams := repomocks.NewMockTeamRepository(t)
 			teams.EXPECT().GetByID(mock.Anything, teamID).Return(nil, repositories.ErrTeamNotFound)
