@@ -429,6 +429,13 @@ test.describe.serial('Admin panel v3 journey', () => {
     await page.goBack()
     await expect(page).toHaveURL(/prompt_count_min=2/)
     await expectRows(page, [userA.email])
+
+    // And forward again to the detail page, then back once more.
+    await page.goForward()
+    await expect(page).toHaveURL(/\/admin\/users\/[^/?]+/)
+    await page.goBack()
+    await expect(page).toHaveURL(/prompt_count_min=2/)
+    await expectRows(page, [userA.email])
   })
 
   test('users: detail tabs render for the seeded user', async () => {
@@ -618,8 +625,12 @@ test.describe.serial('Admin panel v3 journey', () => {
     ).toBeVisible({ timeout: UI_TIMEOUT })
     await snapshot(page)
 
+    // Alpha was configured directly, never copied into, so the log is empty.
     await openTab('Settings audit', 'settings-audit')
-    await expect(panel).toBeVisible()
+    await expect(page.getByTestId('config-empty')).toContainText(
+      'Nothing has been copied into this team from another one.',
+      { timeout: UI_TIMEOUT }
+    )
     await snapshot(page)
   })
 
