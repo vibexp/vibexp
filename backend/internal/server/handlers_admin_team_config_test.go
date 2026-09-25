@@ -51,6 +51,11 @@ func adminConfigPaths(teamID string) map[string]string {
 		"freshness":      base + "freshness",
 		"artifact-types": base + "artifact-types",
 		"settings-audit": base + "settings-audit",
+		// Credential-bearing sections (#1141).
+		"model-providers":     base + "model-providers",
+		"embedding-providers": base + "embedding-providers",
+		"email-provider":      base + "email-provider",
+		"github":              base + "github",
 	}
 }
 
@@ -105,6 +110,13 @@ func TestAdminTeamConfigRoutes_UnauthenticatedGets404(t *testing.T) {
 				freshnessService:      servicesmocks.NewMockFreshnessServiceInterface(t),
 				typeService:           servicesmocks.NewMockTypeServiceInterface(t),
 				settingsAuditRepo:     repomocks.NewMockTeamSettingsAuditRepository(t),
+
+				modelProviderService:     servicesmocks.NewMockModelProviderServiceInterface(t),
+				embeddingProviderService: servicesmocks.NewMockEmbeddingProviderServiceInterface(t),
+				embeddingStatusService:   servicesmocks.NewMockEmbeddingCoverageGetter(t),
+				emailProviderService:     servicesmocks.NewMockTeamEmailProviderServiceInterface(t),
+				githubAppConfigService:   servicesmocks.NewMockGitHubAppConfigServiceInterface(t),
+				githubAppService:         servicesmocks.NewMockGitHubAppServiceInterface(t),
 			})
 
 			rr := httptest.NewRecorder()

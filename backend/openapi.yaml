@@ -973,6 +973,35 @@ components:
       $ref: "./schemas/admin.yaml#/AdminTeamSettingsAuditEntry"
     AdminTeamSettingsAuditListResponse:
       $ref: "./schemas/admin.yaml#/AdminTeamSettingsAuditListResponse"
+    # Admin team configuration, read-only, credential-bearing sections (#1141)
+    AdminModelProvider:
+      $ref: "./schemas/admin.yaml#/AdminModelProvider"
+    AdminTeamModelProvidersConfig:
+      $ref: "./schemas/admin.yaml#/AdminTeamModelProvidersConfig"
+    AdminEmbeddingProvider:
+      $ref: "./schemas/admin.yaml#/AdminEmbeddingProvider"
+    AdminEmbeddingCoverageItem:
+      $ref: "./schemas/admin.yaml#/AdminEmbeddingCoverageItem"
+    AdminEmbeddingCoverage:
+      $ref: "./schemas/admin.yaml#/AdminEmbeddingCoverage"
+    AdminTeamEmbeddingProvidersConfig:
+      $ref: "./schemas/admin.yaml#/AdminTeamEmbeddingProvidersConfig"
+    AdminSMTPSettings:
+      $ref: "./schemas/admin.yaml#/AdminSMTPSettings"
+    AdminMailgunSettings:
+      $ref: "./schemas/admin.yaml#/AdminMailgunSettings"
+    AdminPostmarkSettings:
+      $ref: "./schemas/admin.yaml#/AdminPostmarkSettings"
+    AdminEmailSettings:
+      $ref: "./schemas/admin.yaml#/AdminEmailSettings"
+    AdminTeamEmailProviderConfig:
+      $ref: "./schemas/admin.yaml#/AdminTeamEmailProviderConfig"
+    AdminGitHubAppConfig:
+      $ref: "./schemas/admin.yaml#/AdminGitHubAppConfig"
+    AdminGitHubInstallation:
+      $ref: "./schemas/admin.yaml#/AdminGitHubInstallation"
+    AdminTeamGitHubConfig:
+      $ref: "./schemas/admin.yaml#/AdminTeamGitHubConfig"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
@@ -1271,6 +1300,14 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-teams-id-config-artifact-types"
   /api/v1/admin/teams/{id}/config/settings-audit:
     $ref: "./paths/admin.yaml#/api-v1-admin-teams-id-config-settings-audit"
+  /api/v1/admin/teams/{id}/config/model-providers:
+    $ref: "./paths/admin.yaml#/api-v1-admin-teams-id-config-model-providers"
+  /api/v1/admin/teams/{id}/config/embedding-providers:
+    $ref: "./paths/admin.yaml#/api-v1-admin-teams-id-config-embedding-providers"
+  /api/v1/admin/teams/{id}/config/email-provider:
+    $ref: "./paths/admin.yaml#/api-v1-admin-teams-id-config-email-provider"
+  /api/v1/admin/teams/{id}/config/github:
+    $ref: "./paths/admin.yaml#/api-v1-admin-teams-id-config-github"
   /api/v1/admin/dashboard/overview:
     $ref: "./paths/admin.yaml#/api-v1-admin-dashboard-overview"
   /api/v1/admin/dashboard/timeseries:
