@@ -17,7 +17,6 @@ import { TeamFilters } from '@/pages/admin/teams/TeamFilters'
 import type { TeamSortKey } from '@/pages/admin/teams/teamListParams'
 import {
   buildTeamListParams,
-  ownerEmailParam,
   TEAM_ADVANCED_FILTERS,
 } from '@/pages/admin/teams/teamListParams'
 import { TeamSetupIndicators } from '@/pages/admin/teams/TeamSetupIndicators'
@@ -275,10 +274,10 @@ export function AdminTeams() {
             }}
             ownerEmailResetKey={clearCount}
             // Owner email lives in the panel too, so it counts toward the badge
-            // and opens the panel when a shared link carries it.
+            // and opens the panel when a shared link carries it — a malformed
+            // one included, so its invalid marker is visible, not hidden.
             advancedActiveCount={
-              advancedActiveCount +
-              (ownerEmailParam(filters.owner_email) === undefined ? 0 : 1)
+              advancedActiveCount + (filters.owner_email.trim() === '' ? 0 : 1)
             }
           />
         </ListPage.Filters>

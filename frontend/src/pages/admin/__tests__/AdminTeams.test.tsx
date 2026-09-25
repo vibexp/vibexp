@@ -579,9 +579,7 @@ describe('advanced filters (#1139)', () => {
     expect(
       screen.getByRole('button', { name: 'Clear filters' })
     ).toBeInTheDocument()
-    await userEvent.click(
-      screen.getByRole('button', { name: /Advanced filters/ })
-    )
+    // The panel opens on its own, so the invalid value is not hidden.
     const input = await screen.findByRole('textbox', {
       name: 'Primary owner email',
     })

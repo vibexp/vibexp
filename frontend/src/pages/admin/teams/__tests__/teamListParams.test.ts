@@ -6,6 +6,7 @@ import {
   isPersonalParam,
   ownerEmailParam,
   TEAM_ADVANCED_FILTERS,
+  TEAM_FILTERS_EXHAUSTIVE,
   TEAM_MEMBERSHIP_RANGES,
   TEAM_RESOURCE_RANGES,
   TEAM_SETUP_TRISTATES,
@@ -42,12 +43,12 @@ it('sends only the base params when nothing is filtered', () => {
   )
 })
 
-it('declares every range and tri-state #1138 publishes', () => {
-  // A new API param with no control would be unreachable from the UI.
+it('derives the hook declaration from the same filter lists as the panel', () => {
+  // Exhaustiveness against the generated type is enforced at compile time
+  // (`TEAM_FILTERS_EXHAUSTIVE`); this pins that the hook owns exactly those keys.
+  expect(TEAM_FILTERS_EXHAUSTIVE).toBe(true)
   expect(TEAM_ADVANCED_FILTERS.ranges).toEqual(RANGE_NAMES)
-  expect(RANGE_NAMES).toHaveLength(14)
   expect(TEAM_ADVANCED_FILTERS.triStates).toEqual(TRISTATE_NAMES)
-  expect(TRISTATE_NAMES).toHaveLength(7)
 })
 
 describe.each(RANGE_NAMES)('the %s range', name => {

@@ -44,15 +44,15 @@ export interface TeamTriStateFilter {
 }
 
 /** Role and project counts, shown in the panel's "Membership" group. */
-export const TEAM_MEMBERSHIP_RANGES: readonly TeamRangeFilter[] = [
+export const TEAM_MEMBERSHIP_RANGES = [
   { name: 'member_count', label: 'Members' },
   { name: 'owner_count', label: 'Owners' },
   { name: 'admin_count', label: 'Admins' },
   { name: 'project_count', label: 'Projects' },
-]
+] as const satisfies readonly TeamRangeFilter[]
 
 /** The total, then the nine resource types, in the users list's order. */
-export const TEAM_RESOURCE_RANGES: readonly TeamRangeFilter[] = [
+export const TEAM_RESOURCE_RANGES = [
   { name: 'total_resource_count', label: 'Total resources' },
   { name: 'prompt_count', label: 'Prompts' },
   { name: 'memory_count', label: 'Memories' },
@@ -63,10 +63,10 @@ export const TEAM_RESOURCE_RANGES: readonly TeamRangeFilter[] = [
   { name: 'feed_item_count', label: 'Feed items' },
   { name: 'comment_count', label: 'Comments' },
   { name: 'attachment_count', label: 'Attachments' },
-]
+] as const satisfies readonly TeamRangeFilter[]
 
 /** Setup state; the order matches the list's "Setup" indicator column. */
-export const TEAM_SETUP_TRISTATES: readonly TeamTriStateFilter[] = [
+export const TEAM_SETUP_TRISTATES = [
   { name: 'embedding_configured', label: 'Embedding configured' },
   { name: 'llm_configured', label: 'LLM configured' },
   { name: 'ai_summary_enabled', label: 'AI summary enabled' },
@@ -74,7 +74,28 @@ export const TEAM_SETUP_TRISTATES: readonly TeamTriStateFilter[] = [
   { name: 'github_configured', label: 'GitHub configured' },
   { name: 'search_settings_customized', label: 'Custom search settings' },
   { name: 'freshness_enabled', label: 'Freshness enabled' },
-]
+] as const satisfies readonly TeamTriStateFilter[]
+
+/**
+ * Compile-time exhaustiveness: every range and boolean filter the published
+ * `listAdminTeams` accepts must have a control above. A param added to the spec
+ * and missing here fails `tsc -b` instead of being unreachable from the UI.
+ */
+type MissingRanges = Exclude<
+  RangeBase,
+  | (typeof TEAM_MEMBERSHIP_RANGES)[number]['name']
+  | (typeof TEAM_RESOURCE_RANGES)[number]['name']
+>
+type MissingTriStates = Exclude<
+  TriStateKey,
+  (typeof TEAM_SETUP_TRISTATES)[number]['name']
+>
+export const TEAM_FILTERS_EXHAUSTIVE: [
+  MissingRanges,
+  MissingTriStates,
+] extends [never, never]
+  ? true
+  : never = true
 
 /**
  * Module-level on purpose: `useAdminListFilters` freezes the URL keys it owns on
