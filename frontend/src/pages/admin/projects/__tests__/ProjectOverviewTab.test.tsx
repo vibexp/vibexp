@@ -268,3 +268,44 @@ it('never renders a resource title, and drops the constant location columns', as
   expect(screen.queryByText('Engineering')).not.toBeInTheDocument()
   expect(screen.queryByText('Core')).not.toBeInTheDocument()
 })
+
+it('keeps the other panels when the creation series fails', async () => {
+  svc.getProjectResourceCreationMetrics.mockRejectedValue(
+    new Error('creation series down')
+  )
+  renderTab()
+
+  expect(await screen.findByText('creation series down')).toBeInTheDocument()
+  expect(await screen.findByText('3f2a9c1e')).toBeInTheDocument()
+  expect(screen.getByText('Resource access by source')).toBeInTheDocument()
+  expect(
+    screen.getByText(/Access events are retained from/)
+  ).toBeInTheDocument()
+})
+
+it('shows the empty creation series', async () => {
+  svc.getProjectResourceCreationMetrics.mockResolvedValue(range({ series: [] }))
+  renderTab()
+
+  expect(
+    await screen.findByText('Nothing was created in this range.')
+  ).toBeInTheDocument()
+})
+
+it('shows each range-bound panel loading while its request is in flight', () => {
+  const pending = () => new Promise(() => undefined)
+  svc.getProjectResourceCreationMetrics.mockReturnValue(pending())
+  svc.getProjectResourceAccessMetrics.mockReturnValue(pending())
+  svc.getProjectTopAccessedResources.mockReturnValue(pending())
+  const { container } = renderTab()
+
+  // Two chart skeletons plus the table's; the breakdown needs no request.
+  expect(
+    container.querySelectorAll('.animate-pulse').length
+  ).toBeGreaterThanOrEqual(3)
+  expect(screen.queryByText('3f2a9c1e')).not.toBeInTheDocument()
+  expect(
+    screen.queryByText(/Access events are retained/)
+  ).not.toBeInTheDocument()
+  expect(screen.getByText('By type')).toBeInTheDocument()
+})
