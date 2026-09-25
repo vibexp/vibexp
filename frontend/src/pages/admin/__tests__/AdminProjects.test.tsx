@@ -20,6 +20,7 @@ import type { Mocked } from 'vitest'
 import type {
   AdminProjectListItem,
   AdminProjectListResponse,
+  AdminTeamListItem,
   AdminTeamListResponse,
 } from '@/services/adminService'
 
@@ -36,6 +37,34 @@ vi.mock('@/services/adminService', () => ({
 import { adminService } from '@/services/adminService'
 
 import { AdminProjects } from '../AdminProjects'
+
+/** The #1138 count and configuration fields every team list row carries. */
+const TEAM_COUNTS = {
+  owner_count: 1,
+  admin_count: 0,
+  project_count: 1,
+  resource_counts: {
+    prompts: 0,
+    memories: 0,
+    artifacts: 0,
+    blueprints: 0,
+    agents: 0,
+    feeds: 0,
+    feed_items: 0,
+    comments: 0,
+    attachments: 0,
+    total: 0,
+  },
+  configuration: {
+    embedding_configured: false,
+    llm_configured: false,
+    ai_summary_enabled: false,
+    email_configured: false,
+    github_configured: false,
+    search_settings_customized: false,
+    freshness_enabled: false,
+  },
+} satisfies Partial<AdminTeamListItem>
 
 const mockAdminService = adminService as Mocked<typeof adminService>
 
@@ -83,6 +112,7 @@ const teamPage: AdminTeamListResponse = {
       is_personal: false,
       owner: { id: 'o1', email: 'owner@example.com', name: 'Owner' },
       member_count: 4,
+      ...TEAM_COUNTS,
       created_at: '2026-01-01T00:00:00Z',
     },
     {
@@ -92,6 +122,7 @@ const teamPage: AdminTeamListResponse = {
       is_personal: false,
       owner: { id: 'o2', email: 'owner2@example.com', name: 'Owner Two' },
       member_count: 2,
+      ...TEAM_COUNTS,
       created_at: '2026-01-02T00:00:00Z',
     },
   ],
@@ -327,6 +358,7 @@ describe('the team filter', () => {
             is_personal: false,
             owner: { id: 'o3', email: 'owner3@example.com', name: 'Owner 3' },
             member_count: 1,
+            ...TEAM_COUNTS,
             created_at: '2026-01-03T00:00:00Z',
           },
         ],

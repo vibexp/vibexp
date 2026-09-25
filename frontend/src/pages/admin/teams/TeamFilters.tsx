@@ -1,4 +1,7 @@
+import { useId, useState } from 'react'
+
 import type { DateRangeValue } from '@/components/ui/date-range'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -7,6 +10,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { AdminFilterBar } from '@/pages/admin/AdminFilterBar'
+import type { NumberRangeValue } from '@/pages/admin/filters/advancedFilterParams'
+import { NumberRangeFilter } from '@/pages/admin/filters/NumberRangeFilter'
+import { TriStateFilter } from '@/pages/admin/filters/TriStateFilter'
+import type { TeamRangeFilter } from '@/pages/admin/teams/teamListParams'
+import {
+  ownerEmailParam,
+  TEAM_MEMBERSHIP_RANGES,
+  TEAM_RESOURCE_RANGES,
+  TEAM_SETUP_TRISTATES,
+} from '@/pages/admin/teams/teamListParams'
 
 /**
  * The three states of the personal/shared filter.
@@ -29,6 +42,96 @@ export interface TeamFiltersProps {
   /** Shown only while at least one filter is applied. */
   onClear?: () => void
   hasActiveFilters: boolean
+  /** Advanced panel (#1139): count ranges by base name, e.g. `owner_count`. */
+  getRange: (name: string) => NumberRangeValue
+  onRangeChange: (name: string, value: NumberRangeValue) => void
+  getTriState: (name: string) => boolean | undefined
+  onTriStateChange: (name: string, value: boolean | undefined) => void
+  ownerEmail: string
+  onOwnerEmailChange: (value: string) => void
+  /**
+   * Bumped on every Clear. Remounts the owner-email input, because a rejected
+   * draft never reached the URL, so the URL alone cannot tell it to reset.
+   */
+  ownerEmailResetKey: number
+  advancedActiveCount: number
+}
+
+function GroupHeading({ children }: Readonly<{ children: string }>) {
+  return (
+    <h3 className="text-muted-foreground col-span-full text-xs font-semibold uppercase tracking-wide">
+      {children}
+    </h3>
+  )
+}
+
+/**
+ * Owner email, committed on blur or Enter like the range inputs, so typing an
+ * address does not fire a request per keystroke.
+ *
+ * The API matches the team's primary owner (`teams.owner_id`) exactly, and
+ * rejects a malformed address with a 400 — so a half-typed address is marked
+ * invalid and never committed, rather than replacing the list with an error that
+ * a reload would repeat. A malformed value restored from the URL is shown as
+ * invalid too (`buildTeamListParams` does not send it).
+ */
+function OwnerEmailFilter({
+  value,
+  onChange,
+}: Readonly<{ value: string; onChange: (value: string) => void }>) {
+  const id = useId()
+  const errorId = `${id}-error`
+  const isInvalid = (raw: string) =>
+    raw.trim() !== '' && ownerEmailParam(raw) === undefined
+  const [draft, setDraft] = useState(value)
+  const [invalid, setInvalid] = useState(() => isInvalid(value))
+
+  // Follow the committed value when it changes from outside (URL restore,
+  // Clear), adjusting state during render rather than in an effect.
+  const [committed, setCommitted] = useState(value)
+  if (committed !== value) {
+    setCommitted(value)
+    setDraft(value)
+    setInvalid(isInvalid(value))
+  }
+
+  const commit = () => {
+    const next = draft.trim()
+    if (isInvalid(next)) {
+      setInvalid(true)
+      return
+    }
+    setInvalid(false)
+    if (next !== value) onChange(next)
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-sm font-medium leading-none">
+        Primary owner email
+      </label>
+      <Input
+        id={id}
+        type="email"
+        placeholder="owner@example.com"
+        value={draft}
+        onChange={event => {
+          setDraft(event.target.value)
+        }}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? errorId : undefined}
+        onBlur={commit}
+        onKeyDown={event => {
+          if (event.key === 'Enter') commit()
+        }}
+      />
+      {invalid && (
+        <p id={errorId} role="alert" className="text-destructive text-xs">
+          Enter a full email address
+        </p>
+      )}
+    </div>
+  )
 }
 
 export function TeamFilters({
@@ -40,7 +143,53 @@ export function TeamFilters({
   onCreatedChange,
   onClear,
   hasActiveFilters,
+  getRange,
+  onRangeChange,
+  getTriState,
+  onTriStateChange,
+  ownerEmail,
+  onOwnerEmailChange,
+  ownerEmailResetKey,
+  advancedActiveCount,
 }: Readonly<TeamFiltersProps>) {
+  const range = (filter: TeamRangeFilter) => (
+    <NumberRangeFilter
+      key={filter.name}
+      label={filter.label}
+      value={getRange(filter.name)}
+      onChange={value => {
+        onRangeChange(filter.name, value)
+      }}
+    />
+  )
+
+  const advanced = (
+    <>
+      <GroupHeading>Membership</GroupHeading>
+      {TEAM_MEMBERSHIP_RANGES.map(range)}
+      <OwnerEmailFilter
+        key={ownerEmailResetKey}
+        value={ownerEmail}
+        onChange={onOwnerEmailChange}
+      />
+
+      <GroupHeading>Resources</GroupHeading>
+      {TEAM_RESOURCE_RANGES.map(range)}
+
+      <GroupHeading>Setup</GroupHeading>
+      {TEAM_SETUP_TRISTATES.map(filter => (
+        <TriStateFilter
+          key={filter.name}
+          label={filter.label}
+          value={getTriState(filter.name)}
+          onChange={value => {
+            onTriStateChange(filter.name, value)
+          }}
+        />
+      ))}
+    </>
+  )
+
   return (
     <AdminFilterBar
       searchInput={searchInput}
@@ -51,6 +200,8 @@ export function TeamFilters({
       onCreatedChange={onCreatedChange}
       onClear={onClear}
       hasActiveFilters={hasActiveFilters}
+      advanced={advanced}
+      advancedActiveCount={advancedActiveCount}
     >
       <Select
         value={kind}

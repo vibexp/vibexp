@@ -21,6 +21,34 @@ import { adminService } from '@/services/adminService'
 
 import { useAdminTeamSearch } from '../useAdminTeamSearch'
 
+/** The #1138 count and configuration fields every team list row carries. */
+const TEAM_COUNTS = {
+  owner_count: 1,
+  admin_count: 0,
+  project_count: 1,
+  resource_counts: {
+    prompts: 0,
+    memories: 0,
+    artifacts: 0,
+    blueprints: 0,
+    agents: 0,
+    feeds: 0,
+    feed_items: 0,
+    comments: 0,
+    attachments: 0,
+    total: 0,
+  },
+  configuration: {
+    embedding_configured: false,
+    llm_configured: false,
+    ai_summary_enabled: false,
+    email_configured: false,
+    github_configured: false,
+    search_settings_customized: false,
+    freshness_enabled: false,
+  },
+} satisfies Partial<AdminTeamListItem>
+
 const mockAdminService = adminService as Mocked<typeof adminService>
 
 function team(id: string, name: string): AdminTeamListItem {
@@ -31,6 +59,7 @@ function team(id: string, name: string): AdminTeamListItem {
     is_personal: false,
     owner: { id: `o-${id}`, email: `${id}@example.com`, name: 'Owner' },
     member_count: 1,
+    ...TEAM_COUNTS,
     created_at: '2026-01-01T00:00:00Z',
   }
 }

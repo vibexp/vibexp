@@ -47,6 +47,30 @@ function team(overrides: Partial<AdminTeamListItem> = {}): AdminTeamListItem {
     is_personal: false,
     owner: { id: 'o1', email: 'owner@example.com', name: 'Owner' },
     member_count: 4,
+    owner_count: 1,
+    admin_count: 2,
+    project_count: 3,
+    resource_counts: {
+      prompts: 5,
+      memories: 6,
+      artifacts: 0,
+      blueprints: 0,
+      agents: 0,
+      feeds: 0,
+      feed_items: 0,
+      comments: 0,
+      attachments: 0,
+      total: 11,
+    },
+    configuration: {
+      embedding_configured: true,
+      llm_configured: false,
+      ai_summary_enabled: false,
+      email_configured: false,
+      github_configured: false,
+      search_settings_customized: false,
+      freshness_enabled: false,
+    },
     created_at: '2026-01-01T00:00:00Z',
     ...overrides,
   }
@@ -157,6 +181,7 @@ it('requests the default sort on first load and sends no filter params', async (
     limit: 20,
     search: undefined,
     is_personal: undefined,
+    owner_email: undefined,
     created_from: undefined,
     created_to: undefined,
     sort_by: 'created_at',
@@ -428,5 +453,253 @@ describe('empty states', () => {
         ''
       )
     })
+  })
+})
+
+describe('advanced filters (#1139)', () => {
+  it('sends advanced params from the URL and opens the panel', async () => {
+    renderTeams(
+      '/admin/teams?member_count_min=10&embedding_configured=false&owner_email=boss@example.com&prompt_count_max=3'
+    )
+
+    await waitFor(() => {
+      expect(mockAdminService.listTeams).toHaveBeenCalled()
+    })
+    expect(lastQuery()).toMatchObject({
+      member_count_min: 10,
+      embedding_configured: false,
+      owner_email: 'boss@example.com',
+      prompt_count_max: 3,
+    })
+    // The rest stay absent: "any" and empty bounds send nothing.
+    expect(lastQuery()).not.toHaveProperty('member_count_max')
+    expect(lastQuery()).not.toHaveProperty('llm_configured')
+    // A shared link carrying an advanced filter opens with the panel visible.
+    expect(
+      await screen.findByRole('spinbutton', { name: 'Members minimum' })
+    ).toHaveValue(10)
+    expect(
+      screen.getByRole('textbox', { name: 'Primary owner email' })
+    ).toHaveValue('boss@example.com')
+    // Two ranges, one tri-state and the owner email; a range counts once.
+    expect(screen.getByTestId('advanced-filters-count')).toHaveTextContent('4')
+  })
+
+  it('drops an invalid range from the request', async () => {
+    renderTeams(
+      '/admin/teams?owner_count_min=5&owner_count_max=2&admin_count_min=-1'
+    )
+
+    await waitFor(() => {
+      expect(mockAdminService.listTeams).toHaveBeenCalled()
+    })
+    expect(lastQuery()).not.toHaveProperty('owner_count_min')
+    expect(lastQuery()).not.toHaveProperty('owner_count_max')
+    expect(lastQuery()).not.toHaveProperty('admin_count_min')
+  })
+
+  it('commits a tri-state picked in the panel to the URL and the query', async () => {
+    renderTeams()
+    await screen.findByText('Engineering')
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /Advanced filters/ })
+    )
+    const group = await screen.findByRole('radiogroup', {
+      name: 'LLM configured',
+    })
+    await userEvent.click(within(group).getByRole('radio', { name: 'No' }))
+
+    await waitFor(() => {
+      expect(lastQuery().llm_configured).toBe(false)
+    })
+    expect(currentSearch).toContain('llm_configured=false')
+  })
+
+  it('commits the owner email on Enter, trimmed, not per keystroke', async () => {
+    renderTeams()
+    await screen.findByText('Engineering')
+    await userEvent.click(
+      screen.getByRole('button', { name: /Advanced filters/ })
+    )
+    const initialCalls = mockAdminService.listTeams.mock.calls.length
+
+    const input = await screen.findByRole('textbox', {
+      name: 'Primary owner email',
+    })
+    await userEvent.type(input, '  x@corp.com  ')
+    expect(mockAdminService.listTeams.mock.calls).toHaveLength(initialCalls)
+    await userEvent.keyboard('{Enter}')
+
+    await waitFor(() => {
+      expect(lastQuery().owner_email).toBe('x@corp.com')
+    })
+    expect(mockAdminService.listTeams.mock.calls).toHaveLength(initialCalls + 1)
+    expect(currentSearch).toContain('owner_email=x%40corp.com')
+  })
+
+  it('refuses a malformed owner email instead of sending it', async () => {
+    renderTeams()
+    await screen.findByText('Engineering')
+    await userEvent.click(
+      screen.getByRole('button', { name: /Advanced filters/ })
+    )
+    const initialCalls = mockAdminService.listTeams.mock.calls.length
+
+    const input = await screen.findByRole('textbox', {
+      name: 'Primary owner email',
+    })
+    await userEvent.type(input, 'boss{Enter}')
+
+    // The API answers a malformed address with a 400, which would replace the
+    // list with an error and stick in the URL.
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Enter a full email address'
+    )
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(mockAdminService.listTeams.mock.calls).toHaveLength(initialCalls)
+    expect(currentSearch).not.toContain('owner_email')
+
+    await userEvent.type(input, '@corp.com{Enter}')
+
+    await waitFor(() => {
+      expect(lastQuery().owner_email).toBe('boss@corp.com')
+    })
+    expect(input).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('does not send a malformed owner email restored from the URL', async () => {
+    renderTeams('/admin/teams?owner_email=boss')
+
+    await waitFor(() => {
+      expect(mockAdminService.listTeams).toHaveBeenCalled()
+    })
+    expect(lastQuery().owner_email).toBeUndefined()
+    // Still a filter the admin can see and clear.
+    expect(
+      screen.getByRole('button', { name: 'Clear filters' })
+    ).toBeInTheDocument()
+    // The panel opens on its own, so the invalid value is not hidden.
+    const input = await screen.findByRole('textbox', {
+      name: 'Primary owner email',
+    })
+    expect(input).toHaveValue('boss')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('clears a rejected owner-email draft that never reached the URL', async () => {
+    renderTeams('/admin/teams?kind=shared')
+    await screen.findByText('Engineering')
+    await userEvent.click(
+      screen.getByRole('button', { name: /Advanced filters/ })
+    )
+    const input = await screen.findByRole('textbox', {
+      name: 'Primary owner email',
+    })
+    await userEvent.type(input, 'boss{Enter}')
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('textbox', { name: 'Primary owner email' })
+      ).toHaveValue('')
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('clears every advanced key from the URL', async () => {
+    mockAdminService.listTeams.mockResolvedValue(
+      page({ teams: [], total_count: 0, total_pages: 0 })
+    )
+    renderTeams(
+      '/admin/teams?project_count_min=2&freshness_enabled=true&owner_email=a@b.co'
+    )
+    await screen.findByText('No teams match your filters')
+
+    const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
+    await userEvent.click(clear)
+
+    await waitFor(() => {
+      expect(currentSearch).toBe('')
+    })
+    expect(lastQuery()).not.toHaveProperty('project_count_min')
+    expect(lastQuery()).not.toHaveProperty('freshness_enabled')
+    expect(lastQuery().owner_email).toBeUndefined()
+    expect(
+      screen.getByRole('textbox', { name: 'Primary owner email' })
+    ).toHaveValue('')
+  })
+})
+
+describe('count and setup columns (#1139)', () => {
+  const clickHeader = async (name: string) => {
+    await userEvent.click(
+      screen.getByRole('button', { name: new RegExp(name) })
+    )
+  }
+
+  it('renders the role, project and resource counts', async () => {
+    renderTeams()
+    const row = (await screen.findByText('Engineering')).closest('tr')
+    const cells = within(row as HTMLElement)
+    expect(cells.getByText('1')).toBeInTheDocument()
+    expect(cells.getByText('2')).toBeInTheDocument()
+    expect(cells.getByText('3')).toBeInTheDocument()
+    expect(cells.getByText('11')).toBeInTheDocument()
+    expect(
+      cells.getByRole('img', { name: 'Embedding: configured' })
+    ).toBeInTheDocument()
+    expect(
+      cells.getByRole('img', { name: 'LLM: not configured' })
+    ).toBeInTheDocument()
+  })
+
+  it.each([
+    ['Owners', 'owner_count'],
+    ['Admins', 'admin_count'],
+    ['Projects', 'project_count'],
+    ['Total resources', 'total_resource_count'],
+  ])('sorts by %s', async (header, sortBy) => {
+    renderTeams()
+    await screen.findByText('Engineering')
+
+    await clickHeader(header)
+
+    await waitFor(() => {
+      expect(lastQuery().sort_by).toBe(sortBy)
+    })
+    expect(currentSearch).toContain(`sort_by=${sortBy}`)
+  })
+
+  it('keeps a count sort from the URL', async () => {
+    renderTeams('/admin/teams?sort_by=admin_count&sort_order=asc')
+
+    await waitFor(() => {
+      expect(mockAdminService.listTeams).toHaveBeenCalled()
+    })
+    expect(lastQuery().sort_by).toBe('admin_count')
+    expect(lastQuery().sort_order).toBe('asc')
+  })
+
+  it('does not accept a per-type resource sort it has no column for', async () => {
+    renderTeams('/admin/teams?sort_by=prompt_count')
+
+    await waitFor(() => {
+      expect(mockAdminService.listTeams).toHaveBeenCalled()
+    })
+    expect(lastQuery().sort_by).toBe('created_at')
+  })
+
+  it('navigates on a click on a setup indicator, like the rest of the row', async () => {
+    renderTeams()
+    await screen.findByText('Engineering')
+
+    await userEvent.click(
+      screen.getByRole('img', { name: 'Embedding: configured' })
+    )
+
+    expect(mockNavigate).toHaveBeenCalledWith('/admin/teams/t1')
   })
 })
