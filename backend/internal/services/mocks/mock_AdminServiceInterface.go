@@ -440,6 +440,66 @@ func (_c *MockAdminServiceInterface_GetTeamDetail_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// GetUserCreationMetrics provides a mock function with given fields: ctx, id, q
+func (_m *MockAdminServiceInterface) GetUserCreationMetrics(ctx context.Context, id string, q services.AdminTimeseriesQuery) (*models.AdminUserCreationMetrics, error) {
+	ret := _m.Called(ctx, id, q)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserCreationMetrics")
+	}
+
+	var r0 *models.AdminUserCreationMetrics
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, services.AdminTimeseriesQuery) (*models.AdminUserCreationMetrics, error)); ok {
+		return rf(ctx, id, q)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, services.AdminTimeseriesQuery) *models.AdminUserCreationMetrics); ok {
+		r0 = rf(ctx, id, q)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminUserCreationMetrics)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, services.AdminTimeseriesQuery) error); ok {
+		r1 = rf(ctx, id, q)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_GetUserCreationMetrics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserCreationMetrics'
+type MockAdminServiceInterface_GetUserCreationMetrics_Call struct {
+	*mock.Call
+}
+
+// GetUserCreationMetrics is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - q services.AdminTimeseriesQuery
+func (_e *MockAdminServiceInterface_Expecter) GetUserCreationMetrics(ctx interface{}, id interface{}, q interface{}) *MockAdminServiceInterface_GetUserCreationMetrics_Call {
+	return &MockAdminServiceInterface_GetUserCreationMetrics_Call{Call: _e.mock.On("GetUserCreationMetrics", ctx, id, q)}
+}
+
+func (_c *MockAdminServiceInterface_GetUserCreationMetrics_Call) Run(run func(ctx context.Context, id string, q services.AdminTimeseriesQuery)) *MockAdminServiceInterface_GetUserCreationMetrics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(services.AdminTimeseriesQuery))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetUserCreationMetrics_Call) Return(_a0 *models.AdminUserCreationMetrics, _a1 error) *MockAdminServiceInterface_GetUserCreationMetrics_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetUserCreationMetrics_Call) RunAndReturn(run func(context.Context, string, services.AdminTimeseriesQuery) (*models.AdminUserCreationMetrics, error)) *MockAdminServiceInterface_GetUserCreationMetrics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetUserDetail provides a mock function with given fields: ctx, id
 func (_m *MockAdminServiceInterface) GetUserDetail(ctx context.Context, id string) (*models.AdminUserDetail, error) {
 	ret := _m.Called(ctx, id)
@@ -495,6 +555,126 @@ func (_c *MockAdminServiceInterface_GetUserDetail_Call) Return(_a0 *models.Admin
 }
 
 func (_c *MockAdminServiceInterface_GetUserDetail_Call) RunAndReturn(run func(context.Context, string) (*models.AdminUserDetail, error)) *MockAdminServiceInterface_GetUserDetail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetUserInsights provides a mock function with given fields: ctx, id
+func (_m *MockAdminServiceInterface) GetUserInsights(ctx context.Context, id string) (*models.AdminUserInsights, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserInsights")
+	}
+
+	var r0 *models.AdminUserInsights
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.AdminUserInsights, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.AdminUserInsights); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminUserInsights)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_GetUserInsights_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserInsights'
+type MockAdminServiceInterface_GetUserInsights_Call struct {
+	*mock.Call
+}
+
+// GetUserInsights is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockAdminServiceInterface_Expecter) GetUserInsights(ctx interface{}, id interface{}) *MockAdminServiceInterface_GetUserInsights_Call {
+	return &MockAdminServiceInterface_GetUserInsights_Call{Call: _e.mock.On("GetUserInsights", ctx, id)}
+}
+
+func (_c *MockAdminServiceInterface_GetUserInsights_Call) Run(run func(ctx context.Context, id string)) *MockAdminServiceInterface_GetUserInsights_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetUserInsights_Call) Return(_a0 *models.AdminUserInsights, _a1 error) *MockAdminServiceInterface_GetUserInsights_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetUserInsights_Call) RunAndReturn(run func(context.Context, string) (*models.AdminUserInsights, error)) *MockAdminServiceInterface_GetUserInsights_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetUserTimeline provides a mock function with given fields: ctx, id, cursor, limit
+func (_m *MockAdminServiceInterface) GetUserTimeline(ctx context.Context, id string, cursor string, limit int) (*models.AdminUserTimelinePage, error) {
+	ret := _m.Called(ctx, id, cursor, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserTimeline")
+	}
+
+	var r0 *models.AdminUserTimelinePage
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) (*models.AdminUserTimelinePage, error)); ok {
+		return rf(ctx, id, cursor, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) *models.AdminUserTimelinePage); ok {
+		r0 = rf(ctx, id, cursor, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminUserTimelinePage)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int) error); ok {
+		r1 = rf(ctx, id, cursor, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_GetUserTimeline_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserTimeline'
+type MockAdminServiceInterface_GetUserTimeline_Call struct {
+	*mock.Call
+}
+
+// GetUserTimeline is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - cursor string
+//   - limit int
+func (_e *MockAdminServiceInterface_Expecter) GetUserTimeline(ctx interface{}, id interface{}, cursor interface{}, limit interface{}) *MockAdminServiceInterface_GetUserTimeline_Call {
+	return &MockAdminServiceInterface_GetUserTimeline_Call{Call: _e.mock.On("GetUserTimeline", ctx, id, cursor, limit)}
+}
+
+func (_c *MockAdminServiceInterface_GetUserTimeline_Call) Run(run func(ctx context.Context, id string, cursor string, limit int)) *MockAdminServiceInterface_GetUserTimeline_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetUserTimeline_Call) Return(_a0 *models.AdminUserTimelinePage, _a1 error) *MockAdminServiceInterface_GetUserTimeline_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetUserTimeline_Call) RunAndReturn(run func(context.Context, string, string, int) (*models.AdminUserTimelinePage, error)) *MockAdminServiceInterface_GetUserTimeline_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -846,6 +1026,63 @@ func (_c *MockAdminServiceInterface_UpdateUserName_Call) Return(_a0 *models.Admi
 }
 
 func (_c *MockAdminServiceInterface_UpdateUserName_Call) RunAndReturn(run func(context.Context, string, string) (*models.AdminUserDetail, error)) *MockAdminServiceInterface_UpdateUserName_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UserExists provides a mock function with given fields: ctx, id
+func (_m *MockAdminServiceInterface) UserExists(ctx context.Context, id string) (bool, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UserExists")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (bool, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) bool); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_UserExists_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UserExists'
+type MockAdminServiceInterface_UserExists_Call struct {
+	*mock.Call
+}
+
+// UserExists is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockAdminServiceInterface_Expecter) UserExists(ctx interface{}, id interface{}) *MockAdminServiceInterface_UserExists_Call {
+	return &MockAdminServiceInterface_UserExists_Call{Call: _e.mock.On("UserExists", ctx, id)}
+}
+
+func (_c *MockAdminServiceInterface_UserExists_Call) Run(run func(ctx context.Context, id string)) *MockAdminServiceInterface_UserExists_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_UserExists_Call) Return(_a0 bool, _a1 error) *MockAdminServiceInterface_UserExists_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_UserExists_Call) RunAndReturn(run func(context.Context, string) (bool, error)) *MockAdminServiceInterface_UserExists_Call {
 	_c.Call.Return(run)
 	return _c
 }

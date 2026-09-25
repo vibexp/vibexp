@@ -307,3 +307,116 @@ type AdminProjectDetail struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
+
+// Admin user detail insights (#1135). Every type below carries counts, ids and
+// timestamps only — never a resource title, slug or body.
+
+// Resource type names used by the user insights rows and the timeline. They
+// are the singular forms the AdminUserTimelineEvent.resource_type enum uses.
+const (
+	AdminResourceTypePrompt     = "prompt"
+	AdminResourceTypeMemory     = "memory"
+	AdminResourceTypeArtifact   = "artifact"
+	AdminResourceTypeBlueprint  = "blueprint"
+	AdminResourceTypeAgent      = "agent"
+	AdminResourceTypeFeed       = "feed"
+	AdminResourceTypeFeedItem   = "feed_item"
+	AdminResourceTypeComment    = "comment"
+	AdminResourceTypeAttachment = "attachment"
+)
+
+// Timeline actions.
+const (
+	AdminTimelineActionCreated = "created"
+	AdminTimelineActionUpdated = "updated"
+)
+
+// AdminUserResourceCountRow is one sparse (type, team, project) count of the
+// resources a user authored. ProjectID/ProjectName are nil for the types that
+// are not attributed to a project.
+type AdminUserResourceCountRow struct {
+	ResourceType string
+	TeamID       string
+	TeamName     string
+	IsMember     bool
+	ProjectID    *string
+	ProjectName  *string
+	Count        int64
+}
+
+// AdminUserProjectResourceCounts is what a user authored in one project.
+type AdminUserProjectResourceCounts struct {
+	ProjectID   string
+	ProjectName string
+	Counts      AdminProjectResourceCounts
+}
+
+// AdminUserTeamResourceCounts is what a user authored in one team.
+type AdminUserTeamResourceCounts struct {
+	TeamID   string
+	TeamName string
+	IsMember bool
+	Counts   AdminResourceCounts
+	Projects []AdminUserProjectResourceCounts
+}
+
+// AdminUserInsights is the per-type count breakdown for one user
+// (GET /api/v1/admin/users/{id}/insights).
+type AdminUserInsights struct {
+	UserID string
+	Totals AdminResourceCounts
+	Teams  []AdminUserTeamResourceCounts
+}
+
+// AdminUserCreationPoint is how many resources of each type a user created in
+// one bucket.
+type AdminUserCreationPoint struct {
+	Bucket      time.Time
+	Prompts     int64
+	Memories    int64
+	Artifacts   int64
+	Blueprints  int64
+	Agents      int64
+	Feeds       int64
+	FeedItems   int64
+	Comments    int64
+	Attachments int64
+}
+
+// AdminUserCreationMetrics is the gap-filled creation series for one user.
+type AdminUserCreationMetrics struct {
+	From        time.Time
+	To          time.Time
+	Granularity string
+	Series      []AdminUserCreationPoint
+}
+
+// AdminTimelineCursor is the keyset position after the last event of a
+// timeline page. The tuple is the timeline's full sort key, so paging is
+// stable even when several events share one occurred_at.
+type AdminTimelineCursor struct {
+	OccurredAt   time.Time
+	ResourceType string
+	Action       string
+	ResourceID   string
+}
+
+// AdminUserTimelineEvent is one opaque timeline row. ResourceID is the full id,
+// used only for the cursor; the API exposes just its first 8 characters.
+type AdminUserTimelineEvent struct {
+	ResourceType string
+	Action       string
+	ResourceID   string
+	TeamID       string
+	TeamName     string
+	ProjectID    *string
+	ProjectName  *string
+	OccurredAt   time.Time
+}
+
+// AdminUserTimelinePage is one page of a user's timeline, newest first.
+// NextCursor is nil on the last page.
+type AdminUserTimelinePage struct {
+	Items      []AdminUserTimelineEvent
+	NextCursor *string
+}

@@ -924,6 +924,22 @@ components:
       $ref: "./schemas/admin.yaml#/AdminProjectResourceCounts"
     AdminProjectDetail:
       $ref: "./schemas/admin.yaml#/AdminProjectDetail"
+    AdminUserProjectResourceCounts:
+      $ref: "./schemas/admin.yaml#/AdminUserProjectResourceCounts"
+    AdminUserTeamResourceCounts:
+      $ref: "./schemas/admin.yaml#/AdminUserTeamResourceCounts"
+    AdminUserInsights:
+      $ref: "./schemas/admin.yaml#/AdminUserInsights"
+    AdminUserCreationPoint:
+      $ref: "./schemas/admin.yaml#/AdminUserCreationPoint"
+    AdminUserResourceCreationMetrics:
+      $ref: "./schemas/admin.yaml#/AdminUserResourceCreationMetrics"
+    AdminUserTimelineEvent:
+      $ref: "./schemas/admin.yaml#/AdminUserTimelineEvent"
+    AdminUserTimelinePage:
+      $ref: "./schemas/admin.yaml#/AdminUserTimelinePage"
+    AdminUserNotificationPreferences:
+      $ref: "./schemas/admin.yaml#/AdminUserNotificationPreferences"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
@@ -964,6 +980,10 @@ components:
       $ref: "./schemas/activities.yaml#/ActivityEntityTypesEnvelope"
 
     # Import user preferences schemas
+    EmailNotificationPreferences:
+      $ref: "./schemas/preferences.yaml#/EmailNotificationPreferences"
+    NotificationPreferences:
+      $ref: "./schemas/preferences.yaml#/NotificationPreferences"
     PreferencesResponse:
       $ref: "./schemas/preferences.yaml#/PreferencesResponse"
     UpdatePreferencesRequest:
@@ -1220,6 +1240,14 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-projects"
   /api/v1/admin/projects/{id}:
     $ref: "./paths/admin.yaml#/api-v1-admin-projects-id"
+  /api/v1/admin/users/{id}/insights:
+    $ref: "./paths/admin.yaml#/api-v1-admin-users-id-insights"
+  /api/v1/admin/users/{id}/resource-creation-metrics:
+    $ref: "./paths/admin.yaml#/api-v1-admin-users-id-resource-creation-metrics"
+  /api/v1/admin/users/{id}/timeline:
+    $ref: "./paths/admin.yaml#/api-v1-admin-users-id-timeline"
+  /api/v1/admin/users/{id}/notification-preferences:
+    $ref: "./paths/admin.yaml#/api-v1-admin-users-id-notification-preferences"
   /api/v1/{team_id}/comments:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
   /api/v1/{team_id}/comments/recent:
