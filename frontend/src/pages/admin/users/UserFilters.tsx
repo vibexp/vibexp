@@ -7,6 +7,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { AdminFilterBar } from '@/pages/admin/AdminFilterBar'
+import type { NumberRangeValue } from '@/pages/admin/filters/advancedFilterParams'
+import { DateTimeRangeFilter } from '@/pages/admin/filters/DateTimeRangeFilter'
+import { NumberRangeFilter } from '@/pages/admin/filters/NumberRangeFilter'
+import {
+  LAST_RESOURCE_CREATED,
+  USER_RANGE_FILTERS,
+} from '@/pages/admin/users/userAdvancedFilters'
 
 /** `all` sends no `status` param; the other two map to the API enum. */
 export type UserStatusFilter = 'all' | 'active' | 'suspended'
@@ -32,6 +39,12 @@ export interface UserFiltersProps {
   onCreatedChange: (value: DateRangeValue) => void
   onClear?: () => void
   hasActiveFilters: boolean
+  /** Advanced panel (#1134): count ranges by base name, e.g. `prompt_count`. */
+  getRange: (name: string) => NumberRangeValue
+  onRangeChange: (name: string, value: NumberRangeValue) => void
+  getDateRange: (name: string) => DateRangeValue
+  onDateRangeChange: (name: string, value: DateRangeValue) => void
+  advancedActiveCount: number
 }
 
 export function UserFilters({
@@ -45,7 +58,34 @@ export function UserFilters({
   onCreatedChange,
   onClear,
   hasActiveFilters,
+  getRange,
+  onRangeChange,
+  getDateRange,
+  onDateRangeChange,
+  advancedActiveCount,
 }: Readonly<UserFiltersProps>) {
+  const advanced = (
+    <>
+      {USER_RANGE_FILTERS.map(filter => (
+        <NumberRangeFilter
+          key={filter.name}
+          label={filter.label}
+          value={getRange(filter.name)}
+          onChange={value => {
+            onRangeChange(filter.name, value)
+          }}
+        />
+      ))}
+      <DateTimeRangeFilter
+        label="Last resource created"
+        value={getDateRange(LAST_RESOURCE_CREATED)}
+        onChange={value => {
+          onDateRangeChange(LAST_RESOURCE_CREATED, value)
+        }}
+      />
+    </>
+  )
+
   return (
     <AdminFilterBar
       searchInput={searchInput}
@@ -56,6 +96,8 @@ export function UserFilters({
       onCreatedChange={onCreatedChange}
       onClear={onClear}
       hasActiveFilters={hasActiveFilters}
+      advanced={advanced}
+      advancedActiveCount={advancedActiveCount}
     >
       <Select
         value={status}

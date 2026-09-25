@@ -26,7 +26,13 @@ vi.mock('@/services/adminService', () => ({
   adminService: { listUsers: vi.fn(), createUser: vi.fn() },
 }))
 
+import { advancedKeys } from '@/pages/admin/filters/advancedFilterParams'
+import {
+  USER_ADVANCED_FILTERS,
+  USER_ADVANCED_QUERY_KEYS,
+} from '@/pages/admin/users/userAdvancedFilters'
 import { adminService } from '@/services/adminService'
+import { storage, STORAGE_KEYS } from '@/utils/storage'
 
 import { AdminUsers } from '../AdminUsers'
 
@@ -49,6 +55,21 @@ function listItem(
     status: 'active',
     created_at: '2026-01-01T00:00:00Z',
     team_count: 2,
+    project_count: 3,
+    // Distinct values so each column's cell can be found by its number.
+    resource_counts: {
+      prompts: 11,
+      memories: 12,
+      artifacts: 13,
+      blueprints: 14,
+      agents: 15,
+      feeds: 16,
+      feed_items: 17,
+      comments: 18,
+      attachments: 19,
+      total: 135,
+    },
+    last_resource_created_at: null,
     ...overrides,
   }
 }
@@ -90,6 +111,7 @@ const lastQuery = () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  storage.remove(STORAGE_KEYS.ADMIN_USERS_COLUMNS)
   mockAdminService.listUsers.mockResolvedValue(page())
 })
 
@@ -466,6 +488,254 @@ describe('creating a user', () => {
 
     expect(screen.getByLabelText('Email')).toHaveValue('')
     expect(screen.queryByText('boom')).not.toBeInTheDocument()
+  })
+})
+
+describe('advanced filters (#1134)', () => {
+  const openPanel = async () => {
+    await userEvent.click(
+      screen.getByRole('button', { name: /Advanced filters/ })
+    )
+  }
+
+  it('declares exactly the params the published client accepts', () => {
+    expect([...advancedKeys(USER_ADVANCED_FILTERS)].sort()).toEqual(
+      [...USER_ADVANCED_QUERY_KEYS].sort()
+    )
+  })
+
+  it('sends a team-count range and a per-type range under their API names', async () => {
+    renderUsers()
+    await screen.findByText('ada@example.com')
+    await openPanel()
+
+    await userEvent.type(
+      screen.getByRole('spinbutton', { name: 'Teams minimum' }),
+      '2'
+    )
+    await userEvent.tab()
+    await waitFor(() => {
+      expect(lastQuery().team_count_min).toBe(2)
+    })
+
+    await userEvent.type(
+      screen.getByRole('spinbutton', { name: 'Feed items maximum' }),
+      '5{Enter}'
+    )
+    await waitFor(() => {
+      expect(lastQuery().feed_item_count_max).toBe(5)
+    })
+    expect(lastQuery()).toMatchObject({ team_count_min: 2, page: 1 })
+    expect(currentSearch).toContain('team_count_min=2')
+    expect(currentSearch).toContain('feed_item_count_max=5')
+  })
+
+  it('rehydrates advanced filters from the URL with the panel open', async () => {
+    renderUsers(
+      '/admin/users?prompt_count_min=3&total_resource_count_max=9&project_count_min=1&last_resource_created_from=2026-07-01&last_resource_created_to=2026-07-24'
+    )
+
+    await waitFor(() => {
+      expect(mockAdminService.listUsers).toHaveBeenCalled()
+    })
+    const query = lastQuery()
+    expect(query).toMatchObject({
+      prompt_count_min: 3,
+      total_resource_count_max: 9,
+      project_count_min: 1,
+    })
+    // Local days become instants, the upper bound at end of day.
+    expect(query.last_resource_created_from).toBe(
+      new Date(2026, 6, 1).toISOString()
+    )
+    expect(query.last_resource_created_to).toBe(
+      new Date(2026, 6, 24, 23, 59, 59, 999).toISOString()
+    )
+    expect(
+      screen.getByRole('spinbutton', { name: 'Prompts minimum' })
+    ).toHaveValue(3)
+    expect(screen.getByTestId('advanced-filters-count')).toHaveTextContent('4')
+  })
+
+  it('never sends an invalid URL value', async () => {
+    renderUsers(
+      '/admin/users?prompt_count_min=-1&team_count_min=5&team_count_max=2&memory_count_max=1.5'
+    )
+
+    await waitFor(() => {
+      expect(mockAdminService.listUsers).toHaveBeenCalled()
+    })
+    const query = lastQuery()
+    expect(query).not.toHaveProperty('prompt_count_min')
+    expect(query).not.toHaveProperty('team_count_min')
+    expect(query).not.toHaveProperty('team_count_max')
+    expect(query).not.toHaveProperty('memory_count_max')
+  })
+
+  describe('empty state', () => {
+    beforeEach(() => {
+      mockAdminService.listUsers.mockResolvedValue(
+        page({ users: [], total_count: 0, total_pages: 0 })
+      )
+    })
+
+    it('counts an advanced-only filter as filtered, and Clear removes it', async () => {
+      renderUsers('/admin/users?memory_count_min=1')
+
+      expect(
+        await screen.findByText('No users match your filters')
+      ).toBeInTheDocument()
+      expect(lastQuery().memory_count_min).toBe(1)
+
+      const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
+      await userEvent.click(clear)
+
+      await waitFor(() => {
+        expect(lastQuery()).not.toHaveProperty('memory_count_min')
+      })
+      expect(currentSearch).toBe('')
+      expect(await screen.findByText('No users yet')).toBeInTheDocument()
+    })
+  })
+})
+
+describe('activity columns (#1134)', () => {
+  // Sortable headers carry role="button", so read the cells, not the role.
+  const headers = () =>
+    [...document.querySelectorAll('thead th')].map(th => th.textContent)
+
+  it('shows the default count columns and hides the rest', async () => {
+    renderUsers()
+    await screen.findByText('ada@example.com')
+
+    expect(headers()).toEqual([
+      'Email',
+      'Name',
+      'Provider',
+      'Teams',
+      'Projects',
+      'Total resources',
+      'Prompts',
+      'Memories',
+      'Artifacts',
+      'Last resource',
+      'Created',
+    ])
+    const row = screen.getByText('ada@example.com').closest('tr')
+    const cells = [...(row?.querySelectorAll('td') ?? [])].map(
+      td => td.textContent
+    )
+    expect(cells.slice(3, 10)).toEqual(['2', '3', '135', '11', '12', '13', '—'])
+  })
+
+  it('renders the last-resource timestamp when there is one', async () => {
+    mockAdminService.listUsers.mockResolvedValue(
+      page({
+        users: [listItem({ last_resource_created_at: '2026-07-20T10:00:00Z' })],
+      })
+    )
+    renderUsers()
+    await screen.findByText('ada@example.com')
+
+    const row = screen.getByText('ada@example.com').closest('tr')
+    expect(row?.querySelectorAll('td')[9].textContent).not.toBe('—')
+  })
+
+  it('sorts a count column descending, then ascending', async () => {
+    renderUsers()
+    await screen.findByText('ada@example.com')
+
+    await userEvent.click(screen.getByRole('button', { name: /Prompts/ }))
+    await waitFor(() => {
+      expect(lastQuery()).toMatchObject({
+        sort_by: 'prompt_count',
+        sort_order: 'desc',
+      })
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: /Prompts/ }))
+    await waitFor(() => {
+      expect(lastQuery().sort_order).toBe('asc')
+    })
+    expect(lastQuery().sort_by).toBe('prompt_count')
+  })
+
+  it('sorts by last resource', async () => {
+    renderUsers()
+    await screen.findByText('ada@example.com')
+
+    await userEvent.click(screen.getByRole('button', { name: /Last resource/ }))
+
+    await waitFor(() => {
+      expect(lastQuery().sort_by).toBe('last_resource_created_at')
+    })
+  })
+
+  it('always shows the column it is sorted by', async () => {
+    renderUsers('/admin/users?sort_by=comment_count&sort_order=asc')
+    await screen.findByText('ada@example.com')
+
+    expect(lastQuery().sort_by).toBe('comment_count')
+    expect(headers()).toContain('Comments')
+    expect(screen.getByText('18')).toBeInTheDocument()
+  })
+
+  it('reveals a hidden column through the chooser and remembers it', async () => {
+    const { unmount } = renderUsers()
+    await screen.findByText('ada@example.com')
+    expect(headers()).not.toContain('Blueprints')
+
+    await userEvent.click(screen.getByRole('button', { name: /Columns/ }))
+    await userEvent.click(
+      await screen.findByRole('menuitemcheckbox', { name: 'Blueprints' })
+    )
+
+    await waitFor(() => {
+      expect(headers()).toContain('Blueprints')
+    })
+    expect(screen.getByText('14')).toBeInTheDocument()
+
+    unmount()
+    renderUsers()
+    await screen.findByText('ada@example.com')
+    expect(headers()).toContain('Blueprints')
+  })
+
+  it('hides a default column through the chooser', async () => {
+    renderUsers()
+    await screen.findByText('ada@example.com')
+
+    await userEvent.click(screen.getByRole('button', { name: /Columns/ }))
+    await userEvent.click(
+      await screen.findByRole('menuitemcheckbox', { name: 'Memories' })
+    )
+
+    await waitFor(() => {
+      expect(headers()).not.toContain('Memories')
+    })
+  })
+
+  it('ignores unknown or malformed stored visibility', async () => {
+    storage.set(STORAGE_KEYS.ADMIN_USERS_COLUMNS, {
+      agent_count: true,
+      prompt_count: 'no',
+      bogus: true,
+    })
+    renderUsers()
+    await screen.findByText('ada@example.com')
+
+    expect(headers()).toContain('Agents')
+    expect(headers()).toContain('Prompts')
+    expect(headers()).not.toContain('bogus')
+  })
+
+  it('falls back to the defaults for a non-object stored value', async () => {
+    storage.set(STORAGE_KEYS.ADMIN_USERS_COLUMNS, ['agent_count'])
+    renderUsers()
+    await screen.findByText('ada@example.com')
+
+    expect(headers()).not.toContain('Agents')
+    expect(headers()).toContain('Prompts')
   })
 })
 

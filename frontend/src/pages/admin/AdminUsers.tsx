@@ -13,6 +13,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/time'
 import { useAdminListFilters } from '@/pages/admin/useAdminListFilters'
+import { USER_ADVANCED_FILTERS } from '@/pages/admin/users/userAdvancedFilters'
+import { UserColumnChooser } from '@/pages/admin/users/UserColumnChooser'
+import type { UserSortKey } from '@/pages/admin/users/userColumns'
+import {
+  userActivityColumns,
+  useUserColumnVisibility,
+} from '@/pages/admin/users/userColumns'
 import type { UserStatusFilter } from '@/pages/admin/users/UserFilters'
 import { UserFilters } from '@/pages/admin/users/UserFilters'
 import type { UserFormValues } from '@/pages/admin/users/UserFormDialog'
@@ -23,7 +30,26 @@ import { getErrorMessage } from '@/utils/errorHandling'
 
 const PAGE_SIZE = 20
 
-const SORTABLE_KEYS = ['email', 'name', 'team_count', 'created_at'] as const
+// `satisfies` pins these to the published `sort_by` enum: a renamed value fails
+// `tsc -b` rather than becoming a silent 400.
+const SORTABLE_KEYS = [
+  'email',
+  'name',
+  'created_at',
+  'team_count',
+  'project_count',
+  'total_resource_count',
+  'prompt_count',
+  'memory_count',
+  'artifact_count',
+  'blueprint_count',
+  'agent_count',
+  'feed_count',
+  'feed_item_count',
+  'comment_count',
+  'attachment_count',
+  'last_resource_created_at',
+] as const satisfies readonly UserSortKey[]
 type SortKey = (typeof SORTABLE_KEYS)[number]
 
 const FILTER_DEFAULTS = {
@@ -90,12 +116,20 @@ export function AdminUsers() {
     hasActiveFilters,
     handleSortChange,
     handleClear,
+    advancedParams,
+    advancedActiveCount,
+    getRange,
+    setRange,
+    getDateRange,
+    setDateRange,
   } = useAdminListFilters<SortKey>({
     defaults: FILTER_DEFAULTS,
     sortableKeys: SORTABLE_KEYS,
     defaultSort: 'created_at',
     filterKeys: ['status', 'idp_provider'],
+    advanced: USER_ADVANCED_FILTERS,
   })
+  const { visibility, setVisible } = useUserColumnVisibility(sortBy)
   const [state, setState] = useState<State>(INITIAL)
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -115,6 +149,8 @@ export function AdminUsers() {
         created_to: createdTo,
         sort_by: sortBy,
         sort_order: sortOrder,
+        // Already validated and typed by the hook; invalid URL values are absent.
+        ...advancedParams,
       })
       .then(response => {
         if (cancelled) return
@@ -147,6 +183,7 @@ export function AdminUsers() {
     createdTo,
     sortBy,
     sortOrder,
+    advancedParams,
   ])
 
   const columns = useMemo<ColumnDef<AdminUserListItem>[]>(
@@ -183,16 +220,7 @@ export function AdminUsers() {
           </span>
         ),
       },
-      {
-        accessorKey: 'team_count',
-        header: 'Teams',
-        meta: { align: 'right' },
-        cell: ({ row }) => (
-          <span className="text-sm tabular-nums">
-            {row.original.team_count}
-          </span>
-        ),
-      },
+      ...userActivityColumns(visibility),
       {
         accessorKey: 'created_at',
         header: 'Created',
@@ -203,7 +231,7 @@ export function AdminUsers() {
         ),
       },
     ],
-    []
+    [visibility]
   )
 
   const handleRowClick = useCallback(
@@ -268,16 +296,28 @@ export function AdminUsers() {
               onCreatedChange={setCreated}
               onClear={handleClear}
               hasActiveFilters={hasActiveFilters}
+              getRange={getRange}
+              onRangeChange={setRange}
+              getDateRange={getDateRange}
+              onDateRangeChange={setDateRange}
+              advancedActiveCount={advancedActiveCount}
             />
-            <Button
-              onClick={() => {
-                setCreateError(null)
-                setCreateOpen(true)
-              }}
-            >
-              <UserPlus className="mr-2 size-4" aria-hidden />
-              New user
-            </Button>
+            <div className="flex items-center gap-2">
+              <UserColumnChooser
+                visibility={visibility}
+                onVisibleChange={setVisible}
+                sortBy={sortBy}
+              />
+              <Button
+                onClick={() => {
+                  setCreateError(null)
+                  setCreateOpen(true)
+                }}
+              >
+                <UserPlus className="mr-2 size-4" aria-hidden />
+                New user
+              </Button>
+            </div>
           </div>
         </ListPage.Filters>
 
@@ -290,7 +330,7 @@ export function AdminUsers() {
               <EmptyState
                 icon={Users}
                 title="No users match your filters"
-                description="Try a different search, status, provider, or date range."
+                description="Try a different search, status, provider, date range, or activity filter."
                 actions={
                   <Button variant="outline" onClick={handleClear}>
                     Clear filters

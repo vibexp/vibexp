@@ -94,6 +94,15 @@ export const STORAGE_KEYS = {
    */
   SEARCH_AI_SUMMARY_EXPANDED: 'vx_search_ai_summary_expanded',
 
+  // Admin (#1134)
+  /**
+   * Which optional count columns the admin users list shows, as a
+   * `Record<columnId, boolean>`. A per-viewer convenience, deliberately not in
+   * the URL, so a shared link stays about the filters. Read it through
+   * `useUserColumnVisibility`.
+   */
+  ADMIN_USERS_COLUMNS: 'vx_admin_users_columns',
+
   // Analytics
   /** Referrer URL for page tracking - session scoped */
   ANALYTICS_REFERRER: 'vx_analytics_referrer',
