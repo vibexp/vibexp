@@ -2,10 +2,12 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
@@ -245,24 +247,8 @@ func (r *AdminRepository) GetGrowthSeries(
 	// $3/$4 are the SAME instants as $1/$2, bound separately so the naive
 	// `memories` branch gets a parameter Postgres infers as `timestamp`; see the
 	// package comment for why casting the shared $1/$2 does not work.
-	rows, err := r.db.QueryContext(ctx, query, from, to, from.UTC(), to.UTC())
-	if err != nil {
-		return nil, fmt.Errorf("failed to query growth series: %w", err)
-	}
-	defer closeAdminRows(rows, "growth series")
-
-	counts := make([]models.AdminGrowthCount, 0)
-	for rows.Next() {
-		var c models.AdminGrowthCount
-		if scanErr := rows.Scan(&c.Entity, &c.Bucket, &c.Count); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan growth row: %w", scanErr)
-		}
-		counts = append(counts, c)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate growth series: %w", err)
-	}
-	return counts, nil
+	return queryAdminRows(ctx, r.db, "growth series", scanAdminGrowthCount,
+		query, from, to, from.UTC(), to.UTC())
 }
 
 // adminSignInQueryFmt counts auth_login activities per bucket. activities.created_at
@@ -316,24 +302,8 @@ func (r *AdminRepository) GetAccessBySourceSeries(
 	ctx context.Context, from, to time.Time, granularity string,
 ) ([]models.AdminSourcePoint, error) {
 	query := fmt.Sprintf(adminAccessBySourceQueryFmt, adminTruncUnit(granularity))
-	rows, err := r.db.QueryContext(ctx, query, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query access-by-source series: %w", err)
-	}
-	defer closeAdminRows(rows, "access-by-source series")
-
-	points := make([]models.AdminSourcePoint, 0)
-	for rows.Next() {
-		var p models.AdminSourcePoint
-		if scanErr := rows.Scan(&p.Bucket, &p.Source, &p.Count); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan access-by-source row: %w", scanErr)
-		}
-		points = append(points, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate access-by-source series: %w", err)
-	}
-	return points, nil
+	return queryAdminRows(ctx, r.db, "access-by-source series", scanAdminSourcePoint,
+		query, from, to)
 }
 
 // closeAdminRows closes a result set, logging (never returning) a close failure
@@ -342,4 +312,53 @@ func closeAdminRows(rows interface{ Close() error }, what string) {
 	if err := rows.Close(); err != nil {
 		slog.Error("Failed to close admin rows", "rows", what, "error", err)
 	}
+}
+
+// queryAdminRows runs one admin analytics query and scans every row with scan.
+// The result is never nil, and each failure is wrapped with what the query
+// reads (e.g. "growth series").
+func queryAdminRows[T any](
+	ctx context.Context, db *database.DB, what string, scan func(*sql.Rows) (T, error),
+	query string, args ...any,
+) ([]T, error) {
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query %s: %w", what, err)
+	}
+	defer closeAdminRows(rows, what)
+
+	out := make([]T, 0)
+	for rows.Next() {
+		item, scanErr := scan(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("failed to scan %s row: %w", what, scanErr)
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate %s: %w", what, err)
+	}
+	return out, nil
+}
+
+// scanAdminGrowthCount scans an (entity, bucket, count) row.
+func scanAdminGrowthCount(rows *sql.Rows) (models.AdminGrowthCount, error) {
+	var c models.AdminGrowthCount
+	err := rows.Scan(&c.Entity, &c.Bucket, &c.Count)
+	return c, err
+}
+
+// scanAdminSourcePoint scans a (bucket, source, count) row.
+func scanAdminSourcePoint(rows *sql.Rows) (models.AdminSourcePoint, error) {
+	var p models.AdminSourcePoint
+	err := rows.Scan(&p.Bucket, &p.Source, &p.Count)
+	return p, err
+}
+
+// scanAdminTopAccessedResource scans one opaque top-accessed row.
+func scanAdminTopAccessedResource(rows *sql.Rows) (models.AdminTopAccessedResource, error) {
+	var it models.AdminTopAccessedResource
+	err := rows.Scan(&it.ResourceType, &it.ResourceID, &it.TeamID, &it.TeamName,
+		&it.ProjectID, &it.ProjectName, &it.ResourceDeleted, &it.AccessCount)
+	return it, err
 }

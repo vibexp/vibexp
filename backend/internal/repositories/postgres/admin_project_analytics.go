@@ -74,24 +74,8 @@ func (r *AdminRepository) GetProjectCreationSeries(
 	ctx context.Context, projectID string, from, to time.Time, granularity string,
 ) ([]models.AdminGrowthCount, error) {
 	query := fmt.Sprintf(adminProjectCreationQueryFmt, adminTruncUnit(granularity))
-	rows, err := r.db.QueryContext(ctx, query, projectID, from, to, from.UTC(), to.UTC())
-	if err != nil {
-		return nil, fmt.Errorf("failed to query project creation series: %w", err)
-	}
-	defer closeAdminRows(rows, "project creation series")
-
-	counts := make([]models.AdminGrowthCount, 0)
-	for rows.Next() {
-		var c models.AdminGrowthCount
-		if scanErr := rows.Scan(&c.Entity, &c.Bucket, &c.Count); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan project creation row: %w", scanErr)
-		}
-		counts = append(counts, c)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate project creation series: %w", err)
-	}
-	return counts, nil
+	return queryAdminRows(ctx, r.db, "project creation series", scanAdminGrowthCount,
+		query, projectID, from, to, from.UTC(), to.UTC())
 }
 
 // adminProjectResourcesCTE lists the project's current resources of every
@@ -125,24 +109,8 @@ func (r *AdminRepository) GetProjectAccessBySourceSeries(
 	ctx context.Context, projectID, teamID string, from, to time.Time, granularity string,
 ) ([]models.AdminSourcePoint, error) {
 	query := fmt.Sprintf(adminProjectAccessBySourceQueryFmt, adminTruncUnit(granularity))
-	rows, err := r.db.QueryContext(ctx, query, projectID, teamID, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query project access-by-source series: %w", err)
-	}
-	defer closeAdminRows(rows, "project access-by-source series")
-
-	points := make([]models.AdminSourcePoint, 0)
-	for rows.Next() {
-		var p models.AdminSourcePoint
-		if scanErr := rows.Scan(&p.Bucket, &p.Source, &p.Count); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan project access-by-source row: %w", scanErr)
-		}
-		points = append(points, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate project access-by-source series: %w", err)
-	}
-	return points, nil
+	return queryAdminRows(ctx, r.db, "project access-by-source series", scanAdminSourcePoint,
+		query, projectID, teamID, from, to)
 }
 
 // adminProjectTopAccessedQuery ranks a project's accessed resources, excluding
@@ -172,23 +140,6 @@ ORDER BY k.access_count DESC, k.resource_id
 func (r *AdminRepository) GetProjectTopAccessedResources(
 	ctx context.Context, projectID, teamID string, from, to time.Time, limit int,
 ) ([]models.AdminTopAccessedResource, error) {
-	rows, err := r.db.QueryContext(ctx, adminProjectTopAccessedQuery, projectID, teamID, from, to, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query project top accessed resources: %w", err)
-	}
-	defer closeAdminRows(rows, "project top accessed resources")
-
-	items := make([]models.AdminTopAccessedResource, 0)
-	for rows.Next() {
-		var it models.AdminTopAccessedResource
-		if scanErr := rows.Scan(&it.ResourceType, &it.ResourceID, &it.TeamID, &it.TeamName,
-			&it.ProjectID, &it.ProjectName, &it.ResourceDeleted, &it.AccessCount); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan project top accessed resource: %w", scanErr)
-		}
-		items = append(items, it)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate project top accessed resources: %w", err)
-	}
-	return items, nil
+	return queryAdminRows(ctx, r.db, "project top accessed resources", scanAdminTopAccessedResource,
+		adminProjectTopAccessedQuery, projectID, teamID, from, to, limit)
 }
