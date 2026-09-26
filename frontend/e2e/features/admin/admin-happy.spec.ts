@@ -37,6 +37,10 @@ test.describe('Admin portal — happy path', () => {
     // Users list → the admin's own row → user detail → Teams tab (memberships).
     await page.getByRole('link', { name: 'Users' }).click()
     await expect(page).toHaveURL(/\/admin\/users$/)
+    // Search first: the list pages 20 at a time, newest first, and other specs
+    // (the admin panel v3 journey seeds several users) push the admin's own row
+    // off page one of a shared database.
+    await page.getByRole('textbox', { name: 'Search users' }).fill(ADMIN_EMAIL)
     // Exact match: nonadmin-e2e@vibexp.test contains admin-e2e@vibexp.test as a
     // substring, so a non-exact getByText would match both rows.
     await page.getByText(ADMIN_EMAIL, { exact: true }).click()
