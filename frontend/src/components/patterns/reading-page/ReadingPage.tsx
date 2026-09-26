@@ -45,7 +45,16 @@ const EXPAND_SCROLL_FALLBACK_MS = 300
 export type ReadingPresentation = 'reading' | 'editing'
 
 export interface ReadingPageProps {
+  /**
+   * The page's name: the `<h1>`, and the accessible name the details sheet
+   * describes itself with even when `heading` replaces the visible `<h1>`.
+   */
   title: string
+  /**
+   * Replaces the `<h1>` — an edit page's inline title input (#1179). The node
+   * owns its own heading semantics.
+   */
+  heading?: ReactNode
   /** Lead paragraph or a row of badges under the title. */
   description?: ReactNode
   /** Document actions — buttons in the column, icons on the rail, chips on phones. */
@@ -85,6 +94,7 @@ export interface ReadingPageProps {
  */
 export function ReadingPage({
   title,
+  heading,
   description,
   actions = [],
   sections = [],
@@ -184,7 +194,9 @@ export function ReadingPage({
           )}
         >
           <header className="mb-8">
-            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+            {heading ?? (
+              <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+            )}
             {description && (
               // A lead paragraph is prose: capped at a prose measure even in
               // the wide column, so a long summary does not run 150 characters

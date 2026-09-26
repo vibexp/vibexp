@@ -141,7 +141,7 @@ export function ArtifactEdit() {
   return (
     <ResourceFormReadingPage
       title={formHeading(descriptor, 'edit')}
-      description={artifact.title}
+      updatedAt={artifact.updated_at}
       descriptor={descriptor}
       mode="edit"
       // The fetched resource IS a value map: `defaultFormValues` reads only

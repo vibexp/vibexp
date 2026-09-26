@@ -311,7 +311,7 @@ export function PromptEditor() {
     return (
       <ResourceFormReadingPage
         title={formHeading(descriptor, mode)}
-        description={`Editing: ${prompt?.name ?? ''}`}
+        updatedAt={prompt?.updated_at}
         descriptor={descriptor}
         mode={mode}
         initialValues={initialValues}
