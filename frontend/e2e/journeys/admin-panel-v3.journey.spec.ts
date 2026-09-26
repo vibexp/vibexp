@@ -56,8 +56,10 @@ const worker = process.env.TEST_WORKER_INDEX ?? '0'
 const UI_TIMEOUT = 20_000
 
 /**
- * The one string that must never be serialized or rendered. Deliberately NOT
- * per-attempt, so the search on a retry still covers the earlier traffic.
+ * The one string that must never be serialized or rendered. Distinctive, so a
+ * substring hit can only be a leak. A failed test restarts the worker, which
+ * re-evaluates this module: each attempt seeds a fresh secret and searches only
+ * its own recorded traffic.
  */
 const SECRET = `e2e-admin-secret-${worker}-${stamp}`
 
