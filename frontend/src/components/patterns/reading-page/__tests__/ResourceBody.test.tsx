@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import { storage } from '@/utils/storage'
 
-import { ResourceBody } from '../ResourceBody'
+import { RAW_BODY_CLASS, ResourceBody } from '../ResourceBody'
 import type { BodyViewMode } from '../types'
 
 // marked/DOMPurify are heavy in jsdom; the body only needs to prove which text
@@ -51,6 +51,18 @@ describe('ResourceBody', () => {
 
     expect(screen.getByTestId('resource-body-raw')).toHaveTextContent(RAW)
     expect(screen.queryByTestId('markdown-renderer')).not.toBeInTheDocument()
+  })
+
+  it('sets the raw source at text-sm on the surface the editor shares (#1178)', async () => {
+    const user = userEvent.setup()
+    render(<ResourceBody content={RENDERED} rawContent={RAW} />)
+
+    await user.click(screen.getByRole('tab', { name: 'Raw' }))
+
+    const raw = screen.getByTestId('resource-body-raw')
+    expect(raw).toHaveClass(...RAW_BODY_CLASS.split(' '))
+    expect(raw).toHaveClass('text-sm')
+    expect(raw).not.toHaveClass('text-xs')
   })
 
   it('falls back to `content` in raw mode when no rawContent is given', async () => {

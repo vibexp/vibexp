@@ -39,4 +39,25 @@ describe('SegmentedControl', () => {
     fireEvent.click(screen.getByRole('tab', { name: '3 months' }))
     expect(onChange).toHaveBeenCalledWith('90d')
   })
+
+  it('shows a disabled option but never selects it', () => {
+    const onChange = vi.fn()
+    render(
+      <SegmentedControl
+        options={[
+          ...OPTIONS,
+          { value: 'all', label: 'All time', disabled: true },
+        ]}
+        value="30d"
+        onChange={onChange}
+      />
+    )
+
+    const option = screen.getByRole('tab', { name: 'All time' })
+    expect(option).toBeDisabled()
+    expect(option).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(option)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('tab', { name: '7 days' })).toBeEnabled()
+  })
 })

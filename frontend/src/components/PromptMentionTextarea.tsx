@@ -3,6 +3,7 @@ import { forwardRef, useCallback, useRef, useState } from 'react'
 
 import { PromptTemplateLoader } from '@/components/PromptTemplateLoader'
 import { useAnalytics } from '@/hooks'
+import { cn } from '@/lib/utils'
 import type { Prompt } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
@@ -14,6 +15,12 @@ interface PromptMentionTextareaProps {
   rows?: number
   className?: string
   error?: string
+  /**
+   * Drops the textarea's own border, padding and corner radius so the caller's
+   * `className` supplies the whole surface — the body editor's Raw pane
+   * (#1178). With no border to colour, an error is drawn as a destructive ring.
+   */
+  frameless?: boolean
   disabled?: boolean
   excludeCurrentPrompt?: string
   'data-testid'?: string
@@ -55,6 +62,7 @@ export const PromptMentionTextarea = forwardRef<
     rows = 20,
     className = '',
     error,
+    frameless = false,
     disabled,
     excludeCurrentPrompt,
     'data-testid': testId,
@@ -157,9 +165,16 @@ export const PromptMentionTextarea = forwardRef<
         disabled={disabled}
         placeholder={placeholder}
         rows={rows}
-        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent font-mono text-sm resize-y disabled:cursor-not-allowed disabled:opacity-50 ${
-          error ? 'border-destructive' : 'border-input'
-        } ${className}`}
+        className={cn(
+          'w-full focus:ring-2 focus:ring-ring font-mono text-sm resize-y disabled:cursor-not-allowed disabled:opacity-50',
+          frameless
+            ? error && 'ring-2 ring-destructive'
+            : [
+                'px-4 py-3 border rounded-lg focus:border-transparent',
+                error ? 'border-destructive' : 'border-input',
+              ],
+          className
+        )}
       />
 
       {error && (
