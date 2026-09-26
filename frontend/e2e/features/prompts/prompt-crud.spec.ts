@@ -444,13 +444,13 @@ test.describe('Prompt CRUD Operations', () => {
       // Update name
       const updatedName = `${originalName} (Updated)`
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]'
+        '[data-testid="prompt-name-input"]'
       )
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .clear()
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(updatedName)
 
       await authenticatedPage
@@ -470,7 +470,7 @@ test.describe('Prompt CRUD Operations', () => {
     }) => {
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
@@ -478,7 +478,7 @@ test.describe('Prompt CRUD Operations', () => {
       const promptBody = 'Content to preserve'
 
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -499,13 +499,13 @@ test.describe('Prompt CRUD Operations', () => {
 
       // Wait for form to load
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       // Verify original values are still there
       const nameValue = await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .inputValue()
       expect(nameValue).toBe(promptName)
 
