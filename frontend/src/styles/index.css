@@ -275,11 +275,6 @@
   margin-inline: auto;
 }
 
-/* The raw view is monospace source, not prose: it always takes the room. */
-.v2-root .reading-body-raw {
-  margin-inline: calc(-1 * var(--reading-bleed));
-}
-
 /* -------------------------------------------------------------------------- */
 /* Scrollbars come from @vibexp/design-system/scrollbar.css (imported at the  */
 /* top). The one local override: Prism's tomorrow theme paints code blocks    */
