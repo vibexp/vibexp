@@ -61,7 +61,7 @@ export function blockOf(yaml: string, name: string): string {
 export function refEnum(fromFile: string, ref: string, hops = 4): string[] {
   const [file, pointer] = ref.split('#')
   const target = resolve(dirname(fromFile), file)
-  const name = pointer.split('/').filter(Boolean).at(-1) ?? ''
+  const name = pointer.split('/').findLast(Boolean) ?? ''
   const block = blockOf(readFileSync(target, 'utf8'), name)
   if (block === '') {
     throw new Error(`schema component '${name}' not found in ${target}`)
