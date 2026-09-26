@@ -11,6 +11,7 @@ import {
 
 import { ADMIN_EMAIL } from '../features/admin/admin-emails'
 import { devLogin } from '../fixtures/auth'
+import { ApiRecorder } from '../helpers/apiRecorder'
 
 /**
  * Admin panel v3, end to end (issue #1151, the ship gate for epic #1131).
@@ -90,65 +91,19 @@ let customTypeName: string
 /** Every seeded resource title — none may reach an admin payload or page. */
 const seededTitles: string[] = []
 
-interface Observed {
-  url: string
-  body: string
-}
-
-/** Every `/api/v1/` response body the run has seen. */
-const observed: Observed[] = []
-/** Pending body reads, settled before the search so it never runs early. */
-const bodyReads: Promise<void>[] = []
+/** Every `/api/v1/` response body the run has seen — see ApiRecorder. */
+const recorder = new ApiRecorder()
+const send = recorder.send.bind(recorder)
 /** `page.content()` of every admin page the journey asserted on. */
 const adminPages: { url: string; html: string }[] = []
 
 const contexts: BrowserContext[] = []
 let adminPage: Page
 
-/**
- * Record a context's own API traffic. Bound to the context and registered
- * before the first navigation, so nothing the app requests is missed.
- */
-function recordApiResponses(context: BrowserContext): void {
-  context.on('response', response => {
-    const url = response.url()
-    if (!url.includes('/api/v1/')) return
-    bodyReads.push(
-      response
-        .text()
-        .then(body => {
-          observed.push({ url, body })
-        })
-        .catch(() => {
-          /* body unavailable (redirect, aborted) — nothing to inspect */
-        })
-    )
-  })
-}
-
-/**
- * `page.request` bypasses the page's network stack, so its responses never
- * reach the context listener; they are recorded here instead.
- */
-async function send(
-  page: Page,
-  method: 'GET' | 'POST' | 'PUT',
-  url: string,
-  data?: unknown
-): Promise<Record<string, unknown>> {
-  const res = await page.request.fetch(url, { method, data })
-  const body = await res.text()
-  observed.push({ url: res.url(), body })
-  expect(res.ok(), `${method} ${url} failed: ${res.status()} ${body}`).toBe(
-    true
-  )
-  return JSON.parse(body) as Record<string, unknown>
-}
-
 async function newUserPage(browser: Browser, user: SeedUser): Promise<Page> {
   const context = await browser.newContext({ acceptDownloads: true })
   contexts.push(context)
-  recordApiResponses(context)
+  recorder.attach(context)
   const page = await context.newPage()
   await devLogin(page, user.email, user.name)
   return page
@@ -406,7 +361,9 @@ test.describe.serial('Admin panel v3 journey', () => {
     await setMin(page, 'Prompts', '2')
     await expect(page).toHaveURL(/prompt_count_min=2/)
     await expectRows(page, [userA.email])
-    await expect(page.getByTestId('advanced-filters-count')).toContainText('1')
+    await expect(page.getByTestId('advanced-filters-count')).toHaveText(
+      /^1\s*active$/
+    )
 
     // Reload: the URL alone restores the filter, the panel and the rows.
     await page.reload()
@@ -574,8 +531,11 @@ test.describe.serial('Admin panel v3 journey', () => {
     await page.keyboard.press('Escape')
     await expect
       .poll(async () => {
-        const res = await page.request.get('/api/v1/admin/saved-filters/teams')
-        const body = (await res.json()) as { presets: { name: string }[] }
+        const body = (await send(
+          page,
+          'GET',
+          '/api/v1/admin/saved-filters/teams'
+        )) as { presets: { name: string }[] }
         return body.presets.some(p => p.name === PRESET_NAME)
       })
       .toBe(false)
@@ -747,7 +707,7 @@ test.describe.serial('Admin panel v3 journey', () => {
   })
 
   test('no admin payload or page carried a secret or a resource title', async () => {
-    await Promise.allSettled(bodyReads)
+    const observed = await recorder.settled()
 
     const admin = observed.filter(o => o.url.includes('/api/v1/admin/'))
     // Positive companions: a recorder that saw nothing must not pass.

@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 
 import { devLogin } from '../fixtures/auth'
+import { ApiRecorder } from '../helpers/apiRecorder'
 
 /**
  * Cross-team settings copy, end to end (issue #838, the ship gate for epic
@@ -92,64 +93,17 @@ let sourceEmbeddingProviderId: string
 
 /**
  * Every `/api/v1/` response body the run has seen, from both halves of the
- * traffic — see {@link recordApiResponses} and {@link postJson}.
+ * traffic: the browsers' (attached per context) and this spec's own
+ * `page.request` calls (made through `postJson` / `getJson`). See ApiRecorder.
  */
-const observedBodies: string[] = []
+const recorder = new ApiRecorder()
 
-/**
- * Reading a response body is asynchronous, so a body can still be in flight when
- * the search runs — and a body that has not landed yet is a body the search
- * cannot fail on. Every read is tracked here and awaited before the assertion,
- * so "we found no key" can never mean "we had not finished looking".
- */
-const bodyReads: Promise<void>[] = []
-
-/**
- * Record the browser's own API traffic.
- *
- * Bound to the CONTEXT rather than a page so it covers anything the app opens,
- * and registered before the first navigation so nothing is missed. A body that
- * cannot be read (a redirect, an aborted request) is skipped rather than
- * failing the run: the assertion this feeds is "none of what we saw carried the
- * key", and it is paired with a check that we saw a substantial amount.
- */
-function recordApiResponses(context: BrowserContext): void {
-  context.on('response', response => {
-    if (!response.url().includes('/api/v1/')) return
-    bodyReads.push(
-      response
-        .text()
-        .then(body => {
-          observedBodies.push(body)
-        })
-        .catch(() => {
-          /* body unavailable — nothing to inspect */
-        })
-    )
-  })
-}
-
-/**
- * Requests made through `page.request` do NOT surface as context `response`
- * events (they bypass the page's network stack entirely), so this spec's own
- * API calls are recorded here instead. Without that, the seeding and
- * verification traffic — which is exactly where a leaked key would show up —
- * would sit outside the search.
- */
 async function postJson(page: Page, url: string, data: unknown) {
-  const res = await page.request.post(url, { data })
-  const text = await res.text()
-  observedBodies.push(text)
-  expect(res.ok(), `POST ${url} failed: ${res.status()} ${text}`).toBeTruthy()
-  return JSON.parse(text) as Record<string, unknown>
+  return recorder.send(page, 'POST', url, data)
 }
 
 async function getJson(page: Page, url: string) {
-  const res = await page.request.get(url)
-  const text = await res.text()
-  observedBodies.push(text)
-  expect(res.ok(), `GET ${url} failed: ${res.status()} ${text}`).toBeTruthy()
-  return JSON.parse(text) as unknown
+  return (await recorder.send(page, 'GET', url)) as unknown
 }
 
 /**
@@ -218,7 +172,7 @@ test.describe.serial('Cross-team settings copy journey', () => {
     SOURCE_ONLY_TYPE_NAME = `Source Only Type ${run}`
 
     ownerCtx = await browser.newContext()
-    recordApiResponses(ownerCtx)
+    recorder.attach(ownerCtx)
     ownerPage = await ownerCtx.newPage()
     await devLogin(ownerPage, uniqueEmail('e2e_copy_owner'), OWNER_NAME)
 
@@ -310,7 +264,7 @@ test.describe.serial('Cross-team settings copy journey', () => {
     })
 
     memberCtx = await browser.newContext()
-    recordApiResponses(memberCtx)
+    recorder.attach(memberCtx)
     memberPage = await memberCtx.newPage()
     await devLogin(memberPage, memberEmail, MEMBER_NAME)
     const pending = (await getJson(
@@ -496,7 +450,7 @@ test.describe.serial('Cross-team settings copy journey', () => {
   test('no response body in the run ever carried the API key', async () => {
     // Settle every body still being read, so the search below runs against all
     // of the traffic rather than whatever happened to have arrived.
-    await Promise.allSettled(bodyReads)
+    const observedBodies = (await recorder.settled()).map(r => r.body)
 
     // The positive companion: without it this passes just as happily on a run
     // that recorded nothing at all. Both halves of the traffic must be present

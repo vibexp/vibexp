@@ -68,8 +68,9 @@ surface as the instance admin (`ADMIN_EMAIL`):
   Configuration tab.
 
 The last test makes two claims about the whole session, recording every
-`/api/v1/` body (the browsers' and the spec's own `page.request` calls) plus the
-HTML of every admin page it asserted on:
+`/api/v1/` body (the browsers' and the spec's own `page.request` calls, through
+`e2e/helpers/apiRecorder.ts`, the recorder it shares with the cross-team copy
+journey) plus the HTML of every admin page it asserted on:
 
 - **Redaction**: the seeded secret is in no body and on no page, and no admin
   payload carries a secret-bearing key (`api_key`, `secret`, `webhook_url`,
