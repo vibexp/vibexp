@@ -137,6 +137,17 @@ describe('usePromptRenderer', () => {
       expect(html).toBe('<p>Enhanced content</p>')
     })
 
+    it('should not highlight an escaped @@prompt: reference', () => {
+      mockMarked.mockReturnValueOnce('<p>Plain</p>')
+
+      const { result } = renderHook(() => usePromptRenderer())
+      const content = 'write @@prompt:x to reference x'
+
+      result.current.renderPreviewContent(content)
+
+      expect(marked).toHaveBeenCalledWith(content)
+    })
+
     it('should not highlight emails, handles or a word-prefixed @prompt:', () => {
       mockMarked.mockReturnValueOnce('<p>Plain</p>')
 

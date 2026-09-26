@@ -119,7 +119,7 @@ export const promptTools: MCPTool[] = [
   {
     name: 'vibexp_io_render_prompt',
     description:
-      "Render a published, MCP-exposed prompt by slug, substituting values for its {{placeholders}}. Use this to run any of your team's prompts as a tool — including prompts not exposed as a slash-command primitive, since only the most recent are. Returns the rendered body.",
+      "Render a published, MCP-exposed prompt by slug, substituting values for its {{placeholders}} and expanding its @prompt:slug references. Use this to run any of your team's prompts as a tool — including prompts not exposed as a slash-command primitive, since only the most recent are. Set strict=true for unattended use: a bare @word then stays literal text and an unresolved @prompt:slug fails the render. Returns the rendered body.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -135,6 +135,11 @@ export const promptTools: MCPTool[] = [
           type: 'object',
           description:
             "Values for the prompt's {{placeholders}}, keyed by placeholder name.",
+        },
+        strict: {
+          type: 'boolean',
+          description:
+            'When true, resolve only explicit @prompt:slug references (a bare @word stays literal text) and fail the render if one does not resolve. Recommended for unattended agents.',
         },
       },
       required: ['team_id', 'slug'],

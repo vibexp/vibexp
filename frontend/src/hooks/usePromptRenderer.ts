@@ -79,9 +79,10 @@ export function usePromptRenderer(): UsePromptRendererReturn {
     try {
       // First, highlight explicit @prompt:slug references before markdown
       // processing. A bare @word (an email, a handle) is not highlighted: it is
-      // literal text unless it happens to resolve (#1097).
+      // literal text unless it happens to resolve (#1097). Neither is an escaped
+      // @@prompt:x, which renders as the literal text @prompt:x.
       const contentWithMentions = content.replace(
-        /(^|[^\w])(@prompt:[\w-]+)/g,
+        /(^|[^\w@])(@prompt:[\w-]+)/g,
         (_match, prefix: string, reference: string) =>
           `${prefix}<span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">${reference}</span>`
       )
