@@ -98,9 +98,52 @@ describe('PromptMentionTextarea — the form-control contract', () => {
     expect(screen.getByText('Body is required')).toBeInTheDocument()
     const textarea = screen.getByRole('textbox')
     expect(textarea.className).toContain('border-destructive')
-    // The neutral border must be REPLACED, not merely outranked: this class
-    // list is a template literal, so tailwind-merge never sees it.
+    // The neutral border must be REPLACED, not merely outranked.
     expect(textarea.className).not.toContain('border-input')
+  })
+
+  it('drops its own frame when frameless, so the caller owns the surface', () => {
+    render(
+      <PromptMentionTextarea
+        value=""
+        onChange={vi.fn()}
+        frameless
+        className="bg-muted rounded-md p-4 border-0"
+      />
+    )
+
+    const textarea = screen.getByRole('textbox')
+    expect(textarea).toHaveClass('bg-muted', 'rounded-md', 'p-4', 'border-0')
+    for (const frame of [
+      'border',
+      'border-input',
+      'px-4',
+      'py-3',
+      'rounded-lg',
+    ]) {
+      expect(textarea).not.toHaveClass(frame)
+    }
+  })
+
+  it('draws a frameless error as a destructive ring, message included', () => {
+    render(
+      <PromptMentionTextarea
+        value=""
+        onChange={vi.fn()}
+        frameless
+        error="Body is required"
+      />
+    )
+
+    expect(screen.getByText('Body is required')).toBeInTheDocument()
+    const textarea = screen.getByRole('textbox')
+    expect(textarea).toHaveClass(
+      'ring-2',
+      'ring-destructive',
+      'focus:ring-destructive'
+    )
+    expect(textarea).not.toHaveClass('border-destructive')
+    expect(textarea).not.toHaveClass('focus:ring-ring')
   })
 
   it('keeps the caller class alongside its own', () => {

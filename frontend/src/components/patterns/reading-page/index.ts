@@ -5,7 +5,11 @@ export {
   type ReadingPageProps,
   type ReadingPresentation,
 } from './ReadingPage'
-export { ResourceBody, type ResourceBodyProps } from './ResourceBody'
+export {
+  RAW_BODY_CLASS,
+  ResourceBody,
+  type ResourceBodyProps,
+} from './ResourceBody'
 export type {
   BodyFormat,
   BodyViewMode,

@@ -8,6 +8,14 @@ import { cn } from '@/lib/utils'
 import type { BodyFormat, BodyViewMode } from './types'
 import { useBodyViewMode } from './useBodyViewMode'
 
+/**
+ * The Raw body's surface, shared with the editor's Raw pane (#1178) so that
+ * switching View → Edit changes nothing but the caret: same background, same
+ * padding, same type size.
+ */
+export const RAW_BODY_CLASS =
+  'bg-muted text-muted-foreground rounded-md p-4 font-mono text-sm'
+
 const VIEW_OPTIONS = [
   { value: 'rendered', label: 'Rendered' },
   { value: 'raw', label: 'Raw' },
@@ -107,7 +115,10 @@ export function ResourceBody({
         ) : (
           <pre
             data-testid="resource-body-raw"
-            className="reading-body-raw bg-muted text-muted-foreground overflow-x-auto rounded-md p-4 font-mono text-xs whitespace-pre-wrap"
+            className={cn(
+              'reading-body-raw overflow-x-auto whitespace-pre-wrap',
+              RAW_BODY_CLASS
+            )}
           >
             {rawContent ?? content}
           </pre>

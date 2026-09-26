@@ -61,54 +61,6 @@ vi.mock('@/components/ui/select', async () => {
   }
 })
 
-// Functional Tabs mock: plain buttons that still forward onValueChange so the
-// page's view switching stays testable without Radix in jsdom. All TabsContent
-// panes render unconditionally, which is fine for these assertions.
-vi.mock('@/components/ui/tabs', async () => {
-  const ReactActual = await vi.importActual<typeof import('react')>('react')
-  const TabsCtx = ReactActual.createContext<(value: string) => void>(() => {})
-  return {
-    Tabs: ({
-      children,
-      onValueChange,
-    }: {
-      children: React.ReactNode
-      value: string
-      onValueChange: (v: string) => void
-    }) => (
-      <TabsCtx.Provider value={onValueChange}>
-        <div data-testid="tabs">{children}</div>
-      </TabsCtx.Provider>
-    ),
-    TabsList: ({ children }: { children: React.ReactNode }) => (
-      <div>{children}</div>
-    ),
-    TabsTrigger: ({
-      children,
-      value,
-    }: {
-      children: React.ReactNode
-      value: string
-    }) => {
-      const onValueChange = ReactActual.useContext(TabsCtx)
-      return (
-        <button
-          type="button"
-          data-testid={`tab-trigger-${value}`}
-          onClick={() => {
-            onValueChange(value)
-          }}
-        >
-          {children}
-        </button>
-      )
-    },
-    TabsContent: ({ children }: { children: React.ReactNode }) => (
-      <div>{children}</div>
-    ),
-  }
-})
-
 // The mention textarea pulls in prompt search + a Radix popover; a plain
 // textarea keeps the body editable without any of that. It renders `error`
 // itself — the shared editor hands the message over rather than rendering a
@@ -626,7 +578,7 @@ describe('PromptEditor — edit mode', () => {
       expect(screen.getByTestId('prompt-name-input')).toHaveValue('My Prompt')
     })
 
-    await user.click(screen.getByTestId('tab-trigger-render'))
+    await user.click(screen.getByRole('tab', { name: 'Render' }))
 
     await waitFor(() => {
       expect(promptService.getPromptPlaceholders).toHaveBeenCalledWith(
@@ -676,7 +628,7 @@ describe('PromptEditor — analytics', () => {
     const { trackEvent } = useAnalytics()
     await renderCreated()
 
-    await user.click(screen.getByTestId('tab-trigger-preview'))
+    await user.click(screen.getByRole('tab', { name: 'Rendered' }))
 
     expect(trackEvent).toHaveBeenCalledWith(
       expect.objectContaining({

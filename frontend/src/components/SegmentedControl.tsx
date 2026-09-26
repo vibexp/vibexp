@@ -3,6 +3,8 @@ import { cn } from '@/lib/utils'
 export interface SegmentedOption {
   value: string
   label: string
+  /** Shown but not selectable — e.g. an option whose content is still loading. */
+  disabled?: boolean
 }
 
 interface SegmentedControlProps {
@@ -43,6 +45,8 @@ export function SegmentedControl({
             type="button"
             role="tab"
             aria-selected={active}
+            disabled={option.disabled}
+            aria-disabled={option.disabled}
             onClick={() => {
               onChange(option.value)
             }}
@@ -51,7 +55,8 @@ export function SegmentedControl({
               size === 'sm' ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm',
               active
                 ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                : 'text-muted-foreground enabled:hover:text-foreground',
+              'disabled:cursor-not-allowed disabled:opacity-50'
             )}
           >
             {option.label}

@@ -1,6 +1,13 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, renderHook, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRef, forwardRef, useState } from 'react'
+
+import {
+  RAW_BODY_CLASS,
+  useBodyViewMode,
+} from '@/components/patterns/reading-page'
+import { STORAGE_KEYS } from '@/constants/storageKeys'
+import { storage } from '@/utils/storage'
 
 import type { BodyEditorView } from '../ResourceBodyEditor'
 import {
@@ -9,11 +16,26 @@ import {
   ResourceBodyEditor,
 } from '../ResourceBodyEditor'
 
-// marked/DOMPurify/mermaid are heavy in jsdom; Preview only has to prove which
-// text reaches the SAME renderer the detail body uses.
+// marked/DOMPurify/mermaid are heavy in jsdom; Rendered only has to prove
+// which text reaches the SAME renderer, with the same props, the detail body
+// uses.
 vi.mock('@/components/MarkdownRenderer', () => ({
-  MarkdownRenderer: ({ content }: { content: string }) => (
-    <div data-testid="markdown-renderer">{content}</div>
+  MarkdownRenderer: ({
+    content,
+    className,
+    syntaxTheme,
+  }: {
+    content: string
+    className?: string
+    syntaxTheme?: string
+  }) => (
+    <div
+      data-testid="markdown-renderer"
+      className={className}
+      data-syntax-theme={syntaxTheme}
+    >
+      {content}
+    </div>
   ),
 }))
 
@@ -37,6 +59,7 @@ vi.mock('@/components/PromptMentionTextarea', () => ({
       'aria-describedby'?: string
       'aria-invalid'?: boolean
       excludeCurrentPrompt?: string
+      frameless?: boolean
     }
   >(function PromptMentionTextarea(props, ref) {
     const {
@@ -53,6 +76,7 @@ vi.mock('@/components/PromptMentionTextarea', () => ({
       'aria-describedby': describedBy,
       'aria-invalid': invalid,
       excludeCurrentPrompt,
+      frameless,
     } = props
     return (
       <div>
@@ -65,6 +89,7 @@ vi.mock('@/components/PromptMentionTextarea', () => ({
           data-testid={testId}
           data-mention-textarea="true"
           data-exclude={excludeCurrentPrompt}
+          data-frameless={frameless ? 'true' : undefined}
           className={className}
           rows={rows}
           disabled={disabled}
@@ -86,18 +111,27 @@ function writeArea() {
   return screen.getByRole('textbox')
 }
 
+function storedMode() {
+  return renderHook(() => useBodyViewMode()).result.current[0]
+}
+
+beforeEach(() => {
+  storage.remove(STORAGE_KEYS.BODY_VIEW_RAW)
+})
+
 describe('ResourceBodyEditor', () => {
   describe('with no extensions', () => {
-    it('offers Write and Preview only, with Write active', () => {
+    it('offers Rendered and Raw only, with Raw active', () => {
       render(<ResourceBodyEditor value={BODY} onChange={vi.fn()} />)
 
-      expect(screen.getByRole('tab', { name: 'Write' })).toHaveAttribute(
+      expect(screen.getByRole('tablist', { name: 'Body view' })).toBeVisible()
+      expect(screen.getByRole('tab', { name: 'Raw' })).toHaveAttribute(
         'aria-selected',
         'true'
       )
-      expect(screen.getByRole('tab', { name: 'Preview' })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: 'Rendered' })).toBeInTheDocument()
       expect(
-        screen.queryByRole('tab', { name: /Render/ })
+        screen.queryByRole('tab', { name: 'Render' })
       ).not.toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: /Load template/ })
@@ -122,15 +156,16 @@ describe('ResourceBodyEditor', () => {
       expect(onChange).toHaveBeenLastCalledWith('c')
     })
 
-    it('previews through the same MarkdownRenderer the detail body uses', async () => {
+    it('renders through the same MarkdownRenderer, with the same props, as the detail body', async () => {
       const user = userEvent.setup()
       render(<ResourceBodyEditor value={BODY} onChange={vi.fn()} />)
 
-      await user.click(screen.getByRole('tab', { name: 'Preview' }))
+      await user.click(screen.getByRole('tab', { name: 'Rendered' }))
 
-      expect(screen.getByTestId('markdown-renderer')).toHaveTextContent(
-        'Some **markdown** body.'
-      )
+      const rendered = screen.getByTestId('markdown-renderer')
+      expect(rendered).toHaveTextContent('Some **markdown** body.')
+      expect(rendered).toHaveClass('reading-body')
+      expect(rendered).toHaveAttribute('data-syntax-theme', 'auto')
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     })
 
@@ -138,14 +173,14 @@ describe('ResourceBodyEditor', () => {
       const user = userEvent.setup()
       render(<ResourceBodyEditor value="" onChange={vi.fn()} />)
 
-      await user.click(screen.getByRole('tab', { name: 'Preview' }))
+      await user.click(screen.getByRole('tab', { name: 'Rendered' }))
 
       expect(screen.getByTestId('markdown-renderer')).toHaveTextContent(
         'Nothing to preview yet'
       )
     })
 
-    it('renders the inline error once, under the write pane', () => {
+    it('renders the inline error once, under the Raw pane', () => {
       render(
         <ResourceBodyEditor
           value=""
@@ -155,7 +190,13 @@ describe('ResourceBodyEditor', () => {
       )
 
       expect(screen.getByText('Body is required')).toBeInTheDocument()
-      expect(writeArea().className).toContain('border-destructive')
+      // There is no border left to colour, so the invalid state is a ring —
+      // one that keeps its colour while the field is focused.
+      expect(writeArea()).toHaveClass(
+        'ring-2',
+        'ring-destructive',
+        'focus-visible:ring-destructive'
+      )
     })
 
     it('forwards the FormControl slot props to the textarea leaf', () => {
@@ -202,13 +243,13 @@ describe('ResourceBodyEditor', () => {
       expect(classes).not.toMatch(/min-h-\[|max-h-\[|\bh-\[/)
     })
 
-    it('starts the preview pane at the same shared minimum', async () => {
+    it('starts the Rendered pane at the same shared minimum', async () => {
       const user = userEvent.setup()
       const { container } = render(
         <ResourceBodyEditor value={BODY} onChange={vi.fn()} />
       )
 
-      await user.click(screen.getByRole('tab', { name: 'Preview' }))
+      await user.click(screen.getByRole('tab', { name: 'Rendered' }))
 
       expect(
         container.querySelector(`.${BODY_EDITOR_MIN_HEIGHT}`)
@@ -366,7 +407,7 @@ describe('ResourceBodyEditor', () => {
       render: { content: <p>rendered output</p> },
     }
 
-    it('adds a Render tab that shows the panel it was handed', async () => {
+    it('adds a Render option that shows the panel it was handed', async () => {
       const user = userEvent.setup()
       render(
         <ResourceBodyEditor
@@ -376,24 +417,32 @@ describe('ResourceBodyEditor', () => {
         />
       )
 
-      await user.click(screen.getByRole('tab', { name: /Render/ }))
+      await user.click(screen.getByRole('tab', { name: 'Render' }))
 
       expect(screen.getByText('rendered output')).toBeInTheDocument()
     })
 
-    it('disables the trigger while the panel is not ready', () => {
+    it('keeps the option present but disabled while the panel is not ready', async () => {
+      const user = userEvent.setup()
+      const onViewChange = vi.fn()
       render(
         <ResourceBodyEditor
           value={BODY}
           onChange={vi.fn()}
+          view="write"
+          onViewChange={onViewChange}
           extensions={{ render: { content: <p>x</p>, disabled: true } }}
         />
       )
 
-      expect(screen.getByRole('tab', { name: /Render/ })).toBeDisabled()
+      const option = screen.getByRole('tab', { name: 'Render' })
+      expect(option).toBeDisabled()
+      expect(option).toHaveAttribute('aria-disabled', 'true')
+      await user.click(option)
+      expect(onViewChange).not.toHaveBeenCalled()
     })
 
-    it('falls back to Write when the extension is withdrawn under it', () => {
+    it('falls back to Raw when the extension is withdrawn under it', () => {
       // The prompt offers Render only while editing, so the active view can
       // outlive the tab that produced it.
       render(
@@ -405,7 +454,7 @@ describe('ResourceBodyEditor', () => {
         />
       )
 
-      expect(screen.getByRole('tab', { name: 'Write' })).toHaveAttribute(
+      expect(screen.getByRole('tab', { name: 'Raw' })).toHaveAttribute(
         'aria-selected',
         'true'
       )
@@ -436,9 +485,9 @@ describe('ResourceBodyEditor', () => {
       const user = userEvent.setup()
       render(<ResourceBodyEditor value={BODY} onChange={vi.fn()} />)
 
-      await user.click(screen.getByRole('tab', { name: 'Preview' }))
+      await user.click(screen.getByRole('tab', { name: 'Rendered' }))
 
-      expect(screen.getByRole('tab', { name: 'Preview' })).toHaveAttribute(
+      expect(screen.getByRole('tab', { name: 'Rendered' })).toHaveAttribute(
         'aria-selected',
         'true'
       )
@@ -461,14 +510,164 @@ describe('ResourceBodyEditor', () => {
       }
       render(<Controlled />)
 
-      await user.click(screen.getByRole('tab', { name: 'Preview' }))
+      await user.click(screen.getByRole('tab', { name: 'Rendered' }))
 
       // The caller owns the state: it was told, and nothing moved on its own.
       expect(onViewChange).toHaveBeenCalledWith('preview')
-      expect(screen.getByRole('tab', { name: 'Write' })).toHaveAttribute(
+      expect(screen.getByRole('tab', { name: 'Raw' })).toHaveAttribute(
         'aria-selected',
         'true'
       )
+    })
+  })
+
+  describe('matches the reading body (#1178)', () => {
+    it.each([
+      ['plain', undefined],
+      ['mentions', { mentions: {} }],
+    ] as const)(
+      'gives the %s Raw pane the Raw block surface and no border',
+      (_case, extensions) => {
+        render(
+          <ResourceBodyEditor
+            value={BODY}
+            onChange={vi.fn()}
+            extensions={extensions}
+          />
+        )
+
+        const textarea = writeArea()
+        expect(textarea).toHaveClass(...RAW_BODY_CLASS.split(' '), 'border-0')
+        // Textarea's own `text-base md:text-sm` must not win the type size back.
+        expect(textarea).not.toHaveClass('text-base')
+        expect(textarea).not.toHaveClass('bg-background')
+        // The text is already muted; the placeholder must not look typed.
+        expect(textarea).toHaveClass('placeholder:text-muted-foreground/60')
+        expect(textarea).not.toHaveClass('placeholder:text-muted-foreground')
+      }
+    )
+
+    it('asks the mention textarea to drop its own frame', () => {
+      render(
+        <ResourceBodyEditor
+          value={BODY}
+          onChange={vi.fn()}
+          extensions={{ mentions: {} }}
+        />
+      )
+
+      expect(writeArea()).toHaveAttribute('data-frameless', 'true')
+    })
+
+    it('renders no card around either pane', async () => {
+      const user = userEvent.setup()
+      const { container } = render(
+        <ResourceBodyEditor value={BODY} onChange={vi.fn()} />
+      )
+
+      expect(container.querySelector('.bg-card')).toBeNull()
+      await user.click(screen.getByRole('tab', { name: 'Rendered' }))
+      expect(container.querySelector('.bg-card')).toBeNull()
+    })
+
+    it('mounts exactly one tabpanel', async () => {
+      const user = userEvent.setup()
+      render(
+        <ResourceBodyEditor
+          value={BODY}
+          onChange={vi.fn()}
+          extensions={{ render: { content: <p>out</p> } }}
+        />
+      )
+
+      expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
+      await user.click(screen.getByRole('tab', { name: 'Rendered' }))
+      expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
+      await user.click(screen.getByRole('tab', { name: 'Render' }))
+      expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
+    })
+
+    it('opens on Raw even when the stored preference is Rendered', () => {
+      expect(storedMode()).toBe('rendered')
+
+      render(<ResourceBodyEditor value={BODY} onChange={vi.fn()} />)
+
+      expect(screen.getByRole('tab', { name: 'Raw' })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      )
+      expect(writeArea()).toHaveValue(BODY)
+    })
+
+    it('writes Rendered and Raw through to the shared reading preference', async () => {
+      const user = userEvent.setup()
+      render(<ResourceBodyEditor value={BODY} onChange={vi.fn()} />)
+
+      await user.click(screen.getByRole('tab', { name: 'Raw' }))
+      expect(storedMode()).toBe('raw')
+
+      await user.click(screen.getByRole('tab', { name: 'Rendered' }))
+      expect(storedMode()).toBe('rendered')
+    })
+
+    it('writes the preference through for a controlled caller too', async () => {
+      const user = userEvent.setup()
+      const onViewChange = vi.fn()
+      render(
+        <ResourceBodyEditor
+          value={BODY}
+          onChange={vi.fn()}
+          view="preview"
+          onViewChange={onViewChange}
+        />
+      )
+
+      await user.click(screen.getByRole('tab', { name: 'Raw' }))
+
+      expect(onViewChange).toHaveBeenCalledWith('write')
+      expect(storedMode()).toBe('raw')
+    })
+
+    it('never stores Render', async () => {
+      const user = userEvent.setup()
+      act(() => {
+        storage.set(STORAGE_KEYS.BODY_VIEW_RAW, 'true')
+      })
+      render(
+        <ResourceBodyEditor
+          value={BODY}
+          onChange={vi.fn()}
+          extensions={{ render: { content: <p>out</p> } }}
+        />
+      )
+
+      await user.click(screen.getByRole('tab', { name: 'Render' }))
+
+      expect(storedMode()).toBe('raw')
+    })
+
+    it('puts the shortcut badge and template button left of the switch', () => {
+      render(
+        <ResourceBodyEditor
+          value={BODY}
+          onChange={vi.fn()}
+          extensions={{ mentions: {}, templates: vi.fn() }}
+        />
+      )
+
+      const badge = screen.getByText('Type @ to reference prompts')
+      const button = screen.getByRole('button', { name: /Load template/ })
+      const toggle = screen.getByRole('tablist', { name: 'Body view' })
+      // One row, in reading order: badge, template button, then the switch.
+      expect(badge.parentElement).toBe(toggle.parentElement)
+      expect(button.parentElement).toBe(toggle.parentElement)
+      expect(
+        badge.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(
+        button.compareDocumentPosition(toggle) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
     })
   })
 })
