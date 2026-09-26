@@ -1,6 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import type { FormEvent, KeyboardEvent, ReactNode, RefObject } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import type {
+  FormEvent,
+  KeyboardEvent,
+  ReactNode,
+  RefObject,
+  TextareaHTMLAttributes,
+} from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useForm } from 'react-hook-form'
 
@@ -114,6 +120,39 @@ type HeaderSlot = 'title' | 'summary'
  */
 function blockEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
   if (event.key === 'Enter') event.preventDefault()
+}
+
+/** Whether the browser grows a textarea to its content by CSS alone. */
+function supportsFieldSizing(): boolean {
+  return (
+    typeof CSS !== 'undefined' &&
+    typeof CSS.supports === 'function' &&
+    CSS.supports('field-sizing', 'content')
+  )
+}
+
+/**
+ * A header textarea that is always exactly as tall as its text.
+ *
+ * `field-sizing: content` does that in CSS; a browser without it would keep
+ * the one-row box and hide every wrapped line under `overflow-hidden`, so there
+ * the height is set from `scrollHeight` whenever the value changes. `FormControl`
+ * clones its id / `aria-*` onto this component, which passes them to the leaf.
+ */
+function InlineTextarea({
+  value,
+  ...props
+}: Readonly<TextareaHTMLAttributes<HTMLTextAreaElement> & { value: string }>) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || supportsFieldSizing()) return
+    el.style.height = 'auto'
+    el.style.height = `${String(el.scrollHeight)}px`
+  }, [value])
+  // `ref` last: `FormControl`'s Slot hands down a ref prop of its own (React
+  // 19 passes refs as props), which must not replace the one measured here.
+  return <textarea rows={1} {...props} value={value} ref={ref} />
 }
 
 /**
@@ -283,8 +322,7 @@ export function useResourceForm({
           <FormItem className="space-y-0">
             <FormLabel className="sr-only">{label}</FormLabel>
             <FormControl>
-              <textarea
-                rows={1}
+              <InlineTextarea
                 value={typeof field.value === 'string' ? field.value : ''}
                 disabled={!!locked}
                 maxLength={spec.maxLength}

@@ -1,5 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { MockInstance } from 'vitest'
 
 import { ShellProvider } from '@/components/layout/ShellContext'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
@@ -502,6 +503,63 @@ describe('ResourceFormReadingPage', () => {
         'data-state',
         'collapsed'
       )
+    })
+
+    it('renders kind-specific header badges beside the status', () => {
+      renderEditPage(promptDescriptor, {
+        initialValues: { name: 'P', status: 'published' },
+        headerExtra: <span data-testid="shared-badge">Shared</span>,
+      })
+      expect(
+        within(header()).getByTestId('resource-header-meta')
+      ).toContainElement(screen.getByTestId('shared-badge'))
+    })
+
+    // Without `field-sizing: content` the one-row box would hide every wrapped
+    // line, so it is sized from its text.
+    describe('auto-size fallback', () => {
+      let scrollHeight: MockInstance<() => number>
+
+      beforeEach(() => {
+        // Absent in jsdom, as in a browser without `field-sizing`.
+        vi.stubGlobal('CSS', { supports: () => false })
+        scrollHeight = vi.spyOn(
+          HTMLTextAreaElement.prototype,
+          'scrollHeight',
+          'get'
+        )
+      })
+
+      afterEach(() => {
+        vi.unstubAllGlobals()
+        scrollHeight.mockRestore()
+      })
+
+      it('sizes the header inputs from their content', async () => {
+        const user = userEvent.setup()
+        scrollHeight.mockReturnValue(64)
+        renderEditPage(artifactDescriptor, {
+          initialValues: { title: 'A long title', description: 'Lead' },
+        })
+        const title = screen.getByTestId('artifact-title-input')
+        expect(title.style.height).toBe('64px')
+        expect(
+          screen.getByTestId('artifact-description-input').style.height
+        ).toBe('64px')
+
+        scrollHeight.mockReturnValue(96)
+        await user.type(title, ' that wraps')
+        expect(title.style.height).toBe('96px')
+      })
+
+      it('leaves sizing to CSS where the browser supports it', () => {
+        vi.stubGlobal('CSS', { supports: () => true })
+        scrollHeight.mockReturnValue(64)
+        renderEditPage(artifactDescriptor, {
+          initialValues: { title: 'A long title' },
+        })
+        expect(screen.getByTestId('artifact-title-input').style.height).toBe('')
+      })
     })
 
     // A kind whose descriptor has no name text field keeps today's heading.

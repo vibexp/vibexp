@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowLeft, Pencil, Share2, Trash2 } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Pencil, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
@@ -13,7 +13,6 @@ import {
 import { statusLabel, statusTone } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics, usePromptRenderer } from '@/hooks'
@@ -31,6 +30,8 @@ import type {
 } from '@/services/promptService'
 import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
+
+import { SharedBadge } from './SharedBadge'
 
 /**
  * The prompt's rendered-mode-only affordances — the placeholder inputs whose
@@ -324,14 +325,7 @@ export function PromptDetail() {
         address={{ label: 'Slug', value: prompt.slug }}
         updatedAt={prompt.updated_at}
         summary={prompt.description}
-        headerExtra={
-          prompt.is_shared && (
-            <Badge variant="secondary" className="gap-1">
-              <Share2 className="size-3" />
-              Shared
-            </Badge>
-          )
-        }
+        headerExtra={prompt.is_shared && <SharedBadge />}
         actions={actions}
         resource={
           currentTeam

@@ -46,6 +46,11 @@ export interface ResourceFormReadingPageProps extends ResourceFormPageProps {
   description?: ReactNode
   /** ISO timestamp of the last edit — "Updated <relative>" in the header. */
   updatedAt?: string
+  /**
+   * Kind-specific header badges, as on the reading page (the prompt's Shared
+   * badge), so they do not vanish on the way into edit.
+   */
+  headerExtra?: ReactNode
   /** Where Cancel goes. Called only once the unsaved-changes guard clears. */
   onCancel: () => void
   /** Forwarded to the Save action, for pages an e2e spec addresses by id. */
@@ -102,6 +107,7 @@ export function ResourceFormReadingPage({
   title,
   description,
   updatedAt,
+  headerExtra,
   onCancel,
   saveTestId,
   extraDirty = false,
@@ -211,6 +217,7 @@ export function ResourceFormReadingPage({
             : undefined
         }
         updatedAt={updatedAt}
+        extra={headerExtra}
       />
       {summaryNode && <div className="mt-2">{summaryNode}</div>}
     </>

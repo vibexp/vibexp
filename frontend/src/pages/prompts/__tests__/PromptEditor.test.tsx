@@ -576,6 +576,20 @@ describe('PromptEditor — edit mode', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/prompts/my-prompt')
   })
 
+  it('keeps the Shared badge in the edit header of a shared prompt', async () => {
+    ;(promptService.getPrompt as Mock).mockResolvedValue(
+      buildPrompt({ is_shared: true })
+    )
+    renderEditor('/prompts/my-prompt/edit')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-name-input')).toHaveValue('My Prompt')
+    })
+    expect(screen.getByTestId('resource-header-meta')).toHaveTextContent(
+      'Shared'
+    )
+  })
+
   it('opens the render view, loads placeholders, and shows the rendered output', async () => {
     const user = userEvent.setup()
     ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())

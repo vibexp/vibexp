@@ -36,6 +36,7 @@ import { RenderTab } from './editor/RenderTab'
 import type { EditorView } from './editor/types'
 import { usePromptSave } from './editor/usePromptSave'
 import { useRenderPreview } from './editor/useRenderPreview'
+import { SharedBadge } from './SharedBadge'
 
 const descriptor = getResourceDescriptor('prompt')
 
@@ -312,6 +313,7 @@ export function PromptEditor() {
       <ResourceFormReadingPage
         title={formHeading(descriptor, mode)}
         updatedAt={prompt?.updated_at}
+        headerExtra={prompt?.is_shared && <SharedBadge />}
         descriptor={descriptor}
         mode={mode}
         initialValues={initialValues}
