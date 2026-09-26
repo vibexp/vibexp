@@ -452,9 +452,12 @@ test.describe.serial('Admin panel v3 journey', () => {
     await expect(
       page.getByRole('heading', { name: 'Resource counts' })
     ).toBeVisible({ timeout: UI_TIMEOUT })
-    await expect(page.getByTestId('count-prompts')).toContainText('4', {
-      timeout: UI_TIMEOUT,
-    })
+    await expect(page.getByTestId('count-prompts')).toHaveText(
+      /^\s*Prompts\s*4\s*$/,
+      {
+        timeout: UI_TIMEOUT,
+      }
+    )
     await snapshot(page)
 
     // The timeline lists A's creations as opaque rows (type, action, short id).
@@ -496,7 +499,8 @@ test.describe.serial('Admin panel v3 journey', () => {
     await expect(page).toHaveURL(/kind=shared/)
     await expect(rows(page)).toHaveCount(2, { timeout: UI_TIMEOUT })
 
-    // Sort by project count: Alpha (2) before Beta (1), then flipped.
+    // Sort by project count. Every new team also gets a default "Project 1", so
+    // Alpha has 3 and Beta 2: Alpha first, then flipped.
     await page.getByRole('button', { name: 'Projects', exact: true }).click()
     await expect(page).toHaveURL(/sort_by=project_count/)
     await expectRows(page, [alphaTeamName, betaTeamName])
@@ -504,19 +508,27 @@ test.describe.serial('Admin panel v3 journey', () => {
     await expect(page).toHaveURL(/sort_order=asc/)
     await expectRows(page, [betaTeamName, alphaTeamName])
 
-    // Advanced: a count range plus a setup tri-state.
+    // Advanced: each filter must narrow the rows on its own. The count range
+    // drops Beta (2 projects)...
     await openAdvanced(page)
-    await setMin(page, 'Projects', '2')
-    await expect(page).toHaveURL(/project_count_min=2/)
-    await page
-      .getByRole('radiogroup', { name: 'LLM configured' })
-      .getByRole('radio', { name: 'Yes' })
-      .click()
+    await setMin(page, 'Projects', '3')
+    await expect(page).toHaveURL(/project_count_min=3/)
+    await expectRows(page, [alphaTeamName])
+    // ...and the tri-state drops Alpha when set to "No" (it has a model
+    // provider), then keeps it on "Yes".
+    const llm = page.getByRole('radiogroup', { name: 'LLM configured' })
+    await llm.getByRole('radio', { name: 'No' }).click()
+    await expect(page).toHaveURL(/llm_configured=false/)
+    await expect(page.getByText('No teams match your filters')).toBeVisible({
+      timeout: UI_TIMEOUT,
+    })
+    await expect(rows(page)).toHaveCount(0)
+    await llm.getByRole('radio', { name: 'Yes' }).click()
     await expect(page).toHaveURL(/llm_configured=true/)
     await expectRows(page, [alphaTeamName])
 
     await page.reload()
-    await expect(page).toHaveURL(/project_count_min=2/)
+    await expect(page).toHaveURL(/project_count_min=3/)
     await expect(page).toHaveURL(/llm_configured=true/)
     await expectRows(page, [alphaTeamName])
 
@@ -544,7 +556,7 @@ test.describe.serial('Admin panel v3 journey', () => {
     await page.getByRole('button', { name: /Presets/ }).click()
     await page.getByRole('menuitem', { name: PRESET_NAME }).click()
     await expect(page).toHaveURL(/kind=shared/)
-    await expect(page).toHaveURL(/project_count_min=2/)
+    await expect(page).toHaveURL(/project_count_min=3/)
     await expect(page).toHaveURL(/llm_configured=true/)
     await expect(page).toHaveURL(/sort_by=project_count/)
     await expectRows(page, [alphaTeamName])
@@ -582,22 +594,31 @@ test.describe.serial('Admin panel v3 journey', () => {
     }
     const panel = page.getByRole('tabpanel')
 
+    // Each settings tab reports the team's own values (source "Team"), not
+    // the instance defaults ("Inherited from instance") it would show had the
+    // seeded settings not landed.
+    const source = panel.getByTestId('config-source').first()
+
     await openTab('Search', 'search')
     await expect(
       page.getByRole('heading', { name: 'Search ranking' })
     ).toBeVisible({ timeout: UI_TIMEOUT })
+    await expect(source).toHaveText('Team')
     await snapshot(page)
 
     await openTab('AI summary', 'ai-summary')
     await expect(page.getByRole('heading', { name: 'AI summary' })).toBeVisible(
       { timeout: UI_TIMEOUT }
     )
+    await expect(source).toHaveText('Team')
+    await expect(panel).toContainText(modelProviderName)
     await snapshot(page)
 
     await openTab('Freshness', 'freshness')
     await expect(
       page.getByRole('heading', { name: 'Freshness evaluation' })
     ).toBeVisible({ timeout: UI_TIMEOUT })
+    await expect(source).toHaveText('Team')
     await snapshot(page)
 
     // The key is shown as "configured", never as a value.
