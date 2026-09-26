@@ -605,7 +605,7 @@ func writeRenderPromptError(w http.ResponseWriter, r *http.Request, err error) {
 	var unresolved *services.ErrUnresolvedReferences
 	if stderrors.As(err, &unresolved) {
 		writeErrorResponseWithDetails(
-			w, r, "UNRESOLVED_REFERENCES", "Unresolved References",
+			w, r, errors.CodeUnresolvedReferences, errors.GetErrorTitle(errors.CodeUnresolvedReferences),
 			"Unresolved prompt references: "+strings.Join(unresolved.Slugs, ", "),
 			http.StatusUnprocessableEntity,
 			map[string]any{"unresolved_references": unresolved.Slugs},
