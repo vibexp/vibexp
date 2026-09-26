@@ -221,6 +221,14 @@ RenderPromptRequest:
         type: string
       example:
         criteria: "security vulnerabilities and code quality"
+    strict:
+      type: boolean
+      default: false
+      description: >-
+        When true, only explicit @prompt:slug references are resolved (a bare
+        @word such as an email, handle or git@host remote stays literal text),
+        and an unresolved @prompt:slug fails the render with 422 instead of a
+        warning. Recommended for unattended agents.
   required:
     - placeholders
 
@@ -249,8 +257,12 @@ RenderPromptResponse:
       type: array
       items:
         type: string
-      description: "Warnings about issues during rendering (e.g., missing references)"
-      example: ["Reference not found: @nonexistent"]
+      description: >-
+        Warnings about issues during rendering, such as an explicit
+        @prompt:slug reference that does not resolve (kept as-is in
+        rendered_body). A bare @word that does not resolve is plain text and
+        never produces a warning.
+      example: ["Reference not found: @prompt:nonexistent"]
   required:
     - rendered_body
 

@@ -93,6 +93,9 @@ type PromptVersionListResponse struct {
 
 type RenderPromptRequest struct {
 	Placeholders map[string]string `json:"placeholders"`
+	// Strict resolves only explicit @prompt:slug references and fails the
+	// render when one does not resolve (#1097).
+	Strict bool `json:"strict,omitempty"`
 }
 
 type RenderPromptResponse struct {

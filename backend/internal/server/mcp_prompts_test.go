@@ -127,7 +127,7 @@ func TestHandleMCPPromptRequestWithTeam_RendersWithCapturedTeam(t *testing.T) {
 	srv.container = &TestContainer{PromptServiceMock: mockPrompt}
 
 	promptData := models.Prompt{Slug: "deploy", Description: "deploy prompt"}
-	mockPrompt.On("RenderPrompt", testMemberUserID, testTeamUUID, "deploy", map[string]string{"env": "prod"}).
+	mockPrompt.On("RenderPrompt", testMemberUserID, testTeamUUID, "deploy", map[string]string{"env": "prod"}, services.RenderOptions{}).
 		Return(&models.RenderPromptResponse{RenderedBody: "deploy to prod"}, nil)
 
 	req := &mcp.GetPromptRequest{Params: &mcp.GetPromptParams{Arguments: map[string]string{"env": "prod"}}}

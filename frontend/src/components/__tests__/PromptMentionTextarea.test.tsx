@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { createRef } from 'react'
+import { createRef, useState } from 'react'
 
 import { PromptMentionTextarea } from '@/components/PromptMentionTextarea'
 
@@ -16,12 +16,23 @@ vi.mock('@/components/PromptTemplateLoader', () => ({
   PromptTemplateLoader: ({
     isOpen,
     excludeCurrentPrompt,
+    onSelectPrompt,
   }: {
     isOpen: boolean
     excludeCurrentPrompt?: string
+    onSelectPrompt: (prompt: { slug: string }) => void
   }) =>
     isOpen ? (
-      <div data-testid="template-loader" data-exclude={excludeCurrentPrompt} />
+      <div data-testid="template-loader" data-exclude={excludeCurrentPrompt}>
+        <button
+          type="button"
+          onClick={() => {
+            onSelectPrompt({ slug: 'code-review' })
+          }}
+        >
+          pick code-review
+        </button>
+      </div>
     ) : null,
 }))
 
@@ -134,5 +145,33 @@ describe('PromptMentionTextarea — the form-control contract', () => {
 
     const loader = screen.getByTestId('template-loader')
     expect(loader).toHaveAttribute('data-exclude', 'my-prompt')
+  })
+
+  it('inserts an explicit @prompt:<slug> reference and puts the caret after it', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    function Harness() {
+      const [value, setValue] = useState('Run ')
+      return (
+        <PromptMentionTextarea
+          value={value}
+          onChange={next => {
+            onChange(next)
+            setValue(next)
+          }}
+        />
+      )
+    }
+    render(<Harness />)
+
+    const textarea = screen.getByRole<HTMLTextAreaElement>('textbox')
+    await user.click(textarea)
+    await user.keyboard('{End}@')
+    await user.click(screen.getByRole('button', { name: 'pick code-review' }))
+
+    expect(onChange).toHaveBeenLastCalledWith('Run @prompt:code-review')
+    await vi.waitFor(() => {
+      expect(textarea.selectionStart).toBe('Run @prompt:code-review'.length)
+    })
   })
 })

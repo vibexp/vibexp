@@ -44,6 +44,9 @@ const (
 	CodeMethodNotAllowed = "METHOD_NOT_ALLOWED"
 	CodeNotImplemented   = "NOT_IMPLEMENTED"
 
+	// Prompt render errors
+	CodeUnresolvedReferences = "UNRESOLVED_REFERENCES"
+
 	// Embedding provider errors
 	CodeProviderNotFound          = "PROVIDER_NOT_FOUND"
 	CodeProviderAlreadyExists     = "PROVIDER_ALREADY_EXISTS"
@@ -114,6 +117,7 @@ var errorTitles = map[string]string{
 	CodeBadRequest:                        "Bad Request",
 	CodeMethodNotAllowed:                  "Method Not Allowed",
 	CodeNotImplemented:                    "Not Implemented",
+	CodeUnresolvedReferences:              "Unresolved References",
 	CodeProviderNotFound:                  "Embedding Provider Not Found",
 	CodeProviderAlreadyExists:             "Embedding Provider Already Exists",
 	CodeProviderCreateFailed:              "Embedding Provider Creation Failed",

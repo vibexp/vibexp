@@ -807,7 +807,7 @@ func TestHandleRenderPrompt_Success(t *testing.T) {
 		ReferencesUsed: nil,
 	}
 
-	mockContainer.promptService.On("RenderPrompt", "user-123", mock.Anything, "test-slug", reqBody.Placeholders).
+	mockContainer.promptService.On("RenderPrompt", "user-123", mock.Anything, "test-slug", reqBody.Placeholders, services.RenderOptions{}).
 		Return(expectedResponse, nil)
 
 	srv := createTestServer(mockContainer)
@@ -847,7 +847,7 @@ func TestHandleRenderPrompt_WithReferences(t *testing.T) {
 		ReferencesUsed: []string{"ref-slug-1", "ref-slug-2"},
 	}
 
-	mockContainer.promptService.On("RenderPrompt", "user-123", mock.Anything, "test-slug", reqBody.Placeholders).
+	mockContainer.promptService.On("RenderPrompt", "user-123", mock.Anything, "test-slug", reqBody.Placeholders, services.RenderOptions{}).
 		Return(expectedResponse, nil)
 
 	srv := createTestServer(mockContainer)
@@ -881,7 +881,7 @@ func TestHandleRenderPrompt_NotFound(t *testing.T) {
 		Placeholders: map[string]string{},
 	}
 
-	mockContainer.promptService.On("RenderPrompt", "user-123", mock.Anything, "non-existent", reqBody.Placeholders).
+	mockContainer.promptService.On("RenderPrompt", "user-123", mock.Anything, "non-existent", reqBody.Placeholders, services.RenderOptions{}).
 		Return((*models.RenderPromptResponse)(nil), repositories.ErrPromptNotFound)
 
 	srv := createTestServer(mockContainer)
@@ -912,7 +912,7 @@ func TestHandleRenderPrompt_RenderError(t *testing.T) {
 		Placeholders: map[string]string{},
 	}
 
-	mockContainer.promptService.On("RenderPrompt", "user-123", mock.Anything, "test-slug", reqBody.Placeholders).
+	mockContainer.promptService.On("RenderPrompt", "user-123", mock.Anything, "test-slug", reqBody.Placeholders, services.RenderOptions{}).
 		Return((*models.RenderPromptResponse)(nil), errors.New("missing required placeholder: name"))
 
 	srv := createTestServer(mockContainer)

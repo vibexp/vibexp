@@ -24,8 +24,6 @@ import (
 const escapedAtSentinel = "\x00ESCAPED_AT\x00"
 
 var (
-	// referenceRegex matches an @prompt_slug reference.
-	referenceRegex = regexp.MustCompile(`@([a-zA-Z0-9_-]+)`)
 	// placeholderRegex matches a {{placeholder_key}} pattern.
 	placeholderRegex = regexp.MustCompile(`\{\{([^}]+)\}\}`)
 )
@@ -515,7 +513,7 @@ func (s *PromptService) publishPromptUpdatedEvent(
 	// Render the prompt body to resolve all @references and {{placeholders}}
 	// For embedding generation, we want the fully resolved content
 	renderedBody := updatedPrompt.Body
-	renderResponse, err := s.renderPrompt(updatedPrompt.TeamID, updatedPrompt.Body, nil)
+	renderResponse, err := s.renderPrompt(updatedPrompt.TeamID, updatedPrompt.Body, nil, RenderOptions{})
 	if err != nil {
 		// If rendering fails (e.g., missing placeholders or circular refs), log warning but continue
 		// We'll send the raw body instead
@@ -742,7 +740,7 @@ func (s *PromptService) deletePromptFreshness(ctx context.Context, teamID, promp
 }
 
 func (s *PromptService) RenderPrompt(
-	userID, teamID, slug string, placeholders map[string]string,
+	userID, teamID, slug string, placeholders map[string]string, opts RenderOptions,
 ) (*models.RenderPromptResponse, error) {
 	prompt, err := s.GetPromptBySlug(userID, teamID, slug)
 	if err != nil {
@@ -751,16 +749,17 @@ func (s *PromptService) RenderPrompt(
 
 	// The root was loaded membership-checked; its @references resolve within
 	// the team that owns it, whoever is reading (#1100).
-	return s.renderPrompt(prompt.TeamID, prompt.Body, placeholders)
+	return s.renderPrompt(prompt.TeamID, prompt.Body, placeholders, opts)
 }
 
 // RenderPromptBody resolves all @references and {{placeholders}} in an
 // already-loaded prompt body within the prompt's owning team, returning the fully rendered
 // text. It exists so callers that hold the body (e.g. the create-event path and
 // the embedding backfill) embed the same reference-resolved content the live
-// pipeline produces, without re-fetching the prompt by slug.
+// pipeline produces, without re-fetching the prompt by slug. It never renders
+// strictly, so legacy bare @slug references keep resolving here.
 func (s *PromptService) RenderPromptBody(teamID, body string) (string, error) {
-	rendered, err := s.renderPrompt(teamID, body, nil)
+	rendered, err := s.renderPrompt(teamID, body, nil, RenderOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -773,11 +772,15 @@ func (s *PromptService) RenderPromptBody(teamID, body string) (string, error) {
 // variable value is inserted verbatim: it is never scanned for @references,
 // never unescaped, and never substituted again (#1102).
 func (s *PromptService) renderPrompt(
-	teamID, body string, placeholders map[string]string,
+	teamID, body string, placeholders map[string]string, opts RenderOptions,
 ) (*models.RenderPromptResponse, error) {
-	expanded, referencesUsed, warnings, err := s.expandReferences(teamID, body, make(map[string]bool))
+	expander := &referenceExpander{s: s, teamID: teamID, strict: opts.Strict}
+	expanded, err := expander.expand(body, make(map[string]bool))
 	if err != nil {
 		return nil, err
+	}
+	if opts.Strict && len(expander.unresolved) > 0 {
+		return nil, &ErrUnresolvedReferences{Slugs: expander.unresolved}
 	}
 
 	// Restore escaped @@ as a literal @ only once expansion is complete, so an
@@ -789,71 +792,91 @@ func (s *PromptService) renderPrompt(
 		// Missing keys come from the template, not the output, so a supplied value
 		// that itself contains {{x}} never reports x as missing (#1098).
 		PlaceholdersMissing: missingPlaceholderKeys(expanded, placeholders),
-		ReferencesUsed:      referencesUsed,
-		Warnings:            warnings,
+		ReferencesUsed:      lo.Uniq(expander.used),
+		Warnings:            expander.warnings,
 	}, nil
 }
 
-// expandReferences resolves @references among the prompts of teamID — the
+// referenceExpander resolves @references among the prompts of teamID — the
 // team owning the prompt being rendered — never among the reader's own prompts
 // in other teams (#1100). The caller has already checked access to the root.
-// Escaped @@ sequences are left as escapedAtSentinel in the returned body.
-func (s *PromptService) expandReferences(
-	teamID, body string, visitedRefs map[string]bool,
-) (string, []string, []string, error) {
-	warnings := make([]string, 0)
-	referencesUsed := make([]string, 0)
+//
+// An explicit @prompt:slug always resolves; when it does not, it is reported
+// (a warning, or an unresolved slug that fails a strict render). A legacy bare
+// @slug expands only when it resolves and is otherwise plain text, since it is
+// as likely an email, handle or git@host remote as a reference; in strict mode
+// it is never resolved at all (#1097).
+type referenceExpander struct {
+	s          *PromptService
+	teamID     string
+	strict     bool
+	used       []string
+	warnings   []string
+	unresolved []string
+}
 
-	// Handle escaped @@ sequences first
-	expanded := strings.ReplaceAll(body, "@@", escapedAtSentinel)
+// expand returns body with its references spliced in by span, so @ab never
+// rewrites the @ab prefix of a sibling @abc. Escaped @@ sequences are left as
+// escapedAtSentinel in the returned body.
+func (e *referenceExpander) expand(body string, visitedRefs map[string]bool) (string, error) {
+	body = strings.ReplaceAll(body, "@@", escapedAtSentinel)
 
-	// Parse reference patterns @prompt_slug. Matches are collected before any
-	// splicing, so expanded content is never rescanned.
-	referenceMatches := referenceRegex.FindAllStringSubmatch(expanded, -1)
-
-	for _, match := range referenceMatches {
-		if len(match) < 2 {
-			continue
+	var out strings.Builder
+	last := 0
+	for _, ref := range parsePromptReferences(body) {
+		if !ref.Explicit && e.strict {
+			continue // strict mode never resolves a bare @word
 		}
 
-		reference := match[0]                  // Full match like @slug
-		refSlug := strings.TrimSpace(match[1]) // Just the slug
-
-		// Check for circular references
-		if visitedRefs[refSlug] {
-			return "", nil, nil, fmt.Errorf("circular reference detected for prompt: %s", refSlug)
-		}
-
-		// Get the referenced prompt from the owning team
-		refPrompt, err := s.repo.GetBySlugInTeam(context.Background(), teamID, refSlug)
+		refBody, resolved, err := e.resolve(ref, visitedRefs)
 		if err != nil {
-			if errors.Is(err, repositories.ErrPromptNotFound) {
-				// Log warning but don't fail - keep the reference as-is
-				s.logger.With("referenced_slug", refSlug).Warn("Referenced prompt not found, keeping reference as-is")
-
-				// Add to warnings list
-				warnings = append(warnings, fmt.Sprintf("Reference not found: @%s", refSlug))
-				continue // Skip this reference, keep it in the rendered body
-			}
-			return "", nil, nil, fmt.Errorf("failed to get referenced prompt %s: %w", refSlug, err)
+			return "", err
+		}
+		if !resolved {
+			continue // keep the reference text as-is
 		}
 
-		// Recursively expand the referenced prompt, marking this reference as visited
-		refBody, refUsed, refWarnings, err := s.expandReferences(teamID, refPrompt.Body, visitedWith(visitedRefs, refSlug))
-		if err != nil {
-			return "", nil, nil, fmt.Errorf("failed to render referenced prompt %s: %w", refSlug, err)
-		}
+		out.WriteString(body[last:ref.Start])
+		out.WriteString(refBody)
+		last = ref.End
+	}
+	out.WriteString(body[last:])
 
-		// Replace the reference with the expanded content
-		expanded = strings.ReplaceAll(expanded, reference, refBody)
+	return out.String(), nil
+}
 
-		// Collect references used and warnings from the nested prompt
-		referencesUsed = append(referencesUsed, refSlug)
-		referencesUsed = append(referencesUsed, refUsed...)
-		warnings = append(warnings, refWarnings...)
+// resolve looks ref up in the team and returns its recursively expanded body.
+// resolved is false when the prompt does not exist; an explicit reference is
+// then reported, while a legacy @word is plain text and raises no warning.
+func (e *referenceExpander) resolve(ref promptRef, visitedRefs map[string]bool) (string, bool, error) {
+	if visitedRefs[ref.Slug] {
+		return "", false, fmt.Errorf("circular reference detected for prompt: %s", ref.Slug)
 	}
 
-	return expanded, lo.Uniq(referencesUsed), warnings, nil
+	refPrompt, err := e.s.repo.GetBySlugInTeam(context.Background(), e.teamID, ref.Slug)
+	if err != nil {
+		if !errors.Is(err, repositories.ErrPromptNotFound) {
+			return "", false, fmt.Errorf("failed to get referenced prompt %s: %w", ref.Slug, err)
+		}
+		if ref.Explicit {
+			e.warnings = append(e.warnings, fmt.Sprintf("Reference not found: %s%s", explicitRefPrefix, ref.Slug))
+			if !slices.Contains(e.unresolved, ref.Slug) {
+				e.unresolved = append(e.unresolved, ref.Slug)
+			}
+		}
+		return "", false, nil
+	}
+
+	// Record the reference before its nested ones, so references_used lists
+	// the tree in pre-order.
+	e.used = append(e.used, ref.Slug)
+
+	// Recursively expand the referenced prompt, marking this reference as visited
+	refBody, err := e.expand(refPrompt.Body, visitedWith(visitedRefs, ref.Slug))
+	if err != nil {
+		return "", false, fmt.Errorf("failed to render referenced prompt %s: %w", ref.Slug, err)
+	}
+	return refBody, true, nil
 }
 
 func (s *PromptService) GetPromptPlaceholders(userID, teamID, slug string) ([]string, error) {
@@ -874,15 +897,10 @@ func (s *PromptService) ExtractAllPlaceholders(teamID, body string, visitedRefs 
 	// Extract placeholders from current body
 	allPlaceholders := appendUniquePlaceholders(nil, extractPlaceholderKeys(bodyForExtraction))
 
-	// Extract references and get their placeholders recursively
-	referenceMatches := referenceRegex.FindAllStringSubmatch(bodyForExtraction, -1)
-
-	for _, match := range referenceMatches {
-		if len(match) < 2 {
-			continue
-		}
-
-		refSlug := strings.TrimSpace(match[1])
+	// Extract references and get their placeholders recursively. Only resolvable
+	// references contribute, so a legacy @word that is really an email adds nothing.
+	for _, ref := range parsePromptReferences(bodyForExtraction) {
+		refSlug := ref.Slug
 
 		// Check for circular references
 		if visitedRefs[refSlug] {
@@ -985,21 +1003,16 @@ func (s *PromptService) updatePromptReferences(ctx context.Context, teamID, prom
 	// Handle escaped @@ sequences first (replace temporarily to avoid matching them)
 	bodyForExtraction := strings.ReplaceAll(body, "@@", escapedAtSentinel)
 
-	// Extract reference patterns @prompt_slug
-	referenceMatches := referenceRegex.FindAllStringSubmatch(bodyForExtraction, -1)
-
-	if len(referenceMatches) == 0 {
-		return nil // No references to store
+	// Collect unique referenced prompt slugs: explicit @prompt:slug references
+	// and legacy bare @slug ones alike. Only those that resolve become edges, so
+	// delete protection covers every reference a render would expand.
+	uniqueSlugs := make(map[string]bool)
+	for _, ref := range parsePromptReferences(bodyForExtraction) {
+		uniqueSlugs[ref.Slug] = true
 	}
 
-	// Collect unique referenced prompt slugs
-	uniqueSlugs := make(map[string]bool)
-	for _, match := range referenceMatches {
-		if len(match) < 2 {
-			continue
-		}
-		slug := strings.TrimSpace(match[1])
-		uniqueSlugs[slug] = true
+	if len(uniqueSlugs) == 0 {
+		return nil // No references to store
 	}
 
 	// Build references list

@@ -112,10 +112,11 @@ export const PromptMentionTextarea = forwardRef<
     (prompt: Prompt) => {
       if (!textareaRef.current) return
 
-      // Replace the @ symbol with @prompt-slug
+      // Replace the typed @ with an explicit @prompt:<slug> reference (#1097)
+      const reference = `@prompt:${prompt.slug}`
       const beforeMention = value.substring(0, mentionState.startIndex)
       const afterCursor = value.substring(mentionState.cursorPosition)
-      const newValue = `${beforeMention}@${prompt.slug}${afterCursor}`
+      const newValue = `${beforeMention}${reference}${afterCursor}`
 
       onChange(newValue)
       closeMentionModal()
@@ -123,8 +124,7 @@ export const PromptMentionTextarea = forwardRef<
       // Set cursor position after the mention
       setTimeout(() => {
         if (textareaRef.current) {
-          const newCursorPosition =
-            beforeMention.length + prompt.slug.length + 1
+          const newCursorPosition = beforeMention.length + reference.length
           textareaRef.current.setSelectionRange(
             newCursorPosition,
             newCursorPosition

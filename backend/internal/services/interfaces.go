@@ -64,7 +64,9 @@ type PromptServiceInterface interface {
 	UpdatePrompt(userID, teamID, promptID string, req *models.UpdatePromptRequest) (*models.Prompt, error)
 	DeletePromptBySlug(userID, teamID, slug string) error
 	DeletePrompt(userID, teamID, promptID string) error
-	RenderPrompt(userID, teamID, slug string, placeholders map[string]string) (*models.RenderPromptResponse, error)
+	RenderPrompt(
+		userID, teamID, slug string, placeholders map[string]string, opts RenderOptions,
+	) (*models.RenderPromptResponse, error)
 	RenderPromptBody(teamID, body string) (string, error)
 	GetPromptPlaceholders(userID, teamID, slug string) ([]string, error)
 	ExtractAllPlaceholders(teamID, body string, visitedRefs map[string]bool) ([]string, error)

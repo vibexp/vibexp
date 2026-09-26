@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/mocks"
 )
 
@@ -340,7 +341,7 @@ func TestRenderPrompt_Success(t *testing.T) {
 	srv, mockPromptService := newPromptTestServer(t)
 	mockPromptService.On("GetPromptBySlug", testMemberUserID, testTeamUUID, "deploy").
 		Return(&models.Prompt{Slug: "deploy", Status: "published", MCPExpose: true}, nil)
-	mockPromptService.On("RenderPrompt", testMemberUserID, testTeamUUID, "deploy", map[string]string{"env": "prod"}).
+	mockPromptService.On("RenderPrompt", testMemberUserID, testTeamUUID, "deploy", map[string]string{"env": "prod"}, services.RenderOptions{}).
 		Return(&models.RenderPromptResponse{RenderedBody: "deploy to prod"}, nil)
 
 	params := &RenderPromptParams{TeamID: testTeamSlug, Slug: "deploy", Arguments: map[string]string{"env": "prod"}}
@@ -383,7 +384,7 @@ func TestRenderPrompt_ServiceError(t *testing.T) {
 	srv, mockPromptService := newPromptTestServer(t)
 	mockPromptService.On("GetPromptBySlug", testMemberUserID, testTeamUUID, "deploy").
 		Return(&models.Prompt{Slug: "deploy", Status: "published", MCPExpose: true}, nil)
-	mockPromptService.On("RenderPrompt", testMemberUserID, testTeamUUID, "deploy", mock.Anything).
+	mockPromptService.On("RenderPrompt", testMemberUserID, testTeamUUID, "deploy", mock.Anything, services.RenderOptions{}).
 		Return(nil, errors.New("boom"))
 
 	params := &RenderPromptParams{TeamID: testTeamUUID, Slug: "deploy"}
@@ -392,6 +393,25 @@ func TestRenderPrompt_ServiceError(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, result.IsError)
 	assert.Nil(t, structured)
+}
+
+// #1097: strict=true is passed through to the service, and an unresolved
+// explicit reference comes back as a tool error naming the missing slugs.
+func TestRenderPrompt_StrictUnresolvedReferences(t *testing.T) {
+	srv, mockPromptService := newPromptTestServer(t)
+	mockPromptService.On("GetPromptBySlug", testMemberUserID, testTeamUUID, "deploy").
+		Return(&models.Prompt{Slug: "deploy", Status: "published", MCPExpose: true}, nil)
+	mockPromptService.On("RenderPrompt", testMemberUserID, testTeamUUID, "deploy", mock.Anything,
+		services.RenderOptions{Strict: true}).
+		Return(nil, &services.ErrUnresolvedReferences{Slugs: []string{"nope"}})
+
+	params := &RenderPromptParams{TeamID: testTeamUUID, Slug: "deploy", Strict: true}
+	result, structured, err := srv.renderPrompt(context.Background(), nil, params, testMemberUserID)
+
+	assert.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Nil(t, structured)
+	assert.Equal(t, "Failed to render prompt: unresolved references (strict mode): nope", extractText(t, result))
 }
 
 // TestRenderPrompt_NotExposedRejected verifies render_prompt honors the same gate

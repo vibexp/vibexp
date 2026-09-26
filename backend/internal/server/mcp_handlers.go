@@ -207,7 +207,9 @@ func (s *Server) handleMCPPromptRequestWithTeam(
 	}
 
 	// Render the prompt using the prompt service
-	renderedResponse, err := s.container.PromptService().RenderPrompt(userID, teamID, promptData.Slug, placeholders)
+	renderedResponse, err := s.container.PromptService().RenderPrompt(
+		userID, teamID, promptData.Slug, placeholders, services.RenderOptions{},
+	)
 	if err != nil {
 		s.logger.With(
 			"user_id", userID,

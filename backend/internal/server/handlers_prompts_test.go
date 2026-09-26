@@ -607,7 +607,7 @@ func TestPromptsUserID_MissingUserIsAnInternalError(t *testing.T) {
 func TestRenderPrompt_ReportsPlaceholdersMissing(t *testing.T) {
 	srv, container := strictPromptServer(t)
 	container.promptService.On("RenderPrompt", strictPrUserID, strictPrTeamID, strictPrSlug,
-		map[string]string{"a": "A"}).
+		map[string]string{"a": "A"}, services.RenderOptions{}).
 		Return(&models.RenderPromptResponse{
 			RenderedBody:        "A and {{b}}",
 			PlaceholdersMissing: []string{"b"},
@@ -621,4 +621,26 @@ func TestRenderPrompt_ReportsPlaceholdersMissing(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	specconformance.AssertConformsToSpec(t, req, w)
 	assert.JSONEq(t, `{"rendered_body":"A and {{b}}","placeholders_missing":["b"]}`, w.Body.String())
+}
+
+// #1097: a strict render whose explicit @prompt:slug references do not
+// resolve fails with a 422 naming the missing slugs, validated against the spec.
+func TestRenderPrompt_StrictUnresolvedReferencesIs422(t *testing.T) {
+	srv, container := strictPromptServer(t)
+	container.promptService.On("RenderPrompt", strictPrUserID, strictPrTeamID, strictPrSlug,
+		map[string]string{}, services.RenderOptions{Strict: true}).
+		Return(nil, &services.ErrUnresolvedReferences{Slugs: []string{"nope", "gone"}})
+
+	req := makeAuthenticatedRequest("POST", "/api/v1/"+strictPrTeamID+"/prompts/"+strictPrSlug+"/render",
+		map[string]any{"placeholders": map[string]string{}, "strict": true}, strictPrUserID)
+	w := httptest.NewRecorder()
+	srv.router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, w.Code, w.Body.String())
+	specconformance.AssertConformsToSpec(t, req, w)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "UNRESOLVED_REFERENCES", body["code"])
+	assert.Equal(t, "Unresolved prompt references: nope, gone", body["detail"])
+	assert.Equal(t, []any{"nope", "gone"}, body["metadata"].(map[string]any)["unresolved_references"])
 }
