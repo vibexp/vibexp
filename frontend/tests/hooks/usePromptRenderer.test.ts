@@ -123,18 +123,30 @@ describe('usePromptRenderer', () => {
       expect(html).toBe('No content to preview...')
     })
 
-    it('should enhance @mentions before markdown processing', () => {
+    it('should highlight explicit @prompt: references before markdown processing', () => {
       mockMarked.mockReturnValueOnce('<p>Enhanced content</p>')
 
       const { result } = renderHook(() => usePromptRenderer())
-      const content = 'Hello @user-name and @another-user'
+      const content = '@prompt:code-review then (@prompt:another-one)'
 
       const html = result.current.renderPreviewContent(content)
 
       expect(marked).toHaveBeenCalledWith(
-        'Hello <span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">@user-name</span> and <span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">@another-user</span>'
+        '<span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">@prompt:code-review</span> then (<span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">@prompt:another-one</span>)'
       )
       expect(html).toBe('<p>Enhanced content</p>')
+    })
+
+    it('should not highlight emails, handles or a word-prefixed @prompt:', () => {
+      mockMarked.mockReturnValueOnce('<p>Plain</p>')
+
+      const { result } = renderHook(() => usePromptRenderer())
+      const content =
+        'Mail a@b.com, ping @hello, push git@github.com:o/r, not mail@prompt:x'
+
+      result.current.renderPreviewContent(content)
+
+      expect(marked).toHaveBeenCalledWith(content)
     })
 
     it('should handle content without mentions', () => {
@@ -182,12 +194,12 @@ describe('usePromptRenderer', () => {
 
       const { result } = renderHook(() => usePromptRenderer())
       const content =
-        '@user-123 @user_with_underscores @hyphenated-user @a1b2c3'
+        '@prompt:user-123 @prompt:user_with_underscores @prompt:hyphenated-user @prompt:a1b2c3'
 
       result.current.renderPreviewContent(content)
 
       const expectedContent =
-        '<span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">@user-123</span> <span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">@user_with_underscores</span> <span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">@hyphenated-user</span> <span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">@a1b2c3</span>'
+        '<span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">@prompt:user-123</span> <span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">@prompt:user_with_underscores</span> <span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">@prompt:hyphenated-user</span> <span class="bg-info-subtle text-info px-1 py-0.5 rounded text-sm font-mono border border-info">@prompt:a1b2c3</span>'
       expect(marked).toHaveBeenCalledWith(expectedContent)
     })
   })

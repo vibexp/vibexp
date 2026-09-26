@@ -575,7 +575,9 @@ func (s *Server) handleRenderPrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderedPrompt, err := s.container.PromptService().RenderPrompt(userID, teamID, promptSlug, req.Placeholders)
+	renderedPrompt, err := s.container.PromptService().RenderPrompt(
+		userID, teamID, promptSlug, req.Placeholders, services.RenderOptions{Strict: req.Strict},
+	)
 	if err != nil {
 		s.logger.With(
 			"service", serverLogServiceName,
@@ -585,20 +587,37 @@ func (s *Server) handleRenderPrompt(w http.ResponseWriter, r *http.Request) {
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to render prompt")
 
-		if stderrors.Is(err, repositories.ErrPromptNotFound) {
-			writeErrorResponse(w, nil, "not_found", promptMsgNotFound, http.StatusNotFound)
-			return
-		}
-
-		writeErrorResponse(
-			w, nil, "render_error",
-			"Failed to render prompt. Please check the provided placeholders.",
-			http.StatusBadRequest,
-		)
+		writeRenderPromptError(w, r, err)
 		return
 	}
 
 	writeOK(w, renderedPrompt, s.logger)
+}
+
+// writeRenderPromptError maps a RenderPrompt failure to its HTTP response.
+func writeRenderPromptError(w http.ResponseWriter, r *http.Request, err error) {
+	if stderrors.Is(err, repositories.ErrPromptNotFound) {
+		writeErrorResponse(w, nil, "not_found", promptMsgNotFound, http.StatusNotFound)
+		return
+	}
+
+	// A strict render with unresolved @prompt:slug references (#1097).
+	var unresolved *services.ErrUnresolvedReferences
+	if stderrors.As(err, &unresolved) {
+		writeErrorResponseWithDetails(
+			w, r, "UNRESOLVED_REFERENCES", "Unresolved References",
+			"Unresolved prompt references: "+strings.Join(unresolved.Slugs, ", "),
+			http.StatusUnprocessableEntity,
+			map[string]any{"unresolved_references": unresolved.Slugs},
+		)
+		return
+	}
+
+	writeErrorResponse(
+		w, nil, "render_error",
+		"Failed to render prompt. Please check the provided placeholders.",
+		http.StatusBadRequest,
+	)
 }
 
 func (s *Server) handleGetPromptPlaceholders(w http.ResponseWriter, r *http.Request) {

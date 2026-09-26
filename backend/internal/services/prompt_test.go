@@ -631,7 +631,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 			"age":  "30",
 		}
 
-		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders)
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders, RenderOptions{})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
@@ -657,7 +657,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 			// Missing "age" placeholder
 		}
 
-		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders)
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders, RenderOptions{})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
@@ -682,7 +682,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 		// Empty placeholders map
 		placeholders := map[string]string{}
 
-		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders)
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders, RenderOptions{})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
@@ -720,7 +720,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 			// Missing "base_var" placeholder
 		}
 
-		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders)
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders, RenderOptions{})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
@@ -748,7 +748,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 			"age":  "30",
 		}
 
-		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders)
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders, RenderOptions{})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
@@ -770,7 +770,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
 			Return(prompt, nil)
 
-		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{})
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{}, RenderOptions{})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
@@ -804,7 +804,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 			mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
 				Return(prompt, nil)
 
-			response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{"extra": tc.value})
+			response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{"extra": tc.value}, RenderOptions{})
 
 			require.NoError(t, err)
 			assert.Equal(t, "Remote: "+tc.value, response.RenderedBody)
@@ -829,7 +829,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 			Return(prompt, nil)
 
 		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt",
-			map[string]string{"a": "{{b}}", "b": "bee"})
+			map[string]string{"a": "{{b}}", "b": "bee"}, RenderOptions{})
 
 		require.NoError(t, err)
 		assert.Equal(t, "A={{b}} B=bee", response.RenderedBody)
@@ -856,7 +856,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 			Return(x, nil).Once()
 
 		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt",
-			map[string]string{"who": "me@example.com"})
+			map[string]string{"who": "me@example.com"}, RenderOptions{})
 
 		require.NoError(t, err)
 		// The escaped @x inside footer stays literal; only the authored @x expands.
@@ -865,14 +865,14 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 		assert.Empty(t, response.Warnings)
 	})
 
-	t.Run("Render with non-existent @reference", func(t *testing.T) {
+	t.Run("Render with non-existent explicit @prompt: reference", func(t *testing.T) {
 		mockRepo := mocks.NewMockPromptRepository(t)
 		service := createTestPromptService(mockRepo, nil)
 
 		prompt := &models.Prompt{
 			ID:     "prompt-123",
 			TeamID: "team-123",
-			Body:   "This references @nonexistent prompt",
+			Body:   "This references @prompt:nonexistent prompt",
 			UserID: "user-123",
 		}
 		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
@@ -880,16 +880,16 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "nonexistent").
 			Return(nil, repositories.ErrPromptNotFound)
 
-		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{})
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{}, RenderOptions{})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
 		// Non-existent reference should be kept as-is
-		assert.Equal(t, "This references @nonexistent prompt", response.RenderedBody)
+		assert.Equal(t, "This references @prompt:nonexistent prompt", response.RenderedBody)
 		assert.Empty(t, response.ReferencesUsed)
 		// Should have a warning about the missing reference
 		assert.Len(t, response.Warnings, 1)
-		assert.Equal(t, "Reference not found: @nonexistent", response.Warnings[0])
+		assert.Equal(t, "Reference not found: @prompt:nonexistent", response.Warnings[0])
 	})
 
 	t.Run("Render with mixed escaped and real references", func(t *testing.T) {
@@ -906,7 +906,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 		prompt := &models.Prompt{
 			ID:     "prompt-123",
 			TeamID: "team-123",
-			Body:   "Email: user@@example.com, Reference: @base, Missing: @missing",
+			Body:   "Email: user@@example.com, Reference: @base, Missing: @prompt:missing",
 			UserID: "user-123",
 		}
 		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
@@ -916,15 +916,15 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "missing").
 			Return(nil, repositories.ErrPromptNotFound)
 
-		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{})
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{}, RenderOptions{})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
-		// @@ becomes @, @base is resolved, @missing stays
-		assert.Equal(t, "Email: user@example.com, Reference: Base content, Missing: @missing", response.RenderedBody)
+		// @@ becomes @, @base is resolved, @prompt:missing stays
+		assert.Equal(t, "Email: user@example.com, Reference: Base content, Missing: @prompt:missing", response.RenderedBody)
 		assert.Equal(t, []string{"base"}, response.ReferencesUsed)
 		assert.Len(t, response.Warnings, 1)
-		assert.Equal(t, "Reference not found: @missing", response.Warnings[0])
+		assert.Equal(t, "Reference not found: @prompt:missing", response.Warnings[0])
 	})
 
 	t.Run("Render with nested references and escaped sequences", func(t *testing.T) {
@@ -959,7 +959,7 @@ func TestPromptService_RenderPrompt(t *testing.T) {
 		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "nested").
 			Return(nestedPrompt, nil)
 
-		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{})
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{}, RenderOptions{})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
@@ -2144,7 +2144,7 @@ func TestPromptService_RenderPrompt_PlaceholdersMissing(t *testing.T) {
 			mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", slug).
 				Return(&models.Prompt{ID: slug + "-id", Slug: slug, Body: refBody, UserID: "user-123"}, nil)
 		}
-		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders)
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", placeholders, RenderOptions{})
 		require.NoError(t, err)
 		return response
 	}
@@ -2192,14 +2192,14 @@ func TestPromptService_RenderPrompt_PlaceholdersMissing(t *testing.T) {
 		mockRepo := mocks.NewMockPromptRepository(t)
 		service := createTestPromptService(mockRepo, nil)
 		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
-			Return(&models.Prompt{ID: "prompt-123", Body: "{{a}} @ghost", UserID: "user-123", TeamID: "team-123"}, nil)
+			Return(&models.Prompt{ID: "prompt-123", Body: "{{a}} @prompt:ghost", UserID: "user-123", TeamID: "team-123"}, nil)
 		mockRepo.On("GetBySlugInTeam", mock.AnythingOfType("context.backgroundCtx"), "team-123", "ghost").
 			Return(nil, repositories.ErrPromptNotFound)
 
-		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{})
+		response, err := service.RenderPrompt("user-123", "team-123", "test-prompt", map[string]string{}, RenderOptions{})
 
 		require.NoError(t, err)
 		assert.Equal(t, []string{"a"}, response.PlaceholdersMissing)
-		assert.Equal(t, []string{"Reference not found: @ghost"}, response.Warnings)
+		assert.Equal(t, []string{"Reference not found: @prompt:ghost"}, response.Warnings)
 	})
 }

@@ -776,9 +776,9 @@ func (_c *MockPromptServiceInterface_ListPrompts_Call) RunAndReturn(run func(str
 	return _c
 }
 
-// RenderPrompt provides a mock function with given fields: userID, teamID, slug, placeholders
-func (_m *MockPromptServiceInterface) RenderPrompt(userID string, teamID string, slug string, placeholders map[string]string) (*models.RenderPromptResponse, error) {
-	ret := _m.Called(userID, teamID, slug, placeholders)
+// RenderPrompt provides a mock function with given fields: userID, teamID, slug, placeholders, opts
+func (_m *MockPromptServiceInterface) RenderPrompt(userID string, teamID string, slug string, placeholders map[string]string, opts services.RenderOptions) (*models.RenderPromptResponse, error) {
+	ret := _m.Called(userID, teamID, slug, placeholders, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RenderPrompt")
@@ -786,19 +786,19 @@ func (_m *MockPromptServiceInterface) RenderPrompt(userID string, teamID string,
 
 	var r0 *models.RenderPromptResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, map[string]string) (*models.RenderPromptResponse, error)); ok {
-		return rf(userID, teamID, slug, placeholders)
+	if rf, ok := ret.Get(0).(func(string, string, string, map[string]string, services.RenderOptions) (*models.RenderPromptResponse, error)); ok {
+		return rf(userID, teamID, slug, placeholders, opts)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string, map[string]string) *models.RenderPromptResponse); ok {
-		r0 = rf(userID, teamID, slug, placeholders)
+	if rf, ok := ret.Get(0).(func(string, string, string, map[string]string, services.RenderOptions) *models.RenderPromptResponse); ok {
+		r0 = rf(userID, teamID, slug, placeholders, opts)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.RenderPromptResponse)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string, map[string]string) error); ok {
-		r1 = rf(userID, teamID, slug, placeholders)
+	if rf, ok := ret.Get(1).(func(string, string, string, map[string]string, services.RenderOptions) error); ok {
+		r1 = rf(userID, teamID, slug, placeholders, opts)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -816,13 +816,14 @@ type MockPromptServiceInterface_RenderPrompt_Call struct {
 //   - teamID string
 //   - slug string
 //   - placeholders map[string]string
-func (_e *MockPromptServiceInterface_Expecter) RenderPrompt(userID interface{}, teamID interface{}, slug interface{}, placeholders interface{}) *MockPromptServiceInterface_RenderPrompt_Call {
-	return &MockPromptServiceInterface_RenderPrompt_Call{Call: _e.mock.On("RenderPrompt", userID, teamID, slug, placeholders)}
+//   - opts services.RenderOptions
+func (_e *MockPromptServiceInterface_Expecter) RenderPrompt(userID interface{}, teamID interface{}, slug interface{}, placeholders interface{}, opts interface{}) *MockPromptServiceInterface_RenderPrompt_Call {
+	return &MockPromptServiceInterface_RenderPrompt_Call{Call: _e.mock.On("RenderPrompt", userID, teamID, slug, placeholders, opts)}
 }
 
-func (_c *MockPromptServiceInterface_RenderPrompt_Call) Run(run func(userID string, teamID string, slug string, placeholders map[string]string)) *MockPromptServiceInterface_RenderPrompt_Call {
+func (_c *MockPromptServiceInterface_RenderPrompt_Call) Run(run func(userID string, teamID string, slug string, placeholders map[string]string, opts services.RenderOptions)) *MockPromptServiceInterface_RenderPrompt_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(map[string]string))
+		run(args[0].(string), args[1].(string), args[2].(string), args[3].(map[string]string), args[4].(services.RenderOptions))
 	})
 	return _c
 }
@@ -832,7 +833,7 @@ func (_c *MockPromptServiceInterface_RenderPrompt_Call) Return(_a0 *models.Rende
 	return _c
 }
 
-func (_c *MockPromptServiceInterface_RenderPrompt_Call) RunAndReturn(run func(string, string, string, map[string]string) (*models.RenderPromptResponse, error)) *MockPromptServiceInterface_RenderPrompt_Call {
+func (_c *MockPromptServiceInterface_RenderPrompt_Call) RunAndReturn(run func(string, string, string, map[string]string, services.RenderOptions) (*models.RenderPromptResponse, error)) *MockPromptServiceInterface_RenderPrompt_Call {
 	_c.Call.Return(run)
 	return _c
 }

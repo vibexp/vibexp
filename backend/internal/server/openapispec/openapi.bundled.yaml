@@ -3860,7 +3860,17 @@ paths:
     post:
       summary: Render a prompt
       description: |
-        Renders a prompt by resolving @references and substituting placeholders with provided values.
+        Renders a prompt by resolving references and substituting placeholders with provided values.
+
+        A reference is written `@prompt:<slug>` and resolves to a prompt in the
+        prompt's own team; `@@` escapes a literal `@`. A bare `@slug` is the
+        deprecated legacy form: it expands only when it resolves to a prompt and is
+        otherwise left as plain text without a warning, so emails, handles and
+        `git@host` remotes are safe. References are resolved on the authored body
+        only; placeholder values are inserted verbatim.
+
+        With `strict: true`, bare `@slug` is never resolved and an unresolved
+        `@prompt:<slug>` fails the render with 422.
       operationId: renderPrompt
       parameters:
         - name: team_id
@@ -3909,6 +3919,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Prompt not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 'Strict render failed: one or more explicit @prompt:slug references do not resolve. The detail names the missing slugs.'
           content:
             application/problem+json:
               schema:
@@ -18745,6 +18761,10 @@ components:
             type: string
           example:
             criteria: security vulnerabilities and code quality
+        strict:
+          type: boolean
+          default: false
+          description: When true, only explicit @prompt:slug references are resolved (a bare @word such as an email, handle or git@host remote stays literal text), and an unresolved @prompt:slug fails the render with 422 instead of a warning. Recommended for unattended agents.
       required:
         - placeholders
     RenderPromptResponse:
@@ -18768,9 +18788,9 @@ components:
           type: array
           items:
             type: string
-          description: Warnings about issues during rendering (e.g., missing references)
+          description: Warnings about issues during rendering, such as an explicit @prompt:slug reference that does not resolve (kept as-is in rendered_body). A bare @word that does not resolve is plain text and never produces a warning.
           example:
-            - 'Reference not found: @nonexistent'
+            - 'Reference not found: @prompt:nonexistent'
       required:
         - rendered_body
     PromptPlaceholdersResponse:

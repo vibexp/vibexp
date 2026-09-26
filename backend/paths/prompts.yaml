@@ -470,7 +470,17 @@ api-v1-team_id-prompts-slug-render:
   post:
     summary: Render a prompt
     description: |
-      Renders a prompt by resolving @references and substituting placeholders with provided values.
+      Renders a prompt by resolving references and substituting placeholders with provided values.
+
+      A reference is written `@prompt:<slug>` and resolves to a prompt in the
+      prompt's own team; `@@` escapes a literal `@`. A bare `@slug` is the
+      deprecated legacy form: it expands only when it resolves to a prompt and is
+      otherwise left as plain text without a warning, so emails, handles and
+      `git@host` remotes are safe. References are resolved on the authored body
+      only; placeholder values are inserted verbatim.
+
+      With `strict: true`, bare `@slug` is never resolved and an unresolved
+      `@prompt:<slug>` fails the render with 422.
     operationId: renderPrompt
     parameters:
       - name: team_id
@@ -519,6 +529,14 @@ api-v1-team_id-prompts-slug-render:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Prompt not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '422':
+        description: >-
+          Strict render failed: one or more explicit @prompt:slug references do
+          not resolve. The detail names the missing slugs.
         content:
           application/problem+json:
             schema:

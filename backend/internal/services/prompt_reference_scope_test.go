@@ -57,7 +57,7 @@ func TestRenderPrompt_TeammateReadsAuthorsReferenceFromTheTeam(t *testing.T) {
 			UserID: refScopeAuthor, TeamID: refScopeTeam,
 		}, nil).Once()
 
-	resp, err := svc.RenderPrompt(refScopeReader, refScopeTeam, "review", map[string]string{})
+	resp, err := svc.RenderPrompt(refScopeReader, refScopeTeam, "review", map[string]string{}, RenderOptions{})
 
 	require.NoError(t, err)
 	assert.Equal(t, "Review per TEAM STYLE", resp.RenderedBody)
@@ -78,7 +78,7 @@ func TestRenderPrompt_NestedReferencesStayInTheRootTeam(t *testing.T) {
 	repo.EXPECT().GetBySlugInTeam(mock.Anything, refScopeTeam, "y").
 		Return(&models.Prompt{ID: "y-t", Slug: "y", Body: "Y-of-T", TeamID: refScopeTeam}, nil).Once()
 
-	resp, err := svc.RenderPrompt(refScopeAuthor, refScopeTeam, "root", map[string]string{})
+	resp, err := svc.RenderPrompt(refScopeAuthor, refScopeTeam, "root", map[string]string{}, RenderOptions{})
 
 	require.NoError(t, err)
 	assert.Equal(t, "R X-of-T Y-of-T", resp.RenderedBody)

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/services"
 )
 
 // Prompt Tool Parameters
@@ -57,6 +59,7 @@ type RenderPromptParams struct {
 	TeamID    string            `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	Slug      string            `json:"slug" jsonschema:"REQUIRED. Slug of the prompt to render (unique within the team)."`
 	Arguments map[string]string `json:"arguments,omitempty" jsonschema:"Values for the prompt's {{placeholders}}, keyed by placeholder name."`
+	Strict    bool              `json:"strict,omitempty" jsonschema:"When true, resolve only explicit @prompt:slug references (a bare @word stays literal text) and fail the render if one does not resolve. Recommended for unattended agents."`
 }
 
 // promptWriteResponse is the slim response returned by create/update prompt tools.
@@ -251,8 +254,17 @@ func (s *Server) renderPrompt(
 		)), nil, nil
 	}
 
-	rendered, err := s.container.PromptService().RenderPrompt(userID, teamID, slug, params.Arguments)
+	rendered, err := s.container.PromptService().RenderPrompt(
+		userID, teamID, slug, params.Arguments, services.RenderOptions{Strict: params.Strict},
+	)
 	if err != nil {
+		var unresolved *services.ErrUnresolvedReferences
+		if errors.As(err, &unresolved) {
+			return mcpTextError(fmt.Sprintf(
+				"Failed to render prompt: unresolved references (strict mode): %s",
+				strings.Join(unresolved.Slugs, ", "),
+			)), nil, nil
+		}
 		slog.Error(
 			"Failed to render prompt via MCP",
 			"tool", "vibexp_io_render_prompt",
