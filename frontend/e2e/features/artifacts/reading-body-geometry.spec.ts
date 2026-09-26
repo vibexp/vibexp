@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 
 import { test, expect } from '../../fixtures/auth'
-import { selectFirstProject } from '../../helpers/artifacts'
+import { createArtifactWithContent } from '../../helpers/artifacts'
 
 /**
  * Feature Test: reading-page body geometry (#1176)
@@ -14,8 +14,6 @@ import { selectFirstProject } from '../../helpers/artifacts'
  * This is geometry, so only a real layout engine can see it: jsdom returns
  * 0×0 for every box, and the unit suite cannot catch a regression here.
  */
-
-const DETAIL_URL = /artifacts\/[^/]+\/[^/]+/
 
 // Word-separated, so the raw `whitespace-pre-wrap` view wraps it, while the
 // rendered code block keeps it on one line and wants the whole bleed.
@@ -30,27 +28,6 @@ const CONTENT = `A paragraph of prose that stays in the reading column.
 echo ${LONG_LINE}
 \`\`\`
 `
-
-async function createArtifact(page: Page): Promise<void> {
-  await page.goto('/artifacts/new')
-  await expect(page).toHaveURL(/artifacts\/new/)
-
-  const stamp = Date.now().toString(36)
-  await page.waitForSelector('[data-testid="artifact-project-select"]', {
-    timeout: 10000,
-  })
-  await page
-    .locator('[data-testid="artifact-slug-input"]')
-    .fill(`geometry-${stamp}`)
-  await page
-    .locator('[data-testid="artifact-title-input"]')
-    .fill(`Geometry ${stamp}`)
-  await page.locator('[data-testid="artifact-content-textarea"]').fill(CONTENT)
-  await selectFirstProject(page)
-  await page.locator('button:has-text("Create Artifact")').click()
-
-  await expect(page).toHaveURL(DETAIL_URL, { timeout: 10000 })
-}
 
 async function box(locator: Locator): Promise<{ x: number; width: number }> {
   await expect(locator).toBeVisible({ timeout: 10000 })
@@ -78,7 +55,7 @@ test.describe('Reading body geometry', () => {
     authenticatedPage: page,
   }) => {
     await page.setViewportSize({ width: 1920, height: 1080 })
-    await createArtifact(page)
+    await createArtifactWithContent(page, 'Geometry', 'geometry', CONTENT)
 
     const title = page.getByTestId('reading-page').locator('article header h1')
     const bodyView = page.getByRole('tablist', { name: 'Body view' })

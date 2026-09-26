@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/auth'
-import { selectFirstProject } from '../../helpers/artifacts'
+import { createArtifactWithContent } from '../../helpers/artifacts'
 
 /**
  * Feature Test: mermaid diagram label rendering (#744)
@@ -28,8 +28,6 @@ import { selectFirstProject } from '../../helpers/artifacts'
  * the bug broke.
  */
 
-const DETAIL_URL = /artifacts\/[^/]+\/[^/]+/
-
 const FLOWCHART = `# Diagram
 
 \`\`\`mermaid
@@ -50,36 +48,11 @@ flowchart TD
 \`\`\`
 `
 
-async function createArtifactWithContent(
-  page: import('@playwright/test').Page,
-  slugPrefix: string,
-  content: string
-): Promise<void> {
-  await page.goto('/artifacts/new')
-  await expect(page).toHaveURL(/artifacts\/new/)
-
-  const stamp = Date.now()
-  await page.waitForSelector('[data-testid="artifact-project-select"]', {
-    timeout: 10000,
-  })
-  await page
-    .locator('[data-testid="artifact-slug-input"]')
-    .fill(`${slugPrefix}-${String(stamp)}`)
-  await page
-    .locator('[data-testid="artifact-title-input"]')
-    .fill(`Mermaid ${slugPrefix} ${String(stamp)}`)
-  await page.locator('[data-testid="artifact-content-textarea"]').fill(content)
-  await selectFirstProject(page)
-  await page.locator('button:has-text("Create Artifact")').click()
-
-  await expect(page).toHaveURL(DETAIL_URL, { timeout: 10000 })
-}
-
 test.describe('Mermaid diagram rendering', () => {
   test('flowchart node and edge labels render as SVG text', async ({
     authenticatedPage: page,
   }) => {
-    await createArtifactWithContent(page, 'flowchart', FLOWCHART)
+    await createArtifactWithContent(page, 'Mermaid', 'flowchart', FLOWCHART)
 
     // The diagram renders asynchronously into a placeholder div.
     const svg = page.locator('.mermaid-container svg')
@@ -114,7 +87,7 @@ test.describe('Mermaid diagram rendering', () => {
     authenticatedPage: page,
   }) => {
     test.setTimeout(90000)
-    await createArtifactWithContent(page, 'persist', FLOWCHART)
+    await createArtifactWithContent(page, 'Mermaid', 'persist', FLOWCHART)
 
     const svg = page.locator('.mermaid-container svg')
     await expect(svg).toBeVisible({ timeout: 15000 })
@@ -129,7 +102,7 @@ test.describe('Mermaid diagram rendering', () => {
   test('an XSS payload in a node label is inert', async ({
     authenticatedPage: page,
   }) => {
-    await createArtifactWithContent(page, 'xss', XSS_FLOWCHART)
+    await createArtifactWithContent(page, 'Mermaid', 'xss', XSS_FLOWCHART)
 
     const svg = page.locator('.mermaid-container svg')
     await expect(svg).toBeVisible({ timeout: 15000 })
