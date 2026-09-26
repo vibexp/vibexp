@@ -30,33 +30,33 @@ export const BODY_EDITOR_MIN_HEIGHT = 'min-h-96'
 /**
  * The floor in lines, for the browsers where it bites before the pixel one.
  * Deliberately below {@link BODY_EDITOR_MIN_HEIGHT} at the editor's type
- * scale, so the pixel minimum is what actually governs and both panes — Write
- * and Preview — start exactly the same height.
+ * scale, so the pixel minimum is what actually governs and both panes — Raw
+ * and Rendered — start exactly the same height.
  */
 export const BODY_EDITOR_MIN_ROWS = 12
 
 /**
- * Auto-grow, as one CSS declaration.
+ * The Raw pane: the reading page's Raw block with a caret (#1178), growing
+ * with its content.
  *
- * `field-sizing: content` makes the textarea's intrinsic height track what is
- * typed into it, which is the whole point of the issue: a long body pushes the
- * page down instead of scrolling inside a small box. One CSS declaration
- * rather than a scroll-height effect, so it applies identically to both write
- * panes; where the property is unsupported the pane degrades to the shared
- * minimum, not to the fixed box it replaces.
+ * Surface: the same `RAW_BODY_CLASS` the Raw `<pre>` uses, no border, and
+ * `md:text-sm` so the plain `Textarea`'s own `text-base md:text-sm` cannot win
+ * back the type size at any breakpoint. The placeholder is a step lighter than
+ * the (already muted) text, or an empty body would read as typed content.
+ * With no border left to colour, an error is drawn as a ring.
+ *
+ * Auto-grow is one CSS declaration: `field-sizing: content` makes the
+ * textarea's intrinsic height track what is typed into it, so a long body
+ * pushes the page down instead of scrolling inside a small box. It applies
+ * identically to both Raw panes; where the property is unsupported the pane
+ * degrades to the shared minimum, not to a fixed box.
  *
  * `resize-y` is UNCONDITIONAL, not a fallback — both textareas already had it
  * and dragging the handle is a habit worth keeping. The trade is real: a drag
  * writes an inline `height`, which outranks `field-sizing` and pins that one
  * element for the rest of the session. Deliberate: the user asked for a size.
  */
-/*
- * The Raw pane IS the reading page's Raw block with a caret (#1178): the same
- * surface (`RAW_BODY_CLASS`), no border, and `md:text-sm` so the plain
- * `Textarea`'s own `text-base md:text-sm` cannot win back the type size at
- * any breakpoint. The error is a ring, since there is no border left to colour.
- */
-const WRITE_TEXTAREA_CLASS = `${RAW_BODY_CLASS} ${BODY_EDITOR_MIN_HEIGHT} field-sizing-content resize-y border-0 md:text-sm`
+const WRITE_TEXTAREA_CLASS = `${RAW_BODY_CLASS} ${BODY_EDITOR_MIN_HEIGHT} field-sizing-content resize-y border-0 md:text-sm placeholder:text-muted-foreground/60`
 
 /** Which pane of the editor is showing. */
 export type BodyEditorView = 'write' | 'preview' | 'render'
@@ -284,7 +284,8 @@ export const ResourceBodyEditor = forwardRef<
                 rows={BODY_EDITOR_MIN_ROWS}
                 className={cn(
                   WRITE_TEXTAREA_CLASS,
-                  error && 'ring-destructive ring-2'
+                  error &&
+                    'ring-destructive focus-visible:ring-destructive ring-2'
                 )}
                 onChange={event => {
                   onChange(event.target.value)

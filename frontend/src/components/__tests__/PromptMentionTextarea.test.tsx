@@ -114,8 +114,15 @@ describe('PromptMentionTextarea — the form-control contract', () => {
 
     const textarea = screen.getByRole('textbox')
     expect(textarea).toHaveClass('bg-muted', 'rounded-md', 'p-4', 'border-0')
-    expect(textarea).not.toHaveClass('border', 'border-input', 'px-4', 'py-3')
-    expect(textarea).not.toHaveClass('rounded-lg')
+    for (const frame of [
+      'border',
+      'border-input',
+      'px-4',
+      'py-3',
+      'rounded-lg',
+    ]) {
+      expect(textarea).not.toHaveClass(frame)
+    }
   })
 
   it('draws a frameless error as a destructive ring, message included', () => {
@@ -130,8 +137,13 @@ describe('PromptMentionTextarea — the form-control contract', () => {
 
     expect(screen.getByText('Body is required')).toBeInTheDocument()
     const textarea = screen.getByRole('textbox')
-    expect(textarea).toHaveClass('ring-2', 'ring-destructive')
+    expect(textarea).toHaveClass(
+      'ring-2',
+      'ring-destructive',
+      'focus:ring-destructive'
+    )
     expect(textarea).not.toHaveClass('border-destructive')
+    expect(textarea).not.toHaveClass('focus:ring-ring')
   })
 
   it('keeps the caller class alongside its own', () => {

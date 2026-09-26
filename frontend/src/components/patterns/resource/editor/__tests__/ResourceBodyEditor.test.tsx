@@ -190,8 +190,13 @@ describe('ResourceBodyEditor', () => {
       )
 
       expect(screen.getByText('Body is required')).toBeInTheDocument()
-      // There is no border left to colour, so the invalid state is a ring.
-      expect(writeArea()).toHaveClass('ring-2', 'ring-destructive')
+      // There is no border left to colour, so the invalid state is a ring —
+      // one that keeps its colour while the field is focused.
+      expect(writeArea()).toHaveClass(
+        'ring-2',
+        'ring-destructive',
+        'focus-visible:ring-destructive'
+      )
     })
 
     it('forwards the FormControl slot props to the textarea leaf', () => {
@@ -536,6 +541,9 @@ describe('ResourceBodyEditor', () => {
         // Textarea's own `text-base md:text-sm` must not win the type size back.
         expect(textarea).not.toHaveClass('text-base')
         expect(textarea).not.toHaveClass('bg-background')
+        // The text is already muted; the placeholder must not look typed.
+        expect(textarea).toHaveClass('placeholder:text-muted-foreground/60')
+        expect(textarea).not.toHaveClass('placeholder:text-muted-foreground')
       }
     )
 

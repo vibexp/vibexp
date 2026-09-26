@@ -168,7 +168,7 @@ export const PromptMentionTextarea = forwardRef<
         className={cn(
           'w-full focus:ring-2 focus:ring-ring font-mono text-sm resize-y disabled:cursor-not-allowed disabled:opacity-50',
           frameless
-            ? error && 'ring-2 ring-destructive'
+            ? error && 'ring-2 ring-destructive focus:ring-destructive'
             : [
                 'px-4 py-3 border rounded-lg focus:border-transparent',
                 error ? 'border-destructive' : 'border-input',

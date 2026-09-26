@@ -246,8 +246,8 @@ export function ResourceFormControl({
         'data-testid': spec.testId,
       }
       if (renderBody) return renderBody(bodyProps)
-      // Write / Preview for every kind, with no extensions: the prompt-only
-      // mentions, Render tab and template loader are opt-in, and a page that
+      // Rendered / Raw for every kind, with no extensions: the prompt-only
+      // mentions, Render option and template loader are opt-in, and a page that
       // wants them passes its own `renderBody` (#914).
       return (
         <ResourceBodyEditor
