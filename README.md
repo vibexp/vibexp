@@ -10,7 +10,7 @@ One shared knowledge base your prompts, rules, memory, and past work live in, th
 
 Free, open source, and self-hostable.
 
-[🌐 Website](https://vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=brand_link&utm_content=header) · [📚 Docs](https://docs.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=header) · [✍️ Blog](https://blog.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=blog_link&utm_content=header)
+[🌐 Website](https://vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=brand_link&utm_content=header) · [📚 Docs](https://vibexp.io/docs/?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=header) · [✍️ Blog](https://vibexp.io/blog/?utm_source=github&utm_medium=readme&utm_campaign=blog_link&utm_content=header)
 
 ⭐ **If this solves a problem for you, please [star the repo](https://github.com/vibexp/vibexp)** so more people find it.
 
@@ -83,7 +83,7 @@ The defaults in `docker-compose.yml` are for local evaluation only. For any real
 - **`SESSION_ENCRYPTION_KEY`** (`openssl rand -hex 32`) and an **identity provider**: set `AUTH_PROVIDER` to `google`, `github`, or `oidc` with the matching `*_CLIENT_ID` / `*_CLIENT_SECRET` (and `*_REDIRECT_URI` if it differs from `<FRONTEND_BASE_URL>/api/v1/auth/callback`). For several providers at once, mount a `config.yaml` with `auth.providers: [...]`.
 - **MCP in production (optional)** — set `OAUTH_AS_ISSUER_URL` (your public HTTPS URL) **and** `MCP_RESOURCE_URI` (`<url>/mcp/v1/common`) to enable the embedded OAuth server that issues MCP tokens.
 - **Branding / analytics (optional)** rebrand the SPA at deploy time with `VITE_*` env vars (served via `/config.js`, no rebuild) — see the `app` service comments in `docker-compose.yml`.
-- **Semantic search & file attachments** are optional, opt-in services. See the comments in `docker-compose.yml` and the [docs](https://docs.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=self_host).
+- **Semantic search & file attachments** are optional, opt-in services. See the comments in `docker-compose.yml` and the [docs](https://vibexp.io/docs/?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=self_host).
 
 Data persists in the `pgdata` volume.
 
@@ -166,7 +166,7 @@ volumes:
 
 </details>
 
-> ⬆️ **Upgrading an existing deployment?** Check the [upgrade guide](https://docs.vibexp.io/user-guide/self-hosting/upgrading/?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=upgrading) — it lists the breaking changes that need a config edit before the new image will start.
+> ⬆️ **Upgrading an existing deployment?** Check the [upgrade guide](https://vibexp.io/docs/user-guide/self-hosting/upgrading/?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=upgrading) — it lists the breaking changes that need a config edit before the new image will start.
 
 ---
 
@@ -178,7 +178,7 @@ VibeXP exposes a single MCP endpoint. Sign in once in the browser, no API keys t
 claude mcp add --transport http vibexp http://localhost:8080/mcp/v1/common
 ```
 
-Swap `localhost:8080` for your deployment's public URL. Full per-tool instructions (Cursor, VS Code, Gemini CLI, ChatGPT, Codex) are in the **[docs](https://docs.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=connect)**.
+Swap `localhost:8080` for your deployment's public URL. Full per-tool instructions (Cursor, VS Code, Gemini CLI, ChatGPT, Codex) are in the **[docs](https://vibexp.io/docs/?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=connect)**.
 
 ---
 
@@ -252,7 +252,7 @@ See [`CLAUDE.md`](./CLAUDE.md) for the full contributor guide and conventions.
 
 Contributions are welcome. Branch off `main`, open a PR, and let CI pass. 💚 **Every PR must link an open issue** — add `Fixes #N` to the description or link one from the Development sidebar (a `pr-linked-issue` check enforces this). The repo also runs stale-issue and project-board automations — see [`CLAUDE.md`](./CLAUDE.md#repository-automations).
 
-**Always target `main`, including bug fixes.** Patch releases are cut from a `release/X.Y.x` maintenance branch, but fixes land on `main` first and maintainers cherry-pick them onto the line — you never need to open a PR against a release branch. Full process: [Releases and backports](https://docs.vibexp.io/developer-guide/contributing/workflow/#releases-and-backports).
+**Always target `main`, including bug fixes.** Patch releases are cut from a `release/X.Y.x` maintenance branch, but fixes land on `main` first and maintainers cherry-pick them onto the line — you never need to open a PR against a release branch. Full process: [Releases and backports](https://vibexp.io/docs/developer-guide/contributing/workflow/#releases-and-backports).
 
 ---
 
@@ -264,6 +264,6 @@ Contributions are welcome. Branch off `main`, open a PR, and let CI pass. 💚 *
 
 If VibeXP saves you from re-explaining yourself to your AI, **[give it a ⭐](https://github.com/vibexp/vibexp)** and tell a teammate.
 
-[Website](https://vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=brand_link&utm_content=footer) · [Docs](https://docs.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=footer) · [Blog](https://blog.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=blog_link&utm_content=footer)
+[Website](https://vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=brand_link&utm_content=footer) · [Docs](https://vibexp.io/docs/?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=footer) · [Blog](https://vibexp.io/blog/?utm_source=github&utm_medium=readme&utm_campaign=blog_link&utm_content=footer)
 
 </div>
