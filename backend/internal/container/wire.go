@@ -53,6 +53,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideTeamFreshnessSettingsRepository,
 	providers.ProvideFreshnessAuditRepository,
 	providers.ProvideTeamSettingsAuditRepository,
+	providers.ProvideInstanceSettingsAuditRepository,
 	providers.ProvideFreshnessCandidateRepository,
 	providers.ProvideTypeRepository,
 	providers.ProvideContentVersionRepository,

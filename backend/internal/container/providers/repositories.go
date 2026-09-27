@@ -93,6 +93,11 @@ func ProvideTeamSettingsAuditRepository(db *database.DB) repositories.TeamSettin
 	return postgres.NewTeamSettingsAuditRepository(db)
 }
 
+// ProvideInstanceSettingsAuditRepository creates a new InstanceSettingsAuditRepository
+func ProvideInstanceSettingsAuditRepository(db *database.DB) repositories.InstanceSettingsAuditRepository {
+	return postgres.NewInstanceSettingsAuditRepository(db)
+}
+
 // ProvideFreshnessCandidateRepository creates a new FreshnessCandidateRepository
 func ProvideFreshnessCandidateRepository(db *database.DB) repositories.FreshnessCandidateRepository {
 	return postgres.NewFreshnessCandidateRepository(db)

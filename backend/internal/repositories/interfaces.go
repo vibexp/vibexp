@@ -215,6 +215,13 @@ var (
 	// email configuration (epic #1185).
 	ErrInstanceEmailProviderNotFound = errors.New("instance email provider not found")
 
+	// ErrInstanceSettingsAuditUnredacted is returned by
+	// InstanceSettingsAuditRepository.Append when a before/after snapshot
+	// carries a credential key ("secret" or "secret_encrypted") whose value is
+	// anything but the "changed"/"unchanged" marker. Nothing is written: the
+	// log must never hold a plaintext secret (#1187).
+	ErrInstanceSettingsAuditUnredacted = errors.New("instance settings audit snapshot is not redacted")
+
 	// ErrFeedNotFound is returned by FeedRepository lookups/updates/deletes when no
 	// feed row matches the given identifier for the team.
 	ErrFeedNotFound = errors.New("feed not found")
@@ -2052,6 +2059,28 @@ type TeamSettingsAuditRepository interface {
 	// A limit of zero or less means "no limit"; a negative offset is clamped to
 	// zero.
 	ListByTeam(ctx context.Context, teamID string, limit, offset int) ([]*models.TeamSettingsAudit, int, error)
+}
+
+// InstanceSettingsAuditRepository appends to and reads the instance-level
+// settings log (table `instance_settings_audit`, #1187, epic #1185). The log is
+// append-only: there is deliberately no update and no delete.
+//
+// The scope is the instance, so there is no tenancy predicate, and there is no
+// role predicate either (authz decision D3): only instance admins may read or
+// write this log, and enforcing that is the calling service's job.
+type InstanceSettingsAuditRepository interface {
+	// Append records one entry, populating ID and CreatedAt from the persisted
+	// row on return. It rejects a before/after snapshot that carries a
+	// credential with ErrInstanceSettingsAuditUnredacted, before any query.
+	Append(ctx context.Context, entry *models.InstanceSettingsAuditEntry) error
+	// List returns up to limit entries for one setting, newest first (ties
+	// broken by id), strictly after cursor when one is given; a nil cursor is
+	// the first page. The returned cursor positions the next page and is nil
+	// when there are no more entries. A limit of zero or less means the default
+	// page size, and a limit above the maximum is clamped to it.
+	List(
+		ctx context.Context, setting string, limit int, cursor *models.InstanceSettingsAuditCursor,
+	) ([]*models.InstanceSettingsAuditEntry, *models.InstanceSettingsAuditCursor, error)
 }
 
 // EmbeddingJobRepository is the durable, leased queue of outstanding embedding
