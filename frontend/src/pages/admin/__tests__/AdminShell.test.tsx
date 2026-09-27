@@ -7,9 +7,18 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 
+import { STORAGE_KEYS } from '@/constants/storageKeys'
 import { ThemeProvider } from '@/lib/theme'
 import { ADMIN_NAV_ITEMS } from '@/pages/admin/admin-nav'
 import { AdminShell } from '@/pages/admin/AdminShell'
+import { adminService } from '@/services/adminService'
+import { sessionStore } from '@/utils/storage'
+
+// The instance email warning banner (#1192) reads this on mount.
+vi.mock('@/services/adminService', () => ({
+  adminService: { getInstanceEmailSettings: vi.fn() },
+}))
+const mockEmailSettings = vi.mocked(adminService.getInstanceEmailSettings)
 
 const mockUseAuth = vi.hoisted(() => vi.fn())
 vi.mock('@/contexts/useAuth', () => ({
@@ -46,6 +55,13 @@ function renderShell(path = '/admin/users') {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  sessionStore.remove(STORAGE_KEYS.ADMIN_EMAIL_BANNER_DISMISSED)
+  mockEmailSettings.mockResolvedValue({
+    configured: true,
+    provider_type: 'smtp',
+    has_credential: true,
+    is_healthy: true,
+  })
   mockUseAuth.mockReturnValue({
     user: {
       id: 'u1',
@@ -166,4 +182,25 @@ it('opens a mobile drawer with the same nav items', async () => {
         .some(link => dialog.contains(link))
     ).toBe(true)
   }
+})
+
+it('shows the instance email warning above the page when email is unconfigured (#1192)', async () => {
+  mockEmailSettings.mockResolvedValue({
+    configured: false,
+    provider_type: null,
+    has_credential: false,
+    is_healthy: null,
+  })
+  renderShell('/admin/users')
+
+  const banner = await screen.findByTestId('admin-email-warning')
+  const heading = screen.getByRole('heading', { name: 'Users', level: 1 })
+  // The banner sits above the section heading and the page content.
+  expect(
+    banner.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy()
+  expect(
+    banner.compareDocumentPosition(screen.getByText('page body')) &
+      Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy()
 })

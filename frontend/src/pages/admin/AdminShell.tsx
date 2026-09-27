@@ -3,6 +3,7 @@ import { useLocation } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import { adminSectionFor } from '@/pages/admin/admin-nav'
+import { AdminEmailWarningBanner } from '@/pages/admin/AdminEmailWarningBanner'
 import { AdminHeader } from '@/pages/admin/AdminHeader'
 import { AdminSidebar } from '@/pages/admin/AdminSidebar'
 
@@ -38,6 +39,7 @@ export function AdminShell({ children }: Readonly<{ children: ReactNode }>) {
         <AdminHeader />
         <main className="flex-1 overflow-auto">
           <div className="mx-auto w-full max-w-screen-xl px-4 py-6 md:px-6 lg:px-8">
+            <AdminEmailWarningBanner />
             {section && (
               <PageHeader
                 title={section.label}

@@ -3,9 +3,32 @@ import { Database } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatBytes } from '@/pages/admin/dashboard/format'
+import { InstanceEmailCard } from '@/pages/admin/dashboard/InstanceEmailCard'
 import type { AdminSystemHealth } from '@/services/adminService'
 
 export function SystemHealthPanel({
+  health,
+  version,
+  loading,
+}: Readonly<{
+  health: AdminSystemHealth | null
+  version: string
+  loading: boolean
+}>) {
+  return (
+    <div className="space-y-4">
+      {/* Its own row, outside the overview's loading and error states: the
+          mail status has its own request, and an overview failure must not
+          hide a mail problem (#1192). */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <InstanceEmailCard />
+      </div>
+      <DatabaseHealth health={health} version={version} loading={loading} />
+    </div>
+  )
+}
+
+function DatabaseHealth({
   health,
   version,
   loading,

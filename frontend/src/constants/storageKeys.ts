@@ -61,6 +61,12 @@ export const STORAGE_KEYS = {
    * welcome toast, then removes the key.
    */
   INVITATION_JUST_ACCEPTED: 'vx_invitation_just_accepted',
+  /**
+   * `true` once an instance admin dismissed the admin shell's "instance email
+   * is not configured / failing" banner (#1192). sessionStorage, so the banner
+   * comes back in a new tab or session.
+   */
+  ADMIN_EMAIL_BANNER_DISMISSED: 'vx_admin_email_banner_dismissed',
 
   // App shell (#886)
   /**
@@ -155,6 +161,7 @@ export const SESSION_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([
   STORAGE_KEYS.PENDING_INVITATION_TOKEN,
   STORAGE_KEYS.INVITATION_BANNER_DISMISSED,
   STORAGE_KEYS.INVITATION_JUST_ACCEPTED,
+  STORAGE_KEYS.ADMIN_EMAIL_BANNER_DISMISSED,
   STORAGE_KEYS.ANALYTICS_REFERRER,
   STORAGE_KEYS.PURCHASE_TRACKED,
   STORAGE_KEYS.LOGIN_METHOD,
