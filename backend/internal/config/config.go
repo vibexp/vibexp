@@ -775,7 +775,7 @@ func (c *Config) GetDeploymentEnvironment() string {
 //
 // Exported because it is the single definition shared by four enforcement
 // points: this validator, the team_search_settings CHECK constraints
-// (migration 012), the instance_search_settings CHECK constraint (migration
+// (migration 011_consolidated), the instance_search_settings CHECK constraint (migration
 // 022), and the per-team settings request validator. Change them together.
 const MaxSearchRankHalfLifeDays = 36500
 
