@@ -117,6 +117,7 @@ packages:
       GitHubAppConfigRepository:
       GitHubInstallationRepository:
       InstanceEmailProviderRepository:
+      InstanceSettingsAuditRepository:
       MemoryRepository:
       MetadataCatalogRepository:
       ModelProviderRepository:
