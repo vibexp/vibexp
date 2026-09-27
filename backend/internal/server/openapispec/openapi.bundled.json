@@ -40753,7 +40753,7 @@
       },
       "AdminInstanceSettingsAuditEntry": {
         "type": "object",
-        "description": "One append-only change to an instance setting. `before` and `after` are\nREDACTED snapshots: they never contain a credential, only\n`has_credential` and, on an upsert's `after`, a `secret` marker saying\nwhether the credential was `changed` or `unchanged`.\n",
+        "description": "One append-only change to an instance setting. `before` and `after` are\nsnapshots of the setting's values, filtered to that setting's allowlisted\nkeys, and never contain a credential. For `email_provider` they report\nonly `has_credential` and, on an upsert's `after`, a `secret` marker\nsaying whether the credential was `changed` or `unchanged`; the `search`\nand `ai_summary` snapshots are the settings' values, which hold no\ncredential.\n",
         "additionalProperties": false,
         "required": [
           "id",
@@ -40774,6 +40774,16 @@
           "setting": {
             "type": "string",
             "description": "The instance setting the entry describes.",
+            "enum": [
+              "email_provider",
+              "search",
+              "ai_summary"
+            ],
+            "x-enum-varnames": [
+              "AdminInstanceSettingsAuditEntrySettingEmailProvider",
+              "AdminInstanceSettingsAuditEntrySettingSearch",
+              "AdminInstanceSettingsAuditEntrySettingAiSummary"
+            ],
             "example": "email_provider"
           },
           "action": {

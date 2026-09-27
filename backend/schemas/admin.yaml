@@ -2739,9 +2739,12 @@ AdminInstanceSettingsAuditEntry:
   type: object
   description: |
     One append-only change to an instance setting. `before` and `after` are
-    REDACTED snapshots: they never contain a credential, only
-    `has_credential` and, on an upsert's `after`, a `secret` marker saying
-    whether the credential was `changed` or `unchanged`.
+    snapshots of the setting's values, filtered to that setting's allowlisted
+    keys, and never contain a credential. For `email_provider` they report
+    only `has_credential` and, on an upsert's `after`, a `secret` marker
+    saying whether the credential was `changed` or `unchanged`; the `search`
+    and `ai_summary` snapshots are the settings' values, which hold no
+    credential.
   additionalProperties: false
   required:
     - id
@@ -2760,6 +2763,16 @@ AdminInstanceSettingsAuditEntry:
     setting:
       type: string
       description: The instance setting the entry describes.
+      enum:
+        - email_provider
+        - search
+        - ai_summary
+      # Explicit constant names: generated clients emit every schema into one
+      # package, so bare names risk colliding with another enum's values.
+      x-enum-varnames:
+        - AdminInstanceSettingsAuditEntrySettingEmailProvider
+        - AdminInstanceSettingsAuditEntrySettingSearch
+        - AdminInstanceSettingsAuditEntrySettingAiSummary
       example: "email_provider"
     action:
       type: string

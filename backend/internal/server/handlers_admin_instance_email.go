@@ -415,7 +415,7 @@ func toGenAdminInstanceSettingsAuditEntry(
 
 	return admingen.AdminInstanceSettingsAuditEntry{
 		Id:          id,
-		Setting:     row.Setting,
+		Setting:     admingen.AdminInstanceSettingsAuditEntrySetting(row.Setting),
 		Action:      admingen.AdminInstanceSettingsAuditEntryAction(row.Action),
 		ActorUserId: actorID,
 		ActorName:   actorName,

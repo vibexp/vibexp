@@ -22,6 +22,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
+	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
@@ -841,4 +842,21 @@ func TestRequestTimeoutFromMS(t *testing.T) {
 	assert.Equal(t, 45*time.Second, requestTimeoutFromMS(45000))
 	assert.Equal(t, time.Duration(0), requestTimeoutFromMS(-5))
 	assert.Equal(t, time.Duration(math.MaxInt32+1)*time.Millisecond, requestTimeoutFromMS(math.MaxInt64))
+}
+
+// TestInstanceSettingsAuditVocabularyMatchesSpec pins the stored setting and
+// action constants to the audit entry's published enums, so a constant added
+// or renamed in models cannot silently produce an off-spec response.
+func TestInstanceSettingsAuditVocabularyMatchesSpec(t *testing.T) {
+	for _, setting := range []string{
+		models.InstanceSettingEmailProvider, models.InstanceSettingSearch, models.InstanceSettingAISummary,
+	} {
+		assert.True(t, admingen.AdminInstanceSettingsAuditEntrySetting(setting).Valid(), setting)
+	}
+	for _, action := range []string{
+		models.InstanceSettingsAuditActionUpsert, models.InstanceSettingsAuditActionDelete,
+		models.InstanceSettingsAuditActionImport,
+	} {
+		assert.True(t, admingen.AdminInstanceSettingsAuditEntryAction(action).Valid(), action)
+	}
 }

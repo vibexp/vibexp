@@ -137,6 +137,27 @@ func (e AdminInstanceSettingsAuditEntryAction) Valid() bool {
 	}
 }
 
+// Defines values for AdminInstanceSettingsAuditEntrySetting.
+const (
+	AdminInstanceSettingsAuditEntrySettingAiSummary     AdminInstanceSettingsAuditEntrySetting = "ai_summary"
+	AdminInstanceSettingsAuditEntrySettingEmailProvider AdminInstanceSettingsAuditEntrySetting = "email_provider"
+	AdminInstanceSettingsAuditEntrySettingSearch        AdminInstanceSettingsAuditEntrySetting = "search"
+)
+
+// Valid indicates whether the value is a known member of the AdminInstanceSettingsAuditEntrySetting enum.
+func (e AdminInstanceSettingsAuditEntrySetting) Valid() bool {
+	switch e {
+	case AdminInstanceSettingsAuditEntrySettingAiSummary:
+		return true
+	case AdminInstanceSettingsAuditEntrySettingEmailProvider:
+		return true
+	case AdminInstanceSettingsAuditEntrySettingSearch:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminInstanceSettingsSource.
 const (
 	AdminInstanceSettingsSourceDefault  AdminInstanceSettingsSource = "default"
@@ -1655,9 +1676,12 @@ type AdminInstanceSearchValues struct {
 }
 
 // AdminInstanceSettingsAuditEntry One append-only change to an instance setting. `before` and `after` are
-// REDACTED snapshots: they never contain a credential, only
-// `has_credential` and, on an upsert's `after`, a `secret` marker saying
-// whether the credential was `changed` or `unchanged`.
+// snapshots of the setting's values, filtered to that setting's allowlisted
+// keys, and never contain a credential. For `email_provider` they report
+// only `has_credential` and, on an upsert's `after`, a `secret` marker
+// saying whether the credential was `changed` or `unchanged`; the `search`
+// and `ai_summary` snapshots are the settings' values, which hold no
+// credential.
 type AdminInstanceSettingsAuditEntry struct {
 	// Action `upsert` (created or replaced by an admin), `delete` (removed by an
 	// admin) or `import` (the boot-time import from config.yaml, which has no
@@ -1684,13 +1708,16 @@ type AdminInstanceSettingsAuditEntry struct {
 	Id openapi_types.UUID `json:"id"`
 
 	// Setting The instance setting the entry describes.
-	Setting string `json:"setting"`
+	Setting AdminInstanceSettingsAuditEntrySetting `json:"setting"`
 }
 
 // AdminInstanceSettingsAuditEntryAction `upsert` (created or replaced by an admin), `delete` (removed by an
 // admin) or `import` (the boot-time import from config.yaml, which has no
 // actor).
 type AdminInstanceSettingsAuditEntryAction string
+
+// AdminInstanceSettingsAuditEntrySetting The instance setting the entry describes.
+type AdminInstanceSettingsAuditEntrySetting string
 
 // AdminInstanceSettingsAuditPage One page of an instance setting's audit log, newest first.
 type AdminInstanceSettingsAuditPage struct {
