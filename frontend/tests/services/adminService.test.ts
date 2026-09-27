@@ -718,3 +718,136 @@ describe('CSV exports', () => {
     })
   })
 })
+
+describe('instance email settings (#1191)', () => {
+  const settings = {
+    configured: false,
+    provider_type: null,
+    has_credential: false,
+    is_healthy: null,
+  }
+  const body = {
+    provider_type: 'smtp' as const,
+    from_address: 'noreply@acme.test',
+    settings: { smtp: { host: 'mailpit', port: '1025' } },
+    secret: 'pw',
+  }
+  const noContent = {
+    ok: true,
+    status: 204,
+    statusText: 'No Content',
+  } as Response
+
+  it('getInstanceEmailSettings reads the settings', async () => {
+    mockGeneratedClient.GET.mockReturnValue(success(settings))
+
+    await expect(adminService.getInstanceEmailSettings()).resolves.toEqual(
+      settings
+    )
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/admin/settings/email'
+    )
+  })
+
+  it('upsertInstanceEmailSettings PUTs the body', async () => {
+    mockGeneratedClient.PUT.mockReturnValue(success(settings))
+
+    await adminService.upsertInstanceEmailSettings(body)
+
+    expect(mockGeneratedClient.PUT).toHaveBeenCalledWith(
+      '/api/v1/admin/settings/email',
+      { body }
+    )
+  })
+
+  it('deleteInstanceEmailSettings DELETEs and resolves on 204', async () => {
+    mockGeneratedClient.DELETE.mockReturnValue(
+      Promise.resolve({ data: undefined, response: noContent })
+    )
+
+    await expect(
+      adminService.deleteInstanceEmailSettings()
+    ).resolves.toBeUndefined()
+    expect(mockGeneratedClient.DELETE).toHaveBeenCalledWith(
+      '/api/v1/admin/settings/email'
+    )
+  })
+
+  it('deleteInstanceEmailSettings surfaces "nothing configured" as a 409 ApiError', async () => {
+    mockGeneratedClient.DELETE.mockReturnValue(
+      Promise.resolve({
+        error: {
+          type: 'about:blank',
+          title: 'Conflict',
+          status: 409,
+          detail: 'No instance email provider is configured',
+          code: 'INSTANCE_EMAIL_PROVIDER_NOT_CONFIGURED',
+          request_id: 'r1',
+          timestamp: '2026-01-01T00:00:00Z',
+        },
+        response: {
+          ok: false,
+          status: 409,
+          statusText: 'Conflict',
+        } as Response,
+      })
+    )
+
+    await expect(
+      adminService.deleteInstanceEmailSettings()
+    ).rejects.toMatchObject({
+      status: 409,
+      code: 'INSTANCE_EMAIL_PROVIDER_NOT_CONFIGURED',
+    })
+  })
+
+  it('testInstanceEmailSettings sends no body to test the stored configuration', async () => {
+    mockGeneratedClient.POST.mockReturnValue(
+      success({
+        is_valid: true,
+        message: 'sent',
+        recipient: 'a@acme.test',
+        details: {},
+      })
+    )
+
+    await adminService.testInstanceEmailSettings()
+
+    expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+      '/api/v1/admin/settings/email/test',
+      {}
+    )
+  })
+
+  it('testInstanceEmailSettings sends a candidate configuration as the body', async () => {
+    mockGeneratedClient.POST.mockReturnValue(
+      success({
+        is_valid: false,
+        message: 'failed',
+        recipient: 'a@acme.test',
+        details: {},
+      })
+    )
+
+    await expect(
+      adminService.testInstanceEmailSettings(body)
+    ).resolves.toMatchObject({ is_valid: false })
+    expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+      '/api/v1/admin/settings/email/test',
+      { body }
+    )
+  })
+
+  it('listInstanceEmailSettingsAudit forwards the cursor and limit', async () => {
+    const page = { entries: [], next_cursor: null }
+    mockGeneratedClient.GET.mockReturnValue(success(page))
+
+    await expect(
+      adminService.listInstanceEmailSettingsAudit({ cursor: 'c1', limit: 20 })
+    ).resolves.toEqual(page)
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/admin/settings/email/audit',
+      { params: { query: { cursor: 'c1', limit: 20 } } }
+    )
+  })
+})

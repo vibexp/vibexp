@@ -2,12 +2,15 @@ import { z } from 'zod'
 
 import type {
   EmailProviderType,
-  TeamEmailProviderResponse,
+  TeamEmailProviderSettings,
   UpsertTeamEmailProviderRequest,
 } from '@/services/emailProviderService'
 
 /**
- * Form schema and wire mapping for the team email-provider page.
+ * Form schema and wire mapping for an email provider — shared by the team
+ * email-provider page and the instance admin's Settings → Email page (#1191),
+ * so the four-way provider switch lives in one place. The instance page adds
+ * its own fields and secret rules on top (`pages/admin/settings/email/`).
  *
  * A sibling data module rather than consts inside `EmailProvider.tsx`: a `.tsx`
  * that exports both a component and a value trips
@@ -67,78 +70,93 @@ export function providerTypeMeta(id: EmailProviderType): ProviderTypeMeta {
  * non-secret settings under `settings.<type>`. `toRequest` does the nesting, so
  * switching provider type never has to move values between sub-objects.
  */
-export const emailProviderSchema = z
-  .object({
-    provider_type: z.enum(['smtp', 'mailgun', 'postmark', 'sendgrid']),
-    from_address: z.email('Enter a valid email address'),
-    from_name: z.string().trim().max(255).optional(),
-    reply_to: z.string().trim().optional(),
-    // Requiredness depends on the ACTION, not the shape: saving an already
-    // configured provider may omit it, testing never may. See `secretError`.
-    secret: z.string().optional(),
-    smtp_host: z.string().trim().optional(),
-    smtp_port: z.string().trim().optional(),
-    smtp_username: z.string().trim().optional(),
-    mailgun_domain: z.string().trim().optional(),
-    mailgun_base_url: z.string().trim().optional(),
-    postmark_message_stream: z.string().trim().optional(),
-  })
-  .superRefine((values, ctx) => {
-    if (values.reply_to && !z.email().safeParse(values.reply_to).success) {
+export const emailProviderShape = {
+  provider_type: z.enum(['smtp', 'mailgun', 'postmark', 'sendgrid']),
+  from_address: z.email('Enter a valid email address'),
+  from_name: z.string().trim().max(255).optional(),
+  reply_to: z.string().trim().optional(),
+  // Requiredness depends on the ACTION, not the shape: saving an already
+  // configured provider may omit it. See `secretError` (team) and
+  // `instanceSecretError` (instance), whose test-send rules differ.
+  secret: z.string().optional(),
+  smtp_host: z.string().trim().optional(),
+  smtp_port: z.string().trim().optional(),
+  smtp_username: z.string().trim().optional(),
+  mailgun_domain: z.string().trim().optional(),
+  mailgun_base_url: z.string().trim().optional(),
+  postmark_message_stream: z.string().trim().optional(),
+}
+
+type EmailProviderShapeValues = z.infer<z.ZodObject<typeof emailProviderShape>>
+
+/**
+ * The cross-field rules of `emailProviderShape`, exported so a schema that
+ * extends the shape (the instance form) applies exactly the same checks — zod
+ * refuses to `.extend()` an object that already carries refinements.
+ */
+export function refineEmailProvider(
+  values: EmailProviderShapeValues,
+  ctx: z.RefinementCtx
+): void {
+  if (values.reply_to && !z.email().safeParse(values.reply_to).success) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['reply_to'],
+      message: 'Enter a valid email address',
+    })
+  }
+
+  if (values.provider_type === 'smtp') {
+    if (!values.smtp_host) {
       ctx.addIssue({
         code: 'custom',
-        path: ['reply_to'],
-        message: 'Enter a valid email address',
+        path: ['smtp_host'],
+        message: 'Host is required',
       })
     }
-
-    if (values.provider_type === 'smtp') {
-      if (!values.smtp_host) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['smtp_host'],
-          message: 'Host is required',
-        })
-      }
-      // Digits only, deliberately NOT `Number()`: the server parses the port
-      // with strconv.Atoi, which accepts an optional sign and decimal digits
-      // and nothing else. `Number()` also accepts "0x1f", "1e3" and "587.",
-      // which would pass here and then be rejected server-side — losing the
-      // inline field error this schema exists to give.
-      const port = Number(values.smtp_port)
-      if (!values.smtp_port) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['smtp_port'],
-          message: 'Port is required',
-        })
-      } else if (!/^\d+$/.test(values.smtp_port) || port < 1 || port > 65535) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['smtp_port'],
-          message: 'Port must be a number between 1 and 65535',
-        })
-      }
+    // Digits only, deliberately NOT `Number()`: the server parses the port
+    // with strconv.Atoi, which accepts an optional sign and decimal digits
+    // and nothing else. `Number()` also accepts "0x1f", "1e3" and "587.",
+    // which would pass here and then be rejected server-side — losing the
+    // inline field error this schema exists to give.
+    const port = Number(values.smtp_port)
+    if (!values.smtp_port) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['smtp_port'],
+        message: 'Port is required',
+      })
+    } else if (!/^\d+$/.test(values.smtp_port) || port < 1 || port > 65535) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['smtp_port'],
+        message: 'Port must be a number between 1 and 65535',
+      })
     }
+  }
 
-    if (values.provider_type === 'mailgun') {
-      if (!values.mailgun_domain) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['mailgun_domain'],
-          message: 'Domain is required',
-        })
-      } else if (values.mailgun_domain.includes('/')) {
-        // The backend requires a bare sending domain; a pasted dashboard URL is
-        // the likeliest mistake, so name it here rather than round-tripping.
-        ctx.addIssue({
-          code: 'custom',
-          path: ['mailgun_domain'],
-          message: 'Use the bare domain, not a URL (for example mg.acme.test)',
-        })
-      }
+  if (values.provider_type === 'mailgun') {
+    if (!values.mailgun_domain) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['mailgun_domain'],
+        message: 'Domain is required',
+      })
+    } else if (values.mailgun_domain.includes('/')) {
+      // The backend requires a bare sending domain; a pasted dashboard URL is
+      // the likeliest mistake, so name it here rather than round-tripping.
+      ctx.addIssue({
+        code: 'custom',
+        path: ['mailgun_domain'],
+        message: 'Use the bare domain, not a URL (for example mg.acme.test)',
+      })
     }
-  })
+  }
+}
+
+export const emailProviderSchema = z
+  .object(emailProviderShape)
+  .superRefine(refineEmailProvider)
 
 export type EmailProviderFormValues = z.infer<typeof emailProviderSchema>
 
@@ -157,6 +175,20 @@ export const EMPTY_FORM: EmailProviderFormValues = {
 }
 
 /**
+ * The part of a GET response the form is seeded from. Both the team response
+ * and the instance admin response satisfy it; the instance one reports a
+ * `null` provider type when nothing is configured.
+ */
+export interface StoredEmailProvider {
+  configured: boolean
+  provider_type?: EmailProviderType | null
+  settings?: TeamEmailProviderSettings
+  from_address?: string | null
+  from_name?: string | null
+  reply_to?: string | null
+}
+
+/**
  * Seeds the form from a GET response.
  *
  * `secret` is ALWAYS reset to `''` — it is write-only and no response can carry
@@ -167,7 +199,7 @@ export const EMPTY_FORM: EmailProviderFormValues = {
  * an address their own provider is not authorized to send for.
  */
 export function toFormValues(
-  response: TeamEmailProviderResponse
+  response: StoredEmailProvider
 ): EmailProviderFormValues {
   if (!response.configured) return EMPTY_FORM
 

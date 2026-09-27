@@ -3,7 +3,7 @@
  * and above all what it must NOT contain, since the whole point of the decoupled
  * branch is that nothing team-scoped reaches an instance-scoped page.
  */
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 
@@ -78,7 +78,33 @@ it('includes a Projects entry even before #461 adds the pages', () => {
     '/admin/users',
     '/admin/teams',
     '/admin/projects',
+    '/admin/settings/email',
   ])
+})
+
+it('lists Email under a "Settings" group after the Administration items (#1191)', () => {
+  renderShell()
+
+  const nav = screen.getByRole('navigation', { name: 'Admin sections' })
+  const labels = within(nav).getAllByText(/^(administration|settings)$/i)
+  expect(labels.map(l => l.textContent)).toEqual(['Administration', 'Settings'])
+  const settingsGroup = labels[1].parentElement
+  if (!settingsGroup) throw new Error('the Settings label has no group')
+  const [emailLink] = within(settingsGroup).getAllByRole('link', {
+    name: 'Email',
+  })
+  expect(emailLink).toHaveAttribute('href', '/admin/settings/email')
+  expect(
+    within(settingsGroup).queryByRole('link', { name: 'Users' })
+  ).not.toBeInTheDocument()
+})
+
+it('titles the Settings → Email page in the shell', () => {
+  renderShell('/admin/settings/email')
+
+  expect(
+    screen.getByRole('heading', { name: 'Email', level: 1 })
+  ).toBeInTheDocument()
 })
 
 it('renders the section heading for a section path', () => {

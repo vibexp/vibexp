@@ -2,6 +2,7 @@ import {
   FolderKanban,
   LayoutDashboard,
   type LucideIcon,
+  Mail,
   Users,
   UsersRound,
 } from 'lucide-react'
@@ -15,6 +16,27 @@ export interface AdminNavItem {
   end?: boolean
   /** Subtitle for the shell's section heading on this exact path. */
   description: string
+  /**
+   * The sidebar group the item is listed under: the instance's records
+   * (`admin`, the default) or its configuration (`settings`, #1191).
+   */
+  group?: AdminNavGroup
+}
+
+export type AdminNavGroup = 'admin' | 'settings'
+
+/** Sidebar group labels, in display order. */
+export const ADMIN_NAV_GROUPS: readonly {
+  id: AdminNavGroup
+  label: string
+}[] = [
+  { id: 'admin', label: 'Administration' },
+  { id: 'settings', label: 'Settings' },
+]
+
+/** The items listed under `group`, in `ADMIN_NAV_ITEMS` order. */
+export function adminNavItemsIn(group: AdminNavGroup): AdminNavItem[] {
+  return ADMIN_NAV_ITEMS.filter(item => (item.group ?? 'admin') === group)
 }
 
 /**
@@ -50,6 +72,14 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     href: '/admin/projects',
     icon: FolderKanban,
     description: 'Every project on this instance.',
+  },
+  {
+    label: 'Email',
+    href: '/admin/settings/email',
+    icon: Mail,
+    group: 'settings',
+    description:
+      'How this instance sends mail: provider, delivery health and change history.',
   },
 ]
 

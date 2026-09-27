@@ -17,6 +17,18 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Form } from '@/components/ui/form'
+import {
+  ProviderCard,
+  SenderIdentityCard,
+} from '@/features/email-provider/EmailProviderFields'
+import {
+  type EmailProviderFormValues,
+  emailProviderSchema,
+  EMPTY_FORM,
+  secretError,
+  toFormValues,
+  toRequest,
+} from '@/features/email-provider/emailProviderForm'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { toast } from '@/lib/toast'
@@ -27,15 +39,6 @@ import {
 } from '@/services/emailProviderService'
 import type { Team } from '@/services/teamService'
 
-import { ProviderCard, SenderIdentityCard } from './EmailProviderFields'
-import {
-  type EmailProviderFormValues,
-  emailProviderSchema,
-  EMPTY_FORM,
-  secretError,
-  toFormValues,
-  toRequest,
-} from './emailProviderForm'
 import { ReadOnlyCard, StatusCard } from './EmailProviderStatus'
 
 /**

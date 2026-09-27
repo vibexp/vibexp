@@ -14,6 +14,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mocked } from 'vitest'
 
+import { AlertProvider } from '@/contexts/AlertContext'
 import { ThemeProvider } from '@/lib/theme'
 import { AdminRoutes } from '@/pages/admin/AdminRoutes'
 import { AdminShell } from '@/pages/admin/AdminShell'
@@ -57,6 +58,9 @@ vi.mock('@/services/adminService', () => ({
     getProjectTopAccessedResources: vi.fn(() => new Promise(() => {})),
     // Every list page's presets menu loads on mount (#1148).
     getSavedFilters: vi.fn(() => new Promise(() => {})),
+    // Settings → Email (#1191) loads its settings and history on mount.
+    getInstanceEmailSettings: vi.fn(() => new Promise(() => {})),
+    listInstanceEmailSettingsAudit: vi.fn(() => new Promise(() => {})),
   },
 }))
 
@@ -168,24 +172,28 @@ const teamDetail: AdminTeamDetail = {
  * render "app shell" instead.
  */
 function renderAt(path: string) {
+  // AlertProvider sits above the /admin route in App.tsx too; pages that
+  // report errors through useErrorHandler (Settings → Email, #1191) need it.
   return render(
-    <ThemeProvider defaultTheme="light">
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route
-            path="/admin/*"
-            element={
-              <RequireInstanceAdmin>
-                <AdminShell>
-                  <AdminRoutes />
-                </AdminShell>
-              </RequireInstanceAdmin>
-            }
-          />
-          <Route path="/*" element={<div>app shell</div>} />
-        </Routes>
-      </MemoryRouter>
-    </ThemeProvider>
+    <AlertProvider>
+      <ThemeProvider defaultTheme="light">
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route
+              path="/admin/*"
+              element={
+                <RequireInstanceAdmin>
+                  <AdminShell>
+                    <AdminRoutes />
+                  </AdminShell>
+                </RequireInstanceAdmin>
+              }
+            />
+            <Route path="/*" element={<div>app shell</div>} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>
+    </AlertProvider>
   )
 }
 
@@ -243,6 +251,7 @@ it.each([
   // #456 added the Projects nav entry, which rendered the in-shell 404 until
   // #461 added the route it points at.
   ['/admin/projects', 'Projects'],
+  ['/admin/settings/email', 'Email'],
 ])('renders %s inside the admin shell', async (path, heading) => {
   asAdmin()
   renderAt(path)

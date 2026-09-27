@@ -207,7 +207,7 @@ describe('PromptService', () => {
         '/api/v1/{team_id}/prompts/{slug}/render',
         {
           params: { path: { team_id: teamId, slug } },
-          body: { placeholders: { name: 'World' } },
+          body: { placeholders: { name: 'World' }, strict: false },
         }
       )
       expect(result).toEqual(rendered)

@@ -9,9 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { providerTypeMeta } from '@/features/email-provider/emailProviderForm'
 import type { TeamEmailProviderResponse } from '@/services/emailProviderService'
-
-import { providerTypeMeta } from './emailProviderForm'
 
 /**
  * The read-only halves of the email-provider page: the status card every role
