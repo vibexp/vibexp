@@ -163,13 +163,35 @@ func instanceAISummaryAuditFunc(action, actorUserID string) repositories.Instanc
 	}
 }
 
-// instanceAISummaryAuditSnapshot renders a row as its values, or nil for no
-// row. request_timeout is recorded in nanoseconds (time.Duration's JSON form).
+// instanceAISummaryAuditValues is the audit snapshot of the instance AI summary
+// settings. It records the timeout as request_timeout_ms, the unit the table
+// stores, rather than time.Duration's bare nanosecond JSON form: audit rows are
+// kept permanently, so their format must not change later.
+type instanceAISummaryAuditValues struct {
+	Enabled           bool   `json:"enabled"`
+	TopN              int    `json:"top_n"`
+	Style             string `json:"style"`
+	MaxOutputTokens   int    `json:"max_output_tokens"`
+	PerDocumentChars  int    `json:"per_document_chars"`
+	TotalContextChars int    `json:"total_context_chars"`
+	RequestTimeoutMS  int64  `json:"request_timeout_ms"`
+}
+
+// instanceAISummaryAuditSnapshot renders a row as its audit values, or nil for
+// no row.
 func instanceAISummaryAuditSnapshot(row *models.InstanceAISummarySettings) (json.RawMessage, error) {
 	if row == nil {
 		return nil, nil
 	}
-	doc, err := json.Marshal(instanceAISummaryValuesFromStored(row))
+	doc, err := json.Marshal(instanceAISummaryAuditValues{
+		Enabled:           row.Enabled,
+		TopN:              row.TopN,
+		Style:             row.Style,
+		MaxOutputTokens:   row.MaxOutputTokens,
+		PerDocumentChars:  row.PerDocumentChars,
+		TotalContextChars: row.TotalContextChars,
+		RequestTimeoutMS:  row.RequestTimeout.Milliseconds(),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal instance AI summary settings snapshot: %w", err)
 	}

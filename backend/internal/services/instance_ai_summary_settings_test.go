@@ -214,9 +214,9 @@ func TestInstanceAISummarySettingsService_Update_StoresAndAudits(t *testing.T) {
 	require.NotNil(t, entry.ActorUserID)
 	assert.Equal(t, testInstanceAdminID, *entry.ActorUserID)
 	assert.JSONEq(t, `{"enabled":false,"top_n":7,"style":"detailed","max_output_tokens":2000,
-		"per_document_chars":4000,"total_context_chars":20000,"request_timeout":45000000000}`, string(entry.Before))
+		"per_document_chars":4000,"total_context_chars":20000,"request_timeout_ms":45000}`, string(entry.Before))
 	assert.JSONEq(t, `{"enabled":true,"top_n":3,"style":"concise","max_output_tokens":600,
-		"per_document_chars":5000,"total_context_chars":15000,"request_timeout":30000000000}`, string(entry.After))
+		"per_document_chars":5000,"total_context_chars":15000,"request_timeout_ms":30000}`, string(entry.After))
 }
 
 // A first save has no previous row: the entry's before is empty.
