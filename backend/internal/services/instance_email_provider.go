@@ -204,8 +204,10 @@ func (s *InstanceEmailProviderService) Test(
 
 // testConfiguration picks what a test send uses: the request's configuration
 // when it has one, otherwise the stored row. A request that omits its secret
-// borrows the stored one only when the stored provider type matches, so a
-// credential is never sent to a provider it was not issued for.
+// borrows the stored one only when it targets the SAME destination (see
+// sameStoredDestination), so a credential is never sent anywhere it was not
+// issued for — a test send is unaudited, so a looser rule would let the
+// write-only secret be recovered by pointing a test at a listener.
 func (s *InstanceEmailProviderService) testConfiguration(
 	config *models.UpsertInstanceEmailProviderRequest, stored *models.InstanceEmailProvider,
 ) (implementations.ProviderSpec, testSender, error) {
@@ -218,7 +220,7 @@ func (s *InstanceEmailProviderService) testConfiguration(
 		return s.storedTestConfiguration(stored)
 	}
 
-	canBorrowSecret := config.Secret == nil && sameStoredProviderType(stored, config.ProviderType)
+	canBorrowSecret := config.Secret == nil && sameStoredDestination(stored, config.UpsertTeamEmailProviderRequest)
 	if verr := validateInstanceUpsertRequest(*config, !canBorrowSecret); verr != nil {
 		return implementations.ProviderSpec{}, testSender{}, verr
 	}
@@ -390,6 +392,47 @@ func instanceEffective(row *models.InstanceEmailProvider) *models.InstanceEmailP
 // provider type — the only case in which its secret may be reused.
 func sameStoredProviderType(stored *models.InstanceEmailProvider, providerType string) bool {
 	return stored != nil && normalizeProviderType(stored.ProviderType) == normalizeProviderType(providerType)
+}
+
+// sameStoredDestination reports whether req targets exactly the destination the
+// stored secret was issued for: the same provider type and, where the caller
+// chooses the endpoint, the same SMTP host/port/username or Mailgun
+// base URL/domain. Postmark and SendGrid have fixed vendor endpoints, so the
+// type alone identifies them.
+func sameStoredDestination(stored *models.InstanceEmailProvider, req models.UpsertTeamEmailProviderRequest) bool {
+	if !sameStoredProviderType(stored, req.ProviderType) {
+		return false
+	}
+	storedSettings := settingsUnionFromStored(stored.ProviderType, stored.Settings)
+	if storedSettings == nil {
+		storedSettings = &models.TeamEmailProviderSettings{}
+	}
+
+	switch normalizeProviderType(req.ProviderType) {
+	case EmailProviderTypeSMTP:
+		return sameSMTPDestination(storedSettings.SMTP, req.Settings.SMTP)
+	case EmailProviderTypeMailgun:
+		return sameMailgunDestination(storedSettings.Mailgun, req.Settings.Mailgun)
+	default:
+		return true
+	}
+}
+
+func sameSMTPDestination(have, want *models.SMTPProviderSettings) bool {
+	if have == nil || want == nil {
+		return false
+	}
+	return strings.TrimSpace(have.Host) == strings.TrimSpace(want.Host) &&
+		strings.TrimSpace(have.Port) == strings.TrimSpace(want.Port) &&
+		have.Username == want.Username
+}
+
+func sameMailgunDestination(have, want *models.MailgunProviderSettings) bool {
+	if have == nil || want == nil {
+		return false
+	}
+	return strings.TrimSpace(have.BaseURL) == strings.TrimSpace(want.BaseURL) &&
+		strings.TrimSpace(have.Domain) == strings.TrimSpace(want.Domain)
 }
 
 func optionalActor(actorUserID string) *string {

@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -490,10 +493,11 @@ func TestInstanceEmailProvider_Test_SubmittedConfig(t *testing.T) {
 		"the send was attempted, so the loopback host was not rejected")
 }
 
-// A submitted config without a secret borrows the stored one only when the
-// stored provider type matches.
-func TestInstanceEmailProvider_Test_BorrowsTheStoredSecretOnlyForTheSameType(t *testing.T) {
-	t.Run("same type", func(t *testing.T) {
+// A submitted config without a secret borrows the stored one only when it
+// targets the same destination: a test send is unaudited, so borrowing for a
+// new host would let the write-only secret be sent to a listener.
+func TestInstanceEmailProvider_Test_BorrowsTheStoredSecretOnlyForTheSameDestination(t *testing.T) {
+	t.Run("same destination", func(t *testing.T) {
 		f := newInstanceProviderFixture(t)
 		f.repo.On("Get", mock.Anything).Return(f.storedRow(t), nil)
 		f.expectActingUser()
@@ -507,24 +511,113 @@ func TestInstanceEmailProvider_Test_BorrowsTheStoredSecretOnlyForTheSameType(t *
 		assert.Equal(t, models.TeamEmailProviderErrSendFailed, result.ErrorDetails)
 	})
 
-	t.Run("different type", func(t *testing.T) {
-		f := newInstanceProviderFixture(t)
-		f.repo.On("Get", mock.Anything).Return(f.storedRow(t), nil)
-		f.expectActingUser()
-		req := models.UpsertInstanceEmailProviderRequest{
-			UpsertTeamEmailProviderRequest: models.UpsertTeamEmailProviderRequest{
-				ProviderType: EmailProviderTypeSendGrid,
-				FromAddress:  "noreply@instance.test",
+	sendgrid := models.UpsertInstanceEmailProviderRequest{
+		UpsertTeamEmailProviderRequest: models.UpsertTeamEmailProviderRequest{
+			ProviderType: EmailProviderTypeSendGrid,
+			FromAddress:  "noreply@instance.test",
+		},
+	}
+	otherHost := validInstanceSMTPRequest()
+	otherHost.Secret = nil
+	otherHost.Settings.SMTP.Host = "collector.attacker.test"
+	otherPort := validInstanceSMTPRequest()
+	otherPort.Secret = nil
+	otherPort.Settings.SMTP.Port = "2525"
+	otherUser := validInstanceSMTPRequest()
+	otherUser.Secret = nil
+	otherUser.Settings.SMTP.Username = "someone-else"
+
+	for name, req := range map[string]models.UpsertInstanceEmailProviderRequest{
+		"different type":     sendgrid,
+		"different host":     otherHost,
+		"different port":     otherPort,
+		"different username": otherUser,
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newInstanceProviderFixture(t)
+			f.repo.On("Get", mock.Anything).Return(f.storedRow(t), nil)
+			f.expectActingUser()
+
+			_, err := f.svc.Test(context.Background(), testProviderUserID,
+				models.TestInstanceEmailProviderRequest{Config: &req})
+
+			var verr *TeamEmailProviderValidationError
+			require.ErrorAs(t, err, &verr)
+			assert.Equal(t, "secret", verr.Fields[0].Field)
+		})
+	}
+}
+
+func TestSameStoredDestination_Mailgun(t *testing.T) {
+	stored := &models.InstanceEmailProvider{
+		ProviderType: EmailProviderTypeMailgun,
+		Settings:     json.RawMessage(`{"domain":"mg.instance.test","base_url":"https://api.eu.mailgun.net/v3"}`),
+	}
+	req := func(domain, baseURL string) models.UpsertTeamEmailProviderRequest {
+		return models.UpsertTeamEmailProviderRequest{
+			ProviderType: EmailProviderTypeMailgun,
+			Settings: models.TeamEmailProviderSettings{
+				Mailgun: &models.MailgunProviderSettings{Domain: domain, BaseURL: baseURL},
 			},
 		}
+	}
 
-		_, err := f.svc.Test(context.Background(), testProviderUserID,
-			models.TestInstanceEmailProviderRequest{Config: &req})
+	assert.True(t, sameStoredDestination(stored, req("mg.instance.test", "https://api.eu.mailgun.net/v3")))
+	assert.False(t, sameStoredDestination(stored, req("mg.instance.test", "https://collector.attacker.test/v3")))
+	assert.False(t, sameStoredDestination(stored, req("mg.other.test", "https://api.eu.mailgun.net/v3")))
+	assert.False(t, sameStoredDestination(nil, req("mg.instance.test", "https://api.eu.mailgun.net/v3")))
+	assert.False(t, sameStoredDestination(stored, models.UpsertTeamEmailProviderRequest{
+		ProviderType: EmailProviderTypeMailgun,
+	}), "a request with no settings block never matches")
 
-		var verr *TeamEmailProviderValidationError
-		require.ErrorAs(t, err, &verr)
-		assert.Equal(t, "secret", verr.Fields[0].Field)
-	})
+	postmark := &models.InstanceEmailProvider{ProviderType: EmailProviderTypePostmark}
+	assert.True(t, sameStoredDestination(postmark, models.UpsertTeamEmailProviderRequest{
+		ProviderType: EmailProviderTypePostmark,
+	}), "a fixed vendor endpoint is identified by its type")
+}
+
+// Epic #1185 decision 5 on the TEST path, paired against the team test: a
+// Mailgun base URL on localhost is dialled for the instance and rejected for a
+// team.
+func TestInstanceEmailProvider_Test_NoSSRFGuard_UnlikeTheTeamPath(t *testing.T) {
+	mailgunServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer mailgunServer.Close()
+
+	secret := instanceLeakSentinel
+	req := models.UpsertInstanceEmailProviderRequest{
+		UpsertTeamEmailProviderRequest: models.UpsertTeamEmailProviderRequest{
+			ProviderType: EmailProviderTypeMailgun,
+			Settings: models.TeamEmailProviderSettings{
+				Mailgun: &models.MailgunProviderSettings{
+					Domain:  "mg.instance.test",
+					BaseURL: strings.Replace(mailgunServer.URL, "127.0.0.1", "localhost", 1) + "/v3",
+				},
+			},
+			Secret:      &secret,
+			FromAddress: "noreply@instance.test",
+		},
+	}
+
+	f := newInstanceProviderFixture(t)
+	f.repo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
+	f.expectActingUser()
+
+	result, err := f.svc.Test(context.Background(), testProviderUserID,
+		models.TestInstanceEmailProviderRequest{Config: &req})
+
+	require.NoError(t, err, "the instance test path has no SSRF guard")
+	assert.Equal(t, models.TeamEmailProviderErrSendFailed, result.ErrorDetails,
+		"the localhost endpoint was actually dialled")
+
+	team := newTestTeamEmailProviderService(t, repomocks.NewMockTeamEmailProviderRepository(t),
+		repomocks.NewMockUserRepository(t), permissiveProviderAuthz{})
+	team.guard = defaultSSRFGuard
+
+	_, teamErr := team.Test(context.Background(), testProviderUserID, testProviderTeamID,
+		models.TestTeamEmailProviderRequest{UpsertTeamEmailProviderRequest: req.UpsertTeamEmailProviderRequest})
+	require.ErrorIs(t, teamErr, ErrTeamEmailProviderValidation, "the team test keeps the guard")
 }
 
 // A stored row that builds the no-op stub would "send" by discarding the
