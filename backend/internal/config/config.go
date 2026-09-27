@@ -507,13 +507,14 @@ type SearchConfig struct {
 	RankCandidateCap      int     `koanf:"rank_candidate_cap"`
 }
 
-// AISummaryConfig holds the instance-wide AI summary defaults (#1071).
+// AISummaryConfig holds the `ai_summary:` block of config.yaml (#1071).
 //
-// It is the operator's half of the feature: the context budgets have to match
-// the deployment's hardware and the model behind it, so they are not
-// team-configurable at all. The knobs a team MAY override (Enabled, TopN, Style,
-// MaxOutputTokens) are also the fallback for every team with no stored profile,
-// and are reported as `instance_defaults` on every read.
+// Since #1199 no service reads it at runtime: the instance defaults and budgets
+// come from the instance_ai_summary_settings row (InstanceAISummarySettingsService,
+// edited under Admin → Settings → AI Summary), or from
+// models.DefaultInstanceAISummarySettings when none is stored. The block is only
+// validated at startup (validateAISummaryConfig) until the boot-time import
+// (#1201) seeds the row from it, and is removed in #1203.
 type AISummaryConfig struct {
 	// Enabled switches the feature on for the whole instance. EnvBool so the
 	// combined image can expose it as ${AI_SUMMARY_ENABLED}.
@@ -521,10 +522,9 @@ type AISummaryConfig struct {
 	// TopN is the default number of documents fed to the summariser. EnvInt for
 	// the same reason as Enabled.
 	TopN EnvInt `koanf:"top_n"`
-	// MaxTopN is the instance-owned ceiling on TopN. It is NOT team-configurable
-	// and team_ai_summary_settings has no column for it: it bounds how much work
-	// one request can ask of the server and of the operator's model, exactly as
-	// search.rank_candidate_cap does. Teams tune inside the cap.
+	// MaxTopN is still validated (TopN must fit inside it) but bounds nothing
+	// else since #1199: a team's top_n is bounded by the hard limit
+	// MaxAISummaryTopN alone.
 	MaxTopN int `koanf:"max_top_n"`
 	// PerDocumentChars truncates each document before it enters the prompt.
 	PerDocumentChars int `koanf:"per_document_chars"`
@@ -533,10 +533,9 @@ type AISummaryConfig struct {
 	TotalContextChars int `koanf:"total_context_chars"`
 	// MaxOutputTokens is the default answer-length budget.
 	MaxOutputTokens int `koanf:"max_output_tokens"`
-	// MaxOutputTokensCeiling is the instance-owned ceiling on MaxOutputTokens
-	// (#1085). Like MaxTopN it is NOT team-configurable and has no column in
-	// team_ai_summary_settings: output tokens are billed and latency-bearing per
-	// request on the operator's model account, so teams tune inside the cap.
+	// MaxOutputTokensCeiling (#1085) is, like MaxTopN, still validated but
+	// bounds nothing else since #1199: a team's max_output_tokens is bounded by
+	// the hard limit MaxAISummaryOutputTokens alone.
 	MaxOutputTokensCeiling int `koanf:"max_output_tokens_ceiling"`
 	// RequestTimeout bounds a single summarisation call to the model provider.
 	RequestTimeout time.Duration `koanf:"request_timeout"`

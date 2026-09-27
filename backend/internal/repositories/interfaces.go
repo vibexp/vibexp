@@ -1315,7 +1315,8 @@ type TeamSearchSettingsRepository interface {
 // override data access operations (#1071).
 //
 // The override is whole-row: a team either has a complete profile stored or no
-// row at all, in which case it inherits the instance defaults from config.yaml.
+// row at all, in which case it inherits the instance defaults
+// (instance_ai_summary_settings, or the built-in defaults when none is stored).
 type TeamAISummarySettingsRepository interface {
 	// Get returns (nil, nil) — not an error — when the team has no override
 	// row, so callers can fall back to the instance defaults.
