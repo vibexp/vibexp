@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -41,6 +42,13 @@ type stubSenderResolver struct {
 	recorded      bool
 	recordedTeam  string
 	recordedError error
+	// identity and identityErr are what InstanceIdentity hands back.
+	identity    InstanceEmailIdentity
+	identityErr error
+}
+
+func (r *stubSenderResolver) InstanceIdentity(context.Context) (InstanceEmailIdentity, error) {
+	return r.identity, r.identityErr
 }
 
 func (r *stubSenderResolver) Resolve(context.Context, string) (*ResolvedEmailSender, error) {
@@ -591,70 +599,133 @@ func TestEmailService_ExtractFirstName(t *testing.T) {
 	}
 }
 
-// TestEmailService_SendEmail_UsesEmailFromAddress verifies that sendEmail prefers
-// cfg.Email.FromAddress over cfg.Email.SMTP.Username when FromAddress is set.
-func TestEmailService_SendEmail_UsesEmailFromAddress(t *testing.T) {
+// The instance sender is read from the instance_email_provider row per send, so
+// the stored from-address reaches the outgoing message (#1188). A REAL resolver,
+// not the stub: an empty team ID goes straight to the instance branch.
+func TestEmailService_SendEmail_UsesTheStoredInstanceFromAddress(t *testing.T) {
+	var capturedMessage *gomail.EmailMessage
+	mockProvider := new(MockEmailProvider)
+	mockProvider.On("SendEmail", mock.Anything, mock.MatchedBy(func(out *external.OutgoingMessage) bool {
+		capturedMessage = out.Message
+		return true
+	})).Return(nil)
+
+	instanceRepo := repomocks.NewMockInstanceEmailProviderRepository(t)
+	instanceRepo.On("Get", mock.Anything).Return(storedInstanceSMTPRow("noreply@vibexp.io"), nil)
+	instanceRepo.On("RecordSuccess", mock.Anything, mock.Anything).Return(nil)
+
+	resolver := NewEmailSenderResolver(
+		repomocks.NewMockTeamEmailProviderRepository(t), instanceRepo, nil, slog.New(slog.DiscardHandler))
+	// Swap the built provider for the mock so nothing is dialled.
+	service := NewEmailService(&providerSwappingResolver{EmailSenderResolver: resolver, provider: mockProvider},
+		&config.Config{})
+
+	err := service.sendEmail(context.Background(), "", "to@example.com", "Test Subject", "<p>body</p>", "body")
+
+	require.NoError(t, err)
+	require.NotNil(t, capturedMessage)
+	assert.Equal(t, "noreply@vibexp.io", capturedMessage.GetFrom())
+	mockProvider.AssertExpectations(t)
+}
+
+// providerSwappingResolver wraps a real resolver and replaces the provider it
+// built, so a test can assert on the resolved identity without dialling.
+type providerSwappingResolver struct {
+	EmailSenderResolver
+	provider external.EmailProvider
+}
+
+func (r *providerSwappingResolver) Resolve(ctx context.Context, teamID string) (*ResolvedEmailSender, error) {
+	sender, err := r.EmailSenderResolver.Resolve(ctx, teamID)
+	if err != nil {
+		return nil, err
+	}
+	swapped := *sender
+	swapped.Provider = r.provider
+	return &swapped, nil
+}
+
+func (r *providerSwappingResolver) RecordSendOutcome(
+	ctx context.Context, sender *ResolvedEmailSender, sendErr error,
+) error {
+	return r.EmailSenderResolver.RecordSendOutcome(ctx, sender, sendErr)
+}
+
+// The contact form delivers to the stored contact recipient, falling back to
+// the stored from-address; every template's privacy link is the stored URL
+// (#1188).
+func TestEmailService_SupportMail_UsesTheInstanceIdentity(t *testing.T) {
 	tests := []struct {
-		name             string
-		emailFromAddress string
-		smtpUsername     string
-		expectedFrom     string
+		name      string
+		identity  InstanceEmailIdentity
+		wantAdmin string
 	}{
 		{
-			name:             "uses EmailFromAddress when set",
-			emailFromAddress: "noreply@vibexp.io",
-			smtpUsername:     "smtp-user@gmail.com",
-			expectedFrom:     "noreply@vibexp.io",
+			name: "contact recipient when configured",
+			identity: InstanceEmailIdentity{
+				FromAddress: "noreply@instance.test", ContactRecipientAddress: "support@instance.test",
+				PrivacyPolicyURL: "https://instance.test/privacy",
+			},
+			wantAdmin: "support@instance.test",
 		},
 		{
-			name:             "falls back to SMTPUsername when EmailFromAddress empty",
-			emailFromAddress: "",
-			smtpUsername:     "smtp-user@gmail.com",
-			expectedFrom:     "smtp-user@gmail.com",
-		},
-		{
-			name:             "both empty results in empty from",
-			emailFromAddress: "",
-			smtpUsername:     "",
-			expectedFrom:     "",
+			name: "from address otherwise",
+			identity: InstanceEmailIdentity{
+				FromAddress: "noreply@instance.test", PrivacyPolicyURL: "https://instance.test/privacy",
+			},
+			wantAdmin: "noreply@instance.test",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var capturedMessage *gomail.EmailMessage
+			var recipients []string
+			var bodies []string
 			mockProvider := new(MockEmailProvider)
 			mockProvider.On("SendEmail", mock.Anything, mock.MatchedBy(func(out *external.OutgoingMessage) bool {
-				msg := out.Message
-				capturedMessage = msg
+				recipients = append(recipients, out.Message.GetTo()...)
+				bodies = append(bodies, out.Message.GetHTML())
 				return true
 			})).Return(nil)
 
-			cfg := &config.Config{
-				Email: config.EmailConfig{
-					FromAddress: tt.emailFromAddress,
-					SMTP: config.SMTPConfig{
-						Username: tt.smtpUsername,
-					},
-				},
-			}
-			// A REAL resolver, not the stub: the from-address chain now lives in
-			// the resolver's instance branch, so driving it from cfg is what proves
-			// the configured address still reaches the outgoing message. An empty
-			// team ID short-circuits to the instance branch without a repository
-			// read, so the repo mock needs no expectations.
-			resolver := NewEmailSenderResolver(
-				repomocks.NewMockTeamEmailProviderRepository(t), nil,
-				mockProvider, cfg, slog.New(slog.DiscardHandler))
-			service := NewEmailService(resolver, cfg)
+			resolver := instanceResolver(mockProvider)
+			resolver.identity = tt.identity
+			service := NewEmailService(resolver, &config.Config{
+				Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+			})
 
-			err := service.sendEmail(context.Background(), "", "to@example.com", "Test Subject", "<p>body</p>", "body")
-			assert.NoError(t, err)
-			require.NotNil(t, capturedMessage)
-			assert.Equal(t, tt.expectedFrom, capturedMessage.GetFrom())
-			mockProvider.AssertExpectations(t)
+			err := service.SendSupportRequest(context.Background(), "Jane", "jane@acme.test",
+				&models.SupportRequest{Text: "Please help me with this problem.", Acknowledgement: true})
+
+			require.NoError(t, err)
+			require.Equal(t, []string{tt.wantAdmin, "jane@acme.test"}, recipients)
+			for _, body := range bodies {
+				assert.Contains(t, body, "https://instance.test/privacy")
+			}
 		})
 	}
+}
+
+// A failed identity read fails the send loudly instead of rendering a blank
+// privacy link or delivering support mail to an empty recipient.
+func TestEmailService_IdentityReadFailureFailsTheSend(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	resolver := instanceResolver(mockProvider)
+	resolver.identityErr = errors.New("db down")
+	service := NewEmailService(resolver, &config.Config{})
+
+	err := service.SendSupportRequest(context.Background(), "Jane", "jane@acme.test",
+		&models.SupportRequest{Text: "Please help me with this problem."})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to resolve the instance email identity")
+
+	err = service.SendTeamInvitation(context.Background(), "team-1", &models.TeamInvitation{
+		InviteeEmail: "invitee@example.com", Token: "tok", Role: models.TeamMemberRoleMember,
+		ExpiresAt: time.Now().Add(time.Hour),
+	}, "Acme", "Boss")
+	require.Error(t, err)
+
+	mockProvider.AssertNotCalled(t, "SendEmail")
 }
 
 // --- Per-team sending (#504) ---------------------------------------------------
@@ -861,8 +932,13 @@ func TestEmailService_SendSupportRequest_AlwaysResolvesInstance(t *testing.T) {
 
 // recordingResolver captures every team ID it is asked to resolve.
 type recordingResolver struct {
-	sender  *ResolvedEmailSender
-	teamIDs []string
+	sender   *ResolvedEmailSender
+	identity InstanceEmailIdentity
+	teamIDs  []string
+}
+
+func (r *recordingResolver) InstanceIdentity(context.Context) (InstanceEmailIdentity, error) {
+	return r.identity, nil
 }
 
 func (r *recordingResolver) Resolve(_ context.Context, teamID string) (*ResolvedEmailSender, error) {
@@ -960,4 +1036,31 @@ func TestEmailService_sendEmail_NoFromNameStaysBare(t *testing.T) {
 	require.NotNil(t, out)
 	assert.Empty(t, out.FromName)
 	assert.Equal(t, "test@example.com", out.FromHeader())
+}
+
+// The privacy URL is optional per instance (#1188): an instance without one
+// renders no Privacy Policy link, rather than a broken relative href.
+func TestEmailService_EmptyPrivacyURLOmitsTheFooterLink(t *testing.T) {
+	var html string
+	mockProvider := new(MockEmailProvider)
+	mockProvider.On("SendEmail", mock.Anything, mock.MatchedBy(func(out *external.OutgoingMessage) bool {
+		html = out.Message.GetHTML()
+		return true
+	})).Return(nil)
+
+	resolver := instanceResolver(mockProvider)
+	resolver.identity = InstanceEmailIdentity{FromAddress: "noreply@instance.test"}
+	service := NewEmailService(resolver, &config.Config{
+		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+	})
+
+	err := service.SendTeamInvitation(context.Background(), "", &models.TeamInvitation{
+		InviteeEmail: "invitee@example.com", Token: "tok", Role: models.TeamMemberRoleMember,
+		ExpiresAt: time.Now().Add(time.Hour),
+	}, "Acme", "Boss")
+
+	require.NoError(t, err)
+	assert.Contains(t, html, "Manage Email Preferences")
+	assert.NotContains(t, html, "Privacy Policy")
+	assert.NotContains(t, html, `href="?utm_source`)
 }

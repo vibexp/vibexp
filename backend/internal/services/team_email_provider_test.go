@@ -26,7 +26,7 @@ func newTestTeamEmailProviderService(
 	enc, err := NewEncryptionService(testEncryptionKey)
 	require.NoError(t, err)
 	return NewTeamEmailProviderService(
-		repo, userRepo, enc, localDevProviderConfig(), authz, slog.New(slog.DiscardHandler))
+		repo, repomocks.NewMockInstanceEmailProviderRepository(t), userRepo, enc, localDevProviderConfig(), authz, slog.New(slog.DiscardHandler))
 }
 
 func validSMTPRequest() models.UpsertTeamEmailProviderRequest {
@@ -530,6 +530,7 @@ func TestTeamEmailProvider_Test_DoesNotRequireEncryption(t *testing.T) {
 
 	svc := NewTeamEmailProviderService(
 		repomocks.NewMockTeamEmailProviderRepository(t),
+		repomocks.NewMockInstanceEmailProviderRepository(t),
 		userRepo, nil,
 		localDevProviderConfig(), permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
 
@@ -627,7 +628,7 @@ func TestTeamEmailProvider_Upsert_NilEncryptionFailsClosed(t *testing.T) {
 		Return(nil, repositories.ErrTeamEmailProviderNotFound)
 
 	svc := NewTeamEmailProviderService(
-		repo, repomocks.NewMockUserRepository(t), nil,
+		repo, repomocks.NewMockInstanceEmailProviderRepository(t), repomocks.NewMockUserRepository(t), nil,
 		localDevProviderConfig(), permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
 
 	_, err := svc.Upsert(context.Background(), testProviderUserID, testProviderTeamID, validSMTPRequest())
@@ -639,19 +640,21 @@ func TestTeamEmailProvider_Upsert_NilEncryptionFailsClosed(t *testing.T) {
 // --- GetEffective ------------------------------------------------------------
 
 // A team with no row reports the instance fallback, not an error: the settings
-// endpoint must be able to describe "you are inheriting" rather than 404.
+// endpoint must be able to describe "you are inheriting" rather than 404. The
+// instance from-address is read from the instance row at request time (#1188).
 func TestTeamEmailProvider_GetEffective_InstanceFallback(t *testing.T) {
 	repo := repomocks.NewMockTeamEmailProviderRepository(t)
 	repo.On("GetByTeamID", mock.Anything, testProviderTeamID).
 		Return(nil, repositories.ErrTeamEmailProviderNotFound)
+	instanceRepo := repomocks.NewMockInstanceEmailProviderRepository(t)
+	instanceRepo.On("Get", mock.Anything).
+		Return(&models.InstanceEmailProvider{FromAddress: "noreply@instance.test"}, nil)
 
 	enc, err := NewEncryptionService(testEncryptionKey)
 	require.NoError(t, err)
-	cfg := localDevProviderConfig()
-	cfg.Email.FromAddress = "noreply@instance.test"
 
 	svc := NewTeamEmailProviderService(
-		repo, repomocks.NewMockUserRepository(t), enc, cfg,
+		repo, instanceRepo, repomocks.NewMockUserRepository(t), enc, localDevProviderConfig(),
 		permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
 
 	effective, err := svc.GetEffective(context.Background(), testProviderUserID, testProviderTeamID)
@@ -664,27 +667,41 @@ func TestTeamEmailProvider_GetEffective_InstanceFallback(t *testing.T) {
 	assert.False(t, effective.HasCredential)
 }
 
-// The instance from-address chain must fall back to the SMTP username, matching
-// EmailService.sendEmail.
-func TestTeamEmailProvider_GetEffective_InstanceFromAddressChain(t *testing.T) {
-	repo := repomocks.NewMockTeamEmailProviderRepository(t)
-	repo.On("GetByTeamID", mock.Anything, testProviderTeamID).
-		Return(nil, repositories.ErrTeamEmailProviderNotFound)
+// An unconfigured instance reports an empty from-address; a failed instance
+// read is an error rather than a misleading empty one.
+func TestTeamEmailProvider_GetEffective_InstanceRowStates(t *testing.T) {
+	t.Run("unconfigured instance", func(t *testing.T) {
+		repo := repomocks.NewMockTeamEmailProviderRepository(t)
+		repo.On("GetByTeamID", mock.Anything, testProviderTeamID).
+			Return(nil, repositories.ErrTeamEmailProviderNotFound)
+		instanceRepo := repomocks.NewMockInstanceEmailProviderRepository(t)
+		instanceRepo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
 
-	enc, err := NewEncryptionService(testEncryptionKey)
-	require.NoError(t, err)
-	cfg := localDevProviderConfig()
-	cfg.Email.FromAddress = ""
-	cfg.Email.SMTP.Username = "smtp-user@instance.test"
+		svc := NewTeamEmailProviderService(
+			repo, instanceRepo, repomocks.NewMockUserRepository(t), nil, localDevProviderConfig(),
+			permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
 
-	svc := NewTeamEmailProviderService(
-		repo, repomocks.NewMockUserRepository(t), enc, cfg,
-		permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
+		effective, err := svc.GetEffective(context.Background(), testProviderUserID, testProviderTeamID)
 
-	effective, err := svc.GetEffective(context.Background(), testProviderUserID, testProviderTeamID)
+		require.NoError(t, err)
+		assert.Empty(t, effective.EffectiveFromAddress)
+	})
 
-	require.NoError(t, err)
-	assert.Equal(t, "smtp-user@instance.test", effective.EffectiveFromAddress)
+	t.Run("instance read failure", func(t *testing.T) {
+		repo := repomocks.NewMockTeamEmailProviderRepository(t)
+		repo.On("GetByTeamID", mock.Anything, testProviderTeamID).
+			Return(nil, repositories.ErrTeamEmailProviderNotFound)
+		instanceRepo := repomocks.NewMockInstanceEmailProviderRepository(t)
+		instanceRepo.On("Get", mock.Anything).Return(nil, errors.New("db down"))
+
+		svc := NewTeamEmailProviderService(
+			repo, instanceRepo, repomocks.NewMockUserRepository(t), nil, localDevProviderConfig(),
+			permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
+
+		_, err := svc.GetEffective(context.Background(), testProviderUserID, testProviderTeamID)
+
+		require.Error(t, err)
+	})
 }
 
 func TestTeamEmailProvider_GetEffective_TeamConfigured(t *testing.T) {
@@ -1017,13 +1034,11 @@ func TestTestMessageFor_CarriesTheDisplayName(t *testing.T) {
 	name := "Acme Team"
 	replyTo := "support@acme.test"
 
-	out := testMessageFor(models.TestTeamEmailProviderRequest{
-		UpsertTeamEmailProviderRequest: models.UpsertTeamEmailProviderRequest{
-			FromAddress: "  hello@acme.test  ",
-			FromName:    &name,
-			ReplyTo:     &replyTo,
-		},
-	}, "admin@example.com")
+	out := testMessageFor(testSenderFromRequest(models.UpsertTeamEmailProviderRequest{
+		FromAddress: "  hello@acme.test  ",
+		FromName:    &name,
+		ReplyTo:     &replyTo,
+	}), "admin@example.com")
 
 	assert.Equal(t, "Acme Team", out.FromName)
 	// The gomail field stays a bare address; the name rides beside it.
@@ -1034,11 +1049,9 @@ func TestTestMessageFor_CarriesTheDisplayName(t *testing.T) {
 }
 
 func TestTestMessageFor_WithoutADisplayNameStaysBare(t *testing.T) {
-	out := testMessageFor(models.TestTeamEmailProviderRequest{
-		UpsertTeamEmailProviderRequest: models.UpsertTeamEmailProviderRequest{
-			FromAddress: "hello@acme.test",
-		},
-	}, "admin@example.com")
+	out := testMessageFor(testSenderFromRequest(models.UpsertTeamEmailProviderRequest{
+		FromAddress: "hello@acme.test",
+	}), "admin@example.com")
 
 	assert.Empty(t, out.FromName)
 	assert.Equal(t, "hello@acme.test", out.FromHeader())

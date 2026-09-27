@@ -23,7 +23,6 @@ var ProviderSet = wire.NewSet(
 
 	// External dependencies
 	providers.ProvideIdentityProviderRegistry,
-	providers.ProvideEmailProvider,
 	providers.ProvideEmailSender,
 
 	// Event system
@@ -144,6 +143,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideSearchSettingsResolver,
 	providers.ProvideTeamEmailProviderService,
 	providers.ProvideEmailSenderResolver,
+	providers.ProvideInstanceEmailProviderService,
 	providers.ProvideTeamSearchSettingsService,
 	providers.ProvideTeamAISummarySettingsService,
 	wire.Bind(new(services.TeamAISummarySettingsServiceInterface),

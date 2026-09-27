@@ -45,9 +45,9 @@ type SendGridSpec struct {
 // credentials, with no reference to *config.Config.
 //
 // Decoupling provider construction from the config type is the point: the same
-// switch can then be driven by process-wide config at container build time (see
-// providers.ProvideEmailProvider) or by per-team values decrypted from the
-// database at send time. Only the sub-spec matching Type is read.
+// switch is driven at send time by the team or instance values decrypted from
+// the database (services.EmailSenderResolver), and by the request values of a
+// test send. Only the sub-spec matching Type is read.
 type ProviderSpec struct {
 	// Type selects the provider: "smtp" (the default), "mailgun", "postmark"
 	// or "sendgrid". Matching is case-insensitive and whitespace-tolerant, and

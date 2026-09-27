@@ -43,18 +43,19 @@ const (
 // TeamEmailProviderService owns validation, encryption and authorization for a
 // team's own outbound email provider (#502, epic #499).
 type TeamEmailProviderService struct {
-	repo     repositories.TeamEmailProviderRepository
-	userRepo repositories.UserRepository
-	enc      EncryptionServiceInterface
+	repo repositories.TeamEmailProviderRepository
+	// instanceRepo supplies the instance fallback identity reported by
+	// GetEffective for a team with no row of its own.
+	instanceRepo repositories.InstanceEmailProviderRepository
+	userRepo     repositories.UserRepository
+	enc          EncryptionServiceInterface
 	// guard bounds every destination built from team-supplied input (an SMTP host
 	// or a Mailgun base URL), so configuring a provider cannot be used to probe
 	// the deployment's internal network (#464).
 	guard *ssrfGuard
 	// authz gates the mutating operations: a provider row holds an encrypted
 	// credential and decides what address the team's mail comes from.
-	authz AuthorizationServiceInterface
-	// cfg supplies the instance fallback identity reported by GetEffective.
-	cfg    *config.Config
+	authz  AuthorizationServiceInterface
 	logger *slog.Logger
 }
 
@@ -64,6 +65,7 @@ var _ TeamEmailProviderServiceInterface = (*TeamEmailProviderService)(nil)
 // NewTeamEmailProviderService creates a new TeamEmailProviderService.
 func NewTeamEmailProviderService(
 	repo repositories.TeamEmailProviderRepository,
+	instanceRepo repositories.InstanceEmailProviderRepository,
 	userRepo repositories.UserRepository,
 	enc EncryptionServiceInterface,
 	cfg *config.Config,
@@ -71,13 +73,13 @@ func NewTeamEmailProviderService(
 	logger *slog.Logger,
 ) *TeamEmailProviderService {
 	return &TeamEmailProviderService{
-		repo:     repo,
-		userRepo: userRepo,
-		enc:      enc,
-		guard:    ssrfGuardForConfig(cfg),
-		authz:    authzSvc,
-		cfg:      cfg,
-		logger:   logger,
+		repo:         repo,
+		instanceRepo: instanceRepo,
+		userRepo:     userRepo,
+		enc:          enc,
+		guard:        ssrfGuardForConfig(cfg),
+		authz:        authzSvc,
+		logger:       logger,
 	}
 }
 
@@ -135,12 +137,25 @@ func (s *TeamEmailProviderService) GetEffective(
 	provider, err := s.Get(ctx, userID, teamID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrTeamEmailProviderNotFound) {
-			return models.NewTeamEmailProviderEffectiveInstance(InstanceFromAddress(s.cfg)), nil
+			return s.effectiveInstance(ctx)
 		}
 		return nil, err
 	}
 
 	return models.NewTeamEmailProviderEffectiveTeam(provider, teamSettingsUnion(provider)), nil
+}
+
+// effectiveInstance describes a team inheriting the instance provider, with
+// the from-address read from the instance row at request time. An instance
+// with no row reports an empty from-address: its mail is discarded by the stub.
+func (s *TeamEmailProviderService) effectiveInstance(
+	ctx context.Context,
+) (*models.TeamEmailProviderEffective, error) {
+	row, err := s.instanceRepo.Get(ctx)
+	if err != nil && !errors.Is(err, repositories.ErrInstanceEmailProviderNotFound) {
+		return nil, fmt.Errorf("failed to read the instance email provider: %w", err)
+	}
+	return models.NewTeamEmailProviderEffectiveInstance(InstanceFromAddress(row)), nil
 }
 
 // EffectiveFromProvider builds the effective view from a row the caller already
@@ -163,27 +178,33 @@ func (s *TeamEmailProviderService) EffectiveFromProvider(
 // error: the rest of the configuration must stay readable by the admin who has to
 // repair it.
 func teamSettingsUnion(provider *models.TeamEmailProvider) *models.TeamEmailProviderSettings {
-	if len(provider.Settings) == 0 {
+	return settingsUnionFromStored(provider.ProviderType, provider.Settings)
+}
+
+// settingsUnionFromStored is teamSettingsUnion for any stored configuration,
+// team or instance.
+func settingsUnionFromStored(providerType string, settings json.RawMessage) *models.TeamEmailProviderSettings {
+	if len(settings) == 0 {
 		return nil
 	}
 
 	union := &models.TeamEmailProviderSettings{}
-	switch normalizeProviderType(provider.ProviderType) {
+	switch normalizeProviderType(providerType) {
 	case EmailProviderTypeSMTP:
 		var block models.SMTPProviderSettings
-		if json.Unmarshal(provider.Settings, &block) != nil {
+		if json.Unmarshal(settings, &block) != nil {
 			return nil
 		}
 		union.SMTP = &block
 	case EmailProviderTypeMailgun:
 		var block models.MailgunProviderSettings
-		if json.Unmarshal(provider.Settings, &block) != nil {
+		if json.Unmarshal(settings, &block) != nil {
 			return nil
 		}
 		union.Mailgun = &block
 	case EmailProviderTypePostmark:
 		var block models.PostmarkProviderSettings
-		if json.Unmarshal(provider.Settings, &block) != nil {
+		if json.Unmarshal(settings, &block) != nil {
 			return nil
 		}
 		union.Postmark = &block
@@ -281,7 +302,7 @@ func (s *TeamEmailProviderService) Test(
 		return nil, err
 	}
 
-	recipient, err := s.actingUserEmail(ctx, userID)
+	recipient, err := actingUserEmail(ctx, s.userRepo, userID, "team email provider test")
 	if err != nil {
 		return nil, err
 	}
@@ -294,60 +315,93 @@ func (s *TeamEmailProviderService) Test(
 	provider, err := implementations.NewEmailProvider(
 		providerSpecFromRequest(req.UpsertTeamEmailProviderRequest, secret), s.logger)
 	if err != nil {
-		return &models.TeamEmailProviderTestResult{
-			Success:      false,
-			Recipient:    recipient,
-			Message:      "The provider could not be configured: " + err.Error(),
-			ErrorDetails: models.TeamEmailProviderErrConfigInvalid,
-		}, nil
+		return testConfigInvalid(recipient, err), nil
 	}
 
-	if sendErr := provider.SendEmail(ctx, testMessageFor(req, recipient)); sendErr != nil {
+	return sendTestMessage(ctx, provider, testSenderFromRequest(req.UpsertTeamEmailProviderRequest), recipient), nil
+}
+
+// testConfigInvalid is the test result for a configuration that could not
+// build a provider: nothing was dialled.
+func testConfigInvalid(recipient string, err error) *models.TeamEmailProviderTestResult {
+	return &models.TeamEmailProviderTestResult{
+		Success:      false,
+		Recipient:    recipient,
+		Message:      "The provider could not be configured: " + err.Error(),
+		ErrorDetails: models.TeamEmailProviderErrConfigInvalid,
+	}
+}
+
+// sendTestMessage sends the fixed test message as sender to recipient through
+// provider, and reports the outcome as a result value: a delivery failure is an
+// answer to "does this work?", not an error.
+func sendTestMessage(
+	ctx context.Context, provider external.EmailProvider, sender testSender, recipient string,
+) *models.TeamEmailProviderTestResult {
+	if sendErr := provider.SendEmail(ctx, testMessageFor(sender, recipient)); sendErr != nil {
 		return &models.TeamEmailProviderTestResult{
 			Success:      false,
 			Recipient:    recipient,
 			Message:      "Sending failed: " + sendErr.Error(),
 			ErrorDetails: models.TeamEmailProviderErrSendFailed,
-		}, nil
+		}
 	}
 
 	return &models.TeamEmailProviderTestResult{
 		Success:   true,
 		Recipient: recipient,
 		Message:   "Test email sent to " + recipient,
-	}, nil
+	}
 }
 
-// testMessageFor builds the test send for req, addressed to recipient.
+// testSender is the sender identity a test message is sent as.
+type testSender struct {
+	FromAddress string
+	FromName    string
+	ReplyTo     string
+}
+
+func testSenderFromRequest(req models.UpsertTeamEmailProviderRequest) testSender {
+	return testSender{
+		FromAddress: strings.TrimSpace(req.FromAddress),
+		FromName:    optionalValue(req.FromName),
+		ReplyTo:     optionalValue(req.ReplyTo),
+	}
+}
+
+// testMessageFor builds the test send as sender, addressed to recipient.
 //
-// It carries the request's display name as well as its address, so what a team
-// previews is what its real mail will look like — and, like every other send,
-// the gomail From field stays a bare address while the name travels beside it.
-func testMessageFor(req models.TestTeamEmailProviderRequest, recipient string) *external.OutgoingMessage {
+// It carries the display name as well as the address, so what an admin
+// previews is what real mail will look like — and, like every other send, the
+// gomail From field stays a bare address while the name travels beside it.
+func testMessageFor(sender testSender, recipient string) *external.OutgoingMessage {
 	return &external.OutgoingMessage{
 		Message: gomail.NewFullEmailMessage(
-			strings.TrimSpace(req.FromAddress),
+			sender.FromAddress,
 			[]string{recipient},
 			testEmailSubject,
 			nil, nil,
-			optionalValue(req.ReplyTo),
+			sender.ReplyTo,
 			testEmailBodyText,
 			testEmailBodyHTML,
 			nil,
 		),
-		FromName: optionalValue(req.FromName),
+		FromName: sender.FromName,
 	}
 }
 
-// actingUserEmail resolves the recipient of a test send. Fixing it to the acting
-// user's account email is what keeps the endpoint from being a relay.
-func (s *TeamEmailProviderService) actingUserEmail(ctx context.Context, userID string) (string, error) {
-	if s.userRepo == nil {
-		return "", fmt.Errorf("team email provider test: user repository is not configured")
+// actingUserEmail resolves the default recipient of a test send: the acting
+// user's own account email. For a team test it is the ONLY recipient, which is
+// what keeps that endpoint from being a relay. what prefixes error messages.
+func actingUserEmail(
+	ctx context.Context, userRepo repositories.UserRepository, userID, what string,
+) (string, error) {
+	if userRepo == nil {
+		return "", fmt.Errorf("%s: user repository is not configured", what)
 	}
-	user, err := s.userRepo.GetByID(ctx, userID)
+	user, err := userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return "", fmt.Errorf("team email provider test: failed to resolve the acting user: %w", err)
+		return "", fmt.Errorf("%s: failed to resolve the acting user: %w", what, err)
 	}
 	if user == nil || strings.TrimSpace(user.Email) == "" {
 		return "", &TeamEmailProviderValidationError{Fields: []FieldError{{

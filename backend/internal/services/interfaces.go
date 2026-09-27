@@ -427,6 +427,31 @@ type CopyModelProviderParams struct {
 	Configuration *map[string]interface{}
 }
 
+// InstanceEmailProviderServiceInterface defines the operations on the
+// instance's own outbound email provider (#1188, epic #1185).
+//
+// There is no authorization inside: instance-admin gating is the admin route
+// middleware (epic decision 6). actorUserID is used only for the audit entry
+// and as the default test recipient.
+type InstanceEmailProviderServiceInterface interface {
+	// Get returns the effective configuration. It never reports not-found: an
+	// unconfigured instance is Configured false. It never returns the secret.
+	Get(ctx context.Context) (*models.InstanceEmailProviderEffective, error)
+	// Upsert validates, encrypts and stores the configuration and appends one
+	// redacted audit entry. An omitted secret keeps the stored one when the
+	// provider type is unchanged; a type change requires a new secret.
+	Upsert(ctx context.Context, actorUserID string,
+		req models.UpsertInstanceEmailProviderRequest) (*models.InstanceEmailProviderEffective, error)
+	// Delete removes the configuration and appends one redacted audit entry.
+	// Deleting when nothing is stored is a no-op with no entry.
+	Delete(ctx context.Context, actorUserID string) error
+	// Test sends a test message with the submitted configuration, or the stored
+	// one when the request carries none. A build or delivery failure is
+	// reported in the result, not as an error.
+	Test(ctx context.Context, actorUserID string,
+		req models.TestInstanceEmailProviderRequest) (*models.TeamEmailProviderTestResult, error)
+}
+
 // TeamEmailProviderServiceInterface defines the operations on a team's own
 // outbound email provider (#502, epic #499).
 //

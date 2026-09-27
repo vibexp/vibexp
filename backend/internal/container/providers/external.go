@@ -16,8 +16,7 @@ import (
 
 // Log messages shared by the per-provider construction paths below.
 const (
-	msgIdentityProviderEnabled  = "Identity provider enabled"
-	msgEmailProviderInitialized = "Email provider initialized"
+	msgIdentityProviderEnabled = "Identity provider enabled"
 )
 
 // ProvideIdentityProviderRegistry builds the set of web-login identity
@@ -164,57 +163,9 @@ func buildOIDCProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityPro
 	return provider, true
 }
 
-// ProvideEmailProvider creates an EmailProvider based on the EMAIL_PROVIDER config value.
-// Supported providers: "smtp" (default), "mailgun", "postmark", "sendgrid". The value
-// is normalised to lowercase and trimmed before matching, so "MAILGUN" and "smtp " work
-// correctly. When EMAIL_PROVIDER is empty or "smtp" and no SMTP host/port are configured,
-// a no-op stub is returned so the container can wire up without email credentials.
-//
-// This is a mapping adapter: provider selection itself lives in
-// implementations.NewEmailProvider, which is config-free so it can also be
-// called per send with team-supplied values.
-func ProvideEmailProvider(cfg *config.Config, logger *slog.Logger) (external.EmailProvider, error) {
-	provider, err := implementations.NewEmailProvider(emailProviderSpec(cfg), logger)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.With("email_provider", implementations.ProviderLabel(provider)).Info(msgEmailProviderInitialized)
-	return provider, nil
-}
-
-// emailProviderSpec maps the process-wide email config onto the config-free
-// spec the factory consumes.
-func emailProviderSpec(cfg *config.Config) implementations.ProviderSpec {
-	return implementations.ProviderSpec{
-		Type: cfg.Email.Provider,
-		SMTP: implementations.SMTPSpec{
-			Host:     cfg.Email.SMTP.Host,
-			Port:     cfg.Email.SMTP.Port,
-			Username: cfg.Email.SMTP.Username,
-			Password: cfg.Email.SMTP.Password,
-		},
-		Mailgun: implementations.MailgunSpec{
-			BaseURL:    cfg.Email.Mailgun.BaseURL,
-			Domain:     cfg.Email.Mailgun.Domain,
-			SendingKey: cfg.Email.Mailgun.SendingKey,
-		},
-		Postmark: implementations.PostmarkSpec{
-			ServerToken:   cfg.Email.Postmark.ServerToken,
-			MessageStream: cfg.Email.Postmark.MessageStream,
-		},
-		SendGrid: implementations.SendGridSpec{
-			APIKey: cfg.Email.SendGrid.APIKey,
-		},
-	}
-}
-
-// stubEmailProvider aliases the no-op provider that now lives beside the
-// factory. Kept as an alias so this package (and its tests) can keep referring
-// to the stub by its original name while there is only one such type.
-type stubEmailProvider = implementations.StubEmailProvider
-
-// ProvideEmailSender creates a new EmailSender (DEPRECATED: Use ProvideEmailProvider instead)
+// ProvideEmailSender creates a new EmailSender. DEPRECATED: every send now goes
+// through services.EmailSenderResolver, which builds the provider per send from
+// the database; this legacy path is removed with the `email:` config (#1193).
 func ProvideEmailSender(cfg *config.Config) external.EmailSender {
 	return implementations.NewEmailSender(cfg)
 }
