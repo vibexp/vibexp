@@ -580,3 +580,72 @@ func TestSendTestMessage_Success(t *testing.T) {
 	assert.Empty(t, result.ErrorDetails)
 	provider.AssertExpectations(t)
 }
+
+// A stored row with malformed settings or an unsupported type is a build
+// failure: a config_invalid result the admin can read, not a server error.
+func TestInstanceEmailProvider_Test_UnmappableStoredRowIsConfigInvalid(t *testing.T) {
+	for name, row := range map[string]*models.InstanceEmailProvider{
+		"malformed settings": {
+			ProviderType: EmailProviderTypeSMTP,
+			Settings:     json.RawMessage(`{"host": 42}`),
+			FromAddress:  "noreply@instance.test",
+		},
+		"unsupported type": {
+			ProviderType: "ses",
+			Settings:     json.RawMessage(`{}`),
+			FromAddress:  "noreply@instance.test",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newInstanceProviderFixture(t)
+			f.repo.On("Get", mock.Anything).Return(row, nil)
+			f.expectActingUser()
+
+			result, err := f.svc.Test(context.Background(), testProviderUserID,
+				models.TestInstanceEmailProviderRequest{})
+
+			require.NoError(t, err)
+			assert.False(t, result.Success)
+			assert.Equal(t, models.TeamEmailProviderErrConfigInvalid, result.ErrorDetails)
+		})
+	}
+}
+
+// A stored secret that will not decrypt stays an error: it is a server-side
+// fault, not something the admin's configuration can fix.
+func TestInstanceEmailProvider_Test_StoredDecryptFailureIsAnError(t *testing.T) {
+	f := newInstanceProviderFixture(t)
+	row := f.storedRow(t)
+	garbage := "not-valid-ciphertext"
+	row.SecretEncrypted = &garbage
+	f.repo.On("Get", mock.Anything).Return(row, nil)
+	f.expectActingUser()
+
+	_, err := f.svc.Test(context.Background(), testProviderUserID, models.TestInstanceEmailProviderRequest{})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "decrypt")
+}
+
+// Changing the provider type must carry a new secret: the stored one was issued
+// for the old provider and is never reused for another (the same rule a test
+// send applies when borrowing it).
+func TestInstanceEmailProvider_Upsert_TypeChangeWithoutSecretIsRejected(t *testing.T) {
+	f := newInstanceProviderFixture(t)
+	f.repo.On("Get", mock.Anything).Return(f.storedRow(t), nil)
+
+	req := models.UpsertInstanceEmailProviderRequest{
+		UpsertTeamEmailProviderRequest: models.UpsertTeamEmailProviderRequest{
+			ProviderType: EmailProviderTypeSendGrid,
+			FromAddress:  "noreply@instance.test",
+		},
+	}
+
+	_, err := f.svc.Upsert(context.Background(), testProviderUserID, req)
+
+	var verr *TeamEmailProviderValidationError
+	require.ErrorAs(t, err, &verr)
+	assert.Equal(t, "secret", verr.Fields[0].Field)
+	f.repo.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything)
+	f.audit.AssertNotCalled(t, "Append", mock.Anything, mock.Anything)
+}

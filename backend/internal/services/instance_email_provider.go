@@ -37,6 +37,10 @@ type InstanceEmailProviderService struct {
 
 var _ InstanceEmailProviderServiceInterface = (*InstanceEmailProviderService)(nil)
 
+// errInvalidStoredEmailConfig marks a stored row whose settings cannot be
+// mapped onto a provider spec (malformed settings, unsupported type).
+var errInvalidStoredEmailConfig = errors.New("the stored email configuration is invalid")
+
 // NewInstanceEmailProviderService creates a new InstanceEmailProviderService.
 func NewInstanceEmailProviderService(
 	repo repositories.InstanceEmailProviderRepository,
@@ -83,7 +87,11 @@ func (s *InstanceEmailProviderService) Upsert(
 		return nil, err
 	}
 
-	if verr := validateInstanceUpsertRequest(req, existing == nil); verr != nil {
+	// The stored secret is kept only for the SAME provider type, exactly as a
+	// test send borrows it: a credential is never reused for a provider it was
+	// not issued for, so a type change must carry its own secret.
+	keepsStoredSecret := sameStoredProviderType(existing, req.ProviderType)
+	if verr := validateInstanceUpsertRequest(req, !keepsStoredSecret); verr != nil {
 		return nil, verr
 	}
 
@@ -173,6 +181,11 @@ func (s *InstanceEmailProviderService) Test(
 
 	spec, sender, err := s.testConfiguration(req.Config, stored)
 	if err != nil {
+		if errors.Is(err, errInvalidStoredEmailConfig) {
+			// A stored row that cannot be mapped is a build failure — the very
+			// thing an admin tests to diagnose — so it is a result, not an error.
+			return testConfigInvalid(recipient, err), nil
+		}
 		return nil, err
 	}
 
@@ -205,8 +218,7 @@ func (s *InstanceEmailProviderService) testConfiguration(
 		return s.storedTestConfiguration(stored)
 	}
 
-	canBorrowSecret := config.Secret == nil && stored != nil &&
-		normalizeProviderType(stored.ProviderType) == normalizeProviderType(config.ProviderType)
+	canBorrowSecret := config.Secret == nil && sameStoredProviderType(stored, config.ProviderType)
 	if verr := validateInstanceUpsertRequest(*config, !canBorrowSecret); verr != nil {
 		return implementations.ProviderSpec{}, testSender{}, verr
 	}
@@ -237,7 +249,7 @@ func (s *InstanceEmailProviderService) storedTestConfiguration(
 	}
 	spec, err := providerSpecFromStored(stored.ProviderType, stored.Settings, secret, instanceEmailLabel)
 	if err != nil {
-		return implementations.ProviderSpec{}, testSender{}, err
+		return implementations.ProviderSpec{}, testSender{}, fmt.Errorf("%w: %w", errInvalidStoredEmailConfig, err)
 	}
 	return spec, testSender{
 		FromAddress: stored.FromAddress,
@@ -276,7 +288,8 @@ func (s *InstanceEmailProviderService) stored(ctx context.Context) (*models.Inst
 
 // resolveSecret decides what ciphertext to store: a supplied secret is
 // encrypted, an omitted one keeps the stored value. Validation has already
-// rejected the empty string and an omitted secret on create.
+// rejected the empty string, and an omitted secret on create or on a change of
+// provider type.
 func (s *InstanceEmailProviderService) resolveSecret(
 	secret *string, existing *models.InstanceEmailProvider,
 ) (*string, error) {
@@ -371,6 +384,12 @@ func instanceEffective(row *models.InstanceEmailProvider) *models.InstanceEmailP
 		return models.NewInstanceEmailProviderEffective(nil, nil)
 	}
 	return models.NewInstanceEmailProviderEffective(row, settingsUnionFromStored(row.ProviderType, row.Settings))
+}
+
+// sameStoredProviderType reports whether a stored row exists with the given
+// provider type — the only case in which its secret may be reused.
+func sameStoredProviderType(stored *models.InstanceEmailProvider, providerType string) bool {
+	return stored != nil && normalizeProviderType(stored.ProviderType) == normalizeProviderType(providerType)
 }
 
 func optionalActor(actorUserID string) *string {

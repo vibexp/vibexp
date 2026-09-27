@@ -163,7 +163,9 @@ func buildOIDCProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityPro
 	return provider, true
 }
 
-// ProvideEmailSender creates a new EmailSender (DEPRECATED: Use ProvideEmailProvider instead)
+// ProvideEmailSender creates a new EmailSender. DEPRECATED: every send now goes
+// through services.EmailSenderResolver, which builds the provider per send from
+// the database; this legacy path is removed with the `email:` config (#1193).
 func ProvideEmailSender(cfg *config.Config) external.EmailSender {
 	return implementations.NewEmailSender(cfg)
 }
