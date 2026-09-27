@@ -773,14 +773,17 @@ func (c *Config) GetDeploymentEnvironment() string {
 // nanosecond overflow, which would otherwise wrap to a negative duration and
 // silently zero the recency contribution.
 //
-// Exported because it is the single definition shared by three enforcement
+// Exported because it is the single definition shared by four enforcement
 // points: this validator, the team_search_settings CHECK constraints
-// (migration 012), and the per-team settings request validator.
+// (migration 012), the instance_search_settings CHECK constraint (migration
+// 022), and the per-team settings request validator. Change them together.
 const MaxSearchRankHalfLifeDays = 36500
 
 // MaxSearchRankCandidateCap bounds the re-rank candidate pool so a misconfigured
 // cap cannot blow up per-query memory and sort cost (the cap becomes the SQL
-// LIMIT and the in-memory slice that is sorted on every ranked query).
+// LIMIT and the in-memory slice that is sorted on every ranked query). The
+// instance_search_settings.rank_candidate_cap CHECK constraint (migration 022)
+// mirrors it; change both together.
 const MaxSearchRankCandidateCap = 5000
 
 // validateSearchRankingConfig rejects degenerate ranking parameters so a
@@ -820,15 +823,18 @@ func validateSearchRankingConfig(cfg *Config) error {
 // MaxAISummaryTopN is the absolute ceiling on how many documents a single
 // summary request may assemble, for the whole deployment. ai_summary.max_top_n
 // tunes the per-team limit DOWNWARD inside it, and the
-// team_ai_summary_settings.top_n CHECK constraint mirrors this constant bound
-// for bound — so a value the database would reject can never be configured.
+// team_ai_summary_settings.top_n and instance_ai_summary_settings.top_n CHECK
+// constraints (migrations 017 and 022) mirror this constant bound for bound — so
+// a value the database would reject can never be configured.
 const MaxAISummaryTopN = 10
 
 // MaxAISummaryOutputTokens is the absolute ceiling on
-// ai_summary.max_output_tokens_ceiling (#1085). Unlike MaxAISummaryTopN no
-// storage CHECK mirrors it: there is no model-independent token limit to pin in
-// the schema, so the bound is enforced in the service on save and clamped again
-// at request time, which also covers an operator lowering the ceiling later.
+// ai_summary.max_output_tokens_ceiling (#1085). The
+// instance_ai_summary_settings.max_output_tokens CHECK constraint (migration
+// 022) pins it for the instance row; change both together. The team row is
+// deliberately checked only for > 0 (migration 017): the bound for a team is
+// enforced in the service on save and clamped again at request time, which also
+// covers an operator lowering the ceiling later.
 const MaxAISummaryOutputTokens = 32768
 
 // validateAISummaryConfig fails closed on an AI summary block that could not be
