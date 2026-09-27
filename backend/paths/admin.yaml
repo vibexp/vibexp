@@ -3917,3 +3917,230 @@ api-v1-admin-projects-export:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-settings-email:
+  get:
+    summary: Get the instance email provider settings
+    description: |
+      Returns the instance's stored email provider configuration, its delivery
+      health and whether a credential is stored. Always 200: an instance with
+      nothing stored reports `configured: false`. The credential is never
+      returned.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: getAdminInstanceEmailSettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: The instance email provider settings
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminInstanceEmailSettings'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  put:
+    summary: Create or replace the instance email provider settings
+    description: |
+      Validates, encrypts and stores the instance's email provider, taking
+      effect on the next send with no restart, and appends one redacted entry
+      to the audit log. Idempotent: the same body creates or replaces. Omitting
+      `secret` keeps the stored credential when the provider type is
+      unchanged; an empty `secret` is rejected. A body carrying an unknown
+      field is rejected with 400.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: upsertAdminInstanceEmailSettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AdminInstanceEmailSettingsRequest'
+    responses:
+      '200':
+        description: The stored settings
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminInstanceEmailSettings'
+      '400':
+        description: |
+          Bad request — the configuration is invalid (`INSTANCE_EMAIL_PROVIDER_VALIDATION_FAILED`,
+          with `validation_errors`), or the body carries an unknown field
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  delete:
+    summary: Remove the instance email provider settings
+    description: |
+      Removes the stored instance email provider and appends one redacted
+      entry to the audit log. Instance mail is then discarded until a provider
+      is configured again. Returns 409 when nothing is stored.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: deleteAdminInstanceEmailSettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '204':
+        description: The settings were removed
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict — no instance email provider is configured (`INSTANCE_EMAIL_PROVIDER_NOT_CONFIGURED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-settings-email-test:
+  post:
+    summary: Send a test message through the instance email provider
+    description: |
+      Sends a fixed test message to the calling admin's own account email,
+      through the stored configuration (empty body) or through a candidate
+      configuration (see `AdminInstanceEmailTestRequest`). Nothing is stored
+      and nothing is audited. A failed send is still a 200, reported with
+      `is_valid: false`. A body carrying an unknown field (including a
+      `recipient`) is rejected with 400.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: testAdminInstanceEmailSettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AdminInstanceEmailTestRequest'
+    responses:
+      '200':
+        description: The outcome of the test send
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamEmailProviderTestResponse'
+      '400':
+        description: |
+          Bad request — the candidate configuration is invalid, nothing is stored to
+          test (`INSTANCE_EMAIL_PROVIDER_VALIDATION_FAILED`), or the body carries an
+          unknown field
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-settings-email-audit:
+  get:
+    summary: List the instance email provider settings audit log
+    description: |
+      Returns one page of the instance email provider's audit log, newest
+      first. Every entry's `before`/`after` snapshot is redacted: it never
+      contains a credential. Pass the previous page's `next_cursor` to
+      continue.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: listAdminInstanceEmailSettingsAudit
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: cursor
+        in: query
+        description: Opaque cursor from a previous page's `next_cursor`.
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        description: Page size.
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: One page of audit entries, newest first
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminInstanceSettingsAuditPage'
+      '400':
+        description: Bad request — malformed cursor, or `limit` out of range
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'

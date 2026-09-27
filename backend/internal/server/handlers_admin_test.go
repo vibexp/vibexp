@@ -54,6 +54,12 @@ type adminMockContainer struct {
 	emailProviderService     services.TeamEmailProviderServiceInterface
 	githubAppConfigService   services.GitHubAppConfigServiceInterface
 	githubAppService         services.GitHubAppServiceInterface
+
+	// Instance email settings (#1189). Nil unless a suite installs them.
+	instanceEmailService services.InstanceEmailProviderServiceInterface
+	instanceAuditRepo    repositories.InstanceSettingsAuditRepository
+	// apiKeyService lets a full-router test authenticate a caller by API key.
+	apiKeyService services.APIKeyServiceInterface
 }
 
 func (c *adminMockContainer) TeamRepository() repositories.TeamRepository { return c.teamRepo }
@@ -100,6 +106,13 @@ func (c *adminMockContainer) GitHubAppConfigService() services.GitHubAppConfigSe
 func (c *adminMockContainer) GitHubAppService() services.GitHubAppServiceInterface {
 	return c.githubAppService
 }
+func (c *adminMockContainer) InstanceEmailProviderService() services.InstanceEmailProviderServiceInterface {
+	return c.instanceEmailService
+}
+func (c *adminMockContainer) InstanceSettingsAuditRepository() repositories.InstanceSettingsAuditRepository {
+	return c.instanceAuditRepo
+}
+func (c *adminMockContainer) APIKeyService() services.APIKeyServiceInterface { return c.apiKeyService }
 
 func (c *adminMockContainer) AuthService() services.AuthServiceInterface   { return c.authService }
 func (c *adminMockContainer) AdminService() services.AdminServiceInterface { return c.adminService }

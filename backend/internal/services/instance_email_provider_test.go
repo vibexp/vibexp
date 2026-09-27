@@ -387,11 +387,12 @@ func TestInstanceEmailProvider_Delete_AuditsOnce(t *testing.T) {
 	assert.NotContains(t, string(encoded), instanceLeakSentinel)
 }
 
-func TestInstanceEmailProvider_Delete_NothingStoredIsANoOp(t *testing.T) {
+func TestInstanceEmailProvider_Delete_NothingStoredIsNotFound(t *testing.T) {
 	f := newInstanceProviderFixture(t)
 	f.repo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
 
-	require.NoError(t, f.svc.Delete(context.Background(), testProviderUserID))
+	err := f.svc.Delete(context.Background(), testProviderUserID)
+	require.ErrorIs(t, err, repositories.ErrInstanceEmailProviderNotFound)
 	f.repo.AssertNotCalled(t, "Delete", mock.Anything)
 	f.audit.AssertNotCalled(t, "Append", mock.Anything, mock.Anything)
 }
@@ -401,7 +402,8 @@ func TestInstanceEmailProvider_Delete_ConcurrentDeleteWritesNoEntry(t *testing.T
 	f.repo.On("Get", mock.Anything).Return(f.storedRow(t), nil)
 	f.repo.On("Delete", mock.Anything).Return(repositories.ErrInstanceEmailProviderNotFound).Once()
 
-	require.NoError(t, f.svc.Delete(context.Background(), testProviderUserID))
+	err := f.svc.Delete(context.Background(), testProviderUserID)
+	require.ErrorIs(t, err, repositories.ErrInstanceEmailProviderNotFound)
 	f.audit.AssertNotCalled(t, "Append", mock.Anything, mock.Anything)
 }
 

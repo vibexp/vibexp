@@ -280,6 +280,8 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	schedulerRegistry := providers.ProvideSchedulerRegistry(evaluator)
 	v := providers.ProvideSchedulerReconcilers(freshnessServiceInterface)
 	scheduler := providers.ProvideScheduler(cfg, scheduleRepository, db, schedulerRegistry, v, logger)
+	instanceSettingsAuditRepository := providers.ProvideInstanceSettingsAuditRepository(db)
+	instanceEmailProviderServiceInterface := providers.ProvideInstanceEmailProviderService(instanceEmailProviderRepository, instanceSettingsAuditRepository, userRepository, encryptionServiceInterface, logger)
 	emailSender := providers.ProvideEmailSender(cfg)
 	embeddingJobRepository := providers.ProvideEmbeddingJobRepository(db)
 	embeddingProcessor := providers.ProvideEmbeddingProcessor(embeddingProviderServiceInterface, embeddingServiceInterface, embeddingJobRepository, cfg, logger)
@@ -387,6 +389,8 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		digestRunner:                 digestRunner,
 		scheduler:                    scheduler,
 		schedulerRegistry:            schedulerRegistry,
+		instanceSettingsAuditRepo:    instanceSettingsAuditRepository,
+		instanceEmailProviderService: instanceEmailProviderServiceInterface,
 		identityRegistry:             registry,
 		smtpClient:                   emailSender,
 		eventSystemDeps:              eventSystemDeps,

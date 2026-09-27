@@ -274,6 +274,11 @@ func (b *BaseMockContainer) TeamSettingsAuditRepository() repositories.TeamSetti
 	return nil
 }
 
+// InstanceSettingsAuditRepository returns nil; suites that exercise it install their own.
+func (b *BaseMockContainer) InstanceSettingsAuditRepository() repositories.InstanceSettingsAuditRepository {
+	return nil
+}
+
 // TeamSettingsAuditService returns nil; suites that exercise it install their own.
 func (b *BaseMockContainer) TeamSettingsAuditService() services.TeamSettingsAuditServiceInterface {
 	return nil
@@ -289,6 +294,11 @@ func (b *BaseMockContainer) MetadataCatalogService() services.MetadataCatalogSer
 }
 
 func (b *BaseMockContainer) TeamEmailProviderService() services.TeamEmailProviderServiceInterface {
+	return nil
+}
+
+// InstanceEmailProviderService returns nil; suites that exercise it install their own.
+func (b *BaseMockContainer) InstanceEmailProviderService() services.InstanceEmailProviderServiceInterface {
 	return nil
 }
 

@@ -44,6 +44,9 @@ type Container interface {
 	// settings audit log (#1140), which must not go through the role-checked
 	// TeamSettingsAuditService.ListAudit.
 	TeamSettingsAuditRepository() repositories.TeamSettingsAuditRepository
+	// InstanceSettingsAuditRepository backs the instance-admin read of the
+	// instance settings audit log (#1189).
+	InstanceSettingsAuditRepository() repositories.InstanceSettingsAuditRepository
 	TeamMemberRepository() repositories.TeamMemberRepository
 	ProjectRepository() repositories.ProjectRepository
 	WebhookEventRepository() repositories.WebhookEventRepository
@@ -93,6 +96,9 @@ type Container interface {
 	// it populates the REST search response's ai_summary field (#1074).
 	AISummaryAvailability() services.AISummaryAvailabilityResolver
 	TeamEmailProviderService() services.TeamEmailProviderServiceInterface
+	// InstanceEmailProviderService serves the instance-admin email settings
+	// API (#1189): the database-stored instance provider (#1188).
+	InstanceEmailProviderService() services.InstanceEmailProviderServiceInterface
 	EmailSenderResolver() services.EmailSenderResolver
 	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface
 	// TeamAISummarySettingsService serves the team AI summary settings API

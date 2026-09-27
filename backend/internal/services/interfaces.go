@@ -443,7 +443,8 @@ type InstanceEmailProviderServiceInterface interface {
 	Upsert(ctx context.Context, actorUserID string,
 		req models.UpsertInstanceEmailProviderRequest) (*models.InstanceEmailProviderEffective, error)
 	// Delete removes the configuration and appends one redacted audit entry.
-	// Deleting when nothing is stored is a no-op with no entry.
+	// Deleting when nothing is stored writes no entry and returns
+	// repositories.ErrInstanceEmailProviderNotFound.
 	Delete(ctx context.Context, actorUserID string) error
 	// Test sends a test message with the submitted configuration, or the stored
 	// one when the request carries none. A build or delivery failure is

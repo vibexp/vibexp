@@ -68,6 +68,10 @@ const (
 	CodeTeamEmailProviderUpdateFailed     = "TEAM_EMAIL_PROVIDER_UPDATE_FAILED"
 	CodeTeamEmailProviderDeleteFailed     = "TEAM_EMAIL_PROVIDER_DELETE_FAILED"
 
+	// Instance email provider errors (#1189)
+	CodeInstanceEmailProviderNotConfigured    = "INSTANCE_EMAIL_PROVIDER_NOT_CONFIGURED"
+	CodeInstanceEmailProviderValidationFailed = "INSTANCE_EMAIL_PROVIDER_VALIDATION_FAILED"
+
 	// Model provider errors
 	CodeModelProviderNotFound          = "MODEL_PROVIDER_NOT_FOUND"
 	CodeModelProviderAlreadyExists     = "MODEL_PROVIDER_ALREADY_EXISTS"
@@ -148,6 +152,10 @@ var errorTitles = map[string]string{
 	CodeAISummaryUnauthorized:             "Model Provider Rejected Credentials",
 	CodeAISummaryModelError:               "Model Provider Rejected Request",
 	CodeAISummaryTimeout:                  "Model Provider Timed Out",
+
+	// Instance email provider errors (#1189)
+	CodeInstanceEmailProviderNotConfigured:    "Instance Email Provider Not Configured",
+	CodeInstanceEmailProviderValidationFailed: "Instance Email Provider Validation Failed",
 }
 
 // GetErrorTitle returns the title for a given error code

@@ -179,6 +179,16 @@ var settingsAliasExclusions = map[string]string{
 		"is registered on the settings mount ONLY, by design: a destructive team-wide " +
 		"truncate surfaced solely in the embedding settings UI (server.go, issue #182). " +
 		"It has no canonical twin to compare against.",
+
+	"/api/v1/admin/settings/email": "the DOMAIN is the instance email settings " +
+		"(getAdminInstanceEmailSettings / upsertAdminInstanceEmailSettings / " +
+		"deleteAdminInstanceEmailSettings, issue #1189) — the suffix is the noun, not an " +
+		"alias marker, exactly as for the team /settings/* domains. There is no other " +
+		"copy of these operations.",
+
+	"/api/v1/admin/settings/email/test": "testAdminInstanceEmailSettings (issue #1189) " +
+		"test-sends the instance email settings — the suffix is the noun. It has no " +
+		"canonical twin: the team test send is a different operation on a team path.",
 }
 
 // TestEverySettingsSuffixedPathIsRegistered is the completeness half of the
