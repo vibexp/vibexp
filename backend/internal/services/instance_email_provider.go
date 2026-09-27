@@ -70,7 +70,8 @@ func (s *InstanceEmailProviderService) Get(ctx context.Context) (*models.Instanc
 }
 
 // Upsert validates, encrypts and stores the instance provider, then appends one
-// redacted audit entry. An omitted secret keeps the stored one.
+// redacted audit entry. An omitted secret keeps the stored one when the
+// provider type is unchanged.
 //
 // Deliberately NO ssrfGuard (epic #1185 decision 5): the instance admin is the
 // operator, and localhost/internal relays are legitimate. Team-supplied hosts
@@ -87,9 +88,12 @@ func (s *InstanceEmailProviderService) Upsert(
 		return nil, err
 	}
 
-	// The stored secret is kept only for the SAME provider type, exactly as a
-	// test send borrows it: a credential is never reused for a provider it was
-	// not issued for, so a type change must carry its own secret.
+	// An omitted secret keeps the stored one only for the SAME provider type:
+	// a type change must carry its own secret. Unlike a test send (see
+	// testConfiguration), a save may change the destination (SMTP host, Mailgun
+	// base URL) and keep the secret, deliberately: a save is audited, so the
+	// before/after snapshots record the destination change, whereas a test send
+	// is unaudited and therefore also requires the same destination.
 	keepsStoredSecret := sameStoredProviderType(existing, req.ProviderType)
 	if verr := validateInstanceUpsertRequest(req, !keepsStoredSecret); verr != nil {
 		return nil, verr
