@@ -55,16 +55,13 @@ export function TeamAISummaryConfigTab({
                 offLabel="No model provider"
               />
             </ConfigField>
-            <ConfigField label="Top N">
-              {data.values.top_n} (max {data.max_top_n})
-            </ConfigField>
+            <ConfigField label="Top N">{data.values.top_n}</ConfigField>
             <ConfigField label="Style">
               {AI_SUMMARY_STYLES.find(s => s.id === data.values.style)?.label ??
                 data.values.style}
             </ConfigField>
             <ConfigField label="Max output tokens">
-              {data.values.max_output_tokens} (max{' '}
-              {data.max_output_tokens_ceiling})
+              {data.values.max_output_tokens}
             </ConfigField>
           </ConfigGrid>
         </ConfigSection>

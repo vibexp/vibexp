@@ -21,8 +21,8 @@ export type UpdateTeamAISummarySettingsRequest =
  *
  * The GET response carries everything the settings card needs in one call:
  * the effective values, their provenance (`source`), the `instance_defaults`
- * to preview a reset against, the instance-owned `max_top_n` ceiling, and
- * whether the team has a model provider at all (`available`).
+ * to preview a reset against, and whether the team has a model provider at
+ * all (`available`).
  */
 class AISummarySettingsService {
   async getAISummarySettings(teamId: string): Promise<TeamAISummarySettings> {

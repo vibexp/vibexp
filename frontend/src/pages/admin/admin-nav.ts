@@ -3,6 +3,8 @@ import {
   LayoutDashboard,
   type LucideIcon,
   Mail,
+  Search,
+  Sparkles,
   Users,
   UsersRound,
 } from 'lucide-react'
@@ -80,6 +82,22 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     group: 'settings',
     description:
       'How this instance sends mail: provider, delivery health and change history.',
+  },
+  {
+    label: 'Search',
+    href: '/admin/settings/search',
+    icon: Search,
+    group: 'settings',
+    description:
+      'The search ranking defaults every team without its own settings uses.',
+  },
+  {
+    label: 'AI Summary',
+    href: '/admin/settings/ai-summary',
+    icon: Sparkles,
+    group: 'settings',
+    description:
+      'The AI summary defaults for teams, and the server budgets every team shares.',
   },
 ]
 

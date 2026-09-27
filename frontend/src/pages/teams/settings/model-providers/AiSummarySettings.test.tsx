@@ -76,7 +76,9 @@ const instanceSettings: TeamAISummarySettings = {
   source: 'instance',
   values: defaults,
   instance_defaults: defaults,
-  max_top_n: 10,
+  // The deprecated ceilings (#1199) are deliberately NOT the hard limits here,
+  // so the tests below prove the form ignores them.
+  max_top_n: 3,
   max_output_tokens_ceiling: 4096,
   available: true,
 }
@@ -194,7 +196,7 @@ describe('AiSummarySettings', () => {
     expect(await screen.findByText('reset boom')).toBeInTheDocument()
   })
 
-  it('clamps results-to-read to the response max_top_n', async () => {
+  it('clamps results-to-read to the hard limit of 10, not the deprecated ceiling', async () => {
     const user = userEvent.setup()
     renderCard()
 
@@ -209,16 +211,19 @@ describe('AiSummarySettings', () => {
     expect(topN).toHaveValue(1)
   })
 
-  it('clamps response length to the response max_output_tokens_ceiling', async () => {
+  it('clamps response length to the hard limit of 32768, not the deprecated ceiling', async () => {
     const user = userEvent.setup()
     renderCard()
 
     const tokens = await screen.findByLabelText('Response length (tokens)')
-    expect(tokens).toHaveAttribute('max', '4096')
-    expect(screen.getByText(/\(1–4096\)/)).toBeInTheDocument()
+    expect(tokens).toHaveAttribute('max', '32768')
+    expect(screen.getByText(/\(1–32768\)/)).toBeInTheDocument()
     await user.clear(tokens)
     await user.type(tokens, '9999')
-    expect(tokens).toHaveValue(4096)
+    expect(tokens).toHaveValue(9999)
+    await user.clear(tokens)
+    await user.type(tokens, '99999')
+    expect(tokens).toHaveValue(32768)
 
     await user.clear(tokens)
     await user.type(tokens, '0')
@@ -234,7 +239,7 @@ describe('AiSummarySettings', () => {
 
     expect(
       screen.getByText(
-        'Response length must be a whole number between 1 and 4096.'
+        'Response length must be a whole number between 1 and 32768.'
       )
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()

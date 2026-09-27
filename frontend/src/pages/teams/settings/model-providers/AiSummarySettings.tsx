@@ -31,8 +31,10 @@ import {
   clampMaxOutputTokens,
   clampTopN,
   describeValues,
+  MAX_OUTPUT_TOKENS_MAX,
   sameValues,
   toForm,
+  TOP_N_MAX,
   toValues,
   validate,
 } from './aiSummaryForm'
@@ -47,8 +49,6 @@ const TEAM_DEFAULT = ''
 interface FieldsProps {
   form: AISummaryForm
   providers: ModelProviderResponse[]
-  maxTopN: number
-  maxOutputTokens: number
   disabled: boolean
   onChange: (patch: Partial<AISummaryForm>) => void
 }
@@ -56,8 +56,6 @@ interface FieldsProps {
 function AiSummaryFields({
   form,
   providers,
-  maxTopN,
-  maxOutputTokens,
   disabled,
   onChange,
 }: Readonly<FieldsProps>) {
@@ -131,15 +129,15 @@ function AiSummaryFields({
             id="ai-summary-top-n"
             type="number"
             min={1}
-            max={maxTopN}
+            max={TOP_N_MAX}
             step={1}
             value={form.top_n}
             onChange={e => {
-              onChange({ top_n: clampTopN(e.target.value, maxTopN) })
+              onChange({ top_n: clampTopN(e.target.value) })
             }}
           />
           <p className="text-muted-foreground text-xs">
-            How many top-ranked results the summary reads (1–{maxTopN}).
+            How many top-ranked results the summary reads (1–{TOP_N_MAX}).
           </p>
         </div>
 
@@ -151,20 +149,18 @@ function AiSummaryFields({
             id="ai-summary-max-tokens"
             type="number"
             min={1}
-            max={maxOutputTokens}
+            max={MAX_OUTPUT_TOKENS_MAX}
             step={1}
             value={form.max_output_tokens}
             onChange={e => {
               onChange({
-                max_output_tokens: clampMaxOutputTokens(
-                  e.target.value,
-                  maxOutputTokens
-                ),
+                max_output_tokens: clampMaxOutputTokens(e.target.value),
               })
             }}
           />
           <p className="text-muted-foreground text-xs">
-            Upper bound on how much the summary may write (1–{maxOutputTokens}).
+            Upper bound on how much the summary may write (1–
+            {MAX_OUTPUT_TOKENS_MAX}).
           </p>
         </div>
       </div>
@@ -306,10 +302,7 @@ export function AiSummarySettings({
 
   const isTeamOwned = settings.source === 'team'
   const busy = saving || resetting
-  const validationError = validate(form, {
-    maxTopN: settings.max_top_n,
-    maxOutputTokens: settings.max_output_tokens_ceiling,
-  })
+  const validationError = validate(form)
   const hasChanges = !sameValues(toValues(form), settings.values)
 
   return (
@@ -350,8 +343,6 @@ export function AiSummarySettings({
             <AiSummaryFields
               form={form}
               providers={providers}
-              maxTopN={settings.max_top_n}
-              maxOutputTokens={settings.max_output_tokens_ceiling}
               disabled={!canEdit || busy}
               onChange={handleChange}
             />
