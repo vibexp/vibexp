@@ -161,7 +161,7 @@ export function MemoryEdit() {
   return (
     <ResourceFormReadingPage
       title={formHeading(descriptor, 'edit')}
-      description="Update the content or tags."
+      updatedAt={memory.updated_at}
       descriptor={descriptor}
       mode="edit"
       initialValues={initialValues}

@@ -541,7 +541,18 @@ describe('PromptEditor — edit mode', () => {
       'Hello {{name}}'
     )
     expect(screen.getByText('review')).toBeInTheDocument()
-    expect(screen.getByText('Edit prompt')).toBeInTheDocument()
+    // The name and description are edited in the header (#1179), which keeps
+    // an accessible heading naming what is being edited.
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Edit prompt: My Prompt' })
+    ).toBeInTheDocument()
+    const header = screen
+      .getByTestId('reading-page')
+      .querySelector('article header')
+    expect(header).toContainElement(screen.getByTestId('prompt-name-input'))
+    expect(header).toContainElement(
+      screen.getByTestId('prompt-description-input')
+    )
     // The project is never re-fetched for an edit: the prompt carries its own.
     expect(projectService.getProjects).not.toHaveBeenCalled()
 
@@ -563,6 +574,20 @@ describe('PromptEditor — edit mode', () => {
       )
     })
     expect(mockNavigate).toHaveBeenCalledWith('/prompts/my-prompt')
+  })
+
+  it('keeps the Shared badge in the edit header of a shared prompt', async () => {
+    ;(promptService.getPrompt as Mock).mockResolvedValue(
+      buildPrompt({ is_shared: true })
+    )
+    renderEditor('/prompts/my-prompt/edit')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('prompt-name-input')).toHaveValue('My Prompt')
+    })
+    expect(screen.getByTestId('resource-header-meta')).toHaveTextContent(
+      'Shared'
+    )
   })
 
   it('opens the render view, loads placeholders, and shows the rendered output', async () => {

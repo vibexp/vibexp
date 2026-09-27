@@ -75,7 +75,9 @@ export const promptDescriptor = defineResource({
       // The placeholders on `name` and `body` are load-bearing, not cosmetic:
       // `e2e/smoke/critical-paths.smoke.spec.ts` and every slug test in
       // `e2e/features/prompts/prompt-crud.spec.ts` locate those two controls by
-      // placeholder text rather than by test id.
+      // placeholder text rather than by test id. On the CREATE form only: the
+      // edit page renders the name as the inline header input (#1179), which
+      // has its own placeholder, so edit specs locate it by test id.
       {
         ...nameFormField('name', 50, 'prompt-name-input'),
         placeholder: 'Enter prompt name',

@@ -8,9 +8,14 @@ import {
   ReadingPage,
   type ReadingSection,
 } from '@/components/patterns/reading-page'
+import { ResourceHeaderMeta } from '@/components/resource-detail/ResourceHeaderMeta'
 import { Form } from '@/components/ui/form'
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 
+import { fieldOfRole } from '../fieldOfRole'
+import { fieldLabel, fieldTone, statusFieldOf } from '../statusTone'
+import type { ResourceDescriptor } from '../types'
+import type { ResourceFormValues } from './buildFormSchema'
 import { formSaveLabel } from './formLabels'
 import type { ResourceFormPageProps } from './ResourceFormPage'
 import { useResourceForm } from './useResourceForm'
@@ -29,10 +34,23 @@ export const RESOURCE_FORM_SECTION_IDS = {
 const REVEAL_ERROR_DELAY_MS = 0
 
 export interface ResourceFormReadingPageProps extends ResourceFormPageProps {
-  /** The `<h1>` — "Edit artifact". */
+  /**
+   * The page's name — "Edit artifact". The visible `<h1>` only for a kind
+   * whose name is not edited in the header; otherwise the accessible heading.
+   */
   title: string
-  /** Lead line under the title; the resource's own name, usually. */
+  /**
+   * Lead line under the title, for a kind whose header is not inline-editable.
+   * Replaced by the badge row and the description input when it is.
+   */
   description?: ReactNode
+  /** ISO timestamp of the last edit — "Updated <relative>" in the header. */
+  updatedAt?: string
+  /**
+   * Kind-specific header badges, as on the reading page (the prompt's Shared
+   * badge), so they do not vanish on the way into edit.
+   */
+  headerExtra?: ReactNode
   /** Where Cancel goes. Called only once the unsaved-changes guard clears. */
   onCancel: () => void
   /** Forwarded to the Save action, for pages an e2e spec addresses by id. */
@@ -44,6 +62,28 @@ export interface ResourceFormReadingPageProps extends ResourceFormPageProps {
    * close without any prompt.
    */
   extraDirty?: boolean
+}
+
+/** A form value as display text; anything that is not a string reads as absent. */
+function valueOf(values: ResourceFormValues | undefined, key: string) {
+  const value = new Map(Object.entries(values ?? {})).get(key)
+  return typeof value === 'string' ? value : ''
+}
+
+/**
+ * The header's accessible `<h1>` once the visible name is an input: the page's
+ * name plus the resource's name as it was loaded, so a screen reader still
+ * lands on a heading that says what is being edited. The live input is the
+ * editable copy and would re-announce on every keystroke.
+ */
+function headingText(
+  title: string,
+  descriptor: ResourceDescriptor,
+  initialValues: ResourceFormValues | undefined
+) {
+  const nameKey = fieldOfRole(descriptor, 'name')?.key
+  const name = nameKey ? valueOf(initialValues, nameKey).trim() : ''
+  return name ? `${title}: ${name}` : title
 }
 
 /**
@@ -66,6 +106,8 @@ export interface ResourceFormReadingPageProps extends ResourceFormPageProps {
 export function ResourceFormReadingPage({
   title,
   description,
+  updatedAt,
+  headerExtra,
   onCancel,
   saveTestId,
   extraDirty = false,
@@ -95,6 +137,9 @@ export function ResourceFormReadingPage({
   })
 
   const [revealErrors, setRevealErrors] = useState(0)
+  // Read by the invalid-submit handler, which is handed to the hook that
+  // produces the keys.
+  const headerKeysNow = useRef<readonly string[]>([])
 
   const {
     form,
@@ -105,6 +150,9 @@ export function ResourceFormReadingPage({
     bodyNode,
     detailsNode,
     taxonomyNode,
+    titleNode,
+    summaryNode,
+    headerKeys,
   } = useResourceForm({
     descriptor,
     mode,
@@ -114,21 +162,77 @@ export function ResourceFormReadingPage({
     renderBody,
     metadataRequiredKeys,
     metadataReservedKeys,
+    inlineHeader: true,
     // Most fields live in the details column, and the column folds to a 48px
     // rail that renders none of them. A validation error the reader cannot
     // reach is one they cannot fix, so a failed submit reopens the column —
     // whichever surface is live, since below `lg` the details are a sheet with
-    // an entirely separate open state.
-    onInvalidSubmit: () => {
-      if (isDesktop) {
-        if (!detailsOpen) forcedColumnOpen.current = true
-        setDetailsOpen(true)
-      } else {
-        setDetailsSheetOpen(true)
+    // an entirely separate open state. Errors only in the header are already
+    // in view, so they leave the column as the reader had it.
+    onInvalidSubmit: invalidKeys => {
+      const headerOnly =
+        invalidKeys.length > 0 &&
+        invalidKeys.every(key => headerKeysNow.current.includes(key))
+      if (!headerOnly) {
+        if (isDesktop) {
+          if (!detailsOpen) forcedColumnOpen.current = true
+          setDetailsOpen(true)
+        } else {
+          setDetailsSheetOpen(true)
+        }
       }
       setRevealErrors(n => n + 1)
     },
   })
+
+  useEffect(() => {
+    headerKeysNow.current = headerKeys
+  })
+
+  // The header's badge row reads the LIVE form, so changing Status in the
+  // column recolours the badge at once — the header is the same header as on
+  // the reading page, not a snapshot of the saved resource.
+  const statusField = statusFieldOf(descriptor)
+  const slugKey = descriptor.form?.fields.find(
+    spec => spec.pattern === 'slug'
+  )?.key
+  const statusValue = form.watch(statusField?.key ?? '__no_status_field__')
+  const slugValue = form.watch(slugKey ?? '__no_slug_field__')
+  const inlineHeader = titleNode !== null || summaryNode !== null
+
+  const headerDescription = inlineHeader ? (
+    <>
+      <ResourceHeaderMeta
+        status={
+          typeof statusValue === 'string' && statusValue
+            ? {
+                value: fieldLabel(statusField, statusValue),
+                tone: fieldTone(statusField, statusValue),
+              }
+            : undefined
+        }
+        address={
+          typeof slugValue === 'string' && slugValue
+            ? { value: slugValue, copyable: mode === 'edit' }
+            : undefined
+        }
+        updatedAt={updatedAt}
+        extra={headerExtra}
+      />
+      {summaryNode && <div className="mt-2">{summaryNode}</div>}
+    </>
+  ) : (
+    description
+  )
+
+  const heading = titleNode ? (
+    <>
+      <h1 className="sr-only">
+        {headingText(title, descriptor, initialValues)}
+      </h1>
+      {titleNode}
+    </>
+  ) : undefined
 
   // Give the reader their folded rail back on the way out. `setDetailsOpen`
   // writes `DETAILS_COLLAPSED`, a persisted app-wide preference, so without
@@ -233,7 +337,8 @@ export function ResourceFormReadingPage({
       <ReadingPage
         presentation="editing"
         title={title}
-        description={description}
+        heading={heading}
+        description={headerDescription}
         actions={actions}
         sections={sections}
       >

@@ -113,6 +113,25 @@ describe('ReadingPage', () => {
     expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
   })
 
+  // An edit page puts its own heading (an inline title input) in the slot; the
+  // title stays the page's name for the details sheet (#1179).
+  it('renders a heading node in place of the <h1>', () => {
+    renderPage(
+      <ReadingPage
+        title="Edit doc"
+        heading={<p data-testid="custom-heading">inline title</p>}
+      >
+        <p>body text</p>
+      </ReadingPage>
+    )
+    const header = screen
+      .getByTestId('reading-page')
+      .querySelector('article header')
+    expect(header).toContainElement(screen.getByTestId('custom-heading'))
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
+    expect(screen.queryByText('Edit doc')).not.toBeInTheDocument()
+  })
+
   // The details column is pinned to the right edge of the content area, so the
   // article centers itself in whatever is left beside it — unconditionally, in
   // every rail state (#890). Making it conditional (#888/#889) is what pushed

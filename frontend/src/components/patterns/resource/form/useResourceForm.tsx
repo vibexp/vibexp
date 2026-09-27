@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import type { FormEvent, ReactNode, RefObject } from 'react'
+import type { FormEvent, KeyboardEvent, ReactNode, RefObject } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useForm } from 'react-hook-form'
@@ -13,6 +13,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { labelVariants } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 
 import { fieldOfRole } from '../fieldOfRole'
 import type { FormFieldSpec, ResourceDescriptor } from '../types'
@@ -25,6 +26,7 @@ import {
   slugify,
 } from './buildFormSchema'
 import type { ResourceFormMode } from './formLabels'
+import { InlineTextarea } from './InlineTextarea'
 import type { BodySlotProps } from './ResourceFormControl'
 import { ResourceFormControl } from './ResourceFormControl'
 
@@ -43,11 +45,18 @@ export interface UseResourceFormOptions {
   /** Forwarded to the `metadata` control. Must be a stable reference. */
   metadataReservedKeys?: string[]
   /**
-   * Called when a submit attempt fails validation. The reading-shell layout
-   * uses it to reopen a folded details column, where most fields live — an
-   * error the reader cannot see is an error they cannot fix (#916).
+   * Called when a submit attempt fails validation, with the keys of the fields
+   * that failed. The reading-shell layout uses it to reopen a folded details
+   * column, where most fields live — an error the reader cannot see is an
+   * error they cannot fix (#916).
    */
-  onInvalidSubmit?: () => void
+  onInvalidSubmit?: (invalidKeys: readonly string[]) => void
+  /**
+   * Render the name and summary fields as the page's own header — inline, in
+   * the heading's typography — instead of in the details column (#1179). Only
+   * the reading-shell layout asks for it; the standalone card grid does not.
+   */
+  inlineHeader?: boolean
 }
 
 /** The generated form, as nodes a layout places wherever it wants. */
@@ -64,10 +73,48 @@ export interface ResourceFormSlots {
   isDirty: boolean
   /** Controls of `section: 'body'`. */
   bodyNode: ReactNode
-  /** Controls of `section: 'details'`, or null when the kind declares none. */
+  /**
+   * Controls of `section: 'details'`, or null when the kind declares none.
+   * Excludes the header fields when `inlineHeader` rendered them.
+   */
   detailsNode: ReactNode
+  /** The inline name input (`inlineHeader` only), or null when the kind has none. */
+  titleNode: ReactNode
+  /** The inline summary input (`inlineHeader` only), or null when the kind has none. */
+  summaryNode: ReactNode
+  /** Keys of the fields rendered in the header rather than the details column. */
+  headerKeys: readonly string[]
   /** Controls of `section: 'taxonomy'`, or null when the kind declares none. */
   taxonomyNode: ReactNode
+}
+
+/**
+ * The inline header inputs (#1179). Borderless, so at rest they look exactly
+ * like the reading page's heading and lead; a token fill on hover/focus is the
+ * only sign they are editable. `-mx-2 px-2` keeps the TEXT on the reading
+ * page's x while giving the fill some room, and the widened box gives back the
+ * 1rem the negative margins take, so the text wraps at the same width too.
+ */
+const INLINE_FIELD_CLASS =
+  'block -mx-2 w-[calc(100%+1rem)] resize-none overflow-hidden rounded-md border-0 bg-transparent px-2 py-0 field-sizing-content outline-none transition-colors placeholder:text-muted-foreground/60 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring aria-invalid:ring-2 aria-invalid:ring-destructive disabled:cursor-not-allowed disabled:opacity-50'
+
+/** The reading page's `<h1>` typography. */
+const INLINE_TITLE_CLASS = 'text-2xl font-semibold tracking-tight'
+
+/** The reading page's lead typography, at the same prose measure (+1rem, as above). */
+const INLINE_SUMMARY_CLASS =
+  'max-w-[calc(var(--container-3xl)+1rem)] text-sm text-muted-foreground'
+
+type HeaderSlot = 'title' | 'summary'
+
+/**
+ * A heading is one line of text: Enter must not insert a newline (it would be
+ * saved into a single-line field), and a pasted newline becomes a space. The
+ * title is still a `<textarea>` so a long name wraps on a phone, which an
+ * `<input>` cannot do.
+ */
+function blockEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
+  if (event.key === 'Enter') event.preventDefault()
 }
 
 /**
@@ -93,6 +140,7 @@ export function useResourceForm({
   metadataRequiredKeys,
   metadataReservedKeys,
   onInvalidSubmit,
+  inlineHeader = false,
 }: UseResourceFormOptions): ResourceFormSlots {
   const formElRef = useRef<HTMLFormElement>(null)
   const slugManuallyEdited = useRef(mode === 'edit')
@@ -124,6 +172,22 @@ export function useResourceForm({
 
   const nameField = fieldOfRole(descriptor, 'name')
   const slugSpec = specs.find(spec => spec.pattern === 'slug')
+  const metadataSpec = specs.find(spec => spec.control === 'metadata')
+
+  // The header fields, read off the descriptor's roles: a kind with no `name`
+  // text field or no `summary` textarea simply keeps that one in the column.
+  const summaryField = fieldOfRole(descriptor, 'summary')
+  const titleSpec = inlineHeader
+    ? specs.find(spec => spec.key === nameField?.key && spec.control === 'text')
+    : undefined
+  const summarySpec = inlineHeader
+    ? specs.find(
+        spec => spec.key === summaryField?.key && spec.control === 'textarea'
+      )
+    : undefined
+  const headerSpecs = [titleSpec, summarySpec].filter(
+    (spec): spec is FormFieldSpec => spec !== undefined
+  )
   // A key no field owns simply watches nothing, which is the right answer for
   // a kind with no name field.
   const nameValue = form.watch(nameField?.key ?? '__no_name_field__')
@@ -143,13 +207,13 @@ export function useResourceForm({
       // The metadata editor surfaces its own inline errors; block the submit so
       // an invalid map never reaches the API.
       if (!metadataValid) {
-        onInvalidSubmit?.()
+        onInvalidSubmit?.(metadataSpec ? [metadataSpec.key] : [])
         return
       }
       await onSubmit(values)
     },
-    () => {
-      onInvalidSubmit?.()
+    errors => {
+      onInvalidSubmit?.(Object.keys(errors))
     }
   )
 
@@ -206,8 +270,55 @@ export function useResourceForm({
     )
   }
 
+  const renderHeaderSpec = (spec: FormFieldSpec, slot: HeaderSlot) => {
+    const label = formFieldLabel(byKey, spec.key)
+    const locked = isLoading || (spec.editableOnCreateOnly && mode === 'edit')
+    return (
+      <FormField
+        key={spec.key}
+        control={form.control}
+        name={spec.key}
+        render={({ field }) => (
+          // `space-y-0`: the sr-only label is still a child, and FormItem's
+          // default spacing would push the input off the heading's y.
+          <FormItem className="space-y-0">
+            <FormLabel className="sr-only">{label}</FormLabel>
+            <FormControl>
+              <InlineTextarea
+                value={typeof field.value === 'string' ? field.value : ''}
+                disabled={!!locked}
+                maxLength={spec.maxLength}
+                placeholder={
+                  slot === 'title'
+                    ? `Untitled ${descriptor.singular}`
+                    : 'Add a description…'
+                }
+                data-testid={spec.testId}
+                className={cn(
+                  INLINE_FIELD_CLASS,
+                  slot === 'title' ? INLINE_TITLE_CLASS : INLINE_SUMMARY_CLASS
+                )}
+                onKeyDown={slot === 'title' ? blockEnter : undefined}
+                onBlur={field.onBlur}
+                onChange={event => {
+                  const next = event.target.value
+                  field.onChange(
+                    slot === 'title' ? next.replace(/\r?\n/g, ' ') : next
+                  )
+                }}
+              />
+            </FormControl>
+            <FormMessage className="mt-1" />
+          </FormItem>
+        )}
+      />
+    )
+  }
+
   const sectionNodes = (section: FormFieldSpec['section']) => {
-    const matching = specs.filter(spec => spec.section === section)
+    const matching = specs.filter(
+      spec => spec.section === section && !headerSpecs.includes(spec)
+    )
     return matching.length > 0 ? matching.map(renderSpec) : null
   }
 
@@ -225,5 +336,8 @@ export function useResourceForm({
     bodyNode: sectionNodes('body'),
     detailsNode: sectionNodes('details'),
     taxonomyNode: sectionNodes('taxonomy'),
+    titleNode: titleSpec ? renderHeaderSpec(titleSpec, 'title') : null,
+    summaryNode: summarySpec ? renderHeaderSpec(summarySpec, 'summary') : null,
+    headerKeys: headerSpecs.map(spec => spec.key),
   }
 }

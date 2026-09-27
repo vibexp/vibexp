@@ -144,7 +144,7 @@ export function BlueprintEdit() {
   return (
     <ResourceFormReadingPage
       title={formHeading(descriptor, 'edit')}
-      description={blueprint.title}
+      updatedAt={blueprint.updated_at}
       descriptor={descriptor}
       mode="edit"
       initialValues={blueprint}

@@ -1,5 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { MockInstance } from 'vitest'
 
 import { ShellProvider } from '@/components/layout/ShellContext'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
@@ -320,6 +321,300 @@ describe('ResourceFormReadingPage', () => {
       'aria-invalid',
       'true'
     )
+  })
+
+  // The header is the reading page's header, made editable (#1179): the name
+  // and the description are edited where they are displayed.
+  describe('inline-editable header', () => {
+    const HEADER_KINDS: readonly (readonly [
+      string,
+      ResourceDescriptor,
+      string,
+      string | null,
+    ])[] = [
+      ['artifact', artifactDescriptor, 'title', 'description'],
+      ['blueprint', blueprintDescriptor, 'title', 'description'],
+      ['prompt', promptDescriptor, 'name', 'description'],
+      // Memory has a name but no summary: its title is inline, nothing else.
+      ['memory', memoryDescriptor, 'title', null],
+    ]
+
+    function testIdOf(descriptor: ResourceDescriptor, key: string) {
+      return descriptor.form?.fields.find(spec => spec.key === key)?.testId
+    }
+
+    function header() {
+      const node = screen
+        .getByTestId('reading-page')
+        .querySelector('article header')
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    }
+
+    it.each(HEADER_KINDS)(
+      'edits the %s name and summary in the header, not the column',
+      (_kind, descriptor, nameKey, summaryKey) => {
+        renderEditPage(descriptor)
+        const column = screen.getByTestId('details-column')
+        const title = screen.getByTestId(testIdOf(descriptor, nameKey)!)
+        expect(header()).toContainElement(title)
+        expect(column).not.toContainElement(title)
+        expect(title).toHaveAttribute(
+          'placeholder',
+          `Untitled ${descriptor.singular}`
+        )
+        // Still a labelled control: its (visually hidden) label names it.
+        const label = descriptor.fields.find(f => f.key === nameKey)?.label
+        expect(within(header()).getByRole('textbox', { name: label })).toBe(
+          title
+        )
+        if (summaryKey) {
+          const summary = screen.getByTestId(testIdOf(descriptor, summaryKey)!)
+          expect(header()).toContainElement(summary)
+          expect(column).not.toContainElement(summary)
+          expect(summary).toHaveAttribute('placeholder', 'Add a description…')
+        }
+      }
+    )
+
+    it('keeps an accessible heading naming what is being edited', () => {
+      renderEditPage(artifactDescriptor, {
+        initialValues: { title: 'Release notes' },
+      })
+      const heading = screen.getByRole('heading', { level: 1 })
+      expect(heading).toHaveTextContent('Edit artifact: Release notes')
+      expect(heading).toHaveClass('sr-only')
+    })
+
+    it('honours the field limits and the save lock', () => {
+      renderEditPage(promptDescriptor, { isLoading: true })
+      const name = screen.getByTestId('prompt-name-input')
+      expect(name).toHaveAttribute('maxLength', '50')
+      expect(name).toBeDisabled()
+      expect(screen.getByTestId('prompt-description-input')).toHaveAttribute(
+        'maxLength',
+        '200'
+      )
+    })
+
+    it('keeps a single-line title: Enter and pasted newlines add no break', async () => {
+      const user = userEvent.setup()
+      renderEditPage(artifactDescriptor, { initialValues: { title: 'A' } })
+      const title = screen.getByTestId('artifact-title-input')
+      await user.type(title, 'b{Enter}c')
+      expect(title).toHaveValue('Abc')
+      await user.clear(title)
+      await user.click(title)
+      await user.paste('one\ntwo')
+      expect(title).toHaveValue('one two')
+    })
+
+    it('saves the edited title and description', async () => {
+      const user = userEvent.setup()
+      const { onSubmit } = renderEditPage(artifactDescriptor, {
+        initialValues: {
+          title: 'Old',
+          description: 'Old lead',
+          slug: 'a-slug',
+          project_id: 'p1',
+          content: 'Body',
+          type: 'general',
+          status: 'active',
+        },
+      })
+      await user.clear(screen.getByTestId('artifact-title-input'))
+      await user.type(screen.getByTestId('artifact-title-input'), 'New')
+      await user.clear(screen.getByTestId('artifact-description-input'))
+      await user.type(
+        screen.getByTestId('artifact-description-input'),
+        'New lead'
+      )
+      await user.click(screen.getByRole('button', { name: 'Save changes' }))
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0))
+      })
+      expect(onSubmit).toHaveBeenCalledTimes(1)
+      expect(onSubmit.mock.calls[0][0]).toMatchObject({
+        title: 'New',
+        description: 'New lead',
+      })
+    })
+
+    it('renders the badge row from the live form and the resource', () => {
+      renderEditPage(artifactDescriptor, {
+        initialValues: { title: 'A', slug: 'a-slug', status: 'draft' },
+        updatedAt: '2026-09-01T10:00:00Z',
+      })
+      const meta = within(header()).getByTestId('resource-header-meta')
+      expect(within(meta).getByText('Draft')).toBeInTheDocument()
+      expect(within(meta).getByText('a-slug')).toBeInTheDocument()
+      expect(meta).toHaveTextContent(/Updated/)
+    })
+
+    it('recolours the status badge as soon as Status changes', async () => {
+      const user = userEvent.setup()
+      Element.prototype.scrollIntoView = vi.fn()
+      Element.prototype.hasPointerCapture = vi.fn(() => false)
+      Element.prototype.releasePointerCapture = vi.fn()
+      renderEditPage(artifactDescriptor, {
+        initialValues: { title: 'A', status: 'active' },
+      })
+      const meta = within(header()).getByTestId('resource-header-meta')
+      expect(within(meta).getByText('Active')).toBeInTheDocument()
+
+      await user.click(screen.getByTestId('artifact-status-select'))
+      await user.click(await screen.findByRole('option', { name: 'Archived' }))
+
+      expect(within(meta).getByText('Archived')).toBeInTheDocument()
+      expect(within(meta).queryByText('Active')).not.toBeInTheDocument()
+    })
+
+    // The error is already in view, so the reader's folded rail stays folded;
+    // the header input is where the focus goes.
+    it('reports a header-only error under the header input and focuses it', async () => {
+      const user = userEvent.setup()
+      Element.prototype.scrollIntoView = vi.fn()
+      storage.set(STORAGE_KEYS.DETAILS_COLLAPSED, true)
+      renderEditPage(artifactDescriptor, {
+        initialValues: {
+          title: 'A title',
+          slug: 'a-slug',
+          project_id: 'p1',
+          content: 'Body',
+          type: 'general',
+          status: 'active',
+        },
+      })
+      const title = screen.getByTestId('artifact-title-input')
+      await user.clear(title)
+      await user.click(screen.getByRole('button', { name: 'Save changes' }))
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0))
+      })
+      expect(title).toHaveAttribute('aria-invalid', 'true')
+      expect(title).toHaveFocus()
+      const describedBy = title.getAttribute('aria-describedby') ?? ''
+      const message = describedBy
+        .split(' ')
+        .map(id => document.getElementById(id))
+        .find(node => node?.textContent)
+      expect(header()).toContainElement(message ?? null)
+      expect(screen.getByTestId('reading-details')).toHaveAttribute(
+        'data-state',
+        'collapsed'
+      )
+    })
+
+    it('renders kind-specific header badges beside the status', () => {
+      renderEditPage(promptDescriptor, {
+        initialValues: { name: 'P', status: 'published' },
+        headerExtra: <span data-testid="shared-badge">Shared</span>,
+      })
+      expect(
+        within(header()).getByTestId('resource-header-meta')
+      ).toContainElement(screen.getByTestId('shared-badge'))
+    })
+
+    // Without `field-sizing: content` the one-row box would hide every wrapped
+    // line, so it is sized from its text.
+    describe('auto-size fallback', () => {
+      let scrollHeight: MockInstance<() => number>
+
+      beforeEach(() => {
+        // Absent in jsdom, as in a browser without `field-sizing`.
+        vi.stubGlobal('CSS', { supports: () => false })
+        scrollHeight = vi.spyOn(
+          HTMLTextAreaElement.prototype,
+          'scrollHeight',
+          'get'
+        )
+      })
+
+      afterEach(() => {
+        vi.unstubAllGlobals()
+        scrollHeight.mockRestore()
+      })
+
+      it('sizes the header inputs from their content', async () => {
+        const user = userEvent.setup()
+        scrollHeight.mockReturnValue(64)
+        renderEditPage(artifactDescriptor, {
+          initialValues: { title: 'A long title', description: 'Lead' },
+        })
+        const title = screen.getByTestId('artifact-title-input')
+        expect(title.style.height).toBe('64px')
+        expect(
+          screen.getByTestId('artifact-description-input').style.height
+        ).toBe('64px')
+
+        scrollHeight.mockReturnValue(96)
+        await user.type(title, ' that wraps')
+        expect(title.style.height).toBe('96px')
+      })
+
+      it('re-fits when the column width changes, not only the text', () => {
+        const observers: (() => void)[] = []
+        vi.stubGlobal(
+          'ResizeObserver',
+          class {
+            constructor(callback: () => void) {
+              observers.push(callback)
+            }
+            observe() {}
+            disconnect() {}
+          }
+        )
+        const clientWidth = vi
+          .spyOn(HTMLTextAreaElement.prototype, 'clientWidth', 'get')
+          .mockReturnValue(600)
+        scrollHeight.mockReturnValue(32)
+        renderEditPage(artifactDescriptor, {
+          initialValues: { title: 'A long title' },
+        })
+        const title = screen.getByTestId('artifact-title-input')
+        expect(title.style.height).toBe('32px')
+
+        // Same text, narrower box: it wraps, so it must grow.
+        clientWidth.mockReturnValue(300)
+        scrollHeight.mockReturnValue(64)
+        act(() => {
+          observers.forEach(fire => {
+            fire()
+          })
+        })
+        expect(title.style.height).toBe('64px')
+        clientWidth.mockRestore()
+      })
+
+      it('leaves sizing to CSS where the browser supports it', () => {
+        vi.stubGlobal('CSS', { supports: () => true })
+        scrollHeight.mockReturnValue(64)
+        renderEditPage(artifactDescriptor, {
+          initialValues: { title: 'A long title' },
+        })
+        expect(screen.getByTestId('artifact-title-input').style.height).toBe('')
+      })
+    })
+
+    // A kind whose descriptor has no name text field keeps today's heading.
+    it('falls back to the plain heading and lead without header fields', () => {
+      const bare: ResourceDescriptor = {
+        ...artifactDescriptor,
+        form: {
+          fields: artifactDescriptor.form.fields.filter(
+            spec => spec.key !== 'title' && spec.key !== 'description'
+          ),
+        },
+      }
+      renderEditPage(bare, { description: 'A lead line' })
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Edit artifact' })
+      ).not.toHaveClass('sr-only')
+      expect(screen.getByText('A lead line')).toBeInTheDocument()
+      expect(
+        screen.queryByTestId('resource-header-meta')
+      ).not.toBeInTheDocument()
+    })
   })
 
   // A page's `extensions` are its own useState and invisible to
