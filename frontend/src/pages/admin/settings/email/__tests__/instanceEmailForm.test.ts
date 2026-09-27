@@ -8,6 +8,7 @@ import {
   instanceEmailSchema,
   instanceSecretError,
   sameStoredDestination,
+  storedCredentialApplies,
   toInstanceFormValues,
   toInstanceRequest,
 } from '../instanceEmailForm'
@@ -211,6 +212,23 @@ describe('sameStoredDestination', () => {
   })
 })
 
+describe('storedCredentialApplies', () => {
+  it('applies to the stored provider type', () => {
+    expect(storedCredentialApplies(storedSMTP(), 'smtp')).toBe(true)
+  })
+
+  it('does not apply after a switch to another type', () => {
+    expect(storedCredentialApplies(storedMailgun, 'smtp')).toBe(false)
+  })
+
+  it('does not apply when none is stored', () => {
+    expect(
+      storedCredentialApplies(storedSMTP({ has_credential: false }), 'smtp')
+    ).toBe(false)
+    expect(storedCredentialApplies(unconfigured, 'smtp')).toBe(false)
+  })
+})
+
 describe('instanceSecretError', () => {
   it('never blocks an action that carries a secret', () => {
     const form = values({ secret: 'pw', provider_type: 'postmark' })
@@ -218,11 +236,27 @@ describe('instanceSecretError', () => {
     expect(instanceSecretError('test', unconfigured, form)).toBeNull()
   })
 
+  const mailgunValues = (overrides: Partial<InstanceEmailFormValues> = {}) =>
+    values({
+      provider_type: 'mailgun',
+      mailgun_domain: 'mg.acme.test',
+      mailgun_base_url: 'https://api.eu.mailgun.net/v3',
+      ...overrides,
+    })
+
   describe('save', () => {
-    it('requires a credential for a first configuration', () => {
-      expect(instanceSecretError('save', unconfigured, values())).toBe(
+    it('requires a credential for a first API-key configuration', () => {
+      expect(instanceSecretError('save', unconfigured, mailgunValues())).toBe(
         'A credential is required'
       )
+    })
+
+    it('lets a first SMTP configuration omit it (an unauthenticated relay)', () => {
+      expect(instanceSecretError('save', unconfigured, values())).toBeNull()
+    })
+
+    it('lets a switch onto SMTP omit it', () => {
+      expect(instanceSecretError('save', storedMailgun, values())).toBeNull()
     })
 
     it('keeps the stored credential for the same provider type', () => {
@@ -265,20 +299,34 @@ describe('instanceSecretError', () => {
       ).toBeNull()
     })
 
-    it('requires a credential for a different destination', () => {
+    it('requires a credential for a different API-key destination', () => {
       expect(
         instanceSecretError(
           'test',
-          storedSMTP(),
-          values({ smtp_host: 'collector.attacker.test' })
+          storedMailgun,
+          mailgunValues({ mailgun_domain: 'mg.attacker.test' })
         )
       ).toMatch(/different destination/)
     })
 
-    it('requires a credential when nothing is stored', () => {
-      expect(instanceSecretError('test', unconfigured, values())).toBe(
+    it('tests a different SMTP destination credential-free', () => {
+      expect(
+        instanceSecretError(
+          'test',
+          storedSMTP(),
+          values({ smtp_host: 'mailpit.internal' })
+        )
+      ).toBeNull()
+    })
+
+    it('requires a credential for an API-key test when nothing is stored', () => {
+      expect(instanceSecretError('test', unconfigured, mailgunValues())).toBe(
         'Enter the credential to send a test.'
       )
+    })
+
+    it('tests SMTP credential-free when nothing is stored', () => {
+      expect(instanceSecretError('test', unconfigured, values())).toBeNull()
     })
   })
 })

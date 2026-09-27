@@ -40,6 +40,7 @@ import {
   type InstanceEmailFormValues,
   instanceEmailSchema,
   instanceSecretError,
+  storedCredentialApplies,
   toInstanceFormValues,
   toInstanceRequest,
 } from './instanceEmailForm'
@@ -50,6 +51,11 @@ const INSTANCE_PROVIDER_DESCRIPTION =
 
 const INSTANCE_STORED_CREDENTIAL_HINT =
   'A credential is stored. Leave this blank to keep it — for saving, and for a test send to the same destination.'
+
+/** An instance SMTP credential is optional: blank is an unauthenticated relay (#1208). */
+const INSTANCE_SECRET_HINTS = {
+  smtp: 'The password for the SMTP username above. Leave blank for a relay without authentication, such as Mailpit.',
+}
 
 /** What the API reports when no instance provider is stored. */
 const UNCONFIGURED: AdminInstanceEmailSettings = {
@@ -249,9 +255,13 @@ export function AdminEmailSettings() {
           <ProviderCard
             form={form}
             busy={busy}
-            hasCredential={settings.configured && settings.has_credential}
+            hasCredential={storedCredentialApplies(
+              settings,
+              form.watch('provider_type')
+            )}
             description={INSTANCE_PROVIDER_DESCRIPTION}
             storedCredentialHint={INSTANCE_STORED_CREDENTIAL_HINT}
+            secretHints={INSTANCE_SECRET_HINTS}
           />
           <SenderIdentityCard form={form} busy={busy}>
             <InstanceOnlyFields form={form} />

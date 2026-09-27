@@ -71,7 +71,8 @@ func (s *InstanceEmailProviderService) Get(ctx context.Context) (*models.Instanc
 
 // Upsert validates, encrypts and stores the instance provider, then appends one
 // redacted audit entry. An omitted secret keeps the stored one when the
-// provider type is unchanged.
+// provider type is unchanged; otherwise it is required, except for SMTP, where
+// omitting it stores no credential (an unauthenticated relay, #1208).
 //
 // Deliberately NO ssrfGuard (epic #1185 decision 5): the instance admin is the
 // operator, and localhost/internal relays are legitimate. Team-supplied hosts
@@ -89,17 +90,18 @@ func (s *InstanceEmailProviderService) Upsert(
 	}
 
 	// An omitted secret keeps the stored one only for the SAME provider type:
-	// a type change must carry its own secret. Unlike a test send (see
+	// a type change must carry its own secret, except onto SMTP, where omitting
+	// it configures an unauthenticated relay (#1208). Unlike a test send (see
 	// testConfiguration), a save may change the destination (SMTP host, Mailgun
 	// base URL) and keep the secret, deliberately: a save is audited, so the
 	// before/after snapshots record the destination change, whereas a test send
 	// is unaudited and therefore also requires the same destination.
 	keepsStoredSecret := sameStoredProviderType(existing, req.ProviderType)
-	if verr := validateInstanceUpsertRequest(req, !keepsStoredSecret); verr != nil {
+	if verr := validateInstanceUpsertRequest(req, instanceSecretRequired(req, keepsStoredSecret)); verr != nil {
 		return nil, verr
 	}
 
-	secretEncrypted, err := s.resolveSecret(req.Secret, existing)
+	secretEncrypted, err := s.resolveSecret(req.Secret, existing, keepsStoredSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -119,8 +121,11 @@ func (s *InstanceEmailProviderService) Upsert(
 		return nil, err
 	}
 
+	// A type change without a secret drops the stored credential (onto SMTP,
+	// #1208), which is a credential change too.
+	droppedStoredSecret := !keepsStoredSecret && existing != nil && existing.SecretEncrypted != nil
 	secretMarker := models.InstanceSettingsAuditSecretUnchanged
-	if req.Secret != nil {
+	if req.Secret != nil || droppedStoredSecret {
 		secretMarker = models.InstanceSettingsAuditSecretChanged
 	}
 	if err := s.appendAudit(ctx, models.InstanceSettingsAuditActionUpsert, actorUserID,
@@ -212,7 +217,9 @@ func (s *InstanceEmailProviderService) testConfiguration(
 	}
 
 	canBorrowSecret := config.Secret == nil && sameStoredDestination(stored, config.UpsertTeamEmailProviderRequest)
-	if verr := validateInstanceUpsertRequest(*config, !canBorrowSecret); verr != nil {
+	// An SMTP candidate that neither carries nor may borrow a secret is tested
+	// credential-free, as an unauthenticated relay (#1208).
+	if verr := validateInstanceUpsertRequest(*config, instanceSecretRequired(*config, canBorrowSecret)); verr != nil {
 		return implementations.ProviderSpec{}, testSender{}, verr
 	}
 
@@ -303,14 +310,16 @@ func (s *InstanceEmailProviderService) stored(ctx context.Context) (*models.Inst
 }
 
 // resolveSecret decides what ciphertext to store: a supplied secret is
-// encrypted, an omitted one keeps the stored value. Validation has already
-// rejected the empty string, and an omitted secret on create or on a change of
-// provider type.
+// encrypted, an omitted one keeps the stored value when keepsStoredSecret (same
+// provider type) and is nil otherwise — an SMTP relay without a credential, the
+// only case validation lets through (#1208). Another provider type's
+// ciphertext is never carried over. Validation has already rejected the empty
+// string.
 func (s *InstanceEmailProviderService) resolveSecret(
-	secret *string, existing *models.InstanceEmailProvider,
+	secret *string, existing *models.InstanceEmailProvider, keepsStoredSecret bool,
 ) (*string, error) {
 	if secret == nil {
-		if existing == nil {
+		if existing == nil || !keepsStoredSecret {
 			return nil, nil
 		}
 		return existing.SecretEncrypted, nil
@@ -454,6 +463,14 @@ func optionalActor(actorUserID string) *string {
 		return nil
 	}
 	return &actorUserID
+}
+
+// instanceSecretRequired reports whether an instance request must carry its
+// own secret: when none can be reused (canReuseStored false), every provider
+// type needs one except SMTP, where an omitted secret is an unauthenticated
+// relay (Mailpit, an internal relay; #1208). The team rule is unchanged.
+func instanceSecretRequired(req models.UpsertInstanceEmailProviderRequest, canReuseStored bool) bool {
+	return !canReuseStored && normalizeProviderType(req.ProviderType) != EmailProviderTypeSMTP
 }
 
 // validateInstanceUpsertRequest applies the team provider's rules to the shared

@@ -207,12 +207,12 @@ describe('AdminEmailSettings — states', () => {
 })
 
 describe('AdminEmailSettings — save', () => {
-  it('requires a credential the first time, before any request', async () => {
+  it('requires an API-key credential the first time, before any request', async () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.type(await screen.findByLabelText(/^host$/i), 'mailpit')
-    await user.type(screen.getByLabelText(/^port$/i), '1025')
+    await user.click(await screen.findByRole('radio', { name: /mailgun/i }))
+    await user.type(screen.getByLabelText(/sending domain/i), 'mg.acme.test')
     await user.type(screen.getByLabelText(/from address/i), 'no@acme.test')
     await user.click(saveButton())
 
@@ -220,6 +220,68 @@ describe('AdminEmailSettings — save', () => {
       await screen.findByText('A credential is required')
     ).toBeInTheDocument()
     expect(service.upsertInstanceEmailSettings).not.toHaveBeenCalled()
+  })
+
+  it('saves a first SMTP relay with the credential blank (#1208)', async () => {
+    const user = userEvent.setup()
+    service.upsertInstanceEmailSettings.mockResolvedValue(
+      configured({ has_credential: false })
+    )
+    renderPage()
+
+    await user.type(await screen.findByLabelText(/^host$/i), 'mailpit')
+    await user.type(screen.getByLabelText(/^port$/i), '1025')
+    await user.type(screen.getByLabelText(/from address/i), 'no@acme.test')
+    await user.click(saveButton())
+
+    await waitFor(() => {
+      expect(service.upsertInstanceEmailSettings).toHaveBeenCalledTimes(1)
+    })
+    const body = service.upsertInstanceEmailSettings.mock.calls[0][0]
+    expect(body).toMatchObject({ provider_type: 'smtp' })
+    expect(body).not.toHaveProperty('secret')
+    expect(screen.queryByText('A credential is required')).toBeNull()
+  })
+
+  it('drops the "keep the stored credential" hint after a switch to SMTP', async () => {
+    const user = userEvent.setup()
+    service.getInstanceEmailSettings.mockResolvedValue(
+      configured({
+        provider_type: 'mailgun',
+        settings: { mailgun: { domain: 'mg.acme.test' } },
+      })
+    )
+    renderPage()
+
+    expect(
+      await screen.findByText(/a credential is stored\. leave this blank/i)
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: /^smtp/i }))
+
+    expect(
+      screen.getByText(/leave blank for a relay without authentication/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/a credential is stored\. leave this blank/i)
+    ).toBeNull()
+    expect(
+      screen.queryByPlaceholderText(/leave blank to keep current key/i)
+    ).toBeNull()
+  })
+
+  it('says an SMTP credential may be left blank, but not an API key', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    expect(
+      await screen.findByText(/leave blank for a relay without authentication/i)
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: /sendgrid/i }))
+    expect(
+      screen.queryByText(/leave blank for a relay without authentication/i)
+    ).toBeNull()
   })
 
   it('omits the secret when saving the same provider type, and reloads the history', async () => {
@@ -340,20 +402,44 @@ describe('AdminEmailSettings — test send', () => {
     expect(body).not.toHaveProperty('secret')
   })
 
-  it('requires a credential to test a different destination', async () => {
+  it('requires a credential to test a different API-key destination', async () => {
     const user = userEvent.setup()
-    service.getInstanceEmailSettings.mockResolvedValue(configured())
+    service.getInstanceEmailSettings.mockResolvedValue(
+      configured({
+        provider_type: 'mailgun',
+        settings: { mailgun: { domain: 'mg.acme.test' } },
+      })
+    )
     renderPage()
 
-    const host = await screen.findByLabelText(/^host$/i)
-    await user.clear(host)
-    await user.type(host, 'collector.attacker.test')
+    const domain = await screen.findByLabelText(/sending domain/i)
+    await user.clear(domain)
+    await user.type(domain, 'mg.attacker.test')
     await user.click(testButton())
 
     expect(
       await screen.findByText(/to test a different destination/i)
     ).toBeInTheDocument()
     expect(service.testInstanceEmailSettings).not.toHaveBeenCalled()
+  })
+
+  it('tests a different SMTP destination credential-free (#1208)', async () => {
+    const user = userEvent.setup()
+    service.getInstanceEmailSettings.mockResolvedValue(configured())
+    service.testInstanceEmailSettings.mockResolvedValue(sent)
+    renderPage()
+
+    const host = await screen.findByLabelText(/^host$/i)
+    await user.clear(host)
+    await user.type(host, 'mailpit')
+    await user.click(testButton())
+
+    await waitFor(() => {
+      expect(service.testInstanceEmailSettings).toHaveBeenCalledTimes(1)
+    })
+    const body = service.testInstanceEmailSettings.mock.calls[0][0]
+    expect(body).toMatchObject({ provider_type: 'smtp' })
+    expect(body).not.toHaveProperty('secret')
   })
 
   it('reports a failed send inline, not as an error', async () => {

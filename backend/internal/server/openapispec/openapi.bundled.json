@@ -40559,7 +40559,7 @@
           },
           "secret": {
             "type": "string",
-            "description": "The provider's single credential (SMTP password, Mailgun sending key,\nPostmark server token, or SendGrid API key). It is write-only: never\nreturned by any endpoint.\n\nOMIT it to keep the stored credential, which is allowed only when the\nprovider type is unchanged; a new configuration or a change of provider\ntype must carry its own. An explicitly empty string is rejected.\n",
+            "description": "The provider's single credential (SMTP password, Mailgun sending key,\nPostmark server token, or SendGrid API key). It is write-only: never\nreturned by any endpoint.\n\nOMIT it to keep the stored credential, which is allowed only when the\nprovider type is unchanged; a new configuration or a change of provider\ntype must carry its own, except SMTP, where omitting it configures an\nunauthenticated relay (no credential is stored and no AUTH is\nattempted). An explicitly empty string is rejected.\n",
             "example": "key-abc123"
           },
           "from_address": {
@@ -40609,7 +40609,7 @@
           },
           "secret": {
             "type": "string",
-            "description": "The candidate credential. Omit it to test with the stored credential\n(same destination only, see above). Never returned.\n",
+            "description": "The candidate credential. Omit it to test with the stored credential\n(same destination only, see above); an SMTP candidate with no\ncredential to reuse is tested as an unauthenticated relay. Never\nreturned.\n",
             "example": "key-abc123"
           },
           "from_address": {

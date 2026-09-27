@@ -164,6 +164,24 @@ export function sameStoredDestination(
 }
 
 /**
+ * Whether the stored credential applies to the provider type selected in the
+ * form, i.e. whether a blank credential field keeps it. After a switch to
+ * another type it does not: the server never carries a credential across types,
+ * so the form must not say "leave blank to keep it" — on a switch to SMTP a blank
+ * field configures an unauthenticated relay instead (#1208).
+ */
+export function storedCredentialApplies(
+  stored: AdminInstanceEmailSettings,
+  selectedType: InstanceEmailFormValues['provider_type']
+): boolean {
+  return (
+    stored.configured &&
+    stored.has_credential &&
+    stored.provider_type === selectedType
+  )
+}
+
+/**
  * Whether an action is blocked for want of a credential, and why. Mirrors the
  * server's rules so the admin gets an inline error instead of a 400:
  *
@@ -176,6 +194,10 @@ export function sameStoredDestination(
  *    stored credential is borrowed in that case — but never for a changed
  *    host/domain, since a test send is unaudited and would otherwise hand the
  *    write-only secret to whatever listener the form points at.
+ *  * SMTP never needs one, for either action: a blank credential is an
+ *    unauthenticated relay such as Mailpit (#1208). The server stores none and
+ *    sends without AUTH (or, same type or destination, keeps/borrows the stored
+ *    one as above). Team SMTP still requires a credential.
  */
 export function instanceSecretError(
   action: 'save' | 'test',
@@ -183,6 +205,7 @@ export function instanceSecretError(
   values: InstanceEmailFormValues
 ): string | null {
   if (values.secret?.trim()) return null
+  if (values.provider_type === 'smtp') return null
 
   if (action === 'test') {
     if (sameStoredDestination(stored, values)) return null

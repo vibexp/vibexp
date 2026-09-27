@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import type { EmailProviderType } from '@/services/emailProviderService'
 
 import {
   type EmailProviderFormValues,
@@ -62,6 +63,7 @@ export function ProviderCard<T extends EmailProviderFormValues>({
   hasCredential,
   description = TEAM_PROVIDER_DESCRIPTION,
   storedCredentialHint = TEAM_STORED_CREDENTIAL_HINT,
+  secretHints,
 }: Readonly<
   FieldsProps<T> & {
     hasCredential: boolean
@@ -69,11 +71,17 @@ export function ProviderCard<T extends EmailProviderFormValues>({
     description?: ReactNode
     /** Secret-field hint while a credential is stored; defaults to the team page's. */
     storedCredentialHint?: string
+    /**
+     * Per-type secret-field hints while none is stored, overriding the type's
+     * default (the instance says an SMTP credential may be left blank, #1208).
+     */
+    secretHints?: Partial<Record<EmailProviderType, string>>
   }
 >) {
   const form = sharedForm(callerForm)
   const providerType = form.watch('provider_type')
   const meta = providerTypeMeta(providerType)
+  const secretHint = secretHints?.[providerType] ?? meta.secretHint
 
   return (
     <Card>
@@ -252,12 +260,12 @@ export function ProviderCard<T extends EmailProviderFormValues>({
                     placeholder={
                       hasCredential
                         ? 'Leave blank to keep current key'
-                        : meta.secretHint
+                        : secretHint
                     }
                   />
                 </FormControl>
                 <FormDescription>
-                  {hasCredential ? storedCredentialHint : meta.secretHint}
+                  {hasCredential ? storedCredentialHint : secretHint}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

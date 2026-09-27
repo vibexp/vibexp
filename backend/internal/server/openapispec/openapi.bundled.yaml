@@ -28635,7 +28635,9 @@ components:
 
             OMIT it to keep the stored credential, which is allowed only when the
             provider type is unchanged; a new configuration or a change of provider
-            type must carry its own. An explicitly empty string is rejected.
+            type must carry its own, except SMTP, where omitting it configures an
+            unauthenticated relay (no credential is stored and no AUTH is
+            attempted). An explicitly empty string is rejected.
           example: key-abc123
         from_address:
           type: string
@@ -28691,7 +28693,9 @@ components:
           type: string
           description: |
             The candidate credential. Omit it to test with the stored credential
-            (same destination only, see above). Never returned.
+            (same destination only, see above); an SMTP candidate with no
+            credential to reuse is tested as an unauthenticated relay. Never
+            returned.
           example: key-abc123
         from_address:
           type: string

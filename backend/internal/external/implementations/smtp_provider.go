@@ -28,7 +28,7 @@ var crlf = []byte("\r\n")
 // field. There is therefore no supported way to give it a display name — the
 // only way to put one in the From header is to own the message bytes here
 // (#549). The transport is otherwise the same call gomail's implicit-connection
-// path makes: net/smtp.SendMail with PLAIN auth.
+// path makes: net/smtp.SendMail, with PLAIN auth when a password is set.
 type SMTPEmailProvider struct {
 	addr string
 	auth smtp.Auth
@@ -44,11 +44,17 @@ func NewSMTPEmailProvider(spec SMTPSpec) (external.EmailProvider, error) {
 		return nil, fmt.Errorf("invalid SMTP port: %w", err)
 	}
 
+	// No password means an unauthenticated relay (Mailpit, an internal relay;
+	// #1208): a nil auth makes net/smtp.SendMail skip AUTH, which such a server
+	// may not advertise at all. With a password it authenticates with PLAIN.
+	var auth smtp.Auth
+	if spec.Password != "" {
+		auth = smtp.PlainAuth("", spec.Username, spec.Password, spec.Host)
+	}
+
 	return &SMTPEmailProvider{
-		addr: fmt.Sprintf("%s:%d", spec.Host, port),
-		// Built unconditionally, matching what gomail did — a server that does
-		// not advertise AUTH fails the same way it did before.
-		auth:     smtp.PlainAuth("", spec.Username, spec.Password, spec.Host),
+		addr:     fmt.Sprintf("%s:%d", spec.Host, port),
+		auth:     auth,
 		sendMail: smtp.SendMail,
 	}, nil
 }
