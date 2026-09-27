@@ -209,6 +209,12 @@ var (
 	// instance provider, and the caller falls back to it (epic #499 decision 2).
 	ErrTeamEmailProviderNotFound = errors.New("team email provider not found")
 
+	// ErrInstanceEmailProviderNotFound is returned by
+	// InstanceEmailProviderRepository.Get and Delete when no instance provider
+	// row exists. For Get this is an ordinary state: the instance has no stored
+	// email configuration (epic #1185).
+	ErrInstanceEmailProviderNotFound = errors.New("instance email provider not found")
+
 	// ErrFeedNotFound is returned by FeedRepository lookups/updates/deletes when no
 	// feed row matches the given identifier for the team.
 	ErrFeedNotFound = errors.New("feed not found")
@@ -1477,6 +1483,37 @@ type TeamEmailProviderRepository interface {
 	// timestamps (see models.TeamEmailProvider.IsHealthy), which keeps the last
 	// failure readable after recovery.
 	RecordSendResult(ctx context.Context, teamID string, sendErr error, at time.Time) error
+}
+
+// InstanceEmailProviderRepository defines the data access operations for the
+// instance's own outbound email provider (#1186, epic #1185).
+//
+// The table is a database-enforced singleton, so no method takes a key: there is
+// one row or none. The scope is the instance, so there are no team predicates,
+// and the repository stores whatever ciphertext it is handed and never encrypts
+// or decrypts.
+type InstanceEmailProviderRepository interface {
+	// Get returns the instance provider, or ErrInstanceEmailProviderNotFound
+	// when none is stored.
+	Get(ctx context.Context) (*models.InstanceEmailProvider, error)
+	// Upsert creates or replaces the instance provider in one statement,
+	// bumping Version and refreshing CreatedAt/UpdatedAt/Version on the passed
+	// struct. It never touches the health columns, so reconfiguring keeps the
+	// delivery history that explains why it was reconfigured.
+	Upsert(ctx context.Context, provider *models.InstanceEmailProvider) error
+	// InsertIfAbsent stores the provider only when no row exists (ON CONFLICT
+	// DO NOTHING) and reports whether it did. An existing row is left
+	// untouched, which makes it safe for several replicas booting at once.
+	InsertIfAbsent(ctx context.Context, provider *models.InstanceEmailProvider) (inserted bool, err error)
+	// Delete removes the instance provider. Returns
+	// ErrInstanceEmailProviderNotFound when there was nothing to delete.
+	Delete(ctx context.Context) error
+	// RecordSuccess stamps last_success_at. Like RecordError it writes only the
+	// health columns, never bumps Version, does not clear the previous error,
+	// and is a silent no-op when no row exists.
+	RecordSuccess(ctx context.Context, at time.Time) error
+	// RecordError stamps last_error and last_error_at. See RecordSuccess.
+	RecordError(ctx context.Context, sendErr error, at time.Time) error
 }
 
 // FeedRepository defines the interface for feed data access operations

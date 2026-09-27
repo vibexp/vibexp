@@ -270,11 +270,18 @@ func NewTeamEmailProviderResponse(provider *TeamEmailProvider) *TeamEmailProvide
 // that has never sent anything is treated as healthy — there is no evidence
 // against it yet.
 func (p *TeamEmailProvider) IsHealthy() bool {
-	if p.LastErrorAt == nil {
+	return emailDeliveryHealthy(p.LastSuccessAt, p.LastErrorAt)
+}
+
+// emailDeliveryHealthy is the health rule shared by the team and instance
+// providers: healthy unless the last observed attempt failed, and healthy when
+// nothing has been attempted yet.
+func emailDeliveryHealthy(lastSuccessAt, lastErrorAt *time.Time) bool {
+	if lastErrorAt == nil {
 		return true
 	}
-	if p.LastSuccessAt == nil {
+	if lastSuccessAt == nil {
 		return false
 	}
-	return p.LastSuccessAt.After(*p.LastErrorAt)
+	return lastSuccessAt.After(*lastErrorAt)
 }
