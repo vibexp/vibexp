@@ -243,6 +243,33 @@ describe('AdminEmailSettings — save', () => {
     expect(screen.queryByText('A credential is required')).toBeNull()
   })
 
+  it('drops the "keep the stored credential" hint after a switch to SMTP', async () => {
+    const user = userEvent.setup()
+    service.getInstanceEmailSettings.mockResolvedValue(
+      configured({
+        provider_type: 'mailgun',
+        settings: { mailgun: { domain: 'mg.acme.test' } },
+      })
+    )
+    renderPage()
+
+    expect(
+      await screen.findByText(/a credential is stored\. leave this blank/i)
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: /^smtp/i }))
+
+    expect(
+      screen.getByText(/leave blank for a relay without authentication/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/a credential is stored\. leave this blank/i)
+    ).toBeNull()
+    expect(
+      screen.queryByPlaceholderText(/leave blank to keep current key/i)
+    ).toBeNull()
+  })
+
   it('says an SMTP credential may be left blank, but not an API key', async () => {
     const user = userEvent.setup()
     renderPage()

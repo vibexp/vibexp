@@ -121,8 +121,11 @@ func (s *InstanceEmailProviderService) Upsert(
 		return nil, err
 	}
 
+	// A type change without a secret drops the stored credential (onto SMTP,
+	// #1208), which is a credential change too.
+	droppedStoredSecret := !keepsStoredSecret && existing != nil && existing.SecretEncrypted != nil
 	secretMarker := models.InstanceSettingsAuditSecretUnchanged
-	if req.Secret != nil {
+	if req.Secret != nil || droppedStoredSecret {
 		secretMarker = models.InstanceSettingsAuditSecretChanged
 	}
 	if err := s.appendAudit(ctx, models.InstanceSettingsAuditActionUpsert, actorUserID,

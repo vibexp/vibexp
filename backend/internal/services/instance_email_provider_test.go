@@ -885,5 +885,8 @@ func TestInstanceEmailProvider_Upsert_TypeChangeOntoSMTPWithoutSecretStoresNone(
 	require.NotNil(t, *stored)
 	assert.Nil(t, (*stored).SecretEncrypted, "the Mailgun key must not become the SMTP password")
 	assert.Equal(t, true, snapshotMap(t, entry.Before)["has_credential"])
-	assert.Equal(t, false, snapshotMap(t, entry.After)["has_credential"])
+	after := snapshotMap(t, entry.After)
+	assert.Equal(t, false, after["has_credential"])
+	assert.Equal(t, models.InstanceSettingsAuditSecretChanged, after["secret"],
+		"dropping the stored credential is a credential change")
 }

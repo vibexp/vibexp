@@ -8,6 +8,7 @@ import {
   instanceEmailSchema,
   instanceSecretError,
   sameStoredDestination,
+  storedCredentialApplies,
   toInstanceFormValues,
   toInstanceRequest,
 } from '../instanceEmailForm'
@@ -208,6 +209,23 @@ describe('sameStoredDestination', () => {
 
   it('is false when nothing is stored', () => {
     expect(sameStoredDestination(unconfigured, values())).toBe(false)
+  })
+})
+
+describe('storedCredentialApplies', () => {
+  it('applies to the stored provider type', () => {
+    expect(storedCredentialApplies(storedSMTP(), 'smtp')).toBe(true)
+  })
+
+  it('does not apply after a switch to another type', () => {
+    expect(storedCredentialApplies(storedMailgun, 'smtp')).toBe(false)
+  })
+
+  it('does not apply when none is stored', () => {
+    expect(
+      storedCredentialApplies(storedSMTP({ has_credential: false }), 'smtp')
+    ).toBe(false)
+    expect(storedCredentialApplies(unconfigured, 'smtp')).toBe(false)
   })
 })
 

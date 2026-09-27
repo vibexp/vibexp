@@ -164,6 +164,24 @@ export function sameStoredDestination(
 }
 
 /**
+ * Whether the stored credential applies to the provider type selected in the
+ * form, i.e. whether a blank credential field keeps it. After a switch to
+ * another type it does not: the server never carries a credential across types,
+ * so the form must not say "leave blank to keep it" — on a switch to SMTP a blank
+ * field configures an unauthenticated relay instead (#1208).
+ */
+export function storedCredentialApplies(
+  stored: AdminInstanceEmailSettings,
+  selectedType: InstanceEmailFormValues['provider_type']
+): boolean {
+  return (
+    stored.configured &&
+    stored.has_credential &&
+    stored.provider_type === selectedType
+  )
+}
+
+/**
  * Whether an action is blocked for want of a credential, and why. Mirrors the
  * server's rules so the admin gets an inline error instead of a 400:
  *

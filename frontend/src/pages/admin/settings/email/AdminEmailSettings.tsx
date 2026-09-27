@@ -40,6 +40,7 @@ import {
   type InstanceEmailFormValues,
   instanceEmailSchema,
   instanceSecretError,
+  storedCredentialApplies,
   toInstanceFormValues,
   toInstanceRequest,
 } from './instanceEmailForm'
@@ -254,7 +255,10 @@ export function AdminEmailSettings() {
           <ProviderCard
             form={form}
             busy={busy}
-            hasCredential={settings.configured && settings.has_credential}
+            hasCredential={storedCredentialApplies(
+              settings,
+              form.watch('provider_type')
+            )}
             description={INSTANCE_PROVIDER_DESCRIPTION}
             storedCredentialHint={INSTANCE_STORED_CREDENTIAL_HINT}
             secretHints={INSTANCE_SECRET_HINTS}
