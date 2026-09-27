@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -558,35 +559,38 @@ func TestAdminInstanceSettings_OutOfBoundsIs400(t *testing.T) {
 		section    instanceSettingsSection
 		set        map[string]any
 		wantFields []string
+		// wantCode is the validation error code; empty means OUT_OF_RANGE.
+		wantCode string
 	}{
 		{"negative weight", instanceSettingsSections[0],
-			map[string]any{"rank_weight_created": -0.1}, []string{"rank_weight_created"}},
+			map[string]any{"rank_weight_created": -0.1}, []string{"rank_weight_created"}, ""},
 		{"all weights zero", instanceSettingsSections[0],
-			map[string]any{"rank_weight_relevance": 0, "rank_weight_created": 0, "rank_weight_updated": 0}, weights},
+			map[string]any{"rank_weight_relevance": 0, "rank_weight_created": 0, "rank_weight_updated": 0}, weights,
+			services.SettingsFieldInvalidValue},
 		{"half-life zero", instanceSettingsSections[0],
-			map[string]any{"rank_half_life_days": 0}, []string{"rank_half_life_days"}},
+			map[string]any{"rank_half_life_days": 0}, []string{"rank_half_life_days"}, ""},
 		{"half-life too long", instanceSettingsSections[0],
-			map[string]any{"rank_half_life_days": 36501}, []string{"rank_half_life_days"}},
+			map[string]any{"rank_half_life_days": 36501}, []string{"rank_half_life_days"}, ""},
 		{"candidate cap zero", instanceSettingsSections[0],
-			map[string]any{"rank_candidate_cap": 0}, []string{"rank_candidate_cap"}},
+			map[string]any{"rank_candidate_cap": 0}, []string{"rank_candidate_cap"}, ""},
 		{"candidate cap too large", instanceSettingsSections[0],
-			map[string]any{"rank_candidate_cap": 5001}, []string{"rank_candidate_cap"}},
+			map[string]any{"rank_candidate_cap": 5001}, []string{"rank_candidate_cap"}, ""},
 		{"top_n too large", instanceSettingsSections[1],
-			map[string]any{"top_n": 11}, []string{"top_n"}},
+			map[string]any{"top_n": 11}, []string{"top_n"}, ""},
 		{"max_output_tokens too large", instanceSettingsSections[1],
-			map[string]any{"max_output_tokens": 32769}, []string{"max_output_tokens"}},
+			map[string]any{"max_output_tokens": 32769}, []string{"max_output_tokens"}, ""},
 		{"unknown style", instanceSettingsSections[1],
-			map[string]any{"style": "verbose"}, []string{"style"}},
+			map[string]any{"style": "verbose"}, []string{"style"}, services.SettingsFieldInvalidValue},
 		{"per_document_chars zero", instanceSettingsSections[1],
-			map[string]any{"per_document_chars": 0}, []string{"per_document_chars"}},
+			map[string]any{"per_document_chars": 0}, []string{"per_document_chars"}, ""},
 		{"total below per-document", instanceSettingsSections[1],
-			map[string]any{"total_context_chars": 3999}, []string{"total_context_chars"}},
+			map[string]any{"total_context_chars": 3999}, []string{"total_context_chars"}, ""},
 		{"timeout zero", instanceSettingsSections[1],
-			map[string]any{"request_timeout_ms": 0}, []string{"request_timeout_ms"}},
+			map[string]any{"request_timeout_ms": 0}, []string{"request_timeout_ms"}, ""},
 		{"timeout past the column", instanceSettingsSections[1],
-			map[string]any{"request_timeout_ms": int64(math.MaxInt32) + 1}, []string{"request_timeout_ms"}},
+			map[string]any{"request_timeout_ms": int64(math.MaxInt32) + 1}, []string{"request_timeout_ms"}, ""},
 		{"timeout that would overflow nanoseconds", instanceSettingsSections[1],
-			map[string]any{"request_timeout_ms": int64(math.MaxInt64 / 1000)}, []string{"request_timeout_ms"}},
+			map[string]any{"request_timeout_ms": int64(math.MaxInt64 / 1000)}, []string{"request_timeout_ms"}, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -603,13 +607,19 @@ func TestAdminInstanceSettings_OutOfBoundsIs400(t *testing.T) {
 				Code             string `json:"code"`
 				ValidationErrors []struct {
 					Field string `json:"field"`
+					Code  string `json:"code"`
 				} `json:"validation_errors"`
 			}
 			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &problem))
 			assert.Equal(t, "INSTANCE_SETTINGS_VALIDATION_FAILED", problem.Code)
+			wantCode := tc.wantCode
+			if wantCode == "" {
+				wantCode = services.SettingsFieldOutOfRange
+			}
 			var fields []string
 			for _, ve := range problem.ValidationErrors {
 				fields = append(fields, ve.Field)
+				assert.Equal(t, wantCode, ve.Code, ve.Field)
 			}
 			assert.ElementsMatch(t, tc.wantFields, fields)
 			assert.Empty(t, f.audit.entries)
@@ -633,6 +643,32 @@ func TestAdminInstanceSettings_UnknownFieldIs400(t *testing.T) {
 			assert.Contains(t, rr.Body.String(), "max_top_n")
 			assert.Empty(t, f.audit.entries)
 		})
+	}
+}
+
+// TestAdminInstanceSettings_MissingOrNullFieldIs400: a PUT is a whole-row
+// replace, so dropping any value field, or sending it as null, is a 400 naming
+// it — never a silently stored zero value. expected_version stays optional.
+func TestAdminInstanceSettings_MissingOrNullFieldIs400(t *testing.T) {
+	for _, sec := range instanceSettingsSections {
+		for _, key := range sec.valueKeys {
+			for _, mode := range []string{"missing", "null"} {
+				t.Run(sec.name+" "+mode+" "+key, func(t *testing.T) {
+					f := newInstanceSettingsFixture(t)
+					body := sec.body(1)
+					delete(body, key)
+					if mode == "null" {
+						body[key] = nil
+					}
+
+					rr := f.serve(t, http.MethodPut, sec.path, body)
+
+					require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+					assert.Contains(t, rr.Body.String(), "Missing required field(s): "+key)
+					assert.Empty(t, f.audit.entries)
+				})
+			}
+		}
 	}
 }
 
@@ -858,5 +894,72 @@ func TestInstanceSettingsAuditVocabularyMatchesSpec(t *testing.T) {
 		models.InstanceSettingsAuditActionImport,
 	} {
 		assert.True(t, admingen.AdminInstanceSettingsAuditEntryAction(action).Valid(), action)
+	}
+}
+
+// --- the gate -----------------------------------------------------------------
+
+// adminInstanceSettingsRoutes lists every instance settings operation (email,
+// search, AI summary), for the 404 gate tests.
+var adminInstanceSettingsRoutes = []struct{ method, path string }{
+	{http.MethodGet, instanceEmailSettingsPath},
+	{http.MethodPut, instanceEmailSettingsPath},
+	{http.MethodDelete, instanceEmailSettingsPath},
+	{http.MethodPost, instanceEmailSettingsPath + "/test"},
+	{http.MethodGet, instanceEmailSettingsPath + "/audit"},
+	// Instance search + AI summary settings (#1200).
+	{http.MethodGet, instanceSearchSettingsPath},
+	{http.MethodPut, instanceSearchSettingsPath},
+	{http.MethodDelete, instanceSearchSettingsPath},
+	{http.MethodGet, instanceSearchSettingsPath + "/audit"},
+	{http.MethodGet, instanceAISummarySettingsPath},
+	{http.MethodPut, instanceAISummarySettingsPath},
+	{http.MethodDelete, instanceAISummarySettingsPath},
+	{http.MethodGet, instanceAISummarySettingsPath + "/audit"},
+}
+
+// TestAdminInstanceSettingsRoutes_Gate404 drives the FULL router
+// (setupAdminRoutes: optionalAuthMiddleware + instanceAdminMiddleware) for
+// every instance settings operation: an anonymous caller and an authenticated
+// non-admin (API key) both get 404, and the service and audit mocks carry no
+// expectations, so reaching a handler fails the test.
+func TestAdminInstanceSettingsRoutes_Gate404(t *testing.T) {
+	const nonAdminID = "33333333-3333-4333-8333-333333333333"
+	cfg := &config.Config{Auth: config.AuthConfig{InstanceAdmins: config.EnvStringSlice{instanceEmailAdminEmail}}}
+
+	for _, route := range adminInstanceSettingsRoutes {
+		for _, caller := range []string{"anonymous", "non-admin"} {
+			t.Run(caller+" "+route.method+" "+route.path, func(t *testing.T) {
+				authSvc := servicesmocks.NewMockAuthServiceInterface(t)
+				keySvc := servicesmocks.NewMockAPIKeyServiceInterface(t)
+				srv := newAdminTestServer(cfg, &adminMockContainer{
+					authService:          authSvc,
+					apiKeyService:        keySvc,
+					instanceEmailService: servicesmocks.NewMockInstanceEmailProviderServiceInterface(t),
+					instanceAuditRepo:    repomocks.NewMockInstanceSettingsAuditRepository(t),
+					instanceSearchService: servicesmocks.
+						NewMockInstanceSearchSettingsServiceInterface(t),
+					instanceAISummaryService: servicesmocks.
+						NewMockInstanceAISummarySettingsServiceInterface(t),
+				})
+
+				body, err := json.Marshal(smtpUpsertBody(nil))
+				require.NoError(t, err)
+				req := httptest.NewRequest(route.method, route.path, bytes.NewReader(body))
+				req.Header.Set("Content-Type", "application/json")
+				if caller == "non-admin" {
+					keySvc.On("ValidateAPIKey", mock.Anything, "vxk_non-admin").
+						Return(&models.APIKey{ID: "key-1", UserID: nonAdminID}, nil)
+					authSvc.On("GetUserByID", mock.Anything, nonAdminID).
+						Return(&models.User{ID: nonAdminID, Email: "member@instance.test"}, nil)
+					req.Header.Set("Authorization", "Bearer vxk_non-admin")
+				}
+				rr := httptest.NewRecorder()
+				srv.router.ServeHTTP(rr, req)
+
+				require.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
+				specconformance.AssertConformsToSpec(t, req, rr)
+			})
+		}
 	}
 }

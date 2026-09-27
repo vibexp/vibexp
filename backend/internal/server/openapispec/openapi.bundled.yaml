@@ -12684,8 +12684,9 @@ paths:
         defaults, taking effect on the next request with no restart, and appends
         one entry (`action: upsert`) to the `search` audit log in the same
         transaction. Pass `expected_version` to reject the save with 409 when
-        someone else changed the settings since they were read. A body carrying
-        an unknown field is rejected with 400.
+        someone else changed the settings since they were read. A body that
+        omits a value field, sends one as null, or carries an unknown field is
+        rejected with 400.
         Instance-admin only; non-admin and unauthenticated requests receive 404.
       operationId: updateAdminSearchSettings
       tags:
@@ -12710,7 +12711,8 @@ paths:
           description: |
             Bad request — a value is out of bounds (`INSTANCE_SETTINGS_VALIDATION_FAILED`,
             with `validation_errors` naming each offending field), or the body is
-            malformed or carries an unknown field
+            malformed, omits or nulls a value field (every value is required), or
+            carries an unknown field
           content:
             application/problem+json:
               schema:
@@ -12859,8 +12861,9 @@ paths:
         defaults and budgets, taking effect on the next request with no restart, and appends
         one entry (`action: upsert`) to the `ai_summary` audit log in the same
         transaction. Pass `expected_version` to reject the save with 409 when
-        someone else changed the settings since they were read. A body carrying
-        an unknown field is rejected with 400.
+        someone else changed the settings since they were read. A body that
+        omits a value field, sends one as null, or carries an unknown field is
+        rejected with 400.
         Instance-admin only; non-admin and unauthenticated requests receive 404.
       operationId: updateAdminAISummarySettings
       tags:
@@ -12885,7 +12888,8 @@ paths:
           description: |
             Bad request — a value is out of bounds (`INSTANCE_SETTINGS_VALIDATION_FAILED`,
             with `validation_errors` naming each offending field), or the body is
-            malformed or carries an unknown field
+            malformed, omits or nulls a value field (every value is required), or
+            carries an unknown field
           content:
             application/problem+json:
               schema:

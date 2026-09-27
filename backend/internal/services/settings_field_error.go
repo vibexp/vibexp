@@ -13,14 +13,34 @@ import "fmt"
 type SettingsFieldError struct {
 	// Fields are the request field names at fault. A rule spanning several
 	// fields (e.g. "the weights must not all be zero") names all of them.
-	Fields  []string
+	Fields []string
+	// Code classifies the rule that failed: SettingsFieldOutOfRange or
+	// SettingsFieldInvalidValue.
+	Code    string
 	Message string
 }
+
+// Classes of settings validation failure, carried as SettingsFieldError.Code
+// and published as the validation error's code.
+const (
+	// SettingsFieldOutOfRange is a value outside its numeric bounds.
+	SettingsFieldOutOfRange = "OUT_OF_RANGE"
+	// SettingsFieldInvalidValue is a value that is not allowed at all, such
+	// as an unknown enum member or a combination the rules reject.
+	SettingsFieldInvalidValue = "INVALID_VALUE"
+)
 
 // Error implements error.
 func (e *SettingsFieldError) Error() string { return e.Message }
 
-// settingsFieldError builds a SettingsFieldError with a formatted message.
+// settingsFieldError builds an out-of-range SettingsFieldError with a
+// formatted message.
 func settingsFieldError(fields []string, format string, args ...any) *SettingsFieldError {
-	return &SettingsFieldError{Fields: fields, Message: fmt.Sprintf(format, args...)}
+	return &SettingsFieldError{Fields: fields, Code: SettingsFieldOutOfRange, Message: fmt.Sprintf(format, args...)}
+}
+
+// settingsInvalidValueError builds an invalid-value SettingsFieldError with a
+// formatted message.
+func settingsInvalidValueError(fields []string, format string, args ...any) *SettingsFieldError {
+	return &SettingsFieldError{Fields: fields, Code: SettingsFieldInvalidValue, Message: fmt.Sprintf(format, args...)}
 }

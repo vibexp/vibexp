@@ -175,7 +175,7 @@ func validateSearchRankingWeightsAndHalfLife(v models.TeamSearchSettingsValues) 
 			"rank_weight_* must be non-negative, got %v", weights))
 	}
 	if sum == 0 {
-		return fmt.Errorf("%w: %w", ErrInvalidSearchSettings, settingsFieldError(weightFields,
+		return fmt.Errorf("%w: %w", ErrInvalidSearchSettings, settingsInvalidValueError(weightFields,
 			"rank_weight_* must not all be zero"))
 	}
 	if v.RankHalfLifeDays <= 0 {

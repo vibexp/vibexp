@@ -198,8 +198,9 @@ func (a *adminStrictServer) mapInstanceSettingsError(handler, invalidMsg string,
 }
 
 // instanceSettingsValidationErrors lists one validation error per field the
-// validator attributed the failure to. A rule spanning several fields (the
-// weights must not all be zero) names each of them with the same message.
+// validator attributed the failure to, coded by the rule that failed
+// (OUT_OF_RANGE or INVALID_VALUE). A rule spanning several fields (the weights
+// must not all be zero) names each of them with the same message.
 func instanceSettingsValidationErrors(err error) []apierrors.ValidationError {
 	var fieldErr *services.SettingsFieldError
 	if !errors.As(err, &fieldErr) {
@@ -207,7 +208,7 @@ func instanceSettingsValidationErrors(err error) []apierrors.ValidationError {
 	}
 	out := make([]apierrors.ValidationError, 0, len(fieldErr.Fields))
 	for _, field := range fieldErr.Fields {
-		out = append(out, apierrors.NewFieldValidationError(field, fieldErr.Message, "OUT_OF_RANGE"))
+		out = append(out, apierrors.NewFieldValidationError(field, fieldErr.Message, fieldErr.Code))
 	}
 	return out
 }

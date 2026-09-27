@@ -140,3 +140,14 @@ func TestUnknownFields(t *testing.T) {
 	assert.Equal(t, []string{"alpha", "zeta"}, unknownFields(body, allowed))
 	assert.Empty(t, unknownFields(map[string]json.RawMessage{"name": json.RawMessage(`"ok"`)}, allowed))
 }
+
+// TestRequiredJSONFields: the required set is exactly the non-omitempty tags,
+// so the optional expected_version never counts as missing.
+func TestRequiredJSONFields(t *testing.T) {
+	assert.Equal(t, []string{
+		"rank_candidate_cap", "rank_half_life_days", "rank_weight_created",
+		"rank_weight_relevance", "rank_weight_updated", "recency_ranking_enabled",
+	}, requiredJSONFields(admingen.AdminInstanceSearchSettingsUpdate{}))
+	assert.NotContains(t, requiredJSONFields(admingen.AdminInstanceAISummarySettingsUpdate{}), "expected_version")
+	assert.Len(t, requiredJSONFields(admingen.AdminInstanceAISummarySettingsUpdate{}), 7)
+}

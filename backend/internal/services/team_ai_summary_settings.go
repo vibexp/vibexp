@@ -371,7 +371,8 @@ func validateAISummaryProfileBounds(v models.TeamAISummarySettingsValues) error 
 			models.MaxAISummaryOutputTokens, v.MaxOutputTokens)
 	}
 	if !models.IsValidAISummaryStyle(v.Style) {
-		return settingsFieldError([]string{"style"}, "style must be one of %v, got %q", models.AISummaryStyles, v.Style)
+		return settingsInvalidValueError([]string{"style"},
+			"style must be one of %v, got %q", models.AISummaryStyles, v.Style)
 	}
 	return nil
 }

@@ -23,6 +23,14 @@ func fieldsOf(t *testing.T, err error) []string {
 	return fieldErr.Fields
 }
 
+// codeOf returns the class of rule a validation error reports.
+func codeOf(t *testing.T, err error) string {
+	t.Helper()
+	var fieldErr *services.SettingsFieldError
+	require.ErrorAs(t, err, &fieldErr)
+	return fieldErr.Code
+}
+
 // TestValidateInstanceSearchSettings_AttributesFields: every rejection names
 // the request field(s) at fault, keeps its sentinel, and keeps the message
 // wording the team settings API already returns.
@@ -32,21 +40,24 @@ func TestValidateInstanceSearchSettings_AttributesFields(t *testing.T) {
 		mutate     func(v *models.InstanceSearchSettingsValues)
 		wantFields []string
 		wantMsg    string
+		wantCode   string
 	}{
 		{"negative weights", func(v *models.InstanceSearchSettingsValues) {
 			v.RankWeightRelevance, v.RankWeightUpdated = -1, -0.5
-		}, []string{"rank_weight_relevance", "rank_weight_updated"}, "rank_weight_* must be non-negative"},
+		}, []string{"rank_weight_relevance", "rank_weight_updated"}, "rank_weight_* must be non-negative",
+			services.SettingsFieldOutOfRange},
 		{"all weights zero", func(v *models.InstanceSearchSettingsValues) {
 			v.RankWeightRelevance, v.RankWeightCreated, v.RankWeightUpdated = 0, 0, 0
-		}, []string{"rank_weight_relevance", "rank_weight_created", "rank_weight_updated"}, "rank_weight_* must not all be zero"},
+		}, []string{"rank_weight_relevance", "rank_weight_created", "rank_weight_updated"}, "rank_weight_* must not all be zero",
+			services.SettingsFieldInvalidValue},
 		{"half-life zero", func(v *models.InstanceSearchSettingsValues) { v.RankHalfLifeDays = 0 },
-			[]string{"rank_half_life_days"}, "rank_half_life_days must be positive"},
+			[]string{"rank_half_life_days"}, "rank_half_life_days must be positive", services.SettingsFieldOutOfRange},
 		{"half-life too long", func(v *models.InstanceSearchSettingsValues) { v.RankHalfLifeDays = 36501 },
-			[]string{"rank_half_life_days"}, "rank_half_life_days must be <= 36500"},
+			[]string{"rank_half_life_days"}, "rank_half_life_days must be <= 36500", services.SettingsFieldOutOfRange},
 		{"candidate cap zero", func(v *models.InstanceSearchSettingsValues) { v.RankCandidateCap = 0 },
-			[]string{"rank_candidate_cap"}, "rank_candidate_cap must be >= 1"},
+			[]string{"rank_candidate_cap"}, "rank_candidate_cap must be >= 1", services.SettingsFieldOutOfRange},
 		{"candidate cap too large", func(v *models.InstanceSearchSettingsValues) { v.RankCandidateCap = 5001 },
-			[]string{"rank_candidate_cap"}, "rank_candidate_cap must be <= 5000"},
+			[]string{"rank_candidate_cap"}, "rank_candidate_cap must be <= 5000", services.SettingsFieldOutOfRange},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -57,6 +68,7 @@ func TestValidateInstanceSearchSettings_AttributesFields(t *testing.T) {
 
 			require.ErrorIs(t, err, services.ErrInvalidSearchSettings)
 			assert.Equal(t, tc.wantFields, fieldsOf(t, err))
+			assert.Equal(t, tc.wantCode, codeOf(t, err))
 			assert.Contains(t, err.Error(), "invalid search settings: "+tc.wantMsg)
 		})
 	}
@@ -91,6 +103,11 @@ func TestValidateInstanceAISummarySettings_AttributesFields(t *testing.T) {
 
 			require.ErrorIs(t, err, services.ErrInvalidInstanceAISummarySettings)
 			assert.Equal(t, []string{tc.wantField}, fieldsOf(t, err))
+			wantCode := services.SettingsFieldOutOfRange
+			if tc.wantField == "style" {
+				wantCode = services.SettingsFieldInvalidValue
+			}
+			assert.Equal(t, wantCode, codeOf(t, err))
 		})
 	}
 }
