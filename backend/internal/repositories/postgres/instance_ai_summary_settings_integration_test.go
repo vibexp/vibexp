@@ -166,10 +166,10 @@ func TestIntegrationInstanceAISummarySettings_UpsertAuditedAndDeleteAudited(t *t
 	ctx := context.Background()
 
 	first := instanceAISummarySettingsFixture()
-	require.NoError(t, repo.UpsertAudited(ctx, first, aiSummaryAuditEntry(models.InstanceSettingsAuditActionUpsert)))
+	require.NoError(t, repo.UpsertAudited(ctx, first, nil, aiSummaryAuditEntry(models.InstanceSettingsAuditActionUpsert)))
 	second := instanceAISummarySettingsFixture()
 	second.TopN = 9
-	require.NoError(t, repo.UpsertAudited(ctx, second, aiSummaryAuditEntry(models.InstanceSettingsAuditActionUpsert)))
+	require.NoError(t, repo.UpsertAudited(ctx, second, nil, aiSummaryAuditEntry(models.InstanceSettingsAuditActionUpsert)))
 	assert.Equal(t, int64(2), second.Version)
 
 	got, err := repo.Get(ctx)
@@ -203,7 +203,7 @@ func TestIntegrationInstanceAISummarySettings_UpsertAudited_AuditFailureRollsBac
 	ctx := context.Background()
 
 	// An unknown action violates the audit table's CHECK after the upsert ran.
-	err := repo.UpsertAudited(ctx, instanceAISummarySettingsFixture(), aiSummaryAuditEntry("not-an-action"))
+	err := repo.UpsertAudited(ctx, instanceAISummarySettingsFixture(), nil, aiSummaryAuditEntry("not-an-action"))
 	require.Error(t, err)
 
 	_, err = repo.Get(ctx)

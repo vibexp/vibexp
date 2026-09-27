@@ -33,6 +33,20 @@ func TestAdminService_GetInstanceCounts_Error(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestAdminService_CountTeamsWithSettingsOverride(t *testing.T) {
+	repo := repomocks.NewMockAdminRepository(t)
+	repo.On("CountTeamsWithSearchSettingsOverride", mock.Anything).Return(4, nil)
+	repo.On("CountTeamsWithAISummarySettingsOverride", mock.Anything).Return(0, errors.New("boom"))
+	svc := newReadOnlyAdminService(repo)
+
+	n, err := svc.CountTeamsWithSearchSettingsOverride(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 4, n)
+
+	_, err = svc.CountTeamsWithAISummarySettingsOverride(context.Background())
+	require.Error(t, err)
+}
+
 func TestAdminService_ListUsers_ClampsAndComputesPages(t *testing.T) {
 	repo := repomocks.NewMockAdminRepository(t)
 	// page 0 -> 1, limit 0 -> default 20.

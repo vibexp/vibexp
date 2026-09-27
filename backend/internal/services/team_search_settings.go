@@ -161,24 +161,31 @@ func ValidateSearchSettings(v models.TeamSearchSettingsValues) error {
 // see one vocabulary.
 func validateSearchRankingWeightsAndHalfLife(v models.TeamSearchSettingsValues) error {
 	weights := []float64{v.RankWeightRelevance, v.RankWeightCreated, v.RankWeightUpdated}
+	weightFields := []string{"rank_weight_relevance", "rank_weight_created", "rank_weight_updated"}
 	var sum float64
-	for _, w := range weights {
+	var negative []string
+	for i, w := range weights {
 		if w < 0 {
-			return fmt.Errorf("%w: rank_weight_* must be non-negative, got %v",
-				ErrInvalidSearchSettings, weights)
+			negative = append(negative, weightFields[i])
 		}
 		sum += w
 	}
+	if len(negative) > 0 {
+		return fmt.Errorf("%w: %w", ErrInvalidSearchSettings, settingsFieldError(negative,
+			"rank_weight_* must be non-negative, got %v", weights))
+	}
 	if sum == 0 {
-		return fmt.Errorf("%w: rank_weight_* must not all be zero", ErrInvalidSearchSettings)
+		return fmt.Errorf("%w: %w", ErrInvalidSearchSettings, settingsFieldError(weightFields,
+			"rank_weight_* must not all be zero"))
 	}
 	if v.RankHalfLifeDays <= 0 {
-		return fmt.Errorf("%w: rank_half_life_days must be positive, got %v",
-			ErrInvalidSearchSettings, v.RankHalfLifeDays)
+		return fmt.Errorf("%w: %w", ErrInvalidSearchSettings, settingsFieldError(
+			[]string{"rank_half_life_days"}, "rank_half_life_days must be positive, got %v", v.RankHalfLifeDays))
 	}
 	if v.RankHalfLifeDays > models.MaxSearchRankHalfLifeDays {
-		return fmt.Errorf("%w: rank_half_life_days must be <= %d, got %v",
-			ErrInvalidSearchSettings, models.MaxSearchRankHalfLifeDays, v.RankHalfLifeDays)
+		return fmt.Errorf("%w: %w", ErrInvalidSearchSettings, settingsFieldError(
+			[]string{"rank_half_life_days"}, "rank_half_life_days must be <= %d, got %v",
+			models.MaxSearchRankHalfLifeDays, v.RankHalfLifeDays))
 	}
 	return nil
 }

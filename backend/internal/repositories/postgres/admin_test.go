@@ -66,6 +66,41 @@ func TestAdminRepository_GetInstanceCounts_QueryError(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+// TestAdminRepository_CountTeamsWithSettingsOverride: each count reads its own
+// team settings table, unscoped, and wraps a query failure.
+func TestAdminRepository_CountTeamsWithSettingsOverride(t *testing.T) {
+	cases := []struct {
+		name  string
+		table string
+		count func(r *AdminRepository) (int, error)
+	}{
+		{"search", "team_search_settings", func(r *AdminRepository) (int, error) {
+			return r.CountTeamsWithSearchSettingsOverride(context.Background())
+		}},
+		{"ai summary", "team_ai_summary_settings", func(r *AdminRepository) (int, error) {
+			return r.CountTeamsWithAISummarySettingsOverride(context.Background())
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, mock, mockDB := newAdminRepoMock(t)
+			t.Cleanup(func() { mock.ExpectClose(); assert.NoError(t, mockDB.Close()) })
+			mock.ExpectQuery(`SELECT COUNT\(\*\) FROM ` + tc.table + `$`).
+				WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(4))
+			mock.ExpectQuery(`SELECT COUNT\(\*\) FROM ` + tc.table + `$`).
+				WillReturnError(errors.New("boom"))
+
+			n, err := tc.count(repo)
+			require.NoError(t, err)
+			assert.Equal(t, 4, n)
+
+			_, err = tc.count(repo)
+			require.ErrorContains(t, err, "boom")
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
 // defaultAdminUserFilters is an unfiltered first page — the shape every existing
 // caller produced before #452 added filtering.
 func defaultAdminUserFilters() repositories.AdminUserFilters {

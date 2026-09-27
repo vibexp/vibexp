@@ -458,6 +458,31 @@ func NewInstanceEmailProviderValidationError(detail string, validationErrors []V
 	return err
 }
 
+// NewInstanceSettingsValidationError reports instance search or AI summary
+// settings outside their bounds, with the offending fields (#1200).
+func NewInstanceSettingsValidationError(detail string, validationErrors []ValidationError) *APIError {
+	err := NewAPIError(
+		CodeInstanceSettingsValidationFailed,
+		GetErrorTitle(CodeInstanceSettingsValidationFailed),
+		detail,
+		http.StatusBadRequest,
+	)
+	err.ValidationErrors = validationErrors
+	return err
+}
+
+// NewInstanceSettingsVersionConflictError reports that an instance settings
+// save carried an expected_version that no longer matches the stored settings
+// (#1200): someone else changed them since the caller read them.
+func NewInstanceSettingsVersionConflictError() *APIError {
+	return NewAPIError(
+		CodeInstanceSettingsVersionConflict,
+		GetErrorTitle(CodeInstanceSettingsVersionConflict),
+		"The settings were changed since they were read; reload them and try again",
+		http.StatusConflict,
+	)
+}
+
 // Search summary errors (#1073)
 
 // NewAISummaryError builds one of the classified search summary errors. The

@@ -233,7 +233,7 @@ func TestInstanceAISummarySettingsRepository_UpsertAudited(t *testing.T) {
 
 	audit := &testAISummaryAudit{}
 	s := instanceAISummarySettingsFixture()
-	require.NoError(t, NewInstanceAISummarySettingsRepository(db).UpsertAudited(context.Background(), s, audit.build))
+	require.NoError(t, NewInstanceAISummarySettingsRepository(db).UpsertAudited(context.Background(), s, nil, audit.build))
 
 	assert.Equal(t, 1, audit.calls)
 	require.NotNil(t, audit.before, "the current row is handed over as before")
@@ -255,7 +255,7 @@ func TestInstanceAISummarySettingsRepository_UpsertAudited_NoRowGivesNilBefore(t
 
 	audit := &testAISummaryAudit{}
 	require.NoError(t, NewInstanceAISummarySettingsRepository(db).
-		UpsertAudited(context.Background(), instanceAISummarySettingsFixture(), audit.build))
+		UpsertAudited(context.Background(), instanceAISummarySettingsFixture(), nil, audit.build))
 
 	assert.Nil(t, audit.before)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -284,7 +284,7 @@ func TestInstanceAISummarySettingsRepository_UpsertAudited_FailuresRollBack(t *t
 			mock.ExpectRollback()
 
 			err := NewInstanceAISummarySettingsRepository(db).
-				UpsertAudited(context.Background(), instanceAISummarySettingsFixture(), (&testAISummaryAudit{}).build)
+				UpsertAudited(context.Background(), instanceAISummarySettingsFixture(), nil, (&testAISummaryAudit{}).build)
 
 			assert.ErrorIs(t, err, errInstanceSettingsDB)
 			require.NoError(t, mock.ExpectationsWereMet())
@@ -338,4 +338,40 @@ func TestInstanceAISummarySettingsRepository_DeleteAudited(t *testing.T) {
 		assert.False(t, deleted)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+}
+
+// A stale expected version is a conflict: nothing is written or audited.
+func TestInstanceAISummarySettingsRepository_UpsertAudited_VersionConflictRollsBack(t *testing.T) {
+	db, mock := newInstanceSettingsMock(t)
+	expectLockedInstanceAISummaryRow(mock, 3)
+	mock.ExpectRollback()
+
+	expected := int64(2)
+	audit := &testAISummaryAudit{}
+	err := NewInstanceAISummarySettingsRepository(db).
+		UpsertAudited(context.Background(), instanceAISummarySettingsFixture(), &expected, audit.build)
+
+	require.ErrorIs(t, err, repositories.ErrInstanceSettingsVersionConflict)
+	assert.Zero(t, audit.calls)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// A matching expected version writes.
+func TestInstanceAISummarySettingsRepository_UpsertAudited_MatchingVersionWrites(t *testing.T) {
+	db, mock := newInstanceSettingsMock(t)
+	now := time.Now().UTC()
+	expectLockedInstanceAISummaryRow(mock, 3)
+	mock.ExpectQuery("INSERT INTO instance_ai_summary_settings").
+		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
+			AddRow(now, now, int64(4)))
+	expectInstanceAuditInsert(mock)
+	mock.ExpectCommit()
+
+	expected := int64(3)
+	s := instanceAISummarySettingsFixture()
+	require.NoError(t, NewInstanceAISummarySettingsRepository(db).
+		UpsertAudited(context.Background(), s, &expected, (&testAISummaryAudit{}).build))
+
+	assert.Equal(t, int64(4), s.Version)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

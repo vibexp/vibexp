@@ -289,17 +289,17 @@ func (_c *MockInstanceSearchSettingsRepository_Upsert_Call) RunAndReturn(run fun
 	return _c
 }
 
-// UpsertAudited provides a mock function with given fields: ctx, settings, audit
-func (_m *MockInstanceSearchSettingsRepository) UpsertAudited(ctx context.Context, settings *models.InstanceSearchSettings, audit repositories.InstanceSearchSettingsAuditFunc) error {
-	ret := _m.Called(ctx, settings, audit)
+// UpsertAudited provides a mock function with given fields: ctx, settings, expectedVersion, audit
+func (_m *MockInstanceSearchSettingsRepository) UpsertAudited(ctx context.Context, settings *models.InstanceSearchSettings, expectedVersion *int64, audit repositories.InstanceSearchSettingsAuditFunc) error {
+	ret := _m.Called(ctx, settings, expectedVersion, audit)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpsertAudited")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *models.InstanceSearchSettings, repositories.InstanceSearchSettingsAuditFunc) error); ok {
-		r0 = rf(ctx, settings, audit)
+	if rf, ok := ret.Get(0).(func(context.Context, *models.InstanceSearchSettings, *int64, repositories.InstanceSearchSettingsAuditFunc) error); ok {
+		r0 = rf(ctx, settings, expectedVersion, audit)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -315,14 +315,15 @@ type MockInstanceSearchSettingsRepository_UpsertAudited_Call struct {
 // UpsertAudited is a helper method to define mock.On call
 //   - ctx context.Context
 //   - settings *models.InstanceSearchSettings
+//   - expectedVersion *int64
 //   - audit repositories.InstanceSearchSettingsAuditFunc
-func (_e *MockInstanceSearchSettingsRepository_Expecter) UpsertAudited(ctx interface{}, settings interface{}, audit interface{}) *MockInstanceSearchSettingsRepository_UpsertAudited_Call {
-	return &MockInstanceSearchSettingsRepository_UpsertAudited_Call{Call: _e.mock.On("UpsertAudited", ctx, settings, audit)}
+func (_e *MockInstanceSearchSettingsRepository_Expecter) UpsertAudited(ctx interface{}, settings interface{}, expectedVersion interface{}, audit interface{}) *MockInstanceSearchSettingsRepository_UpsertAudited_Call {
+	return &MockInstanceSearchSettingsRepository_UpsertAudited_Call{Call: _e.mock.On("UpsertAudited", ctx, settings, expectedVersion, audit)}
 }
 
-func (_c *MockInstanceSearchSettingsRepository_UpsertAudited_Call) Run(run func(ctx context.Context, settings *models.InstanceSearchSettings, audit repositories.InstanceSearchSettingsAuditFunc)) *MockInstanceSearchSettingsRepository_UpsertAudited_Call {
+func (_c *MockInstanceSearchSettingsRepository_UpsertAudited_Call) Run(run func(ctx context.Context, settings *models.InstanceSearchSettings, expectedVersion *int64, audit repositories.InstanceSearchSettingsAuditFunc)) *MockInstanceSearchSettingsRepository_UpsertAudited_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*models.InstanceSearchSettings), args[2].(repositories.InstanceSearchSettingsAuditFunc))
+		run(args[0].(context.Context), args[1].(*models.InstanceSearchSettings), args[2].(*int64), args[3].(repositories.InstanceSearchSettingsAuditFunc))
 	})
 	return _c
 }
@@ -332,7 +333,7 @@ func (_c *MockInstanceSearchSettingsRepository_UpsertAudited_Call) Return(_a0 er
 	return _c
 }
 
-func (_c *MockInstanceSearchSettingsRepository_UpsertAudited_Call) RunAndReturn(run func(context.Context, *models.InstanceSearchSettings, repositories.InstanceSearchSettingsAuditFunc) error) *MockInstanceSearchSettingsRepository_UpsertAudited_Call {
+func (_c *MockInstanceSearchSettingsRepository_UpsertAudited_Call) RunAndReturn(run func(context.Context, *models.InstanceSearchSettings, *int64, repositories.InstanceSearchSettingsAuditFunc) error) *MockInstanceSearchSettingsRepository_UpsertAudited_Call {
 	_c.Call.Return(run)
 	return _c
 }

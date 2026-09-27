@@ -151,11 +151,20 @@ func (r *InstanceAISummarySettingsRepository) Delete(ctx context.Context) error 
 }
 
 // UpsertAudited creates or replaces the stored settings and appends the audit
-// entry audit builds, in one transaction.
+// entry audit builds, in one transaction. A non-nil expectedVersion must match
+// the row read under the lock (see checkSingletonVersion).
 func (r *InstanceAISummarySettingsRepository) UpsertAudited(
-	ctx context.Context, s *models.InstanceAISummarySettings, audit repositories.InstanceAISummarySettingsAuditFunc,
+	ctx context.Context, s *models.InstanceAISummarySettings, expectedVersion *int64,
+	audit repositories.InstanceAISummarySettingsAuditFunc,
 ) error {
 	return r.inAuditedTx(ctx, "upsert", func(tx *sql.Tx, before *models.InstanceAISummarySettings) (bool, error) {
+		var storedVersion *int64
+		if before != nil {
+			storedVersion = &before.Version
+		}
+		if err := checkSingletonVersion(expectedVersion, storedVersion); err != nil {
+			return false, err
+		}
 		err := tx.QueryRowContext(ctx, instanceAISummarySettingsUpsert, instanceAISummarySettingsArgs(s)...).
 			Scan(&s.CreatedAt, &s.UpdatedAt, &s.Version)
 		if err != nil {

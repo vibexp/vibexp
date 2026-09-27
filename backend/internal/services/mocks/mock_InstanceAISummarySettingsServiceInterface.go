@@ -173,9 +173,9 @@ func (_c *MockInstanceAISummarySettingsServiceInterface_Resolve_Call) RunAndRetu
 	return _c
 }
 
-// Update provides a mock function with given fields: ctx, actorUserID, values
-func (_m *MockInstanceAISummarySettingsServiceInterface) Update(ctx context.Context, actorUserID string, values models.InstanceAISummarySettingsValues) (*models.InstanceAISummarySettingsView, error) {
-	ret := _m.Called(ctx, actorUserID, values)
+// Update provides a mock function with given fields: ctx, actorUserID, values, expectedVersion
+func (_m *MockInstanceAISummarySettingsServiceInterface) Update(ctx context.Context, actorUserID string, values models.InstanceAISummarySettingsValues, expectedVersion *int64) (*models.InstanceAISummarySettingsView, error) {
+	ret := _m.Called(ctx, actorUserID, values, expectedVersion)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Update")
@@ -183,19 +183,19 @@ func (_m *MockInstanceAISummarySettingsServiceInterface) Update(ctx context.Cont
 
 	var r0 *models.InstanceAISummarySettingsView
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceAISummarySettingsValues) (*models.InstanceAISummarySettingsView, error)); ok {
-		return rf(ctx, actorUserID, values)
+	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceAISummarySettingsValues, *int64) (*models.InstanceAISummarySettingsView, error)); ok {
+		return rf(ctx, actorUserID, values, expectedVersion)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceAISummarySettingsValues) *models.InstanceAISummarySettingsView); ok {
-		r0 = rf(ctx, actorUserID, values)
+	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceAISummarySettingsValues, *int64) *models.InstanceAISummarySettingsView); ok {
+		r0 = rf(ctx, actorUserID, values, expectedVersion)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.InstanceAISummarySettingsView)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, models.InstanceAISummarySettingsValues) error); ok {
-		r1 = rf(ctx, actorUserID, values)
+	if rf, ok := ret.Get(1).(func(context.Context, string, models.InstanceAISummarySettingsValues, *int64) error); ok {
+		r1 = rf(ctx, actorUserID, values, expectedVersion)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -212,13 +212,14 @@ type MockInstanceAISummarySettingsServiceInterface_Update_Call struct {
 //   - ctx context.Context
 //   - actorUserID string
 //   - values models.InstanceAISummarySettingsValues
-func (_e *MockInstanceAISummarySettingsServiceInterface_Expecter) Update(ctx interface{}, actorUserID interface{}, values interface{}) *MockInstanceAISummarySettingsServiceInterface_Update_Call {
-	return &MockInstanceAISummarySettingsServiceInterface_Update_Call{Call: _e.mock.On("Update", ctx, actorUserID, values)}
+//   - expectedVersion *int64
+func (_e *MockInstanceAISummarySettingsServiceInterface_Expecter) Update(ctx interface{}, actorUserID interface{}, values interface{}, expectedVersion interface{}) *MockInstanceAISummarySettingsServiceInterface_Update_Call {
+	return &MockInstanceAISummarySettingsServiceInterface_Update_Call{Call: _e.mock.On("Update", ctx, actorUserID, values, expectedVersion)}
 }
 
-func (_c *MockInstanceAISummarySettingsServiceInterface_Update_Call) Run(run func(ctx context.Context, actorUserID string, values models.InstanceAISummarySettingsValues)) *MockInstanceAISummarySettingsServiceInterface_Update_Call {
+func (_c *MockInstanceAISummarySettingsServiceInterface_Update_Call) Run(run func(ctx context.Context, actorUserID string, values models.InstanceAISummarySettingsValues, expectedVersion *int64)) *MockInstanceAISummarySettingsServiceInterface_Update_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(models.InstanceAISummarySettingsValues))
+		run(args[0].(context.Context), args[1].(string), args[2].(models.InstanceAISummarySettingsValues), args[3].(*int64))
 	})
 	return _c
 }
@@ -228,7 +229,7 @@ func (_c *MockInstanceAISummarySettingsServiceInterface_Update_Call) Return(_a0 
 	return _c
 }
 
-func (_c *MockInstanceAISummarySettingsServiceInterface_Update_Call) RunAndReturn(run func(context.Context, string, models.InstanceAISummarySettingsValues) (*models.InstanceAISummarySettingsView, error)) *MockInstanceAISummarySettingsServiceInterface_Update_Call {
+func (_c *MockInstanceAISummarySettingsServiceInterface_Update_Call) RunAndReturn(run func(context.Context, string, models.InstanceAISummarySettingsValues, *int64) (*models.InstanceAISummarySettingsView, error)) *MockInstanceAISummarySettingsServiceInterface_Update_Call {
 	_c.Call.Return(run)
 	return _c
 }

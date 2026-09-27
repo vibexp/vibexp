@@ -92,4 +92,7 @@ type InstanceSearchSettingsView struct {
 	// for the boot-time import or once the saving user has been deleted.
 	UpdatedAt *time.Time
 	UpdatedBy *string
+	// Version is the stored row's optimistic-lock counter, nil when Source is
+	// InstanceSearchSettingsSourceDefault. Update's expectedVersion is compared with it.
+	Version *int64
 }

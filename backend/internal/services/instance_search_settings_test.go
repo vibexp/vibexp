@@ -181,9 +181,9 @@ func TestInstanceSearchSettingsService_Update_StoresAndAudits(t *testing.T) {
 	svc, repo := newInstanceSearchService(t, nil)
 	before := storedInstanceRow()
 	var entry *models.InstanceSettingsAuditEntry
-	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything).
+	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		RunAndReturn(func(
-			_ context.Context, s *models.InstanceSearchSettings, audit repositories.InstanceSearchSettingsAuditFunc,
+			_ context.Context, s *models.InstanceSearchSettings, _ *int64, audit repositories.InstanceSearchSettingsAuditFunc,
 		) error {
 			assert.Equal(t, 500, s.RankCandidateCap)
 			require.NotNil(t, s.UpdatedBy)
@@ -194,7 +194,7 @@ func TestInstanceSearchSettingsService_Update_StoresAndAudits(t *testing.T) {
 			return err
 		})
 
-	view, err := svc.Update(context.Background(), testInstanceAdminID, validInstanceValues())
+	view, err := svc.Update(context.Background(), testInstanceAdminID, validInstanceValues(), nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, models.InstanceSearchSettingsSourceInstance, view.Source)
@@ -217,16 +217,16 @@ func TestInstanceSearchSettingsService_Update_StoresAndAudits(t *testing.T) {
 func TestInstanceSearchSettingsService_Update_FirstSaveHasNoBefore(t *testing.T) {
 	svc, repo := newInstanceSearchService(t, nil)
 	var entry *models.InstanceSettingsAuditEntry
-	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything).
+	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		RunAndReturn(func(
-			_ context.Context, s *models.InstanceSearchSettings, audit repositories.InstanceSearchSettingsAuditFunc,
+			_ context.Context, s *models.InstanceSearchSettings, _ *int64, audit repositories.InstanceSearchSettingsAuditFunc,
 		) error {
 			var err error
 			entry, err = audit(nil, s)
 			return err
 		})
 
-	_, err := svc.Update(context.Background(), testInstanceAdminID, validInstanceValues())
+	_, err := svc.Update(context.Background(), testInstanceAdminID, validInstanceValues(), nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, entry)
@@ -240,9 +240,9 @@ func TestInstanceSearchSettingsService_Update_BlankActorIsNil(t *testing.T) {
 	for _, actor := range []string{"", "   "} {
 		svc, repo := newInstanceSearchService(t, nil)
 		var entry *models.InstanceSettingsAuditEntry
-		repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything).
+		repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 			RunAndReturn(func(
-				_ context.Context, s *models.InstanceSearchSettings, audit repositories.InstanceSearchSettingsAuditFunc,
+				_ context.Context, s *models.InstanceSearchSettings, _ *int64, audit repositories.InstanceSearchSettingsAuditFunc,
 			) error {
 				assert.Nil(t, s.UpdatedBy)
 				var err error
@@ -250,7 +250,7 @@ func TestInstanceSearchSettingsService_Update_BlankActorIsNil(t *testing.T) {
 				return err
 			})
 
-		_, err := svc.Update(context.Background(), actor, validInstanceValues())
+		_, err := svc.Update(context.Background(), actor, validInstanceValues(), nil)
 
 		require.NoError(t, err)
 		assert.Nil(t, entry.ActorUserID, "actor %q", actor)
@@ -259,9 +259,9 @@ func TestInstanceSearchSettingsService_Update_BlankActorIsNil(t *testing.T) {
 
 func TestInstanceSearchSettingsService_Update_RepositoryErrorPropagates(t *testing.T) {
 	svc, repo := newInstanceSearchService(t, nil)
-	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything).Return(errors.New("boom"))
+	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("boom"))
 
-	_, err := svc.Update(context.Background(), testInstanceAdminID, validInstanceValues())
+	_, err := svc.Update(context.Background(), testInstanceAdminID, validInstanceValues(), nil)
 
 	assert.ErrorContains(t, err, "boom")
 }
@@ -272,7 +272,7 @@ func TestInstanceSearchSettingsService_Update_RejectsInvalidValuesWithoutWriting
 	invalid := validInstanceValues()
 	invalid.RankCandidateCap = 0
 
-	_, err := svc.Update(context.Background(), testInstanceAdminID, invalid)
+	_, err := svc.Update(context.Background(), testInstanceAdminID, invalid, nil)
 
 	assert.ErrorIs(t, err, services.ErrInvalidSearchSettings)
 }

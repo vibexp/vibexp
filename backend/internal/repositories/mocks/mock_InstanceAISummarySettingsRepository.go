@@ -289,17 +289,17 @@ func (_c *MockInstanceAISummarySettingsRepository_Upsert_Call) RunAndReturn(run 
 	return _c
 }
 
-// UpsertAudited provides a mock function with given fields: ctx, settings, audit
-func (_m *MockInstanceAISummarySettingsRepository) UpsertAudited(ctx context.Context, settings *models.InstanceAISummarySettings, audit repositories.InstanceAISummarySettingsAuditFunc) error {
-	ret := _m.Called(ctx, settings, audit)
+// UpsertAudited provides a mock function with given fields: ctx, settings, expectedVersion, audit
+func (_m *MockInstanceAISummarySettingsRepository) UpsertAudited(ctx context.Context, settings *models.InstanceAISummarySettings, expectedVersion *int64, audit repositories.InstanceAISummarySettingsAuditFunc) error {
+	ret := _m.Called(ctx, settings, expectedVersion, audit)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpsertAudited")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *models.InstanceAISummarySettings, repositories.InstanceAISummarySettingsAuditFunc) error); ok {
-		r0 = rf(ctx, settings, audit)
+	if rf, ok := ret.Get(0).(func(context.Context, *models.InstanceAISummarySettings, *int64, repositories.InstanceAISummarySettingsAuditFunc) error); ok {
+		r0 = rf(ctx, settings, expectedVersion, audit)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -315,14 +315,15 @@ type MockInstanceAISummarySettingsRepository_UpsertAudited_Call struct {
 // UpsertAudited is a helper method to define mock.On call
 //   - ctx context.Context
 //   - settings *models.InstanceAISummarySettings
+//   - expectedVersion *int64
 //   - audit repositories.InstanceAISummarySettingsAuditFunc
-func (_e *MockInstanceAISummarySettingsRepository_Expecter) UpsertAudited(ctx interface{}, settings interface{}, audit interface{}) *MockInstanceAISummarySettingsRepository_UpsertAudited_Call {
-	return &MockInstanceAISummarySettingsRepository_UpsertAudited_Call{Call: _e.mock.On("UpsertAudited", ctx, settings, audit)}
+func (_e *MockInstanceAISummarySettingsRepository_Expecter) UpsertAudited(ctx interface{}, settings interface{}, expectedVersion interface{}, audit interface{}) *MockInstanceAISummarySettingsRepository_UpsertAudited_Call {
+	return &MockInstanceAISummarySettingsRepository_UpsertAudited_Call{Call: _e.mock.On("UpsertAudited", ctx, settings, expectedVersion, audit)}
 }
 
-func (_c *MockInstanceAISummarySettingsRepository_UpsertAudited_Call) Run(run func(ctx context.Context, settings *models.InstanceAISummarySettings, audit repositories.InstanceAISummarySettingsAuditFunc)) *MockInstanceAISummarySettingsRepository_UpsertAudited_Call {
+func (_c *MockInstanceAISummarySettingsRepository_UpsertAudited_Call) Run(run func(ctx context.Context, settings *models.InstanceAISummarySettings, expectedVersion *int64, audit repositories.InstanceAISummarySettingsAuditFunc)) *MockInstanceAISummarySettingsRepository_UpsertAudited_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*models.InstanceAISummarySettings), args[2].(repositories.InstanceAISummarySettingsAuditFunc))
+		run(args[0].(context.Context), args[1].(*models.InstanceAISummarySettings), args[2].(*int64), args[3].(repositories.InstanceAISummarySettingsAuditFunc))
 	})
 	return _c
 }
@@ -332,7 +333,7 @@ func (_c *MockInstanceAISummarySettingsRepository_UpsertAudited_Call) Return(_a0
 	return _c
 }
 
-func (_c *MockInstanceAISummarySettingsRepository_UpsertAudited_Call) RunAndReturn(run func(context.Context, *models.InstanceAISummarySettings, repositories.InstanceAISummarySettingsAuditFunc) error) *MockInstanceAISummarySettingsRepository_UpsertAudited_Call {
+func (_c *MockInstanceAISummarySettingsRepository_UpsertAudited_Call) RunAndReturn(run func(context.Context, *models.InstanceAISummarySettings, *int64, repositories.InstanceAISummarySettingsAuditFunc) error) *MockInstanceAISummarySettingsRepository_UpsertAudited_Call {
 	_c.Call.Return(run)
 	return _c
 }

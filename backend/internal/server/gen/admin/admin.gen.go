@@ -25,19 +25,40 @@ const (
 
 // Defines values for AdminAISummaryValuesStyle.
 const (
-	Balanced AdminAISummaryValuesStyle = "balanced"
-	Concise  AdminAISummaryValuesStyle = "concise"
-	Detailed AdminAISummaryValuesStyle = "detailed"
+	AdminAISummaryValuesStyleBalanced AdminAISummaryValuesStyle = "balanced"
+	AdminAISummaryValuesStyleConcise  AdminAISummaryValuesStyle = "concise"
+	AdminAISummaryValuesStyleDetailed AdminAISummaryValuesStyle = "detailed"
 )
 
 // Valid indicates whether the value is a known member of the AdminAISummaryValuesStyle enum.
 func (e AdminAISummaryValuesStyle) Valid() bool {
 	switch e {
-	case Balanced:
+	case AdminAISummaryValuesStyleBalanced:
 		return true
-	case Concise:
+	case AdminAISummaryValuesStyleConcise:
 		return true
-	case Detailed:
+	case AdminAISummaryValuesStyleDetailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminInstanceAISummaryStyle.
+const (
+	AdminInstanceAISummaryStyleBalanced AdminInstanceAISummaryStyle = "balanced"
+	AdminInstanceAISummaryStyleConcise  AdminInstanceAISummaryStyle = "concise"
+	AdminInstanceAISummaryStyleDetailed AdminInstanceAISummaryStyle = "detailed"
+)
+
+// Valid indicates whether the value is a known member of the AdminInstanceAISummaryStyle enum.
+func (e AdminInstanceAISummaryStyle) Valid() bool {
+	switch e {
+	case AdminInstanceAISummaryStyleBalanced:
+		return true
+	case AdminInstanceAISummaryStyleConcise:
+		return true
+	case AdminInstanceAISummaryStyleDetailed:
 		return true
 	default:
 		return false
@@ -116,6 +137,24 @@ func (e AdminInstanceSettingsAuditEntryAction) Valid() bool {
 	}
 }
 
+// Defines values for AdminInstanceSettingsSource.
+const (
+	AdminInstanceSettingsSourceDefault  AdminInstanceSettingsSource = "default"
+	AdminInstanceSettingsSourceInstance AdminInstanceSettingsSource = "instance"
+)
+
+// Valid indicates whether the value is a known member of the AdminInstanceSettingsSource enum.
+func (e AdminInstanceSettingsSource) Valid() bool {
+	switch e {
+	case AdminInstanceSettingsSourceDefault:
+		return true
+	case AdminInstanceSettingsSourceInstance:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminProjectAccessMetricsGranularity.
 const (
 	AdminProjectAccessMetricsGranularityDay   AdminProjectAccessMetricsGranularity = "day"
@@ -181,16 +220,16 @@ func (e AdminSavedFilterListName) Valid() bool {
 
 // Defines values for AdminTeamConfigSource.
 const (
-	Instance AdminTeamConfigSource = "instance"
-	Team     AdminTeamConfigSource = "team"
+	AdminTeamConfigSourceInstance AdminTeamConfigSource = "instance"
+	AdminTeamConfigSourceTeam     AdminTeamConfigSource = "team"
 )
 
 // Valid indicates whether the value is a known member of the AdminTeamConfigSource enum.
 func (e AdminTeamConfigSource) Valid() bool {
 	switch e {
-	case Instance:
+	case AdminTeamConfigSourceInstance:
 		return true
-	case Team:
+	case AdminTeamConfigSourceTeam:
 		return true
 	default:
 		return false
@@ -1263,6 +1302,110 @@ type AdminGrowthPoint struct {
 	Users    int64     `json:"users"`
 }
 
+// AdminInstanceAISummaryLimits The hard bounds the AI summary values are validated against, for form validation.
+type AdminInstanceAISummaryLimits struct {
+	CharsMax int `json:"chars_max"`
+
+	// CharsMin The smallest allowed character budget. `total_context_chars` must also be at least `per_document_chars`.
+	CharsMin            int `json:"chars_min"`
+	MaxOutputTokensMax  int `json:"max_output_tokens_max"`
+	MaxOutputTokensMin  int `json:"max_output_tokens_min"`
+	RequestTimeoutMsMax int `json:"request_timeout_ms_max"`
+	RequestTimeoutMsMin int `json:"request_timeout_ms_min"`
+	TopNMax             int `json:"top_n_max"`
+	TopNMin             int `json:"top_n_min"`
+}
+
+// AdminInstanceAISummarySettings The instance AI summary defaults in effect, where they come from and how
+// many teams ignore the defaults because they store AI summary settings of
+// their own. The instance-only budgets reach every team regardless.
+type AdminInstanceAISummarySettings struct {
+	// BuiltInDefaults The instance AI summary defaults and budgets. `enabled`, `top_n`, `style`
+	// and `max_output_tokens` are the defaults every team without its own AI
+	// summary settings uses; the character budgets and the request timeout are
+	// instance-only and apply to every team.
+	BuiltInDefaults AdminInstanceAISummaryValues `json:"built_in_defaults"`
+
+	// Limits The hard bounds the AI summary values are validated against, for form validation.
+	Limits AdminInstanceAISummaryLimits `json:"limits"`
+
+	// Source Where the instance values come from: `instance` when an instance admin (or
+	// the boot-time config import) stored them, `default` when nothing is stored
+	// and the built-in defaults apply.
+	Source AdminInstanceSettingsSource `json:"source"`
+
+	// TeamsWithOverride How many teams store AI summary settings of their own, so a change to the team defaults does not reach them.
+	TeamsWithOverride int `json:"teams_with_override"`
+
+	// UpdatedAt When the values were last stored; null when `source` is `default`.
+	UpdatedAt *time.Time `json:"updated_at"`
+
+	// UpdatedByName That admin's display name (or email), when it could be resolved.
+	UpdatedByName *string `json:"updated_by_name"`
+
+	// UpdatedByUserId The admin who last stored the values. Null when `source` is `default`,
+	// for the boot-time import, or once that user has been deleted.
+	UpdatedByUserId *openapi_types.UUID `json:"updated_by_user_id"`
+
+	// Values The instance AI summary defaults and budgets. `enabled`, `top_n`, `style`
+	// and `max_output_tokens` are the defaults every team without its own AI
+	// summary settings uses; the character budgets and the request timeout are
+	// instance-only and apply to every team.
+	Values AdminInstanceAISummaryValues `json:"values"`
+
+	// Version The stored row's optimistic-lock version; null when nothing is stored.
+	// Send it back as `expected_version` to reject a save that would
+	// overwrite someone else's change.
+	Version *int64 `json:"version"`
+}
+
+// AdminInstanceAISummarySettingsUpdate A whole replacement of the instance AI summary settings. Every value is
+// required. `expected_version` is optional: when present, the save is
+// rejected with 409 unless it equals the stored version (and when nothing is
+// stored, any `expected_version` other than null is a conflict). Omit it for
+// last-write-wins.
+type AdminInstanceAISummarySettingsUpdate struct {
+	Enabled bool `json:"enabled"`
+
+	// ExpectedVersion The `version` the caller last read; omit or null for last-write-wins.
+	ExpectedVersion  *int64 `json:"expected_version,omitempty"`
+	MaxOutputTokens  int    `json:"max_output_tokens"`
+	PerDocumentChars int    `json:"per_document_chars"`
+	RequestTimeoutMs int    `json:"request_timeout_ms"`
+
+	// Style How detailed a summary is.
+	Style             AdminInstanceAISummaryStyle `json:"style"`
+	TopN              int                         `json:"top_n"`
+	TotalContextChars int                         `json:"total_context_chars"`
+}
+
+// AdminInstanceAISummaryStyle How detailed a summary is.
+type AdminInstanceAISummaryStyle string
+
+// AdminInstanceAISummaryValues The instance AI summary defaults and budgets. `enabled`, `top_n`, `style`
+// and `max_output_tokens` are the defaults every team without its own AI
+// summary settings uses; the character budgets and the request timeout are
+// instance-only and apply to every team.
+type AdminInstanceAISummaryValues struct {
+	Enabled         bool `json:"enabled"`
+	MaxOutputTokens int  `json:"max_output_tokens"`
+
+	// PerDocumentChars How many characters of each document a summary reads.
+	PerDocumentChars int `json:"per_document_chars"`
+
+	// RequestTimeoutMs The summary request timeout, in milliseconds.
+	RequestTimeoutMs int `json:"request_timeout_ms"`
+
+	// Style How detailed a summary is.
+	Style AdminInstanceAISummaryStyle `json:"style"`
+
+	// TopN How many search results a summary reads.
+	TopN int `json:"top_n"`
+
+	// TotalContextChars The total character budget of one summary's context; at least `per_document_chars`.
+	TotalContextChars int `json:"total_context_chars"`
+}
+
 // AdminInstanceCounts Instance-wide totals for the top-level entities (unscoped counts).
 type AdminInstanceCounts struct {
 	// Artifacts Total number of artifacts.
@@ -1420,6 +1563,97 @@ type AdminInstanceEmailTestRequest struct {
 	Settings *TeamEmailProviderSettings `json:"settings,omitempty"`
 }
 
+// AdminInstanceSearchLimits The hard bounds the search values are validated against, for form validation.
+type AdminInstanceSearchLimits struct {
+	RankCandidateCapMax int `json:"rank_candidate_cap_max"`
+	RankCandidateCapMin int `json:"rank_candidate_cap_min"`
+
+	// RankHalfLifeDaysMax The largest allowed half-life, in days. The half-life must also be positive.
+	RankHalfLifeDaysMax float64 `json:"rank_half_life_days_max"`
+
+	// RankWeightMin The smallest allowed weight. The three weights must also not all be zero.
+	RankWeightMin float64 `json:"rank_weight_min"`
+}
+
+// AdminInstanceSearchSettings The instance search ranking defaults in effect, where they come from and
+// how many teams ignore them because they store search settings of their own.
+type AdminInstanceSearchSettings struct {
+	// BuiltInDefaults The instance search ranking defaults. Every team without its own search
+	// settings ranks with these; `rank_candidate_cap` is instance-only and applies
+	// to every team.
+	BuiltInDefaults AdminInstanceSearchValues `json:"built_in_defaults"`
+
+	// Limits The hard bounds the search values are validated against, for form validation.
+	Limits AdminInstanceSearchLimits `json:"limits"`
+
+	// Source Where the instance values come from: `instance` when an instance admin (or
+	// the boot-time config import) stored them, `default` when nothing is stored
+	// and the built-in defaults apply.
+	Source AdminInstanceSettingsSource `json:"source"`
+
+	// TeamsWithOverride How many teams store search settings of their own, so a change here does not reach them.
+	TeamsWithOverride int `json:"teams_with_override"`
+
+	// UpdatedAt When the values were last stored; null when `source` is `default`.
+	UpdatedAt *time.Time `json:"updated_at"`
+
+	// UpdatedByName That admin's display name (or email), when it could be resolved.
+	UpdatedByName *string `json:"updated_by_name"`
+
+	// UpdatedByUserId The admin who last stored the values. Null when `source` is `default`,
+	// for the boot-time import, or once that user has been deleted.
+	UpdatedByUserId *openapi_types.UUID `json:"updated_by_user_id"`
+
+	// Values The instance search ranking defaults. Every team without its own search
+	// settings ranks with these; `rank_candidate_cap` is instance-only and applies
+	// to every team.
+	Values AdminInstanceSearchValues `json:"values"`
+
+	// Version The stored row's optimistic-lock version; null when nothing is stored.
+	// Send it back as `expected_version` to reject a save that would
+	// overwrite someone else's change.
+	Version *int64 `json:"version"`
+}
+
+// AdminInstanceSearchSettingsUpdate A whole replacement of the instance search ranking defaults. Every value is
+// required. `expected_version` is optional: when present, the save is
+// rejected with 409 unless it equals the stored version (and when nothing is
+// stored, any `expected_version` other than null is a conflict). Omit it for
+// last-write-wins.
+type AdminInstanceSearchSettingsUpdate struct {
+	// ExpectedVersion The `version` the caller last read; omit or null for last-write-wins.
+	ExpectedVersion       *int64  `json:"expected_version,omitempty"`
+	RankCandidateCap      int     `json:"rank_candidate_cap"`
+	RankHalfLifeDays      float64 `json:"rank_half_life_days"`
+	RankWeightCreated     float64 `json:"rank_weight_created"`
+	RankWeightRelevance   float64 `json:"rank_weight_relevance"`
+	RankWeightUpdated     float64 `json:"rank_weight_updated"`
+	RecencyRankingEnabled bool    `json:"recency_ranking_enabled"`
+}
+
+// AdminInstanceSearchValues The instance search ranking defaults. Every team without its own search
+// settings ranks with these; `rank_candidate_cap` is instance-only and applies
+// to every team.
+type AdminInstanceSearchValues struct {
+	// RankCandidateCap How many rows are pulled and re-ranked per search.
+	RankCandidateCap int `json:"rank_candidate_cap"`
+
+	// RankHalfLifeDays Recency half-life in days.
+	RankHalfLifeDays float64 `json:"rank_half_life_days"`
+
+	// RankWeightCreated Weight of creation recency.
+	RankWeightCreated float64 `json:"rank_weight_created"`
+
+	// RankWeightRelevance Weight of semantic relevance. The three weights must not all be zero.
+	RankWeightRelevance float64 `json:"rank_weight_relevance"`
+
+	// RankWeightUpdated Weight of update recency.
+	RankWeightUpdated float64 `json:"rank_weight_updated"`
+
+	// RecencyRankingEnabled Whether search results are re-ranked by recency.
+	RecencyRankingEnabled bool `json:"recency_ranking_enabled"`
+}
+
 // AdminInstanceSettingsAuditEntry One append-only change to an instance setting. `before` and `after` are
 // REDACTED snapshots: they never contain a credential, only
 // `has_credential` and, on an upsert's `after`, a `secret` marker saying
@@ -1465,6 +1699,11 @@ type AdminInstanceSettingsAuditPage struct {
 	// NextCursor Opaque cursor for the next page; null on the last page.
 	NextCursor *string `json:"next_cursor"`
 }
+
+// AdminInstanceSettingsSource Where the instance values come from: `instance` when an instance admin (or
+// the boot-time config import) stored them, `default` when nothing is stored
+// and the built-in defaults apply.
+type AdminInstanceSettingsSource string
 
 // AdminMailgunSettings Non-secret Mailgun settings.
 type AdminMailgunSettings struct {
@@ -2879,8 +3118,26 @@ type GetAdminProjectTopAccessedResourcesParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListAdminAISummarySettingsAuditParams defines parameters for ListAdminAISummarySettingsAudit.
+type ListAdminAISummarySettingsAuditParams struct {
+	// Cursor Opaque cursor from a previous page's `next_cursor`.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListAdminInstanceEmailSettingsAuditParams defines parameters for ListAdminInstanceEmailSettingsAudit.
 type ListAdminInstanceEmailSettingsAuditParams struct {
+	// Cursor Opaque cursor from a previous page's `next_cursor`.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListAdminSearchSettingsAuditParams defines parameters for ListAdminSearchSettingsAudit.
+type ListAdminSearchSettingsAuditParams struct {
 	// Cursor Opaque cursor from a previous page's `next_cursor`.
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 
@@ -3463,11 +3720,17 @@ type GetAdminUserTopAccessedResourcesParams struct {
 // ReplaceAdminSavedFiltersJSONRequestBody defines body for ReplaceAdminSavedFilters for application/json ContentType.
 type ReplaceAdminSavedFiltersJSONRequestBody = AdminSavedFiltersReplaceRequest
 
+// UpdateAdminAISummarySettingsJSONRequestBody defines body for UpdateAdminAISummarySettings for application/json ContentType.
+type UpdateAdminAISummarySettingsJSONRequestBody = AdminInstanceAISummarySettingsUpdate
+
 // UpsertAdminInstanceEmailSettingsJSONRequestBody defines body for UpsertAdminInstanceEmailSettings for application/json ContentType.
 type UpsertAdminInstanceEmailSettingsJSONRequestBody = AdminInstanceEmailSettingsRequest
 
 // TestAdminInstanceEmailSettingsJSONRequestBody defines body for TestAdminInstanceEmailSettings for application/json ContentType.
 type TestAdminInstanceEmailSettingsJSONRequestBody = AdminInstanceEmailTestRequest
+
+// UpdateAdminSearchSettingsJSONRequestBody defines body for UpdateAdminSearchSettings for application/json ContentType.
+type UpdateAdminSearchSettingsJSONRequestBody = AdminInstanceSearchSettingsUpdate
 
 // CreateAdminUserJSONRequestBody defines body for CreateAdminUser for application/json ContentType.
 type CreateAdminUserJSONRequestBody = AdminUserCreateRequest
@@ -3510,6 +3773,18 @@ type ServerInterface interface {
 	// Replace the caller's saved filter presets for an admin list
 	// (PUT /api/v1/admin/saved-filters/{list})
 	ReplaceAdminSavedFilters(w http.ResponseWriter, r *http.Request, list AdminSavedFilterListName)
+	// Reset the instance AI summary settings to the built-in defaults
+	// (DELETE /api/v1/admin/settings/ai-summary)
+	ResetAdminAISummarySettings(w http.ResponseWriter, r *http.Request)
+	// Get the instance AI summary settings
+	// (GET /api/v1/admin/settings/ai-summary)
+	GetAdminAISummarySettings(w http.ResponseWriter, r *http.Request)
+	// Replace the instance AI summary settings
+	// (PUT /api/v1/admin/settings/ai-summary)
+	UpdateAdminAISummarySettings(w http.ResponseWriter, r *http.Request)
+	// List the instance AI summary settings audit log
+	// (GET /api/v1/admin/settings/ai-summary/audit)
+	ListAdminAISummarySettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAISummarySettingsAuditParams)
 	// Remove the instance email provider settings
 	// (DELETE /api/v1/admin/settings/email)
 	DeleteAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request)
@@ -3525,6 +3800,18 @@ type ServerInterface interface {
 	// Send a test message through the instance email provider
 	// (POST /api/v1/admin/settings/email/test)
 	TestAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request)
+	// Reset the instance search ranking settings to the built-in defaults
+	// (DELETE /api/v1/admin/settings/search)
+	ResetAdminSearchSettings(w http.ResponseWriter, r *http.Request)
+	// Get the instance search ranking settings
+	// (GET /api/v1/admin/settings/search)
+	GetAdminSearchSettings(w http.ResponseWriter, r *http.Request)
+	// Replace the instance search ranking settings
+	// (PUT /api/v1/admin/settings/search)
+	UpdateAdminSearchSettings(w http.ResponseWriter, r *http.Request)
+	// List the instance search ranking settings audit log
+	// (GET /api/v1/admin/settings/search/audit)
+	ListAdminSearchSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminSearchSettingsAuditParams)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(w http.ResponseWriter, r *http.Request)
@@ -3678,6 +3965,30 @@ func (_ Unimplemented) ReplaceAdminSavedFilters(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Reset the instance AI summary settings to the built-in defaults
+// (DELETE /api/v1/admin/settings/ai-summary)
+func (_ Unimplemented) ResetAdminAISummarySettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the instance AI summary settings
+// (GET /api/v1/admin/settings/ai-summary)
+func (_ Unimplemented) GetAdminAISummarySettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace the instance AI summary settings
+// (PUT /api/v1/admin/settings/ai-summary)
+func (_ Unimplemented) UpdateAdminAISummarySettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the instance AI summary settings audit log
+// (GET /api/v1/admin/settings/ai-summary/audit)
+func (_ Unimplemented) ListAdminAISummarySettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAISummarySettingsAuditParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Remove the instance email provider settings
 // (DELETE /api/v1/admin/settings/email)
 func (_ Unimplemented) DeleteAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
@@ -3705,6 +4016,30 @@ func (_ Unimplemented) ListAdminInstanceEmailSettingsAudit(w http.ResponseWriter
 // Send a test message through the instance email provider
 // (POST /api/v1/admin/settings/email/test)
 func (_ Unimplemented) TestAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Reset the instance search ranking settings to the built-in defaults
+// (DELETE /api/v1/admin/settings/search)
+func (_ Unimplemented) ResetAdminSearchSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the instance search ranking settings
+// (GET /api/v1/admin/settings/search)
+func (_ Unimplemented) GetAdminSearchSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace the instance search ranking settings
+// (PUT /api/v1/admin/settings/search)
+func (_ Unimplemented) UpdateAdminSearchSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the instance search ranking settings audit log
+// (GET /api/v1/admin/settings/search/audit)
+func (_ Unimplemented) ListAdminSearchSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminSearchSettingsAuditParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4960,6 +5295,126 @@ func (siw *ServerInterfaceWrapper) ReplaceAdminSavedFilters(w http.ResponseWrite
 	handler.ServeHTTP(w, r)
 }
 
+// ResetAdminAISummarySettings operation middleware
+func (siw *ServerInterfaceWrapper) ResetAdminAISummarySettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResetAdminAISummarySettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminAISummarySettings operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminAISummarySettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminAISummarySettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAdminAISummarySettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminAISummarySettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAdminAISummarySettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminAISummarySettingsAudit operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminAISummarySettingsAudit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminAISummarySettingsAuditParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminAISummarySettingsAudit(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteAdminInstanceEmailSettings operation middleware
 func (siw *ServerInterfaceWrapper) DeleteAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
 
@@ -5093,6 +5548,126 @@ func (siw *ServerInterfaceWrapper) TestAdminInstanceEmailSettings(w http.Respons
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.TestAdminInstanceEmailSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResetAdminSearchSettings operation middleware
+func (siw *ServerInterfaceWrapper) ResetAdminSearchSettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResetAdminSearchSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminSearchSettings operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminSearchSettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminSearchSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAdminSearchSettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminSearchSettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAdminSearchSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminSearchSettingsAudit operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminSearchSettingsAudit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminSearchSettingsAuditParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminSearchSettingsAudit(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -8305,6 +8880,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Put(options.BaseURL+"/api/v1/admin/saved-filters/{list}", wrapper.ReplaceAdminSavedFilters)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/admin/settings/ai-summary", wrapper.ResetAdminAISummarySettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/ai-summary", wrapper.GetAdminAISummarySettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/admin/settings/ai-summary", wrapper.UpdateAdminAISummarySettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/ai-summary/audit", wrapper.ListAdminAISummarySettingsAudit)
+	})
+	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/admin/settings/email", wrapper.DeleteAdminInstanceEmailSettings)
 	})
 	r.Group(func(r chi.Router) {
@@ -8318,6 +8905,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/admin/settings/email/test", wrapper.TestAdminInstanceEmailSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/admin/settings/search", wrapper.ResetAdminSearchSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/search", wrapper.GetAdminSearchSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/admin/settings/search", wrapper.UpdateAdminSearchSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/search/audit", wrapper.ListAdminSearchSettingsAudit)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/stats", wrapper.GetAdminStats)
@@ -9127,6 +9726,240 @@ func (response ReplaceAdminSavedFilters500ApplicationProblemPlusJSONResponse) Vi
 	return err
 }
 
+type ResetAdminAISummarySettingsRequestObject struct {
+}
+
+type ResetAdminAISummarySettingsResponseObject interface {
+	VisitResetAdminAISummarySettingsResponse(w http.ResponseWriter) error
+}
+
+type ResetAdminAISummarySettings204Response struct {
+}
+
+func (response ResetAdminAISummarySettings204Response) VisitResetAdminAISummarySettingsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ResetAdminAISummarySettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetAdminAISummarySettings404ApplicationProblemPlusJSONResponse) VisitResetAdminAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetAdminAISummarySettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetAdminAISummarySettings500ApplicationProblemPlusJSONResponse) VisitResetAdminAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAISummarySettingsRequestObject struct {
+}
+
+type GetAdminAISummarySettingsResponseObject interface {
+	VisitGetAdminAISummarySettingsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminAISummarySettings200JSONResponse AdminInstanceAISummarySettings
+
+func (response GetAdminAISummarySettings200JSONResponse) VisitGetAdminAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAISummarySettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminAISummarySettings404ApplicationProblemPlusJSONResponse) VisitGetAdminAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAISummarySettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminAISummarySettings500ApplicationProblemPlusJSONResponse) VisitGetAdminAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAISummarySettingsRequestObject struct {
+	Body *UpdateAdminAISummarySettingsJSONRequestBody
+}
+
+type UpdateAdminAISummarySettingsResponseObject interface {
+	VisitUpdateAdminAISummarySettingsResponse(w http.ResponseWriter) error
+}
+
+type UpdateAdminAISummarySettings200JSONResponse AdminInstanceAISummarySettings
+
+func (response UpdateAdminAISummarySettings200JSONResponse) VisitUpdateAdminAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAISummarySettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAISummarySettings400ApplicationProblemPlusJSONResponse) VisitUpdateAdminAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAISummarySettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAISummarySettings404ApplicationProblemPlusJSONResponse) VisitUpdateAdminAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAISummarySettings409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAISummarySettings409ApplicationProblemPlusJSONResponse) VisitUpdateAdminAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAISummarySettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAISummarySettings500ApplicationProblemPlusJSONResponse) VisitUpdateAdminAISummarySettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAISummarySettingsAuditRequestObject struct {
+	Params ListAdminAISummarySettingsAuditParams
+}
+
+type ListAdminAISummarySettingsAuditResponseObject interface {
+	VisitListAdminAISummarySettingsAuditResponse(w http.ResponseWriter) error
+}
+
+type ListAdminAISummarySettingsAudit200JSONResponse AdminInstanceSettingsAuditPage
+
+func (response ListAdminAISummarySettingsAudit200JSONResponse) VisitListAdminAISummarySettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAISummarySettingsAudit400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAISummarySettingsAudit400ApplicationProblemPlusJSONResponse) VisitListAdminAISummarySettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAISummarySettingsAudit404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAISummarySettingsAudit404ApplicationProblemPlusJSONResponse) VisitListAdminAISummarySettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAISummarySettingsAudit500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAISummarySettingsAudit500ApplicationProblemPlusJSONResponse) VisitListAdminAISummarySettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteAdminInstanceEmailSettingsRequestObject struct {
 }
 
@@ -9414,6 +10247,240 @@ func (response TestAdminInstanceEmailSettings404ApplicationProblemPlusJSONRespon
 type TestAdminInstanceEmailSettings500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response TestAdminInstanceEmailSettings500ApplicationProblemPlusJSONResponse) VisitTestAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetAdminSearchSettingsRequestObject struct {
+}
+
+type ResetAdminSearchSettingsResponseObject interface {
+	VisitResetAdminSearchSettingsResponse(w http.ResponseWriter) error
+}
+
+type ResetAdminSearchSettings204Response struct {
+}
+
+func (response ResetAdminSearchSettings204Response) VisitResetAdminSearchSettingsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ResetAdminSearchSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetAdminSearchSettings404ApplicationProblemPlusJSONResponse) VisitResetAdminSearchSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetAdminSearchSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetAdminSearchSettings500ApplicationProblemPlusJSONResponse) VisitResetAdminSearchSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSearchSettingsRequestObject struct {
+}
+
+type GetAdminSearchSettingsResponseObject interface {
+	VisitGetAdminSearchSettingsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminSearchSettings200JSONResponse AdminInstanceSearchSettings
+
+func (response GetAdminSearchSettings200JSONResponse) VisitGetAdminSearchSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSearchSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminSearchSettings404ApplicationProblemPlusJSONResponse) VisitGetAdminSearchSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSearchSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminSearchSettings500ApplicationProblemPlusJSONResponse) VisitGetAdminSearchSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminSearchSettingsRequestObject struct {
+	Body *UpdateAdminSearchSettingsJSONRequestBody
+}
+
+type UpdateAdminSearchSettingsResponseObject interface {
+	VisitUpdateAdminSearchSettingsResponse(w http.ResponseWriter) error
+}
+
+type UpdateAdminSearchSettings200JSONResponse AdminInstanceSearchSettings
+
+func (response UpdateAdminSearchSettings200JSONResponse) VisitUpdateAdminSearchSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminSearchSettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminSearchSettings400ApplicationProblemPlusJSONResponse) VisitUpdateAdminSearchSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminSearchSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminSearchSettings404ApplicationProblemPlusJSONResponse) VisitUpdateAdminSearchSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminSearchSettings409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminSearchSettings409ApplicationProblemPlusJSONResponse) VisitUpdateAdminSearchSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminSearchSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminSearchSettings500ApplicationProblemPlusJSONResponse) VisitUpdateAdminSearchSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminSearchSettingsAuditRequestObject struct {
+	Params ListAdminSearchSettingsAuditParams
+}
+
+type ListAdminSearchSettingsAuditResponseObject interface {
+	VisitListAdminSearchSettingsAuditResponse(w http.ResponseWriter) error
+}
+
+type ListAdminSearchSettingsAudit200JSONResponse AdminInstanceSettingsAuditPage
+
+func (response ListAdminSearchSettingsAudit200JSONResponse) VisitListAdminSearchSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminSearchSettingsAudit400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminSearchSettingsAudit400ApplicationProblemPlusJSONResponse) VisitListAdminSearchSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminSearchSettingsAudit404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminSearchSettingsAudit404ApplicationProblemPlusJSONResponse) VisitListAdminSearchSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminSearchSettingsAudit500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminSearchSettingsAudit500ApplicationProblemPlusJSONResponse) VisitListAdminSearchSettingsAuditResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -11219,6 +12286,18 @@ type StrictServerInterface interface {
 	// Replace the caller's saved filter presets for an admin list
 	// (PUT /api/v1/admin/saved-filters/{list})
 	ReplaceAdminSavedFilters(ctx context.Context, request ReplaceAdminSavedFiltersRequestObject) (ReplaceAdminSavedFiltersResponseObject, error)
+	// Reset the instance AI summary settings to the built-in defaults
+	// (DELETE /api/v1/admin/settings/ai-summary)
+	ResetAdminAISummarySettings(ctx context.Context, request ResetAdminAISummarySettingsRequestObject) (ResetAdminAISummarySettingsResponseObject, error)
+	// Get the instance AI summary settings
+	// (GET /api/v1/admin/settings/ai-summary)
+	GetAdminAISummarySettings(ctx context.Context, request GetAdminAISummarySettingsRequestObject) (GetAdminAISummarySettingsResponseObject, error)
+	// Replace the instance AI summary settings
+	// (PUT /api/v1/admin/settings/ai-summary)
+	UpdateAdminAISummarySettings(ctx context.Context, request UpdateAdminAISummarySettingsRequestObject) (UpdateAdminAISummarySettingsResponseObject, error)
+	// List the instance AI summary settings audit log
+	// (GET /api/v1/admin/settings/ai-summary/audit)
+	ListAdminAISummarySettingsAudit(ctx context.Context, request ListAdminAISummarySettingsAuditRequestObject) (ListAdminAISummarySettingsAuditResponseObject, error)
 	// Remove the instance email provider settings
 	// (DELETE /api/v1/admin/settings/email)
 	DeleteAdminInstanceEmailSettings(ctx context.Context, request DeleteAdminInstanceEmailSettingsRequestObject) (DeleteAdminInstanceEmailSettingsResponseObject, error)
@@ -11234,6 +12313,18 @@ type StrictServerInterface interface {
 	// Send a test message through the instance email provider
 	// (POST /api/v1/admin/settings/email/test)
 	TestAdminInstanceEmailSettings(ctx context.Context, request TestAdminInstanceEmailSettingsRequestObject) (TestAdminInstanceEmailSettingsResponseObject, error)
+	// Reset the instance search ranking settings to the built-in defaults
+	// (DELETE /api/v1/admin/settings/search)
+	ResetAdminSearchSettings(ctx context.Context, request ResetAdminSearchSettingsRequestObject) (ResetAdminSearchSettingsResponseObject, error)
+	// Get the instance search ranking settings
+	// (GET /api/v1/admin/settings/search)
+	GetAdminSearchSettings(ctx context.Context, request GetAdminSearchSettingsRequestObject) (GetAdminSearchSettingsResponseObject, error)
+	// Replace the instance search ranking settings
+	// (PUT /api/v1/admin/settings/search)
+	UpdateAdminSearchSettings(ctx context.Context, request UpdateAdminSearchSettingsRequestObject) (UpdateAdminSearchSettingsResponseObject, error)
+	// List the instance search ranking settings audit log
+	// (GET /api/v1/admin/settings/search/audit)
+	ListAdminSearchSettingsAudit(ctx context.Context, request ListAdminSearchSettingsAuditRequestObject) (ListAdminSearchSettingsAuditResponseObject, error)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(ctx context.Context, request GetAdminStatsRequestObject) (GetAdminStatsResponseObject, error)
@@ -11640,6 +12731,111 @@ func (sh *strictHandler) ReplaceAdminSavedFilters(w http.ResponseWriter, r *http
 	}
 }
 
+// ResetAdminAISummarySettings operation middleware
+func (sh *strictHandler) ResetAdminAISummarySettings(w http.ResponseWriter, r *http.Request) {
+	var request ResetAdminAISummarySettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResetAdminAISummarySettings(ctx, request.(ResetAdminAISummarySettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResetAdminAISummarySettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResetAdminAISummarySettingsResponseObject); ok {
+		if err := validResponse.VisitResetAdminAISummarySettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminAISummarySettings operation middleware
+func (sh *strictHandler) GetAdminAISummarySettings(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminAISummarySettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminAISummarySettings(ctx, request.(GetAdminAISummarySettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminAISummarySettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminAISummarySettingsResponseObject); ok {
+		if err := validResponse.VisitGetAdminAISummarySettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAdminAISummarySettings operation middleware
+func (sh *strictHandler) UpdateAdminAISummarySettings(w http.ResponseWriter, r *http.Request) {
+	var request UpdateAdminAISummarySettingsRequestObject
+
+	var body UpdateAdminAISummarySettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAdminAISummarySettings(ctx, request.(UpdateAdminAISummarySettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAdminAISummarySettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAdminAISummarySettingsResponseObject); ok {
+		if err := validResponse.VisitUpdateAdminAISummarySettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminAISummarySettingsAudit operation middleware
+func (sh *strictHandler) ListAdminAISummarySettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAISummarySettingsAuditParams) {
+	var request ListAdminAISummarySettingsAuditRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminAISummarySettingsAudit(ctx, request.(ListAdminAISummarySettingsAuditRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminAISummarySettingsAudit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminAISummarySettingsAuditResponseObject); ok {
+		if err := validResponse.VisitListAdminAISummarySettingsAuditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // DeleteAdminInstanceEmailSettings operation middleware
 func (sh *strictHandler) DeleteAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
 	var request DeleteAdminInstanceEmailSettingsRequestObject
@@ -11772,6 +12968,111 @@ func (sh *strictHandler) TestAdminInstanceEmailSettings(w http.ResponseWriter, r
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(TestAdminInstanceEmailSettingsResponseObject); ok {
 		if err := validResponse.VisitTestAdminInstanceEmailSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResetAdminSearchSettings operation middleware
+func (sh *strictHandler) ResetAdminSearchSettings(w http.ResponseWriter, r *http.Request) {
+	var request ResetAdminSearchSettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResetAdminSearchSettings(ctx, request.(ResetAdminSearchSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResetAdminSearchSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResetAdminSearchSettingsResponseObject); ok {
+		if err := validResponse.VisitResetAdminSearchSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminSearchSettings operation middleware
+func (sh *strictHandler) GetAdminSearchSettings(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminSearchSettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminSearchSettings(ctx, request.(GetAdminSearchSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminSearchSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminSearchSettingsResponseObject); ok {
+		if err := validResponse.VisitGetAdminSearchSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAdminSearchSettings operation middleware
+func (sh *strictHandler) UpdateAdminSearchSettings(w http.ResponseWriter, r *http.Request) {
+	var request UpdateAdminSearchSettingsRequestObject
+
+	var body UpdateAdminSearchSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAdminSearchSettings(ctx, request.(UpdateAdminSearchSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAdminSearchSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAdminSearchSettingsResponseObject); ok {
+		if err := validResponse.VisitUpdateAdminSearchSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminSearchSettingsAudit operation middleware
+func (sh *strictHandler) ListAdminSearchSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminSearchSettingsAuditParams) {
+	var request ListAdminSearchSettingsAuditRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminSearchSettingsAudit(ctx, request.(ListAdminSearchSettingsAuditRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminSearchSettingsAudit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminSearchSettingsAuditResponseObject); ok {
+		if err := validResponse.VisitListAdminSearchSettingsAuditResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

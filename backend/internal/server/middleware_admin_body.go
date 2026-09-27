@@ -74,6 +74,16 @@ var adminGuardedBodies = []adminGuardedBody{
 		bodyType: admingen.AdminInstanceEmailSettingsRequest{},
 	},
 	{
+		method:   http.MethodPut,
+		path:     regexp.MustCompile(`^/api/v1/admin/settings/search$`),
+		bodyType: admingen.AdminInstanceSearchSettingsUpdate{},
+	},
+	{
+		method:   http.MethodPut,
+		path:     regexp.MustCompile(`^/api/v1/admin/settings/ai-summary$`),
+		bodyType: admingen.AdminInstanceAISummarySettingsUpdate{},
+	},
+	{
 		// No recipient field: a test message always goes to the acting admin.
 		method:   http.MethodPost,
 		path:     regexp.MustCompile(`^/api/v1/admin/settings/email/test$`),

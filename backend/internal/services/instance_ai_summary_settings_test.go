@@ -186,9 +186,9 @@ func TestInstanceAISummarySettingsService_Update_StoresAndAudits(t *testing.T) {
 	svc, repo := newInstanceAISummaryService(t, nil)
 	before := storedInstanceAISummaryRow()
 	var entry *models.InstanceSettingsAuditEntry
-	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything).
+	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		RunAndReturn(func(
-			_ context.Context, s *models.InstanceAISummarySettings, audit repositories.InstanceAISummarySettingsAuditFunc,
+			_ context.Context, s *models.InstanceAISummarySettings, _ *int64, audit repositories.InstanceAISummarySettingsAuditFunc,
 		) error {
 			assert.Equal(t, 5000, s.PerDocumentChars)
 			assert.Equal(t, 30*time.Second, s.RequestTimeout)
@@ -200,7 +200,7 @@ func TestInstanceAISummarySettingsService_Update_StoresAndAudits(t *testing.T) {
 			return err
 		})
 
-	view, err := svc.Update(context.Background(), testInstanceAdminID, validInstanceAISummaryValues())
+	view, err := svc.Update(context.Background(), testInstanceAdminID, validInstanceAISummaryValues(), nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, models.InstanceAISummarySettingsSourceInstance, view.Source)
@@ -223,16 +223,16 @@ func TestInstanceAISummarySettingsService_Update_StoresAndAudits(t *testing.T) {
 func TestInstanceAISummarySettingsService_Update_FirstSaveHasNoBefore(t *testing.T) {
 	svc, repo := newInstanceAISummaryService(t, nil)
 	var entry *models.InstanceSettingsAuditEntry
-	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything).
+	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		RunAndReturn(func(
-			_ context.Context, s *models.InstanceAISummarySettings, audit repositories.InstanceAISummarySettingsAuditFunc,
+			_ context.Context, s *models.InstanceAISummarySettings, _ *int64, audit repositories.InstanceAISummarySettingsAuditFunc,
 		) error {
 			var err error
 			entry, err = audit(nil, s)
 			return err
 		})
 
-	_, err := svc.Update(context.Background(), testInstanceAdminID, validInstanceAISummaryValues())
+	_, err := svc.Update(context.Background(), testInstanceAdminID, validInstanceAISummaryValues(), nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, entry)
@@ -245,9 +245,9 @@ func TestInstanceAISummarySettingsService_Update_BlankActorIsNil(t *testing.T) {
 	for _, actor := range []string{"", "   "} {
 		svc, repo := newInstanceAISummaryService(t, nil)
 		var entry *models.InstanceSettingsAuditEntry
-		repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything).
+		repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 			RunAndReturn(func(
-				_ context.Context, s *models.InstanceAISummarySettings, audit repositories.InstanceAISummarySettingsAuditFunc,
+				_ context.Context, s *models.InstanceAISummarySettings, _ *int64, audit repositories.InstanceAISummarySettingsAuditFunc,
 			) error {
 				assert.Nil(t, s.UpdatedBy)
 				var err error
@@ -255,7 +255,7 @@ func TestInstanceAISummarySettingsService_Update_BlankActorIsNil(t *testing.T) {
 				return err
 			})
 
-		_, err := svc.Update(context.Background(), actor, validInstanceAISummaryValues())
+		_, err := svc.Update(context.Background(), actor, validInstanceAISummaryValues(), nil)
 
 		require.NoError(t, err)
 		assert.Nil(t, entry.ActorUserID, "actor %q", actor)
@@ -267,10 +267,10 @@ func TestInstanceAISummarySettingsService_Update_BlankActorIsNil(t *testing.T) {
 // the whole save, and the service reports nothing as saved.
 func TestInstanceAISummarySettingsService_Update_RepositoryErrorPropagates(t *testing.T) {
 	svc, repo := newInstanceAISummaryService(t, nil)
-	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything).
+	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(errors.New("audit append failed; upsert rolled back"))
 
-	view, err := svc.Update(context.Background(), testInstanceAdminID, validInstanceAISummaryValues())
+	view, err := svc.Update(context.Background(), testInstanceAdminID, validInstanceAISummaryValues(), nil)
 
 	assert.ErrorContains(t, err, "rolled back")
 	assert.Nil(t, view)
@@ -282,7 +282,7 @@ func TestInstanceAISummarySettingsService_Update_RejectsInvalidValuesWithoutWrit
 	invalid := validInstanceAISummaryValues()
 	invalid.TopN = models.MaxAISummaryTopN + 1
 
-	_, err := svc.Update(context.Background(), testInstanceAdminID, invalid)
+	_, err := svc.Update(context.Background(), testInstanceAdminID, invalid, nil)
 
 	assert.ErrorIs(t, err, services.ErrInvalidInstanceAISummarySettings)
 }

@@ -173,9 +173,9 @@ func (_c *MockInstanceSearchSettingsServiceInterface_Resolve_Call) RunAndReturn(
 	return _c
 }
 
-// Update provides a mock function with given fields: ctx, actorUserID, values
-func (_m *MockInstanceSearchSettingsServiceInterface) Update(ctx context.Context, actorUserID string, values models.InstanceSearchSettingsValues) (*models.InstanceSearchSettingsView, error) {
-	ret := _m.Called(ctx, actorUserID, values)
+// Update provides a mock function with given fields: ctx, actorUserID, values, expectedVersion
+func (_m *MockInstanceSearchSettingsServiceInterface) Update(ctx context.Context, actorUserID string, values models.InstanceSearchSettingsValues, expectedVersion *int64) (*models.InstanceSearchSettingsView, error) {
+	ret := _m.Called(ctx, actorUserID, values, expectedVersion)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Update")
@@ -183,19 +183,19 @@ func (_m *MockInstanceSearchSettingsServiceInterface) Update(ctx context.Context
 
 	var r0 *models.InstanceSearchSettingsView
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceSearchSettingsValues) (*models.InstanceSearchSettingsView, error)); ok {
-		return rf(ctx, actorUserID, values)
+	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceSearchSettingsValues, *int64) (*models.InstanceSearchSettingsView, error)); ok {
+		return rf(ctx, actorUserID, values, expectedVersion)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceSearchSettingsValues) *models.InstanceSearchSettingsView); ok {
-		r0 = rf(ctx, actorUserID, values)
+	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceSearchSettingsValues, *int64) *models.InstanceSearchSettingsView); ok {
+		r0 = rf(ctx, actorUserID, values, expectedVersion)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.InstanceSearchSettingsView)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, models.InstanceSearchSettingsValues) error); ok {
-		r1 = rf(ctx, actorUserID, values)
+	if rf, ok := ret.Get(1).(func(context.Context, string, models.InstanceSearchSettingsValues, *int64) error); ok {
+		r1 = rf(ctx, actorUserID, values, expectedVersion)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -212,13 +212,14 @@ type MockInstanceSearchSettingsServiceInterface_Update_Call struct {
 //   - ctx context.Context
 //   - actorUserID string
 //   - values models.InstanceSearchSettingsValues
-func (_e *MockInstanceSearchSettingsServiceInterface_Expecter) Update(ctx interface{}, actorUserID interface{}, values interface{}) *MockInstanceSearchSettingsServiceInterface_Update_Call {
-	return &MockInstanceSearchSettingsServiceInterface_Update_Call{Call: _e.mock.On("Update", ctx, actorUserID, values)}
+//   - expectedVersion *int64
+func (_e *MockInstanceSearchSettingsServiceInterface_Expecter) Update(ctx interface{}, actorUserID interface{}, values interface{}, expectedVersion interface{}) *MockInstanceSearchSettingsServiceInterface_Update_Call {
+	return &MockInstanceSearchSettingsServiceInterface_Update_Call{Call: _e.mock.On("Update", ctx, actorUserID, values, expectedVersion)}
 }
 
-func (_c *MockInstanceSearchSettingsServiceInterface_Update_Call) Run(run func(ctx context.Context, actorUserID string, values models.InstanceSearchSettingsValues)) *MockInstanceSearchSettingsServiceInterface_Update_Call {
+func (_c *MockInstanceSearchSettingsServiceInterface_Update_Call) Run(run func(ctx context.Context, actorUserID string, values models.InstanceSearchSettingsValues, expectedVersion *int64)) *MockInstanceSearchSettingsServiceInterface_Update_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(models.InstanceSearchSettingsValues))
+		run(args[0].(context.Context), args[1].(string), args[2].(models.InstanceSearchSettingsValues), args[3].(*int64))
 	})
 	return _c
 }
@@ -228,7 +229,7 @@ func (_c *MockInstanceSearchSettingsServiceInterface_Update_Call) Return(_a0 *mo
 	return _c
 }
 
-func (_c *MockInstanceSearchSettingsServiceInterface_Update_Call) RunAndReturn(run func(context.Context, string, models.InstanceSearchSettingsValues) (*models.InstanceSearchSettingsView, error)) *MockInstanceSearchSettingsServiceInterface_Update_Call {
+func (_c *MockInstanceSearchSettingsServiceInterface_Update_Call) RunAndReturn(run func(context.Context, string, models.InstanceSearchSettingsValues, *int64) (*models.InstanceSearchSettingsView, error)) *MockInstanceSearchSettingsServiceInterface_Update_Call {
 	_c.Call.Return(run)
 	return _c
 }

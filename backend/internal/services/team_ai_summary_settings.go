@@ -359,17 +359,19 @@ func ValidateAISummarySettings(v models.TeamAISummarySettingsValues) error {
 // validateAISummaryProfileBounds holds the rules every summary profile shares,
 // team and instance alike: top_n in [1, models.MaxAISummaryTopN],
 // max_output_tokens in [1, models.MaxAISummaryOutputTokens] and a known style.
-// It returns an unwrapped error; each caller wraps its own sentinel.
+// It returns an unwrapped *SettingsFieldError; each caller wraps its own
+// sentinel.
 func validateAISummaryProfileBounds(v models.TeamAISummarySettingsValues) error {
 	if v.TopN < 1 || v.TopN > models.MaxAISummaryTopN {
-		return fmt.Errorf("top_n must be between 1 and %d, got %d", models.MaxAISummaryTopN, v.TopN)
+		return settingsFieldError([]string{"top_n"},
+			"top_n must be between 1 and %d, got %d", models.MaxAISummaryTopN, v.TopN)
 	}
 	if v.MaxOutputTokens < 1 || v.MaxOutputTokens > models.MaxAISummaryOutputTokens {
-		return fmt.Errorf("max_output_tokens must be between 1 and %d, got %d",
+		return settingsFieldError([]string{"max_output_tokens"}, "max_output_tokens must be between 1 and %d, got %d",
 			models.MaxAISummaryOutputTokens, v.MaxOutputTokens)
 	}
 	if !models.IsValidAISummaryStyle(v.Style) {
-		return fmt.Errorf("style must be one of %v, got %q", models.AISummaryStyles, v.Style)
+		return settingsFieldError([]string{"style"}, "style must be one of %v, got %q", models.AISummaryStyles, v.Style)
 	}
 	return nil
 }

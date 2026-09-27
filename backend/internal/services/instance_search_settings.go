@@ -48,9 +48,12 @@ type InstanceSearchSettingsServiceInterface interface {
 	Get(ctx context.Context) (*models.InstanceSearchSettingsView, error)
 	// Update validates and stores a complete replacement set of defaults,
 	// auditing the change in the same transaction. Invalid input returns an
-	// ErrInvalidSearchSettings-wrapped error and writes nothing.
+	// ErrInvalidSearchSettings-wrapped error (carrying a *SettingsFieldError)
+	// and writes nothing. A non-nil expectedVersion makes it a compare-and-set:
+	// a mismatch returns repositories.ErrInstanceSettingsVersionConflict and
+	// writes nothing.
 	Update(
-		ctx context.Context, actorUserID string, values models.InstanceSearchSettingsValues,
+		ctx context.Context, actorUserID string, values models.InstanceSearchSettingsValues, expectedVersion *int64,
 	) (*models.InstanceSearchSettingsView, error)
 	// Reset drops the stored defaults so the built-in ones apply again,
 	// auditing the change in the same transaction. Resetting with no stored
@@ -114,7 +117,7 @@ func (s *InstanceSearchSettingsService) Get(ctx context.Context) (*models.Instan
 
 // Update implements InstanceSearchSettingsServiceInterface.
 func (s *InstanceSearchSettingsService) Update(
-	ctx context.Context, actorUserID string, values models.InstanceSearchSettingsValues,
+	ctx context.Context, actorUserID string, values models.InstanceSearchSettingsValues, expectedVersion *int64,
 ) (*models.InstanceSearchSettingsView, error) {
 	if err := ValidateInstanceSearchSettings(values); err != nil {
 		return nil, err
@@ -129,7 +132,7 @@ func (s *InstanceSearchSettingsService) Update(
 		RankCandidateCap:      values.RankCandidateCap,
 		UpdatedBy:             optionalActor(actorUserID),
 	}
-	err := s.repo.UpsertAudited(ctx, stored,
+	err := s.repo.UpsertAudited(ctx, stored, expectedVersion,
 		instanceSearchAuditFunc(models.InstanceSettingsAuditActionUpsert, actorUserID))
 	if err != nil {
 		return nil, fmt.Errorf("InstanceSearchSettingsService.Update: %w", err)
@@ -186,11 +189,13 @@ func instanceSearchAuditSnapshot(row *models.InstanceSearchSettings) (json.RawMe
 // instanceSearchView renders a stored row as the read model.
 func instanceSearchView(stored *models.InstanceSearchSettings) *models.InstanceSearchSettingsView {
 	updatedAt := stored.UpdatedAt
+	version := stored.Version
 	return &models.InstanceSearchSettingsView{
 		Source:    models.InstanceSearchSettingsSourceInstance,
 		Values:    instanceSearchValuesFromStored(stored),
 		UpdatedAt: &updatedAt,
 		UpdatedBy: stored.UpdatedBy,
+		Version:   &version,
 	}
 }
 
@@ -218,12 +223,13 @@ func ValidateInstanceSearchSettings(v models.InstanceSearchSettingsValues) error
 		return err
 	}
 	if v.RankCandidateCap < 1 {
-		return fmt.Errorf("%w: rank_candidate_cap must be >= 1, got %d",
-			ErrInvalidSearchSettings, v.RankCandidateCap)
+		return fmt.Errorf("%w: %w", ErrInvalidSearchSettings, settingsFieldError(
+			[]string{"rank_candidate_cap"}, "rank_candidate_cap must be >= 1, got %d", v.RankCandidateCap))
 	}
 	if v.RankCandidateCap > models.MaxSearchRankCandidateCap {
-		return fmt.Errorf("%w: rank_candidate_cap must be <= %d, got %d",
-			ErrInvalidSearchSettings, models.MaxSearchRankCandidateCap, v.RankCandidateCap)
+		return fmt.Errorf("%w: %w", ErrInvalidSearchSettings, settingsFieldError(
+			[]string{"rank_candidate_cap"}, "rank_candidate_cap must be <= %d, got %d",
+			models.MaxSearchRankCandidateCap, v.RankCandidateCap))
 	}
 	return nil
 }

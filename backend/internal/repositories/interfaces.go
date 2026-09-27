@@ -225,6 +225,11 @@ var (
 	// ordinary state, not a fault: the built-in defaults are in effect (#1197).
 	ErrInstanceAISummarySettingsNotFound = errors.New("instance AI summary settings not found")
 
+	// ErrInstanceSettingsVersionConflict is returned by an instance settings
+	// repository's UpsertAudited when the caller's expected version does not
+	// match the stored row (or no row is stored). Nothing is written.
+	ErrInstanceSettingsVersionConflict = errors.New("instance settings version conflict")
+
 	// ErrInstanceSettingsAuditUnredacted is returned by
 	// InstanceSettingsAuditRepository.Append when a before/after snapshot
 	// carries a credential key ("secret" or "secret_encrypted") whose value is
@@ -1090,6 +1095,13 @@ type AdminRepository interface {
 	// GetInstanceCounts returns unscoped COUNT(*) totals for the top-level
 	// entities (users, teams, prompts, artifacts, memories).
 	GetInstanceCounts(ctx context.Context) (models.InstanceCounts, error)
+	// CountTeamsWithSearchSettingsOverride returns how many teams store search
+	// settings of their own (a team_search_settings row), so ignore the
+	// instance defaults. Unscoped, like GetInstanceCounts.
+	CountTeamsWithSearchSettingsOverride(ctx context.Context) (int, error)
+	// CountTeamsWithAISummarySettingsOverride returns how many teams store AI
+	// summary settings of their own (a team_ai_summary_settings row).
+	CountTeamsWithAISummarySettingsOverride(ctx context.Context) (int, error)
 	// ListUsers returns a page of users matching the filters with each user's
 	// team count, plus the total count of the filtered set. filters.Page/Limit
 	// are already clamped.
@@ -1563,8 +1575,14 @@ type InstanceSearchSettingsRepository interface {
 	// current row is then read and handed to audit as before (nil when none was
 	// stored); after is settings as written. An audit error rolls the upsert
 	// back.
+	//
+	// A non-nil expectedVersion makes the write a compare-and-set: it is
+	// compared with the row read under the lock, and a mismatch (or no row
+	// stored) returns ErrInstanceSettingsVersionConflict and writes nothing.
+	// nil is last-write-wins.
 	UpsertAudited(
-		ctx context.Context, settings *models.InstanceSearchSettings, audit InstanceSearchSettingsAuditFunc,
+		ctx context.Context, settings *models.InstanceSearchSettings, expectedVersion *int64,
+		audit InstanceSearchSettingsAuditFunc,
 	) error
 	// DeleteAudited is Delete plus one instance_settings_audit entry, in the
 	// same transaction. It reports whether a row was deleted; when none was
@@ -1604,9 +1622,12 @@ type InstanceAISummarySettingsRepository interface {
 	// in the same transaction, with the same contract as
 	// InstanceSearchSettingsRepository.UpsertAudited: a table-level write lock
 	// serializes audited writers, before is the row read under it (nil when
-	// none was stored), and an audit error rolls the upsert back.
+	// none was stored), an audit error rolls the upsert back, and a non-nil
+	// expectedVersion is compared under the lock
+	// (ErrInstanceSettingsVersionConflict on a mismatch).
 	UpsertAudited(
-		ctx context.Context, settings *models.InstanceAISummarySettings, audit InstanceAISummarySettingsAuditFunc,
+		ctx context.Context, settings *models.InstanceAISummarySettings, expectedVersion *int64,
+		audit InstanceAISummarySettingsAuditFunc,
 	) error
 	// DeleteAudited is Delete plus one instance_settings_audit entry, in the
 	// same transaction. It reports whether a row was deleted; when none was
