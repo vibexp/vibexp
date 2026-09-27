@@ -64,6 +64,17 @@ vi.mock('@/services/adminService', () => ({
   },
 }))
 
+// Settings → Search / AI Summary (#1202) load their settings and history on
+// mount; left pending, since routing is all this suite asserts.
+vi.mock('@/services/adminSettingsService', () => ({
+  adminSettingsService: {
+    getSearchSettings: vi.fn(() => new Promise(() => {})),
+    listSearchSettingsAudit: vi.fn(() => new Promise(() => {})),
+    getAISummarySettings: vi.fn(() => new Promise(() => {})),
+    listAISummarySettingsAudit: vi.fn(() => new Promise(() => {})),
+  },
+}))
+
 vi.mock('@/services/teamService', () => ({
   teamService: { getTeams: vi.fn() },
 }))
@@ -252,6 +263,8 @@ it.each([
   // #461 added the route it points at.
   ['/admin/projects', 'Projects'],
   ['/admin/settings/email', 'Email'],
+  ['/admin/settings/search', 'Search'],
+  ['/admin/settings/ai-summary', 'AI Summary'],
 ])('renders %s inside the admin shell', async (path, heading) => {
   asAdmin()
   renderAt(path)
@@ -260,6 +273,8 @@ it.each([
     await screen.findByRole('heading', { name: heading, level: 1 })
   ).toBeInTheDocument()
   expect(screen.queryByText('app shell')).not.toBeInTheDocument()
+  // The shell titles any nav path, so also prove a route renders there.
+  expect(screen.queryByText('Page not found')).not.toBeInTheDocument()
 })
 
 it.each([

@@ -95,6 +95,8 @@ it('includes a Projects entry even before #461 adds the pages', () => {
     '/admin/teams',
     '/admin/projects',
     '/admin/settings/email',
+    '/admin/settings/search',
+    '/admin/settings/ai-summary',
   ])
 })
 
@@ -110,16 +112,27 @@ it('lists Email under a "Settings" group after the Administration items (#1191)'
     name: 'Email',
   })
   expect(emailLink).toHaveAttribute('href', '/admin/settings/email')
+  // Search and AI Summary (#1202) join the same group.
+  expect(
+    within(settingsGroup).getAllByRole('link', { name: 'Search' })[0]
+  ).toHaveAttribute('href', '/admin/settings/search')
+  expect(
+    within(settingsGroup).getAllByRole('link', { name: 'AI Summary' })[0]
+  ).toHaveAttribute('href', '/admin/settings/ai-summary')
   expect(
     within(settingsGroup).queryByRole('link', { name: 'Users' })
   ).not.toBeInTheDocument()
 })
 
-it('titles the Settings → Email page in the shell', () => {
-  renderShell('/admin/settings/email')
+it.each([
+  ['/admin/settings/email', 'Email'],
+  ['/admin/settings/search', 'Search'],
+  ['/admin/settings/ai-summary', 'AI Summary'],
+])('titles the Settings page at %s in the shell', (path, heading) => {
+  renderShell(path)
 
   expect(
-    screen.getByRole('heading', { name: 'Email', level: 1 })
+    screen.getByRole('heading', { name: heading, level: 1 })
   ).toBeInTheDocument()
 })
 

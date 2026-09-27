@@ -42,7 +42,12 @@ it('renders the team-owned settings', async () => {
   expect(screen.getByTestId('config-source')).toHaveTextContent('Team')
   expect(screen.getByText('Detailed')).toBeInTheDocument()
   expect(screen.getByText('Available')).toBeInTheDocument()
-  expect(screen.getByText(/5 \(max 10\)/)).toBeInTheDocument()
+  // The deprecated instance ceilings (#1199) are no longer displayed.
+  expect(screen.getByText('Top N').nextElementSibling).toHaveTextContent(/^5$/)
+  expect(
+    screen.getByText('Max output tokens').nextElementSibling
+  ).toHaveTextContent(/^800$/)
+  expect(screen.queryByText(/\(max/)).not.toBeInTheDocument()
   expectReadOnly()
   expectNoSentinel()
 })

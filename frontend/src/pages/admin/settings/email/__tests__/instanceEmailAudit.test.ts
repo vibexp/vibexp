@@ -1,10 +1,4 @@
-import {
-  auditActionLabel,
-  auditActorLabel,
-  auditFieldChanges,
-  credentialChange,
-  formatAuditValue,
-} from '../instanceEmailAudit'
+import { auditFieldChanges, credentialChange } from '../instanceEmailAudit'
 
 const snapshot = (overrides: Record<string, unknown> = {}) => ({
   provider_type: 'smtp',
@@ -79,35 +73,5 @@ describe('credentialChange', () => {
   it('is null for an entry without one (import, delete)', () => {
     expect(credentialChange({ after: snapshot() })).toBeNull()
     expect(credentialChange({ after: null })).toBeNull()
-  })
-})
-
-describe('labels', () => {
-  it('names the import as config.yaml, not as a missing actor', () => {
-    expect(auditActorLabel({ action: 'import', actor_name: null })).toBe(
-      'Imported from config.yaml'
-    )
-  })
-
-  it('shows the actor, or a deleted user', () => {
-    expect(auditActorLabel({ action: 'upsert', actor_name: 'Ada' })).toBe('Ada')
-    expect(auditActorLabel({ action: 'delete', actor_name: null })).toBe(
-      'Deleted user'
-    )
-  })
-
-  it('labels each action', () => {
-    expect(auditActionLabel('upsert')).toBe('Saved')
-    expect(auditActionLabel('delete')).toBe('Removed')
-    expect(auditActionLabel('import')).toBe('Imported')
-  })
-
-  it('formats values', () => {
-    expect(formatAuditValue(null)).toBe('—')
-    expect(formatAuditValue('')).toBe('—')
-    expect(formatAuditValue(true)).toBe('Yes')
-    expect(formatAuditValue(false)).toBe('No')
-    expect(formatAuditValue(25)).toBe('25')
-    expect(formatAuditValue({ a: 1 })).toBe('{"a":1}')
   })
 })

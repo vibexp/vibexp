@@ -16,6 +16,7 @@ e2e/journeys/
 ├── ai-summary.journey.spec.ts               # AI Summary on search (gated on the docker stack)
 ├── admin-panel-v3.journey.spec.ts           # Admin filters, presets, CSV export, detail pages
 ├── admin-email-settings.journey.spec.ts     # Admin → Settings → Email against the stack's Mailpit
+├── instance-settings.journey.spec.ts        # Admin → Settings → Search defaults reach a team; reset
 └── README.md                                # This file
 ```
 

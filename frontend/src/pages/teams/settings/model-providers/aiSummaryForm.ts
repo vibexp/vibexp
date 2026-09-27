@@ -74,39 +74,39 @@ function clampToRange(raw: string, max: number): string {
   return raw
 }
 
-/** Keeps a typed `top_n` inside `1..maxTopN`. */
-export function clampTopN(raw: string, maxTopN: number): string {
-  return clampToRange(raw, maxTopN)
+/** Keeps a typed `top_n` inside `1..TOP_N_MAX`. */
+export function clampTopN(raw: string): string {
+  return clampToRange(raw, TOP_N_MAX)
 }
 
-/** Keeps a typed `max_output_tokens` inside `1..ceiling`. */
-export function clampMaxOutputTokens(raw: string, ceiling: number): string {
-  return clampToRange(raw, ceiling)
-}
-
-/** The instance-owned upper bounds `validate` checks the numeric knobs against. */
-export interface AISummaryLimits {
-  maxTopN: number
-  maxOutputTokens: number
+/** Keeps a typed `max_output_tokens` inside `1..MAX_OUTPUT_TOKENS_MAX`. */
+export function clampMaxOutputTokens(raw: string): string {
+  return clampToRange(raw, MAX_OUTPUT_TOKENS_MAX)
 }
 
 /**
- * Mirrors the server's checks for immediate feedback; the server stays
- * authoritative. Both numeric knobs are bounded by instance-owned ceilings
- * the settings response exposes (`max_top_n`, `max_output_tokens_ceiling`).
+ * The hard upper bounds of the two numeric knobs, the server's
+ * `MaxAISummaryTopN` / `MaxAISummaryOutputTokens`. The settings response
+ * still carries the old instance-ceiling fields, but they are deprecated
+ * (#1199) and always report these same values, so the form does not read
+ * them.
  */
-export function validate(
-  form: AISummaryForm,
-  { maxTopN, maxOutputTokens }: AISummaryLimits
-): string | null {
-  if (!isPositiveInteger(form.top_n) || Number(form.top_n) > maxTopN) {
-    return `Results to read must be a whole number between 1 and ${String(maxTopN)}.`
+export const TOP_N_MAX = 10
+export const MAX_OUTPUT_TOKENS_MAX = 32768
+
+/**
+ * Mirrors the server's checks for immediate feedback; the server stays
+ * authoritative.
+ */
+export function validate(form: AISummaryForm): string | null {
+  if (!isPositiveInteger(form.top_n) || Number(form.top_n) > TOP_N_MAX) {
+    return `Results to read must be a whole number between 1 and ${String(TOP_N_MAX)}.`
   }
   if (
     !isPositiveInteger(form.max_output_tokens) ||
-    Number(form.max_output_tokens) > maxOutputTokens
+    Number(form.max_output_tokens) > MAX_OUTPUT_TOKENS_MAX
   ) {
-    return `Response length must be a whole number between 1 and ${String(maxOutputTokens)}.`
+    return `Response length must be a whole number between 1 and ${String(MAX_OUTPUT_TOKENS_MAX)}.`
   }
   return null
 }
