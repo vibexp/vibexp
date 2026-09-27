@@ -565,7 +565,7 @@ func ProvideTeamSearchSettingsService(
 // defaults and budgets (instance_ai_summary_settings row, else the built-in
 // defaults) and the surface an instance admin edits them through.
 //
-// It returns the CONCRETE type because the service satisfies two interfaces —
+// It returns the CONCRETE type because the service satisfies three interfaces —
 // InstanceAISummarySettingsResolver (the fail-open read the search summary
 // service builds on), InstanceAISummarySettingsReader (both reads, for the team
 // settings service) and InstanceAISummarySettingsServiceInterface (the admin
