@@ -52,6 +52,15 @@ export interface ResourceMetadataSectionProps {
    * resolved yet, say) renders no row rather than a broken one.
    */
   projectHref?: (project: ProjectRef) => string | null
+  /**
+   * Edit mode (#1180): a form control per field key, rendered in that field's
+   * row in place of its read-only value — so the edit page shows the same rows
+   * in the same order, with the editable ones as inputs. A field with a
+   * control always gets its row, even while its value is empty; a control for
+   * a key no row claims is appended as a row of its own, so nothing a
+   * descriptor makes editable can go missing.
+   */
+  controls?: ReadonlyMap<string, ReactNode>
   className?: string
 }
 
@@ -82,18 +91,49 @@ function metaValue(field: FieldSpec, value: unknown): ReactNode {
   return null
 }
 
+/** The edit-mode controls, and which of them a row has already placed. */
+interface Controls {
+  nodes: ReadonlyMap<string, ReactNode>
+  placed: Set<string>
+}
+
+/**
+ * The row for a field that has a control: its label, with the control as the
+ * value. Marks the key placed so the leftover pass does not add it twice.
+ */
+function controlRow(
+  controls: Controls,
+  key: string,
+  label: string
+): ReactNode | null {
+  if (!controls.nodes.has(key)) return null
+  controls.placed.add(key)
+  return (
+    <MetaRow key={`control:${key}`} label={label}>
+      {controls.nodes.get(key)}
+    </MetaRow>
+  )
+}
+
 /**
  * One row per field whose value is a non-empty string, in field order. Only the
  * shared "look up, skip empty" walk lives here; each role supplies its own row,
- * because the rows genuinely differ (badge, status badge, copyable slug).
+ * because the rows genuinely differ (badge, status badge, copyable slug). A
+ * field with a control gets the control row instead.
  */
 function stringFieldRows(
   fields: FieldSpec[],
   resource: Record<string, unknown>,
+  controls: Controls,
   render: (field: FieldSpec, value: string) => ReactNode
 ): ReactNode[] {
   const rows: ReactNode[] = []
   for (const field of fields) {
+    const control = controlRow(controls, field.key, field.label)
+    if (control) {
+      rows.push(control)
+      continue
+    }
     const value = valueOf(resource, field.key)
     if (typeof value === 'string' && value.length > 0) {
       rows.push(render(field, value))
@@ -105,10 +145,16 @@ function stringFieldRows(
 /** The `meta` rows: any field whose `metaValue` renders something. */
 function metaRows(
   fields: FieldSpec[],
-  resource: Record<string, unknown>
+  resource: Record<string, unknown>,
+  controls: Controls
 ): ReactNode[] {
   const rows: ReactNode[] = []
   for (const field of fields) {
+    const control = controlRow(controls, field.key, field.label)
+    if (control) {
+      rows.push(control)
+      continue
+    }
     const rendered = metaValue(field, valueOf(resource, field.key))
     if (rendered === null || rendered === undefined || rendered === false) {
       continue
@@ -126,8 +172,13 @@ function metaRows(
 function projectRows(
   hasProject: boolean,
   project: ProjectRef | null | undefined,
-  projectHref: ResourceMetadataSectionProps['projectHref']
+  projectHref: ResourceMetadataSectionProps['projectHref'],
+  controls: Controls
 ): ReactNode[] {
+  const control = hasProject
+    ? controlRow(controls, PROJECT_KEY, 'Project')
+    : null
+  if (control) return [control]
   const projectTo =
     hasProject && project && projectHref ? projectHref(project) : null
   if (!project || !projectTo) return []
@@ -144,32 +195,45 @@ export function ResourceMetadataSection({
   versionHistory,
   project,
   projectHref,
+  controls: controlNodes,
   className,
 }: Readonly<ResourceMetadataSectionProps>) {
   const fields = partition(descriptor)
+  const controls: Controls = {
+    nodes: controlNodes ?? new Map(),
+    placed: new Set(),
+  }
   const rows: ReactNode[] = [
-    ...stringFieldRows(fields.type, resource, (field, value) => (
+    ...stringFieldRows(fields.type, resource, controls, (field, value) => (
       <MetaRow key={`type:${field.key}`} label={field.label}>
         <Badge variant="secondary">{fieldLabel(field, value)}</Badge>
       </MetaRow>
     )),
-    ...stringFieldRows(fields.status, resource, (field, value) => (
+    ...stringFieldRows(fields.status, resource, controls, (field, value) => (
       <MetaRow key={`status:${field.key}`} label={field.label}>
         <StatusBadge tone={fieldTone(field, value)}>
           {fieldLabel(field, value)}
         </StatusBadge>
       </MetaRow>
     )),
-    ...stringFieldRows(fields.address, resource, (field, value) => (
+    ...stringFieldRows(fields.address, resource, controls, (field, value) => (
       <MetaSlugRow
         key={`address:${field.key}`}
         label={field.label}
         value={value}
       />
     )),
-    ...projectRows(fields.hasProject, project, projectHref),
-    ...metaRows(fields.meta, resource),
+    ...projectRows(fields.hasProject, project, projectHref, controls),
+    ...metaRows(fields.meta, resource, controls),
   ]
+  // A control no role claimed still gets a row, labelled as the descriptor
+  // labels the field.
+  for (const key of controls.nodes.keys()) {
+    if (controls.placed.has(key)) continue
+    const label =
+      descriptor.fields.find(field => field.key === key)?.label ?? key
+    rows.push(controlRow(controls, key, label))
+  }
 
   const createdAt = valueOf(resource, 'created_at')
   const updatedAt = valueOf(resource, 'updated_at')

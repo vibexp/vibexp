@@ -1,4 +1,5 @@
 import type {
+  ExtensionPlacement,
   FieldRole,
   FieldSpec,
   FilterSpec,
@@ -493,6 +494,40 @@ function assertFormExtensions(kind: string, extensions: readonly string[]) {
     if (seen.has(name)) fail(kind, `duplicate form extension '${name}'`)
     seen.add(name)
   }
+  return seen
+}
+
+/**
+ * An extension's placement (#1180) must name a declared slot — otherwise it
+ * places nothing — and a `details` row must be a declared field that has no
+ * form control of its own: a row nobody owns never renders, and a row whose
+ * value slot already holds the field's control would silently lose it.
+ */
+function assertExtensionPlacement(
+  kind: string,
+  declared: ReadonlySet<string>,
+  placement: Readonly<Record<string, ExtensionPlacement>>,
+  byKey: ReadonlyMap<string, FieldSpec>,
+  formKeys: ReadonlySet<string>
+) {
+  for (const [name, place] of Object.entries(placement)) {
+    if (!declared.has(name)) {
+      fail(kind, `form places undeclared extension '${name}'`)
+    }
+    if (place.section !== 'details') continue
+    if (!byKey.has(place.row)) {
+      fail(
+        kind,
+        `extension '${name}' is placed in undeclared row '${place.row}'`
+      )
+    }
+    if (formKeys.has(place.row)) {
+      fail(
+        kind,
+        `extension '${name}' is placed in row '${place.row}', which has a form control`
+      )
+    }
+  }
 }
 
 /**
@@ -523,7 +558,13 @@ function assertFormSpec(
       `expected at most one 'project' form control, found ${String(projects)}`
     )
   }
-  assertFormExtensions(kind, form.extensions ?? [])
+  assertExtensionPlacement(
+    kind,
+    assertFormExtensions(kind, form.extensions ?? []),
+    form.extensionPlacement ?? {},
+    byKey,
+    seen
+  )
 }
 
 /**

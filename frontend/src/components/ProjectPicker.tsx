@@ -49,6 +49,11 @@ interface ProjectPickerProps extends AriaAttributes {
   selectedProject?: Project | null
   id?: string
   triggerClassName?: string
+  /**
+   * Put the trigger's label in its `title` too, for a compact trigger that
+   * truncates the name (the edit page's Project row, #1180).
+   */
+  titleTrigger?: boolean
   'data-testid'?: string
 }
 
@@ -67,6 +72,7 @@ export function ProjectPicker({
   selectedProject = null,
   id,
   triggerClassName,
+  titleTrigger = false,
   'data-testid': dataTestId,
   // Forwarded onto the trigger so a wrapping <FormControl> can wire
   // aria-invalid / aria-describedby to the field's error message.
@@ -142,6 +148,7 @@ export function ProjectPicker({
           aria-expanded={open}
           disabled={disabled}
           data-testid={dataTestId}
+          title={titleTrigger ? triggerLabel : undefined}
           className={cn(
             'w-full justify-between font-normal',
             !selected && !isAllSelected && 'text-muted-foreground',

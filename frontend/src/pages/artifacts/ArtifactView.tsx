@@ -23,16 +23,16 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceVersions } from '@/hooks/useResourceVersions'
-import { buildProjectEditUrl } from '@/lib/resourceUrl'
+import {
+  buildProjectEditUrl,
+  buildResourceVersionsUrl,
+} from '@/lib/resourceUrl'
 import type { Artifact } from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
-/**
- * The artifact's detail-route base — shared by the edit action and the
- * version-history link, so the two can never drift apart.
- */
+/** The artifact's detail-route base, for the edit action. */
 function artifactBase(artifact: Artifact) {
   return `/artifacts/${encodeURIComponent(artifact.project_id)}/${encodeURIComponent(artifact.slug)}`
 }
@@ -121,7 +121,16 @@ export function ArtifactView() {
               decodeURIComponent(slug)
             )
         : null,
-    to: artifact ? `${artifactBase(artifact)}/versions` : undefined,
+    // Built as the edit page builds it (#1180), so the two links cannot drift.
+    to:
+      (artifact &&
+        buildResourceVersionsUrl({
+          type: 'artifact',
+          id: artifact.id,
+          slug: artifact.slug,
+          projectId: artifact.project_id,
+        })) ??
+      undefined,
     editedAt: artifact?.updated_at,
     deps: [isLoadingTeam, currentTeam?.id, project, slug],
   })

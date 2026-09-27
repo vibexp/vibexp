@@ -19,7 +19,10 @@ import { useAlerts, useAnalytics, usePromptRenderer } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceVersions } from '@/hooks/useResourceVersions'
-import { buildProjectEditUrl } from '@/lib/resourceUrl'
+import {
+  buildProjectEditUrl,
+  buildResourceVersionsUrl,
+} from '@/lib/resourceUrl'
 import {
   PromptMetadata,
   promptUsedBySection,
@@ -170,9 +173,15 @@ export function PromptDetail() {
       !isLoadingTeam && currentTeam && slug
         ? () => promptService.getPromptVersions(currentTeam.id, slug)
         : null,
-    to: prompt
-      ? `/prompts/${encodeURIComponent(prompt.slug)}/versions`
-      : undefined,
+    // Built as the edit page builds it (#1180), so the two links cannot drift.
+    to:
+      (prompt &&
+        buildResourceVersionsUrl({
+          type: 'prompt',
+          id: prompt.id,
+          slug: prompt.slug,
+        })) ??
+      undefined,
     editedAt: prompt?.updated_at,
     deps: [isLoadingTeam, currentTeam?.id, slug],
   })

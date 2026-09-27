@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { test, expect, type Page } from '../../fixtures/auth'
 import { generateBlueprintData } from '../../fixtures/test-data'
+import { attachWhileEditing } from '../../helpers/editColumn'
 
 /**
  * Feature Test: Blueprint Attachments
@@ -98,5 +99,13 @@ test.describe('Blueprint Attachments', () => {
     await row2.getByRole('button', { name: `Delete ${file2}` }).click()
     await expect(items).toHaveCount(0, { timeout: 10000 })
     await expect(card.getByText('No attachments yet.')).toBeVisible()
+
+    // --- The same column while editing (#1180): attach and remove there ---
+    await attachWhileEditing(
+      page,
+      'edit-blueprint-button',
+      path.join(fixturesDir, file1),
+      file1
+    )
   })
 })

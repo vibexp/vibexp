@@ -198,4 +198,53 @@ describe('ResourceMetadataSection', () => {
       '/artifacts/p1/weekly-report/versions'
     )
   })
+
+  // Edit mode (#1180): the same rows, with the editable values as controls.
+  describe('with controls', () => {
+    const control = (id: string) => <input aria-label={id} data-testid={id} />
+
+    it('renders a control in its row, keeping the row order', () => {
+      renderSection('artifact', ARTIFACT, {
+        controls: new Map([
+          ['type', control('type-control')],
+          ['project_id', control('project-control')],
+        ]),
+      })
+      expect(rowLabels()).toEqual([
+        'Type',
+        'Status',
+        'Slug',
+        'Project',
+        'Created',
+        'Updated',
+      ])
+      expect(
+        screen.getByTestId('type-control').closest('li')?.firstElementChild
+      ).toHaveTextContent('Type')
+      expect(
+        screen.getByTestId('project-control').closest('li')?.firstElementChild
+      ).toHaveTextContent('Project')
+      // The project control replaces the link row rather than joining it.
+      expect(screen.queryByRole('link', { name: /design system/i })).toBeNull()
+    })
+
+    it('renders a control row even while the value is empty', () => {
+      renderSection(
+        'artifact',
+        { ...ARTIFACT, status: '' },
+        { controls: new Map([['status', control('status-control')]]) }
+      )
+      expect(rowLabels()).toContain('Status')
+      expect(screen.getByTestId('status-control')).toBeInTheDocument()
+    })
+
+    it('appends a control no role claims, labelled from the descriptor', () => {
+      renderSection('artifact', ARTIFACT, {
+        controls: new Map([['labels', control('labels-control')]]),
+      })
+      expect(
+        screen.getByTestId('labels-control').closest('li')?.firstElementChild
+      ).toHaveTextContent('Labels')
+    })
+  })
 })

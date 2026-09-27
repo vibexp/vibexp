@@ -16,7 +16,7 @@ import {
   RESERVED_METADATA_KEYS,
   toMemoryRequest,
 } from '@/pages/memories/memoryRequest'
-import { MemoryTagsCard } from '@/pages/memories/MemoryTagsCard'
+import { MemoryTagsField } from '@/pages/memories/MemoryTagsField'
 import { memoryService } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
@@ -135,7 +135,11 @@ export function MemoryCreate() {
       metadataReservedKeys={RESERVED_METADATA_KEYS}
       extensions={{
         tags: (
-          <MemoryTagsCard value={tags} onChange={setTags} disabled={creating} />
+          <MemoryTagsField
+            value={tags}
+            onChange={setTags}
+            disabled={creating}
+          />
         ),
       }}
       onCancel={() => {

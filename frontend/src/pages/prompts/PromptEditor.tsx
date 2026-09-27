@@ -18,6 +18,7 @@ import { PromptTemplateLoader } from '@/components/PromptTemplateLoader'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAnalytics } from '@/hooks'
+import { useEditVersionHistory } from '@/hooks/useEditVersionHistory'
 import { toast } from '@/lib/toast'
 import { toPromptRequest } from '@/pages/prompts/promptRequest'
 import { projectService } from '@/services/projectService'
@@ -26,7 +27,7 @@ import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
-import { McpExposureCard } from './editor/McpExposureCard'
+import { McpExposureSwitch } from './editor/McpExposureSwitch'
 import { RenderTab } from './editor/RenderTab'
 import type { EditorView } from './editor/types'
 import { usePromptSave } from './editor/usePromptSave'
@@ -180,6 +181,15 @@ export function PromptEditor() {
     return Object.keys(seeded).length > 0 ? seeded : undefined
   }, [prompt, defaultProjectId, templateValues, prefilledData])
 
+  const versionHistory = useEditVersionHistory(
+    prompt && {
+      type: 'prompt',
+      id: prompt.id,
+      slug: prompt.slug,
+      updatedAt: prompt.updated_at,
+    }
+  )
+
   const handleSubmit = async (values: ResourceFormValues) => {
     const savedSlug = await save(toPromptRequest(values, mcpExpose))
     if (savedSlug) {
@@ -298,6 +308,12 @@ export function PromptEditor() {
         descriptor={descriptor}
         mode={mode}
         initialValues={initialValues}
+        versionHistory={versionHistory}
+        resource={
+          prompt && currentTeam
+            ? { kind: 'prompt', id: prompt.id, teamId: currentTeam.id }
+            : undefined
+        }
         onSubmit={handleSubmit}
         isLoading={saving}
         renderBody={renderBody}
@@ -307,7 +323,7 @@ export function PromptEditor() {
         extraDirty={mcpExpose !== (prompt?.mcp_expose ?? false)}
         extensions={{
           'mcp-exposure': (
-            <McpExposureCard
+            <McpExposureSwitch
               value={mcpExpose}
               onChange={setMcpExpose}
               disabled={saving}

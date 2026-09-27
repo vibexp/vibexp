@@ -24,7 +24,10 @@ import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceVersions } from '@/hooks/useResourceVersions'
 import { deriveMemoryTitle } from '@/lib/memoryTitle'
-import { buildProjectEditUrl } from '@/lib/resourceUrl'
+import {
+  buildProjectEditUrl,
+  buildResourceVersionsUrl,
+} from '@/lib/resourceUrl'
 import type { Memory } from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
@@ -112,9 +115,10 @@ export function MemoryView() {
       !isLoadingTeam && currentTeam && id
         ? () => memoryService.getMemoryVersions(currentTeam.id, id)
         : null,
-    to: memory
-      ? `/memories/${encodeURIComponent(memory.id)}/versions`
-      : undefined,
+    // Built as the edit page builds it (#1180), so the two links cannot drift.
+    to:
+      (memory && buildResourceVersionsUrl({ type: 'memory', id: memory.id })) ??
+      undefined,
     editedAt: memory?.updated_at,
     deps: [isLoadingTeam, currentTeam?.id, id],
   })

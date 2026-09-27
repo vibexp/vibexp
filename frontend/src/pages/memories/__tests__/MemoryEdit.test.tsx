@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
@@ -11,7 +11,11 @@ vi.mock('@/contexts/TeamContext', () => ({
 }))
 
 vi.mock('@/services/memoryService', () => ({
-  memoryService: { getMemory: vi.fn(), updateMemory: vi.fn() },
+  memoryService: {
+    getMemory: vi.fn(),
+    updateMemory: vi.fn(),
+    getMemoryVersions: vi.fn(),
+  },
 }))
 
 vi.mock('@/components/ProjectPicker', () => ({
@@ -87,6 +91,34 @@ describe('MemoryEdit', () => {
     })
     ;(memoryService.getMemory as Mock).mockResolvedValue(memory)
     ;(memoryService.updateMemory as Mock).mockResolvedValue(memory)
+    ;(memoryService.getMemoryVersions as Mock).mockResolvedValue({
+      versions: [{ version_number: 4 }],
+    })
+  })
+
+  // #1180: the column keeps the reading page's read-only facts while editing.
+  it('keeps the ID, Created and Version rows and the history link', async () => {
+    renderEdit()
+    await waitForForm()
+
+    const panel = within(screen.getByTestId('metadata-panel'))
+    expect(panel.getByText('ID')).toBeInTheDocument()
+    expect(panel.getByText('Created')).toBeInTheDocument()
+    expect(await panel.findByText('v5')).toBeInTheDocument()
+    expect(screen.getByTestId('metadata-version-history-link')).toHaveAttribute(
+      'href',
+      '/memories/mem-1/versions'
+    )
+    expect(memoryService.getMemoryVersions).toHaveBeenCalledWith(
+      'team-1',
+      'mem-1'
+    )
+    // Memory takes no attachments, so the column has no such section.
+    expect(
+      screen
+        .getByTestId('details-column')
+        .querySelector('[data-section="attachments"]')
+    ).toBeNull()
   })
 
   it('edits the title and the labels #911 and #910 added', async () => {

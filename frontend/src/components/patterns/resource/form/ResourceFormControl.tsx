@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useTypes } from '@/hooks/useTypes'
+import { cn } from '@/lib/utils'
 
 import { ResourceBodyEditor } from '../editor'
 import { fieldValues } from '../statusTone'
@@ -42,6 +43,22 @@ export interface SlotProps {
   'aria-invalid'?: boolean
 }
 
+/**
+ * How a control is laid out. `block` is the full-width form input; `inline` is
+ * the compact variant that sits in a details-column row's value slot (#1180),
+ * right-aligned beside the row's label as the read-only value sits on the
+ * reading page. Only the single-value controls have an inline shape — the
+ * rest render as `block` wherever they are.
+ */
+export type ResourceFormControlVariant = 'block' | 'inline'
+
+/**
+ * The inline trigger: compact, and never wider than the row, so a long type
+ * name truncates (with the full name in `title`) instead of pushing the label
+ * out of a 320px column.
+ */
+const INLINE_TRIGGER_CLASS = 'h-8 w-auto max-w-full min-w-0 gap-1.5 px-2.5'
+
 export interface ResourceFormControlProps extends SlotProps {
   spec: FormFieldSpec
   /** The descriptor field the control edits — its label and value vocabulary. */
@@ -60,6 +77,8 @@ export interface ResourceFormControlProps extends SlotProps {
   metadataReservedKeys?: string[]
   /** Replaces the shared `ResourceBodyEditor` (#914). */
   renderBody?: (props: BodySlotProps) => ReactNode
+  /** Defaults to `block`. */
+  variant?: ResourceFormControlVariant
 }
 
 function asString(value: unknown): string {
@@ -140,6 +159,7 @@ interface OptionSelectProps extends SlotProps {
   onChange: (next: string) => void
   disabled: boolean
   options: readonly { value: string; label: string }[]
+  variant: ResourceFormControlVariant
 }
 
 /** The shared shape of every option Select on a generated form. */
@@ -150,11 +170,23 @@ function OptionSelect({
   onChange,
   disabled,
   options,
+  variant,
   ...slot
 }: Readonly<OptionSelectProps>) {
+  const inline = variant === 'inline'
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger {...slot} aria-label={label} data-testid={spec.testId}>
+      <SelectTrigger
+        {...slot}
+        aria-label={label}
+        data-testid={spec.testId}
+        title={
+          inline
+            ? options.find(option => option.value === value)?.label
+            : undefined
+        }
+        className={inline ? INLINE_TRIGGER_CLASS : undefined}
+      >
         <SelectValue placeholder={spec.placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -205,8 +237,10 @@ export function ResourceFormControl({
   metadataRequiredKeys,
   metadataReservedKeys,
   renderBody,
+  variant = 'block',
   ...slot
 }: Readonly<ResourceFormControlProps>) {
+  const inline = variant === 'inline'
   switch (spec.control) {
     case 'text':
       return (
@@ -216,6 +250,9 @@ export function ResourceFormControl({
           disabled={disabled}
           placeholder={spec.placeholder}
           data-testid={spec.testId}
+          className={
+            inline ? cn(INLINE_TRIGGER_CLASS, 'text-right') : undefined
+          }
           onChange={event => {
             onChange(event.target.value)
           }}
@@ -268,6 +305,7 @@ export function ResourceFormControl({
         value: asString(value),
         onChange,
         disabled,
+        variant,
       }
       if (spec.optionsFrom === 'types') {
         return <TypeCatalogSelect {...shared} resourceType={resourceType} />
@@ -291,6 +329,8 @@ export function ResourceFormControl({
           disabled={disabled}
           placeholder={spec.placeholder}
           data-testid={spec.testId}
+          triggerClassName={inline ? INLINE_TRIGGER_CLASS : undefined}
+          titleTrigger={inline}
           onChange={projectId => {
             onChange(projectId ?? '')
           }}

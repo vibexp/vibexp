@@ -1,4 +1,8 @@
-import { buildProjectEditUrl, buildResourceUrl } from '@/lib/resourceUrl'
+import {
+  buildProjectEditUrl,
+  buildResourceUrl,
+  buildResourceVersionsUrl,
+} from '@/lib/resourceUrl'
 
 describe('buildResourceUrl', () => {
   it('builds a prompt URL from its slug', () => {
@@ -68,5 +72,30 @@ describe('buildProjectEditUrl', () => {
 
   it('returns null without a resolved team, so callers render no link', () => {
     expect(buildProjectEditUrl(undefined, 'design-system')).toBeNull()
+  })
+})
+
+describe('buildResourceVersionsUrl', () => {
+  it('is the detail URL plus /versions, for every kind', () => {
+    expect(
+      buildResourceVersionsUrl({
+        type: 'artifact',
+        id: 'a1',
+        slug: 'a b',
+        projectId: 'p1',
+      })
+    ).toBe('/artifacts/p1/a%20b/versions')
+    expect(
+      buildResourceVersionsUrl({ type: 'prompt', id: 'x', slug: 'sum+up' })
+    ).toBe('/prompts/sum%2Bup/versions')
+    expect(buildResourceVersionsUrl({ type: 'memory', id: 'm1' })).toBe(
+      '/memories/m1/versions'
+    )
+  })
+
+  it('is null when the detail URL cannot be built', () => {
+    expect(
+      buildResourceVersionsUrl({ type: 'blueprint', id: 'b1', slug: 'x' })
+    ).toBeNull()
   })
 })

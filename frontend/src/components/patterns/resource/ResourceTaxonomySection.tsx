@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import { AdditionalDataRows } from '@/components/AdditionalDataRows'
 import { TaxonomyChips } from '@/components/TaxonomyChips'
 import {
@@ -35,7 +37,16 @@ const TAGS_KEY = 'tags'
 
 /** One rendered block: a labelled chip row, or a bag of key/value pairs. */
 type Group =
-  | { kind: 'chips'; id: string; label: string; values: string[] }
+  | {
+      kind: 'chips'
+      id: string
+      /** The descriptor field the chips come from. */
+      fieldKey: string
+      /** A `taxonomy` field's own values, or tags lifted out of a pair bag. */
+      from: 'taxonomy' | 'bag'
+      label: string
+      values: string[]
+    }
   | { kind: 'pairs'; id: string; data: Record<string, unknown> }
 
 /**
@@ -102,6 +113,8 @@ function groupsOf(
       push({
         kind: 'chips',
         id: `taxonomy:${field.key}`,
+        fieldKey: field.key,
+        from: 'taxonomy',
         label: field.label,
         values: chipValues(value),
       })
@@ -114,6 +127,8 @@ function groupsOf(
     push({
       kind: 'chips',
       id: `tags:${field.key}`,
+      fieldKey: field.key,
+      from: 'bag',
       label: 'Tags',
       values: tags,
     })
@@ -121,6 +136,79 @@ function groupsOf(
   }
 
   return groups
+}
+
+/**
+ * The section's chrome — the "Labels & metadata" heading over a body — shared
+ * by the reading page and the edit page (#1180), so switching View → Edit
+ * keeps the same heading in the same place and only the body changes from
+ * chips to inputs.
+ */
+export function TaxonomyPanel({
+  children,
+  className,
+  'data-testid': testId = 'taxonomy-section',
+}: Readonly<{
+  children: ReactNode
+  className?: string
+  'data-testid'?: string
+}>) {
+  return (
+    <Panel className={className} data-testid={testId}>
+      <PanelHeader>
+        <PanelTitle>Labels &amp; metadata</PanelTitle>
+      </PanelHeader>
+      <PanelBody className="space-y-3 pb-4">{children}</PanelBody>
+    </Panel>
+  )
+}
+
+/** One block: a labelled chip row, or a bag of key/value pairs. */
+function GroupBlock({ group }: Readonly<{ group: Group }>) {
+  return (
+    <div className="space-y-1.5">
+      {group.kind === 'chips' ? (
+        <>
+          <span
+            className="text-muted-foreground block text-xs"
+            data-testid="taxonomy-group-label"
+          >
+            {group.label}
+          </span>
+          <TaxonomyChips values={group.values} />
+        </>
+      ) : (
+        <AdditionalDataRows data={group.data} />
+      )}
+    </div>
+  )
+}
+
+/**
+ * The edit page's read-only taxonomy (#1180): the chip rows of `taxonomy`
+ * fields the form has no control for — a blueprint's imported `subtype` — so
+ * a fact the reader was just looking at does not vanish on View → Edit.
+ */
+export function ReadOnlyTaxonomyGroups({
+  descriptor,
+  resource,
+  editable,
+}: Readonly<{
+  descriptor: ResourceDescriptor
+  resource: Record<string, unknown>
+  /** Keys the form edits; their chips give way to the form's inputs. */
+  editable: ReadonlySet<string>
+}>) {
+  // The reading page's own groups, narrowed — never a second derivation of
+  // them, so the two pages' chips cannot drift apart.
+  return groupsOf(descriptor, resource)
+    .filter(
+      group =>
+        group.kind === 'chips' &&
+        group.from === 'taxonomy' &&
+        !editable.has(group.fieldKey)
+    )
+    .map(group => <GroupBlock key={group.id} group={group} />)
 }
 
 export interface ResourceTaxonomySectionProps {
@@ -142,29 +230,10 @@ export function ResourceTaxonomySection({
   if (groups.length === 0) return null
 
   return (
-    <Panel className={className} data-testid="taxonomy-section">
-      <PanelHeader>
-        <PanelTitle>Labels &amp; metadata</PanelTitle>
-      </PanelHeader>
-      <PanelBody className="space-y-3 pb-4">
-        {groups.map(group => (
-          <div key={group.id} className="space-y-1.5">
-            {group.kind === 'chips' ? (
-              <>
-                <span
-                  className="text-muted-foreground block text-xs"
-                  data-testid="taxonomy-group-label"
-                >
-                  {group.label}
-                </span>
-                <TaxonomyChips values={group.values} />
-              </>
-            ) : (
-              <AdditionalDataRows data={group.data} />
-            )}
-          </div>
-        ))}
-      </PanelBody>
-    </Panel>
+    <TaxonomyPanel className={className}>
+      {groups.map(group => (
+        <GroupBlock key={group.id} group={group} />
+      ))}
+    </TaxonomyPanel>
   )
 }

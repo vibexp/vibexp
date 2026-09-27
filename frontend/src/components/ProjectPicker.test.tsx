@@ -82,6 +82,26 @@ describe('ProjectPicker', () => {
     vi.useRealTimers()
   })
 
+  it('titles the trigger with its label only when asked', () => {
+    const { rerender } = render(
+      <ProjectPicker value="p1" onChange={vi.fn()} selectedProject={alpha} />
+    )
+    expect(screen.getByRole('combobox')).not.toHaveAttribute('title')
+
+    rerender(
+      <ProjectPicker
+        value="p1"
+        onChange={vi.fn()}
+        selectedProject={alpha}
+        titleTrigger
+      />
+    )
+    expect(screen.getByRole('combobox')).toHaveAttribute(
+      'title',
+      'Alpha Project'
+    )
+  })
+
   it('shows the placeholder when nothing is selected', () => {
     render(
       <ProjectPicker value={null} onChange={vi.fn()} placeholder="Pick one…" />

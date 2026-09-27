@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { test, expect } from '../../fixtures/auth'
 import { selectFirstProject } from '../../helpers/artifacts'
+import { attachWhileEditing } from '../../helpers/editColumn'
 
 /**
  * Feature Test: Artifact Attachments
@@ -83,5 +84,13 @@ test.describe('Artifact Attachments', () => {
     await row2.getByRole('button', { name: `Delete ${file2}` }).click()
     await expect(items).toHaveCount(0, { timeout: 10000 })
     await expect(card.getByText('No attachments yet.')).toBeVisible()
+
+    // --- The same column while editing (#1180): attach and remove there ---
+    await attachWhileEditing(
+      page,
+      'edit-artifact-button',
+      path.join(fixturesDir, file1),
+      file1
+    )
   })
 })

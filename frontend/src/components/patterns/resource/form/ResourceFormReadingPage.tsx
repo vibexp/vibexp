@@ -1,18 +1,30 @@
-import { Info, Save, Tags, X } from 'lucide-react'
+import { Save, X } from 'lucide-react'
 import type { ReactNode, Ref } from 'react'
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 
+import { ResourceAttachments } from '@/components/attachments/ResourceAttachments'
 import { useShell } from '@/components/layout/ShellContext'
+import type { VersionHistoryMeta } from '@/components/metadata/MetadataPanel'
 import {
   type ReadingAction,
   ReadingPage,
   type ReadingSection,
 } from '@/components/patterns/reading-page'
 import { ResourceHeaderMeta } from '@/components/resource-detail/ResourceHeaderMeta'
+import type { ResourceRef } from '@/components/resource-detail/ResourceReadingPage'
+import {
+  RESOURCE_SECTION_CHROME,
+  RESOURCE_SECTION_IDS,
+} from '@/components/resource-detail/resourceSections'
 import { Form } from '@/components/ui/form'
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 
 import { fieldOfRole } from '../fieldOfRole'
+import { ResourceMetadataSection } from '../ResourceMetadataSection'
+import {
+  ReadOnlyTaxonomyGroups,
+  TaxonomyPanel,
+} from '../ResourceTaxonomySection'
 import { fieldLabel, fieldTone, statusFieldOf } from '../statusTone'
 import type { ResourceDescriptor } from '../types'
 import type { ResourceFormValues } from './buildFormSchema'
@@ -20,12 +32,6 @@ import type { ResourceFormMode } from './formLabels'
 import { formSaveLabel } from './formLabels'
 import type { BodySlotProps } from './ResourceFormControl'
 import { useResourceForm } from './useResourceForm'
-
-/** Section ids, exported for the tests that assert the `data-section` anchors. */
-export const RESOURCE_FORM_SECTION_IDS = {
-  details: 'form-details',
-  taxonomy: 'form-taxonomy',
-} as const
 
 /**
  * How long to wait after reopening the details surface before scrolling to the
@@ -61,9 +67,9 @@ export interface ResourceFormReadingPageProps {
   /** Disables every control while the page is saving. */
   isLoading?: boolean
   /**
-   * A node per name in `descriptor.form.extensions`, rendered under the
-   * details fields in the order the descriptor declares. A name with no node
-   * is simply not rendered — a page may fill one slot and not another.
+   * A node per name in `descriptor.form.extensions`, rendered where the
+   * descriptor's `extensionPlacement` puts it (#1180). A name with no node is
+   * simply not rendered — a page may fill one slot and not another.
    */
   extensions?: Readonly<Record<string, ReactNode>>
   /**
@@ -110,6 +116,21 @@ export interface ResourceFormReadingPageProps {
    * close without any prompt.
    */
   extraDirty?: boolean
+  /**
+   * The resource the Attachments section is about. Omit while it is unknown
+   * (no team resolved yet) — the section then renders nothing, as on the
+   * reading page.
+   */
+  resource?: ResourceRef
+  /**
+   * The fetched resource, read by descriptor key for the rows that stay
+   * read-only while editing — Created, Updated, a locked slug, the memory's
+   * id, the blueprint's import source. Falls back to `initialValues`, which
+   * for most pages already IS the fetched resource.
+   */
+  record?: Readonly<Record<string, unknown>>
+  /** The Metadata section's Version row and history link, as on the reading page. */
+  versionHistory?: VersionHistoryMeta
 }
 
 /** A form value as display text; anything that is not a string reads as absent. */
@@ -145,15 +166,48 @@ function headingText(
 }
 
 /**
+ * The extension slots (the prompt's MCP switch, the memory's tags), sorted
+ * into where the descriptor places them — a Metadata row's value, or beside
+ * the labels — which is where the reading page shows the same thing, so they
+ * add no heading the reading page lacks (#1180). One with no placement goes at
+ * the end of the Metadata section.
+ */
+function placeExtensions(
+  descriptor: ResourceDescriptor,
+  extensions: Readonly<Record<string, ReactNode>> | undefined,
+  rowFieldNodes: ReadonlyMap<string, ReactNode>
+) {
+  const nodes = new Map(Object.entries(extensions ?? {}))
+  const placement = new Map(
+    Object.entries(descriptor.form?.extensionPlacement ?? {})
+  )
+  const rowControls = new Map(rowFieldNodes)
+  const taxonomy: ReactNode[] = []
+  const unplaced: ReactNode[] = []
+  for (const name of descriptor.form?.extensions ?? []) {
+    const node = nodes.get(name)
+    if (!node) continue
+    const place = placement.get(name)
+    if (place?.section === 'details') {
+      rowControls.set(place.row, node)
+    } else {
+      const target = place?.section === 'taxonomy' ? taxonomy : unplaced
+      target.push(<div key={name}>{node}</div>)
+    }
+  }
+  return { rowControls, taxonomy, unplaced }
+}
+
+/**
  * The generated form (#913) rendered in the reading shell (#916) — the one
  * create/edit layout since #1181 moved the four create pages onto it, so
  * creating a resource looks like editing it, which looks like reading it.
  *
  * View and edit are the same document, so they get the same layout: the body
  * editor takes the article slot at the identical reading measure and gutters, the
- * form's Details and Taxonomy controls become `ReadingSection`s in the details
- * column — folding to the icon rail from the same header toggle as on the
- * detail page — and Save/Cancel are `ReadingAction`s, so they render as the
+ * details column carries the reading page's own Metadata and Attachments
+ * sections with the editable rows as inputs (#1180) — folding to the icon rail
+ * from the same header toggle as on the detail page — and Save/Cancel are `ReadingAction`s, so they render as the
  * column's button grid, as rail icons when it is folded, and as chips under the
  * title on phones.
  *
@@ -182,6 +236,9 @@ export function ResourceFormReadingPage({
   renderBody,
   metadataRequiredKeys,
   metadataReservedKeys,
+  resource,
+  record,
+  versionHistory,
 }: Readonly<ResourceFormReadingPageProps>) {
   const { isDesktop, detailsOpen, setDetailsOpen, setDetailsSheetOpen } =
     useShell()
@@ -211,7 +268,7 @@ export function ResourceFormReadingPage({
     getValues,
     isDirty,
     bodyNode,
-    detailsNode,
+    rowFieldNodes,
     taxonomyNode,
     titleNode,
     summaryNode,
@@ -337,9 +394,6 @@ export function ResourceFormReadingPage({
     (isDirty || extraDirty) && !isLoading
   )
 
-  const extensionNodes = new Map(Object.entries(extensions ?? {}))
-  const declaredExtensions = descriptor.form?.extensions ?? []
-
   const actions: ReadingAction[] = [
     {
       id: 'save',
@@ -361,36 +415,60 @@ export function ResourceFormReadingPage({
     },
   ]
 
-  // The extension slots (the prompt's MCP exposure card, the memory's tags)
-  // sit under the details fields rather than becoming rail entries of their
-  // own: they are self-titled cards, and the descriptor declares only their
-  // names.
-  const extensionCards = declaredExtensions
-    .map(name => {
-      const node = extensionNodes.get(name)
-      return node ? <div key={name}>{node}</div> : null
-    })
-    .filter(Boolean)
+  const placed = placeExtensions(descriptor, extensions, rowFieldNodes)
+  // What the rows and chips that stay read-only while editing read from.
+  const readOnly = { ...initialValues, ...record }
+  const formKeys = new Set(descriptor.form?.fields.map(spec => spec.key))
 
+  // The reading page's column, section for section (#1180): the same ids,
+  // headings, icons and order, with the editable rows as inputs in place and
+  // the read-only facts (Created, Version, a locked slug) still as rows — so
+  // View → Edit changes the values into controls and moves nothing.
+  const metadata = RESOURCE_SECTION_CHROME.metadata
+  const attachments = RESOURCE_SECTION_CHROME.attachments
   const sections: ReadingSection[] = [
     {
-      id: RESOURCE_FORM_SECTION_IDS.details,
-      label: 'Details',
-      icon: Info,
-      content: (detailsNode !== null || extensionCards.length > 0) && (
-        <div className="space-y-4" data-testid="resource-form-details">
-          {detailsNode}
-          {extensionCards}
+      id: RESOURCE_SECTION_IDS.metadata,
+      label: metadata.label,
+      icon: metadata.icon,
+      content: (
+        <div className="space-y-5" data-testid="resource-form-details">
+          <ResourceMetadataSection
+            descriptor={descriptor}
+            resource={readOnly}
+            versionHistory={versionHistory}
+            controls={placed.rowControls}
+          />
+          {placed.unplaced}
+          <TaxonomyPanel data-testid="resource-form-taxonomy">
+            <ReadOnlyTaxonomyGroups
+              descriptor={descriptor}
+              resource={readOnly}
+              editable={formKeys}
+            />
+            {taxonomyNode}
+            {placed.taxonomy}
+          </TaxonomyPanel>
         </div>
       ),
     },
     {
-      id: RESOURCE_FORM_SECTION_IDS.taxonomy,
-      label: 'Labels & metadata',
-      icon: Tags,
-      content: taxonomyNode && (
-        <div className="space-y-4" data-testid="resource-form-taxonomy">
-          {taxonomyNode}
+      id: RESOURCE_SECTION_IDS.attachments,
+      label: attachments.label,
+      icon: attachments.icon,
+      content: resource && descriptor.capabilities.attachments && (
+        <div className="space-y-2">
+          <ResourceAttachments
+            teamId={resource.teamId}
+            ownerType={resource.kind}
+            ownerId={resource.id}
+          />
+          {/* Attachments are not form state: an upload or a removal is saved
+              the moment it happens, so Cancel cannot undo it and it never
+              counts as an unsaved change. Say so where it happens. */}
+          <p className="text-muted-foreground text-xs">
+            Attachment changes save immediately — Cancel does not undo them.
+          </p>
         </div>
       ),
     },

@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
+import { useEditVersionHistory } from '@/hooks/useEditVersionHistory'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import {
   extractTags,
@@ -21,7 +22,7 @@ import {
   RESERVED_METADATA_KEYS,
   toMemoryRequest,
 } from '@/pages/memories/memoryRequest'
-import { MemoryTagsCard } from '@/pages/memories/MemoryTagsCard'
+import { MemoryTagsField } from '@/pages/memories/MemoryTagsField'
 import type { Memory } from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
@@ -119,6 +120,10 @@ export function MemoryEdit() {
     [memory]
   )
 
+  const versionHistory = useEditVersionHistory(
+    memory && { type: 'memory', id: memory.id, updatedAt: memory.updated_at }
+  )
+
   // Loading and not-found render in the reading shell too, so the layout is
   // in place before the fetch resolves rather than arriving with the data.
   if (isLoadingTeam || loading) {
@@ -165,6 +170,15 @@ export function MemoryEdit() {
       descriptor={descriptor}
       mode="edit"
       initialValues={initialValues}
+      // The form's values are mapped from the memory; the read-only rows
+      // (Created, ID) read the memory itself.
+      record={memory}
+      versionHistory={versionHistory}
+      resource={
+        currentTeam
+          ? { kind: 'memory', id: memory.id, teamId: currentTeam.id }
+          : undefined
+      }
       onSubmit={handleSubmit}
       isLoading={updating}
       metadataReservedKeys={RESERVED_METADATA_KEYS}
@@ -173,7 +187,11 @@ export function MemoryEdit() {
       extraDirty={!sameTags(tags, extractTags(memory.metadata))}
       extensions={{
         tags: (
-          <MemoryTagsCard value={tags} onChange={setTags} disabled={updating} />
+          <MemoryTagsField
+            value={tags}
+            onChange={setTags}
+            disabled={updating}
+          />
         ),
       }}
       onCancel={() => {

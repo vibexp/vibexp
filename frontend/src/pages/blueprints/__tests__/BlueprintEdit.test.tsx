@@ -20,6 +20,7 @@ vi.mock('@/contexts/TeamContext', () => ({
 
 vi.mock('@/services/blueprintService', () => ({
   blueprintService: {
+    getBlueprintVersions: vi.fn(),
     getBlueprint: vi.fn(),
   },
 }))
@@ -39,6 +40,7 @@ vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError: vi.fn() }),
 }))
 
+import { ResourceFormReadingPage } from '@/components/patterns/resource'
 import { blueprintService } from '@/services/blueprintService'
 import { projectService } from '@/services/projectService'
 
@@ -202,5 +204,46 @@ describe('BlueprintEdit', () => {
       })
       expect(screen.queryByText('Blueprint not found')).not.toBeInTheDocument()
     })
+  })
+
+  // #1180: the column's Attachments section and Version row need the page to
+  // hand over the resource and its version history.
+  it('passes the resource and its version history to the form', async () => {
+    mockUseTeam.mockReturnValue({
+      currentTeam: { id: 'team-1', name: 'Test Team' },
+      teams: [{ id: 'team-1', name: 'Test Team' }],
+      isLoading: false,
+      setCurrentTeam: vi.fn(),
+      refreshTeams: vi.fn() as () => Promise<void>,
+    })
+    ;(blueprintService.getBlueprint as Mock).mockResolvedValue(mockBlueprint)
+    ;(blueprintService.getBlueprintVersions as Mock).mockResolvedValue({
+      versions: [{ version_number: 1 }, { version_number: 2 }],
+    })
+
+    renderBlueprintEdit()
+
+    await waitFor(() => {
+      expect(ResourceFormReadingPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          resource: {
+            kind: 'blueprint',
+            id: mockBlueprint.id,
+            teamId: 'team-1',
+          },
+          versionHistory: expect.objectContaining({
+            to: '/blueprints/my-project/my-blueprint/versions',
+            count: 2,
+            currentVersion: 3,
+          }),
+        }),
+        undefined
+      )
+    })
+    expect(blueprintService.getBlueprintVersions).toHaveBeenCalledWith(
+      'team-1',
+      'my-project',
+      'my-blueprint'
+    )
   })
 })

@@ -67,11 +67,6 @@ export interface ResourceFormSlots {
   isDirty: boolean
   /** Controls of `section: 'body'`. */
   bodyNode: ReactNode
-  /**
-   * Controls of `section: 'details'`, or null when the kind declares none.
-   * Excludes the header fields, which render as `titleNode` / `summaryNode`.
-   */
-  detailsNode: ReactNode
   /** The inline name input, or null when the kind has none. */
   titleNode: ReactNode
   /** The inline summary input, or null when the kind has none. */
@@ -80,6 +75,13 @@ export interface ResourceFormSlots {
   headerKeys: readonly string[]
   /** Controls of `section: 'taxonomy'`, or null when the kind declares none. */
   taxonomyNode: ReactNode
+  /**
+   * The `details` controls one at a time, keyed by field key, in the compact
+   * `inline` shape a details-column row places as its value (#1180). Excludes
+   * the header fields and any field locked in this mode — a locked field is a
+   * read-only fact, which the row renders as on the reading page.
+   */
+  rowFieldNodes: ReadonlyMap<string, ReactNode>
 }
 
 /**
@@ -263,6 +265,50 @@ export function useResourceForm({
     )
   }
 
+  const isLocked = (spec: FormFieldSpec) =>
+    !!spec.editableOnCreateOnly && mode === 'edit'
+
+  // A row's value slot: the control right-aligned where the reading page puts
+  // the value, its label visually hidden (the row's own label is the visible
+  // one) and its helper text kept for screen readers, since `FormControl`
+  // points `aria-describedby` at it.
+  const renderRowSpec = (spec: FormFieldSpec) => {
+    const label = formFieldLabel(byKey, spec.key)
+    return (
+      <FormField
+        key={spec.key}
+        control={form.control}
+        name={spec.key}
+        render={({ field }) => (
+          <FormItem className="flex min-w-0 flex-col items-end space-y-1">
+            <FormLabel className="sr-only">{label}</FormLabel>
+            <FormControl>
+              <ResourceFormControl
+                spec={spec}
+                field={byKey.get(spec.key)}
+                label={label}
+                resourceType={descriptor.plural}
+                value={field.value}
+                disabled={isLoading}
+                variant="inline"
+                onChange={next => {
+                  if (spec === slugSpec) slugManuallyEdited.current = true
+                  field.onChange(next)
+                }}
+              />
+            </FormControl>
+            {spec.description && (
+              <FormDescription className="sr-only">
+                {spec.description}
+              </FormDescription>
+            )}
+            <FormMessage className="text-right text-xs font-normal" />
+          </FormItem>
+        )}
+      />
+    )
+  }
+
   const renderHeaderSpec = (spec: FormFieldSpec, slot: HeaderSlot) => {
     const label = formFieldLabel(byKey, spec.key)
     const locked = isLoading || (spec.editableOnCreateOnly && mode === 'edit')
@@ -327,10 +373,19 @@ export function useResourceForm({
     getValues: () => form.getValues(),
     isDirty: form.formState.isDirty,
     bodyNode: sectionNodes('body'),
-    detailsNode: sectionNodes('details'),
     taxonomyNode: sectionNodes('taxonomy'),
     titleNode: titleSpec ? renderHeaderSpec(titleSpec, 'title') : null,
     summaryNode: summarySpec ? renderHeaderSpec(summarySpec, 'summary') : null,
     headerKeys: headerSpecs.map(spec => spec.key),
+    rowFieldNodes: new Map(
+      specs
+        .filter(
+          spec =>
+            spec.section === 'details' &&
+            !headerSpecs.includes(spec) &&
+            !isLocked(spec)
+        )
+        .map(spec => [spec.key, renderRowSpec(spec)])
+    ),
   }
 }

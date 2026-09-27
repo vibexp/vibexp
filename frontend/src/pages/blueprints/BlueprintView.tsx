@@ -23,16 +23,16 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceVersions } from '@/hooks/useResourceVersions'
-import { buildProjectEditUrl } from '@/lib/resourceUrl'
+import {
+  buildProjectEditUrl,
+  buildResourceVersionsUrl,
+} from '@/lib/resourceUrl'
 import type { Blueprint } from '@/services/blueprintService'
 import { blueprintService } from '@/services/blueprintService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
-/**
- * The blueprint's detail-route base — shared by the edit action and the
- * version-history link, so the two can never drift apart.
- */
+/** The blueprint's detail-route base, for the edit action. */
 function blueprintBase(blueprint: Blueprint) {
   return `/blueprints/${encodeURIComponent(blueprint.project_id)}/${encodeURIComponent(blueprint.slug)}`
 }
@@ -119,7 +119,16 @@ export function BlueprintView() {
               decodeURIComponent(slug)
             )
         : null,
-    to: blueprint ? `${blueprintBase(blueprint)}/versions` : undefined,
+    // Built as the edit page builds it (#1180), so the two links cannot drift.
+    to:
+      (blueprint &&
+        buildResourceVersionsUrl({
+          type: 'blueprint',
+          id: blueprint.id,
+          slug: blueprint.slug,
+          projectId: blueprint.project_id,
+        })) ??
+      undefined,
     editedAt: blueprint?.updated_at,
     deps: [isLoadingTeam, currentTeam?.id, project, slug],
   })

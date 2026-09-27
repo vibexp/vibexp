@@ -760,6 +760,60 @@ describe('defineResource', () => {
       ).toThrow(/duplicate form extension 'settings'/)
     })
 
+    it('throws when an undeclared extension is placed', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [],
+            extensions: ['settings'],
+            extensionPlacement: { other: { section: 'taxonomy' } },
+          })
+        )
+      ).toThrow(/form places undeclared extension 'other'/)
+    })
+
+    it('accepts a placement for a declared extension', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [],
+            extensions: ['settings'],
+            extensionPlacement: { settings: { section: 'taxonomy' } },
+          })
+        )
+      ).not.toThrow()
+    })
+
+    it('throws when an extension is placed in a row no field owns', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [],
+            extensions: ['settings'],
+            extensionPlacement: {
+              settings: { section: 'details', row: 'nope' },
+            },
+          })
+        )
+      ).toThrow(/extension 'settings' is placed in undeclared row 'nope'/)
+    })
+
+    it('throws when an extension is placed in a row a form control owns', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [{ key: 'title', control: 'text', section: 'details' }],
+            extensions: ['settings'],
+            extensionPlacement: {
+              settings: { section: 'details', row: 'title' },
+            },
+          })
+        )
+      ).toThrow(
+        /extension 'settings' is placed in row 'title', which has a form control/
+      )
+    })
+
     it('throws on an empty extension name', () => {
       expect(() =>
         defineResource(withForm({ fields: [], extensions: ['  '] }))
