@@ -69,13 +69,13 @@ func LegacyEmailPopulated(c config.LegacyEmailConfig) bool {
 			return false
 		}
 		isDefaultDestination := host == config.DefaultLegacySMTPHost && port == config.DefaultLegacySMTPPort
-		return c.SMTP.Password != "" || !isDefaultDestination
+		return hasLegacySecret(c.SMTP.Password) || !isDefaultDestination
 	case EmailProviderTypeMailgun:
-		return strings.TrimSpace(c.Mailgun.Domain) != "" && c.Mailgun.SendingKey != ""
+		return strings.TrimSpace(c.Mailgun.Domain) != "" && hasLegacySecret(c.Mailgun.SendingKey)
 	case EmailProviderTypePostmark:
-		return c.Postmark.ServerToken != ""
+		return hasLegacySecret(c.Postmark.ServerToken)
 	case EmailProviderTypeSendGrid:
-		return c.SendGrid.APIKey != ""
+		return hasLegacySecret(c.SendGrid.APIKey)
 	default:
 		return true
 	}
@@ -223,7 +223,7 @@ func legacyEmailRequest(c config.LegacyEmailConfig, logger *slog.Logger) models.
 	}
 	// The secret is taken verbatim (a password may legitimately carry spaces);
 	// only a blank one is treated as absent.
-	if secret := secrets[providerType]; strings.TrimSpace(secret) != "" {
+	if secret := secrets[providerType]; hasLegacySecret(secret) {
 		req.Secret = &secret
 	}
 	logDroppedLegacyCredentials(logger, providerType, secrets)
@@ -255,7 +255,7 @@ func logDroppedLegacyCredentials(logger *slog.Logger, providerType string, secre
 	for _, other := range []string{
 		EmailProviderTypeSMTP, EmailProviderTypeMailgun, EmailProviderTypePostmark, EmailProviderTypeSendGrid,
 	} {
-		if other != providerType && secrets[other] != "" {
+		if other != providerType && hasLegacySecret(secrets[other]) {
 			dropped = append(dropped, other)
 		}
 	}
@@ -263,6 +263,12 @@ func logDroppedLegacyCredentials(logger *slog.Logger, providerType string, secre
 		logger.Info("Credentials of unselected providers in the config.yaml email: section are not imported",
 			"section", legacyEmailSection, "provider_type", providerType, "dropped", dropped)
 	}
+}
+
+// hasLegacySecret reports whether a legacy credential is set. A blank one is
+// absent, both for the populated rule and for the import, so the two agree.
+func hasLegacySecret(secret string) bool {
+	return strings.TrimSpace(secret) != ""
 }
 
 // legacyEmailProviderType is the selected provider, smtp when unset.
@@ -308,13 +314,25 @@ func appendLegacyEmailImportAudit(
 // warning when nobody can fix it (no instance admin, epic decision 8), a
 // pointer to the settings page otherwise.
 func warnInstanceEmailUnconfigured(logger *slog.Logger, instanceAdmins []string) {
-	if len(instanceAdmins) == 0 {
+	if !hasInstanceAdmin(instanceAdmins) {
 		logger.Warn("Instance email is not configured and auth.instance_admins is empty, so nobody can configure it; " +
 			"instance mail (invitations, notifications, digests) is discarded until an instance admin sets it " +
 			"under Admin → Settings → Email")
 		return
 	}
 	logger.Info("Instance email is not configured; an instance admin can configure it under Admin → Settings → Email")
+}
+
+// hasInstanceAdmin reports whether any auth.instance_admins entry is non-blank.
+// Blank entries are accepted by the config loader and ignored by
+// Config.IsInstanceAdmin, so they are not admins here either.
+func hasInstanceAdmin(instanceAdmins []string) bool {
+	for _, admin := range instanceAdmins {
+		if strings.TrimSpace(admin) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // validationFieldsSummary renders a validation error's fields as

@@ -171,6 +171,16 @@ func TestLegacyEmailPopulated(t *testing.T) {
 			c.SendGrid.APIKey = "key"
 		}), true},
 		{"sendgrid without key", withProvider("sendgrid", nil), false},
+		{"default destination with a blank password", withSMTP(config.DefaultLegacySMTPHost, config.DefaultLegacySMTPPort, "  "), false},
+		{"mailgun with a blank key", withProvider("mailgun", func(c *config.LegacyEmailConfig) {
+			c.Mailgun = config.MailgunConfig{Domain: "mg.legacy.test", SendingKey: " "}
+		}), false},
+		{"postmark with a blank token", withProvider("postmark", func(c *config.LegacyEmailConfig) {
+			c.Postmark.ServerToken = "\t"
+		}), false},
+		{"sendgrid with a blank key", withProvider("sendgrid", func(c *config.LegacyEmailConfig) {
+			c.SendGrid.APIKey = " "
+		}), false},
 		{"unknown provider", withProvider("carrier-pigeon", nil), true},
 	}
 	for _, tt := range tests {
@@ -198,6 +208,14 @@ func TestLegacyEmailPopulated_ShippedConfigs(t *testing.T) {
 	t.Run("baked config.docker.yaml with no mail env", func(t *testing.T) {
 		t.Setenv("ENCRYPTION_KEY", encryptionKey)
 		t.Setenv("DB_PASSWORD", "local_password")
+		// Empty is unset for ${VAR:-default}, so a developer shell exporting
+		// SMTP_PASSWORD (backend/.env) cannot leak into this case.
+		for _, name := range []string{
+			"EMAIL_PROVIDER", "EMAIL_FROM_ADDRESS", "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD",
+			"MAILGUN_BASE_URL", "MAILGUN_DOMAIN", "MAILGUN_SENDING_KEY", "POSTMARK_SERVER_TOKEN", "SENDGRID_API_KEY",
+		} {
+			t.Setenv(name, "")
+		}
 		legacy := loadLegacyEmail(t, "../../config.docker.yaml")
 		assert.False(t, LegacyEmailPopulated(legacy), "docker defaults must not count as a configuration")
 	})
@@ -453,6 +471,17 @@ func TestImportLegacyEmailConfig_UnconfiguredWarnings(t *testing.T) {
 		assert.Contains(t, warnings[0], "Instance email is not configured and auth.instance_admins is empty, "+
 			"so nobody can configure it")
 		assert.Empty(t, f.messagesAt(slog.LevelInfo))
+	})
+
+	t.Run("only blank instance admins", func(t *testing.T) {
+		f := newLegacyImportFixture(t)
+		f.noRow()
+
+		f.run(dockerDefaultsLegacyEmail(), "", " ")
+
+		warnings := f.messagesAt(slog.LevelWarn)
+		require.Len(t, warnings, 1, "blank entries are not admins (Config.IsInstanceAdmin ignores them)")
+		assert.Contains(t, warnings[0], "nobody can configure it")
 	})
 
 	t.Run("instance admins present", func(t *testing.T) {
