@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 
 import {
@@ -25,24 +26,52 @@ import {
 } from './emailProviderForm'
 
 /**
- * The editable halves of the email-provider form.
+ * The editable halves of an email-provider form, shared by the team page and
+ * the instance admin's Settings → Email page (#1191).
  *
- * Split out of `EmailProvider.tsx` to keep that file under the project's
- * `max-lines` / `max-lines-per-function` limits, which are ERRORS here. These
- * are presentational: all state, validation and submission stay on the page.
+ * Split out of the pages to keep them under the project's `max-lines` /
+ * `max-lines-per-function` limits, which are ERRORS here. These are
+ * presentational: all state, validation and submission stay on the page.
+ *
+ * Generic over the form's values so a page may extend the shared fields (the
+ * instance form adds two). The cards only ever read and write the shared keys,
+ * which every `T` carries, so narrowing the form to them once is sound —
+ * react-hook-form's `UseFormReturn` is invariant, which is why it takes a cast.
  */
 
-interface FieldsProps {
-  form: UseFormReturn<EmailProviderFormValues>
+interface FieldsProps<T extends EmailProviderFormValues> {
+  form: UseFormReturn<T>
   busy: boolean
 }
 
+const sharedForm = <T extends EmailProviderFormValues>(
+  form: UseFormReturn<T>
+): UseFormReturn<EmailProviderFormValues> =>
+  form as unknown as UseFormReturn<EmailProviderFormValues>
+
+const TEAM_PROVIDER_DESCRIPTION =
+  "Choose where this team's mail is sent from. Only the fields for the selected provider are sent."
+
+const TEAM_STORED_CREDENTIAL_HINT =
+  'A credential is stored. Leave this blank to keep it; sending a test always requires re-entering it.'
+
 /** Provider type, its per-type non-secret fields, and the one credential. */
-export function ProviderCard({
-  form,
+export function ProviderCard<T extends EmailProviderFormValues>({
+  form: callerForm,
   busy,
   hasCredential,
-}: Readonly<FieldsProps & { hasCredential: boolean }>) {
+  description = TEAM_PROVIDER_DESCRIPTION,
+  storedCredentialHint = TEAM_STORED_CREDENTIAL_HINT,
+}: Readonly<
+  FieldsProps<T> & {
+    hasCredential: boolean
+    /** Card subtitle; defaults to the team page's copy. */
+    description?: ReactNode
+    /** Secret-field hint while a credential is stored; defaults to the team page's. */
+    storedCredentialHint?: string
+  }
+>) {
+  const form = sharedForm(callerForm)
   const providerType = form.watch('provider_type')
   const meta = providerTypeMeta(providerType)
 
@@ -50,10 +79,7 @@ export function ProviderCard({
     <Card>
       <CardHeader>
         <CardTitle>Provider</CardTitle>
-        <CardDescription>
-          Choose where this team&apos;s mail is sent from. Only the fields for
-          the selected provider are sent.
-        </CardDescription>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <FormField
@@ -231,9 +257,7 @@ export function ProviderCard({
                   />
                 </FormControl>
                 <FormDescription>
-                  {hasCredential
-                    ? 'A credential is stored. Leave this blank to keep it; sending a test always requires re-entering it.'
-                    : meta.secretHint}
+                  {hasCredential ? storedCredentialHint : meta.secretHint}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -245,8 +269,16 @@ export function ProviderCard({
   )
 }
 
-/** From address, display name and Reply-To. */
-export function SenderIdentityCard({ form, busy }: Readonly<FieldsProps>) {
+/**
+ * From address, display name and Reply-To, plus any page-specific fields
+ * passed as `children` (rendered in the same grid).
+ */
+export function SenderIdentityCard<T extends EmailProviderFormValues>({
+  form: callerForm,
+  busy,
+  children,
+}: Readonly<FieldsProps<T> & { children?: ReactNode }>) {
+  const form = sharedForm(callerForm)
   return (
     <Card>
       <CardHeader>
@@ -299,6 +331,7 @@ export function SenderIdentityCard({ form, busy }: Readonly<FieldsProps>) {
               </FormItem>
             )}
           />
+          {children}
         </fieldset>
       </CardContent>
     </Card>

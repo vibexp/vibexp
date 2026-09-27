@@ -7,6 +7,7 @@ import { AdminTeamDetail } from '@/pages/admin/AdminTeamDetail'
 import { AdminTeams } from '@/pages/admin/AdminTeams'
 import { AdminUserDetail } from '@/pages/admin/AdminUserDetail'
 import { AdminUsers } from '@/pages/admin/AdminUsers'
+import { AdminEmailSettings } from '@/pages/admin/settings/email/AdminEmailSettings'
 
 /**
  * Routes for the instance-admin portal, relative to the `/admin/*` mount point
@@ -17,7 +18,8 @@ import { AdminUsers } from '@/pages/admin/AdminUsers'
  * `/admin/users/:id`, `/admin/teams`, `/admin/teams/:id`.
  *
  * `/admin/projects` and `/admin/projects/:id` were added in #461, completing the
- * four sections the sidebar advertises.
+ * four sections the sidebar advertises. `/admin/settings/email` (#1191) is
+ * the first entry of the sidebar's "Settings" group.
  */
 export function AdminRoutes() {
   return (
@@ -29,6 +31,7 @@ export function AdminRoutes() {
       <Route path="teams/:id" element={<AdminTeamDetail />} />
       <Route path="projects" element={<AdminProjects />} />
       <Route path="projects/:id" element={<AdminProjectDetail />} />
+      <Route path="settings/email" element={<AdminEmailSettings />} />
       <Route path="*" element={<AdminNotFound />} />
     </Routes>
   )

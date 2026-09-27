@@ -26,6 +26,23 @@ export type AdminDataWindow = components['schemas']['AdminDataWindow']
 export type AdminTimeseriesResponse =
   components['schemas']['AdminTimeseriesResponse']
 
+// Instance email provider settings (#1189, page #1191).
+export type AdminInstanceEmailSettings =
+  components['schemas']['AdminInstanceEmailSettings']
+export type AdminInstanceEmailSettingsRequest =
+  components['schemas']['AdminInstanceEmailSettingsRequest']
+export type AdminInstanceEmailTestRequest =
+  components['schemas']['AdminInstanceEmailTestRequest']
+export type AdminInstanceSettingsAuditPage =
+  components['schemas']['AdminInstanceSettingsAuditPage']
+export type AdminInstanceSettingsAuditEntry =
+  components['schemas']['AdminInstanceSettingsAuditEntry']
+export type AdminInstanceEmailTestResponse =
+  components['schemas']['TeamEmailProviderTestResponse']
+export type AdminInstanceEmailAuditParams = NonNullable<
+  operations['listAdminInstanceEmailSettingsAudit']['parameters']['query']
+>
+
 /** Query parameters for the dashboard time series (#451). */
 export type AdminTimeseriesParams = NonNullable<
   operations['getAdminDashboardTimeseries']['parameters']['query']
@@ -729,6 +746,61 @@ class AdminService {
       generatedClient.PUT('/api/v1/admin/saved-filters/{list}', {
         params: { path: { list } },
         body,
+      })
+    )
+  }
+
+  /**
+   * The instance email provider as stored, with its delivery health. Always
+   * 200: nothing stored reads as `configured: false`. The credential is never
+   * returned, only `has_credential`.
+   */
+  async getInstanceEmailSettings(): Promise<AdminInstanceEmailSettings> {
+    return unwrap(generatedClient.GET('/api/v1/admin/settings/email'))
+  }
+
+  /**
+   * Create or replace the instance email provider. Omitting `secret` keeps the
+   * stored one, which the server allows only for an unchanged provider type.
+   */
+  async upsertInstanceEmailSettings(
+    body: AdminInstanceEmailSettingsRequest
+  ): Promise<AdminInstanceEmailSettings> {
+    return unwrap(generatedClient.PUT('/api/v1/admin/settings/email', { body }))
+  }
+
+  /**
+   * Remove the instance email provider; instance mail is discarded until one
+   * is configured again. 409 (`INSTANCE_EMAIL_PROVIDER_NOT_CONFIGURED`) when
+   * nothing is stored.
+   */
+  async deleteInstanceEmailSettings(): Promise<void> {
+    await unwrap(generatedClient.DELETE('/api/v1/admin/settings/email'))
+  }
+
+  /**
+   * Send a test message to the calling admin's own address — through the
+   * stored configuration when `body` is omitted, or through the candidate
+   * configuration in `body`. A failed send resolves with `is_valid: false`.
+   */
+  async testInstanceEmailSettings(
+    body?: AdminInstanceEmailTestRequest
+  ): Promise<AdminInstanceEmailTestResponse> {
+    return unwrap(
+      generatedClient.POST(
+        '/api/v1/admin/settings/email/test',
+        body ? { body } : {}
+      )
+    )
+  }
+
+  /** One page of the instance email provider's audit log, newest first. */
+  async listInstanceEmailSettingsAudit(
+    params: AdminInstanceEmailAuditParams = {}
+  ): Promise<AdminInstanceSettingsAuditPage> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/settings/email/audit', {
+        params: { query: params },
       })
     )
   }

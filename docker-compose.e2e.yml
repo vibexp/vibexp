@@ -113,6 +113,29 @@ services:
       timeout: 5s
       retries: 20
 
+  # A catch-all SMTP server for the Admin → Settings → Email journey (#1191),
+  # which configures the instance provider to send through it and fires a test
+  # send. It shares the APP's network namespace, so the app reaches it at
+  # 127.0.0.1:1025: the SMTP provider always authenticates with net/smtp's
+  # PlainAuth, which refuses to send credentials over a non-TLS connection to
+  # anything but localhost. Mailpit accepts any credentials over plaintext, as
+  # in the dev stack (backend/docker-compose.yml). Nothing is configured to use
+  # it until the journey saves it, and the journey removes it again.
+  mailpit:
+    image: axllent/mailpit:v1.30.2
+    network_mode: 'service:app'
+    depends_on:
+      app:
+        condition: service_started
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 'true'
+      MP_SMTP_AUTH_ALLOW_INSECURE: 'true'
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
   app:
     build:
       context: .

@@ -145,15 +145,14 @@ describe('toFormValues', () => {
     // Notably it does NOT pre-fill effective_from_address: that address belongs
     // to the instance, and a team's own provider is usually not authorized to
     // send for it, so offering it would invite a hard-bouncing configuration.
-    expect(
-      toFormValues({
-        configured: false,
-        source: 'instance',
-        effective_from_address: 'noreply@instance.test',
-        provider_type: null,
-        has_credential: false,
-      })
-    ).toEqual(EMPTY_FORM)
+    const inheriting: TeamEmailProviderResponse = {
+      configured: false,
+      source: 'instance',
+      effective_from_address: 'noreply@instance.test',
+      provider_type: null,
+      has_credential: false,
+    }
+    expect(toFormValues(inheriting)).toEqual(EMPTY_FORM)
   })
 })
 

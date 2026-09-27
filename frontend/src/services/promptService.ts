@@ -113,7 +113,9 @@ class PromptService {
     return unwrap(
       generatedClient.POST('/api/v1/{team_id}/prompts/{slug}/render', {
         params: { path: { team_id: teamId, slug } },
-        body: { placeholders },
+        // `strict` carries a spec default, so the generated type requires it;
+        // `false` is that default, keeping the render lenient as before.
+        body: { placeholders, strict: false },
       })
     )
   }

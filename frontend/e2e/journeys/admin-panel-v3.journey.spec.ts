@@ -9,7 +9,7 @@ import {
   type Page,
 } from '@playwright/test'
 
-import { ADMIN_EMAIL } from '../features/admin/admin-emails'
+import { ADMIN_EMAIL, ADMIN_NAME } from '../features/admin/admin-emails'
 import { devLogin } from '../fixtures/auth'
 import { ApiRecorder } from '../helpers/apiRecorder'
 
@@ -327,7 +327,7 @@ test.describe.serial('Admin panel v3 journey', () => {
     // --- The instance admin.
     adminPage = await newUserPage(browser, {
       email: ADMIN_EMAIL,
-      name: 'Admin E2E',
+      name: ADMIN_NAME,
     })
     for (const list of ['users', 'teams', 'projects']) {
       await prunePresets(adminPage, list)

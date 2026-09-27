@@ -11,7 +11,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { ADMIN_NAV_ITEMS, type AdminNavItem } from '@/pages/admin/admin-nav'
+import {
+  ADMIN_NAV_GROUPS,
+  type AdminNavItem,
+  adminNavItemsIn,
+} from '@/pages/admin/admin-nav'
 
 /**
  * Left navigation for the instance-admin portal.
@@ -105,7 +109,8 @@ function DrawerNavRow({ item }: Readonly<{ item: AdminNavItem }>) {
 
 /**
  * The admin nav list, rendered from the single `ADMIN_NAV_ITEMS` source so the
- * rail and the mobile drawer can never drift apart.
+ * rail and the mobile drawer can never drift apart. Items are listed under
+ * their group's label ("Administration", then "Settings", #1191).
  */
 export function AdminNavList({
   variant = 'rail',
@@ -119,18 +124,23 @@ export function AdminNavList({
         variant === 'drawer' ? 'px-3.5' : 'px-2 lg:px-3.5'
       )}
     >
-      {/* Hidden in the 60px rail, where there is no width for it — same
-          treatment as the product sidebar's group labels. */}
-      <div
-        className={cn(
-          'text-muted-foreground px-2.5 pb-[7px] text-xs font-bold tracking-wider uppercase',
-          variant === 'drawer' ? 'block' : 'hidden lg:block'
-        )}
-      >
-        Administration
-      </div>
-      {ADMIN_NAV_ITEMS.map(item => (
-        <Row key={item.href} item={item} />
+      {ADMIN_NAV_GROUPS.map((group, index) => (
+        <div key={group.id} className="flex flex-col gap-0.5">
+          {/* Hidden in the 60px rail, where there is no width for it — same
+              treatment as the product sidebar's group labels. */}
+          <div
+            className={cn(
+              'text-muted-foreground px-2.5 pb-[7px] text-xs font-bold tracking-wider uppercase',
+              index > 0 && 'pt-4',
+              variant === 'drawer' ? 'block' : 'hidden lg:block'
+            )}
+          >
+            {group.label}
+          </div>
+          {adminNavItemsIn(group.id).map(item => (
+            <Row key={item.href} item={item} />
+          ))}
+        </div>
       ))}
     </nav>
   )
