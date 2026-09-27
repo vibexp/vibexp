@@ -552,6 +552,40 @@ describe('ResourceFormReadingPage', () => {
         expect(title.style.height).toBe('96px')
       })
 
+      it('re-fits when the column width changes, not only the text', () => {
+        const observers: (() => void)[] = []
+        vi.stubGlobal(
+          'ResizeObserver',
+          class {
+            constructor(callback: () => void) {
+              observers.push(callback)
+            }
+            observe() {}
+            disconnect() {}
+          }
+        )
+        const clientWidth = vi
+          .spyOn(HTMLTextAreaElement.prototype, 'clientWidth', 'get')
+          .mockReturnValue(600)
+        scrollHeight.mockReturnValue(32)
+        renderEditPage(artifactDescriptor, {
+          initialValues: { title: 'A long title' },
+        })
+        const title = screen.getByTestId('artifact-title-input')
+        expect(title.style.height).toBe('32px')
+
+        // Same text, narrower box: it wraps, so it must grow.
+        clientWidth.mockReturnValue(300)
+        scrollHeight.mockReturnValue(64)
+        act(() => {
+          observers.forEach(fire => {
+            fire()
+          })
+        })
+        expect(title.style.height).toBe('64px')
+        clientWidth.mockRestore()
+      })
+
       it('leaves sizing to CSS where the browser supports it', () => {
         vi.stubGlobal('CSS', { supports: () => true })
         scrollHeight.mockReturnValue(64)
