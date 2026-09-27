@@ -259,7 +259,7 @@ func TestIntegrationTeamAISummarySettings_Upsert_RejectsInvalidProfiles(t *testi
 	}
 }
 
-// top_n = 10 is the inclusive ceiling the CHECK and config.MaxAISummaryTopN
+// top_n = 10 is the inclusive ceiling the CHECK and models.MaxAISummaryTopN
 // share; it must be accepted, not merely "not obviously rejected".
 func TestIntegrationTeamAISummarySettings_Upsert_AcceptsTopNAtTheCeiling(t *testing.T) {
 	resetTeamAISummarySettingsTables(t)

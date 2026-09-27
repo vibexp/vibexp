@@ -215,12 +215,18 @@ scheduler:
   job_timeout: "${SCHEDULER_JOB_TIMEOUT:-10m}"
   due_limit: "${SCHEDULER_DUE_LIMIT:-100}"
 
-# AI summary defaults (#1071). enabled/top_n are typed EnvBool/EnvInt so they
-# can be authored as placeholders here (the schema validates the RAW YAML, where
-# a ${VAR} is a string). The context budgets stay literal: they are plain ints,
-# and opting every int into a placeholder-tolerant schema would lose the editor
-# validation config.schema.json exists to give. Operators who need to tune them
-# mount their own config.yaml over /app/config.yaml.
+# DEPRECATED (#1196): the AI summary defaults moved to the database, edited
+# under Admin -> Settings -> AI Summary. At the first boot of this release a
+# block that differs from the built-in defaults (including through the
+# AI_SUMMARY_* env vars below, which are deprecated with it) is imported once
+# into the database when nothing is stored there yet, and ignored afterwards
+# with a warning. Unset those env vars after that boot: the section and the
+# vars are removed in the next minor release. max_top_n and
+# max_output_tokens_ceiling are ignored and never imported.
+#
+# enabled/top_n are typed EnvBool/EnvInt so they can be authored as
+# placeholders here (the schema validates the RAW YAML, where a ${VAR} is a
+# string).
 ai_summary:
   enabled: "${AI_SUMMARY_ENABLED:-true}"
   top_n: "${AI_SUMMARY_TOP_N:-5}"

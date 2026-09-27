@@ -242,6 +242,64 @@ func (_c *MockInstanceAISummarySettingsRepository_InsertIfAbsent_Call) RunAndRet
 	return _c
 }
 
+// InsertIfAbsentAudited provides a mock function with given fields: ctx, settings, audit
+func (_m *MockInstanceAISummarySettingsRepository) InsertIfAbsentAudited(ctx context.Context, settings *models.InstanceAISummarySettings, audit repositories.InstanceAISummarySettingsAuditFunc) (bool, error) {
+	ret := _m.Called(ctx, settings, audit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for InsertIfAbsentAudited")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.InstanceAISummarySettings, repositories.InstanceAISummarySettingsAuditFunc) (bool, error)); ok {
+		return rf(ctx, settings, audit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *models.InstanceAISummarySettings, repositories.InstanceAISummarySettingsAuditFunc) bool); ok {
+		r0 = rf(ctx, settings, audit)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *models.InstanceAISummarySettings, repositories.InstanceAISummarySettingsAuditFunc) error); ok {
+		r1 = rf(ctx, settings, audit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInstanceAISummarySettingsRepository_InsertIfAbsentAudited_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InsertIfAbsentAudited'
+type MockInstanceAISummarySettingsRepository_InsertIfAbsentAudited_Call struct {
+	*mock.Call
+}
+
+// InsertIfAbsentAudited is a helper method to define mock.On call
+//   - ctx context.Context
+//   - settings *models.InstanceAISummarySettings
+//   - audit repositories.InstanceAISummarySettingsAuditFunc
+func (_e *MockInstanceAISummarySettingsRepository_Expecter) InsertIfAbsentAudited(ctx interface{}, settings interface{}, audit interface{}) *MockInstanceAISummarySettingsRepository_InsertIfAbsentAudited_Call {
+	return &MockInstanceAISummarySettingsRepository_InsertIfAbsentAudited_Call{Call: _e.mock.On("InsertIfAbsentAudited", ctx, settings, audit)}
+}
+
+func (_c *MockInstanceAISummarySettingsRepository_InsertIfAbsentAudited_Call) Run(run func(ctx context.Context, settings *models.InstanceAISummarySettings, audit repositories.InstanceAISummarySettingsAuditFunc)) *MockInstanceAISummarySettingsRepository_InsertIfAbsentAudited_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*models.InstanceAISummarySettings), args[2].(repositories.InstanceAISummarySettingsAuditFunc))
+	})
+	return _c
+}
+
+func (_c *MockInstanceAISummarySettingsRepository_InsertIfAbsentAudited_Call) Return(inserted bool, err error) *MockInstanceAISummarySettingsRepository_InsertIfAbsentAudited_Call {
+	_c.Call.Return(inserted, err)
+	return _c
+}
+
+func (_c *MockInstanceAISummarySettingsRepository_InsertIfAbsentAudited_Call) RunAndReturn(run func(context.Context, *models.InstanceAISummarySettings, repositories.InstanceAISummarySettingsAuditFunc) (bool, error)) *MockInstanceAISummarySettingsRepository_InsertIfAbsentAudited_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Upsert provides a mock function with given fields: ctx, settings
 func (_m *MockInstanceAISummarySettingsRepository) Upsert(ctx context.Context, settings *models.InstanceAISummarySettings) error {
 	ret := _m.Called(ctx, settings)

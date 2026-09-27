@@ -195,10 +195,14 @@
           "$ref": "#/$defs/FrontendConfig"
         },
         "search": {
-          "$ref": "#/$defs/SearchConfig"
+          "$ref": "#/$defs/SearchConfig",
+          "description": "Deprecated: imported into the database once at boot when it differs from the built-in defaults and no instance search settings are stored, ignored afterwards, and removed in the next minor release. Configure search ranking under Admin → Settings → Search.",
+          "deprecated": true
         },
         "ai_summary": {
-          "$ref": "#/$defs/AISummaryConfig"
+          "$ref": "#/$defs/AISummaryConfig",
+          "description": "Deprecated: imported into the database once at boot when it differs from the built-in defaults and no instance AI summary settings are stored, ignored afterwards, and removed in the next minor release (max_top_n and max_output_tokens_ceiling are ignored). Configure AI summaries under Admin → Settings → AI Summary.",
+          "deprecated": true
         },
         "storage": {
           "$ref": "#/$defs/StorageConfig"

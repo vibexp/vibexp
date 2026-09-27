@@ -507,9 +507,14 @@ type FrontendConfig struct {
 	GA4MeasurementID string `koanf:"ga4_measurement_id"`
 }
 
-// SearchConfig holds search ranking parameters. When RecencyRankingEnabled is
-// false (default) results keep relevance-only ordering; when true a weighted
-// blend of relevance and freshness is used.
+// SearchConfig holds the `search:` block of config.yaml.
+//
+// DEPRECATED (#1196): since #1198 no service reads it at runtime; the instance
+// ranking defaults come from the instance_search_settings row, edited under
+// Admin → Settings → Search. At boot a block that differs from the built-in
+// defaults is imported once into that row when none is stored, and ignored
+// afterwards (#1201). The block is removed in the next minor release (#1203).
+// It is still validated at startup (validateSearchRankingConfig) until then.
 type SearchConfig struct {
 	RecencyRankingEnabled bool    `koanf:"recency_ranking_enabled"`
 	RankWeightRelevance   float64 `koanf:"rank_weight_relevance"`
@@ -519,14 +524,29 @@ type SearchConfig struct {
 	RankCandidateCap      int     `koanf:"rank_candidate_cap"`
 }
 
+// InstanceValues projects the block onto the instance search settings values
+// the boot-time import (#1201) compares with the built-in defaults and stores.
+func (s SearchConfig) InstanceValues() models.InstanceSearchSettingsValues {
+	return models.InstanceSearchSettingsValues{
+		RecencyRankingEnabled: s.RecencyRankingEnabled,
+		RankWeightRelevance:   s.RankWeightRelevance,
+		RankWeightCreated:     s.RankWeightCreated,
+		RankWeightUpdated:     s.RankWeightUpdated,
+		RankHalfLifeDays:      s.RankHalfLifeDays,
+		RankCandidateCap:      s.RankCandidateCap,
+	}
+}
+
 // AISummaryConfig holds the `ai_summary:` block of config.yaml (#1071).
 //
-// Since #1199 no service reads it at runtime: the instance defaults and budgets
-// come from the instance_ai_summary_settings row (InstanceAISummarySettingsService,
-// edited under Admin → Settings → AI Summary), or from
-// models.DefaultInstanceAISummarySettings when none is stored. The block is only
-// validated at startup (validateAISummaryConfig) until the boot-time import
-// (#1201) seeds the row from it, and is removed in #1203.
+// DEPRECATED (#1196): since #1199 no service reads it at runtime; the instance
+// defaults and budgets come from the instance_ai_summary_settings row
+// (InstanceAISummarySettingsService, edited under Admin → Settings → AI
+// Summary), or from models.DefaultInstanceAISummarySettings when none is
+// stored. At boot a block that differs from those defaults is validated and
+// imported once into the row when none is stored, and ignored afterwards
+// (#1201); config does not validate it. The block is removed in the next minor
+// release (#1203).
 type AISummaryConfig struct {
 	// Enabled switches the feature on for the whole instance. EnvBool so the
 	// combined image can expose it as ${AI_SUMMARY_ENABLED}.
@@ -534,9 +554,10 @@ type AISummaryConfig struct {
 	// TopN is the default number of documents fed to the summariser. EnvInt for
 	// the same reason as Enabled.
 	TopN EnvInt `koanf:"top_n"`
-	// MaxTopN is still validated (TopN must fit inside it) but bounds nothing
-	// else since #1199: a team's top_n is bounded by the hard limit
-	// MaxAISummaryTopN alone.
+	// MaxTopN bounds nothing since #1199 (a team's top_n is bounded by the hard
+	// limit models.MaxAISummaryTopN alone) and is not imported (#1201): a
+	// non-default value only logs that it is ignored. It still loads so a
+	// leftover key does not fail boot.
 	MaxTopN int `koanf:"max_top_n"`
 	// PerDocumentChars truncates each document before it enters the prompt.
 	PerDocumentChars int `koanf:"per_document_chars"`
@@ -545,14 +566,41 @@ type AISummaryConfig struct {
 	TotalContextChars int `koanf:"total_context_chars"`
 	// MaxOutputTokens is the default answer-length budget.
 	MaxOutputTokens int `koanf:"max_output_tokens"`
-	// MaxOutputTokensCeiling (#1085) is, like MaxTopN, still validated but
-	// bounds nothing else since #1199: a team's max_output_tokens is bounded by
-	// the hard limit MaxAISummaryOutputTokens alone.
+	// MaxOutputTokensCeiling (#1085) is, like MaxTopN, ignored since #1199 (a
+	// team's max_output_tokens is bounded by the hard limit
+	// models.MaxAISummaryOutputTokens alone) and not imported.
 	MaxOutputTokensCeiling int `koanf:"max_output_tokens_ceiling"`
 	// RequestTimeout bounds a single summarisation call to the model provider.
 	RequestTimeout time.Duration `koanf:"request_timeout"`
 	// Style is the default summary style, one of models.AISummaryStyles.
 	Style string `koanf:"style"`
+}
+
+// DefaultLegacyAISummaryOutputTokensCeiling is the defaults() value of the
+// ignored ai_summary.max_output_tokens_ceiling key.
+const DefaultLegacyAISummaryOutputTokensCeiling = 4096
+
+// InstanceValues projects the block onto the instance AI summary settings
+// values the boot-time import (#1201) compares with the built-in defaults and
+// stores. The ignored ceilings are not part of it; see LegacyCeilingsSet.
+func (a AISummaryConfig) InstanceValues() models.InstanceAISummarySettingsValues {
+	return models.InstanceAISummarySettingsValues{
+		Enabled:           bool(a.Enabled),
+		TopN:              int(a.TopN),
+		Style:             a.Style,
+		MaxOutputTokens:   a.MaxOutputTokens,
+		PerDocumentChars:  a.PerDocumentChars,
+		TotalContextChars: a.TotalContextChars,
+		RequestTimeout:    a.RequestTimeout,
+	}
+}
+
+// LegacyCeilingsSet reports whether ai_summary.max_top_n or
+// ai_summary.max_output_tokens_ceiling differs from its defaults() value. Both
+// are ignored since #1199, so a non-default value is worth a warning.
+func (a AISummaryConfig) LegacyCeilingsSet() bool {
+	return a.MaxTopN != models.MaxAISummaryTopN ||
+		a.MaxOutputTokensCeiling != DefaultLegacyAISummaryOutputTokensCeiling
 }
 
 // StorageConfig holds resource-attachment storage settings.
@@ -814,76 +862,6 @@ func validateSearchRankingConfig(cfg *Config) error {
 	if s.RankCandidateCap > models.MaxSearchRankCandidateCap {
 		return fmt.Errorf("search.rank_candidate_cap must be <= %d, got %d",
 			models.MaxSearchRankCandidateCap, s.RankCandidateCap)
-	}
-	return nil
-}
-
-// MaxAISummaryTopN and MaxAISummaryOutputTokens alias the hard AI summary
-// limits, whose single definition is in models (they are shared with the
-// services layer, which config must not import). ai_summary.max_top_n and
-// ai_summary.max_output_tokens_ceiling are still validated against them until
-// the `ai_summary:` block is removed from config (#1201/#1203), but since #1199
-// neither bounds a team any more: teams are bounded by these limits alone.
-const (
-	MaxAISummaryTopN         = models.MaxAISummaryTopN
-	MaxAISummaryOutputTokens = models.MaxAISummaryOutputTokens
-)
-
-// validateAISummaryConfig fails closed on an AI summary block that could not be
-// satisfied: a non-positive budget, a top_n outside the instance cap, or a style
-// outside the closed vocabulary the storage CHECK constraint also enforces.
-// Catching these at startup beats surfacing them as a failed summary hours later.
-func validateAISummaryConfig(cfg *Config) error {
-	s := cfg.AISummary
-	if s.MaxTopN < 1 || s.MaxTopN > MaxAISummaryTopN {
-		return fmt.Errorf("ai_summary.max_top_n must be between 1 and %d, got %d",
-			MaxAISummaryTopN, s.MaxTopN)
-	}
-	if int(s.TopN) < 1 || int(s.TopN) > s.MaxTopN {
-		return fmt.Errorf("ai_summary.top_n must be between 1 and ai_summary.max_top_n (%d), got %d",
-			s.MaxTopN, int(s.TopN))
-	}
-	for _, budget := range []struct {
-		key   string
-		value int
-	}{
-		{"per_document_chars", s.PerDocumentChars},
-		{"total_context_chars", s.TotalContextChars},
-		{"max_output_tokens", s.MaxOutputTokens},
-	} {
-		if budget.value < 1 {
-			return fmt.Errorf("ai_summary.%s must be >= 1, got %d", budget.key, budget.value)
-		}
-	}
-	if err := validateAISummaryOutputTokensCeiling(s); err != nil {
-		return err
-	}
-	if s.TotalContextChars < s.PerDocumentChars {
-		return fmt.Errorf(
-			"ai_summary.total_context_chars (%d) must be >= ai_summary.per_document_chars (%d)",
-			s.TotalContextChars, s.PerDocumentChars)
-	}
-	if s.RequestTimeout <= 0 {
-		return fmt.Errorf("ai_summary.request_timeout must be positive, got %s", s.RequestTimeout)
-	}
-	if !models.IsValidAISummaryStyle(s.Style) {
-		return fmt.Errorf("ai_summary.style must be one of %v, got %q", models.AISummaryStyles, s.Style)
-	}
-	return nil
-}
-
-// validateAISummaryOutputTokensCeiling bounds ai_summary.max_output_tokens_ceiling
-// by MaxAISummaryOutputTokens and requires the default max_output_tokens to fit
-// inside it (#1085) — the max_top_n / top_n pair, for output tokens.
-func validateAISummaryOutputTokensCeiling(s AISummaryConfig) error {
-	if s.MaxOutputTokensCeiling < 1 || s.MaxOutputTokensCeiling > MaxAISummaryOutputTokens {
-		return fmt.Errorf("ai_summary.max_output_tokens_ceiling must be between 1 and %d, got %d",
-			MaxAISummaryOutputTokens, s.MaxOutputTokensCeiling)
-	}
-	if s.MaxOutputTokens > s.MaxOutputTokensCeiling {
-		return fmt.Errorf(
-			"ai_summary.max_output_tokens (%d) must be <= ai_summary.max_output_tokens_ceiling (%d)",
-			s.MaxOutputTokens, s.MaxOutputTokensCeiling)
 	}
 	return nil
 }
@@ -1236,7 +1214,6 @@ func validateAll(cfg *Config) error {
 		validateBodyAndRetention,
 		validateRateLimits,
 		validateSearchRankingConfig,
-		validateAISummaryConfig,
 		validateStorageConfig,
 		validateDatabaseSSLMode,
 		validateEncryptionKey,
@@ -1351,14 +1328,13 @@ func defaults() map[string]any {
 func aiSummaryDefaults() map[string]any {
 	d := models.DefaultInstanceAISummarySettings()
 	return map[string]any{
-		"ai_summary.enabled":             d.Enabled,
-		"ai_summary.top_n":               d.TopN,
-		"ai_summary.max_top_n":           MaxAISummaryTopN,
-		"ai_summary.per_document_chars":  d.PerDocumentChars,
-		"ai_summary.total_context_chars": d.TotalContextChars,
-		"ai_summary.max_output_tokens":   d.MaxOutputTokens,
-		// 4096 leaves the 800 default ample headroom; see MaxAISummaryOutputTokens.
-		"ai_summary.max_output_tokens_ceiling": 4096,
+		"ai_summary.enabled":                   d.Enabled,
+		"ai_summary.top_n":                     d.TopN,
+		"ai_summary.max_top_n":                 models.MaxAISummaryTopN,
+		"ai_summary.per_document_chars":        d.PerDocumentChars,
+		"ai_summary.total_context_chars":       d.TotalContextChars,
+		"ai_summary.max_output_tokens":         d.MaxOutputTokens,
+		"ai_summary.max_output_tokens_ceiling": DefaultLegacyAISummaryOutputTokensCeiling,
 		"ai_summary.request_timeout":           d.RequestTimeout.String(),
 		"ai_summary.style":                     d.Style,
 	}

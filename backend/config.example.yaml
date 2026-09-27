@@ -252,19 +252,12 @@ frontend:
   gtm_id: ""
   ga4_measurement_id: ""
 
-# Search ranking — these are the INSTANCE DEFAULTS, not absolute settings.
-# Every team inherits them until it saves its own profile in Settings -> Search;
-# a team that has overridden them is unaffected by changes here. Changing these
-# takes effect for inheriting teams on restart.
-#
-# When recency_ranking_enabled is false (default) results keep relevance-only
-# ordering; true blends relevance and freshness by the weights.
-#
-# rank_candidate_cap is the ONE exception: it is instance-only, applies to every
-# team, and is never team-overridable. It caps how many top-by-relevance rows are
-# re-ranked in memory per query — and therefore how many results are reachable
-# via pagination while recency ranking is on. Raising it costs memory/latency on
-# every query.
+# DEPRECATED (#1196): the search ranking defaults moved to the database, edited
+# under Admin -> Settings -> Search. At the first boot of this release a block
+# that differs from the built-in defaults below is imported once into the
+# database (when nothing is stored there yet); afterwards it is ignored, with a
+# warning. Remove it after that boot: the section is removed in the next minor
+# release. The values below equal the built-in defaults, so they import nothing.
 search:
   recency_ranking_enabled: false
   rank_weight_relevance: 0.5
@@ -273,23 +266,24 @@ search:
   rank_half_life_days: 90.0
   rank_candidate_cap: 200
 
-# AI summary defaults (#1071). The context budgets are operator-owned and are
-# never team-configurable: they size the work one request may ask of the model
-# behind this deployment. A team may override enabled/top_n/style/
-# max_output_tokens (whole-row, via team_ai_summary_settings); everything else
-# here applies to every team.
+# DEPRECATED (#1196): the AI summary defaults and budgets moved to the
+# database, edited under Admin -> Settings -> AI Summary. At the first boot of
+# this release a block that differs from the built-in defaults below is
+# validated and imported once into the database (when nothing is stored there
+# yet); afterwards it is ignored, with a warning. Remove it after that boot: the
+# section is removed in the next minor release. The values below equal the
+# built-in defaults, so they import nothing.
 ai_summary:
   enabled: true
-  # Documents fed to the summariser by default. max_top_n is the instance
-  # ceiling a team can never raise; it may not exceed 10 (the storage CHECK).
   top_n: 5
+  # max_top_n and max_output_tokens_ceiling are ignored and never imported: a
+  # team is bounded by the hard limits (10 documents, 32768 tokens) alone. A
+  # non-default value only logs a warning.
   max_top_n: 10
   # Context budgets, in characters: per document, then across all documents.
   per_document_chars: 8000
   total_context_chars: 32000
-  # Default answer length, in tokens. max_output_tokens_ceiling is the instance
-  # ceiling a team can never raise (billed per request on the operator's model);
-  # it may not exceed 32768.
+  # Default answer length, in tokens.
   max_output_tokens: 800
   max_output_tokens_ceiling: 4096
   request_timeout: 60s

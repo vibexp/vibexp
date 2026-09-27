@@ -107,7 +107,7 @@ func run() error {
 	}
 
 	schema := r.Reflect(&config.Config{})
-	if err := markLegacyEmailDeprecated(schema); err != nil {
+	if err := markLegacySectionsDeprecated(schema); err != nil {
 		return err
 	}
 	schema.Title = "VibeXP backend configuration (config.yaml)"
@@ -128,26 +128,38 @@ func run() error {
 	return nil
 }
 
-// legacyEmailDeprecation describes the deprecated `email:` section (#1190).
+// legacyDeprecations describes the deprecated root sections, keyed by their
+// config.yaml name: `email:` (#1190), `search:` and `ai_summary:` (#1201).
 // invopop/jsonschema has a Schema.Deprecated field but no struct-tag keyword
 // for it, so it is set here after reflection.
-const legacyEmailDeprecation = "Deprecated: imported into the database once at boot when no instance email " +
-	"provider is stored, ignored afterwards, and removed in the next minor release. " +
-	"Configure instance mail under Admin → Settings → Email."
+var legacyDeprecations = []struct{ property, description string }{
+	{"email", "Deprecated: imported into the database once at boot when no instance email " +
+		"provider is stored, ignored afterwards, and removed in the next minor release. " +
+		"Configure instance mail under Admin → Settings → Email."},
+	{"search", "Deprecated: imported into the database once at boot when it differs from the " +
+		"built-in defaults and no instance search settings are stored, ignored afterwards, and " +
+		"removed in the next minor release. Configure search ranking under Admin → Settings → Search."},
+	{"ai_summary", "Deprecated: imported into the database once at boot when it differs from the " +
+		"built-in defaults and no instance AI summary settings are stored, ignored afterwards, and " +
+		"removed in the next minor release (max_top_n and max_output_tokens_ceiling are ignored). " +
+		"Configure AI summaries under Admin → Settings → AI Summary."},
+}
 
-// markLegacyEmailDeprecated flags the root config's `email` property as
-// deprecated so editors strike it through.
-func markLegacyEmailDeprecated(schema *jsonschema.Schema) error {
+// markLegacySectionsDeprecated flags the root config's deprecated properties
+// so editors strike them through.
+func markLegacySectionsDeprecated(schema *jsonschema.Schema) error {
 	root, ok := schema.Definitions["Config"]
 	if !ok || root.Properties == nil {
-		return fmt.Errorf("mark email deprecated: no Config definition")
+		return fmt.Errorf("mark sections deprecated: no Config definition")
 	}
-	email, ok := root.Properties.Get("email")
-	if !ok {
-		return fmt.Errorf("mark email deprecated: Config has no email property")
+	for _, d := range legacyDeprecations {
+		section, ok := root.Properties.Get(d.property)
+		if !ok {
+			return fmt.Errorf("mark sections deprecated: Config has no %s property", d.property)
+		}
+		section.Deprecated = true
+		section.Description = d.description
 	}
-	email.Deprecated = true
-	email.Description = legacyEmailDeprecation
 	return nil
 }
 

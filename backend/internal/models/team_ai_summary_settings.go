@@ -44,9 +44,9 @@ const (
 	TeamAISummarySettingsSourceTeam = "team"
 )
 
-// The closed set of summary styles. It is mirrored by the CHECK constraint on
-// team_ai_summary_settings.style and by config validation of
-// ai_summary.style — adding a style means changing all three.
+// The closed set of summary styles. It is mirrored by the CHECK constraints on
+// team_ai_summary_settings.style and instance_ai_summary_settings.style —
+// adding a style means changing all three.
 const (
 	// AISummaryStyleConcise asks for the shortest useful answer.
 	AISummaryStyleConcise = "concise"

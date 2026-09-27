@@ -175,6 +175,34 @@ func (r *InstanceAISummarySettingsRepository) UpsertAudited(
 	})
 }
 
+// InsertIfAbsentAudited stores the settings and appends the audit entry audit
+// builds, in one transaction, only when no row is stored; it reports whether it
+// did. The table lock taken first makes the "no row" read and the insert one
+// step, so of several concurrent callers exactly one writes the row and its
+// audit entry. With no row stored the upsert statement is a plain insert.
+func (r *InstanceAISummarySettingsRepository) InsertIfAbsentAudited(
+	ctx context.Context, s *models.InstanceAISummarySettings, audit repositories.InstanceAISummarySettingsAuditFunc,
+) (bool, error) {
+	var inserted bool
+	err := r.inAuditedTx(ctx, "import", func(tx *sql.Tx, before *models.InstanceAISummarySettings) (bool, error) {
+		if before != nil {
+			return false, nil
+		}
+		err := tx.QueryRowContext(ctx, instanceAISummarySettingsUpsert, instanceAISummarySettingsArgs(s)...).
+			Scan(&s.CreatedAt, &s.UpdatedAt, &s.Version)
+		if err != nil {
+			return false, fmt.Errorf("failed to insert instance AI summary settings: %w", err)
+		}
+		inserted = true
+		return true, appendBuiltSingletonAudit[models.InstanceAISummarySettings](
+			ctx, tx, instanceAISummarySettingsSubject, audit, nil, s)
+	})
+	if err != nil {
+		return false, err
+	}
+	return inserted, nil
+}
+
 // DeleteAudited removes the stored settings and appends the audit entry audit
 // builds, in one transaction. With no row stored it writes nothing.
 func (r *InstanceAISummarySettingsRepository) DeleteAudited(

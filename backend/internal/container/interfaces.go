@@ -150,8 +150,8 @@ type Container interface {
 
 	// RunStartupImports runs the one-release config.yaml → database bridges
 	// once, after migrations and before the scheduler and server start (#1190:
-	// the deprecated email: section). It never fails boot: every problem is
-	// logged.
+	// the deprecated email: section; #1201: search: and ai_summary:). It never
+	// fails boot: every problem is logged.
 	RunStartupImports(ctx context.Context)
 
 	// Cleanup resources

@@ -397,6 +397,8 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		encryptionService:                encryptionServiceInterface,
 		instanceSearchSettingsService:    instanceSearchSettingsService,
 		instanceAISummarySettingsService: instanceAISummarySettingsService,
+		instanceSearchSettingsRepo:       instanceSearchSettingsRepository,
+		instanceAISummarySettingsRepo:    instanceAISummarySettingsRepository,
 		identityRegistry:                 registry,
 		smtpClient:                       emailSender,
 		eventSystemDeps:                  eventSystemDeps,

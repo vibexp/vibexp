@@ -1588,6 +1588,16 @@ type InstanceSearchSettingsRepository interface {
 	// same transaction. It reports whether a row was deleted; when none was
 	// stored it writes nothing and audit is not called.
 	DeleteAudited(ctx context.Context, audit InstanceSearchSettingsAuditFunc) (deleted bool, err error)
+	// InsertIfAbsentAudited is InsertIfAbsent plus one instance_settings_audit
+	// entry (audit is called with before = nil), for the boot-time config.yaml
+	// import (#1201). It is a locked transaction rather than ON CONFLICT DO
+	// NOTHING because the audit entry must be atomic with the row: the table
+	// lock serializes concurrent replicas, so exactly one of them writes the row
+	// and its entry. It reports whether it wrote; with a row already stored it
+	// writes nothing and audit is not called.
+	InsertIfAbsentAudited(
+		ctx context.Context, settings *models.InstanceSearchSettings, audit InstanceSearchSettingsAuditFunc,
+	) (inserted bool, err error)
 }
 
 // InstanceSearchSettingsAuditFunc builds the audit entry for one change to the
@@ -1633,6 +1643,12 @@ type InstanceAISummarySettingsRepository interface {
 	// same transaction. It reports whether a row was deleted; when none was
 	// stored it writes nothing and audit is not called.
 	DeleteAudited(ctx context.Context, audit InstanceAISummarySettingsAuditFunc) (deleted bool, err error)
+	// InsertIfAbsentAudited is InsertIfAbsent plus one instance_settings_audit
+	// entry, in one locked transaction, with the same contract as
+	// InstanceSearchSettingsRepository.InsertIfAbsentAudited (#1201).
+	InsertIfAbsentAudited(
+		ctx context.Context, settings *models.InstanceAISummarySettings, audit InstanceAISummarySettingsAuditFunc,
+	) (inserted bool, err error)
 }
 
 // InstanceAISummarySettingsAuditFunc builds the audit entry for one change to
