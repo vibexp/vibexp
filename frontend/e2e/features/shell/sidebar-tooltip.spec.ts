@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 
 import { expect, test, devLogin } from '../../fixtures/auth'
-import { ADMIN_EMAIL } from '../admin/admin-emails'
+import { ADMIN_EMAIL, ADMIN_NAME } from '../admin/admin-emails'
 
 /**
  * Collapsed-rail tooltips are anchored to the hovered nav item (#891).
@@ -146,7 +146,7 @@ test.describe('Collapsed sidebar tooltips (#891)', () => {
     // and the tooltip is deliberately suppressed.
     await page.setViewportSize({ width: 900, height: 900 })
     await neutraliseAnimations(page)
-    await devLogin(page, ADMIN_EMAIL, 'Admin E2E')
+    await devLogin(page, ADMIN_EMAIL, ADMIN_NAME)
 
     await page.goto('/admin')
     const link = page.locator(

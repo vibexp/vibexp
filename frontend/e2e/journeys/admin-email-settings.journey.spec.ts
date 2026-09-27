@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 
-import { ADMIN_EMAIL } from '../features/admin/admin-emails'
+import { ADMIN_EMAIL, ADMIN_NAME } from '../features/admin/admin-emails'
 import { devLogin } from '../fixtures/auth'
 
 /**
@@ -35,7 +35,7 @@ async function clearInstanceEmail(page: Page): Promise<void> {
 
 test.describe.serial('Admin → Settings → Email', () => {
   test.beforeEach(async ({ page }) => {
-    await devLogin(page, ADMIN_EMAIL, 'E2E Instance Admin')
+    await devLogin(page, ADMIN_EMAIL, ADMIN_NAME)
     await clearInstanceEmail(page)
   })
 
@@ -118,7 +118,7 @@ test.describe.serial('Admin → Settings → Email', () => {
       .filter({ hasText: 'Saved' })
       .filter({ hasText: FROM_ADDRESS })
     await expect(saved).toHaveCount(1, { timeout: UI_TIMEOUT })
-    await expect(saved).toContainText('E2E Instance Admin')
+    await expect(saved).toContainText(ADMIN_NAME)
     await expect(saved).toContainText('Credential changed')
     await expect(saved).toContainText('SMTP host')
 

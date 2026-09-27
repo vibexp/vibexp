@@ -1,6 +1,6 @@
 import { test, expect, devLogin } from '../../fixtures/auth'
 
-import { ADMIN_EMAIL } from './admin-emails'
+import { ADMIN_EMAIL, ADMIN_NAME } from './admin-emails'
 
 /**
  * Instance-admin happy path (#317, epic #309): an admin sees the Admin Portal
@@ -11,7 +11,7 @@ test.describe('Admin portal — happy path', () => {
   test('an instance admin can browse the dashboard, users, and teams', async ({
     page,
   }) => {
-    await devLogin(page, ADMIN_EMAIL, 'Admin E2E')
+    await devLogin(page, ADMIN_EMAIL, ADMIN_NAME)
 
     // The Admin Portal entry is visible in the user menu for an instance admin.
     await page.getByTestId('user-menu').click()
