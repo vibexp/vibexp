@@ -22,6 +22,62 @@ func (_m *MockEmailSenderResolver) EXPECT() *MockEmailSenderResolver_Expecter {
 	return &MockEmailSenderResolver_Expecter{mock: &_m.Mock}
 }
 
+// InstanceIdentity provides a mock function with given fields: ctx
+func (_m *MockEmailSenderResolver) InstanceIdentity(ctx context.Context) (services.InstanceEmailIdentity, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for InstanceIdentity")
+	}
+
+	var r0 services.InstanceEmailIdentity
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) (services.InstanceEmailIdentity, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) services.InstanceEmailIdentity); ok {
+		r0 = rf(ctx)
+	} else {
+		r0 = ret.Get(0).(services.InstanceEmailIdentity)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockEmailSenderResolver_InstanceIdentity_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InstanceIdentity'
+type MockEmailSenderResolver_InstanceIdentity_Call struct {
+	*mock.Call
+}
+
+// InstanceIdentity is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockEmailSenderResolver_Expecter) InstanceIdentity(ctx interface{}) *MockEmailSenderResolver_InstanceIdentity_Call {
+	return &MockEmailSenderResolver_InstanceIdentity_Call{Call: _e.mock.On("InstanceIdentity", ctx)}
+}
+
+func (_c *MockEmailSenderResolver_InstanceIdentity_Call) Run(run func(ctx context.Context)) *MockEmailSenderResolver_InstanceIdentity_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockEmailSenderResolver_InstanceIdentity_Call) Return(_a0 services.InstanceEmailIdentity, _a1 error) *MockEmailSenderResolver_InstanceIdentity_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockEmailSenderResolver_InstanceIdentity_Call) RunAndReturn(run func(context.Context) (services.InstanceEmailIdentity, error)) *MockEmailSenderResolver_InstanceIdentity_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RecordSendOutcome provides a mock function with given fields: ctx, sender, sendErr
 func (_m *MockEmailSenderResolver) RecordSendOutcome(ctx context.Context, sender *services.ResolvedEmailSender, sendErr error) error {
 	ret := _m.Called(ctx, sender, sendErr)

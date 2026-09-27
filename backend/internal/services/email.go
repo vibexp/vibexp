@@ -14,6 +14,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
+	"github.com/vibexp/vibexp/internal/external/implementations"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
@@ -42,19 +43,27 @@ func NewEmailService(resolver EmailSenderResolver, cfg *config.Config) *EmailSer
 	}
 }
 
-// adminRecipient resolves the destination for support
-// notification emails. It prefers the explicitly configured
-// ContactRecipientAddress, falling back to the sender address
-// (EmailFromAddress, then SMTPUsername) so a single-mailbox deployment works
-// without extra wiring.
-func (es *EmailService) adminRecipient() string {
-	if es.cfg.Email.ContactRecipientAddress != "" {
-		return es.cfg.Email.ContactRecipientAddress
+// adminRecipient resolves the destination for support notification emails from
+// the instance's stored identity. It prefers the configured contact recipient,
+// falling back to the instance from-address so a single-mailbox deployment
+// works without extra wiring.
+func adminRecipient(identity InstanceEmailIdentity) string {
+	if identity.ContactRecipientAddress != "" {
+		return identity.ContactRecipientAddress
 	}
-	if es.cfg.Email.FromAddress != "" {
-		return es.cfg.Email.FromAddress
+	return identity.FromAddress
+}
+
+// instanceIdentity reads the instance's mail identity per send. Templates
+// render before the sender is resolved, so the privacy URL needs its own read.
+// A failed read fails the send loudly rather than rendering a blank footer or
+// delivering to the wrong mailbox.
+func (es *EmailService) instanceIdentity(ctx context.Context) (InstanceEmailIdentity, error) {
+	identity, err := es.resolver.InstanceIdentity(ctx)
+	if err != nil {
+		return InstanceEmailIdentity{}, fmt.Errorf("failed to resolve the instance email identity: %w", err)
 	}
-	return es.cfg.Email.SMTP.Username
+	return identity, nil
 }
 
 // appBaseURL returns the configured frontend base URL with any trailing slash
@@ -152,7 +161,7 @@ func (es *EmailService) logEmailSent(to, subject, htmlBody, textBody string, sen
 	slog.With(
 		"to", to,
 		"subject", subject,
-		"email_backend", es.cfg.Email.Provider,
+		"email_backend", implementations.ProviderLabel(sender.Provider),
 		// Which provider actually handled the message, so an operator reading the
 		// logs can tell a team send from an instance send.
 		"email_sender_source", sender.Source,
@@ -167,6 +176,11 @@ func (es *EmailService) sendSupportNotificationToAdmin(
 	ctx context.Context, userName, userEmail string, req *models.SupportRequest,
 ) error {
 	subject := fmt.Sprintf("New Support Request from %s", userEmail)
+
+	identity, err := es.instanceIdentity(ctx)
+	if err != nil {
+		return err
+	}
 
 	// Build additional info for both HTML and text
 	additionalInfoHTML, additionalInfoText := es.buildAdditionalInfo(req.AdditionalInfo)
@@ -191,7 +205,7 @@ func (es *EmailService) sendSupportNotificationToAdmin(
 		AdditionalInfoText: additionalInfoText,
 		Year:               2025,
 		AppBaseURL:         es.appBaseURL(),
-		PrivacyPolicyURL:   es.cfg.Email.PrivacyPolicyURL,
+		PrivacyPolicyURL:   identity.PrivacyPolicyURL,
 	}
 
 	// Render HTML template
@@ -214,7 +228,7 @@ func (es *EmailService) sendSupportNotificationToAdmin(
 	}
 
 	// Empty team ID: instance sender (see SendSupportRequest).
-	return es.sendEmail(ctx, "", es.adminRecipient(), subject, htmlBody, textBody)
+	return es.sendEmail(ctx, "", adminRecipient(identity), subject, htmlBody, textBody)
 }
 
 func (es *EmailService) sendSupportAcknowledgement(
@@ -224,6 +238,11 @@ func (es *EmailService) sendSupportAcknowledgement(
 
 	// Extract first name from full name
 	firstName := es.extractFirstName(userName)
+
+	identity, err := es.instanceIdentity(ctx)
+	if err != nil {
+		return err
+	}
 
 	// Prepare template data
 	data := struct {
@@ -237,7 +256,7 @@ func (es *EmailService) sendSupportAcknowledgement(
 		Text:             req.Text,
 		Year:             2025,
 		AppBaseURL:       es.appBaseURL(),
-		PrivacyPolicyURL: es.cfg.Email.PrivacyPolicyURL,
+		PrivacyPolicyURL: identity.PrivacyPolicyURL,
 	}
 
 	// Render HTML template
@@ -276,6 +295,11 @@ func (es *EmailService) SendTeamInvitation(
 ) error {
 	subject := fmt.Sprintf("You have been invited to join %s on VibeXP", teamName)
 
+	identity, err := es.instanceIdentity(ctx)
+	if err != nil {
+		return err
+	}
+
 	// Build accept URL
 	acceptURL := fmt.Sprintf("%s/invitations/accept/%s", es.cfg.Frontend.BaseURL, invitation.Token)
 
@@ -297,7 +321,7 @@ func (es *EmailService) SendTeamInvitation(
 		ExpiryDate:       invitation.ExpiresAt.Format("January 2, 2006"),
 		Year:             time.Now().Year(),
 		AppBaseURL:       es.appBaseURL(),
-		PrivacyPolicyURL: es.cfg.Email.PrivacyPolicyURL,
+		PrivacyPolicyURL: identity.PrivacyPolicyURL,
 	}
 
 	// Render HTML template

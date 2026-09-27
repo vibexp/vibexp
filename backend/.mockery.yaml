@@ -71,6 +71,7 @@ packages:
       AISummaryAvailabilityResolver:
       TeamAISummarySettingsServiceInterface:
       TeamEmailProviderServiceInterface:
+      InstanceEmailProviderServiceInterface:
       FreshnessServiceInterface:
       TeamSearchSettingsServiceInterface:
       TeamSettingsAuditServiceInterface:

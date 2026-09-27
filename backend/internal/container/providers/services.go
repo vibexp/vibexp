@@ -6,7 +6,6 @@ import (
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/database"
-	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/observability/metrics"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -458,26 +457,39 @@ func ProvideEmbeddingProcessor(
 // one in plaintext.
 func ProvideTeamEmailProviderService(
 	repo repositories.TeamEmailProviderRepository,
+	instanceRepo repositories.InstanceEmailProviderRepository,
 	userRepo repositories.UserRepository,
 	enc services.EncryptionServiceInterface,
 	cfg *config.Config,
 	authzService services.AuthorizationServiceInterface,
 	logger *slog.Logger,
 ) services.TeamEmailProviderServiceInterface {
-	return services.NewTeamEmailProviderService(repo, userRepo, enc, cfg, authzService, logger)
+	return services.NewTeamEmailProviderService(repo, instanceRepo, userRepo, enc, cfg, authzService, logger)
 }
 
-// ProvideEmailSenderResolver creates the send-time sender resolver. The
-// EmailProvider built at wire time from config.yaml becomes the INSTANCE
-// FALLBACK, used for any team that has not configured a provider of its own.
+// ProvideInstanceEmailProviderService creates the instance email provider
+// service (#1188). Like the team service, it refuses to store or read a
+// credential when no encryption service is configured.
+func ProvideInstanceEmailProviderService(
+	repo repositories.InstanceEmailProviderRepository,
+	audit repositories.InstanceSettingsAuditRepository,
+	userRepo repositories.UserRepository,
+	enc services.EncryptionServiceInterface,
+	logger *slog.Logger,
+) services.InstanceEmailProviderServiceInterface {
+	return services.NewInstanceEmailProviderService(repo, audit, userRepo, enc, logger)
+}
+
+// ProvideEmailSenderResolver creates the send-time sender resolver. Both the
+// team provider and the INSTANCE FALLBACK are read from the database per send
+// (#1188), so nothing about the instance provider is fixed at wire time.
 func ProvideEmailSenderResolver(
 	repo repositories.TeamEmailProviderRepository,
+	instanceRepo repositories.InstanceEmailProviderRepository,
 	enc services.EncryptionServiceInterface,
-	instanceProvider external.EmailProvider,
-	cfg *config.Config,
 	logger *slog.Logger,
 ) services.EmailSenderResolver {
-	return services.NewEmailSenderResolver(repo, enc, instanceProvider, cfg, logger)
+	return services.NewEmailSenderResolver(repo, instanceRepo, enc, logger)
 }
 
 // ProvideMetadataCatalogService creates the metadata catalog service, which

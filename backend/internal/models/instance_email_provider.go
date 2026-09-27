@@ -58,3 +58,88 @@ func (p *InstanceEmailProvider) HasCredential() bool {
 func (p *InstanceEmailProvider) IsHealthy() bool {
 	return emailDeliveryHealthy(p.LastSuccessAt, p.LastErrorAt)
 }
+
+// UpsertInstanceEmailProviderRequest is the payload for configuring the
+// instance's email provider (#1188). It is the team request plus the two
+// instance-only fields, so both paths share one validation of the provider
+// settings, the sender identity and the secret.
+type UpsertInstanceEmailProviderRequest struct {
+	UpsertTeamEmailProviderRequest
+	// ContactRecipientAddress is where the contact form delivers; empty falls
+	// back to the from-address.
+	ContactRecipientAddress *string `json:"contact_recipient_address,omitempty" validate:"omitempty,email"`
+	// PrivacyPolicyURL is the absolute http(s) URL linked from outbound mail.
+	PrivacyPolicyURL *string `json:"privacy_policy_url,omitempty"`
+}
+
+// TestInstanceEmailProviderRequest is the payload for an instance test send.
+//
+// A nil Config tests the STORED configuration. A Config that omits its secret
+// reuses the stored secret, but only when the stored provider type matches, so
+// a credential is never sent to a provider it was not issued for.
+//
+// Unlike the team test, the recipient may be overridden: the caller is the
+// operator, not a tenant, so the relay concern that pins a team test to the
+// acting user's own mailbox does not apply. It defaults to the acting admin.
+type TestInstanceEmailProviderRequest struct {
+	Config    *UpsertInstanceEmailProviderRequest `json:"config,omitempty"`
+	Recipient *string                             `json:"recipient,omitempty"`
+}
+
+// InstanceEmailProviderEffective is the read view of the instance's email
+// configuration. It has no secret field at all, so a response built from it
+// cannot leak one: only HasCredential says whether a credential is stored.
+type InstanceEmailProviderEffective struct {
+	// Configured is false when no instance row exists; every other field is
+	// then zero, and instance mail is discarded by the stub provider.
+	Configured   bool    `json:"configured"`
+	ProviderType *string `json:"provider_type"`
+	// Settings is the per-type union, shaped exactly like the request body.
+	Settings                *TeamEmailProviderSettings `json:"settings,omitempty"`
+	HasCredential           bool                       `json:"has_credential"`
+	FromAddress             string                     `json:"from_address"`
+	FromName                *string                    `json:"from_name,omitempty"`
+	ReplyTo                 *string                    `json:"reply_to,omitempty"`
+	ContactRecipientAddress *string                    `json:"contact_recipient_address,omitempty"`
+	PrivacyPolicyURL        *string                    `json:"privacy_policy_url,omitempty"`
+	IsHealthy               *bool                      `json:"is_healthy,omitempty"`
+	LastSuccessAt           *time.Time                 `json:"last_success_at,omitempty"`
+	LastError               *string                    `json:"last_error,omitempty"`
+	LastErrorAt             *time.Time                 `json:"last_error_at,omitempty"`
+	UpdatedAt               *time.Time                 `json:"updated_at,omitempty"`
+	UpdatedBy               *string                    `json:"updated_by,omitempty"`
+}
+
+// NewInstanceEmailProviderEffective builds the read view of row. A nil row is
+// the unconfigured instance. settings is the row's stored block lifted into the
+// per-type union; pass nil when it could not be decoded, so the rest of the
+// configuration stays readable by the admin who has to repair it.
+func NewInstanceEmailProviderEffective(
+	row *InstanceEmailProvider, settings *TeamEmailProviderSettings,
+) *InstanceEmailProviderEffective {
+	if row == nil {
+		return &InstanceEmailProviderEffective{Configured: false}
+	}
+
+	providerType := row.ProviderType
+	healthy := row.IsHealthy()
+	updatedAt := row.UpdatedAt
+
+	return &InstanceEmailProviderEffective{
+		Configured:              true,
+		ProviderType:            &providerType,
+		Settings:                settings,
+		HasCredential:           row.HasCredential(),
+		FromAddress:             row.FromAddress,
+		FromName:                row.FromName,
+		ReplyTo:                 row.ReplyTo,
+		ContactRecipientAddress: row.ContactRecipientAddress,
+		PrivacyPolicyURL:        row.PrivacyPolicyURL,
+		IsHealthy:               &healthy,
+		LastSuccessAt:           row.LastSuccessAt,
+		LastError:               row.LastError,
+		LastErrorAt:             row.LastErrorAt,
+		UpdatedAt:               &updatedAt,
+		UpdatedBy:               row.UpdatedBy,
+	}
+}
