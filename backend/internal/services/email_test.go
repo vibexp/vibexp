@@ -1037,3 +1037,30 @@ func TestEmailService_sendEmail_NoFromNameStaysBare(t *testing.T) {
 	assert.Empty(t, out.FromName)
 	assert.Equal(t, "test@example.com", out.FromHeader())
 }
+
+// The privacy URL is optional per instance (#1188): an instance without one
+// renders no Privacy Policy link, rather than a broken relative href.
+func TestEmailService_EmptyPrivacyURLOmitsTheFooterLink(t *testing.T) {
+	var html string
+	mockProvider := new(MockEmailProvider)
+	mockProvider.On("SendEmail", mock.Anything, mock.MatchedBy(func(out *external.OutgoingMessage) bool {
+		html = out.Message.GetHTML()
+		return true
+	})).Return(nil)
+
+	resolver := instanceResolver(mockProvider)
+	resolver.identity = InstanceEmailIdentity{FromAddress: "noreply@instance.test"}
+	service := NewEmailService(resolver, &config.Config{
+		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+	})
+
+	err := service.SendTeamInvitation(context.Background(), "", &models.TeamInvitation{
+		InviteeEmail: "invitee@example.com", Token: "tok", Role: models.TeamMemberRoleMember,
+		ExpiresAt: time.Now().Add(time.Hour),
+	}, "Acme", "Boss")
+
+	require.NoError(t, err)
+	assert.Contains(t, html, "Manage Email Preferences")
+	assert.NotContains(t, html, "Privacy Policy")
+	assert.NotContains(t, html, `href="?utm_source`)
+}
