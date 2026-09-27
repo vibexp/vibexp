@@ -127,7 +127,7 @@ func (s *InstanceSearchSettingsService) Update(
 		RankWeightUpdated:     values.RankWeightUpdated,
 		RankHalfLifeDays:      values.RankHalfLifeDays,
 		RankCandidateCap:      values.RankCandidateCap,
-		UpdatedBy:             actorPtr(actorUserID),
+		UpdatedBy:             optionalActor(actorUserID),
 	}
 	err := s.repo.UpsertAudited(ctx, stored,
 		instanceSearchAuditFunc(models.InstanceSettingsAuditActionUpsert, actorUserID))
@@ -164,7 +164,7 @@ func instanceSearchAuditFunc(action, actorUserID string) repositories.InstanceSe
 		return &models.InstanceSettingsAuditEntry{
 			Setting:     models.InstanceSettingSearch,
 			Action:      action,
-			ActorUserID: actorPtr(actorUserID),
+			ActorUserID: optionalActor(actorUserID),
 			Before:      beforeDoc,
 			After:       afterDoc,
 		}, nil
@@ -181,14 +181,6 @@ func instanceSearchAuditSnapshot(row *models.InstanceSearchSettings) (json.RawMe
 		return nil, fmt.Errorf("failed to marshal instance search settings snapshot: %w", err)
 	}
 	return doc, nil
-}
-
-// actorPtr maps an empty actor (a system change) to nil.
-func actorPtr(actorUserID string) *string {
-	if actorUserID == "" {
-		return nil
-	}
-	return &actorUserID
 }
 
 // instanceSearchView renders a stored row as the read model.

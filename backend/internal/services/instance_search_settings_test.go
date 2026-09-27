@@ -234,24 +234,27 @@ func TestInstanceSearchSettingsService_Update_FirstSaveHasNoBefore(t *testing.T)
 	assert.NotNil(t, entry.After)
 }
 
-// A system change (no actor) records no actor rather than an empty user id.
-func TestInstanceSearchSettingsService_Update_EmptyActorIsNil(t *testing.T) {
-	svc, repo := newInstanceSearchService(t, nil)
-	var entry *models.InstanceSettingsAuditEntry
-	repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything).
-		RunAndReturn(func(
-			_ context.Context, s *models.InstanceSearchSettings, audit repositories.InstanceSearchSettingsAuditFunc,
-		) error {
-			assert.Nil(t, s.UpdatedBy)
-			var err error
-			entry, err = audit(nil, s)
-			return err
-		})
+// A system change (no actor) records no actor rather than an empty or blank
+// user id, the same way the instance email provider service does.
+func TestInstanceSearchSettingsService_Update_BlankActorIsNil(t *testing.T) {
+	for _, actor := range []string{"", "   "} {
+		svc, repo := newInstanceSearchService(t, nil)
+		var entry *models.InstanceSettingsAuditEntry
+		repo.EXPECT().UpsertAudited(mock.Anything, mock.Anything, mock.Anything).
+			RunAndReturn(func(
+				_ context.Context, s *models.InstanceSearchSettings, audit repositories.InstanceSearchSettingsAuditFunc,
+			) error {
+				assert.Nil(t, s.UpdatedBy)
+				var err error
+				entry, err = audit(nil, s)
+				return err
+			})
 
-	_, err := svc.Update(context.Background(), "", validInstanceValues())
+		_, err := svc.Update(context.Background(), actor, validInstanceValues())
 
-	require.NoError(t, err)
-	assert.Nil(t, entry.ActorUserID)
+		require.NoError(t, err)
+		assert.Nil(t, entry.ActorUserID, "actor %q", actor)
+	}
 }
 
 func TestInstanceSearchSettingsService_Update_RepositoryErrorPropagates(t *testing.T) {
