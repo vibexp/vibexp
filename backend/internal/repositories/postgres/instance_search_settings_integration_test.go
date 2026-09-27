@@ -198,3 +198,41 @@ func TestIntegrationInstanceSearchSettings_UpsertAudited_AuditFailureRollsBack(t
 	assert.ErrorIs(t, err, repositories.ErrInstanceSearchSettingsNotFound, "the upsert must have rolled back")
 	assert.Zero(t, countInstanceSearchAudit(t))
 }
+
+// Concurrent first saves on an empty table are serialized by the table write
+// lock: exactly one of them sees no previous row, and the other audits the
+// transition from it. A row lock alone would let both read before = nil.
+func TestIntegrationInstanceSearchSettings_ConcurrentFirstSavesAreSerialized(t *testing.T) {
+	resetInstanceSettingsAuditTables(t)
+	resetInstanceSettingsTable(t, "instance_search_settings")
+	repo := NewInstanceSearchSettingsRepository(integrationDB)
+	ctx := context.Background()
+
+	const writers = 4
+	start := make(chan struct{})
+	errs := make(chan error, writers)
+	for i := 0; i < writers; i++ {
+		s := instanceSearchSettingsFixture()
+		s.RankCandidateCap = 100 + i
+		go func() {
+			<-start
+			errs <- repo.UpsertAudited(ctx, s, searchAuditEntry(models.InstanceSettingsAuditActionUpsert))
+		}()
+	}
+	close(start)
+	for i := 0; i < writers; i++ {
+		require.NoError(t, <-errs)
+	}
+
+	entries, _, err := NewInstanceSettingsAuditRepository(integrationDB).
+		List(ctx, models.InstanceSettingSearch, 10, nil)
+	require.NoError(t, err)
+	require.Len(t, entries, writers)
+	var firstSaves int
+	for _, e := range entries {
+		if e.Before == nil {
+			firstSaves++
+		}
+	}
+	assert.Equal(t, 1, firstSaves, "only the first serialized writer may see an empty table")
+}

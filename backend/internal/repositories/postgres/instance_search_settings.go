@@ -164,9 +164,18 @@ func (r *InstanceSearchSettingsRepository) DeleteAudited(
 	return deleted, err
 }
 
-// inAuditedTx runs change inside a transaction, handing it the current row read
-// FOR UPDATE (nil when none is stored), and commits only when change succeeds
-// and reports it wrote something. Any error rolls the whole change back.
+// instanceSearchSettingsWriteLock serializes audited writes. A row lock (SELECT
+// ... FOR UPDATE) is not enough: on an empty table it matches nothing and locks
+// nothing, so two concurrent first saves would both read before = nil and the
+// audit log would lose a transition. SHARE ROW EXCLUSIVE conflicts with itself
+// and with every other write (ROW EXCLUSIVE) but not with plain reads, so
+// searches resolving the defaults are never blocked.
+const instanceSearchSettingsWriteLock = `LOCK TABLE instance_search_settings IN SHARE ROW EXCLUSIVE MODE`
+
+// inAuditedTx runs change inside a transaction that holds the table's write
+// lock, handing it the current row (nil when none is stored), and commits only
+// when change succeeds and reports it wrote something. Any error rolls the
+// whole change back.
 func (r *InstanceSearchSettingsRepository) inAuditedTx(
 	ctx context.Context, op string,
 	change func(tx *sql.Tx, before *models.InstanceSearchSettings) (bool, error),
@@ -181,7 +190,11 @@ func (r *InstanceSearchSettingsRepository) inAuditedTx(
 		}
 	}()
 
-	before, err := scanInstanceSearchSettings(tx.QueryRowContext(ctx, instanceSearchSettingsSelect+` FOR UPDATE`))
+	if _, err = tx.ExecContext(ctx, instanceSearchSettingsWriteLock); err != nil {
+		return fmt.Errorf("failed to lock instance search settings for %s: %w", op, err)
+	}
+
+	before, err := scanInstanceSearchSettings(tx.QueryRowContext(ctx, instanceSearchSettingsSelect))
 	if errors.Is(err, sql.ErrNoRows) {
 		before, err = nil, nil
 	}

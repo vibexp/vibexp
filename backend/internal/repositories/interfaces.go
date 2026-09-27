@@ -1557,9 +1557,11 @@ type InstanceSearchSettingsRepository interface {
 	Delete(ctx context.Context) error
 	// UpsertAudited is Upsert plus one instance_settings_audit entry, written
 	// in the same transaction: the change and its audit record land together
-	// or not at all. The current row is read and locked inside that
-	// transaction and handed to audit as before (nil when none was stored);
-	// after is settings as written. An audit error rolls the upsert back.
+	// or not at all. The transaction first takes a table-level write lock, so
+	// concurrent audited writes are serialized even while no row exists; the
+	// current row is then read and handed to audit as before (nil when none was
+	// stored); after is settings as written. An audit error rolls the upsert
+	// back.
 	UpsertAudited(
 		ctx context.Context, settings *models.InstanceSearchSettings, audit InstanceSearchSettingsAuditFunc,
 	) error

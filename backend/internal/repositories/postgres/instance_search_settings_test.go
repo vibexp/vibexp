@@ -187,7 +187,16 @@ var instanceSearchSettingsColumns = []string{
 	"created_at", "updated_at", "updated_by", "version",
 }
 
-const lockedInstanceSearchRead = "SELECT (.+) FROM instance_search_settings FOR UPDATE"
+const (
+	instanceSearchWriteLock  = "LOCK TABLE instance_search_settings IN SHARE ROW EXCLUSIVE MODE"
+	lockedInstanceSearchRead = "SELECT (.+) FROM instance_search_settings"
+)
+
+// expectInstanceSearchBegin expects the transaction start and its write lock.
+func expectInstanceSearchBegin(mock sqlmock.Sqlmock) {
+	mock.ExpectBegin()
+	mock.ExpectExec(instanceSearchWriteLock).WillReturnResult(sqlmock.NewResult(0, 0))
+}
 
 // testSearchAudit builds a minimal, valid entry and records what it was given.
 type testSearchAudit struct {
@@ -221,7 +230,7 @@ func expectInstanceAuditInsert(mock sqlmock.Sqlmock) {
 func TestInstanceSearchSettingsRepository_UpsertAudited(t *testing.T) {
 	db, mock := newInstanceSettingsMock(t)
 	now := time.Now().UTC()
-	mock.ExpectBegin()
+	expectInstanceSearchBegin(mock)
 	mock.ExpectQuery(lockedInstanceSearchRead).
 		WillReturnRows(sqlmock.NewRows(instanceSearchSettingsColumns).
 			AddRow(false, 0.5, 0.3, 0.2, 90.0, 200, now, now, nil, int64(1)))
@@ -237,7 +246,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited(t *testing.T) {
 	require.NoError(t, NewInstanceSearchSettingsRepository(db).UpsertAudited(context.Background(), s, audit.build))
 
 	assert.Equal(t, 1, audit.calls)
-	require.NotNil(t, audit.before, "the locked read is handed over as before")
+	require.NotNil(t, audit.before, "the current row is handed over as before")
 	assert.InDelta(t, 90.0, audit.before.RankHalfLifeDays, 1e-9)
 	assert.Same(t, s, audit.after, "after is the row as written")
 	assert.Equal(t, int64(2), s.Version)
@@ -247,7 +256,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited(t *testing.T) {
 func TestInstanceSearchSettingsRepository_UpsertAudited_NoRowGivesNilBefore(t *testing.T) {
 	db, mock := newInstanceSettingsMock(t)
 	now := time.Now().UTC()
-	mock.ExpectBegin()
+	expectInstanceSearchBegin(mock)
 	mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(sql.ErrNoRows)
 	mock.ExpectQuery("INSERT INTO instance_search_settings").
 		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
@@ -279,7 +288,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited_FailuresRollBack(t *test
 		setup    func(mock sqlmock.Sqlmock)
 		wantErr  error
 	}{
-		{"locked read fails", nil, func(mock sqlmock.Sqlmock) {
+		{"current-row read fails", nil, func(mock sqlmock.Sqlmock) {
 			mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(errInstanceSettingsDB)
 		}, errInstanceSettingsDB},
 		{"upsert fails", nil, func(mock sqlmock.Sqlmock) {
@@ -299,7 +308,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited_FailuresRollBack(t *test
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			db, mock := newInstanceSettingsMock(t)
-			mock.ExpectBegin()
+			expectInstanceSearchBegin(mock)
 			tc.setup(mock)
 			mock.ExpectRollback()
 
@@ -313,7 +322,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited_FailuresRollBack(t *test
 	}
 }
 
-func TestInstanceSearchSettingsRepository_UpsertAudited_BeginAndCommitErrors(t *testing.T) {
+func TestInstanceSearchSettingsRepository_UpsertAudited_BeginLockAndCommitErrors(t *testing.T) {
 	t.Run("begin", func(t *testing.T) {
 		db, mock := newInstanceSettingsMock(t)
 		mock.ExpectBegin().WillReturnError(errInstanceSettingsDB)
@@ -324,10 +333,23 @@ func TestInstanceSearchSettingsRepository_UpsertAudited_BeginAndCommitErrors(t *
 		assert.ErrorIs(t, err, errInstanceSettingsDB)
 	})
 
+	t.Run("lock", func(t *testing.T) {
+		db, mock := newInstanceSettingsMock(t)
+		mock.ExpectBegin()
+		mock.ExpectExec(instanceSearchWriteLock).WillReturnError(errInstanceSettingsDB)
+		mock.ExpectRollback()
+
+		err := NewInstanceSearchSettingsRepository(db).
+			UpsertAudited(context.Background(), instanceSearchSettingsFixture(), (&testSearchAudit{}).build)
+
+		assert.ErrorIs(t, err, errInstanceSettingsDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
 	t.Run("commit", func(t *testing.T) {
 		db, mock := newInstanceSettingsMock(t)
 		now := time.Now().UTC()
-		mock.ExpectBegin()
+		expectInstanceSearchBegin(mock)
 		mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(sql.ErrNoRows)
 		mock.ExpectQuery("INSERT INTO instance_search_settings").
 			WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
@@ -347,7 +369,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited_BeginAndCommitErrors(t *
 func TestInstanceSearchSettingsRepository_UpsertAudited_UnredactedEntryRollsBack(t *testing.T) {
 	db, mock := newInstanceSettingsMock(t)
 	now := time.Now().UTC()
-	mock.ExpectBegin()
+	expectInstanceSearchBegin(mock)
 	mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(sql.ErrNoRows)
 	mock.ExpectQuery("INSERT INTO instance_search_settings").
 		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
@@ -372,7 +394,7 @@ func TestInstanceSearchSettingsRepository_DeleteAudited(t *testing.T) {
 	t.Run("a stored row is deleted and audited", func(t *testing.T) {
 		db, mock := newInstanceSettingsMock(t)
 		now := time.Now().UTC()
-		mock.ExpectBegin()
+		expectInstanceSearchBegin(mock)
 		mock.ExpectQuery(lockedInstanceSearchRead).
 			WillReturnRows(sqlmock.NewRows(instanceSearchSettingsColumns).
 				AddRow(true, 0.7, 0.1, 0.2, 30.0, 200, now, now, nil, int64(3)))
@@ -393,7 +415,7 @@ func TestInstanceSearchSettingsRepository_DeleteAudited(t *testing.T) {
 
 	t.Run("no row writes nothing and builds no entry", func(t *testing.T) {
 		db, mock := newInstanceSettingsMock(t)
-		mock.ExpectBegin()
+		expectInstanceSearchBegin(mock)
 		mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(sql.ErrNoRows)
 		mock.ExpectRollback()
 
@@ -409,7 +431,7 @@ func TestInstanceSearchSettingsRepository_DeleteAudited(t *testing.T) {
 	t.Run("a delete failure rolls back", func(t *testing.T) {
 		db, mock := newInstanceSettingsMock(t)
 		now := time.Now().UTC()
-		mock.ExpectBegin()
+		expectInstanceSearchBegin(mock)
 		mock.ExpectQuery(lockedInstanceSearchRead).
 			WillReturnRows(sqlmock.NewRows(instanceSearchSettingsColumns).
 				AddRow(true, 0.7, 0.1, 0.2, 30.0, 200, now, now, nil, int64(3)))
