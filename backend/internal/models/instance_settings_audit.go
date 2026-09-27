@@ -13,6 +13,12 @@ const (
 	// InstanceSettingEmailProvider is the instance's outbound email provider
 	// (table instance_email_provider, #1186).
 	InstanceSettingEmailProvider = "email_provider"
+	// InstanceSettingSearch is the instance's search ranking defaults (table
+	// instance_search_settings, #1197).
+	InstanceSettingSearch = "search"
+	// InstanceSettingAISummary is the instance's AI summary defaults and
+	// budgets (table instance_ai_summary_settings, #1197).
+	InstanceSettingAISummary = "ai_summary"
 )
 
 // Actions an instance settings audit entry records. Unlike the setting, the

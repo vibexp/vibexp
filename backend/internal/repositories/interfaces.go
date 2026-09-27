@@ -215,6 +215,16 @@ var (
 	// email configuration (epic #1185).
 	ErrInstanceEmailProviderNotFound = errors.New("instance email provider not found")
 
+	// ErrInstanceSearchSettingsNotFound is returned by
+	// InstanceSearchSettingsRepository.Get when no row exists. This is an
+	// ordinary state, not a fault: the built-in defaults are in effect (#1197).
+	ErrInstanceSearchSettingsNotFound = errors.New("instance search settings not found")
+
+	// ErrInstanceAISummarySettingsNotFound is returned by
+	// InstanceAISummarySettingsRepository.Get when no row exists. This is an
+	// ordinary state, not a fault: the built-in defaults are in effect (#1197).
+	ErrInstanceAISummarySettingsNotFound = errors.New("instance AI summary settings not found")
+
 	// ErrInstanceSettingsAuditUnredacted is returned by
 	// InstanceSettingsAuditRepository.Append when a before/after snapshot
 	// carries a credential key ("secret" or "secret_encrypted") whose value is
@@ -1521,6 +1531,51 @@ type InstanceEmailProviderRepository interface {
 	RecordSuccess(ctx context.Context, at time.Time) error
 	// RecordError stamps last_error and last_error_at. See RecordSuccess.
 	RecordError(ctx context.Context, sendErr error, at time.Time) error
+}
+
+// InstanceSearchSettingsRepository defines the data access operations for the
+// instance's search ranking defaults (#1197, epic #1196).
+//
+// The table is a database-enforced singleton, so no method takes a key: there is
+// one row or none. The scope is the instance, so there are no team or role
+// predicates; authorization is the caller's concern. Unlike
+// TeamSearchSettingsRepository.Get, which returns (nil, nil) on a miss, Get
+// here returns ErrInstanceSearchSettingsNotFound.
+type InstanceSearchSettingsRepository interface {
+	// Get returns the stored defaults, or ErrInstanceSearchSettingsNotFound
+	// when none are stored.
+	Get(ctx context.Context) (*models.InstanceSearchSettings, error)
+	// Upsert creates or replaces the defaults in one statement, bumping
+	// Version and refreshing CreatedAt/UpdatedAt/Version on the passed struct.
+	Upsert(ctx context.Context, settings *models.InstanceSearchSettings) error
+	// InsertIfAbsent stores the defaults only when no row exists (ON CONFLICT
+	// DO NOTHING) and reports whether it did. An existing row is left
+	// untouched, which makes it safe for several replicas booting at once.
+	InsertIfAbsent(ctx context.Context, settings *models.InstanceSearchSettings) (inserted bool, err error)
+	// Delete removes the stored defaults, reverting to the built-in ones. It
+	// is a no-op, not an error, when no row exists.
+	Delete(ctx context.Context) error
+}
+
+// InstanceAISummarySettingsRepository defines the data access operations for
+// the instance's AI summary defaults and budgets (#1197, epic #1196). It has
+// the same singleton contract as InstanceSearchSettingsRepository. Unlike
+// TeamAISummarySettingsRepository.Get, which returns (nil, nil) on a miss, Get
+// here returns ErrInstanceAISummarySettingsNotFound.
+type InstanceAISummarySettingsRepository interface {
+	// Get returns the stored settings, or ErrInstanceAISummarySettingsNotFound
+	// when none are stored.
+	Get(ctx context.Context) (*models.InstanceAISummarySettings, error)
+	// Upsert creates or replaces the settings in one statement, bumping
+	// Version and refreshing CreatedAt/UpdatedAt/Version on the passed struct.
+	Upsert(ctx context.Context, settings *models.InstanceAISummarySettings) error
+	// InsertIfAbsent stores the settings only when no row exists (ON CONFLICT
+	// DO NOTHING) and reports whether it did. An existing row is left
+	// untouched.
+	InsertIfAbsent(ctx context.Context, settings *models.InstanceAISummarySettings) (inserted bool, err error)
+	// Delete removes the stored settings, reverting to the built-in ones. It
+	// is a no-op, not an error, when no row exists.
+	Delete(ctx context.Context) error
 }
 
 // FeedRepository defines the interface for feed data access operations

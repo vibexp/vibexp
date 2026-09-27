@@ -209,6 +209,16 @@ func ProvideInstanceEmailProviderRepository(db *database.DB) repositories.Instan
 	return postgres.NewInstanceEmailProviderRepository(db)
 }
 
+// ProvideInstanceSearchSettingsRepository creates a new InstanceSearchSettingsRepository
+func ProvideInstanceSearchSettingsRepository(db *database.DB) repositories.InstanceSearchSettingsRepository {
+	return postgres.NewInstanceSearchSettingsRepository(db)
+}
+
+// ProvideInstanceAISummarySettingsRepository creates a new InstanceAISummarySettingsRepository
+func ProvideInstanceAISummarySettingsRepository(db *database.DB) repositories.InstanceAISummarySettingsRepository {
+	return postgres.NewInstanceAISummarySettingsRepository(db)
+}
+
 // ProvideTeamSearchSettingsRepository creates a new TeamSearchSettingsRepository
 func ProvideTeamSearchSettingsRepository(db *database.DB) repositories.TeamSearchSettingsRepository {
 	return postgres.NewTeamSearchSettingsRepository(db)
