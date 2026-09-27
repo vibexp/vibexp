@@ -180,6 +180,13 @@ mcp:
   oauth_issuer: ""
   resource_uri: ""
 
+# DEPRECATED (#1190): the instance email provider is now stored in the database
+# and configured under Admin -> Settings -> Email. This email: section is read
+# only once, at boot: when the database has no instance email provider and the
+# section is populated, it is imported (secret encrypted, audited) and ignored
+# from then on; the stored configuration is authoritative. The section is
+# removed in the next minor release, so migrate and then delete it.
+#
 # Email delivery. provider selects the backend: smtp (default), mailgun,
 # postmark, sendgrid. Dev defaults target Mailpit (the local SMTP sink started
 # by `make backend-run-dev`; inbox at http://localhost:8025).

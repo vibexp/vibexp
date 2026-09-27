@@ -1,6 +1,8 @@
 package container
 
 import (
+	"context"
+
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/external"
@@ -145,6 +147,12 @@ type Container interface {
 	// durable-queue poller, #820). Call it once the database is migrated and
 	// ready; Close drains them again.
 	StartEventListeners()
+
+	// RunStartupImports runs the one-release config.yaml → database bridges
+	// once, after migrations and before the scheduler and server start (#1190:
+	// the deprecated email: section). It never fails boot: every problem is
+	// logged.
+	RunStartupImports(ctx context.Context)
 
 	// Cleanup resources
 	Close() error

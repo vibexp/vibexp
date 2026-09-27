@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"runtime/debug"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -68,6 +69,10 @@ func runServer(cmd *cobra.Command, args []string) {
 	ctx, cancel := setupShutdownContext(logger)
 	defer cancel()
 	defer closeContainer(srv.Container(), logger)
+
+	// Import the deprecated config.yaml sections into the database before
+	// anything can send mail (#1190).
+	runStartupImports(ctx, srv.Container())
 
 	// Start the in-process scheduler after the DB is migrated and ready. It is
 	// stopped (draining any in-flight job) by closeContainer on shutdown.
@@ -207,6 +212,24 @@ func closeContainer(c container.Container, logger *slog.Logger) {
 	if err := c.Close(); err != nil {
 		logger.Error("Failed to close container", "error", err)
 	}
+}
+
+// startupImportTimeout bounds the boot-time config.yaml imports: one primary-key
+// read and at most one insert and one audit append each.
+const startupImportTimeout = 30 * time.Second
+
+// startupImporter is the slice of container.Container runStartupImports needs,
+// so the hook is unit-testable without the ~60-method container.
+type startupImporter interface {
+	RunStartupImports(ctx context.Context)
+}
+
+// runStartupImports runs the container's one-release config.yaml → database
+// bridges (#1190) under a bounded context. They never fail boot.
+func runStartupImports(ctx context.Context, c startupImporter) {
+	importCtx, cancel := context.WithTimeout(ctx, startupImportTimeout)
+	defer cancel()
+	c.RunStartupImports(importCtx)
 }
 
 // startScheduler launches the in-process scheduler loop unless it is disabled

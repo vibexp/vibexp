@@ -29,23 +29,26 @@ import (
 // process environment, and the result is unmarshalled into this nested struct.
 // The koanf tags name each YAML section/key.
 type Config struct {
-	Server     ServerConfig     `koanf:"server"`
-	Database   DatabaseConfig   `koanf:"database"`
-	Security   SecurityConfig   `koanf:"security"`
-	Auth       AuthConfig       `koanf:"auth"`
-	MCP        MCPConfig        `koanf:"mcp"`
-	Email      EmailConfig      `koanf:"email"`
-	Frontend   FrontendConfig   `koanf:"frontend"`
-	Search     SearchConfig     `koanf:"search"`
-	AISummary  AISummaryConfig  `koanf:"ai_summary"`
-	Storage    StorageConfig    `koanf:"storage"`
-	GCP        GCPConfig        `koanf:"gcp"`
-	RateLimit  RateLimitConfig  `koanf:"rate_limit"`
-	Retention  RetentionConfig  `koanf:"retention"`
-	Scheduler  SchedulerConfig  `koanf:"scheduler"`
-	Embedding  EmbeddingConfig  `koanf:"embedding"`
-	A2A        A2AConfig        `koanf:"a2a"`
-	Deployment DeploymentConfig `koanf:"deployment"`
+	Server   ServerConfig   `koanf:"server"`
+	Database DatabaseConfig `koanf:"database"`
+	Security SecurityConfig `koanf:"security"`
+	Auth     AuthConfig     `koanf:"auth"`
+	MCP      MCPConfig      `koanf:"mcp"`
+	// LegacyEmail is the deprecated `email:` section (#1190): imported once into
+	// the instance_email_provider table at boot, then ignored. Removed in the
+	// next minor (#1193).
+	LegacyEmail LegacyEmailConfig `koanf:"email"`
+	Frontend    FrontendConfig    `koanf:"frontend"`
+	Search      SearchConfig      `koanf:"search"`
+	AISummary   AISummaryConfig   `koanf:"ai_summary"`
+	Storage     StorageConfig     `koanf:"storage"`
+	GCP         GCPConfig         `koanf:"gcp"`
+	RateLimit   RateLimitConfig   `koanf:"rate_limit"`
+	Retention   RetentionConfig   `koanf:"retention"`
+	Scheduler   SchedulerConfig   `koanf:"scheduler"`
+	Embedding   EmbeddingConfig   `koanf:"embedding"`
+	A2A         A2AConfig         `koanf:"a2a"`
+	Deployment  DeploymentConfig  `koanf:"deployment"`
 
 	// EventBus holds in-memory event-bus tuning (see pkg/events).
 	EventBus events.Config `koanf:"event_bus"`
@@ -418,9 +421,18 @@ type MCPConfig struct {
 	ResourceURI string `koanf:"resource_uri"`
 }
 
-// EmailConfig holds email delivery settings: the selected provider, shared
-// sender/recipient addresses, and per-provider sub-structs.
-type EmailConfig struct {
+// LegacyEmailConfig is the deprecated `email:` section: the selected provider,
+// shared sender/recipient addresses, and per-provider sub-structs.
+//
+// DEPRECATED, deliberately not in the Go "Deprecated:" form (staticcheck
+// SA1019 would then flag the bridge's own reads): the instance's mail provider
+// is stored in the database and configured under Admin → Settings → Email
+// (#1188). This block is still loaded
+// for one release so an upgraded install keeps sending: at boot it is imported
+// once into the instance_email_provider table when no row exists, and ignored
+// afterwards (services.ImportLegacyEmailConfig, #1190). It is removed in the
+// next minor (#1193). Nothing on the send path reads it.
+type LegacyEmailConfig struct {
 	// Provider selects the delivery backend: smtp (default), mailgun, postmark,
 	// or sendgrid.
 	Provider string `koanf:"provider"`
@@ -1251,6 +1263,16 @@ const configFileDefaultPath = "./config.yaml"
 // default redirect_uri for every identity provider.
 const defaultAuthRedirectURI = "http://localhost:8080/api/v1/auth/callback"
 
+// Code defaults of the deprecated `email:` section (#1190). Exported so the
+// boot-time import can tell an inherited default from a value an operator
+// chose: koanf merges defaults() into the loaded struct, so an unset key and a
+// default are indistinguishable after Load.
+const (
+	DefaultLegacySMTPHost         = "smtp.gmail.com"
+	DefaultLegacySMTPPort         = "587"
+	DefaultLegacyPrivacyPolicyURL = "https://example.com/privacy-policy"
+)
+
 // defaults returns the code-level configuration defaults as flat, dot-delimited
 // keys. They are merged first (lowest precedence); the config.yaml file overrides
 // any of them. Duration defaults are expressed as strings ("15m") and decoded by
@@ -1279,9 +1301,9 @@ func defaults() map[string]any {
 		"auth.oauth_as.key_rotation_interval": "720h",
 		"auth.oauth_as.cleanup_interval":      "1h",
 		"email.provider":                      "smtp",
-		"email.privacy_policy_url":            "https://example.com/privacy-policy",
-		"email.smtp.host":                     "smtp.gmail.com",
-		"email.smtp.port":                     "587",
+		"email.privacy_policy_url":            DefaultLegacyPrivacyPolicyURL,
+		"email.smtp.host":                     DefaultLegacySMTPHost,
+		"email.smtp.port":                     DefaultLegacySMTPPort,
 		"email.postmark.message_stream":       "outbound",
 		"frontend.base_url":                   "http://localhost:5173",
 		"search.rank_weight_relevance":        0.5,

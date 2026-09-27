@@ -107,6 +107,9 @@ func run() error {
 	}
 
 	schema := r.Reflect(&config.Config{})
+	if err := markLegacyEmailDeprecated(schema); err != nil {
+		return err
+	}
 	schema.Title = "VibeXP backend configuration (config.yaml)"
 	schema.Description = "Schema for VibeXP's config.yaml. Generated from the Go config.Config struct " +
 		"by backend/cmd/gen-config-schema; do not edit by hand."
@@ -122,6 +125,29 @@ func run() error {
 		return fmt.Errorf("write %s: %w", outputPath, err)
 	}
 	fmt.Printf("gen-config-schema: wrote %s (%d bytes)\n", outputPath, len(data))
+	return nil
+}
+
+// legacyEmailDeprecation describes the deprecated `email:` section (#1190).
+// invopop/jsonschema has a Schema.Deprecated field but no struct-tag keyword
+// for it, so it is set here after reflection.
+const legacyEmailDeprecation = "Deprecated: imported into the database once at boot when no instance email " +
+	"provider is stored, ignored afterwards, and removed in the next minor release. " +
+	"Configure instance mail under Admin → Settings → Email."
+
+// markLegacyEmailDeprecated flags the root config's `email` property as
+// deprecated so editors strike it through.
+func markLegacyEmailDeprecated(schema *jsonschema.Schema) error {
+	root, ok := schema.Definitions["Config"]
+	if !ok || root.Properties == nil {
+		return fmt.Errorf("mark email deprecated: no Config definition")
+	}
+	email, ok := root.Properties.Get("email")
+	if !ok {
+		return fmt.Errorf("mark email deprecated: Config has no email property")
+	}
+	email.Deprecated = true
+	email.Description = legacyEmailDeprecation
 	return nil
 }
 

@@ -21,7 +21,7 @@ import (
 func setupTestConfig() *config.Config {
 	return &config.Config{
 		// SMTP configuration
-		Email: config.EmailConfig{
+		LegacyEmail: config.LegacyEmailConfig{
 			SMTP: config.SMTPConfig{
 				Host:     "smtp.example.com",
 				Port:     "587",

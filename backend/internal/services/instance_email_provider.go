@@ -104,21 +104,9 @@ func (s *InstanceEmailProviderService) Upsert(
 		return nil, err
 	}
 
-	settings, err := marshalProviderSettings(req.UpsertTeamEmailProviderRequest)
+	row, err := instanceRowFromRequest(req, secretEncrypted, actorUserID)
 	if err != nil {
 		return nil, err
-	}
-
-	row := &models.InstanceEmailProvider{
-		ProviderType:            normalizeProviderType(req.ProviderType),
-		Settings:                settings,
-		SecretEncrypted:         secretEncrypted,
-		FromAddress:             strings.TrimSpace(req.FromAddress),
-		FromName:                trimOptional(req.FromName),
-		ReplyTo:                 trimOptional(req.ReplyTo),
-		ContactRecipientAddress: trimOptional(req.ContactRecipientAddress),
-		PrivacyPolicyURL:        trimOptional(req.PrivacyPolicyURL),
-		UpdatedBy:               optionalActor(actorUserID),
 	}
 
 	if existing != nil {
@@ -277,6 +265,29 @@ func (s *InstanceEmailProviderService) testRecipient(
 		return recipient, nil
 	}
 	return actingUserEmail(ctx, s.userRepo, actorUserID, "instance email provider test")
+}
+
+// instanceRowFromRequest builds the row a validated request stores, so an admin
+// save and the config.yaml import (#1190) store identical rows. An empty
+// actorUserID leaves UpdatedBy nil.
+func instanceRowFromRequest(
+	req models.UpsertInstanceEmailProviderRequest, secretEncrypted *string, actorUserID string,
+) (*models.InstanceEmailProvider, error) {
+	settings, err := marshalProviderSettings(req.UpsertTeamEmailProviderRequest)
+	if err != nil {
+		return nil, err
+	}
+	return &models.InstanceEmailProvider{
+		ProviderType:            normalizeProviderType(req.ProviderType),
+		Settings:                settings,
+		SecretEncrypted:         secretEncrypted,
+		FromAddress:             strings.TrimSpace(req.FromAddress),
+		FromName:                trimOptional(req.FromName),
+		ReplyTo:                 trimOptional(req.ReplyTo),
+		ContactRecipientAddress: trimOptional(req.ContactRecipientAddress),
+		PrivacyPolicyURL:        trimOptional(req.PrivacyPolicyURL),
+		UpdatedBy:               optionalActor(actorUserID),
+	}, nil
 }
 
 // stored returns the instance row, or nil when none is stored.

@@ -268,10 +268,10 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "disable", cfg.Database.SSLMode)
 
 	// Email defaults.
-	assert.Equal(t, "smtp", cfg.Email.Provider)
-	assert.Equal(t, "smtp.gmail.com", cfg.Email.SMTP.Host)
-	assert.Equal(t, "587", cfg.Email.SMTP.Port)
-	assert.Equal(t, "outbound", cfg.Email.Postmark.MessageStream)
+	assert.Equal(t, "smtp", cfg.LegacyEmail.Provider)
+	assert.Equal(t, "smtp.gmail.com", cfg.LegacyEmail.SMTP.Host)
+	assert.Equal(t, "587", cfg.LegacyEmail.SMTP.Port)
+	assert.Equal(t, "outbound", cfg.LegacyEmail.Postmark.MessageStream)
 
 	// Search defaults.
 	assert.False(t, cfg.Search.RecencyRankingEnabled)
@@ -372,18 +372,18 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, "https://connect.example.com/mcp/v1/common", cfg.MCP.ResourceURI)
 
 	// Email + sub-structs.
-	assert.Equal(t, "mailgun", cfg.Email.Provider)
-	assert.Equal(t, "noreply@example.com", cfg.Email.FromAddress)
-	assert.Equal(t, "support@example.com", cfg.Email.ContactRecipientAddress)
-	assert.Equal(t, "https://example.com/privacy-policy", cfg.Email.PrivacyPolicyURL)
-	assert.Equal(t, "smtp.example.com", cfg.Email.SMTP.Host)
-	assert.Equal(t, "2525", cfg.Email.SMTP.Port)
-	assert.Equal(t, "smtppass", cfg.Email.SMTP.Password)
-	assert.Equal(t, "mg.example.com", cfg.Email.Mailgun.Domain)
-	assert.Equal(t, "mg-key", cfg.Email.Mailgun.SendingKey)
-	assert.Equal(t, "pm-token", cfg.Email.Postmark.ServerToken)
-	assert.Equal(t, "broadcast", cfg.Email.Postmark.MessageStream)
-	assert.Equal(t, "sg-key", cfg.Email.SendGrid.APIKey)
+	assert.Equal(t, "mailgun", cfg.LegacyEmail.Provider)
+	assert.Equal(t, "noreply@example.com", cfg.LegacyEmail.FromAddress)
+	assert.Equal(t, "support@example.com", cfg.LegacyEmail.ContactRecipientAddress)
+	assert.Equal(t, "https://example.com/privacy-policy", cfg.LegacyEmail.PrivacyPolicyURL)
+	assert.Equal(t, "smtp.example.com", cfg.LegacyEmail.SMTP.Host)
+	assert.Equal(t, "2525", cfg.LegacyEmail.SMTP.Port)
+	assert.Equal(t, "smtppass", cfg.LegacyEmail.SMTP.Password)
+	assert.Equal(t, "mg.example.com", cfg.LegacyEmail.Mailgun.Domain)
+	assert.Equal(t, "mg-key", cfg.LegacyEmail.Mailgun.SendingKey)
+	assert.Equal(t, "pm-token", cfg.LegacyEmail.Postmark.ServerToken)
+	assert.Equal(t, "broadcast", cfg.LegacyEmail.Postmark.MessageStream)
+	assert.Equal(t, "sg-key", cfg.LegacyEmail.SendGrid.APIKey)
 
 	// Frontend.
 	assert.Equal(t, "https://app.example.com", cfg.Frontend.BaseURL)
@@ -525,7 +525,7 @@ email:
   from_address: ${VX_DEFINITELY_UNSET}
 `)
 	require.NoError(t, err)
-	assert.Empty(t, cfg.Email.FromAddress, "an unset var with no default resolves to empty")
+	assert.Empty(t, cfg.LegacyEmail.FromAddress, "an unset var with no default resolves to empty")
 	assert.Contains(t, buf.String(), "VX_DEFINITELY_UNSET", "a warning must name the unresolved variable")
 }
 

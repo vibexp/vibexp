@@ -81,7 +81,7 @@ func instanceResolver(provider external.EmailProvider) *stubSenderResolver {
 
 func createTestEmailService() *EmailService {
 	cfg := &config.Config{
-		Email: config.EmailConfig{
+		LegacyEmail: config.LegacyEmailConfig{
 			PrivacyPolicyURL: "https://example.com/privacy-policy",
 			SMTP: config.SMTPConfig{
 				Host:     "smtp.example.com",
@@ -101,7 +101,7 @@ func createTestEmailService() *EmailService {
 
 func TestNewEmailService(t *testing.T) {
 	cfg := &config.Config{
-		Email: config.EmailConfig{
+		LegacyEmail: config.LegacyEmailConfig{
 			SMTP: config.SMTPConfig{
 				Host:     "smtp.test.com",
 				Port:     "587",
@@ -163,7 +163,7 @@ func TestEmailService_sendEmail(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Email: config.EmailConfig{
+				LegacyEmail: config.LegacyEmailConfig{
 					SMTP: config.SMTPConfig{
 						Host:     "smtp.example.com",
 						Port:     "587",
@@ -366,7 +366,7 @@ func TestEmailService_SendSupportRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Email: config.EmailConfig{
+				LegacyEmail: config.LegacyEmailConfig{
 					SMTP: config.SMTPConfig{
 						Host:     "smtp.example.com",
 						Port:     "587",
@@ -473,7 +473,7 @@ func TestEmailService_SendTeamInvitation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Email: config.EmailConfig{
+				LegacyEmail: config.LegacyEmailConfig{
 					SMTP: config.SMTPConfig{
 						Host:     "smtp.example.com",
 						Port:     "587",
@@ -916,8 +916,8 @@ func TestEmailService_SendSupportRequest_AlwaysResolvesInstance(t *testing.T) {
 	}}
 
 	service := NewEmailService(resolver, &config.Config{
-		Email:    config.EmailConfig{ContactRecipientAddress: "ops@instance.test"},
-		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+		LegacyEmail: config.LegacyEmailConfig{ContactRecipientAddress: "ops@instance.test"},
+		Frontend:    config.FrontendConfig{BaseURL: "https://app.example.com"},
 	})
 
 	err := service.SendSupportRequest(context.Background(), "Jane", "jane@acme.test",

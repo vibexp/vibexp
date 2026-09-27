@@ -29,7 +29,7 @@ func NewTestServer(t *testing.T) *TestServer {
 		Server: config.ServerConfig{
 			CORSAllowedOrigins: []string{"*"},
 		},
-		Email: config.EmailConfig{
+		LegacyEmail: config.LegacyEmailConfig{
 			SMTP: config.SMTPConfig{
 				Host:     "localhost",
 				Port:     "587",
@@ -68,7 +68,7 @@ func NewTestServerWithDB(t *testing.T, db *database.DB) *TestServer {
 		Server: config.ServerConfig{
 			CORSAllowedOrigins: []string{"*"},
 		},
-		Email: config.EmailConfig{
+		LegacyEmail: config.LegacyEmailConfig{
 			SMTP: config.SMTPConfig{
 				Host:     "localhost",
 				Port:     "587",

@@ -126,6 +126,13 @@ mcp:
   oauth_issuer: "${MCP_OAUTH_ISSUER:-}"
   resource_uri: "${MCP_RESOURCE_URI:-}"
 
+# DEPRECATED (#1190): the instance email provider is now stored in the database
+# and configured under Admin -> Settings -> Email. This email: section is read
+# only once, at boot: when the database has no instance email provider and the
+# section is populated, it is imported (secret encrypted, audited) and ignored
+# from then on; the stored configuration is authoritative. The section is
+# removed in the next minor release, so migrate and then delete it.
+#
 # Email delivery (optional; used for invitations/notifications/digests).
 # provider: smtp | mailgun | postmark | sendgrid. Set the secret for the one you
 # pick.
