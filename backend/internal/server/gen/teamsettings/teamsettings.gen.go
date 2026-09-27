@@ -151,7 +151,7 @@ type ErrorResponse struct {
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
 }
 
-// TeamAISummarySettings The AI summary settings in effect for a team, with enough context for a client to render the whole settings surface from this one response: the effective values, where they came from, the instance defaults to preview a reset against, the instance-owned top_n and max_output_tokens caps, and whether the team can currently use AI summaries at all.
+// TeamAISummarySettings The AI summary settings in effect for a team, with enough context for a client to render the whole settings surface from this one response: the effective values, where they came from, the instance defaults to preview a reset against, and whether the team can currently use AI summaries at all. `max_top_n` and `max_output_tokens_ceiling` are deprecated and report the hard code limits.
 type TeamAISummarySettings struct {
 	// Available Whether the team has at least one model provider configured (existence, not health) — AI summaries cannot run without one regardless of `enabled`.
 	Available bool `json:"available"`
@@ -159,20 +159,22 @@ type TeamAISummarySettings struct {
 	// InstanceDefaults A complete AI summary profile.
 	InstanceDefaults TeamAISummarySettingsValues `json:"instance_defaults"`
 
-	// MaxOutputTokensCeiling Instance-owned ceiling on `max_output_tokens`, from `ai_summary.max_output_tokens_ceiling`. Not team-configurable — exposed so clients can bound their own input control instead of guessing.
+	// MaxOutputTokensCeiling The hard code limit on `max_output_tokens` (always 32768); kept for client compatibility, to be removed in a later minor. No instance setting narrows it any more.
+	// Deprecated: Reports the hard code limit; kept for client compatibility until a later minor removes it (#1199).
 	MaxOutputTokensCeiling int `json:"max_output_tokens_ceiling"`
 
-	// MaxTopN Instance-owned ceiling on `top_n`, from `ai_summary.max_top_n`. Not team-configurable — exposed so clients can bound their own input control instead of guessing.
+	// MaxTopN The hard code limit on `top_n` (always 10); kept for client compatibility, to be removed in a later minor. No instance setting narrows it any more.
+	// Deprecated: Reports the hard code limit; kept for client compatibility until a later minor removes it (#1199).
 	MaxTopN int `json:"max_top_n"`
 
-	// Source Where the effective values come from. `instance` means the team has no override and inherits the deployment defaults; `team` means the team has stored its own profile.
+	// Source Where the effective values come from. `instance` means the team has no override and inherits the instance defaults; `team` means the team has stored its own profile.
 	Source TeamAISummarySettingsSource `json:"source"`
 
 	// Values A complete AI summary profile.
 	Values TeamAISummarySettingsValues `json:"values"`
 }
 
-// TeamAISummarySettingsSource Where the effective values come from. `instance` means the team has no override and inherits the deployment defaults; `team` means the team has stored its own profile.
+// TeamAISummarySettingsSource Where the effective values come from. `instance` means the team has no override and inherits the instance defaults; `team` means the team has stored its own profile.
 type TeamAISummarySettingsSource string
 
 // TeamAISummarySettingsValues A complete AI summary profile.
@@ -180,7 +182,7 @@ type TeamAISummarySettingsValues struct {
 	// Enabled Explicit on/off, independent of whether the team has a usable model provider configured.
 	Enabled bool `json:"enabled"`
 
-	// MaxOutputTokens Upper bound on tokens the summarizer may generate, within the instance cap.
+	// MaxOutputTokens Upper bound on tokens the summarizer may generate. At most 32768 (the hard limit).
 	MaxOutputTokens int `json:"max_output_tokens"`
 
 	// ModelProviderId Which of the team's model providers to use. `null` means "use the team's default provider". Must belong to this team — a provider id from another team is rejected with 400.
@@ -189,7 +191,7 @@ type TeamAISummarySettingsValues struct {
 	// Style Requested length/depth of the generated summary.
 	Style TeamAISummarySettingsValuesStyle `json:"style"`
 
-	// TopN How many top-ranked documents are fed to the summarizer. Bounded above by the instance's max_top_n.
+	// TopN How many top-ranked documents are fed to the summarizer. At most 10 (the hard limit).
 	TopN int `json:"top_n"`
 }
 
@@ -299,7 +301,7 @@ type TeamSettingsAuditListResponse struct {
 // TeamSettingsAuditSurface Which settings surface was copied between teams.
 type TeamSettingsAuditSurface string
 
-// UpdateTeamAISummarySettingsRequest A complete replacement AI summary profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `max_top_n`, `max_output_tokens_ceiling` and `available` are deliberately absent — all are computed, not settable.
+// UpdateTeamAISummarySettingsRequest A complete replacement AI summary profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `top_n` is at most 10 and `max_output_tokens` at most 32768 (the hard limits; a larger value is rejected with 400). `max_top_n`, `max_output_tokens_ceiling` and `available` are deliberately absent — all are computed, not settable.
 type UpdateTeamAISummarySettingsRequest struct {
 	Enabled         bool                                    `json:"enabled"`
 	MaxOutputTokens int                                     `json:"max_output_tokens"`

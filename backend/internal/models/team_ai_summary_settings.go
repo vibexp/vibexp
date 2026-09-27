@@ -3,7 +3,8 @@ package models
 import "time"
 
 // TeamAISummarySettings is a team's override of the instance AI summary
-// defaults (the `ai_summary:` block of config.yaml).
+// defaults (InstanceAISummarySettings, or the built-in defaults when none are
+// stored).
 //
 // The override is whole-row, never per-field: a team either owns this complete
 // profile or has no row at all and inherits every instance default. That is the
@@ -12,9 +13,8 @@ import "time"
 // which columns happened to be written.
 //
 // There are deliberately no context-budget fields (per-document chars, total
-// context chars, request timeout) and no MaxTopN: those size the work a single
-// request may ask of the operator's model and hardware, so they stay
-// instance-only and a team cannot raise them.
+// context chars, request timeout): those size the context the server assembles
+// per request, so they stay instance-only and a team cannot raise them.
 type TeamAISummarySettings struct {
 	TeamID string `json:"team_id" db:"team_id"`
 	// Enabled is an explicit on/off, independent of whether the team has a
@@ -24,8 +24,8 @@ type TeamAISummarySettings struct {
 	// "use the team's default provider" — which is also what the column becomes
 	// when the referenced provider is deleted (ON DELETE SET NULL).
 	ModelProviderID *string `json:"model_provider_id" db:"model_provider_id"`
-	// TopN is how many documents are fed to the summariser. It is bounded above
-	// by the instance's ai_summary.max_top_n.
+	// TopN is how many documents are fed to the summariser. It is bounded
+	// above by the hard limit MaxAISummaryTopN.
 	TopN            int       `json:"top_n" db:"top_n"`
 	Style           string    `json:"style" db:"style"`
 	MaxOutputTokens int       `json:"max_output_tokens" db:"max_output_tokens"`
@@ -37,7 +37,8 @@ type TeamAISummarySettings struct {
 // Provenance of the AI summary settings in effect for a team.
 const (
 	// TeamAISummarySettingsSourceInstance means the team has no override and
-	// inherits the deployment defaults from config.yaml.
+	// inherits the instance defaults (the instance settings, or the built-in
+	// defaults when none are stored).
 	TeamAISummarySettingsSourceInstance = "instance"
 	// TeamAISummarySettingsSourceTeam means the team has stored its own profile.
 	TeamAISummarySettingsSourceTeam = "team"
@@ -88,19 +89,19 @@ type TeamAISummarySettingsValues struct {
 // TeamAISummarySettingsView is the read model for a team's AI summary settings:
 // the effective values plus everything a client needs to render the whole
 // settings surface from one response — where the values came from, the defaults
-// a reset would restore, and the instance-owned caps on TopN and MaxOutputTokens.
+// a reset would restore, and the hard limits on TopN and MaxOutputTokens.
 type TeamAISummarySettingsView struct {
 	// Source is TeamAISummarySettingsSourceInstance or
 	// TeamAISummarySettingsSourceTeam.
 	Source           string
 	Values           TeamAISummarySettingsValues
 	InstanceDefaults TeamAISummarySettingsValues
-	// MaxTopN is instance-owned and never team-configurable; it bounds how much
-	// context a single summary request may assemble. It is exposed so clients
-	// can bound their own input control instead of guessing.
+	// MaxTopN is the hard limit MaxAISummaryTopN on Values.TopN. It is
+	// deprecated on the wire (#1199) and kept only for client compatibility:
+	// no instance setting narrows it any more.
 	MaxTopN int
-	// MaxOutputTokensCeiling is the instance-owned ceiling on
-	// Values.MaxOutputTokens (#1085), exposed for the same reason as MaxTopN.
+	// MaxOutputTokensCeiling is the hard limit MaxAISummaryOutputTokens on
+	// Values.MaxOutputTokens, deprecated for the same reason as MaxTopN.
 	MaxOutputTokensCeiling int
 	// Available reports whether the team has at least one model provider row
 	// (existence, not health) — AI summaries cannot run without one regardless

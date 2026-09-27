@@ -161,3 +161,181 @@ func TestInstanceAISummarySettingsRepository_Delete_NoRowIsNotAnError(t *testing
 	require.NoError(t, NewInstanceAISummarySettingsRepository(db).Delete(context.Background()))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+// --- Audited writes (#1199) ---
+//
+// The transaction mechanics (begin, lock, commit and their failures) live in
+// runAuditedSingletonTx and are pinned by the instance search suite; these
+// cases pin what is specific to this table: its lock, its read with the
+// millisecond conversion, and its statements.
+
+const (
+	instanceAISummaryWriteLock  = "LOCK TABLE instance_ai_summary_settings IN SHARE ROW EXCLUSIVE MODE"
+	lockedInstanceAISummaryRead = "SELECT (.+) FROM instance_ai_summary_settings"
+)
+
+var instanceAISummarySettingsColumns = []string{
+	"enabled", "top_n", "style", "max_output_tokens", "per_document_chars",
+	"total_context_chars", "request_timeout_ms", "created_at", "updated_at", "updated_by", "version",
+}
+
+// testAISummaryAudit builds a minimal, valid entry and records what it was given.
+type testAISummaryAudit struct {
+	calls         int
+	before, after *models.InstanceAISummarySettings
+	err           error
+}
+
+func (a *testAISummaryAudit) build(
+	before, after *models.InstanceAISummarySettings,
+) (*models.InstanceSettingsAuditEntry, error) {
+	a.calls++
+	a.before, a.after = before, after
+	if a.err != nil {
+		return nil, a.err
+	}
+	return &models.InstanceSettingsAuditEntry{
+		Setting: models.InstanceSettingAISummary,
+		Action:  models.InstanceSettingsAuditActionUpsert,
+		After:   []byte(`{"top_n":5}`),
+	}, nil
+}
+
+// expectLockedInstanceAISummaryRow expects the transaction start, its write
+// lock and the current-row read returning one stored row.
+func expectLockedInstanceAISummaryRow(mock sqlmock.Sqlmock, version int64) {
+	now := time.Now().UTC()
+	mock.ExpectBegin()
+	mock.ExpectExec(instanceAISummaryWriteLock).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(lockedInstanceAISummaryRead).
+		WillReturnRows(sqlmock.NewRows(instanceAISummarySettingsColumns).
+			AddRow(false, 3, "concise", 600, 5000, 15000, int64(2500), now, now, nil, version))
+}
+
+// expectLockedNoInstanceAISummaryRow is expectLockedInstanceAISummaryRow with
+// nothing stored.
+func expectLockedNoInstanceAISummaryRow(mock sqlmock.Sqlmock) {
+	mock.ExpectBegin()
+	mock.ExpectExec(instanceAISummaryWriteLock).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(lockedInstanceAISummaryRead).WillReturnError(sql.ErrNoRows)
+}
+
+func TestInstanceAISummarySettingsRepository_UpsertAudited(t *testing.T) {
+	db, mock := newInstanceSettingsMock(t)
+	now := time.Now().UTC()
+	expectLockedInstanceAISummaryRow(mock, 1)
+	mock.ExpectQuery("INSERT INTO instance_ai_summary_settings (.+) ON CONFLICT \\(id\\)\\s+DO UPDATE").
+		WithArgs(true, 5, models.AISummaryStyleBalanced, 1024, 4000, 20000, int64(45000), nil).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
+			AddRow(now, now, int64(2)))
+	expectInstanceAuditInsert(mock)
+	mock.ExpectCommit()
+
+	audit := &testAISummaryAudit{}
+	s := instanceAISummarySettingsFixture()
+	require.NoError(t, NewInstanceAISummarySettingsRepository(db).UpsertAudited(context.Background(), s, audit.build))
+
+	assert.Equal(t, 1, audit.calls)
+	require.NotNil(t, audit.before, "the current row is handed over as before")
+	assert.Equal(t, 2500*time.Millisecond, audit.before.RequestTimeout, "before is read with the ms conversion")
+	assert.Same(t, s, audit.after, "after is the row as written")
+	assert.Equal(t, int64(2), s.Version)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestInstanceAISummarySettingsRepository_UpsertAudited_NoRowGivesNilBefore(t *testing.T) {
+	db, mock := newInstanceSettingsMock(t)
+	now := time.Now().UTC()
+	expectLockedNoInstanceAISummaryRow(mock)
+	mock.ExpectQuery("INSERT INTO instance_ai_summary_settings").
+		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
+			AddRow(now, now, int64(1)))
+	expectInstanceAuditInsert(mock)
+	mock.ExpectCommit()
+
+	audit := &testAISummaryAudit{}
+	require.NoError(t, NewInstanceAISummarySettingsRepository(db).
+		UpsertAudited(context.Background(), instanceAISummarySettingsFixture(), audit.build))
+
+	assert.Nil(t, audit.before)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// A failing audit append (or upsert) rolls the whole change back: the row is
+// never written without its audit entry.
+func TestInstanceAISummarySettingsRepository_UpsertAudited_FailuresRollBack(t *testing.T) {
+	now := time.Now().UTC()
+	cases := map[string]func(mock sqlmock.Sqlmock){
+		"upsert fails": func(mock sqlmock.Sqlmock) {
+			mock.ExpectQuery("INSERT INTO instance_ai_summary_settings").WillReturnError(errInstanceSettingsDB)
+		},
+		"audit insert fails": func(mock sqlmock.Sqlmock) {
+			mock.ExpectQuery("INSERT INTO instance_ai_summary_settings").
+				WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
+					AddRow(now, now, int64(1)))
+			mock.ExpectQuery("INSERT INTO instance_settings_audit").WillReturnError(errInstanceSettingsDB)
+		},
+	}
+	for name, setup := range cases {
+		t.Run(name, func(t *testing.T) {
+			db, mock := newInstanceSettingsMock(t)
+			expectLockedNoInstanceAISummaryRow(mock)
+			setup(mock)
+			mock.ExpectRollback()
+
+			err := NewInstanceAISummarySettingsRepository(db).
+				UpsertAudited(context.Background(), instanceAISummarySettingsFixture(), (&testAISummaryAudit{}).build)
+
+			assert.ErrorIs(t, err, errInstanceSettingsDB)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestInstanceAISummarySettingsRepository_DeleteAudited(t *testing.T) {
+	t.Run("a stored row is deleted and audited", func(t *testing.T) {
+		db, mock := newInstanceSettingsMock(t)
+		expectLockedInstanceAISummaryRow(mock, 3)
+		mock.ExpectExec("DELETE FROM instance_ai_summary_settings").WillReturnResult(sqlmock.NewResult(0, 1))
+		expectInstanceAuditInsert(mock)
+		mock.ExpectCommit()
+
+		audit := &testAISummaryAudit{}
+		deleted, err := NewInstanceAISummarySettingsRepository(db).DeleteAudited(context.Background(), audit.build)
+
+		require.NoError(t, err)
+		assert.True(t, deleted)
+		require.NotNil(t, audit.before)
+		assert.Equal(t, int64(3), audit.before.Version)
+		assert.Nil(t, audit.after)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("no row writes nothing and builds no entry", func(t *testing.T) {
+		db, mock := newInstanceSettingsMock(t)
+		expectLockedNoInstanceAISummaryRow(mock)
+		mock.ExpectRollback()
+
+		audit := &testAISummaryAudit{}
+		deleted, err := NewInstanceAISummarySettingsRepository(db).DeleteAudited(context.Background(), audit.build)
+
+		require.NoError(t, err)
+		assert.False(t, deleted)
+		assert.Zero(t, audit.calls)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("a delete failure rolls back", func(t *testing.T) {
+		db, mock := newInstanceSettingsMock(t)
+		expectLockedInstanceAISummaryRow(mock, 3)
+		mock.ExpectExec("DELETE FROM instance_ai_summary_settings").WillReturnError(errInstanceSettingsDB)
+		mock.ExpectRollback()
+
+		deleted, err := NewInstanceAISummarySettingsRepository(db).
+			DeleteAudited(context.Background(), (&testAISummaryAudit{}).build)
+
+		assert.ErrorIs(t, err, errInstanceSettingsDB)
+		assert.False(t, deleted)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}

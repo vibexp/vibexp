@@ -560,11 +560,26 @@ func ProvideTeamSearchSettingsService(
 	return services.NewTeamSearchSettingsService(repo, authzService, instance, logger)
 }
 
+// ProvideInstanceAISummarySettingsService creates the instance AI summary
+// settings service (#1199): the per-request resolver of the instance AI summary
+// defaults and budgets (instance_ai_summary_settings row, else the built-in
+// defaults) and the surface an instance admin edits them through.
+//
+// It returns the CONCRETE type because the service satisfies two interfaces —
+// InstanceAISummarySettingsResolver (the fail-open read the team settings and
+// search summary services build on) and InstanceAISummarySettingsServiceInterface
+// (the admin read + writes). wire.Bind in wire.go maps it to both.
+func ProvideInstanceAISummarySettingsService(
+	repo repositories.InstanceAISummarySettingsRepository,
+	logger *slog.Logger,
+) *services.InstanceAISummarySettingsService {
+	return services.NewInstanceAISummarySettingsService(repo, logger)
+}
+
 // ProvideTeamAISummarySettingsService creates the team AI summary settings
-// service (#1071). It receives the deployment `ai_summary:` config, which is
-// both the fallback for a team with no stored profile and the instance_defaults
-// reported on every read — plus max_top_n, the instance-owned bound Update
-// validates a team's top_n against.
+// service (#1071). The instance resolver supplies, per request, both the
+// fallback for a team with no stored profile and the instance_defaults reported
+// on every read.
 // The model provider repository is the tenancy check on a submitted
 // model_provider_id: the column's FK proves existence, not ownership.
 //
@@ -577,11 +592,11 @@ func ProvideTeamAISummarySettingsService(
 	repo repositories.TeamAISummarySettingsRepository,
 	modelProviders repositories.ModelProviderRepository,
 	authzService services.AuthorizationServiceInterface,
-	cfg *config.Config,
+	instance services.InstanceAISummarySettingsResolver,
 	logger *slog.Logger,
 ) *services.TeamAISummarySettingsService {
 	return services.NewTeamAISummarySettingsService(
-		repo, modelProviders, authzService, cfg.AISummary, logger)
+		repo, modelProviders, authzService, instance, logger)
 }
 
 // ProvideTeamSettingsAuditService creates the team settings audit log service
@@ -629,16 +644,16 @@ func ProvideSearchService(
 }
 
 // ProvideSearchSummaryService creates the search summary service (#1073). The
-// context budgets and request timeout come from the instance-only ai_summary
-// config; everything a team may tune is resolved per request.
+// context budgets and request timeout come from the instance resolver and
+// everything a team may tune from the team resolver, both per request.
 func ProvideSearchSummaryService(
 	search services.SourceDocumentSearcher,
 	llm services.LLMCompleter,
 	settings services.AISummarySettingsResolver,
-	cfg *config.Config,
+	instance services.InstanceAISummarySettingsResolver,
 	logger *slog.Logger,
 ) services.SearchSummaryServiceInterface {
-	return services.NewSearchSummaryService(search, llm, settings, cfg.AISummary, logger)
+	return services.NewSearchSummaryService(search, llm, settings, instance, logger)
 }
 
 // ProvideEnvironmentService creates a new EnvironmentService

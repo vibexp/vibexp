@@ -9,13 +9,11 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
@@ -29,21 +27,24 @@ const (
 	aiSummaryTestProviderID = "33333333-4444-5555-6666-777777777777"
 )
 
-func aiSummaryInstanceConfig() config.AISummaryConfig {
-	return config.AISummaryConfig{
-		Enabled:                true,
-		TopN:                   5,
-		MaxTopN:                8,
-		PerDocumentChars:       8000,
-		TotalContextChars:      32000,
-		MaxOutputTokens:        800,
-		MaxOutputTokensCeiling: 2000,
-		RequestTimeout:         60 * time.Second,
-		Style:                  models.AISummaryStyleBalanced,
-	}
+// aiSummaryInstanceValues are the instance defaults the tests resolve: the
+// built-in ones, which enable summaries with top_n 5, balanced, 800 tokens.
+func aiSummaryInstanceValues() models.InstanceAISummarySettingsValues {
+	return models.DefaultInstanceAISummarySettings()
 }
 
-// aiSummaryTeamProfile is deliberately different from the instance config in
+// fakeAISummaryInstance resolves whatever values it currently holds, so a test
+// can change the instance defaults between two calls — the stand-in for an
+// instance admin saving new ones — and observe the next call pick them up.
+type fakeAISummaryInstance struct {
+	values models.InstanceAISummarySettingsValues
+}
+
+func (f *fakeAISummaryInstance) Resolve(context.Context) models.InstanceAISummarySettingsValues {
+	return f.values
+}
+
+// aiSummaryTeamProfile is deliberately different from the instance defaults in
 // every field, so a test can tell which one came back.
 func aiSummaryTeamProfile() models.TeamAISummarySettingsValues {
 	providerID := aiSummaryTestProviderID
@@ -64,6 +65,19 @@ func newAISummarySettingsService(
 	*repomocks.MockModelProviderRepository,
 ) {
 	t.Helper()
+	return newAISummarySettingsServiceWithInstance(
+		t, authzSvc, logs, &fakeAISummaryInstance{values: aiSummaryInstanceValues()})
+}
+
+func newAISummarySettingsServiceWithInstance(
+	t *testing.T, authzSvc services.AuthorizationServiceInterface, logs *bytes.Buffer,
+	instance services.InstanceAISummarySettingsResolver,
+) (
+	*services.TeamAISummarySettingsService,
+	*repomocks.MockTeamAISummarySettingsRepository,
+	*repomocks.MockModelProviderRepository,
+) {
+	t.Helper()
 	repo := repomocks.NewMockTeamAISummarySettingsRepository(t)
 	providers := repomocks.NewMockModelProviderRepository(t)
 	handler := slog.Handler(slog.DiscardHandler)
@@ -71,7 +85,7 @@ func newAISummarySettingsService(
 		handler = slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})
 	}
 	return services.NewTeamAISummarySettingsService(
-		repo, providers, authzSvc, aiSummaryInstanceConfig(), slog.New(handler)), repo, providers
+		repo, providers, authzSvc, instance, slog.New(handler)), repo, providers
 }
 
 // expectProviderOwnedByTeam stubs the tenancy lookup Update runs on a non-nil
@@ -103,8 +117,9 @@ func TestTeamAISummarySettingsService_Resolve_NoRowReportsInstanceSource(t *test
 	assert.Equal(t, 5, view.Values.TopN)
 	assert.Equal(t, models.AISummaryStyleBalanced, view.Values.Style)
 	assert.Nil(t, view.Values.ModelProviderID, "the instance has no opinion on which provider to use")
-	assert.Equal(t, 8, view.MaxTopN)
-	assert.Equal(t, 2000, view.MaxOutputTokensCeiling)
+	assert.Equal(t, models.MaxAISummaryTopN, view.MaxTopN, "the deprecated field reports the hard limit")
+	assert.Equal(t, models.MaxAISummaryOutputTokens, view.MaxOutputTokensCeiling,
+		"the deprecated field reports the hard limit")
 	assert.True(t, view.Available)
 }
 
@@ -132,7 +147,7 @@ func TestTeamAISummarySettingsService_Resolve_StoredRowReportsTeamSource(t *test
 	assert.Equal(t, providerID, *view.Values.ModelProviderID)
 	assert.Equal(t, 5, view.InstanceDefaults.TopN,
 		"instance_defaults must keep reporting the deployment values, not the team's")
-	assert.Equal(t, 8, view.MaxTopN)
+	assert.Equal(t, models.MaxAISummaryTopN, view.MaxTopN)
 }
 
 // The resolver FAILS OPEN: a settings read failure degrades the tuning rather
@@ -234,7 +249,8 @@ func TestTeamAISummarySettingsService_Get_NoRowReportsInstanceSource(t *testing.
 	require.NoError(t, err)
 	assert.Equal(t, models.TeamAISummarySettingsSourceInstance, view.Source)
 	assert.Equal(t, view.InstanceDefaults, view.Values)
-	assert.Equal(t, 8, view.MaxTopN)
+	assert.Equal(t, models.MaxAISummaryTopN, view.MaxTopN)
+	assert.Equal(t, models.MaxAISummaryOutputTokens, view.MaxOutputTokensCeiling)
 	assert.False(t, view.Available, "zero provider rows must report unavailable")
 }
 
@@ -330,67 +346,130 @@ func TestTeamAISummarySettingsService_Update_StoresAndReportsTeamSource(t *testi
 	require.NoError(t, err)
 	assert.Equal(t, models.TeamAISummarySettingsSourceTeam, view.Source)
 	assert.Equal(t, 8, view.Values.TopN)
-	assert.Equal(t, 8, view.MaxTopN, "the cap still comes from the instance config")
+	assert.Equal(t, models.MaxAISummaryTopN, view.MaxTopN, "the deprecated field reports the hard limit")
 	assert.True(t, view.Available)
 }
 
-// max_top_n is instance-owned: a team may tune top_n only INSIDE it.
-func TestTeamAISummarySettingsService_Update_RejectsTopNAboveInstanceCap(t *testing.T) {
+// Since #1199 a team is bounded by the hard limits alone: top_n = 11 is
+// rejected whatever the instance defaults say.
+func TestTeamAISummarySettingsService_Update_RejectsTopNAboveTheHardLimit(t *testing.T) {
 	// No repo expectations: a rejected profile must never reach storage.
 	svc, _, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
 	values := aiSummaryTeamProfile()
-	values.TopN = aiSummaryInstanceConfig().MaxTopN + 1
+	values.TopN = models.MaxAISummaryTopN + 1
 
 	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, values)
 
 	assert.ErrorIs(t, err, services.ErrInvalidAISummarySettings)
-	assert.Contains(t, err.Error(), "top_n")
+	assert.Contains(t, err.Error(), "top_n must be between 1 and 10")
 }
 
-// The cap itself is inclusive, matching the storage CHECK.
-func TestTeamAISummarySettingsService_Update_AcceptsTopNAtTheCap(t *testing.T) {
-	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+// The limit is inclusive, matching the storage CHECK, and no instance value
+// narrows it: the instance default top_n of 3 is a default, not a ceiling.
+func TestTeamAISummarySettingsService_Update_AcceptsTopNAtTheHardLimit(t *testing.T) {
+	instance := aiSummaryInstanceValues()
+	instance.TopN = 3
+	svc, repo, providers := newAISummarySettingsServiceWithInstance(
+		t, allowAllAuthz{}, nil, &fakeAISummaryInstance{values: instance})
 	expectProviderOwnedByTeam(providers)
 	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
 	expectProviderCount(providers, 1)
 
 	values := aiSummaryTeamProfile()
-	values.TopN = aiSummaryInstanceConfig().MaxTopN
-
-	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, values)
-
-	assert.NoError(t, err)
-}
-
-// max_output_tokens_ceiling is instance-owned too (#1085): a team may tune
-// max_output_tokens only INSIDE it, and the error names the ceiling.
-func TestTeamAISummarySettingsService_Update_RejectsMaxOutputTokensAboveCeiling(t *testing.T) {
-	// No repo expectations: a rejected profile must never reach storage.
-	svc, _, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
-	values := aiSummaryTeamProfile()
-	values.MaxOutputTokens = aiSummaryInstanceConfig().MaxOutputTokensCeiling + 1
-
-	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, values)
-
-	assert.ErrorIs(t, err, services.ErrInvalidAISummarySettings)
-	assert.Contains(t, err.Error(), "max_output_tokens must be between 1 and 2000")
-}
-
-// The ceiling is inclusive.
-func TestTeamAISummarySettingsService_Update_AcceptsMaxOutputTokensAtTheCeiling(t *testing.T) {
-	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
-	expectProviderOwnedByTeam(providers)
-	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
-	expectProviderCount(providers, 1)
-
-	values := aiSummaryTeamProfile()
-	values.MaxOutputTokens = aiSummaryInstanceConfig().MaxOutputTokensCeiling
+	values.TopN = models.MaxAISummaryTopN
 
 	view, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, values)
 
 	require.NoError(t, err)
-	assert.Equal(t, 2000, view.Values.MaxOutputTokens)
-	assert.Equal(t, 2000, view.MaxOutputTokensCeiling)
+	assert.Equal(t, models.MaxAISummaryTopN, view.Values.TopN)
+}
+
+// max_output_tokens is bounded by the hard limit alone too (#1199), and the
+// error names it.
+func TestTeamAISummarySettingsService_Update_RejectsMaxOutputTokensAboveTheHardLimit(t *testing.T) {
+	// No repo expectations: a rejected profile must never reach storage.
+	svc, _, _ := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	values := aiSummaryTeamProfile()
+	values.MaxOutputTokens = models.MaxAISummaryOutputTokens + 1
+
+	_, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, values)
+
+	assert.ErrorIs(t, err, services.ErrInvalidAISummarySettings)
+	assert.Contains(t, err.Error(), "max_output_tokens must be between 1 and 32768")
+}
+
+// The limit is inclusive, and far above the instance default of 800.
+func TestTeamAISummarySettingsService_Update_AcceptsMaxOutputTokensAtTheHardLimit(t *testing.T) {
+	svc, repo, providers := newAISummarySettingsService(t, allowAllAuthz{}, nil)
+	expectProviderOwnedByTeam(providers)
+	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
+	expectProviderCount(providers, 1)
+
+	values := aiSummaryTeamProfile()
+	values.MaxOutputTokens = models.MaxAISummaryOutputTokens
+
+	view, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, values)
+
+	require.NoError(t, err)
+	assert.Equal(t, models.MaxAISummaryOutputTokens, view.Values.MaxOutputTokens)
+	assert.Equal(t, models.MaxAISummaryOutputTokens, view.MaxOutputTokensCeiling)
+}
+
+// The instance defaults are resolved per call: an instance admin's change
+// shows up as the effective values of a team with no profile, and as
+// instance_defaults for every team, on the very next call — no restart.
+func TestTeamAISummarySettingsService_InstanceChangeAppliesOnTheNextCall(t *testing.T) {
+	instance := &fakeAISummaryInstance{values: aiSummaryInstanceValues()}
+	svc, repo, providers := newAISummarySettingsServiceWithInstance(t, allowAllAuthz{}, nil, instance)
+	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
+	expectProviderCount(providers, 1)
+
+	first, err := svc.Resolve(context.Background(), testTeamID)
+	require.NoError(t, err)
+	assert.Equal(t, 5, first.Values.TopN)
+
+	instance.values.Enabled = false
+	instance.values.TopN = 7
+	instance.values.Style = models.AISummaryStyleConcise
+	instance.values.MaxOutputTokens = 1500
+
+	second, err := svc.Resolve(context.Background(), testTeamID)
+	require.NoError(t, err)
+	want := models.TeamAISummarySettingsValues{
+		Enabled: false, TopN: 7, Style: models.AISummaryStyleConcise, MaxOutputTokens: 1500,
+	}
+	assert.Equal(t, want, second.Values)
+	assert.Equal(t, want, second.InstanceDefaults)
+
+	got, err := svc.Get(context.Background(), testTeamID)
+	require.NoError(t, err)
+	assert.Equal(t, want, got.Values)
+	assert.False(t, svc.Availability(context.Background(), testTeamID).Enabled,
+		"with no profile, the instance enabled default decides availability")
+}
+
+// A stored team profile still wins over the instance defaults — including
+// enabled=true when the instance default is false: the instance value is a
+// default, not a kill switch.
+func TestTeamAISummarySettingsService_TeamProfileWinsOverInstanceDefaults(t *testing.T) {
+	instance := aiSummaryInstanceValues()
+	instance.Enabled = false
+	svc, repo, providers := newAISummarySettingsServiceWithInstance(
+		t, allowAllAuthz{}, nil, &fakeAISummaryInstance{values: instance})
+	repo.EXPECT().Get(mock.Anything, testTeamID).Return(&models.TeamAISummarySettings{
+		TeamID: testTeamID, Enabled: true, TopN: 9, Style: models.AISummaryStyleDetailed, MaxOutputTokens: 5000,
+	}, nil)
+	expectProviderCount(providers, 1)
+
+	view, err := svc.Resolve(context.Background(), testTeamID)
+
+	require.NoError(t, err)
+	assert.Equal(t, models.TeamAISummarySettingsSourceTeam, view.Source)
+	assert.True(t, view.Values.Enabled)
+	assert.Equal(t, 9, view.Values.TopN)
+	assert.False(t, view.InstanceDefaults.Enabled)
+	assert.Equal(t, models.AISummaryAvailability{Available: true, Enabled: true},
+		svc.Availability(context.Background(), testTeamID))
 }
 
 // invalidAISummaryValues covers one violation per validation bound; each mirrors

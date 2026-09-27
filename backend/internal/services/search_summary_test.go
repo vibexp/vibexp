@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
@@ -76,12 +75,30 @@ func enabledSummarySettings() models.TeamAISummarySettingsValues {
 	}
 }
 
-func testSummaryBudget() config.AISummaryConfig {
-	return config.AISummaryConfig{
-		PerDocumentChars:  100,
-		TotalContextChars: 250,
-		RequestTimeout:    30 * time.Second,
-	}
+// fakeInstanceAISummary resolves whatever values it currently holds, so a test
+// can change them between two calls and observe the next call pick them up.
+type fakeInstanceAISummary struct {
+	values models.InstanceAISummarySettingsValues
+	calls  int
+}
+
+func (f *fakeInstanceAISummary) Resolve(context.Context) models.InstanceAISummarySettingsValues {
+	f.calls++
+	return f.values
+}
+
+func testSummaryBudget() *fakeInstanceAISummary {
+	values := models.DefaultInstanceAISummarySettings()
+	values.PerDocumentChars = 100
+	values.TotalContextChars = 250
+	values.RequestTimeout = 30 * time.Second
+	return &fakeInstanceAISummary{values: values}
+}
+
+// instanceBudget returns the fake instance resolver's values for a test to
+// edit in place.
+func instanceBudget(svc *SearchSummaryService) *models.InstanceAISummarySettingsValues {
+	return &svc.instance.(*fakeInstanceAISummary).values
 }
 
 func summaryRow(n int, body string) models.SearchResultRow {
@@ -401,7 +418,7 @@ func TestSummarize_NoRequestTimeoutMeansNoExtraDeadline(t *testing.T) {
 	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
 	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
 	svc := newTestSearchSummaryService(search, llm, enabledSummarySettings())
-	svc.budget.RequestTimeout = 0
+	instanceBudget(svc).RequestTimeout = 0
 
 	_, err := svc.Summarize(context.Background(), testSummaryTeamID, &models.SearchSummaryRequest{Query: "q"})
 
@@ -411,7 +428,7 @@ func TestSummarize_NoRequestTimeoutMeansNoExtraDeadline(t *testing.T) {
 
 func TestNewSearchSummaryService_NilLoggerFallsBack(t *testing.T) {
 	svc := NewSearchSummaryService(&fakeSourceSearcher{}, &fakeCompleter{},
-		fixedSummarySettings{}, config.AISummaryConfig{}, nil)
+		fixedSummarySettings{}, &fakeInstanceAISummary{}, nil)
 
 	assert.NotNil(t, svc.logger)
 }
@@ -420,7 +437,7 @@ func TestSummarize_CompletionEndsBeforeTheCallersDeadline(t *testing.T) {
 	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
 	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
 	svc := newTestSearchSummaryService(search, llm, enabledSummarySettings())
-	svc.budget.RequestTimeout = 10 * time.Minute // far past the request's own budget
+	instanceBudget(svc).RequestTimeout = 10 * time.Minute // far past the request's own budget
 
 	callerDeadline := time.Now().Add(20 * time.Second)
 	ctx, cancel := context.WithDeadline(context.Background(), callerDeadline)
@@ -438,7 +455,7 @@ func TestSummarize_RequestTimeoutAppliesWhenSoonerThanTheCallersDeadline(t *test
 	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
 	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
 	svc := newTestSearchSummaryService(search, llm, enabledSummarySettings())
-	svc.budget.RequestTimeout = 5 * time.Second
+	instanceBudget(svc).RequestTimeout = 5 * time.Second
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Hour))
 	defer cancel()
@@ -465,44 +482,82 @@ func TestSummarize_EmptyAnswerIsAModelError(t *testing.T) {
 	}
 }
 
-func TestSummarize_TopNIsClampedToTheInstanceCap(t *testing.T) {
+func TestSummarize_TopNAtTheHardLimitIsKept(t *testing.T) {
 	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
 	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
 	values := enabledSummarySettings()
-	values.TopN = 10 // saved before the operator lowered max_top_n
+	values.TopN = models.MaxAISummaryTopN
 	svc := newTestSearchSummaryService(search, llm, values)
-	svc.budget.MaxTopN = 3
+	instanceBudget(svc).TopN = 3 // an instance default is not a ceiling (#1199)
 
 	_, err := svc.Summarize(context.Background(), testSummaryTeamID, &models.SearchSummaryRequest{Query: "q"})
 
 	require.NoError(t, err)
-	assert.Equal(t, 3, search.got.PerPage)
+	assert.Equal(t, models.MaxAISummaryTopN, search.got.PerPage)
 }
 
-func TestSummarize_MaxOutputTokensIsClampedToTheInstanceCeiling(t *testing.T) {
+func TestSummarize_TopNIsClampedToTheHardLimit(t *testing.T) {
 	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
 	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
 	values := enabledSummarySettings()
-	values.MaxOutputTokens = 4000 // saved before the operator lowered the ceiling
+	values.TopN = models.MaxAISummaryTopN + 1 // a row written before validation
 	svc := newTestSearchSummaryService(search, llm, values)
-	svc.budget.MaxOutputTokensCeiling = 1000
 
 	_, err := svc.Summarize(context.Background(), testSummaryTeamID, &models.SearchSummaryRequest{Query: "q"})
 
 	require.NoError(t, err)
-	assert.Equal(t, 1000, llm.gotReq.MaxTokens)
+	assert.Equal(t, models.MaxAISummaryTopN, search.got.PerPage)
 }
 
-func TestSummarize_MaxOutputTokensInsideTheCeilingIsKept(t *testing.T) {
+func TestSummarize_MaxOutputTokensIsClampedToTheHardLimit(t *testing.T) {
 	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
 	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
 	values := enabledSummarySettings()
-	values.MaxOutputTokens = 1000
+	values.MaxOutputTokens = models.MaxAISummaryOutputTokens + 1 // the team row has no CHECK for it
 	svc := newTestSearchSummaryService(search, llm, values)
-	svc.budget.MaxOutputTokensCeiling = 1000
 
 	_, err := svc.Summarize(context.Background(), testSummaryTeamID, &models.SearchSummaryRequest{Query: "q"})
 
 	require.NoError(t, err)
-	assert.Equal(t, 1000, llm.gotReq.MaxTokens)
+	assert.Equal(t, models.MaxAISummaryOutputTokens, llm.gotReq.MaxTokens)
+}
+
+func TestSummarize_MaxOutputTokensAtTheHardLimitIsKept(t *testing.T) {
+	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, "x")}}
+	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
+	values := enabledSummarySettings()
+	values.MaxOutputTokens = models.MaxAISummaryOutputTokens
+	svc := newTestSearchSummaryService(search, llm, values)
+	instanceBudget(svc).MaxOutputTokens = 800 // an instance default is not a ceiling (#1199)
+
+	_, err := svc.Summarize(context.Background(), testSummaryTeamID, &models.SearchSummaryRequest{Query: "q"})
+
+	require.NoError(t, err)
+	assert.Equal(t, models.MaxAISummaryOutputTokens, llm.gotReq.MaxTokens)
+}
+
+func TestSummarize_InstanceBudgetChangeAppliesOnTheNextCall(t *testing.T) {
+	search := &fakeSourceSearcher{rows: []models.SearchResultRow{summaryRow(1, strings.Repeat("z", 200))}}
+	llm := &fakeCompleter{resp: &models.CompletionResponse{Content: "a", ProviderID: "p", Model: "m"}}
+	svc := newTestSearchSummaryService(search, llm, enabledSummarySettings())
+	req := &models.SearchSummaryRequest{Query: "q"}
+
+	first, err := svc.Summarize(context.Background(), testSummaryTeamID, req)
+	require.NoError(t, err)
+	require.True(t, first.Sources[0].Truncated, "100-char per-document budget cuts a 200-char body")
+	assert.NotContains(t, llm.gotReq.Messages[1].Content, strings.Repeat("z", 101))
+
+	// An instance admin raises the budgets: no restart, no new service.
+	instanceBudget(svc).PerDocumentChars = 500
+	instanceBudget(svc).TotalContextChars = 500
+	instanceBudget(svc).RequestTimeout = 3 * time.Second
+	before := time.Now()
+
+	second, err := svc.Summarize(context.Background(), testSummaryTeamID, req)
+	require.NoError(t, err)
+	assert.False(t, second.Sources[0].Truncated)
+	assert.Contains(t, llm.gotReq.Messages[1].Content, strings.Repeat("z", 200))
+	require.True(t, llm.gotDeadline)
+	assert.WithinDuration(t, before.Add(3*time.Second), llm.deadline, time.Second)
+	assert.Equal(t, 2, svc.instance.(*fakeInstanceAISummary).calls, "resolved once per call, never cached")
 }

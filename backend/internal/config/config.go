@@ -807,22 +807,16 @@ func validateSearchRankingConfig(cfg *Config) error {
 	return nil
 }
 
-// MaxAISummaryTopN is the absolute ceiling on how many documents a single
-// summary request may assemble, for the whole deployment. ai_summary.max_top_n
-// tunes the per-team limit DOWNWARD inside it, and the
-// team_ai_summary_settings.top_n and instance_ai_summary_settings.top_n CHECK
-// constraints (migrations 017 and 022) mirror this constant bound for bound — so
-// a value the database would reject can never be configured.
-const MaxAISummaryTopN = 10
-
-// MaxAISummaryOutputTokens is the absolute ceiling on
-// ai_summary.max_output_tokens_ceiling (#1085). The
-// instance_ai_summary_settings.max_output_tokens CHECK constraint (migration
-// 022) pins it for the instance row; change both together. The team row is
-// deliberately checked only for > 0 (migration 017): the bound for a team is
-// enforced in the service on save and clamped again at request time, which also
-// covers an operator lowering the ceiling later.
-const MaxAISummaryOutputTokens = 32768
+// MaxAISummaryTopN and MaxAISummaryOutputTokens alias the hard AI summary
+// limits, whose single definition is in models (they are shared with the
+// services layer, which config must not import). ai_summary.max_top_n and
+// ai_summary.max_output_tokens_ceiling are still validated against them until
+// the `ai_summary:` block is removed from config (#1201/#1203), but since #1199
+// neither bounds a team any more: teams are bounded by these limits alone.
+const (
+	MaxAISummaryTopN         = models.MaxAISummaryTopN
+	MaxAISummaryOutputTokens = models.MaxAISummaryOutputTokens
+)
 
 // validateAISummaryConfig fails closed on an AI summary block that could not be
 // satisfied: a non-positive budget, a top_n outside the instance cap, or a style
@@ -1329,18 +1323,23 @@ func defaults() map[string]any {
 // own map, merged above, because defaults() sits at golangci's function-length
 // ceiling — folding a section in keeps adding one knob from forcing an unrelated
 // refactor of every other default.
+//
+// The values themselves come from models.DefaultInstanceAISummarySettings, the
+// same built-in defaults the instance settings service falls back to, so the
+// numbers exist once.
 func aiSummaryDefaults() map[string]any {
+	d := models.DefaultInstanceAISummarySettings()
 	return map[string]any{
-		"ai_summary.enabled":             true,
-		"ai_summary.top_n":               5,
+		"ai_summary.enabled":             d.Enabled,
+		"ai_summary.top_n":               d.TopN,
 		"ai_summary.max_top_n":           MaxAISummaryTopN,
-		"ai_summary.per_document_chars":  8000,
-		"ai_summary.total_context_chars": 32000,
-		"ai_summary.max_output_tokens":   800,
+		"ai_summary.per_document_chars":  d.PerDocumentChars,
+		"ai_summary.total_context_chars": d.TotalContextChars,
+		"ai_summary.max_output_tokens":   d.MaxOutputTokens,
 		// 4096 leaves the 800 default ample headroom; see MaxAISummaryOutputTokens.
 		"ai_summary.max_output_tokens_ceiling": 4096,
-		"ai_summary.request_timeout":           "60s",
-		"ai_summary.style":                     models.AISummaryStyleBalanced,
+		"ai_summary.request_timeout":           d.RequestTimeout.String(),
+		"ai_summary.style":                     d.Style,
 	}
 }
 

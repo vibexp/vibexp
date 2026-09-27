@@ -3,9 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
-	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -137,6 +135,9 @@ func (r *InstanceSearchSettingsRepository) Delete(ctx context.Context) error {
 	return nil
 }
 
+// instanceSearchSettingsSubject names the table's settings in errors and logs.
+const instanceSearchSettingsSubject = "instance search settings"
+
 // UpsertAudited creates or replaces the stored defaults and appends the audit
 // entry audit builds, in one transaction.
 func (r *InstanceSearchSettingsRepository) UpsertAudited(
@@ -148,7 +149,8 @@ func (r *InstanceSearchSettingsRepository) UpsertAudited(
 		if err != nil {
 			return false, fmt.Errorf("failed to upsert instance search settings: %w", err)
 		}
-		return true, appendBuiltInstanceSearchAudit(ctx, tx, audit, before, s)
+		return true, appendBuiltSingletonAudit[models.InstanceSearchSettings](
+			ctx, tx, instanceSearchSettingsSubject, audit, before, s)
 	})
 }
 
@@ -166,69 +168,24 @@ func (r *InstanceSearchSettingsRepository) DeleteAudited(
 			return false, fmt.Errorf("failed to delete instance search settings: %w", err)
 		}
 		deleted = true
-		return true, appendBuiltInstanceSearchAudit(ctx, tx, audit, before, nil)
+		return true, appendBuiltSingletonAudit[models.InstanceSearchSettings](
+			ctx, tx, instanceSearchSettingsSubject, audit, before, nil)
 	})
 	return deleted, err
 }
 
-// instanceSearchSettingsWriteLock serializes audited writes. A row lock (SELECT
-// ... FOR UPDATE) is not enough: on an empty table it matches nothing and locks
-// nothing, so two concurrent first saves would both read before = nil and the
-// audit log would lose a transition. SHARE ROW EXCLUSIVE conflicts with itself
-// and with every other write (ROW EXCLUSIVE) but not with plain reads, so
-// searches resolving the defaults are never blocked.
+// instanceSearchSettingsWriteLock serializes audited writes; see
+// runAuditedSingletonTx for why it is a table lock.
 const instanceSearchSettingsWriteLock = `LOCK TABLE instance_search_settings IN SHARE ROW EXCLUSIVE MODE`
 
-// inAuditedTx runs change inside a transaction that holds the table's write
-// lock, handing it the current row (nil when none is stored), and commits only
-// when change succeeds and reports it wrote something. Any error rolls the
-// whole change back.
+// inAuditedTx runs change under the table's write lock with the current row;
+// see runAuditedSingletonTx.
 func (r *InstanceSearchSettingsRepository) inAuditedTx(
 	ctx context.Context, op string,
 	change func(tx *sql.Tx, before *models.InstanceSearchSettings) (bool, error),
 ) error {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin instance search settings %s: %w", op, err)
-	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			slog.Error("Failed to rollback instance search settings transaction", "op", op, "error", rollbackErr)
-		}
-	}()
-
-	if _, err = tx.ExecContext(ctx, instanceSearchSettingsWriteLock); err != nil {
-		return fmt.Errorf("failed to lock instance search settings for %s: %w", op, err)
-	}
-
-	before, err := scanInstanceSearchSettings(tx.QueryRowContext(ctx, instanceSearchSettingsSelect))
-	if errors.Is(err, sql.ErrNoRows) {
-		before, err = nil, nil
-	}
-	if err != nil {
-		return fmt.Errorf("failed to read instance search settings for %s: %w", op, err)
-	}
-
-	wrote, err := change(tx, before)
-	if err != nil || !wrote {
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit instance search settings %s: %w", op, err)
-	}
-	return nil
-}
-
-// appendBuiltInstanceSearchAudit builds the entry through audit and appends it
-// inside tx.
-func appendBuiltInstanceSearchAudit(
-	ctx context.Context, tx *sql.Tx, audit repositories.InstanceSearchSettingsAuditFunc,
-	before, after *models.InstanceSearchSettings,
-) error {
-	entry, err := audit(before, after)
-	if err != nil {
-		return fmt.Errorf("failed to build instance search settings audit entry: %w", err)
-	}
-	return appendInstanceSettingsAudit(ctx, tx, entry)
+	return runAuditedSingletonTx(ctx, r.db, instanceSearchSettingsSubject, op, instanceSearchSettingsWriteLock,
+		func(tx *sql.Tx) (*models.InstanceSearchSettings, error) {
+			return scanInstanceSearchSettings(tx.QueryRowContext(ctx, instanceSearchSettingsSelect))
+		}, change)
 }

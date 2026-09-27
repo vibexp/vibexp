@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
@@ -42,11 +41,11 @@ type SearchSummaryService struct {
 	search   SourceDocumentSearcher
 	llm      LLMCompleter
 	settings AISummarySettingsResolver
-	// budget holds the instance-only context budgets and request timeout. They
-	// size the work one request may ask of the operator's model, so no team
-	// setting can raise them.
-	budget config.AISummaryConfig
-	logger *slog.Logger
+	// instance resolves, per request, the instance-only context budgets and
+	// request timeout (#1199). They size the context the server assembles for
+	// one request, so no team setting can raise them.
+	instance InstanceAISummarySettingsResolver
+	logger   *slog.Logger
 	// now stamps generated_at; overridable in tests.
 	now func() time.Time
 }
@@ -58,7 +57,7 @@ func NewSearchSummaryService(
 	search SourceDocumentSearcher,
 	llm LLMCompleter,
 	settings AISummarySettingsResolver,
-	budget config.AISummaryConfig,
+	instance InstanceAISummarySettingsResolver,
 	logger *slog.Logger,
 ) *SearchSummaryService {
 	if logger == nil {
@@ -68,7 +67,7 @@ func NewSearchSummaryService(
 		search:   search,
 		llm:      llm,
 		settings: settings,
-		budget:   budget,
+		instance: instance,
 		logger:   logger,
 		now:      time.Now,
 	}
@@ -94,7 +93,7 @@ func (s *SearchSummaryService) Summarize(
 		Types:     req.Types,
 		ProjectID: req.ProjectID,
 		Page:      1,
-		PerPage:   s.topN(settings.TopN),
+		PerPage:   summaryTopN(settings.TopN),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("SearchSummaryService.Summarize: search: %w", err)
@@ -103,14 +102,15 @@ func (s *SearchSummaryService) Summarize(
 		return nil, ErrAISummaryNoResults
 	}
 
-	docs := buildSummaryContext(rows, s.budget.PerDocumentChars, s.budget.TotalContextChars)
+	budget := s.instance.Resolve(ctx)
+	docs := buildSummaryContext(rows, budget.PerDocumentChars, budget.TotalContextChars)
 
-	completionCtx, cancel := s.completionContext(ctx)
+	completionCtx, cancel := completionContext(ctx, budget.RequestTimeout)
 	defer cancel()
 
 	resp, err := s.llm.Complete(completionCtx, teamID, settings.ModelProviderID, models.CompletionRequest{
 		Messages:  buildSummaryMessages(req.Query, settings.Style, docs),
-		MaxTokens: s.maxOutputTokens(settings.MaxOutputTokens),
+		MaxTokens: summaryMaxOutputTokens(settings.MaxOutputTokens),
 	})
 	if err != nil {
 		return nil, err
@@ -159,37 +159,32 @@ func (s *SearchSummaryService) newSearchSummary(
 // to a connection that is open.
 const summaryResponseMargin = 2 * time.Second
 
-// topN bounds the team's TopN by the instance cap. The team value was checked
-// against max_top_n when it was saved, but an operator can lower the cap later,
-// and the cap is a ceiling a team can never exceed.
-func (s *SearchSummaryService) topN(teamTopN int) int {
-	if s.budget.MaxTopN > 0 && teamTopN > s.budget.MaxTopN {
-		return s.budget.MaxTopN
-	}
-	return teamTopN
+// summaryTopN bounds the team's TopN by the hard limit models.MaxAISummaryTopN.
+// The value was validated against the same limit when it was saved; the clamp
+// is defence in depth for a row written before that, since the limit is a
+// ceiling no team may exceed.
+func summaryTopN(teamTopN int) int {
+	return min(teamTopN, models.MaxAISummaryTopN)
 }
 
-// maxOutputTokens bounds the team's answer-length budget by the instance's
-// ai_summary.max_output_tokens_ceiling (#1085), for the same reason as topN: a
-// value saved under a higher ceiling must not outlive the operator lowering it.
-func (s *SearchSummaryService) maxOutputTokens(teamMaxOutputTokens int) int {
-	if s.budget.MaxOutputTokensCeiling > 0 && teamMaxOutputTokens > s.budget.MaxOutputTokensCeiling {
-		return s.budget.MaxOutputTokensCeiling
-	}
-	return teamMaxOutputTokens
+// summaryMaxOutputTokens bounds the team's answer-length budget by the hard
+// limit models.MaxAISummaryOutputTokens, for the same reason as summaryTopN.
+// team_ai_summary_settings has no storage CHECK for this bound (#1085).
+func summaryMaxOutputTokens(teamMaxOutputTokens int) int {
+	return min(teamMaxOutputTokens, models.MaxAISummaryOutputTokens)
 }
 
-// completionContext bounds the completion by ai_summary.request_timeout AND by
+// completionContext bounds the completion by the instance request timeout AND by
 // the incoming request's own deadline less summaryResponseMargin, whichever is
 // sooner. The HTTP server gives every request a fixed budget (the Timeout
 // middleware and WriteTimeout), and embedding + search have already spent part
 // of it; a completion allowed to run to that budget's end would time out after
 // the response can no longer be written, and the caller would see a dropped
 // connection instead of AI_SUMMARY_TIMEOUT.
-func (s *SearchSummaryService) completionContext(ctx context.Context) (context.Context, context.CancelFunc) {
+func completionContext(ctx context.Context, requestTimeout time.Duration) (context.Context, context.CancelFunc) {
 	var deadline time.Time
-	if s.budget.RequestTimeout > 0 {
-		deadline = time.Now().Add(s.budget.RequestTimeout)
+	if requestTimeout > 0 {
+		deadline = time.Now().Add(requestTimeout)
 	}
 	if callerDeadline, ok := ctx.Deadline(); ok {
 		reserved := callerDeadline.Add(-summaryResponseMargin)

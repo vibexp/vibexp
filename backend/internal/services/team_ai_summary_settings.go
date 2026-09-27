@@ -7,13 +7,14 @@ import (
 	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/authz"
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 // ErrInvalidAISummarySettings is returned when a submitted summary profile is
-// outside the bounds the instance allows. Handlers map it to 400.
+// outside the hard limits (models.MaxAISummaryTopN,
+// models.MaxAISummaryOutputTokens) or names an unknown style or another team's
+// model provider. Handlers map it to 400.
 var ErrInvalidAISummarySettings = errors.New("invalid AI summary settings")
 
 // TeamAISummarySettingsServiceInterface is the team-level AI summary settings
@@ -32,7 +33,7 @@ type TeamAISummarySettingsServiceInterface interface {
 	Get(ctx context.Context, teamID string) (*models.TeamAISummarySettingsView, error)
 	// Update stores a complete replacement profile for the team. Requires
 	// authz.TeamSettingsUpdate; returns an ErrInvalidAISummarySettings-wrapped
-	// error for a profile outside the instance bounds, or for a
+	// error for a profile outside the hard limits, or for a
 	// model_provider_id that is not one of the team's own providers.
 	Update(
 		ctx context.Context, userID, teamID string, values models.TeamAISummarySettingsValues,
@@ -69,9 +70,10 @@ type AISummaryAvailabilityResolver interface {
 // TeamAISummarySettingsService implements TeamAISummarySettingsServiceInterface,
 // AISummarySettingsResolver and AISummaryAvailabilityResolver.
 //
-// defaults is the deployment-wide `ai_summary:` config. It is both the fallback
-// for a team with no stored profile and the instance_defaults reported on every
-// read, so a client can preview a reset without a second request.
+// instance resolves the instance AI summary defaults per call (#1199). They are
+// both the fallback for a team with no stored profile and the instance_defaults
+// reported on every read, so a client can preview a reset without a second
+// request, and a change to them applies on the next call without a restart.
 type TeamAISummarySettingsService struct {
 	repo repositories.TeamAISummarySettingsRepository
 	// providers resolves a submitted model_provider_id WITHIN the team, which
@@ -79,7 +81,7 @@ type TeamAISummarySettingsService struct {
 	// model_providers(id) alone and therefore proves existence, not ownership.
 	providers repositories.ModelProviderRepository
 	authz     AuthorizationServiceInterface
-	defaults  config.AISummaryConfig
+	instance  InstanceAISummarySettingsResolver
 	logger    *slog.Logger
 }
 
@@ -94,47 +96,34 @@ func NewTeamAISummarySettingsService(
 	repo repositories.TeamAISummarySettingsRepository,
 	providers repositories.ModelProviderRepository,
 	authzService AuthorizationServiceInterface,
-	defaults config.AISummaryConfig,
+	instance InstanceAISummarySettingsResolver,
 	logger *slog.Logger,
 ) *TeamAISummarySettingsService {
 	return &TeamAISummarySettingsService{
 		repo:      repo,
 		providers: providers,
 		authz:     authzService,
-		defaults:  defaults,
+		instance:  instance,
 		logger:    logger,
 	}
 }
 
-// instanceValues renders the deployment defaults as a profile.
-//
-// ModelProviderID is always nil: the instance has no opinion on which of a
-// team's model providers to use, so inheriting means "the team default".
-func (s *TeamAISummarySettingsService) instanceValues() models.TeamAISummarySettingsValues {
-	return models.TeamAISummarySettingsValues{
-		Enabled:         bool(s.defaults.Enabled),
-		ModelProviderID: nil,
-		TopN:            int(s.defaults.TopN),
-		Style:           s.defaults.Style,
-		MaxOutputTokens: s.defaults.MaxOutputTokens,
-	}
-}
-
-// view assembles the response shape from the effective values, their source
-// and the team's current AI summary availability.
-func (s *TeamAISummarySettingsService) view(
-	source string, values models.TeamAISummarySettingsValues, available bool,
+// teamAISummarySettingsView assembles the response shape from the effective
+// values, their source, the instance defaults and the team's current AI summary
+// availability. The caller resolves the instance defaults once per request, so
+// every field of one response comes from the same snapshot.
+func teamAISummarySettingsView(
+	source string, values models.TeamAISummarySettingsValues,
+	instance models.InstanceAISummarySettingsValues, available bool,
 ) *models.TeamAISummarySettingsView {
 	return &models.TeamAISummarySettingsView{
 		Source:           source,
 		Values:           values,
-		InstanceDefaults: s.instanceValues(),
-		// Instance-owned and never team-configurable: it bounds how much context
-		// a single summary request may assemble.
-		MaxTopN: s.defaults.MaxTopN,
-		// Likewise instance-owned: it bounds the answer length a team may ask
-		// the operator's model for (#1085).
-		MaxOutputTokensCeiling: s.defaults.MaxOutputTokensCeiling,
+		InstanceDefaults: instance.TeamValues(),
+		// Deprecated on the wire (#1199): both report the hard code limits,
+		// which are all that bound a team now.
+		MaxTopN:                models.MaxAISummaryTopN,
+		MaxOutputTokensCeiling: models.MaxAISummaryOutputTokens,
 		Available:              available,
 	}
 }
@@ -181,16 +170,20 @@ func (s *TeamAISummarySettingsService) Get(
 	if err != nil {
 		return nil, fmt.Errorf("TeamAISummarySettingsService.Get: %w", err)
 	}
+	instance := s.instance.Resolve(ctx)
 	if stored == nil {
-		return s.view(models.TeamAISummarySettingsSourceInstance, s.instanceValues(), available), nil
+		return teamAISummarySettingsView(
+			models.TeamAISummarySettingsSourceInstance, instance.TeamValues(), instance, available), nil
 	}
-	return s.view(models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), available), nil
+	return teamAISummarySettingsView(
+		models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), instance, available), nil
 }
 
 // Resolve implements AISummarySettingsResolver.
 //
 // It FAILS OPEN: a repository error logs at warn and yields the instance
-// defaults instead of an error. Summarisation is a tuning surface over work the
+// defaults instead of an error (and the instance resolver fails open to the
+// built-in defaults in turn). Summarisation is a tuning surface over work the
 // caller is doing anyway, so a blip reading one settings row must degrade the
 // tuning rather than fail the request that asked for the summary.
 //
@@ -203,18 +196,22 @@ func (s *TeamAISummarySettingsService) Get(
 func (s *TeamAISummarySettingsService) Resolve(
 	ctx context.Context, teamID string,
 ) (*models.TeamAISummarySettingsView, error) {
+	instance := s.instance.Resolve(ctx)
 	stored, err := s.repo.Get(ctx, teamID)
 	if err != nil {
 		s.logger.With("team_id", teamID, "error", err).
 			Warn("failed to read team AI summary settings; falling back to instance defaults")
-		return s.view(models.TeamAISummarySettingsSourceInstance, s.instanceValues(), s.availabilityOrFalse(ctx, teamID)), nil
+		stored = nil
 	}
 	available := s.availabilityOrFalse(ctx, teamID)
 	if stored == nil {
-		// No override row: the team inherits the instance defaults entirely.
-		return s.view(models.TeamAISummarySettingsSourceInstance, s.instanceValues(), available), nil
+		// No override row (or it could not be read): the team inherits the
+		// instance defaults entirely.
+		return teamAISummarySettingsView(
+			models.TeamAISummarySettingsSourceInstance, instance.TeamValues(), instance, available), nil
 	}
-	return s.view(models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), available), nil
+	return teamAISummarySettingsView(
+		models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), instance, available), nil
 }
 
 // Availability implements AISummaryAvailabilityResolver.
@@ -254,9 +251,7 @@ func (s *TeamAISummarySettingsService) Update(
 	if err := s.authz.Can(ctx, userID, teamID, authz.TeamSettingsUpdate); err != nil {
 		return nil, err
 	}
-	if err := ValidateAISummarySettings(
-		values, s.defaults.MaxTopN, s.defaults.MaxOutputTokensCeiling,
-	); err != nil {
+	if err := ValidateAISummarySettings(values); err != nil {
 		return nil, err
 	}
 	if err := s.requireOwnedProvider(ctx, teamID, values.ModelProviderID); err != nil {
@@ -279,7 +274,8 @@ func (s *TeamAISummarySettingsService) Update(
 		return nil, fmt.Errorf("TeamAISummarySettingsService.Update: %w", err)
 	}
 
-	return s.view(models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), available), nil
+	return teamAISummarySettingsView(
+		models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), s.instance.Resolve(ctx), available), nil
 }
 
 // Reset implements TeamAISummarySettingsServiceInterface.
@@ -331,27 +327,37 @@ func aiSummaryValuesFromStored(stored *models.TeamAISummarySettings) models.Team
 	}
 }
 
-// ValidateAISummarySettings rejects a summary profile the instance would not
-// honour, mirroring the team_ai_summary_settings CHECK constraints so an
+// ValidateAISummarySettings rejects a team summary profile outside the hard
+// limits, mirroring the team_ai_summary_settings CHECK constraints so an
 // operator reading a 400 and a developer reading a constraint violation see one
 // vocabulary.
 //
-// maxTopN is the instance's ai_summary.max_top_n and maxOutputTokens its
-// ai_summary.max_output_tokens_ceiling: neither is settable per team, which is
-// exactly what makes them the bounds checked here rather than values carried in
-// values. Unlike top_n, the output-token bound has no storage CHECK (#1085).
-func ValidateAISummarySettings(v models.TeamAISummarySettingsValues, maxTopN, maxOutputTokens int) error {
-	if v.TopN < 1 || v.TopN > maxTopN {
-		return fmt.Errorf("%w: top_n must be between 1 and %d, got %d",
-			ErrInvalidAISummarySettings, maxTopN, v.TopN)
+// Since #1199 the only bounds are the code constants models.MaxAISummaryTopN and
+// models.MaxAISummaryOutputTokens: no instance setting narrows what a team may
+// choose (epic #1196, decision 3), because summaries run on the team's own
+// model provider. Unlike top_n, the output-token bound has no team storage
+// CHECK (#1085).
+func ValidateAISummarySettings(v models.TeamAISummarySettingsValues) error {
+	if err := validateAISummaryProfileBounds(v); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidAISummarySettings, err)
 	}
-	if v.MaxOutputTokens < 1 || v.MaxOutputTokens > maxOutputTokens {
-		return fmt.Errorf("%w: max_output_tokens must be between 1 and %d, got %d",
-			ErrInvalidAISummarySettings, maxOutputTokens, v.MaxOutputTokens)
+	return nil
+}
+
+// validateAISummaryProfileBounds holds the rules every summary profile shares,
+// team and instance alike: top_n in [1, models.MaxAISummaryTopN],
+// max_output_tokens in [1, models.MaxAISummaryOutputTokens] and a known style.
+// It returns an unwrapped error; each caller wraps its own sentinel.
+func validateAISummaryProfileBounds(v models.TeamAISummarySettingsValues) error {
+	if v.TopN < 1 || v.TopN > models.MaxAISummaryTopN {
+		return fmt.Errorf("top_n must be between 1 and %d, got %d", models.MaxAISummaryTopN, v.TopN)
+	}
+	if v.MaxOutputTokens < 1 || v.MaxOutputTokens > models.MaxAISummaryOutputTokens {
+		return fmt.Errorf("max_output_tokens must be between 1 and %d, got %d",
+			models.MaxAISummaryOutputTokens, v.MaxOutputTokens)
 	}
 	if !models.IsValidAISummaryStyle(v.Style) {
-		return fmt.Errorf("%w: style must be one of %v, got %q",
-			ErrInvalidAISummarySettings, models.AISummaryStyles, v.Style)
+		return fmt.Errorf("style must be one of %v, got %q", models.AISummaryStyles, v.Style)
 	}
 	return nil
 }
