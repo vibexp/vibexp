@@ -258,6 +258,31 @@ func TestUpsertAdminInstanceEmailSettings_OmittedSecretKeepsStored(t *testing.T)
 	specconformance.AssertConformsToSpec(t, req, rr)
 }
 
+// TestUpsertAdminInstanceEmailSettings_CredentialFreeSMTPRelay: an SMTP create
+// with no secret configures an unauthenticated relay (#1208) — 200, nothing
+// stored, and the response reports has_credential false.
+func TestUpsertAdminInstanceEmailSettings_CredentialFreeSMTPRelay(t *testing.T) {
+	f := newInstanceEmailFixture(t)
+	f.repo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
+	var stored *models.InstanceEmailProvider
+	f.repo.On("Upsert", mock.Anything, mock.AnythingOfType("*models.InstanceEmailProvider")).
+		Run(func(args mock.Arguments) { stored = args.Get(1).(*models.InstanceEmailProvider) }).
+		Return(nil)
+	f.audit.On("Append", mock.Anything, mock.AnythingOfType("*models.InstanceSettingsAuditEntry")).Return(nil)
+
+	req := instanceEmailRequest(t, http.MethodPut, instanceEmailSettingsPath, smtpUpsertBody(nil))
+	rr := serveInstanceEmail(t, f.router, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	specconformance.AssertConformsToSpec(t, req, rr)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, true, got["configured"])
+	assert.Equal(t, false, got["has_credential"])
+	require.NotNil(t, stored)
+	assert.Nil(t, stored.SecretEncrypted)
+}
+
 func TestUpsertAdminInstanceEmailSettings_EmptySecretIs400(t *testing.T) {
 	f := newInstanceEmailFixture(t)
 	f.repo.On("Get", mock.Anything).Return(f.storedRow(t), nil)

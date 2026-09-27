@@ -1540,7 +1540,9 @@ type AdminInstanceEmailSettingsRequest struct {
 	//
 	// OMIT it to keep the stored credential, which is allowed only when the
 	// provider type is unchanged; a new configuration or a change of provider
-	// type must carry its own. An explicitly empty string is rejected.
+	// type must carry its own, except SMTP, where omitting it configures an
+	// unauthenticated relay (no credential is stored and no AUTH is
+	// attempted). An explicitly empty string is rejected.
 	Secret *string `json:"secret,omitempty"`
 
 	// Settings Per-type non-secret settings. Exactly the block matching `provider_type` may be present; a block belonging to another type is rejected rather than ignored. SendGrid has no block — its only configuration is its API key, which is the secret.
@@ -1577,7 +1579,9 @@ type AdminInstanceEmailTestRequest struct {
 	ReplyTo *openapi_types.Email `json:"reply_to,omitempty"`
 
 	// Secret The candidate credential. Omit it to test with the stored credential
-	// (same destination only, see above). Never returned.
+	// (same destination only, see above); an SMTP candidate with no
+	// credential to reuse is tested as an unauthenticated relay. Never
+	// returned.
 	Secret *string `json:"secret,omitempty"`
 
 	// Settings Per-type non-secret settings. Exactly the block matching `provider_type` may be present; a block belonging to another type is rejected rather than ignored. SendGrid has no block — its only configuration is its API key, which is the secret.

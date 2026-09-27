@@ -439,7 +439,8 @@ type InstanceEmailProviderServiceInterface interface {
 	Get(ctx context.Context) (*models.InstanceEmailProviderEffective, error)
 	// Upsert validates, encrypts and stores the configuration and appends one
 	// redacted audit entry. An omitted secret keeps the stored one when the
-	// provider type is unchanged; a type change requires a new secret.
+	// provider type is unchanged; a type change requires a new secret, except
+	// onto SMTP, where an omitted secret is an unauthenticated relay (#1208).
 	Upsert(ctx context.Context, actorUserID string,
 		req models.UpsertInstanceEmailProviderRequest) (*models.InstanceEmailProviderEffective, error)
 	// Delete removes the configuration and appends one redacted audit entry.

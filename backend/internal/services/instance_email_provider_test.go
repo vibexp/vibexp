@@ -134,20 +134,98 @@ func TestInstanceEmailProvider_Get_ReadFailureIsAnError(t *testing.T) {
 
 // --- Upsert ------------------------------------------------------------------
 
-func TestInstanceEmailProvider_Upsert_CreateRequiresASecret(t *testing.T) {
-	f := newInstanceProviderFixture(t)
-	f.repo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
+// instanceRequestOfType is a valid instance request of the given provider type
+// WITHOUT a secret, so the secret rule is the only thing under test.
+func instanceRequestOfType(providerType string) models.UpsertInstanceEmailProviderRequest {
+	req := models.UpsertInstanceEmailProviderRequest{
+		UpsertTeamEmailProviderRequest: models.UpsertTeamEmailProviderRequest{
+			ProviderType: providerType,
+			FromAddress:  "noreply@instance.test",
+		},
+	}
+	switch providerType {
+	case EmailProviderTypeSMTP:
+		req.Settings.SMTP = &models.SMTPProviderSettings{Host: "127.0.0.1", Port: "1025"}
+	case EmailProviderTypeMailgun:
+		req.Settings.Mailgun = &models.MailgunProviderSettings{Domain: "mg.instance.test"}
+	}
+	return req
+}
 
-	req := validInstanceSMTPRequest()
-	req.Secret = nil
+// expectInstanceUpsert captures the row an Upsert stores.
+func (f *instanceProviderFixture) expectInstanceUpsert() **models.InstanceEmailProvider {
+	var stored *models.InstanceEmailProvider
+	f.repo.On("Upsert", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		stored = args.Get(1).(*models.InstanceEmailProvider)
+	}).Return(nil).Once()
+	return &stored
+}
 
-	_, err := f.svc.Upsert(context.Background(), testProviderUserID, req)
+// On create, SMTP may omit the secret — an unauthenticated relay such as
+// Mailpit (#1208) — and stores no ciphertext; every API-key provider still
+// requires one.
+func TestInstanceEmailProvider_Upsert_CreateWithoutSecret(t *testing.T) {
+	t.Run("smtp is an unauthenticated relay", func(t *testing.T) {
+		f := newInstanceProviderFixture(t)
+		f.repo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
+		stored := f.expectInstanceUpsert()
+		entry := f.captureAppend()
 
-	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrTeamEmailProviderValidation)
-	assert.Contains(t, err.Error(), "secret")
-	f.repo.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything)
-	f.audit.AssertNotCalled(t, "Append", mock.Anything, mock.Anything)
+		effective, err := f.svc.Upsert(context.Background(), testProviderUserID,
+			instanceRequestOfType(EmailProviderTypeSMTP))
+
+		require.NoError(t, err)
+		assert.True(t, effective.Configured)
+		assert.False(t, effective.HasCredential)
+		require.NotNil(t, *stored)
+		assert.Nil(t, (*stored).SecretEncrypted, "no credential is stored")
+
+		after := snapshotMap(t, entry.After)
+		assert.Equal(t, false, after["has_credential"])
+		assert.Equal(t, models.InstanceSettingsAuditSecretUnchanged, after["secret"],
+			"the audit never implies a secret was set")
+	})
+
+	for _, providerType := range []string{
+		EmailProviderTypeMailgun, EmailProviderTypePostmark, EmailProviderTypeSendGrid,
+	} {
+		t.Run(providerType+" requires a secret", func(t *testing.T) {
+			f := newInstanceProviderFixture(t)
+			f.repo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
+
+			_, err := f.svc.Upsert(context.Background(), testProviderUserID, instanceRequestOfType(providerType))
+
+			var verr *TeamEmailProviderValidationError
+			require.ErrorAs(t, err, &verr)
+			assert.ErrorIs(t, err, ErrTeamEmailProviderValidation)
+			assert.Equal(t, []FieldError{{Field: "secret", Message: fieldMsgRequired}}, verr.Fields)
+			f.repo.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything)
+			f.audit.AssertNotCalled(t, "Append", mock.Anything, mock.Anything)
+		})
+	}
+}
+
+// An explicitly empty secret is still rejected for every type, SMTP included:
+// omitting the field, not blanking it, is how a relay is configured.
+func TestInstanceEmailProvider_Upsert_EmptySecretIsRejectedForEveryType(t *testing.T) {
+	for _, providerType := range []string{
+		EmailProviderTypeSMTP, EmailProviderTypeMailgun, EmailProviderTypePostmark, EmailProviderTypeSendGrid,
+	} {
+		t.Run(providerType, func(t *testing.T) {
+			f := newInstanceProviderFixture(t)
+			f.repo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
+			req := instanceRequestOfType(providerType)
+			empty := ""
+			req.Secret = &empty
+
+			_, err := f.svc.Upsert(context.Background(), testProviderUserID, req)
+
+			var verr *TeamEmailProviderValidationError
+			require.ErrorAs(t, err, &verr)
+			assert.Equal(t, "secret", verr.Fields[0].Field)
+			f.repo.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything)
+		})
+	}
 }
 
 func TestInstanceEmailProvider_Upsert_CreateEncryptsAndAuditsOnce(t *testing.T) {
@@ -519,6 +597,21 @@ func TestInstanceEmailProvider_Test_BorrowsTheStoredSecretOnlyForTheSameDestinat
 			FromAddress:  "noreply@instance.test",
 		},
 	}
+	t.Run("different type", func(t *testing.T) {
+		f := newInstanceProviderFixture(t)
+		f.repo.On("Get", mock.Anything).Return(f.storedRow(t), nil)
+		f.expectActingUser()
+
+		_, err := f.svc.Test(context.Background(), testProviderUserID,
+			models.TestInstanceEmailProviderRequest{Config: &sendgrid})
+
+		var verr *TeamEmailProviderValidationError
+		require.ErrorAs(t, err, &verr)
+		assert.Equal(t, "secret", verr.Fields[0].Field)
+	})
+
+	// An SMTP candidate for another destination is not rejected (#1208): it is
+	// tested as an unauthenticated relay, and the stored secret stays out of it.
 	otherHost := validInstanceSMTPRequest()
 	otherHost.Secret = nil
 	otherHost.Settings.SMTP.Host = "collector.attacker.test"
@@ -530,24 +623,53 @@ func TestInstanceEmailProvider_Test_BorrowsTheStoredSecretOnlyForTheSameDestinat
 	otherUser.Settings.SMTP.Username = "someone-else"
 
 	for name, req := range map[string]models.UpsertInstanceEmailProviderRequest{
-		"different type":     sendgrid,
 		"different host":     otherHost,
 		"different port":     otherPort,
 		"different username": otherUser,
 	} {
-		t.Run(name, func(t *testing.T) {
+		t.Run(name+" is tested credential-free", func(t *testing.T) {
 			f := newInstanceProviderFixture(t)
-			f.repo.On("Get", mock.Anything).Return(f.storedRow(t), nil)
-			f.expectActingUser()
 
-			_, err := f.svc.Test(context.Background(), testProviderUserID,
-				models.TestInstanceEmailProviderRequest{Config: &req})
+			spec, _, err := f.svc.testConfiguration(&req, f.storedRow(t))
 
-			var verr *TeamEmailProviderValidationError
-			require.ErrorAs(t, err, &verr)
-			assert.Equal(t, "secret", verr.Fields[0].Field)
+			require.NoError(t, err)
+			assert.Equal(t, req.Settings.SMTP.Host, spec.SMTP.Host)
+			assert.Empty(t, spec.SMTP.Password, "the stored secret is never sent to another destination")
 		})
 	}
+}
+
+// With nothing stored, an SMTP candidate without a secret is tested
+// credential-free; an API-key candidate still needs its secret.
+func TestInstanceEmailProvider_Test_SubmittedConfigWithoutSecret(t *testing.T) {
+	t.Run("smtp", func(t *testing.T) {
+		f := newInstanceProviderFixture(t)
+		f.repo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
+		f.expectActingUser()
+		req := instanceRequestOfType(EmailProviderTypeSMTP)
+		req.Settings.SMTP.Port = "1"
+
+		result, err := f.svc.Test(context.Background(), testProviderUserID,
+			models.TestInstanceEmailProviderRequest{Config: &req})
+
+		require.NoError(t, err)
+		assert.Equal(t, models.TeamEmailProviderErrSendFailed, result.ErrorDetails,
+			"the send was attempted rather than rejected for a missing secret")
+	})
+
+	t.Run("mailgun", func(t *testing.T) {
+		f := newInstanceProviderFixture(t)
+		f.repo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
+		f.expectActingUser()
+		req := instanceRequestOfType(EmailProviderTypeMailgun)
+
+		_, err := f.svc.Test(context.Background(), testProviderUserID,
+			models.TestInstanceEmailProviderRequest{Config: &req})
+
+		var verr *TeamEmailProviderValidationError
+		require.ErrorAs(t, err, &verr)
+		assert.Equal(t, "secret", verr.Fields[0].Field)
+	})
 }
 
 func TestSameStoredDestination_Mailgun(t *testing.T) {
@@ -729,18 +851,39 @@ func TestInstanceEmailProvider_Upsert_TypeChangeWithoutSecretIsRejected(t *testi
 	f := newInstanceProviderFixture(t)
 	f.repo.On("Get", mock.Anything).Return(f.storedRow(t), nil)
 
-	req := models.UpsertInstanceEmailProviderRequest{
-		UpsertTeamEmailProviderRequest: models.UpsertTeamEmailProviderRequest{
-			ProviderType: EmailProviderTypeSendGrid,
-			FromAddress:  "noreply@instance.test",
-		},
-	}
-
-	_, err := f.svc.Upsert(context.Background(), testProviderUserID, req)
+	_, err := f.svc.Upsert(context.Background(), testProviderUserID,
+		instanceRequestOfType(EmailProviderTypeSendGrid))
 
 	var verr *TeamEmailProviderValidationError
 	require.ErrorAs(t, err, &verr)
 	assert.Equal(t, "secret", verr.Fields[0].Field)
 	f.repo.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything)
 	f.audit.AssertNotCalled(t, "Append", mock.Anything, mock.Anything)
+}
+
+// A type change ONTO SMTP without a secret configures an unauthenticated relay
+// (#1208) and stores no ciphertext: the old provider's API key is never carried
+// over as the SMTP password.
+func TestInstanceEmailProvider_Upsert_TypeChangeOntoSMTPWithoutSecretStoresNone(t *testing.T) {
+	f := newInstanceProviderFixture(t)
+	mailgunKey, err := f.enc.Encrypt(instanceLeakSentinel)
+	require.NoError(t, err)
+	f.repo.On("Get", mock.Anything).Return(&models.InstanceEmailProvider{
+		ProviderType:    EmailProviderTypeMailgun,
+		Settings:        json.RawMessage(`{"domain":"mg.instance.test"}`),
+		SecretEncrypted: &mailgunKey,
+		FromAddress:     "noreply@instance.test",
+	}, nil)
+	stored := f.expectInstanceUpsert()
+	entry := f.captureAppend()
+
+	effective, err := f.svc.Upsert(context.Background(), testProviderUserID,
+		instanceRequestOfType(EmailProviderTypeSMTP))
+
+	require.NoError(t, err)
+	assert.False(t, effective.HasCredential)
+	require.NotNil(t, *stored)
+	assert.Nil(t, (*stored).SecretEncrypted, "the Mailgun key must not become the SMTP password")
+	assert.Equal(t, true, snapshotMap(t, entry.Before)["has_credential"])
+	assert.Equal(t, false, snapshotMap(t, entry.After)["has_credential"])
 }

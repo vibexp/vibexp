@@ -213,7 +213,9 @@ func TestTeamEmailProvider_Upsert_ValidationRejections(t *testing.T) {
 			isCreate:  true,
 		},
 		{
-			name:      "missing secret on create",
+			// validSMTPRequest is SMTP: the credential-free relay is an
+			// instance-only exception (#1208), never a team one.
+			name:      "missing secret on create, SMTP included",
 			mutate:    func(r *models.UpsertTeamEmailProviderRequest) { r.Secret = nil },
 			wantField: "secret",
 			isCreate:  true,
