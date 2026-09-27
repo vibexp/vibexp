@@ -431,9 +431,10 @@ test.describe('Artifact CRUD Operations', () => {
       await authenticatedPage
         .locator('[data-testid="artifact-content-textarea"]')
         .fill('Updated content')
+      // By exact name: the edit header's "Copy slug: <slug>" chip would match a
+      // loose /update|save/ filter whenever the slug contains the word (#1179).
       await authenticatedPage
-        .locator('button')
-        .filter({ hasText: /save changes|update|save/i })
+        .getByRole('button', { name: 'Save changes' })
         .first()
         .click()
 
@@ -489,9 +490,10 @@ test.describe('Artifact CRUD Operations', () => {
       await authenticatedPage
         .locator('[data-testid="artifact-title-input"]')
         .fill(updatedTitle)
+      // By exact name: the edit header's "Copy slug: <slug>" chip would match a
+      // loose /update|save/ filter whenever the slug contains the word (#1179).
       await authenticatedPage
-        .locator('button')
-        .filter({ hasText: /save changes|update|save/i })
+        .getByRole('button', { name: 'Save changes' })
         .first()
         .click()
 
@@ -548,9 +550,10 @@ test.describe('Artifact CRUD Operations', () => {
           .click()
       }
 
+      // By exact name: the edit header's "Copy slug: <slug>" chip would match a
+      // loose /update|save/ filter whenever the slug contains the word (#1179).
       await authenticatedPage
-        .locator('button')
-        .filter({ hasText: /save changes|update|save/i })
+        .getByRole('button', { name: 'Save changes' })
         .first()
         .click()
 
