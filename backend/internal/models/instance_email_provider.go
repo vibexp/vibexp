@@ -75,8 +75,10 @@ type UpsertInstanceEmailProviderRequest struct {
 // TestInstanceEmailProviderRequest is the payload for an instance test send.
 //
 // A nil Config tests the STORED configuration. A Config that omits its secret
-// reuses the stored secret, but only when the stored provider type matches, so
-// a credential is never sent to a provider it was not issued for.
+// reuses the stored secret only when it targets the same destination: the same
+// provider type and, for SMTP, the same host/port/username; for Mailgun, the
+// same base URL/domain. A credential is never sent anywhere it was not issued
+// for.
 //
 // Unlike the team test, the recipient may be overridden: the caller is the
 // operator, not a tenant, so the relay concern that pins a team test to the
