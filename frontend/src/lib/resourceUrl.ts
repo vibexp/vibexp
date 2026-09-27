@@ -45,6 +45,18 @@ export function buildResourceUrl(fields: ResourceUrlFields): string | null {
 }
 
 /**
+ * The version-history page of a resource — its detail URL plus `/versions` —
+ * or `null` when the detail URL cannot be built. The reading and edit pages
+ * both link to it (#1180), so it is derived here rather than spelled twice.
+ */
+export function buildResourceVersionsUrl(
+  fields: ResourceUrlFields
+): string | null {
+  const detail = buildResourceUrl(fields)
+  return detail ? `${detail}/versions` : null
+}
+
+/**
  * The project settings page a resource's Project metadata row links to.
  *
  * Kept here rather than inlined at each detail page: since #903 all four

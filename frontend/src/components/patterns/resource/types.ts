@@ -301,7 +301,25 @@ export interface ResourceFormSpec {
    * keeps the escape hatch enumerable instead of open-ended.
    */
   readonly extensions?: readonly string[]
+  /**
+   * Where each extension renders on the edit page (#1180) — where the reading
+   * page shows what the slot edits, so View → Edit adds no heading of its own.
+   * Keys must be declared extensions. An extension with no placement renders
+   * at the end of the Metadata section.
+   */
+  readonly extensionPlacement?: Readonly<Record<string, ExtensionPlacement>>
 }
+
+/**
+ * An extension's place in the edit page's details column (#1180).
+ *
+ * `row` — the value slot of that field's Metadata row, as the field's own
+ * control would be (the prompt's MCP switch sits in the MCP row). `taxonomy` —
+ * inside Labels & metadata, beside the labels input (the memory's tags).
+ */
+export type ExtensionPlacement =
+  | { readonly section: 'details'; readonly row: string }
+  | { readonly section: 'taxonomy' }
 
 /** A resource type, described as data. */
 export interface ResourceDescriptor {

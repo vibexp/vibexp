@@ -87,6 +87,9 @@ export const memoryDescriptor = defineResource({
     // metadata control deliberately does not own (`MemoryForm` reserves the
     // key). That lift is a display choice, so it stays a page-supplied slot.
     extensions: ['tags'],
+    // Tags are taxonomy, so the edit page renders them in Labels & metadata —
+    // where the reading page shows them as chips.
+    extensionPlacement: { tags: { section: 'taxonomy' } },
   },
   capabilities: {
     attachments: false,

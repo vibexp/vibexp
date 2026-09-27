@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
+import { useEditVersionHistory } from '@/hooks/useEditVersionHistory'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import {
   requiredMetadataKeys,
@@ -71,6 +72,16 @@ export function BlueprintEdit() {
   useEffect(() => {
     void loadAll()
   }, [loadAll])
+
+  const versionHistory = useEditVersionHistory(
+    blueprint && {
+      type: 'blueprint',
+      id: blueprint.id,
+      projectId: blueprint.project_id,
+      slug: blueprint.slug,
+      updatedAt: blueprint.updated_at,
+    }
+  )
 
   const handleSubmit = async (values: ResourceFormValues) => {
     if (!blueprint || !currentTeam) return
@@ -148,6 +159,12 @@ export function BlueprintEdit() {
       descriptor={descriptor}
       mode="edit"
       initialValues={blueprint}
+      versionHistory={versionHistory}
+      resource={
+        currentTeam
+          ? { kind: 'blueprint', id: blueprint.id, teamId: currentTeam.id }
+          : undefined
+      }
       onSubmit={handleSubmit}
       isLoading={updating}
       metadataRequiredKeys={requiredMetadataKeys(blueprint)}

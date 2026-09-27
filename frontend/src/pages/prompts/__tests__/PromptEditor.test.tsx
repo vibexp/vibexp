@@ -125,7 +125,24 @@ vi.mock('@/services/promptService', () => ({
     updatePrompt: vi.fn(),
     getPromptPlaceholders: vi.fn(),
     renderPrompt: vi.fn(),
+    getPromptVersions: vi.fn(),
   },
+}))
+
+// The Attachments section's panel fetches on mount; the page's wiring of it
+// is what these tests pin (#1180).
+vi.mock('@/components/attachments/ResourceAttachments', () => ({
+  ResourceAttachments: (props: {
+    teamId: string
+    ownerType: string
+    ownerId: string
+  }) => (
+    <div
+      data-testid="attachments-panel"
+      data-team={props.teamId}
+      data-owner={`${props.ownerType}:${props.ownerId}`}
+    />
+  ),
 }))
 
 vi.mock('@/services/projectService', () => ({
@@ -532,6 +549,29 @@ describe('PromptEditor — create mode', () => {
 })
 
 describe('PromptEditor — edit mode', () => {
+  // #1180: the column keeps the reading page's sections while editing.
+  it('shows the Attachments section and the Version row while editing', async () => {
+    ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
+    ;(promptService.getPromptVersions as Mock).mockResolvedValue({
+      versions: [{ version_number: 1 }, { version_number: 2 }],
+    })
+    renderEditor('/prompts/my-prompt/edit')
+
+    const attachments = await screen.findByTestId('attachments-panel')
+    expect(attachments).toHaveAttribute('data-team', 'team-1')
+    expect(attachments).toHaveAttribute(
+      'data-owner',
+      `prompt:${buildPrompt().id}`
+    )
+    expect(
+      await screen.findByTestId('metadata-version-history-link')
+    ).toHaveAttribute('href', '/prompts/my-prompt/versions')
+    expect(promptService.getPromptVersions).toHaveBeenCalledWith(
+      'team-1',
+      'my-prompt'
+    )
+  })
+
   it('prefills the form from the loaded prompt and updates on save', async () => {
     const user = userEvent.setup()
     ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())

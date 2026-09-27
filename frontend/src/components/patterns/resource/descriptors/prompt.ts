@@ -95,6 +95,11 @@ export const promptDescriptor = defineResource({
     // Only prompts are MCP-exposable, and the toggle is a fact about the
     // share rather than a field of the prompt.
     extensions: ['mcp-exposure'],
+    // The switch is the value of the MCP row, which the reading page shows as
+    // "Exposed" / "Not exposed".
+    extensionPlacement: {
+      'mcp-exposure': { section: 'details', row: 'mcp_expose' },
+    },
   },
   capabilities: {
     attachments: true,

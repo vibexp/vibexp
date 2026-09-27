@@ -5,7 +5,7 @@
  * these cases were written against). The layout itself — sections, rail,
  * actions, header — is `ResourceFormReadingPage.test.tsx`'s subject.
  */
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRef } from 'react'
 
@@ -207,12 +207,20 @@ describe('useResourceForm — create versus edit', () => {
     expect(screen.getByTestId('artifact-slug-input')).toHaveValue('chosen')
   })
 
+  // A locked field is a read-only fact while editing (#1180): the reading
+  // page's copyable row, not a disabled input.
   it('locks a create-only field while editing', () => {
     renderPage(artifactDescriptor, {
       mode: 'edit',
       initialValues: { slug: 'existing' },
     })
-    expect(screen.getByTestId('artifact-slug-input')).toBeDisabled()
+    expect(screen.queryByTestId('artifact-slug-input')).not.toBeInTheDocument()
+    // Scoped: the header's badge row carries its own copy chip.
+    expect(
+      within(screen.getByTestId('metadata-panel')).getByRole('button', {
+        name: /copy slug/i,
+      })
+    ).toHaveTextContent('existing')
   })
 
   it('leaves a slug the kind keeps editable enabled while editing', () => {
@@ -363,8 +371,15 @@ describe('useResourceForm — label and error association', () => {
   it('does not label the metadata editor, which has no single control', () => {
     renderPage(memoryDescriptor)
     // The heading is still rendered; it is simply not a <label for="…">.
-    expect(screen.getByText('Metadata')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Metadata')).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('resource-form-taxonomy')).getByText('Metadata')
+    ).toBeInTheDocument()
+    // Scoped: the column's Metadata SECTION is aria-labelled by design.
+    expect(
+      within(screen.getByTestId('resource-form-taxonomy')).queryByLabelText(
+        'Metadata'
+      )
+    ).not.toBeInTheDocument()
   })
 })
 

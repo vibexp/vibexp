@@ -19,6 +19,7 @@ vi.mock('@/contexts/TeamContext', () => ({
 
 vi.mock('@/services/artifactService', () => ({
   artifactService: {
+    getArtifactVersions: vi.fn(),
     getArtifact: vi.fn(),
   },
 }))
@@ -32,6 +33,7 @@ vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError: vi.fn() }),
 }))
 
+import { ResourceFormReadingPage } from '@/components/patterns/resource'
 import { artifactService } from '@/services/artifactService'
 
 import { ArtifactEdit } from '../ArtifactEdit'
@@ -190,5 +192,46 @@ describe('ArtifactEdit', () => {
       })
       expect(screen.queryByText('Artifact not found')).not.toBeInTheDocument()
     })
+  })
+
+  // #1180: the column's Attachments section and Version row need the page to
+  // hand over the resource and its version history.
+  it('passes the resource and its version history to the form', async () => {
+    mockUseTeam.mockReturnValue({
+      currentTeam: { id: 'team-1', name: 'Test Team' },
+      teams: [{ id: 'team-1', name: 'Test Team' }],
+      isLoading: false,
+      setCurrentTeam: vi.fn(),
+      refreshTeams: vi.fn() as () => Promise<void>,
+    })
+    ;(artifactService.getArtifact as Mock).mockResolvedValue(mockArtifact)
+    ;(artifactService.getArtifactVersions as Mock).mockResolvedValue({
+      versions: [{ version_number: 1 }, { version_number: 2 }],
+    })
+
+    renderArtifactEdit()
+
+    await waitFor(() => {
+      expect(ResourceFormReadingPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          resource: {
+            kind: 'artifact',
+            id: mockArtifact.id,
+            teamId: 'team-1',
+          },
+          versionHistory: expect.objectContaining({
+            to: '/artifacts/my-project/my-artifact/versions',
+            count: 2,
+            currentVersion: 3,
+          }),
+        }),
+        undefined
+      )
+    })
+    expect(artifactService.getArtifactVersions).toHaveBeenCalledWith(
+      'team-1',
+      'my-project',
+      'my-artifact'
+    )
   })
 })

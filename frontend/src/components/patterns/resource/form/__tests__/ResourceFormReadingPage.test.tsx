@@ -4,6 +4,7 @@ import { createRef } from 'react'
 import type { MockInstance } from 'vitest'
 
 import { ShellProvider } from '@/components/layout/ShellContext'
+import { RESOURCE_SECTION_IDS } from '@/components/resource-detail/resourceSections'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import { mockViewportWidth } from '@/lib/testing/matchMedia'
 import { storage } from '@/utils/storage'
@@ -49,10 +50,7 @@ import type {
   ResourceFormHandle,
   ResourceFormReadingPageProps,
 } from '../ResourceFormReadingPage'
-import {
-  RESOURCE_FORM_SECTION_IDS,
-  ResourceFormReadingPage,
-} from '../ResourceFormReadingPage'
+import { ResourceFormReadingPage } from '../ResourceFormReadingPage'
 
 const EDIT_KINDS: readonly (readonly [string, ResourceDescriptor])[] = [
   ['prompt', promptDescriptor],
@@ -103,8 +101,10 @@ describe('ResourceFormReadingPage', () => {
       expect(page).toHaveAttribute('data-presentation', 'editing')
       // Every control the descriptor declares still resolves by its testid,
       // whichever slot it now sits in.
+      // A field locked in edit (an artifact's slug) is a read-only row now,
+      // not a disabled input — covered by the metadata-row tests below.
       for (const spec of descriptor.form?.fields ?? []) {
-        if (spec.testId) {
+        if (spec.testId && !spec.editableOnCreateOnly) {
           expect(screen.getByTestId(spec.testId)).toBeInTheDocument()
         }
       }
@@ -139,9 +139,11 @@ describe('ResourceFormReadingPage', () => {
 
       // Each one is a real rail-addressable section, not just a div in the
       // column — that is what lets the folded rail scroll to it.
-      for (const id of Object.values(RESOURCE_FORM_SECTION_IDS)) {
-        expect(column.querySelector(`[data-section="${id}"]`)).not.toBeNull()
-      }
+      expect(
+        column.querySelector(
+          `[data-section="${RESOURCE_SECTION_IDS.metadata}"]`
+        )
+      ).not.toBeNull()
     }
   )
 

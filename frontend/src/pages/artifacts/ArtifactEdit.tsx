@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
+import { useEditVersionHistory } from '@/hooks/useEditVersionHistory'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toArtifactRequest } from '@/pages/artifacts/artifactRequest'
 import type { Artifact } from '@/services/artifactService'
@@ -68,6 +69,16 @@ export function ArtifactEdit() {
   useEffect(() => {
     void loadAll()
   }, [loadAll])
+
+  const versionHistory = useEditVersionHistory(
+    artifact && {
+      type: 'artifact',
+      id: artifact.id,
+      projectId: artifact.project_id,
+      slug: artifact.slug,
+      updatedAt: artifact.updated_at,
+    }
+  )
 
   const handleSubmit = async (values: ResourceFormValues) => {
     if (!artifact || !currentTeam) return
@@ -148,6 +159,12 @@ export function ArtifactEdit() {
       // the keys the descriptor declares, so there is nothing to map here and
       // nothing to keep in sync when a field is added.
       initialValues={artifact}
+      versionHistory={versionHistory}
+      resource={
+        currentTeam
+          ? { kind: 'artifact', id: artifact.id, teamId: currentTeam.id }
+          : undefined
+      }
       onSubmit={handleSubmit}
       isLoading={updating}
       onCancel={() => {

@@ -1,10 +1,4 @@
-import {
-  Activity,
-  Info,
-  MessageSquare,
-  Paperclip,
-  Workflow,
-} from 'lucide-react'
+import { Activity, MessageSquare, Workflow } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { AccessActivityPanel } from '@/components/access-activity/AccessActivityPanel'
@@ -22,6 +16,10 @@ import {
   ResourceHeaderMeta,
   type ResourceHeaderStatus,
 } from './ResourceHeaderMeta'
+import {
+  RESOURCE_SECTION_CHROME,
+  RESOURCE_SECTION_IDS,
+} from './resourceSections'
 
 /** The resource kinds every standard side panel understands. */
 export type ResourceKind = 'artifact' | 'prompt' | 'blueprint' | 'memory'
@@ -31,15 +29,6 @@ export interface ResourceRef {
   id: string
   teamId: string
 }
-
-/** Section ids, exported so tests and rail deep-links can address them. */
-export const RESOURCE_SECTION_IDS = {
-  metadata: 'metadata',
-  attachments: 'attachments',
-  activity: 'activity',
-  comments: 'comments',
-  relations: 'relations',
-} as const
 
 export interface ResourceReadingPageProps extends Omit<
   ReadingPageProps,
@@ -107,14 +96,12 @@ export function ResourceReadingPage({
   const sections: ReadingSection[] = [
     {
       id: RESOURCE_SECTION_IDS.metadata,
-      label: 'Metadata',
-      icon: Info,
+      ...RESOURCE_SECTION_CHROME.metadata,
       content: metadata,
     },
     {
       id: RESOURCE_SECTION_IDS.attachments,
-      label: 'Attachments',
-      icon: Paperclip,
+      ...RESOURCE_SECTION_CHROME.attachments,
       content: resource && attachments && (
         <ResourceAttachments
           teamId={resource.teamId}

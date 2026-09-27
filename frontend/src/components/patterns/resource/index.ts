@@ -60,6 +60,7 @@ export {
 } from './statusTone'
 export type {
   Capabilities,
+  ExtensionPlacement,
   FieldRole,
   FieldSpec,
   FieldTone,
