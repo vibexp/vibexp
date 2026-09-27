@@ -73,6 +73,8 @@ packages:
       TeamEmailProviderServiceInterface:
       InstanceEmailProviderServiceInterface:
       FreshnessServiceInterface:
+      InstanceSearchSettingsResolver:
+      InstanceSearchSettingsServiceInterface:
       TeamSearchSettingsServiceInterface:
       TeamSettingsAuditServiceInterface:
       TeamServiceInterface:

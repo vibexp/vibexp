@@ -11,16 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/authz"
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
+	servicemocks "github.com/vibexp/vibexp/internal/services/mocks"
 )
 
 const testSettingsUserID = "11111111-2222-3333-4444-555555555555"
 
-func settingsInstanceConfig() config.SearchConfig {
-	return config.SearchConfig{
+func settingsInstanceValues() models.InstanceSearchSettingsValues {
+	return models.InstanceSearchSettingsValues{
 		RecencyRankingEnabled: true,
 		RankWeightRelevance:   0.5,
 		RankWeightCreated:     0.3,
@@ -61,8 +62,50 @@ func newSettingsService(t *testing.T, authzSvc services.AuthorizationServiceInte
 ) {
 	t.Helper()
 	repo := repomocks.NewMockTeamSearchSettingsRepository(t)
+	instance := servicemocks.NewMockInstanceSearchSettingsResolver(t)
+	// Maybe: denied and rejected writes never reach the instance defaults.
+	instance.EXPECT().Resolve(mock.Anything).Return(settingsInstanceValues()).Maybe()
 	return services.NewTeamSearchSettingsService(
-		repo, authzSvc, settingsInstanceConfig(), slog.New(slog.DiscardHandler)), repo
+		repo, authzSvc, instance, slog.New(slog.DiscardHandler)), repo
+}
+
+// Team settings reads report instance_defaults and rank_candidate_cap from the
+// instance_search_settings row, resolved on each read, not from config.yaml.
+func TestTeamSearchSettingsService_Get_InstanceDefaultsComeFromTheInstanceRow(t *testing.T) {
+	teamRepo := repomocks.NewMockTeamSearchSettingsRepository(t)
+	instanceRepo := repomocks.NewMockInstanceSearchSettingsRepository(t)
+	svc := services.NewTeamSearchSettingsService(teamRepo, allowAllAuthz{},
+		services.NewInstanceSearchSettingsService(instanceRepo, slog.New(slog.DiscardHandler)),
+		slog.New(slog.DiscardHandler))
+	teamRepo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil).Times(2)
+	instanceRepo.EXPECT().Get(mock.Anything).
+		Return(nil, repositories.ErrInstanceSearchSettingsNotFound).Once()
+	instanceRepo.EXPECT().Get(mock.Anything).Return(&models.InstanceSearchSettings{
+		RecencyRankingEnabled: true,
+		RankWeightRelevance:   0.6,
+		RankWeightCreated:     0.3,
+		RankWeightUpdated:     0.1,
+		RankHalfLifeDays:      45,
+		RankCandidateCap:      750,
+	}, nil).Once()
+
+	before, err := svc.Get(context.Background(), testTeamID)
+	require.NoError(t, err)
+	after, err := svc.Get(context.Background(), testTeamID)
+	require.NoError(t, err)
+
+	assert.Equal(t, services.BuiltInSearchDefaults().TeamValues(), before.InstanceDefaults)
+	assert.Equal(t, 200, before.RankCandidateCap)
+	want := models.TeamSearchSettingsValues{
+		RecencyRankingEnabled: true,
+		RankWeightRelevance:   0.6,
+		RankWeightCreated:     0.3,
+		RankWeightUpdated:     0.1,
+		RankHalfLifeDays:      45,
+	}
+	assert.Equal(t, want, after.InstanceDefaults, "instance_defaults must follow the stored row")
+	assert.Equal(t, want, after.Values, "a team with no profile inherits the stored row")
+	assert.Equal(t, 750, after.RankCandidateCap)
 }
 
 func TestTeamSearchSettingsService_Get_NoRowReportsInstanceSource(t *testing.T) {
@@ -110,7 +153,7 @@ func TestTeamSearchSettingsService_Update_StoresAndReportsTeamSource(t *testing.
 	require.NoError(t, err)
 	assert.Equal(t, models.TeamSearchSettingsSourceTeam, view.Source)
 	assert.InDelta(t, 0.9, view.Values.RankWeightRelevance, 1e-9)
-	assert.Equal(t, 200, view.RankCandidateCap, "the cap still comes from the instance config")
+	assert.Equal(t, 200, view.RankCandidateCap, "the cap still comes from the instance defaults")
 }
 
 func TestTeamSearchSettingsService_Update_DeniedWithoutPermission(t *testing.T) {
@@ -175,7 +218,7 @@ func degenerateValues() map[string]models.TeamSearchSettingsValues {
 	negativeHalfLife.RankHalfLifeDays = -1
 
 	hugeHalfLife := teamProfile()
-	hugeHalfLife.RankHalfLifeDays = config.MaxSearchRankHalfLifeDays + 1
+	hugeHalfLife.RankHalfLifeDays = models.MaxSearchRankHalfLifeDays + 1
 
 	return map[string]models.TeamSearchSettingsValues{
 		"negative weight":    negativeWeight,
@@ -206,7 +249,7 @@ func TestTeamSearchSettingsService_Update_AcceptsHalfLifeAtTheCeiling(t *testing
 	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
 
 	values := teamProfile()
-	values.RankHalfLifeDays = config.MaxSearchRankHalfLifeDays
+	values.RankHalfLifeDays = models.MaxSearchRankHalfLifeDays
 
 	_, err := svc.Update(context.Background(), testSettingsUserID, testTeamID, values)
 

@@ -532,16 +532,32 @@ func ProvideFreshnessEvaluator(
 	return freshness.NewEvaluator(rules, candidates, state, audit, logger)
 }
 
+// ProvideInstanceSearchSettingsService creates the instance search settings
+// service (#1198): the per-request resolver of the instance ranking defaults
+// (instance_search_settings row, else the built-in defaults) and the surface an
+// instance admin edits them through.
+//
+// It returns the CONCRETE type because the service satisfies two interfaces —
+// InstanceSearchSettingsResolver (the fail-open read the team resolver and team
+// settings service build on) and InstanceSearchSettingsServiceInterface (the
+// admin read + writes). wire.Bind in wire.go maps it to both.
+func ProvideInstanceSearchSettingsService(
+	repo repositories.InstanceSearchSettingsRepository,
+	logger *slog.Logger,
+) *services.InstanceSearchSettingsService {
+	return services.NewInstanceSearchSettingsService(repo, logger)
+}
+
 // ProvideTeamSearchSettingsService creates the team search settings service.
-// It receives the deployment `search:` config, which is both the fallback for a
-// team with no stored profile and the instance_defaults reported on every read.
+// The instance resolver supplies, per request, both the fallback for a team
+// with no stored profile and the instance_defaults reported on every read.
 func ProvideTeamSearchSettingsService(
 	repo repositories.TeamSearchSettingsRepository,
 	authzService services.AuthorizationServiceInterface,
-	cfg *config.Config,
+	instance services.InstanceSearchSettingsResolver,
 	logger *slog.Logger,
 ) services.TeamSearchSettingsServiceInterface {
-	return services.NewTeamSearchSettingsService(repo, authzService, cfg.Search, logger)
+	return services.NewTeamSearchSettingsService(repo, authzService, instance, logger)
 }
 
 // ProvideTeamAISummarySettingsService creates the team AI summary settings
@@ -585,22 +601,15 @@ func ProvideTeamSettingsAuditService(
 }
 
 // ProvideSearchSettingsResolver creates the per-team ranking resolver. The
-// recency-ranking configuration from the typed Config becomes the INSTANCE
-// DEFAULTS, returned for any team that has not stored an override of its own.
+// instance resolver supplies the INSTANCE DEFAULTS per request, returned for
+// any team that has not stored an override of its own, so a change to them
+// applies to the next search without a restart.
 func ProvideSearchSettingsResolver(
 	repo repositories.TeamSearchSettingsRepository,
+	instance services.InstanceSearchSettingsResolver,
 	logger *slog.Logger,
-	cfg *config.Config,
 ) services.SearchSettingsResolver {
-	defaults := services.SearchRankingConfig{
-		Enabled:         cfg.Search.RecencyRankingEnabled,
-		WeightRelevance: cfg.Search.RankWeightRelevance,
-		WeightCreated:   cfg.Search.RankWeightCreated,
-		WeightUpdated:   cfg.Search.RankWeightUpdated,
-		HalfLife:        services.HalfLifeFromDays(cfg.Search.RankHalfLifeDays),
-		CandidateCap:    cfg.Search.RankCandidateCap,
-	}
-	return services.NewTeamSearchSettingsResolver(repo, defaults, logger)
+	return services.NewTeamSearchSettingsResolver(repo, instance, logger)
 }
 
 // ProvideSearchService creates a new SearchService. Ranking is no longer baked

@@ -3,6 +3,7 @@ package postgres
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -67,6 +68,20 @@ func NewInstanceSettingsAuditRepository(db *database.DB) repositories.InstanceSe
 func (r *InstanceSettingsAuditRepository) Append(
 	ctx context.Context, entry *models.InstanceSettingsAuditEntry,
 ) error {
+	return appendInstanceSettingsAudit(ctx, r.db, entry)
+}
+
+// rowQuerier is the QueryRowContext half shared by *sql.DB and *sql.Tx, so an
+// audit entry can be appended on its own or inside the transaction of the
+// change it records.
+type rowQuerier interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// appendInstanceSettingsAudit inserts one entry through q and populates it from
+// the persisted row. The redaction guard runs first, so a snapshot carrying a
+// credential never reaches the database.
+func appendInstanceSettingsAudit(ctx context.Context, q rowQuerier, entry *models.InstanceSettingsAuditEntry) error {
 	if err := assertInstanceSettingsAuditRedacted(entry.Before, entry.After); err != nil {
 		return err
 	}
@@ -76,7 +91,7 @@ func (r *InstanceSettingsAuditRepository) Append(
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING ` + instanceSettingsAuditColumns
 
-	if err := r.db.QueryRowContext(
+	if err := q.QueryRowContext(
 		ctx, query,
 		entry.Setting, entry.Action, entry.ActorUserID,
 		nullableJSON(entry.Before), nullableJSON(entry.After),

@@ -4,6 +4,7 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -120,4 +121,80 @@ func TestIntegrationInstanceSearchSettings_Delete(t *testing.T) {
 
 	_, err := repo.Get(ctx)
 	assert.ErrorIs(t, err, repositories.ErrInstanceSearchSettingsNotFound, "the row is gone")
+}
+
+// countInstanceSearchAudit counts the search section's audit entries.
+func countInstanceSearchAudit(t *testing.T) int {
+	t.Helper()
+	var n int
+	require.NoError(t, integrationDB.QueryRowContext(context.Background(),
+		"SELECT count(*) FROM instance_settings_audit WHERE setting = $1", models.InstanceSettingSearch).Scan(&n))
+	return n
+}
+
+func searchAuditEntry(action string) repositories.InstanceSearchSettingsAuditFunc {
+	return func(before, after *models.InstanceSearchSettings) (*models.InstanceSettingsAuditEntry, error) {
+		entry := &models.InstanceSettingsAuditEntry{Setting: models.InstanceSettingSearch, Action: action}
+		if before != nil {
+			entry.Before = []byte(fmt.Sprintf(`{"rank_candidate_cap":%d}`, before.RankCandidateCap))
+		}
+		if after != nil {
+			entry.After = []byte(fmt.Sprintf(`{"rank_candidate_cap":%d}`, after.RankCandidateCap))
+		}
+		return entry, nil
+	}
+}
+
+func TestIntegrationInstanceSearchSettings_UpsertAuditedAndDeleteAudited(t *testing.T) {
+	resetInstanceSettingsAuditTables(t)
+	resetInstanceSettingsTable(t, "instance_search_settings")
+	repo := NewInstanceSearchSettingsRepository(integrationDB)
+	ctx := context.Background()
+
+	first := instanceSearchSettingsFixture()
+	require.NoError(t, repo.UpsertAudited(ctx, first, searchAuditEntry(models.InstanceSettingsAuditActionUpsert)))
+	second := instanceSearchSettingsFixture()
+	second.RankCandidateCap = 900
+	require.NoError(t, repo.UpsertAudited(ctx, second, searchAuditEntry(models.InstanceSettingsAuditActionUpsert)))
+	assert.Equal(t, int64(2), second.Version)
+
+	deleted, err := repo.DeleteAudited(ctx, searchAuditEntry(models.InstanceSettingsAuditActionDelete))
+	require.NoError(t, err)
+	assert.True(t, deleted)
+	deleted, err = repo.DeleteAudited(ctx, searchAuditEntry(models.InstanceSettingsAuditActionDelete))
+	require.NoError(t, err)
+	assert.False(t, deleted, "a reset with no row deletes nothing")
+
+	_, err = repo.Get(ctx)
+	assert.ErrorIs(t, err, repositories.ErrInstanceSearchSettingsNotFound)
+
+	entries, _, err := NewInstanceSettingsAuditRepository(integrationDB).
+		List(ctx, models.InstanceSettingSearch, 10, nil)
+	require.NoError(t, err)
+	require.Len(t, entries, 3, "one entry per write, none for the no-op reset")
+	// Newest first: delete(900→nil), upsert(200→900), upsert(nil→200).
+	assert.Equal(t, models.InstanceSettingsAuditActionDelete, entries[0].Action)
+	assert.JSONEq(t, `{"rank_candidate_cap":900}`, string(entries[0].Before))
+	assert.Nil(t, entries[0].After)
+	assert.JSONEq(t, `{"rank_candidate_cap":200}`, string(entries[1].Before), "before is read inside the transaction")
+	assert.JSONEq(t, `{"rank_candidate_cap":900}`, string(entries[1].After))
+	assert.Nil(t, entries[2].Before, "the first save had no previous row")
+}
+
+// A failed audit insert rolls the settings write back: the row never changes
+// without its audit entry.
+func TestIntegrationInstanceSearchSettings_UpsertAudited_AuditFailureRollsBack(t *testing.T) {
+	resetInstanceSettingsAuditTables(t)
+	resetInstanceSettingsTable(t, "instance_search_settings")
+	repo := NewInstanceSearchSettingsRepository(integrationDB)
+	ctx := context.Background()
+
+	// An unknown action violates the audit table's CHECK, failing the insert
+	// after the settings upsert already ran in the same transaction.
+	err := repo.UpsertAudited(ctx, instanceSearchSettingsFixture(), searchAuditEntry("not-an-action"))
+	require.Error(t, err)
+
+	_, err = repo.Get(ctx)
+	assert.ErrorIs(t, err, repositories.ErrInstanceSearchSettingsNotFound, "the upsert must have rolled back")
+	assert.Zero(t, countInstanceSearchAudit(t))
 }
