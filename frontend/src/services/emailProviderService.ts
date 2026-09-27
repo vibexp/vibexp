@@ -23,8 +23,9 @@ export type EmailProviderType = NonNullable<
  *
  * The provider is a per-team SINGLETON (epic #499): a team either stores its own
  * provider or stores nothing and inherits the instance provider, which an
- * instance admin configures under Admin → Settings → Email (#1188/#1191). The absence of a row IS the fallback, which is why `get` never
- * 404s — it always describes the configuration in force, reporting
+ * instance admin configures under Admin → Settings → Email (#1188/#1191).
+ * The absence of a row IS the fallback, which is why `get` never 404s — it
+ * always describes the configuration in force, reporting
  * `configured: false` / `source: "instance"` when the team inherits.
  *
  * Two consequences worth knowing before calling this:

@@ -1,12 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import {
-  AlertCircle,
-  CheckCircle2,
-  Info,
-  Loader2,
-  RotateCcw,
-  Send,
-} from 'lucide-react'
+import { Info, Loader2, RotateCcw, Send } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
@@ -29,6 +22,7 @@ import {
   toFormValues,
   toRequest,
 } from '@/features/email-provider/emailProviderForm'
+import { TestResultAlert } from '@/features/email-provider/TestResultAlert'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { toast } from '@/lib/toast'
@@ -308,30 +302,5 @@ export function EmailProvider({ team }: Readonly<{ team: Team }>) {
         onConfirm={handleRevert}
       />
     </div>
-  )
-}
-
-/** Outcome of a test send — reported inline, never as a thrown error. */
-function TestResultAlert({
-  result,
-}: Readonly<{ result: TeamEmailProviderTestResponse }>) {
-  return (
-    <Alert variant={result.is_valid ? 'default' : 'destructive'}>
-      {result.is_valid ? (
-        <CheckCircle2 className="size-4" />
-      ) : (
-        <AlertCircle className="size-4" />
-      )}
-      <AlertTitle>
-        {result.is_valid ? 'Test email sent' : 'Test email failed'}
-      </AlertTitle>
-      <AlertDescription>
-        <p>{result.message}</p>
-        <p className="mt-1">Sent to {result.recipient}.</p>
-        {result.details.error_details && (
-          <p className="mt-1">Reason: {result.details.error_details}</p>
-        )}
-      </AlertDescription>
-    </Alert>
   )
 }

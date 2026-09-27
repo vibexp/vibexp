@@ -366,11 +366,12 @@ describe('AdminEmailSettings — test send', () => {
 })
 
 describe('AdminEmailSettings — remove', () => {
-  it('confirms, deletes and returns to the unconfigured state', async () => {
+  it('confirms, deletes and returns to the unconfigured state without a refetch', async () => {
     const user = userEvent.setup()
+    // A refetch would fail: the unconfigured state must not depend on it.
     service.getInstanceEmailSettings
       .mockResolvedValueOnce(configured())
-      .mockResolvedValue(unconfigured)
+      .mockRejectedValue(new Error('refetch failed'))
     service.deleteInstanceEmailSettings.mockResolvedValue(undefined)
     renderPage()
 
@@ -388,13 +389,19 @@ describe('AdminEmailSettings — remove', () => {
     expect(
       await screen.findByText(/instance email is not configured/i)
     ).toBeInTheDocument()
+    expect(screen.getByLabelText(/from address/i)).toHaveValue('')
+    expect(
+      screen.queryByRole('button', { name: /remove configuration/i })
+    ).not.toBeInTheDocument()
+    expect(service.getInstanceEmailSettings).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(service.listInstanceEmailSettingsAudit).toHaveBeenCalledTimes(2)
+    })
   })
 
-  it('treats a 409 (already removed) as removed and refetches', async () => {
+  it('treats a 409 (already removed) as removed', async () => {
     const user = userEvent.setup()
-    service.getInstanceEmailSettings
-      .mockResolvedValueOnce(configured())
-      .mockResolvedValue(unconfigured)
+    service.getInstanceEmailSettings.mockResolvedValue(configured())
     service.deleteInstanceEmailSettings.mockRejectedValue(conflict())
     renderPage()
 

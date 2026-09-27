@@ -1,12 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import {
-  AlertCircle,
-  CheckCircle2,
-  Info,
-  Loader2,
-  Send,
-  Trash2,
-} from 'lucide-react'
+import { Info, Loader2, Send, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 
@@ -29,6 +22,7 @@ import {
   ProviderCard,
   SenderIdentityCard,
 } from '@/features/email-provider/EmailProviderFields'
+import { TestResultAlert } from '@/features/email-provider/TestResultAlert'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
 import {
@@ -56,6 +50,14 @@ const INSTANCE_PROVIDER_DESCRIPTION =
 const INSTANCE_STORED_CREDENTIAL_HINT =
   'A credential is stored. Leave this blank to keep it — for saving, and for a test send to the same destination.'
 
+/** What the API reports when no instance provider is stored. */
+const UNCONFIGURED: AdminInstanceEmailSettings = {
+  configured: false,
+  provider_type: null,
+  has_credential: false,
+  is_healthy: null,
+}
+
 /**
  * Admin → Settings → Email (#1191): view, configure, test, remove and audit
  * the instance email provider (#1189's endpoints). The section heading comes
@@ -78,12 +80,7 @@ export function AdminEmailSettings() {
 
   const form = useForm<InstanceEmailFormValues>({
     resolver: zodResolver(instanceEmailSchema),
-    defaultValues: toInstanceFormValues({
-      configured: false,
-      provider_type: null,
-      has_credential: false,
-      is_healthy: null,
-    }),
+    defaultValues: toInstanceFormValues(UNCONFIGURED),
   })
 
   /** Applies a fresh server state: the form is reset, so the secret is blank. */
@@ -187,24 +184,29 @@ export function AdminEmailSettings() {
     }
   }
 
+  /**
+   * After a successful delete — or a 409, meaning someone else removed it
+   * first — the server state is known to be "nothing configured", so it is
+   * applied locally rather than refetched: a failed refetch would otherwise
+   * leave the removed configuration on screen.
+   */
   const handleRemove = async () => {
     try {
       setRemoving(true)
       await adminService.deleteInstanceEmailSettings()
       toast.success('Instance email configuration removed')
     } catch (err) {
-      // Someone else removed it first: the refetch below shows the truth.
       if (!(err instanceof ApiError && err.status === 409)) {
         handleError(err, 'Failed to remove the email configuration')
         setRemoving(false)
         return
       }
     }
+    apply(UNCONFIGURED)
     setConfirmRemove(false)
     setTestResult(null)
     setRemoving(false)
     setAuditKey(key => key + 1)
-    await load()
   }
 
   if (loading && !settings) {
@@ -252,7 +254,12 @@ export function AdminEmailSettings() {
             <InstanceOnlyFields form={form} />
           </SenderIdentityCard>
 
-          {testResult && <TestResultAlert result={testResult} />}
+          {testResult && (
+            <TestResultAlert
+              result={testResult}
+              testId="instance-email-test-result"
+            />
+          )}
 
           <Card>
             <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-4">
@@ -356,33 +363,5 @@ function InstanceOnlyFields({
         )}
       />
     </>
-  )
-}
-
-/** Outcome of a test send — a failed send is a result, not a thrown error. */
-function TestResultAlert({
-  result,
-}: Readonly<{ result: AdminInstanceEmailTestResponse }>) {
-  return (
-    <Alert
-      variant={result.is_valid ? 'default' : 'destructive'}
-      data-testid="instance-email-test-result"
-    >
-      {result.is_valid ? (
-        <CheckCircle2 className="size-4" />
-      ) : (
-        <AlertCircle className="size-4" />
-      )}
-      <AlertTitle>
-        {result.is_valid ? 'Test email sent' : 'Test email failed'}
-      </AlertTitle>
-      <AlertDescription>
-        <p>{result.message}</p>
-        <p className="mt-1">Sent to {result.recipient}.</p>
-        {result.details.error_details && (
-          <p className="mt-1">Reason: {result.details.error_details}</p>
-        )}
-      </AlertDescription>
-    </Alert>
   )
 }
