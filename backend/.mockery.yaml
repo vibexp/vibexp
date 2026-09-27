@@ -116,6 +116,7 @@ packages:
       FreshnessRuleRepository:
       GitHubAppConfigRepository:
       GitHubInstallationRepository:
+      InstanceEmailProviderRepository:
       MemoryRepository:
       MetadataCatalogRepository:
       ModelProviderRepository:

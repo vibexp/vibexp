@@ -199,6 +199,11 @@ func ProvideTeamEmailProviderRepository(db *database.DB) repositories.TeamEmailP
 	return postgres.NewTeamEmailProviderRepository(db)
 }
 
+// ProvideInstanceEmailProviderRepository creates a new InstanceEmailProviderRepository
+func ProvideInstanceEmailProviderRepository(db *database.DB) repositories.InstanceEmailProviderRepository {
+	return postgres.NewInstanceEmailProviderRepository(db)
+}
+
 // ProvideTeamSearchSettingsRepository creates a new TeamSearchSettingsRepository
 func ProvideTeamSearchSettingsRepository(db *database.DB) repositories.TeamSearchSettingsRepository {
 	return postgres.NewTeamSearchSettingsRepository(db)
