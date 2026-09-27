@@ -663,91 +663,79 @@ func TestLoad_SearchRankWeightNegative_ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "search.rank_weight")
 }
 
-// TestLoad_AISummaryStyleUnknown_ReturnsError is the LOAD-LEVEL half of the
-// validator's coverage, and it is the load-bearing half: the table test below
-// calls validateAISummaryConfig directly and would stay green even if the
-// function were never added to validateAll's checks slice (proven by mutation
-// in #753). Only this test goes red for a missing registration.
-func TestLoad_AISummaryStyleUnknown_ReturnsError(t *testing.T) {
-	cfg, err := loadYAML(t, baseValidYAML+"ai_summary:\n  style: verbose\n")
-	require.Error(t, err)
-	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "ai_summary.style")
-}
-
-func TestValidateAISummaryConfig(t *testing.T) {
-	base := func() *Config {
-		return &Config{AISummary: AISummaryConfig{
-			Enabled:                true,
-			TopN:                   5,
-			MaxTopN:                10,
-			PerDocumentChars:       8000,
-			TotalContextChars:      32000,
-			MaxOutputTokens:        800,
-			MaxOutputTokensCeiling: 4096,
-			RequestTimeout:         60 * time.Second,
-			Style:                  models.AISummaryStyleBalanced,
-		}}
-	}
-
-	// wantErr is the config key the error must name ("" = valid), so a case
-	// cannot pass because an unrelated check happened to fail first.
-	tests := []struct {
-		name    string
-		mutate  func(*Config)
-		wantErr string
-	}{
-		{"valid defaults", func(*Config) {}, ""},
-		{"zero max_top_n", func(c *Config) { c.AISummary.MaxTopN = 0 }, "ai_summary.max_top_n"},
-		// max_top_n is bounded by the same constant the storage CHECK mirrors, so
-		// a value above it could never be persisted by any team.
-		{"max_top_n above the storage ceiling", func(c *Config) { c.AISummary.MaxTopN = MaxAISummaryTopN + 1 }, "ai_summary.max_top_n"},
-		{"max_top_n at the storage ceiling", func(c *Config) { c.AISummary.MaxTopN = MaxAISummaryTopN }, ""},
-		{"zero top_n", func(c *Config) { c.AISummary.TopN = 0 }, "ai_summary.top_n"},
-		{"top_n above max_top_n", func(c *Config) { c.AISummary.MaxTopN, c.AISummary.TopN = 4, 5 }, "ai_summary.top_n"},
-		{"top_n at max_top_n", func(c *Config) { c.AISummary.MaxTopN, c.AISummary.TopN = 5, 5 }, ""},
-		{"zero per_document_chars", func(c *Config) { c.AISummary.PerDocumentChars = 0 }, "ai_summary.per_document_chars"},
-		{"zero total_context_chars", func(c *Config) { c.AISummary.TotalContextChars = 0 }, "ai_summary.total_context_chars"},
-		{"zero max_output_tokens", func(c *Config) { c.AISummary.MaxOutputTokens = 0 }, "ai_summary.max_output_tokens"},
-		// max_output_tokens_ceiling (#1085) mirrors max_top_n: bounded by an
-		// absolute constant, and the default must fit inside it.
-		{"zero max_output_tokens_ceiling", func(c *Config) { c.AISummary.MaxOutputTokensCeiling = 0 }, "ai_summary.max_output_tokens_ceiling"},
-		{"max_output_tokens_ceiling above the absolute ceiling", func(c *Config) {
-			c.AISummary.MaxOutputTokensCeiling = MaxAISummaryOutputTokens + 1
-		}, "ai_summary.max_output_tokens_ceiling"},
-		{"max_output_tokens_ceiling at the absolute ceiling", func(c *Config) {
-			c.AISummary.MaxOutputTokensCeiling = MaxAISummaryOutputTokens
-		}, ""},
-		{"max_output_tokens above the ceiling", func(c *Config) {
-			c.AISummary.MaxOutputTokensCeiling, c.AISummary.MaxOutputTokens = 500, 501
-		}, "ai_summary.max_output_tokens_ceiling"},
-		{"max_output_tokens at the ceiling", func(c *Config) {
-			c.AISummary.MaxOutputTokensCeiling, c.AISummary.MaxOutputTokens = 500, 500
-		}, ""},
-		// A total budget below the per-document budget can never be satisfied by
-		// even one document, which would make every summary empty.
-		{"total budget below per-document budget", func(c *Config) { c.AISummary.TotalContextChars = 100 }, "ai_summary.total_context_chars"},
-		{"total budget equal to per-document budget", func(c *Config) { c.AISummary.TotalContextChars = 8000 }, ""},
-		{"zero request_timeout", func(c *Config) { c.AISummary.RequestTimeout = 0 }, "ai_summary.request_timeout"},
-		{"negative request_timeout", func(c *Config) { c.AISummary.RequestTimeout = -time.Second }, "ai_summary.request_timeout"},
-		{"unknown style", func(c *Config) { c.AISummary.Style = "verbose" }, "ai_summary.style"},
-		{"empty style", func(c *Config) { c.AISummary.Style = "" }, "ai_summary.style"},
-		{"concise style", func(c *Config) { c.AISummary.Style = models.AISummaryStyleConcise }, ""},
-		{"detailed style", func(c *Config) { c.AISummary.Style = models.AISummaryStyleDetailed }, ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := base()
-			tt.mutate(cfg)
-			err := validateAISummaryConfig(cfg)
-			if tt.wantErr != "" {
-				assert.ErrorContains(t, err, tt.wantErr)
-				return
-			}
-			assert.NoError(t, err)
+// Since #1201 config no longer validates ai_summary: the boot-time import does,
+// with the shared instance validator, and a block it rejects logs an error
+// instead of failing boot. So blocks the removed config check rejected load:
+// an unknown style, and a top_n above the ignored max_top_n ceiling.
+func TestLoad_AISummaryIsNotValidatedByConfig(t *testing.T) {
+	for name, block := range map[string]string{
+		"unknown style":                   "ai_summary:\n  style: verbose\n",
+		"top_n above the ignored ceiling": "ai_summary:\n  max_top_n: 3\n  top_n: 5\n",
+		"ignored output ceiling":          "ai_summary:\n  max_output_tokens_ceiling: 100\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg, err := loadYAML(t, baseValidYAML+block)
+			require.NoError(t, err)
+			require.NotNil(t, cfg)
 		})
 	}
+
+	cfg, err := loadYAML(t, baseValidYAML+"ai_summary:\n  max_top_n: 3\n  top_n: 5\n")
+	require.NoError(t, err)
+	assert.Equal(t, 5, cfg.AISummary.InstanceValues().TopN)
+	assert.True(t, cfg.AISummary.LegacyCeilingsSet())
+}
+
+// The search: block is still validated fail-fast by config (#1201 keeps it).
+func TestLoad_SearchStillValidated(t *testing.T) {
+	_, err := loadYAML(t, baseValidYAML+"search:\n  rank_candidate_cap: 0\n")
+	require.ErrorContains(t, err, "search.rank_candidate_cap")
+}
+
+// With no search:/ai_summary: block, the projections are exactly the built-in
+// defaults the import compares with, and the ignored ceilings are unset.
+func TestLegacySectionProjections_DefaultsEqualBuiltIns(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML)
+	require.NoError(t, err)
+
+	assert.Equal(t, models.DefaultInstanceAISummarySettings(), cfg.AISummary.InstanceValues())
+	assert.False(t, cfg.AISummary.LegacyCeilingsSet())
+	assert.Equal(t, models.InstanceSearchSettingsValues{
+		RankWeightRelevance: 0.5, RankWeightCreated: 0.3, RankWeightUpdated: 0.2,
+		RankHalfLifeDays: 90, RankCandidateCap: 200,
+	}, cfg.Search.InstanceValues())
+}
+
+func TestAISummaryConfig_InstanceValuesAndCeilings(t *testing.T) {
+	a := AISummaryConfig{
+		Enabled: false, TopN: 3, MaxTopN: models.MaxAISummaryTopN, PerDocumentChars: 100,
+		TotalContextChars: 200, MaxOutputTokens: 300,
+		MaxOutputTokensCeiling: DefaultLegacyAISummaryOutputTokensCeiling,
+		RequestTimeout:         7 * time.Second, Style: models.AISummaryStyleConcise,
+	}
+	assert.Equal(t, models.InstanceAISummarySettingsValues{
+		Enabled: false, TopN: 3, Style: models.AISummaryStyleConcise, MaxOutputTokens: 300,
+		PerDocumentChars: 100, TotalContextChars: 200, RequestTimeout: 7 * time.Second,
+	}, a.InstanceValues())
+	assert.False(t, a.LegacyCeilingsSet())
+
+	topN := a
+	topN.MaxTopN = 4
+	assert.True(t, topN.LegacyCeilingsSet(), "a non-default max_top_n is set")
+
+	tokens := a
+	tokens.MaxOutputTokensCeiling = 1000
+	assert.True(t, tokens.LegacyCeilingsSet(), "a non-default max_output_tokens_ceiling is set")
+}
+
+func TestSearchConfig_InstanceValues(t *testing.T) {
+	assert.Equal(t, models.InstanceSearchSettingsValues{
+		RecencyRankingEnabled: true, RankWeightRelevance: 1, RankWeightCreated: 2,
+		RankWeightUpdated: 3, RankHalfLifeDays: 4, RankCandidateCap: 5,
+	}, SearchConfig{
+		RecencyRankingEnabled: true, RankWeightRelevance: 1, RankWeightCreated: 2,
+		RankWeightUpdated: 3, RankHalfLifeDays: 4, RankCandidateCap: 5,
+	}.InstanceValues())
 }
 
 func TestValidateSearchRankingConfig(t *testing.T) {

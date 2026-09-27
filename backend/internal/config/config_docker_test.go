@@ -357,21 +357,17 @@ func TestConfigDockerYAML_AISummaryEnvOverride(t *testing.T) {
 	require.Equal(t, EnvInt(3), cfg.AISummary.TopN)
 }
 
-// TestConfigDockerYAML_AISummaryTopNAboveCapFailsFast proves the instance cap is
-// enforced against the ENV-supplied value too, not only against a mounted file:
-// the validator reads the decoded config, so the ${VAR} path is validated
-// identically.
-func TestConfigDockerYAML_AISummaryTopNAboveCapFailsFast(t *testing.T) {
+// TestConfigDockerYAML_AISummaryTopNAboveCapLoads pins that config no longer
+// validates ai_summary (#1201): an out-of-range AI_SUMMARY_TOP_N loads, and the
+// boot-time import rejects it with a logged error instead of failing startup.
+func TestConfigDockerYAML_AISummaryTopNAboveCapLoads(t *testing.T) {
 	setDockerRequiredEnv(t)
 	t.Setenv("AI_SUMMARY_TOP_N", "99")
 
 	cfg, err := Load(dockerConfigPath)
 
-	require.Error(t, err, "an AI_SUMMARY_TOP_N above the instance cap must fail startup")
-	require.Nil(t, cfg)
-	// Name the field, so this cannot pass because Load failed for some unrelated
-	// reason (a broken secret in setDockerRequiredEnv would do it).
-	require.ErrorContains(t, err, "ai_summary.top_n")
+	require.NoError(t, err)
+	require.Equal(t, 99, cfg.AISummary.InstanceValues().TopN)
 }
 
 // TestConfigDockerYAML_AISummaryInvalidEnvFailsFast pins the failure mode of the

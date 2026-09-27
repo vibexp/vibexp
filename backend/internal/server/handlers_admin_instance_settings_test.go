@@ -190,6 +190,11 @@ func (r *fakeInstanceSearchRepo) InsertIfAbsent(context.Context, *models.Instanc
 	return false, errFakeUnused
 }
 func (r *fakeInstanceSearchRepo) Delete(context.Context) error { return errFakeUnused }
+func (r *fakeInstanceSearchRepo) InsertIfAbsentAudited(
+	context.Context, *models.InstanceSearchSettings, repositories.InstanceSearchSettingsAuditFunc,
+) (bool, error) {
+	return false, errFakeUnused
+}
 func (r *fakeInstanceSearchRepo) UpsertAudited(
 	_ context.Context, s *models.InstanceSearchSettings, v *int64, audit repositories.InstanceSearchSettingsAuditFunc,
 ) error {
@@ -219,6 +224,11 @@ func (r *fakeInstanceAISummaryRepo) InsertIfAbsent(context.Context, *models.Inst
 	return false, errFakeUnused
 }
 func (r *fakeInstanceAISummaryRepo) Delete(context.Context) error { return errFakeUnused }
+func (r *fakeInstanceAISummaryRepo) InsertIfAbsentAudited(
+	context.Context, *models.InstanceAISummarySettings, repositories.InstanceAISummarySettingsAuditFunc,
+) (bool, error) {
+	return false, errFakeUnused
+}
 func (r *fakeInstanceAISummaryRepo) UpsertAudited(
 	_ context.Context, s *models.InstanceAISummarySettings, v *int64,
 	audit repositories.InstanceAISummarySettingsAuditFunc,

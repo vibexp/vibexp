@@ -242,6 +242,64 @@ func (_c *MockInstanceSearchSettingsRepository_InsertIfAbsent_Call) RunAndReturn
 	return _c
 }
 
+// InsertIfAbsentAudited provides a mock function with given fields: ctx, settings, audit
+func (_m *MockInstanceSearchSettingsRepository) InsertIfAbsentAudited(ctx context.Context, settings *models.InstanceSearchSettings, audit repositories.InstanceSearchSettingsAuditFunc) (bool, error) {
+	ret := _m.Called(ctx, settings, audit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for InsertIfAbsentAudited")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.InstanceSearchSettings, repositories.InstanceSearchSettingsAuditFunc) (bool, error)); ok {
+		return rf(ctx, settings, audit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *models.InstanceSearchSettings, repositories.InstanceSearchSettingsAuditFunc) bool); ok {
+		r0 = rf(ctx, settings, audit)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *models.InstanceSearchSettings, repositories.InstanceSearchSettingsAuditFunc) error); ok {
+		r1 = rf(ctx, settings, audit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInstanceSearchSettingsRepository_InsertIfAbsentAudited_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InsertIfAbsentAudited'
+type MockInstanceSearchSettingsRepository_InsertIfAbsentAudited_Call struct {
+	*mock.Call
+}
+
+// InsertIfAbsentAudited is a helper method to define mock.On call
+//   - ctx context.Context
+//   - settings *models.InstanceSearchSettings
+//   - audit repositories.InstanceSearchSettingsAuditFunc
+func (_e *MockInstanceSearchSettingsRepository_Expecter) InsertIfAbsentAudited(ctx interface{}, settings interface{}, audit interface{}) *MockInstanceSearchSettingsRepository_InsertIfAbsentAudited_Call {
+	return &MockInstanceSearchSettingsRepository_InsertIfAbsentAudited_Call{Call: _e.mock.On("InsertIfAbsentAudited", ctx, settings, audit)}
+}
+
+func (_c *MockInstanceSearchSettingsRepository_InsertIfAbsentAudited_Call) Run(run func(ctx context.Context, settings *models.InstanceSearchSettings, audit repositories.InstanceSearchSettingsAuditFunc)) *MockInstanceSearchSettingsRepository_InsertIfAbsentAudited_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*models.InstanceSearchSettings), args[2].(repositories.InstanceSearchSettingsAuditFunc))
+	})
+	return _c
+}
+
+func (_c *MockInstanceSearchSettingsRepository_InsertIfAbsentAudited_Call) Return(inserted bool, err error) *MockInstanceSearchSettingsRepository_InsertIfAbsentAudited_Call {
+	_c.Call.Return(inserted, err)
+	return _c
+}
+
+func (_c *MockInstanceSearchSettingsRepository_InsertIfAbsentAudited_Call) RunAndReturn(run func(context.Context, *models.InstanceSearchSettings, repositories.InstanceSearchSettingsAuditFunc) (bool, error)) *MockInstanceSearchSettingsRepository_InsertIfAbsentAudited_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Upsert provides a mock function with given fields: ctx, settings
 func (_m *MockInstanceSearchSettingsRepository) Upsert(ctx context.Context, settings *models.InstanceSearchSettings) error {
 	ret := _m.Called(ctx, settings)
