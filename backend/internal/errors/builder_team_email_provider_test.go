@@ -43,3 +43,24 @@ func TestTeamEmailProviderErrorBuilders(t *testing.T) {
 		assert.Equal(t, CodeTeamEmailProviderDeleteFailed, err.Code)
 	})
 }
+
+// The instance email provider builders (#1189) mirror the team ones.
+func TestInstanceEmailProviderErrorBuilders(t *testing.T) {
+	t.Run("not configured is a 409", func(t *testing.T) {
+		err := NewInstanceEmailProviderNotConfiguredError()
+		assert.Equal(t, http.StatusConflict, err.Status)
+		assert.Equal(t, CodeInstanceEmailProviderNotConfigured, err.Code)
+		assert.Equal(t, "Instance Email Provider Not Configured", err.Title)
+	})
+
+	t.Run("validation carries the offending fields", func(t *testing.T) {
+		err := NewInstanceEmailProviderValidationError("bad config", []ValidationError{
+			{Field: "secret", Message: "must not be empty"},
+		})
+		assert.Equal(t, http.StatusBadRequest, err.Status)
+		assert.Equal(t, CodeInstanceEmailProviderValidationFailed, err.Code)
+		assert.Equal(t, "Instance Email Provider Validation Failed", err.Title)
+		require.Len(t, err.ValidationErrors, 1)
+		assert.Equal(t, "secret", err.ValidationErrors[0].Field)
+	})
+}

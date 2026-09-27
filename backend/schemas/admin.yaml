@@ -2496,3 +2496,314 @@ AdminSavedFiltersReplaceRequest:
       description: |
         The `version` last read. A stale value is rejected with 409 and nothing
         is saved.
+
+# --- Instance email settings (#1189, epic #1185) ----------------------------
+#
+# Secret discipline, as in schemas/team-email-provider.yaml: `secret` appears
+# ONLY on the two request schemas. No response schema has a field able to carry
+# it; reads expose `has_credential` instead.
+
+AdminInstanceEmailProviderType:
+  type: string
+  description: Which provider the instance sends through. Matched case-insensitively.
+  enum:
+    - smtp
+    - mailgun
+    - postmark
+    - sendgrid
+  example: "smtp"
+
+AdminInstanceEmailSettingsRequest:
+  type: object
+  description: |
+    The instance's email provider configuration. This is an upsert, so the same
+    body creates or replaces. The per-type `settings` and the write-only
+    `secret` follow the team email provider request exactly. A body carrying an
+    unknown field is rejected with 400.
+  additionalProperties: false
+  required:
+    - provider_type
+    - from_address
+  properties:
+    provider_type:
+      $ref: '#/AdminInstanceEmailProviderType'
+    settings:
+      $ref: '../openapi.yaml#/components/schemas/TeamEmailProviderSettings'
+    secret:
+      type: string
+      description: |
+        The provider's single credential (SMTP password, Mailgun sending key,
+        Postmark server token, or SendGrid API key). It is write-only: never
+        returned by any endpoint.
+
+        OMIT it to keep the stored credential, which is allowed only when the
+        provider type is unchanged; a new configuration or a change of provider
+        type must carry its own. An explicitly empty string is rejected.
+      example: "key-abc123"
+    from_address:
+      type: string
+      format: email
+      description: The address instance mail is sent from.
+      example: "noreply@vibexp.example.com"
+    from_name:
+      type: string
+      nullable: true
+      description: Optional display name shown beside the from address.
+      example: "VibeXP"
+    reply_to:
+      type: string
+      format: email
+      nullable: true
+      description: Optional Reply-To address.
+      example: "support@vibexp.example.com"
+    contact_recipient_address:
+      type: string
+      format: email
+      nullable: true
+      description: |
+        Where the contact form delivers. Omitted or null falls back to the from
+        address.
+      example: "hello@vibexp.example.com"
+    privacy_policy_url:
+      type: string
+      nullable: true
+      description: |
+        Absolute http(s) URL of the privacy policy linked from outbound mail.
+        Omitted or null links none.
+      example: "https://vibexp.example.com/privacy"
+
+AdminInstanceEmailTestRequest:
+  type: object
+  description: |
+    An optional candidate configuration for a test send. An empty body (or an
+    empty object) tests the STORED configuration. A body with any field set is
+    tested as a full configuration, validated like an upsert; if it omits
+    `secret`, the stored credential is used only when the candidate targets
+    the same destination (same provider type and, for SMTP, the same
+    host/port/username; for Mailgun, the same domain/base URL).
+
+    There is no recipient field: the test message always goes to the calling
+    admin's own account email. A body carrying an unknown field is rejected
+    with 400.
+  additionalProperties: false
+  properties:
+    provider_type:
+      $ref: '#/AdminInstanceEmailProviderType'
+    settings:
+      $ref: '../openapi.yaml#/components/schemas/TeamEmailProviderSettings'
+    secret:
+      type: string
+      description: |
+        The candidate credential. Omit it to test with the stored credential
+        (same destination only, see above). Never returned.
+      example: "key-abc123"
+    from_address:
+      type: string
+      format: email
+      description: The from address to test with.
+      example: "noreply@vibexp.example.com"
+    from_name:
+      type: string
+      nullable: true
+      description: Optional display name to test with.
+      example: "VibeXP"
+    reply_to:
+      type: string
+      format: email
+      nullable: true
+      description: Optional Reply-To address to test with.
+      example: "support@vibexp.example.com"
+    contact_recipient_address:
+      type: string
+      format: email
+      nullable: true
+      description: Accepted for parity with the upsert body; a test send does not use it.
+      example: "hello@vibexp.example.com"
+    privacy_policy_url:
+      type: string
+      nullable: true
+      description: Accepted for parity with the upsert body; a test send does not use it.
+      example: "https://vibexp.example.com/privacy"
+
+AdminInstanceEmailSettings:
+  type: object
+  description: |
+    The instance's stored email configuration. This is never a 404: an
+    instance with nothing stored reports `configured: false`, with every other
+    field null or absent, and discards its mail.
+
+    No field here can carry the credential; `has_credential` reports only that
+    one is stored.
+  additionalProperties: false
+  required:
+    - configured
+    - provider_type
+    - has_credential
+    - is_healthy
+  properties:
+    configured:
+      type: boolean
+      description: Whether an instance email provider is stored.
+      example: true
+    provider_type:
+      type: string
+      nullable: true
+      description: The stored provider type, or null when nothing is configured.
+      enum:
+        - smtp
+        - mailgun
+        - postmark
+        - sendgrid
+        - null
+      example: "smtp"
+    settings:
+      $ref: '../openapi.yaml#/components/schemas/TeamEmailProviderSettings'
+    has_credential:
+      type: boolean
+      description: |
+        Whether a credential is stored. The credential itself is never
+        returned. An SMTP relay without authentication legitimately has none.
+      example: true
+    from_address:
+      type: string
+      nullable: true
+      description: The configured from address; null when nothing is configured.
+      example: "noreply@vibexp.example.com"
+    from_name:
+      type: string
+      nullable: true
+      description: The configured display name.
+      example: "VibeXP"
+    reply_to:
+      type: string
+      nullable: true
+      description: The configured Reply-To address.
+      example: "support@vibexp.example.com"
+    contact_recipient_address:
+      type: string
+      nullable: true
+      description: Where the contact form delivers; null falls back to the from address.
+      example: "hello@vibexp.example.com"
+    privacy_policy_url:
+      type: string
+      nullable: true
+      description: The privacy policy URL linked from outbound mail; null links none.
+      example: "https://vibexp.example.com/privacy"
+    is_healthy:
+      type: boolean
+      nullable: true
+      description: |
+        Whether the last observed send succeeded, derived by comparing
+        `last_success_at` with `last_error_at` (a provider that has never sent
+        is healthy). Null when nothing is configured.
+      example: true
+    last_success_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When a send through the instance provider last succeeded.
+    last_error:
+      type: string
+      nullable: true
+      description: |
+        The last delivery error, retained after recovery for diagnosis; use
+        `is_healthy` to tell whether the provider is currently failing.
+      example: "smtp: connection refused"
+    last_error_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the last delivery error occurred.
+    updated_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the configuration was last saved; null when nothing is configured.
+    updated_by:
+      type: string
+      format: uuid
+      nullable: true
+      description: |
+        The admin who last saved the configuration. Null for the boot-time
+        import from config.yaml, or once that user has been deleted.
+
+AdminInstanceSettingsAuditEntry:
+  type: object
+  description: |
+    One append-only change to an instance setting. `before` and `after` are
+    REDACTED snapshots: they never contain a credential, only
+    `has_credential` and, on an upsert's `after`, a `secret` marker saying
+    whether the credential was `changed` or `unchanged`.
+  additionalProperties: false
+  required:
+    - id
+    - setting
+    - action
+    - actor_user_id
+    - actor_name
+    - before
+    - after
+    - created_at
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Audit entry id.
+    setting:
+      type: string
+      description: The instance setting the entry describes.
+      example: "email_provider"
+    action:
+      type: string
+      description: |
+        `upsert` (created or replaced by an admin), `delete` (removed by an
+        admin) or `import` (the boot-time import from config.yaml, which has no
+        actor).
+      enum:
+        - upsert
+        - delete
+        - import
+      example: "upsert"
+    actor_user_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: |
+        The admin who made the change. Null for an import, or once that user
+        has been deleted.
+    actor_name:
+      type: string
+      nullable: true
+      description: The actor's display name (or email), when it could be resolved.
+      example: "Ada Admin"
+    before:
+      type: object
+      nullable: true
+      additionalProperties: true
+      description: The redacted setting before the change; null when the change created it.
+    after:
+      type: object
+      nullable: true
+      additionalProperties: true
+      description: The redacted setting after the change; null when the change deleted it.
+    created_at:
+      type: string
+      format: date-time
+      description: When the change was made.
+
+AdminInstanceSettingsAuditPage:
+  type: object
+  description: One page of an instance setting's audit log, newest first.
+  additionalProperties: false
+  required:
+    - entries
+    - next_cursor
+  properties:
+    entries:
+      type: array
+      items:
+        $ref: '#/AdminInstanceSettingsAuditEntry'
+    next_cursor:
+      type: string
+      nullable: true
+      description: Opaque cursor for the next page; null on the last page.

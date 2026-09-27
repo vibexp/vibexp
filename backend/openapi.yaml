@@ -1024,6 +1024,18 @@ components:
       $ref: "./schemas/admin.yaml#/AdminSavedFilters"
     AdminSavedFiltersReplaceRequest:
       $ref: "./schemas/admin.yaml#/AdminSavedFiltersReplaceRequest"
+    AdminInstanceEmailProviderType:
+      $ref: "./schemas/admin.yaml#/AdminInstanceEmailProviderType"
+    AdminInstanceEmailSettingsRequest:
+      $ref: "./schemas/admin.yaml#/AdminInstanceEmailSettingsRequest"
+    AdminInstanceEmailTestRequest:
+      $ref: "./schemas/admin.yaml#/AdminInstanceEmailTestRequest"
+    AdminInstanceEmailSettings:
+      $ref: "./schemas/admin.yaml#/AdminInstanceEmailSettings"
+    AdminInstanceSettingsAuditEntry:
+      $ref: "./schemas/admin.yaml#/AdminInstanceSettingsAuditEntry"
+    AdminInstanceSettingsAuditPage:
+      $ref: "./schemas/admin.yaml#/AdminInstanceSettingsAuditPage"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
@@ -1370,6 +1382,12 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-teams-export"
   /api/v1/admin/projects/export:
     $ref: "./paths/admin.yaml#/api-v1-admin-projects-export"
+  /api/v1/admin/settings/email:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-email"
+  /api/v1/admin/settings/email/test:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-email-test"
+  /api/v1/admin/settings/email/audit:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-email-audit"
   /api/v1/{team_id}/comments:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
   /api/v1/{team_id}/comments/recent:

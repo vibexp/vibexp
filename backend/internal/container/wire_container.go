@@ -115,6 +115,10 @@ type WireContainer struct {
 	scheduler                    *scheduler.Scheduler
 	schedulerRegistry            *scheduler.Registry
 
+	// Instance settings (#1188, #1189)
+	instanceSettingsAuditRepo    repositories.InstanceSettingsAuditRepository
+	instanceEmailProviderService services.InstanceEmailProviderServiceInterface
+
 	// External dependencies
 	identityRegistry *idp.Registry
 	smtpClient       external.EmailSender
@@ -249,6 +253,11 @@ func (c *WireContainer) TeamRepository() repositories.TeamRepository {
 	return c.teamRepo
 }
 
+// InstanceSettingsAuditRepository returns the instance settings audit log repository.
+func (c *WireContainer) InstanceSettingsAuditRepository() repositories.InstanceSettingsAuditRepository {
+	return c.instanceSettingsAuditRepo
+}
+
 // TeamSettingsAuditRepository returns the team settings audit log repository.
 func (c *WireContainer) TeamSettingsAuditRepository() repositories.TeamSettingsAuditRepository {
 	return c.teamSettingsAuditRepo
@@ -361,6 +370,11 @@ func (c *WireContainer) MemoryService() services.MemoryServiceInterface {
 
 func (c *WireContainer) EmbeddingService() services.EmbeddingServiceInterface {
 	return c.embeddingService
+}
+
+// InstanceEmailProviderService returns the instance email provider service.
+func (c *WireContainer) InstanceEmailProviderService() services.InstanceEmailProviderServiceInterface {
+	return c.instanceEmailProviderService
 }
 
 // TeamEmailProviderService returns the team email provider service.

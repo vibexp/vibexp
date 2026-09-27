@@ -44,6 +44,78 @@ func (e AdminAISummaryValuesStyle) Valid() bool {
 	}
 }
 
+// Defines values for AdminInstanceEmailProviderType.
+const (
+	AdminInstanceEmailProviderTypeMailgun  AdminInstanceEmailProviderType = "mailgun"
+	AdminInstanceEmailProviderTypePostmark AdminInstanceEmailProviderType = "postmark"
+	AdminInstanceEmailProviderTypeSendgrid AdminInstanceEmailProviderType = "sendgrid"
+	AdminInstanceEmailProviderTypeSmtp     AdminInstanceEmailProviderType = "smtp"
+)
+
+// Valid indicates whether the value is a known member of the AdminInstanceEmailProviderType enum.
+func (e AdminInstanceEmailProviderType) Valid() bool {
+	switch e {
+	case AdminInstanceEmailProviderTypeMailgun:
+		return true
+	case AdminInstanceEmailProviderTypePostmark:
+		return true
+	case AdminInstanceEmailProviderTypeSendgrid:
+		return true
+	case AdminInstanceEmailProviderTypeSmtp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminInstanceEmailSettingsProviderType.
+const (
+	AdminInstanceEmailSettingsProviderTypeLessThannil AdminInstanceEmailSettingsProviderType = "<nil>"
+	AdminInstanceEmailSettingsProviderTypeMailgun     AdminInstanceEmailSettingsProviderType = "mailgun"
+	AdminInstanceEmailSettingsProviderTypePostmark    AdminInstanceEmailSettingsProviderType = "postmark"
+	AdminInstanceEmailSettingsProviderTypeSendgrid    AdminInstanceEmailSettingsProviderType = "sendgrid"
+	AdminInstanceEmailSettingsProviderTypeSmtp        AdminInstanceEmailSettingsProviderType = "smtp"
+)
+
+// Valid indicates whether the value is a known member of the AdminInstanceEmailSettingsProviderType enum.
+func (e AdminInstanceEmailSettingsProviderType) Valid() bool {
+	switch e {
+	case AdminInstanceEmailSettingsProviderTypeLessThannil:
+		return true
+	case AdminInstanceEmailSettingsProviderTypeMailgun:
+		return true
+	case AdminInstanceEmailSettingsProviderTypePostmark:
+		return true
+	case AdminInstanceEmailSettingsProviderTypeSendgrid:
+		return true
+	case AdminInstanceEmailSettingsProviderTypeSmtp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminInstanceSettingsAuditEntryAction.
+const (
+	Delete AdminInstanceSettingsAuditEntryAction = "delete"
+	Import AdminInstanceSettingsAuditEntryAction = "import"
+	Upsert AdminInstanceSettingsAuditEntryAction = "upsert"
+)
+
+// Valid indicates whether the value is a known member of the AdminInstanceSettingsAuditEntryAction enum.
+func (e AdminInstanceSettingsAuditEntryAction) Valid() bool {
+	switch e {
+	case Delete:
+		return true
+	case Import:
+		return true
+	case Upsert:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminProjectAccessMetricsGranularity.
 const (
 	AdminProjectAccessMetricsGranularityDay   AdminProjectAccessMetricsGranularity = "day"
@@ -368,6 +440,24 @@ func (e NotificationTypePreferenceEmail) Valid() bool {
 	case Instant:
 		return true
 	case None:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TeamEmailProviderTestDetailsErrorDetails.
+const (
+	ConfigurationInvalid TeamEmailProviderTestDetailsErrorDetails = "configuration_invalid"
+	SendFailed           TeamEmailProviderTestDetailsErrorDetails = "send_failed"
+)
+
+// Valid indicates whether the value is a known member of the TeamEmailProviderTestDetailsErrorDetails enum.
+func (e TeamEmailProviderTestDetailsErrorDetails) Valid() bool {
+	switch e {
+	case ConfigurationInvalid:
+		return true
+	case SendFailed:
 		return true
 	default:
 		return false
@@ -1189,6 +1279,191 @@ type AdminInstanceCounts struct {
 
 	// Users Total number of user accounts.
 	Users int64 `json:"users"`
+}
+
+// AdminInstanceEmailProviderType Which provider the instance sends through. Matched case-insensitively.
+type AdminInstanceEmailProviderType string
+
+// AdminInstanceEmailSettings The instance's stored email configuration. This is never a 404: an
+// instance with nothing stored reports `configured: false`, with every other
+// field null or absent, and discards its mail.
+//
+// No field here can carry the credential; `has_credential` reports only that
+// one is stored.
+type AdminInstanceEmailSettings struct {
+	// Configured Whether an instance email provider is stored.
+	Configured bool `json:"configured"`
+
+	// ContactRecipientAddress Where the contact form delivers; null falls back to the from address.
+	ContactRecipientAddress *string `json:"contact_recipient_address,omitempty"`
+
+	// FromAddress The configured from address; null when nothing is configured.
+	FromAddress *string `json:"from_address,omitempty"`
+
+	// FromName The configured display name.
+	FromName *string `json:"from_name,omitempty"`
+
+	// HasCredential Whether a credential is stored. The credential itself is never
+	// returned. An SMTP relay without authentication legitimately has none.
+	HasCredential bool `json:"has_credential"`
+
+	// IsHealthy Whether the last observed send succeeded, derived by comparing
+	// `last_success_at` with `last_error_at` (a provider that has never sent
+	// is healthy). Null when nothing is configured.
+	IsHealthy *bool `json:"is_healthy"`
+
+	// LastError The last delivery error, retained after recovery for diagnosis; use
+	// `is_healthy` to tell whether the provider is currently failing.
+	LastError *string `json:"last_error,omitempty"`
+
+	// LastErrorAt When the last delivery error occurred.
+	LastErrorAt *time.Time `json:"last_error_at,omitempty"`
+
+	// LastSuccessAt When a send through the instance provider last succeeded.
+	LastSuccessAt *time.Time `json:"last_success_at,omitempty"`
+
+	// PrivacyPolicyUrl The privacy policy URL linked from outbound mail; null links none.
+	PrivacyPolicyUrl *string `json:"privacy_policy_url,omitempty"`
+
+	// ProviderType The stored provider type, or null when nothing is configured.
+	ProviderType *AdminInstanceEmailSettingsProviderType `json:"provider_type"`
+
+	// ReplyTo The configured Reply-To address.
+	ReplyTo *string `json:"reply_to,omitempty"`
+
+	// Settings Per-type non-secret settings. Exactly the block matching `provider_type` may be present; a block belonging to another type is rejected rather than ignored. SendGrid has no block — its only configuration is its API key, which is the secret.
+	Settings *TeamEmailProviderSettings `json:"settings,omitempty"`
+
+	// UpdatedAt When the configuration was last saved; null when nothing is configured.
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+
+	// UpdatedBy The admin who last saved the configuration. Null for the boot-time
+	// import from config.yaml, or once that user has been deleted.
+	UpdatedBy *openapi_types.UUID `json:"updated_by,omitempty"`
+}
+
+// AdminInstanceEmailSettingsProviderType The stored provider type, or null when nothing is configured.
+type AdminInstanceEmailSettingsProviderType string
+
+// AdminInstanceEmailSettingsRequest The instance's email provider configuration. This is an upsert, so the same
+// body creates or replaces. The per-type `settings` and the write-only
+// `secret` follow the team email provider request exactly. A body carrying an
+// unknown field is rejected with 400.
+type AdminInstanceEmailSettingsRequest struct {
+	// ContactRecipientAddress Where the contact form delivers. Omitted or null falls back to the from
+	// address.
+	ContactRecipientAddress *openapi_types.Email `json:"contact_recipient_address,omitempty"`
+
+	// FromAddress The address instance mail is sent from.
+	FromAddress openapi_types.Email `json:"from_address"`
+
+	// FromName Optional display name shown beside the from address.
+	FromName *string `json:"from_name,omitempty"`
+
+	// PrivacyPolicyUrl Absolute http(s) URL of the privacy policy linked from outbound mail.
+	// Omitted or null links none.
+	PrivacyPolicyUrl *string `json:"privacy_policy_url,omitempty"`
+
+	// ProviderType Which provider the instance sends through. Matched case-insensitively.
+	ProviderType AdminInstanceEmailProviderType `json:"provider_type"`
+
+	// ReplyTo Optional Reply-To address.
+	ReplyTo *openapi_types.Email `json:"reply_to,omitempty"`
+
+	// Secret The provider's single credential (SMTP password, Mailgun sending key,
+	// Postmark server token, or SendGrid API key). It is write-only: never
+	// returned by any endpoint.
+	//
+	// OMIT it to keep the stored credential, which is allowed only when the
+	// provider type is unchanged; a new configuration or a change of provider
+	// type must carry its own. An explicitly empty string is rejected.
+	Secret *string `json:"secret,omitempty"`
+
+	// Settings Per-type non-secret settings. Exactly the block matching `provider_type` may be present; a block belonging to another type is rejected rather than ignored. SendGrid has no block — its only configuration is its API key, which is the secret.
+	Settings *TeamEmailProviderSettings `json:"settings,omitempty"`
+}
+
+// AdminInstanceEmailTestRequest An optional candidate configuration for a test send. An empty body (or an
+// empty object) tests the STORED configuration. A body with any field set is
+// tested as a full configuration, validated like an upsert; if it omits
+// `secret`, the stored credential is used only when the candidate targets
+// the same destination (same provider type and, for SMTP, the same
+// host/port/username; for Mailgun, the same domain/base URL).
+//
+// There is no recipient field: the test message always goes to the calling
+// admin's own account email. A body carrying an unknown field is rejected
+// with 400.
+type AdminInstanceEmailTestRequest struct {
+	// ContactRecipientAddress Accepted for parity with the upsert body; a test send does not use it.
+	ContactRecipientAddress *openapi_types.Email `json:"contact_recipient_address,omitempty"`
+
+	// FromAddress The from address to test with.
+	FromAddress *openapi_types.Email `json:"from_address,omitempty"`
+
+	// FromName Optional display name to test with.
+	FromName *string `json:"from_name,omitempty"`
+
+	// PrivacyPolicyUrl Accepted for parity with the upsert body; a test send does not use it.
+	PrivacyPolicyUrl *string `json:"privacy_policy_url,omitempty"`
+
+	// ProviderType Which provider the instance sends through. Matched case-insensitively.
+	ProviderType *AdminInstanceEmailProviderType `json:"provider_type,omitempty"`
+
+	// ReplyTo Optional Reply-To address to test with.
+	ReplyTo *openapi_types.Email `json:"reply_to,omitempty"`
+
+	// Secret The candidate credential. Omit it to test with the stored credential
+	// (same destination only, see above). Never returned.
+	Secret *string `json:"secret,omitempty"`
+
+	// Settings Per-type non-secret settings. Exactly the block matching `provider_type` may be present; a block belonging to another type is rejected rather than ignored. SendGrid has no block — its only configuration is its API key, which is the secret.
+	Settings *TeamEmailProviderSettings `json:"settings,omitempty"`
+}
+
+// AdminInstanceSettingsAuditEntry One append-only change to an instance setting. `before` and `after` are
+// REDACTED snapshots: they never contain a credential, only
+// `has_credential` and, on an upsert's `after`, a `secret` marker saying
+// whether the credential was `changed` or `unchanged`.
+type AdminInstanceSettingsAuditEntry struct {
+	// Action `upsert` (created or replaced by an admin), `delete` (removed by an
+	// admin) or `import` (the boot-time import from config.yaml, which has no
+	// actor).
+	Action AdminInstanceSettingsAuditEntryAction `json:"action"`
+
+	// ActorName The actor's display name (or email), when it could be resolved.
+	ActorName *string `json:"actor_name"`
+
+	// ActorUserId The admin who made the change. Null for an import, or once that user
+	// has been deleted.
+	ActorUserId *openapi_types.UUID `json:"actor_user_id"`
+
+	// After The redacted setting after the change; null when the change deleted it.
+	After *map[string]interface{} `json:"after"`
+
+	// Before The redacted setting before the change; null when the change created it.
+	Before *map[string]interface{} `json:"before"`
+
+	// CreatedAt When the change was made.
+	CreatedAt time.Time `json:"created_at"`
+
+	// Id Audit entry id.
+	Id openapi_types.UUID `json:"id"`
+
+	// Setting The instance setting the entry describes.
+	Setting string `json:"setting"`
+}
+
+// AdminInstanceSettingsAuditEntryAction `upsert` (created or replaced by an admin), `delete` (removed by an
+// admin) or `import` (the boot-time import from config.yaml, which has no
+// actor).
+type AdminInstanceSettingsAuditEntryAction string
+
+// AdminInstanceSettingsAuditPage One page of an instance setting's audit log, newest first.
+type AdminInstanceSettingsAuditPage struct {
+	Entries []AdminInstanceSettingsAuditEntry `json:"entries"`
+
+	// NextCursor Opaque cursor for the next page; null on the last page.
+	NextCursor *string `json:"next_cursor"`
 }
 
 // AdminMailgunSettings Non-secret Mailgun settings.
@@ -2264,6 +2539,15 @@ type ErrorResponse struct {
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
 }
 
+// MailgunProviderSettings Non-secret Mailgun settings. The sending key is the provider's secret.
+type MailgunProviderSettings struct {
+	// BaseUrl Optional API base URL, to select a non-US region (for example https://api.eu.mailgun.net/v3). A missing /v2|/v3|/v4 suffix is normalised to /v3.
+	BaseUrl *string `json:"base_url,omitempty"`
+
+	// Domain The Mailgun sending domain. Must be a bare domain, not a URL.
+	Domain string `json:"domain"`
+}
+
 // NotificationChannelPreferences defines model for NotificationChannelPreferences.
 type NotificationChannelPreferences struct {
 	// Email Enable email notifications globally
@@ -2292,6 +2576,60 @@ type NotificationTypePreference struct {
 
 // NotificationTypePreferenceEmail Email delivery mode for this notification type
 type NotificationTypePreferenceEmail string
+
+// PostmarkProviderSettings Non-secret Postmark settings. The server token is the provider's secret.
+type PostmarkProviderSettings struct {
+	// MessageStream Postmark message stream to send on. Defaults to "outbound", the default transactional stream.
+	MessageStream *string `json:"message_stream,omitempty"`
+}
+
+// SMTPProviderSettings Non-secret SMTP settings. The password is the provider's secret.
+type SMTPProviderSettings struct {
+	// Host SMTP server hostname.
+	Host string `json:"host"`
+
+	// Port SMTP port, as a string. Must parse to 1-65535.
+	Port string `json:"port"`
+
+	// Username SMTP username, when the server requires authentication.
+	Username *string `json:"username,omitempty"`
+}
+
+// TeamEmailProviderSettings Per-type non-secret settings. Exactly the block matching `provider_type` may be present; a block belonging to another type is rejected rather than ignored. SendGrid has no block — its only configuration is its API key, which is the secret.
+type TeamEmailProviderSettings struct {
+	// Mailgun Non-secret Mailgun settings. The sending key is the provider's secret.
+	Mailgun *MailgunProviderSettings `json:"mailgun,omitempty"`
+
+	// Postmark Non-secret Postmark settings. The server token is the provider's secret.
+	Postmark *PostmarkProviderSettings `json:"postmark,omitempty"`
+
+	// Smtp Non-secret SMTP settings. The password is the provider's secret.
+	Smtp *SMTPProviderSettings `json:"smtp,omitempty"`
+}
+
+// TeamEmailProviderTestDetails Fixed-category detail for a failed test send. The real upstream error is logged server-side only.
+type TeamEmailProviderTestDetails struct {
+	// ErrorDetails Why the test failed: `configuration_invalid` when the provider could not be built at all (nothing was dialled), `send_failed` when it was built but delivery failed. Absent on success.
+	ErrorDetails *TeamEmailProviderTestDetailsErrorDetails `json:"error_details,omitempty"`
+}
+
+// TeamEmailProviderTestDetailsErrorDetails Why the test failed: `configuration_invalid` when the provider could not be built at all (nothing was dialled), `send_failed` when it was built but delivery failed. Absent on success.
+type TeamEmailProviderTestDetailsErrorDetails string
+
+// TeamEmailProviderTestResponse Outcome of a test send. A failed send is reported here with `is_valid: false`, not as an HTTP error — the caller asked whether the configuration works, and "no, because X" is a successful answer.
+type TeamEmailProviderTestResponse struct {
+	// Details Fixed-category detail for a failed test send. The real upstream error is logged server-side only.
+	Details TeamEmailProviderTestDetails `json:"details"`
+
+	// IsValid Whether the test message was accepted by the provider.
+	IsValid bool `json:"is_valid"`
+
+	// Message Human-readable outcome, safe to show to an admin.
+	Message string `json:"message"`
+
+	// Recipient Where the test message was sent. Always the acting user's own account email — this endpoint never accepts a caller-supplied recipient, so it cannot be used to send mail to third parties.
+	Recipient string `json:"recipient"`
+}
 
 // ValidationError Field-level validation error details
 type ValidationError struct {
@@ -2536,6 +2874,15 @@ type GetAdminProjectTopAccessedResourcesParams struct {
 	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
 
 	// Limit Maximum number of rows.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListAdminInstanceEmailSettingsAuditParams defines parameters for ListAdminInstanceEmailSettingsAudit.
+type ListAdminInstanceEmailSettingsAuditParams struct {
+	// Cursor Opaque cursor from a previous page's `next_cursor`.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size.
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
@@ -3114,6 +3461,12 @@ type GetAdminUserTopAccessedResourcesParams struct {
 // ReplaceAdminSavedFiltersJSONRequestBody defines body for ReplaceAdminSavedFilters for application/json ContentType.
 type ReplaceAdminSavedFiltersJSONRequestBody = AdminSavedFiltersReplaceRequest
 
+// UpsertAdminInstanceEmailSettingsJSONRequestBody defines body for UpsertAdminInstanceEmailSettings for application/json ContentType.
+type UpsertAdminInstanceEmailSettingsJSONRequestBody = AdminInstanceEmailSettingsRequest
+
+// TestAdminInstanceEmailSettingsJSONRequestBody defines body for TestAdminInstanceEmailSettings for application/json ContentType.
+type TestAdminInstanceEmailSettingsJSONRequestBody = AdminInstanceEmailTestRequest
+
 // CreateAdminUserJSONRequestBody defines body for CreateAdminUser for application/json ContentType.
 type CreateAdminUserJSONRequestBody = AdminUserCreateRequest
 
@@ -3155,6 +3508,21 @@ type ServerInterface interface {
 	// Replace the caller's saved filter presets for an admin list
 	// (PUT /api/v1/admin/saved-filters/{list})
 	ReplaceAdminSavedFilters(w http.ResponseWriter, r *http.Request, list AdminSavedFilterListName)
+	// Remove the instance email provider settings
+	// (DELETE /api/v1/admin/settings/email)
+	DeleteAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request)
+	// Get the instance email provider settings
+	// (GET /api/v1/admin/settings/email)
+	GetAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request)
+	// Create or replace the instance email provider settings
+	// (PUT /api/v1/admin/settings/email)
+	UpsertAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request)
+	// List the instance email provider settings audit log
+	// (GET /api/v1/admin/settings/email/audit)
+	ListAdminInstanceEmailSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminInstanceEmailSettingsAuditParams)
+	// Send a test message through the instance email provider
+	// (POST /api/v1/admin/settings/email/test)
+	TestAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(w http.ResponseWriter, r *http.Request)
@@ -3305,6 +3673,36 @@ func (_ Unimplemented) GetAdminSavedFilters(w http.ResponseWriter, r *http.Reque
 // Replace the caller's saved filter presets for an admin list
 // (PUT /api/v1/admin/saved-filters/{list})
 func (_ Unimplemented) ReplaceAdminSavedFilters(w http.ResponseWriter, r *http.Request, list AdminSavedFilterListName) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Remove the instance email provider settings
+// (DELETE /api/v1/admin/settings/email)
+func (_ Unimplemented) DeleteAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the instance email provider settings
+// (GET /api/v1/admin/settings/email)
+func (_ Unimplemented) GetAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create or replace the instance email provider settings
+// (PUT /api/v1/admin/settings/email)
+func (_ Unimplemented) UpsertAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the instance email provider settings audit log
+// (GET /api/v1/admin/settings/email/audit)
+func (_ Unimplemented) ListAdminInstanceEmailSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminInstanceEmailSettingsAuditParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Send a test message through the instance email provider
+// (POST /api/v1/admin/settings/email/test)
+func (_ Unimplemented) TestAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4551,6 +4949,148 @@ func (siw *ServerInterfaceWrapper) ReplaceAdminSavedFilters(w http.ResponseWrite
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ReplaceAdminSavedFilters(w, r, list)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminInstanceEmailSettings operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminInstanceEmailSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminInstanceEmailSettings operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminInstanceEmailSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpsertAdminInstanceEmailSettings operation middleware
+func (siw *ServerInterfaceWrapper) UpsertAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpsertAdminInstanceEmailSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminInstanceEmailSettingsAudit operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminInstanceEmailSettingsAudit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminInstanceEmailSettingsAuditParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminInstanceEmailSettingsAudit(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TestAdminInstanceEmailSettings operation middleware
+func (siw *ServerInterfaceWrapper) TestAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TestAdminInstanceEmailSettings(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7763,6 +8303,21 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Put(options.BaseURL+"/api/v1/admin/saved-filters/{list}", wrapper.ReplaceAdminSavedFilters)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/admin/settings/email", wrapper.DeleteAdminInstanceEmailSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/email", wrapper.GetAdminInstanceEmailSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/admin/settings/email", wrapper.UpsertAdminInstanceEmailSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/email/audit", wrapper.ListAdminInstanceEmailSettingsAudit)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/admin/settings/email/test", wrapper.TestAdminInstanceEmailSettings)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/stats", wrapper.GetAdminStats)
 	})
 	r.Group(func(r chi.Router) {
@@ -8559,6 +9114,304 @@ func (response ReplaceAdminSavedFilters409ApplicationProblemPlusJSONResponse) Vi
 type ReplaceAdminSavedFilters500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response ReplaceAdminSavedFilters500ApplicationProblemPlusJSONResponse) VisitReplaceAdminSavedFiltersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminInstanceEmailSettingsRequestObject struct {
+}
+
+type DeleteAdminInstanceEmailSettingsResponseObject interface {
+	VisitDeleteAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminInstanceEmailSettings204Response struct {
+}
+
+func (response DeleteAdminInstanceEmailSettings204Response) VisitDeleteAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminInstanceEmailSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminInstanceEmailSettings404ApplicationProblemPlusJSONResponse) VisitDeleteAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminInstanceEmailSettings409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminInstanceEmailSettings409ApplicationProblemPlusJSONResponse) VisitDeleteAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminInstanceEmailSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminInstanceEmailSettings500ApplicationProblemPlusJSONResponse) VisitDeleteAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminInstanceEmailSettingsRequestObject struct {
+}
+
+type GetAdminInstanceEmailSettingsResponseObject interface {
+	VisitGetAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminInstanceEmailSettings200JSONResponse AdminInstanceEmailSettings
+
+func (response GetAdminInstanceEmailSettings200JSONResponse) VisitGetAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminInstanceEmailSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminInstanceEmailSettings404ApplicationProblemPlusJSONResponse) VisitGetAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminInstanceEmailSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminInstanceEmailSettings500ApplicationProblemPlusJSONResponse) VisitGetAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpsertAdminInstanceEmailSettingsRequestObject struct {
+	Body *UpsertAdminInstanceEmailSettingsJSONRequestBody
+}
+
+type UpsertAdminInstanceEmailSettingsResponseObject interface {
+	VisitUpsertAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error
+}
+
+type UpsertAdminInstanceEmailSettings200JSONResponse AdminInstanceEmailSettings
+
+func (response UpsertAdminInstanceEmailSettings200JSONResponse) VisitUpsertAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpsertAdminInstanceEmailSettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpsertAdminInstanceEmailSettings400ApplicationProblemPlusJSONResponse) VisitUpsertAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpsertAdminInstanceEmailSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpsertAdminInstanceEmailSettings404ApplicationProblemPlusJSONResponse) VisitUpsertAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpsertAdminInstanceEmailSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpsertAdminInstanceEmailSettings500ApplicationProblemPlusJSONResponse) VisitUpsertAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminInstanceEmailSettingsAuditRequestObject struct {
+	Params ListAdminInstanceEmailSettingsAuditParams
+}
+
+type ListAdminInstanceEmailSettingsAuditResponseObject interface {
+	VisitListAdminInstanceEmailSettingsAuditResponse(w http.ResponseWriter) error
+}
+
+type ListAdminInstanceEmailSettingsAudit200JSONResponse AdminInstanceSettingsAuditPage
+
+func (response ListAdminInstanceEmailSettingsAudit200JSONResponse) VisitListAdminInstanceEmailSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminInstanceEmailSettingsAudit400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminInstanceEmailSettingsAudit400ApplicationProblemPlusJSONResponse) VisitListAdminInstanceEmailSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminInstanceEmailSettingsAudit404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminInstanceEmailSettingsAudit404ApplicationProblemPlusJSONResponse) VisitListAdminInstanceEmailSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminInstanceEmailSettingsAudit500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminInstanceEmailSettingsAudit500ApplicationProblemPlusJSONResponse) VisitListAdminInstanceEmailSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestAdminInstanceEmailSettingsRequestObject struct {
+	Body *TestAdminInstanceEmailSettingsJSONRequestBody
+}
+
+type TestAdminInstanceEmailSettingsResponseObject interface {
+	VisitTestAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error
+}
+
+type TestAdminInstanceEmailSettings200JSONResponse TeamEmailProviderTestResponse
+
+func (response TestAdminInstanceEmailSettings200JSONResponse) VisitTestAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestAdminInstanceEmailSettings400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response TestAdminInstanceEmailSettings400ApplicationProblemPlusJSONResponse) VisitTestAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestAdminInstanceEmailSettings404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response TestAdminInstanceEmailSettings404ApplicationProblemPlusJSONResponse) VisitTestAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestAdminInstanceEmailSettings500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response TestAdminInstanceEmailSettings500ApplicationProblemPlusJSONResponse) VisitTestAdminInstanceEmailSettingsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -10364,6 +11217,21 @@ type StrictServerInterface interface {
 	// Replace the caller's saved filter presets for an admin list
 	// (PUT /api/v1/admin/saved-filters/{list})
 	ReplaceAdminSavedFilters(ctx context.Context, request ReplaceAdminSavedFiltersRequestObject) (ReplaceAdminSavedFiltersResponseObject, error)
+	// Remove the instance email provider settings
+	// (DELETE /api/v1/admin/settings/email)
+	DeleteAdminInstanceEmailSettings(ctx context.Context, request DeleteAdminInstanceEmailSettingsRequestObject) (DeleteAdminInstanceEmailSettingsResponseObject, error)
+	// Get the instance email provider settings
+	// (GET /api/v1/admin/settings/email)
+	GetAdminInstanceEmailSettings(ctx context.Context, request GetAdminInstanceEmailSettingsRequestObject) (GetAdminInstanceEmailSettingsResponseObject, error)
+	// Create or replace the instance email provider settings
+	// (PUT /api/v1/admin/settings/email)
+	UpsertAdminInstanceEmailSettings(ctx context.Context, request UpsertAdminInstanceEmailSettingsRequestObject) (UpsertAdminInstanceEmailSettingsResponseObject, error)
+	// List the instance email provider settings audit log
+	// (GET /api/v1/admin/settings/email/audit)
+	ListAdminInstanceEmailSettingsAudit(ctx context.Context, request ListAdminInstanceEmailSettingsAuditRequestObject) (ListAdminInstanceEmailSettingsAuditResponseObject, error)
+	// Send a test message through the instance email provider
+	// (POST /api/v1/admin/settings/email/test)
+	TestAdminInstanceEmailSettings(ctx context.Context, request TestAdminInstanceEmailSettingsRequestObject) (TestAdminInstanceEmailSettingsResponseObject, error)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(ctx context.Context, request GetAdminStatsRequestObject) (GetAdminStatsResponseObject, error)
@@ -10763,6 +11631,145 @@ func (sh *strictHandler) ReplaceAdminSavedFilters(w http.ResponseWriter, r *http
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ReplaceAdminSavedFiltersResponseObject); ok {
 		if err := validResponse.VisitReplaceAdminSavedFiltersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAdminInstanceEmailSettings operation middleware
+func (sh *strictHandler) DeleteAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
+	var request DeleteAdminInstanceEmailSettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminInstanceEmailSettings(ctx, request.(DeleteAdminInstanceEmailSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminInstanceEmailSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminInstanceEmailSettingsResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminInstanceEmailSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminInstanceEmailSettings operation middleware
+func (sh *strictHandler) GetAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminInstanceEmailSettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminInstanceEmailSettings(ctx, request.(GetAdminInstanceEmailSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminInstanceEmailSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminInstanceEmailSettingsResponseObject); ok {
+		if err := validResponse.VisitGetAdminInstanceEmailSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpsertAdminInstanceEmailSettings operation middleware
+func (sh *strictHandler) UpsertAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
+	var request UpsertAdminInstanceEmailSettingsRequestObject
+
+	var body UpsertAdminInstanceEmailSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpsertAdminInstanceEmailSettings(ctx, request.(UpsertAdminInstanceEmailSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpsertAdminInstanceEmailSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpsertAdminInstanceEmailSettingsResponseObject); ok {
+		if err := validResponse.VisitUpsertAdminInstanceEmailSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminInstanceEmailSettingsAudit operation middleware
+func (sh *strictHandler) ListAdminInstanceEmailSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminInstanceEmailSettingsAuditParams) {
+	var request ListAdminInstanceEmailSettingsAuditRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminInstanceEmailSettingsAudit(ctx, request.(ListAdminInstanceEmailSettingsAuditRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminInstanceEmailSettingsAudit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminInstanceEmailSettingsAuditResponseObject); ok {
+		if err := validResponse.VisitListAdminInstanceEmailSettingsAuditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// TestAdminInstanceEmailSettings operation middleware
+func (sh *strictHandler) TestAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request) {
+	var request TestAdminInstanceEmailSettingsRequestObject
+
+	var body TestAdminInstanceEmailSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TestAdminInstanceEmailSettings(ctx, request.(TestAdminInstanceEmailSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TestAdminInstanceEmailSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TestAdminInstanceEmailSettingsResponseObject); ok {
+		if err := validResponse.VisitTestAdminInstanceEmailSettingsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -144,22 +144,21 @@ func (s *InstanceEmailProviderService) Upsert(
 }
 
 // Delete removes the instance provider and appends one redacted audit entry.
-// Deleting when there is no row is idempotent and writes no entry: nothing
-// changed.
+// Deleting when there is no row reports repositories.ErrInstanceEmailProviderNotFound
+// and writes no entry: nothing changed, and the admin endpoint answers it with
+// 409 like the team endpoint does (#1189).
 func (s *InstanceEmailProviderService) Delete(ctx context.Context, actorUserID string) error {
 	existing, err := s.stored(ctx)
 	if err != nil {
 		return err
 	}
 	if existing == nil {
-		return nil
+		return repositories.ErrInstanceEmailProviderNotFound
 	}
 
+	// A concurrent delete surfaces here as ErrInstanceEmailProviderNotFound too;
+	// the other delete owns the audit entry, so it is returned as is.
 	if err := s.repo.Delete(ctx); err != nil {
-		if errors.Is(err, repositories.ErrInstanceEmailProviderNotFound) {
-			// Deleted concurrently: the other delete owns the audit entry.
-			return nil
-		}
 		return err
 	}
 

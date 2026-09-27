@@ -68,6 +68,17 @@ var adminGuardedBodies = []adminGuardedBody{
 		path:     regexp.MustCompile(`^/api/v1/admin/saved-filters/[^/]+$`),
 		bodyType: admingen.AdminSavedFiltersReplaceRequest{},
 	},
+	{
+		method:   http.MethodPut,
+		path:     regexp.MustCompile(`^/api/v1/admin/settings/email$`),
+		bodyType: admingen.AdminInstanceEmailSettingsRequest{},
+	},
+	{
+		// No recipient field: a test message always goes to the acting admin.
+		method:   http.MethodPost,
+		path:     regexp.MustCompile(`^/api/v1/admin/settings/email/test$`),
+		bodyType: admingen.AdminInstanceEmailTestRequest{},
+	},
 }
 
 // guardedBodyFor returns the guarded-operation entry matching this request.

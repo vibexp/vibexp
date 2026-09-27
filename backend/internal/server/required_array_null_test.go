@@ -215,6 +215,7 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"AdminUserTeamResourceCounts":         "generated strict-server type (internal/server/gen/admin); handler builds projects via make(...,0) — handlers_admin_user_insights.go toGenAdminUserInsights",
 	"AdminUserResourceCreationMetrics":    "generated strict-server type (internal/server/gen/admin); handler builds series via make(...,0) — handlers_admin_user_insights.go toGenAdminUserCreationMetrics",
 	"AdminUserTimelinePage":               "generated strict-server type (internal/server/gen/admin); handler builds items via make(...,0) — handlers_admin_user_insights.go toGenAdminUserTimelinePage",
+	"AdminInstanceSettingsAuditPage":      "generated strict-server type (internal/server/gen/admin); handler builds entries via make(...,0) — handlers_admin_instance_email.go toGenAdminInstanceSettingsAuditPage",
 	"AdminUserAccessMetrics":              "generated strict-server type (internal/server/gen/admin); access_by_source built via make(...,0) — handlers_admin_user_access.go toGenAdminSourcePoints",
 	"AdminTopAccessedResourcesResponse":   "generated strict-server type (internal/server/gen/admin); handler builds items via make(...,0) — handlers_admin_user_access.go toGenAdminTopAccessedResources",
 	"AdminProjectResourceCreationMetrics": "generated strict-server type (internal/server/gen/admin); handler builds series via make(...,0) — handlers_admin_project_analytics.go GetAdminProjectResourceCreationMetrics",

@@ -18464,6 +18464,328 @@
         }
       }
     },
+    "/api/v1/admin/settings/email": {
+      "get": {
+        "summary": "Get the instance email provider settings",
+        "description": "Returns the instance's stored email provider configuration, its delivery\nhealth and whether a credential is stored. Always 200: an instance with\nnothing stored reports `configured: false`. The credential is never\nreturned.\nInstance-admin only; non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "getAdminInstanceEmailSettings",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The instance email provider settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInstanceEmailSettings"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Create or replace the instance email provider settings",
+        "description": "Validates, encrypts and stores the instance's email provider, taking\neffect on the next send with no restart, and appends one redacted entry\nto the audit log. Idempotent: the same body creates or replaces. Omitting\n`secret` keeps the stored credential when the provider type is\nunchanged; an empty `secret` is rejected. A body carrying an unknown\nfield is rejected with 400.\nInstance-admin only; non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "upsertAdminInstanceEmailSettings",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminInstanceEmailSettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInstanceEmailSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — the configuration is invalid (`INSTANCE_EMAIL_PROVIDER_VALIDATION_FAILED`,\nwith `validation_errors`), or the body carries an unknown field\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove the instance email provider settings",
+        "description": "Removes the stored instance email provider and appends one redacted\nentry to the audit log. Instance mail is then discarded until a provider\nis configured again. Returns 409 when nothing is stored.\nInstance-admin only; non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "deleteAdminInstanceEmailSettings",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The settings were removed"
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — no instance email provider is configured (`INSTANCE_EMAIL_PROVIDER_NOT_CONFIGURED`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settings/email/test": {
+      "post": {
+        "summary": "Send a test message through the instance email provider",
+        "description": "Sends a fixed test message to the calling admin's own account email,\nthrough the stored configuration (empty body) or through a candidate\nconfiguration (see `AdminInstanceEmailTestRequest`). Nothing is stored\nand nothing is audited. A failed send is still a 200, reported with\n`is_valid: false`. A body carrying an unknown field (including a\n`recipient`) is rejected with 400.\nInstance-admin only; non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "testAdminInstanceEmailSettings",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminInstanceEmailTestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The outcome of the test send",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamEmailProviderTestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — the candidate configuration is invalid, nothing is stored to\ntest (`INSTANCE_EMAIL_PROVIDER_VALIDATION_FAILED`), or the body carries an\nunknown field\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settings/email/audit": {
+      "get": {
+        "summary": "List the instance email provider settings audit log",
+        "description": "Returns one page of the instance email provider's audit log, newest\nfirst. Every entry's `before`/`after` snapshot is redacted: it never\ncontains a credential. Pass the previous page's `next_cursor` to\ncontinue.\nInstance-admin only; non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "listAdminInstanceEmailSettingsAudit",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from a previous page's `next_cursor`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of audit entries, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInstanceSettingsAuditPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed cursor, or `limit` out of range",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/{team_id}/comments": {
       "get": {
         "summary": "List a resource's comments",
@@ -39694,6 +40016,314 @@
             "format": "int64",
             "minimum": 0,
             "description": "The `version` last read. A stale value is rejected with 409 and nothing\nis saved.\n"
+          }
+        }
+      },
+      "AdminInstanceEmailProviderType": {
+        "type": "string",
+        "description": "Which provider the instance sends through. Matched case-insensitively.",
+        "enum": [
+          "smtp",
+          "mailgun",
+          "postmark",
+          "sendgrid"
+        ],
+        "example": "smtp"
+      },
+      "AdminInstanceEmailSettingsRequest": {
+        "type": "object",
+        "description": "The instance's email provider configuration. This is an upsert, so the same\nbody creates or replaces. The per-type `settings` and the write-only\n`secret` follow the team email provider request exactly. A body carrying an\nunknown field is rejected with 400.\n",
+        "additionalProperties": false,
+        "required": [
+          "provider_type",
+          "from_address"
+        ],
+        "properties": {
+          "provider_type": {
+            "$ref": "#/components/schemas/AdminInstanceEmailProviderType"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/TeamEmailProviderSettings"
+          },
+          "secret": {
+            "type": "string",
+            "description": "The provider's single credential (SMTP password, Mailgun sending key,\nPostmark server token, or SendGrid API key). It is write-only: never\nreturned by any endpoint.\n\nOMIT it to keep the stored credential, which is allowed only when the\nprovider type is unchanged; a new configuration or a change of provider\ntype must carry its own. An explicitly empty string is rejected.\n",
+            "example": "key-abc123"
+          },
+          "from_address": {
+            "type": "string",
+            "format": "email",
+            "description": "The address instance mail is sent from.",
+            "example": "noreply@vibexp.example.com"
+          },
+          "from_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional display name shown beside the from address.",
+            "example": "VibeXP"
+          },
+          "reply_to": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "description": "Optional Reply-To address.",
+            "example": "support@vibexp.example.com"
+          },
+          "contact_recipient_address": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "description": "Where the contact form delivers. Omitted or null falls back to the from\naddress.\n",
+            "example": "hello@vibexp.example.com"
+          },
+          "privacy_policy_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Absolute http(s) URL of the privacy policy linked from outbound mail.\nOmitted or null links none.\n",
+            "example": "https://vibexp.example.com/privacy"
+          }
+        }
+      },
+      "AdminInstanceEmailTestRequest": {
+        "type": "object",
+        "description": "An optional candidate configuration for a test send. An empty body (or an\nempty object) tests the STORED configuration. A body with any field set is\ntested as a full configuration, validated like an upsert; if it omits\n`secret`, the stored credential is used only when the candidate targets\nthe same destination (same provider type and, for SMTP, the same\nhost/port/username; for Mailgun, the same domain/base URL).\n\nThere is no recipient field: the test message always goes to the calling\nadmin's own account email. A body carrying an unknown field is rejected\nwith 400.\n",
+        "additionalProperties": false,
+        "properties": {
+          "provider_type": {
+            "$ref": "#/components/schemas/AdminInstanceEmailProviderType"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/TeamEmailProviderSettings"
+          },
+          "secret": {
+            "type": "string",
+            "description": "The candidate credential. Omit it to test with the stored credential\n(same destination only, see above). Never returned.\n",
+            "example": "key-abc123"
+          },
+          "from_address": {
+            "type": "string",
+            "format": "email",
+            "description": "The from address to test with.",
+            "example": "noreply@vibexp.example.com"
+          },
+          "from_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional display name to test with.",
+            "example": "VibeXP"
+          },
+          "reply_to": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "description": "Optional Reply-To address to test with.",
+            "example": "support@vibexp.example.com"
+          },
+          "contact_recipient_address": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "description": "Accepted for parity with the upsert body; a test send does not use it.",
+            "example": "hello@vibexp.example.com"
+          },
+          "privacy_policy_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Accepted for parity with the upsert body; a test send does not use it.",
+            "example": "https://vibexp.example.com/privacy"
+          }
+        }
+      },
+      "AdminInstanceEmailSettings": {
+        "type": "object",
+        "description": "The instance's stored email configuration. This is never a 404: an\ninstance with nothing stored reports `configured: false`, with every other\nfield null or absent, and discards its mail.\n\nNo field here can carry the credential; `has_credential` reports only that\none is stored.\n",
+        "additionalProperties": false,
+        "required": [
+          "configured",
+          "provider_type",
+          "has_credential",
+          "is_healthy"
+        ],
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "description": "Whether an instance email provider is stored.",
+            "example": true
+          },
+          "provider_type": {
+            "type": "string",
+            "nullable": true,
+            "description": "The stored provider type, or null when nothing is configured.",
+            "enum": [
+              "smtp",
+              "mailgun",
+              "postmark",
+              "sendgrid",
+              null
+            ],
+            "example": "smtp"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/TeamEmailProviderSettings"
+          },
+          "has_credential": {
+            "type": "boolean",
+            "description": "Whether a credential is stored. The credential itself is never\nreturned. An SMTP relay without authentication legitimately has none.\n",
+            "example": true
+          },
+          "from_address": {
+            "type": "string",
+            "nullable": true,
+            "description": "The configured from address; null when nothing is configured.",
+            "example": "noreply@vibexp.example.com"
+          },
+          "from_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "The configured display name.",
+            "example": "VibeXP"
+          },
+          "reply_to": {
+            "type": "string",
+            "nullable": true,
+            "description": "The configured Reply-To address.",
+            "example": "support@vibexp.example.com"
+          },
+          "contact_recipient_address": {
+            "type": "string",
+            "nullable": true,
+            "description": "Where the contact form delivers; null falls back to the from address.",
+            "example": "hello@vibexp.example.com"
+          },
+          "privacy_policy_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "The privacy policy URL linked from outbound mail; null links none.",
+            "example": "https://vibexp.example.com/privacy"
+          },
+          "is_healthy": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the last observed send succeeded, derived by comparing\n`last_success_at` with `last_error_at` (a provider that has never sent\nis healthy). Null when nothing is configured.\n",
+            "example": true
+          },
+          "last_success_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When a send through the instance provider last succeeded."
+          },
+          "last_error": {
+            "type": "string",
+            "nullable": true,
+            "description": "The last delivery error, retained after recovery for diagnosis; use\n`is_healthy` to tell whether the provider is currently failing.\n",
+            "example": "smtp: connection refused"
+          },
+          "last_error_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the last delivery error occurred."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the configuration was last saved; null when nothing is configured."
+          },
+          "updated_by": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The admin who last saved the configuration. Null for the boot-time\nimport from config.yaml, or once that user has been deleted.\n"
+          }
+        }
+      },
+      "AdminInstanceSettingsAuditEntry": {
+        "type": "object",
+        "description": "One append-only change to an instance setting. `before` and `after` are\nREDACTED snapshots: they never contain a credential, only\n`has_credential` and, on an upsert's `after`, a `secret` marker saying\nwhether the credential was `changed` or `unchanged`.\n",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "setting",
+          "action",
+          "actor_user_id",
+          "actor_name",
+          "before",
+          "after",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Audit entry id."
+          },
+          "setting": {
+            "type": "string",
+            "description": "The instance setting the entry describes.",
+            "example": "email_provider"
+          },
+          "action": {
+            "type": "string",
+            "description": "`upsert` (created or replaced by an admin), `delete` (removed by an\nadmin) or `import` (the boot-time import from config.yaml, which has no\nactor).\n",
+            "enum": [
+              "upsert",
+              "delete",
+              "import"
+            ],
+            "example": "upsert"
+          },
+          "actor_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The admin who made the change. Null for an import, or once that user\nhas been deleted.\n"
+          },
+          "actor_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "The actor's display name (or email), when it could be resolved.",
+            "example": "Ada Admin"
+          },
+          "before": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "description": "The redacted setting before the change; null when the change created it."
+          },
+          "after": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "description": "The redacted setting after the change; null when the change deleted it."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the change was made."
+          }
+        }
+      },
+      "AdminInstanceSettingsAuditPage": {
+        "type": "object",
+        "description": "One page of an instance setting's audit log, newest first.",
+        "additionalProperties": false,
+        "required": [
+          "entries",
+          "next_cursor"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminInstanceSettingsAuditEntry"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Opaque cursor for the next page; null on the last page."
           }
         }
       },

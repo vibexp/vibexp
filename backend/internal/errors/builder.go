@@ -432,6 +432,32 @@ func NewTeamEmailProviderDeleteFailedError(detail string) *APIError {
 	)
 }
 
+// NewInstanceEmailProviderNotConfiguredError reports that the instance has no
+// email provider stored. Like the team error it is a 409, not a 404: the
+// endpoint exists, the instance is simply not in a state that can serve the
+// request (#1189).
+func NewInstanceEmailProviderNotConfiguredError() *APIError {
+	return NewAPIError(
+		CodeInstanceEmailProviderNotConfigured,
+		GetErrorTitle(CodeInstanceEmailProviderNotConfigured),
+		"The instance has no email provider configured",
+		http.StatusConflict,
+	)
+}
+
+// NewInstanceEmailProviderValidationError reports an invalid instance email
+// provider configuration with the offending fields (#1189).
+func NewInstanceEmailProviderValidationError(detail string, validationErrors []ValidationError) *APIError {
+	err := NewAPIError(
+		CodeInstanceEmailProviderValidationFailed,
+		GetErrorTitle(CodeInstanceEmailProviderValidationFailed),
+		detail,
+		http.StatusBadRequest,
+	)
+	err.ValidationErrors = validationErrors
+	return err
+}
+
 // Search summary errors (#1073)
 
 // NewAISummaryError builds one of the classified search summary errors. The
