@@ -21,6 +21,12 @@ const (
 type AdminServiceInterface interface {
 	// GetInstanceCounts returns instance-wide totals for the top-level entities.
 	GetInstanceCounts(ctx context.Context) (models.InstanceCounts, error)
+	// CountTeamsWithSearchSettingsOverride returns how many teams store search
+	// settings of their own, so ignore the instance defaults.
+	CountTeamsWithSearchSettingsOverride(ctx context.Context) (int, error)
+	// CountTeamsWithAISummarySettingsOverride returns how many teams store AI
+	// summary settings of their own, so ignore the instance defaults.
+	CountTeamsWithAISummarySettingsOverride(ctx context.Context) (int, error)
 	// ListUsers returns a page of users matching the filters with team counts and
 	// pagination metadata over the filtered set. filters.Page/Limit are clamped
 	// (page>=1, limit in [1, 100], default 20); every other filter is passed
@@ -173,6 +179,16 @@ func NewAdminService(
 // GetInstanceCounts returns instance-wide entity totals from the repository.
 func (s *AdminService) GetInstanceCounts(ctx context.Context) (models.InstanceCounts, error) {
 	return s.adminRepo.GetInstanceCounts(ctx)
+}
+
+// CountTeamsWithSearchSettingsOverride implements AdminServiceInterface.
+func (s *AdminService) CountTeamsWithSearchSettingsOverride(ctx context.Context) (int, error) {
+	return s.adminRepo.CountTeamsWithSearchSettingsOverride(ctx)
+}
+
+// CountTeamsWithAISummarySettingsOverride implements AdminServiceInterface.
+func (s *AdminService) CountTeamsWithAISummarySettingsOverride(ctx context.Context) (int, error) {
+	return s.adminRepo.CountTeamsWithAISummarySettingsOverride(ctx)
 }
 
 // clampAdminPage normalizes page/limit to safe bounds (page>=1, limit in

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -31,6 +32,11 @@ import (
 // The allowed field set is derived by reflection from the generated request type
 // rather than hand-listed, so it cannot drift from the spec: add a property to
 // the schema, regenerate, and the guard widens with it.
+//
+// The same gap exists for `required`: a non-pointer field the body omits
+// decodes to its zero value. For the whole-row settings replaces (#1200) that
+// would store a value the caller never sent, so those operations also set
+// requireAll, and the required set is derived from the same generated type.
 
 // adminGuardedBody describes one guarded operation: the method and path it
 // matches, plus a zero value of the generated request-body type whose JSON tags
@@ -45,6 +51,12 @@ type adminGuardedBody struct {
 	bodyType any
 	// hint is appended to the rejection message; empty for none.
 	hint string
+	// requireAll also rejects a body that omits (or nulls) any field the
+	// generated type declares without `omitempty` — i.e. every field the
+	// schema marks required. The decoder would otherwise zero-fill it
+	// silently, which on a whole-row replace stores a value the caller never
+	// sent (an omitted `enabled` would switch a feature off).
+	requireAll bool
 }
 
 // adminIdentityFieldsHint explains why the user-edit bodies are so narrow.
@@ -74,6 +86,18 @@ var adminGuardedBodies = []adminGuardedBody{
 		bodyType: admingen.AdminInstanceEmailSettingsRequest{},
 	},
 	{
+		method:     http.MethodPut,
+		path:       regexp.MustCompile(`^/api/v1/admin/settings/search$`),
+		bodyType:   admingen.AdminInstanceSearchSettingsUpdate{},
+		requireAll: true,
+	},
+	{
+		method:     http.MethodPut,
+		path:       regexp.MustCompile(`^/api/v1/admin/settings/ai-summary$`),
+		bodyType:   admingen.AdminInstanceAISummarySettingsUpdate{},
+		requireAll: true,
+	},
+	{
 		// No recipient field: a test message always goes to the acting admin.
 		method:   http.MethodPost,
 		path:     regexp.MustCompile(`^/api/v1/admin/settings/email/test$`),
@@ -95,25 +119,62 @@ func guardedBodyFor(r *http.Request) (adminGuardedBody, bool) {
 // reading the `json` tags of its exported fields.
 func allowedJSONFields(v any) map[string]struct{} {
 	allowed := make(map[string]struct{})
+	for _, f := range jsonFields(v) {
+		allowed[f.name] = struct{}{}
+	}
+	return allowed
+}
+
+// requiredJSONFields returns, sorted, the JSON keys a generated request type
+// declares without `omitempty`: oapi-codegen adds omitempty to exactly the
+// optional properties, so these are the schema's required ones.
+func requiredJSONFields(v any) []string {
+	var required []string
+	for _, f := range jsonFields(v) {
+		if !f.omitempty {
+			required = append(required, f.name)
+		}
+	}
+	sort.Strings(required)
+	return required
+}
+
+// jsonField is one exported struct field's JSON key and whether it is
+// omitempty.
+type jsonField struct {
+	name      string
+	omitempty bool
+}
+
+// jsonFields reads the JSON keys of a struct's exported fields from their
+// `json` tags (the Go field name when untagged).
+func jsonFields(v any) []jsonField {
 	t := reflect.TypeOf(v)
+	fields := make([]jsonField, 0, t.NumField())
 	for i := range t.NumField() {
 		field := t.Field(i)
 		if !field.IsExported() {
 			continue
 		}
-		name := field.Name
+		f := jsonField{name: field.Name}
 		if tag, ok := field.Tag.Lookup("json"); ok {
-			if base := strings.Split(tag, ",")[0]; base != "" && base != "-" {
-				name = base
+			parts := strings.Split(tag, ",")
+			if parts[0] == "-" {
+				continue
 			}
+			if parts[0] != "" {
+				f.name = parts[0]
+			}
+			f.omitempty = slices.Contains(parts[1:], "omitempty")
 		}
-		allowed[name] = struct{}{}
+		fields = append(fields, f)
 	}
-	return allowed
+	return fields
 }
 
 // rejectUnknownAdminBodyFields is chi middleware that 400s an admin request
-// whose JSON body carries a field the operation's schema does not declare.
+// whose JSON body carries a field the operation's schema does not declare, or,
+// for a requireAll operation, omits or nulls a required one.
 //
 // It buffers the body to inspect it and then restores it, so the generated
 // decoder downstream still sees a readable stream.
@@ -145,17 +206,45 @@ func (s *Server) rejectUnknownAdminBodyFields(next http.Handler) http.Handler {
 			return
 		}
 
-		allowed := allowedJSONFields(guard.bodyType)
-		if unknown := unknownFields(fields, allowed); len(unknown) > 0 {
-			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(fmt.Sprintf(
-				"Unknown or non-editable field(s): %s. Only %s may be sent here.%s",
-				strings.Join(unknown, ", "), strings.Join(sortedKeys(allowed), ", "), guard.hint,
-			)))
+		if msg := guard.bodyProblem(fields); msg != "" {
+			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(msg))
 			return
 		}
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// bodyProblem reports why a decoded JSON object body is rejected, or "" when
+// it is acceptable: an unknown key first, then (for a requireAll operation) a
+// required key that is absent or null.
+func (g adminGuardedBody) bodyProblem(fields map[string]json.RawMessage) string {
+	allowed := allowedJSONFields(g.bodyType)
+	if unknown := unknownFields(fields, allowed); len(unknown) > 0 {
+		return fmt.Sprintf("Unknown or non-editable field(s): %s. Only %s may be sent here.%s",
+			strings.Join(unknown, ", "), strings.Join(sortedKeys(allowed), ", "), g.hint)
+	}
+	if !g.requireAll {
+		return ""
+	}
+	if missing := missingFields(fields, requiredJSONFields(g.bodyType)); len(missing) > 0 {
+		return fmt.Sprintf("Missing required field(s): %s. This endpoint replaces the whole "+
+			"setting, so every field must be supplied (null is not a value).", strings.Join(missing, ", "))
+	}
+	return ""
+}
+
+// missingFields returns the required keys that are absent from the body or
+// explicitly null, in the order given.
+func missingFields(body map[string]json.RawMessage, required []string) []string {
+	missing := make([]string, 0)
+	for _, key := range required {
+		raw, ok := body[key]
+		if !ok || string(bytes.TrimSpace(raw)) == "null" {
+			missing = append(missing, key)
+		}
+	}
+	return missing
 }
 
 // unknownFields returns the sorted body keys that are not in the allowed set.

@@ -119,6 +119,10 @@ type WireContainer struct {
 	instanceSettingsAuditRepo    repositories.InstanceSettingsAuditRepository
 	instanceEmailProviderService services.InstanceEmailProviderServiceInterface
 
+	// Instance search + AI summary settings (#1200)
+	instanceSearchSettingsService    services.InstanceSearchSettingsServiceInterface
+	instanceAISummarySettingsService services.InstanceAISummarySettingsServiceInterface
+
 	// External dependencies
 	identityRegistry *idp.Registry
 	smtpClient       external.EmailSender
@@ -375,6 +379,16 @@ func (c *WireContainer) EmbeddingService() services.EmbeddingServiceInterface {
 // InstanceEmailProviderService returns the instance email provider service.
 func (c *WireContainer) InstanceEmailProviderService() services.InstanceEmailProviderServiceInterface {
 	return c.instanceEmailProviderService
+}
+
+// InstanceSearchSettingsService returns the instance search settings service.
+func (c *WireContainer) InstanceSearchSettingsService() services.InstanceSearchSettingsServiceInterface {
+	return c.instanceSearchSettingsService
+}
+
+// InstanceAISummarySettingsService returns the instance AI summary settings service.
+func (c *WireContainer) InstanceAISummarySettingsService() services.InstanceAISummarySettingsServiceInterface {
+	return c.instanceAISummarySettingsService
 }
 
 // TeamEmailProviderService returns the team email provider service.

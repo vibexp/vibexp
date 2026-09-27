@@ -139,11 +139,20 @@ func (r *InstanceSearchSettingsRepository) Delete(ctx context.Context) error {
 const instanceSearchSettingsSubject = "instance search settings"
 
 // UpsertAudited creates or replaces the stored defaults and appends the audit
-// entry audit builds, in one transaction.
+// entry audit builds, in one transaction. A non-nil expectedVersion must match
+// the row read under the lock (see checkSingletonVersion).
 func (r *InstanceSearchSettingsRepository) UpsertAudited(
-	ctx context.Context, s *models.InstanceSearchSettings, audit repositories.InstanceSearchSettingsAuditFunc,
+	ctx context.Context, s *models.InstanceSearchSettings, expectedVersion *int64,
+	audit repositories.InstanceSearchSettingsAuditFunc,
 ) error {
 	return r.inAuditedTx(ctx, "upsert", func(tx *sql.Tx, before *models.InstanceSearchSettings) (bool, error) {
+		var storedVersion *int64
+		if before != nil {
+			storedVersion = &before.Version
+		}
+		if err := checkSingletonVersion(expectedVersion, storedVersion); err != nil {
+			return false, err
+		}
 		err := tx.QueryRowContext(ctx, instanceSearchSettingsUpsert, instanceSearchSettingsArgs(s)...).
 			Scan(&s.CreatedAt, &s.UpdatedAt, &s.Version)
 		if err != nil {

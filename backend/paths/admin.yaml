@@ -4144,3 +4144,361 @@ api-v1-admin-settings-email-audit:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-settings-search:
+  get:
+    summary: Get the instance search ranking settings
+    description: |
+      Returns the instance search ranking defaults in effect, where they come from
+      (`instance` or `default`), the built-in defaults, the hard bounds for
+      form validation, how many teams store settings of their own and the
+      stored row's `version`. Always 200: with nothing stored, `source` is
+      `default` and `values` equal `built_in_defaults`.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: getAdminSearchSettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: The instance search ranking settings
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminInstanceSearchSettings'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  put:
+    summary: Replace the instance search ranking settings
+    description: |
+      Validates and stores a whole replacement of the instance search ranking
+      defaults, taking effect on the next request with no restart, and appends
+      one entry (`action: upsert`) to the `search` audit log in the same
+      transaction. Pass `expected_version` to reject the save with 409 when
+      someone else changed the settings since they were read. A body that
+      omits a value field, sends one as null, or carries an unknown field is
+      rejected with 400.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: updateAdminSearchSettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AdminInstanceSearchSettingsUpdate'
+    responses:
+      '200':
+        description: The stored settings (`source` is `instance`)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminInstanceSearchSettings'
+      '400':
+        description: |
+          Bad request — a value is out of bounds (`INSTANCE_SETTINGS_VALIDATION_FAILED`,
+          with `validation_errors` naming each offending field), or the body is
+          malformed, omits or nulls a value field (every value is required), or
+          carries an unknown field
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict — `expected_version` does not match the stored version (`INSTANCE_SETTINGS_VERSION_CONFLICT`); nothing was changed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  delete:
+    summary: Reset the instance search ranking settings to the built-in defaults
+    description: |
+      Removes the stored instance search ranking defaults, so the built-in defaults
+      apply from the next request, and appends one entry (`action: delete`) to
+      the `search` audit log. Idempotent: with nothing stored it is still a
+      204 and writes no audit entry.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: resetAdminSearchSettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '204':
+        description: The built-in defaults now apply
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-settings-search-audit:
+  get:
+    summary: List the instance search ranking settings audit log
+    description: |
+      Returns one page of the instance search ranking settings' audit log (setting
+      `search`), newest first, with each actor's display name resolved.
+      Pass the previous page's `next_cursor` to continue.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: listAdminSearchSettingsAudit
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: cursor
+        in: query
+        description: Opaque cursor from a previous page's `next_cursor`.
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        description: Page size.
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: One page of audit entries, newest first
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminInstanceSettingsAuditPage'
+      '400':
+        description: Bad request — malformed cursor, or `limit` out of range
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-settings-ai-summary:
+  get:
+    summary: Get the instance AI summary settings
+    description: |
+      Returns the instance AI summary defaults and budgets in effect, where they come from
+      (`instance` or `default`), the built-in defaults, the hard bounds for
+      form validation, how many teams store settings of their own and the
+      stored row's `version`. Always 200: with nothing stored, `source` is
+      `default` and `values` equal `built_in_defaults`.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: getAdminAISummarySettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: The instance AI summary settings
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminInstanceAISummarySettings'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  put:
+    summary: Replace the instance AI summary settings
+    description: |
+      Validates and stores a whole replacement of the instance AI summary
+      defaults and budgets, taking effect on the next request with no restart, and appends
+      one entry (`action: upsert`) to the `ai_summary` audit log in the same
+      transaction. Pass `expected_version` to reject the save with 409 when
+      someone else changed the settings since they were read. A body that
+      omits a value field, sends one as null, or carries an unknown field is
+      rejected with 400.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: updateAdminAISummarySettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AdminInstanceAISummarySettingsUpdate'
+    responses:
+      '200':
+        description: The stored settings (`source` is `instance`)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminInstanceAISummarySettings'
+      '400':
+        description: |
+          Bad request — a value is out of bounds (`INSTANCE_SETTINGS_VALIDATION_FAILED`,
+          with `validation_errors` naming each offending field), or the body is
+          malformed, omits or nulls a value field (every value is required), or
+          carries an unknown field
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict — `expected_version` does not match the stored version (`INSTANCE_SETTINGS_VERSION_CONFLICT`); nothing was changed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  delete:
+    summary: Reset the instance AI summary settings to the built-in defaults
+    description: |
+      Removes the stored instance AI summary defaults and budgets, so the built-in defaults
+      apply from the next request, and appends one entry (`action: delete`) to
+      the `ai_summary` audit log. Idempotent: with nothing stored it is still a
+      204 and writes no audit entry.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: resetAdminAISummarySettings
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '204':
+        description: The built-in defaults now apply
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-settings-ai-summary-audit:
+  get:
+    summary: List the instance AI summary settings audit log
+    description: |
+      Returns one page of the instance AI summary settings' audit log (setting
+      `ai_summary`), newest first, with each actor's display name resolved.
+      Pass the previous page's `next_cursor` to continue.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: listAdminAISummarySettingsAudit
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: cursor
+        in: query
+        description: Opaque cursor from a previous page's `next_cursor`.
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        description: Page size.
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: One page of audit entries, newest first
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminInstanceSettingsAuditPage'
+      '400':
+        description: Bad request — malformed cursor, or `limit` out of range
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'

@@ -31,10 +31,10 @@ import (
 // no request body is ever logged.
 
 const (
-	// adminInstanceEmailAuditDefaultLimit is the page size when none is given.
-	adminInstanceEmailAuditDefaultLimit = 20
-	// adminInstanceEmailAuditMaxLimit is the largest page a caller may request.
-	adminInstanceEmailAuditMaxLimit = 100
+	// adminInstanceAuditDefaultLimit is the page size when none is given.
+	adminInstanceAuditDefaultLimit = 20
+	// adminInstanceAuditMaxLimit is the largest page a caller may request.
+	adminInstanceAuditMaxLimit = 100
 
 	adminMsgInstanceEmailInvalid = "The email provider configuration is invalid"
 )
@@ -118,37 +118,52 @@ func (a *adminStrictServer) TestAdminInstanceEmailSettings(
 func (a *adminStrictServer) ListAdminInstanceEmailSettingsAudit(
 	ctx context.Context, request admingen.ListAdminInstanceEmailSettingsAuditRequestObject,
 ) (admingen.ListAdminInstanceEmailSettingsAuditResponseObject, error) {
-	const handler = "ListAdminInstanceEmailSettingsAudit"
+	page, err := a.listInstanceSettingsAudit(ctx, "ListAdminInstanceEmailSettingsAudit",
+		models.InstanceSettingEmailProvider, request.Params.Limit, request.Params.Cursor,
+		filterInstanceEmailAuditSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	return admingen.ListAdminInstanceEmailSettingsAudit200JSONResponse(page), nil
+}
 
-	limit := adminInstanceEmailAuditDefaultLimit
-	if request.Params.Limit != nil {
-		limit = *request.Params.Limit
+// listInstanceSettingsAudit returns one page of one instance setting's audit
+// log, newest first, shared by every /admin/settings/<setting>/audit route. It
+// reads the repository directly: the log is instance-scoped, so there is no
+// team authorization for a service to add. filter redacts each snapshot to the
+// setting's allowlisted keys. The returned error is already an HTTP error.
+func (a *adminStrictServer) listInstanceSettingsAudit(
+	ctx context.Context, handler, setting string, limitParam *int, cursorParam *string,
+	filter func(json.RawMessage) *map[string]interface{},
+) (admingen.AdminInstanceSettingsAuditPage, error) {
+	limit := adminInstanceAuditDefaultLimit
+	if limitParam != nil {
+		limit = *limitParam
 		// The generated binder does not enforce minimum/maximum.
-		if limit < 1 || limit > adminInstanceEmailAuditMaxLimit {
-			return nil, apierrors.NewBadRequestError(fmt.Sprintf(
-				"invalid limit %d: must be between 1 and %d", limit, adminInstanceEmailAuditMaxLimit))
+		if limit < 1 || limit > adminInstanceAuditMaxLimit {
+			return admingen.AdminInstanceSettingsAuditPage{}, apierrors.NewBadRequestError(fmt.Sprintf(
+				"invalid limit %d: must be between 1 and %d", limit, adminInstanceAuditMaxLimit))
 		}
 	}
 	var cursor *models.InstanceSettingsAuditCursor
-	if request.Params.Cursor != nil {
-		decoded, err := decodeAdminInstanceAuditCursor(*request.Params.Cursor)
+	if cursorParam != nil {
+		decoded, err := decodeAdminInstanceAuditCursor(*cursorParam)
 		if err != nil {
-			return nil, apierrors.NewBadRequestError(err.Error())
+			return admingen.AdminInstanceSettingsAuditPage{}, apierrors.NewBadRequestError(err.Error())
 		}
 		cursor = &decoded
 	}
 
-	rows, next, err := a.s.container.InstanceSettingsAuditRepository().
-		List(ctx, models.InstanceSettingEmailProvider, limit, cursor)
+	rows, next, err := a.s.container.InstanceSettingsAuditRepository().List(ctx, setting, limit, cursor)
 	if err != nil {
-		return nil, a.adminInternalError(handler, err)
+		return admingen.AdminInstanceSettingsAuditPage{}, a.adminInternalError(handler, err)
 	}
 
-	page, err := a.toGenAdminInstanceSettingsAuditPage(ctx, rows, next)
+	page, err := a.toGenAdminInstanceSettingsAuditPage(ctx, rows, next, filter)
 	if err != nil {
-		return nil, a.adminInternalError(handler, err)
+		return admingen.AdminInstanceSettingsAuditPage{}, a.adminInternalError(handler, err)
 	}
-	return admingen.ListAdminInstanceEmailSettingsAudit200JSONResponse(page), nil
+	return page, nil
 }
 
 // mapInstanceEmailError turns the service's errors into their HTTP shapes:
@@ -331,13 +346,14 @@ var instanceEmailAuditSnapshotKeys = []string{
 
 func (a *adminStrictServer) toGenAdminInstanceSettingsAuditPage(
 	ctx context.Context, rows []*models.InstanceSettingsAuditEntry, next *models.InstanceSettingsAuditCursor,
+	filter func(json.RawMessage) *map[string]interface{},
 ) (admingen.AdminInstanceSettingsAuditPage, error) {
 	names := a.instanceAuditActorNames(ctx, rows)
 
 	// make(...,0,...): `entries` is a required array on a generated type.
 	entries := make([]admingen.AdminInstanceSettingsAuditEntry, 0, len(rows))
 	for _, row := range rows {
-		entry, err := toGenAdminInstanceSettingsAuditEntry(row, names)
+		entry, err := toGenAdminInstanceSettingsAuditEntry(row, names, filter)
 		if err != nil {
 			return admingen.AdminInstanceSettingsAuditPage{}, err
 		}
@@ -380,6 +396,7 @@ func (a *adminStrictServer) instanceAuditActorNames(
 
 func toGenAdminInstanceSettingsAuditEntry(
 	row *models.InstanceSettingsAuditEntry, names map[string]string,
+	filter func(json.RawMessage) *map[string]interface{},
 ) (admingen.AdminInstanceSettingsAuditEntry, error) {
 	id, err := parseAdminUUID("instance settings audit entry", row.ID)
 	if err != nil {
@@ -398,21 +415,35 @@ func toGenAdminInstanceSettingsAuditEntry(
 
 	return admingen.AdminInstanceSettingsAuditEntry{
 		Id:          id,
-		Setting:     row.Setting,
+		Setting:     admingen.AdminInstanceSettingsAuditEntrySetting(row.Setting),
 		Action:      admingen.AdminInstanceSettingsAuditEntryAction(row.Action),
 		ActorUserId: actorID,
 		ActorName:   actorName,
-		Before:      filterInstanceEmailAuditSnapshot(row.Before),
-		After:       filterInstanceEmailAuditSnapshot(row.After),
+		Before:      filter(row.Before),
+		After:       filter(row.After),
 		CreatedAt:   row.CreatedAt,
 	}, nil
 }
 
-// filterInstanceEmailAuditSnapshot decodes a stored snapshot and keeps only the
-// allowlisted keys. A missing snapshot (the create side of an upsert, the after
-// side of a delete) is null. The `secret` key is kept only when it holds one of
-// the two redaction markers.
+// filterInstanceEmailAuditSnapshot keeps only the email provider snapshot's
+// allowlisted keys. The `secret` key is kept only when it holds one of the two
+// redaction markers.
 func filterInstanceEmailAuditSnapshot(raw json.RawMessage) *map[string]interface{} {
+	filtered := filterInstanceAuditSnapshot(raw, instanceEmailAuditSnapshotKeys)
+	if filtered == nil {
+		return nil
+	}
+	if marker, _ := (*filtered)["secret"].(string); marker != models.InstanceSettingsAuditSecretChanged &&
+		marker != models.InstanceSettingsAuditSecretUnchanged {
+		delete(*filtered, "secret")
+	}
+	return filtered
+}
+
+// filterInstanceAuditSnapshot decodes a stored snapshot and keeps only the
+// allowlisted keys. A missing snapshot (the create side of an upsert, the after
+// side of a delete) is null.
+func filterInstanceAuditSnapshot(raw json.RawMessage, keys []string) *map[string]interface{} {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil
 	}
@@ -420,15 +451,11 @@ func filterInstanceEmailAuditSnapshot(raw json.RawMessage) *map[string]interface
 	if err := json.Unmarshal(raw, &decoded); err != nil || decoded == nil {
 		return nil
 	}
-	filtered := make(map[string]interface{}, len(instanceEmailAuditSnapshotKeys))
+	filtered := make(map[string]interface{}, len(keys))
 	for key, value := range decoded {
-		if slices.Contains(instanceEmailAuditSnapshotKeys, key) {
+		if slices.Contains(keys, key) {
 			filtered[key] = value
 		}
-	}
-	if marker, _ := filtered["secret"].(string); marker != models.InstanceSettingsAuditSecretChanged &&
-		marker != models.InstanceSettingsAuditSecretUnchanged {
-		delete(filtered, "secret")
 	}
 	return &filtered
 }

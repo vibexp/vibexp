@@ -446,7 +446,7 @@ func TestListAdminInstanceEmailSettingsAudit_FirstPage(t *testing.T) {
 	before, err := json.Marshal(map[string]any{"provider_type": "smtp", "secret": "unchanged"})
 	require.NoError(t, err)
 
-	f.audit.On("List", mock.Anything, models.InstanceSettingEmailProvider, adminInstanceEmailAuditDefaultLimit,
+	f.audit.On("List", mock.Anything, models.InstanceSettingEmailProvider, adminInstanceAuditDefaultLimit,
 		(*models.InstanceSettingsAuditCursor)(nil)).
 		Return([]*models.InstanceSettingsAuditEntry{{
 			ID: entryID, Setting: models.InstanceSettingEmailProvider,
@@ -547,7 +547,7 @@ func TestListAdminInstanceEmailSettingsAudit_BadParamsAre400(t *testing.T) {
 
 func TestListAdminInstanceEmailSettingsAudit_RepositoryFailureIs500(t *testing.T) {
 	f := newInstanceEmailFixture(t)
-	f.audit.On("List", mock.Anything, models.InstanceSettingEmailProvider, adminInstanceEmailAuditDefaultLimit,
+	f.audit.On("List", mock.Anything, models.InstanceSettingEmailProvider, adminInstanceAuditDefaultLimit,
 		(*models.InstanceSettingsAuditCursor)(nil)).
 		Return(nil, (*models.InstanceSettingsAuditCursor)(nil), errors.New("db down"))
 
@@ -563,7 +563,7 @@ func TestListAdminInstanceEmailSettingsAudit_RepositoryFailureIs500(t *testing.T
 func TestListAdminInstanceEmailSettingsAudit_NameLookupFailureDegrades(t *testing.T) {
 	f := newInstanceEmailFixture(t)
 	actor := instanceEmailActingAdmin
-	f.audit.On("List", mock.Anything, models.InstanceSettingEmailProvider, adminInstanceEmailAuditDefaultLimit,
+	f.audit.On("List", mock.Anything, models.InstanceSettingEmailProvider, adminInstanceAuditDefaultLimit,
 		(*models.InstanceSettingsAuditCursor)(nil)).
 		Return([]*models.InstanceSettingsAuditEntry{{
 			ID: uuid.NewString(), Setting: models.InstanceSettingEmailProvider,
@@ -581,57 +581,4 @@ func TestListAdminInstanceEmailSettingsAudit_NameLookupFailureDegrades(t *testin
 
 func encodeBase64URL(raw []byte) string {
 	return base64.RawURLEncoding.EncodeToString(raw)
-}
-
-// --- the gate -----------------------------------------------------------------
-
-// adminInstanceEmailRoutes lists every operation, for the 404 gate tests.
-var adminInstanceEmailRoutes = []struct{ method, path string }{
-	{http.MethodGet, instanceEmailSettingsPath},
-	{http.MethodPut, instanceEmailSettingsPath},
-	{http.MethodDelete, instanceEmailSettingsPath},
-	{http.MethodPost, instanceEmailSettingsPath + "/test"},
-	{http.MethodGet, instanceEmailSettingsPath + "/audit"},
-}
-
-// TestAdminInstanceEmailRoutes_Gate404 drives the FULL router
-// (setupAdminRoutes: optionalAuthMiddleware + instanceAdminMiddleware) for all
-// five operations: an anonymous caller and an authenticated non-admin (API
-// key) both get 404, and the service and audit mocks carry no expectations,
-// so reaching a handler fails the test.
-func TestAdminInstanceEmailRoutes_Gate404(t *testing.T) {
-	const nonAdminID = "33333333-3333-4333-8333-333333333333"
-	cfg := &config.Config{Auth: config.AuthConfig{InstanceAdmins: config.EnvStringSlice{instanceEmailAdminEmail}}}
-
-	for _, route := range adminInstanceEmailRoutes {
-		for _, caller := range []string{"anonymous", "non-admin"} {
-			t.Run(caller+" "+route.method+" "+route.path, func(t *testing.T) {
-				authSvc := servicesmocks.NewMockAuthServiceInterface(t)
-				keySvc := servicesmocks.NewMockAPIKeyServiceInterface(t)
-				srv := newAdminTestServer(cfg, &adminMockContainer{
-					authService:          authSvc,
-					apiKeyService:        keySvc,
-					instanceEmailService: servicesmocks.NewMockInstanceEmailProviderServiceInterface(t),
-					instanceAuditRepo:    repomocks.NewMockInstanceSettingsAuditRepository(t),
-				})
-
-				body, err := json.Marshal(smtpUpsertBody(nil))
-				require.NoError(t, err)
-				req := httptest.NewRequest(route.method, route.path, bytes.NewReader(body))
-				req.Header.Set("Content-Type", "application/json")
-				if caller == "non-admin" {
-					keySvc.On("ValidateAPIKey", mock.Anything, "vxk_non-admin").
-						Return(&models.APIKey{ID: "key-1", UserID: nonAdminID}, nil)
-					authSvc.On("GetUserByID", mock.Anything, nonAdminID).
-						Return(&models.User{ID: nonAdminID, Email: "member@instance.test"}, nil)
-					req.Header.Set("Authorization", "Bearer vxk_non-admin")
-				}
-				rr := httptest.NewRecorder()
-				srv.router.ServeHTTP(rr, req)
-
-				require.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
-				specconformance.AssertConformsToSpec(t, req, rr)
-			})
-		}
-	}
 }

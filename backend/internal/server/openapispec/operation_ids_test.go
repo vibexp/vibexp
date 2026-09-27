@@ -189,6 +189,16 @@ var settingsAliasExclusions = map[string]string{
 	"/api/v1/admin/settings/email/test": "testAdminInstanceEmailSettings (issue #1189) " +
 		"test-sends the instance email settings — the suffix is the noun. It has no " +
 		"canonical twin: the team test send is a different operation on a team path.",
+
+	"/api/v1/admin/settings/search": "the DOMAIN is the instance search ranking " +
+		"settings (getAdminSearchSettings / updateAdminSearchSettings / " +
+		"resetAdminSearchSettings, issue #1200) — the suffix is the noun. There is no " +
+		"other copy: the team search settings are different operations on team paths.",
+
+	"/api/v1/admin/settings/ai-summary": "the DOMAIN is the instance AI summary " +
+		"settings (getAdminAISummarySettings / updateAdminAISummarySettings / " +
+		"resetAdminAISummarySettings, issue #1200) — the suffix is the noun. There is no " +
+		"other copy: the team AI summary settings are different operations on team paths.",
 }
 
 // TestEverySettingsSuffixedPathIsRegistered is the completeness half of the

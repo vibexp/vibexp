@@ -9,6 +9,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 // insertSingletonIfAbsent runs an `INSERT ... ON CONFLICT (id) DO NOTHING
@@ -99,4 +100,18 @@ func appendBuiltSingletonAudit[T any](
 		return fmt.Errorf("failed to build %s audit entry: %w", subject, err)
 	}
 	return appendInstanceSettingsAudit(ctx, tx, entry)
+}
+
+// checkSingletonVersion implements the optional compare-and-set of an audited
+// singleton upsert. expected is the caller's version (nil: last-write-wins);
+// stored is the row's version as read under the table lock (nil: no row). Any
+// mismatch, including an expected version with no row stored, is a conflict.
+func checkSingletonVersion(expected, stored *int64) error {
+	if expected == nil {
+		return nil
+	}
+	if stored == nil || *stored != *expected {
+		return repositories.ErrInstanceSettingsVersionConflict
+	}
+	return nil
 }

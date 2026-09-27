@@ -302,6 +302,16 @@ func (b *BaseMockContainer) InstanceEmailProviderService() services.InstanceEmai
 	return nil
 }
 
+// InstanceSearchSettingsService returns nil; suites that exercise it install their own.
+func (b *BaseMockContainer) InstanceSearchSettingsService() services.InstanceSearchSettingsServiceInterface {
+	return nil
+}
+
+// InstanceAISummarySettingsService returns nil; suites that exercise it install their own.
+func (b *BaseMockContainer) InstanceAISummarySettingsService() services.InstanceAISummarySettingsServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) EmailSenderResolver() services.EmailSenderResolver {
 	return nil
 }

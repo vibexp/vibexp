@@ -140,6 +140,118 @@ func (_c *MockAdminRepository_CountTeams_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// CountTeamsWithAISummarySettingsOverride provides a mock function with given fields: ctx
+func (_m *MockAdminRepository) CountTeamsWithAISummarySettingsOverride(ctx context.Context) (int, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountTeamsWithAISummarySettingsOverride")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) (int, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) int); ok {
+		r0 = rf(ctx)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_CountTeamsWithAISummarySettingsOverride_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountTeamsWithAISummarySettingsOverride'
+type MockAdminRepository_CountTeamsWithAISummarySettingsOverride_Call struct {
+	*mock.Call
+}
+
+// CountTeamsWithAISummarySettingsOverride is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockAdminRepository_Expecter) CountTeamsWithAISummarySettingsOverride(ctx interface{}) *MockAdminRepository_CountTeamsWithAISummarySettingsOverride_Call {
+	return &MockAdminRepository_CountTeamsWithAISummarySettingsOverride_Call{Call: _e.mock.On("CountTeamsWithAISummarySettingsOverride", ctx)}
+}
+
+func (_c *MockAdminRepository_CountTeamsWithAISummarySettingsOverride_Call) Run(run func(ctx context.Context)) *MockAdminRepository_CountTeamsWithAISummarySettingsOverride_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_CountTeamsWithAISummarySettingsOverride_Call) Return(_a0 int, _a1 error) *MockAdminRepository_CountTeamsWithAISummarySettingsOverride_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_CountTeamsWithAISummarySettingsOverride_Call) RunAndReturn(run func(context.Context) (int, error)) *MockAdminRepository_CountTeamsWithAISummarySettingsOverride_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CountTeamsWithSearchSettingsOverride provides a mock function with given fields: ctx
+func (_m *MockAdminRepository) CountTeamsWithSearchSettingsOverride(ctx context.Context) (int, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountTeamsWithSearchSettingsOverride")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) (int, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) int); ok {
+		r0 = rf(ctx)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_CountTeamsWithSearchSettingsOverride_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountTeamsWithSearchSettingsOverride'
+type MockAdminRepository_CountTeamsWithSearchSettingsOverride_Call struct {
+	*mock.Call
+}
+
+// CountTeamsWithSearchSettingsOverride is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockAdminRepository_Expecter) CountTeamsWithSearchSettingsOverride(ctx interface{}) *MockAdminRepository_CountTeamsWithSearchSettingsOverride_Call {
+	return &MockAdminRepository_CountTeamsWithSearchSettingsOverride_Call{Call: _e.mock.On("CountTeamsWithSearchSettingsOverride", ctx)}
+}
+
+func (_c *MockAdminRepository_CountTeamsWithSearchSettingsOverride_Call) Run(run func(ctx context.Context)) *MockAdminRepository_CountTeamsWithSearchSettingsOverride_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_CountTeamsWithSearchSettingsOverride_Call) Return(_a0 int, _a1 error) *MockAdminRepository_CountTeamsWithSearchSettingsOverride_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_CountTeamsWithSearchSettingsOverride_Call) RunAndReturn(run func(context.Context) (int, error)) *MockAdminRepository_CountTeamsWithSearchSettingsOverride_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CountUsers provides a mock function with given fields: ctx, filters
 func (_m *MockAdminRepository) CountUsers(ctx context.Context, filters repositories.AdminUserFilters) (int, error) {
 	ret := _m.Called(ctx, filters)

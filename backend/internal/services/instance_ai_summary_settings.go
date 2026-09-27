@@ -15,7 +15,7 @@ import (
 
 // ErrInvalidInstanceAISummarySettings is returned when submitted instance AI
 // summary settings are outside the hard limits. The admin endpoint (#1200) maps
-// it to 422.
+// it to 400 with the *SettingsFieldError it carries as validation_errors.
 var ErrInvalidInstanceAISummarySettings = errors.New("invalid instance AI summary settings")
 
 // InstanceAISummarySettingsResolver resolves the instance AI summary defaults
@@ -46,9 +46,12 @@ type InstanceAISummarySettingsServiceInterface interface {
 	InstanceAISummarySettingsReader
 	// Update validates and stores a complete replacement set of settings,
 	// auditing the change in the same transaction. Invalid input returns an
-	// ErrInvalidInstanceAISummarySettings-wrapped error and writes nothing.
+	// ErrInvalidInstanceAISummarySettings-wrapped error (carrying a
+	// *SettingsFieldError) and writes nothing. A non-nil expectedVersion makes
+	// it a compare-and-set: a mismatch returns
+	// repositories.ErrInstanceSettingsVersionConflict and writes nothing.
 	Update(
-		ctx context.Context, actorUserID string, values models.InstanceAISummarySettingsValues,
+		ctx context.Context, actorUserID string, values models.InstanceAISummarySettingsValues, expectedVersion *int64,
 	) (*models.InstanceAISummarySettingsView, error)
 	// Reset drops the stored settings so the built-in ones apply again,
 	// auditing the change in the same transaction. Resetting with no stored
@@ -113,7 +116,7 @@ func (s *InstanceAISummarySettingsService) Get(ctx context.Context) (*models.Ins
 
 // Update implements InstanceAISummarySettingsServiceInterface.
 func (s *InstanceAISummarySettingsService) Update(
-	ctx context.Context, actorUserID string, values models.InstanceAISummarySettingsValues,
+	ctx context.Context, actorUserID string, values models.InstanceAISummarySettingsValues, expectedVersion *int64,
 ) (*models.InstanceAISummarySettingsView, error) {
 	if err := ValidateInstanceAISummarySettings(values); err != nil {
 		return nil, err
@@ -129,7 +132,7 @@ func (s *InstanceAISummarySettingsService) Update(
 		RequestTimeout:    values.RequestTimeout,
 		UpdatedBy:         optionalActor(actorUserID),
 	}
-	err := s.repo.UpsertAudited(ctx, stored,
+	err := s.repo.UpsertAudited(ctx, stored, expectedVersion,
 		instanceAISummaryAuditFunc(models.InstanceSettingsAuditActionUpsert, actorUserID))
 	if err != nil {
 		return nil, fmt.Errorf("InstanceAISummarySettingsService.Update: %w", err)
@@ -209,11 +212,13 @@ func instanceAISummaryAuditSnapshot(row *models.InstanceAISummarySettings) (json
 // instanceAISummaryView renders a stored row as the read model.
 func instanceAISummaryView(stored *models.InstanceAISummarySettings) *models.InstanceAISummarySettingsView {
 	updatedAt := stored.UpdatedAt
+	version := stored.Version
 	return &models.InstanceAISummarySettingsView{
 		Source:    models.InstanceAISummarySettingsSourceInstance,
 		Values:    instanceAISummaryValuesFromStored(stored),
 		UpdatedAt: &updatedAt,
 		UpdatedBy: stored.UpdatedBy,
+		Version:   &version,
 	}
 }
 
@@ -246,12 +251,14 @@ func ValidateInstanceAISummarySettings(v models.InstanceAISummarySettingsValues)
 		return fmt.Errorf("%w: %w", ErrInvalidInstanceAISummarySettings, err)
 	}
 	if v.PerDocumentChars < 1 || v.PerDocumentChars > math.MaxInt32 {
-		return fmt.Errorf("%w: per_document_chars must be between 1 and %d, got %d",
-			ErrInvalidInstanceAISummarySettings, math.MaxInt32, v.PerDocumentChars)
+		return fmt.Errorf("%w: %w", ErrInvalidInstanceAISummarySettings, settingsFieldError(
+			[]string{"per_document_chars"}, "per_document_chars must be between 1 and %d, got %d",
+			math.MaxInt32, v.PerDocumentChars))
 	}
 	if v.TotalContextChars < v.PerDocumentChars || v.TotalContextChars > math.MaxInt32 {
-		return fmt.Errorf("%w: total_context_chars must be between per_document_chars (%d) and %d, got %d",
-			ErrInvalidInstanceAISummarySettings, v.PerDocumentChars, math.MaxInt32, v.TotalContextChars)
+		return fmt.Errorf("%w: %w", ErrInvalidInstanceAISummarySettings, settingsFieldError(
+			[]string{"total_context_chars"}, "total_context_chars must be between per_document_chars (%d) and %d, got %d",
+			v.PerDocumentChars, math.MaxInt32, v.TotalContextChars))
 	}
 	return validateInstanceAISummaryRequestTimeout(v.RequestTimeout)
 }
@@ -265,8 +272,9 @@ const maxInstanceAISummaryRequestTimeout = time.Duration(math.MaxInt32) * time.M
 // positive but sub-millisecond value would truncate to 0 and fail the write.
 func validateInstanceAISummaryRequestTimeout(timeout time.Duration) error {
 	if timeout < time.Millisecond || timeout > maxInstanceAISummaryRequestTimeout {
-		return fmt.Errorf("%w: request_timeout must be between 1ms and %s, got %s",
-			ErrInvalidInstanceAISummarySettings, maxInstanceAISummaryRequestTimeout, timeout)
+		return fmt.Errorf("%w: %w", ErrInvalidInstanceAISummarySettings, settingsFieldError(
+			[]string{"request_timeout_ms"}, "request_timeout must be between 1ms and %s, got %s",
+			maxInstanceAISummaryRequestTimeout, timeout))
 	}
 	return nil
 }

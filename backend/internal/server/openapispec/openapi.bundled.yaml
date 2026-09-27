@@ -12642,6 +12642,360 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/settings/search:
+    get:
+      summary: Get the instance search ranking settings
+      description: |
+        Returns the instance search ranking defaults in effect, where they come from
+        (`instance` or `default`), the built-in defaults, the hard bounds for
+        form validation, how many teams store settings of their own and the
+        stored row's `version`. Always 200: with nothing stored, `source` is
+        `default` and `values` equal `built_in_defaults`.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: getAdminSearchSettings
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: The instance search ranking settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminInstanceSearchSettings'
+        '404':
+          description: Not found — the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Replace the instance search ranking settings
+      description: |
+        Validates and stores a whole replacement of the instance search ranking
+        defaults, taking effect on the next request with no restart, and appends
+        one entry (`action: upsert`) to the `search` audit log in the same
+        transaction. Pass `expected_version` to reject the save with 409 when
+        someone else changed the settings since they were read. A body that
+        omits a value field, sends one as null, or carries an unknown field is
+        rejected with 400.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: updateAdminSearchSettings
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminInstanceSearchSettingsUpdate'
+      responses:
+        '200':
+          description: The stored settings (`source` is `instance`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminInstanceSearchSettings'
+        '400':
+          description: |
+            Bad request — a value is out of bounds (`INSTANCE_SETTINGS_VALIDATION_FAILED`,
+            with `validation_errors` naming each offending field), or the body is
+            malformed, omits or nulls a value field (every value is required), or
+            carries an unknown field
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict — `expected_version` does not match the stored version (`INSTANCE_SETTINGS_VERSION_CONFLICT`); nothing was changed
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Reset the instance search ranking settings to the built-in defaults
+      description: |
+        Removes the stored instance search ranking defaults, so the built-in defaults
+        apply from the next request, and appends one entry (`action: delete`) to
+        the `search` audit log. Idempotent: with nothing stored it is still a
+        204 and writes no audit entry.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: resetAdminSearchSettings
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      responses:
+        '204':
+          description: The built-in defaults now apply
+        '404':
+          description: Not found — the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/settings/search/audit:
+    get:
+      summary: List the instance search ranking settings audit log
+      description: |
+        Returns one page of the instance search ranking settings' audit log (setting
+        `search`), newest first, with each actor's display name resolved.
+        Pass the previous page's `next_cursor` to continue.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: listAdminSearchSettingsAudit
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          description: Opaque cursor from a previous page's `next_cursor`.
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Page size.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: One page of audit entries, newest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminInstanceSettingsAuditPage'
+        '400':
+          description: Bad request — malformed cursor, or `limit` out of range
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/settings/ai-summary:
+    get:
+      summary: Get the instance AI summary settings
+      description: |
+        Returns the instance AI summary defaults and budgets in effect, where they come from
+        (`instance` or `default`), the built-in defaults, the hard bounds for
+        form validation, how many teams store settings of their own and the
+        stored row's `version`. Always 200: with nothing stored, `source` is
+        `default` and `values` equal `built_in_defaults`.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: getAdminAISummarySettings
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: The instance AI summary settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminInstanceAISummarySettings'
+        '404':
+          description: Not found — the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Replace the instance AI summary settings
+      description: |
+        Validates and stores a whole replacement of the instance AI summary
+        defaults and budgets, taking effect on the next request with no restart, and appends
+        one entry (`action: upsert`) to the `ai_summary` audit log in the same
+        transaction. Pass `expected_version` to reject the save with 409 when
+        someone else changed the settings since they were read. A body that
+        omits a value field, sends one as null, or carries an unknown field is
+        rejected with 400.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: updateAdminAISummarySettings
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminInstanceAISummarySettingsUpdate'
+      responses:
+        '200':
+          description: The stored settings (`source` is `instance`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminInstanceAISummarySettings'
+        '400':
+          description: |
+            Bad request — a value is out of bounds (`INSTANCE_SETTINGS_VALIDATION_FAILED`,
+            with `validation_errors` naming each offending field), or the body is
+            malformed, omits or nulls a value field (every value is required), or
+            carries an unknown field
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict — `expected_version` does not match the stored version (`INSTANCE_SETTINGS_VERSION_CONFLICT`); nothing was changed
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Reset the instance AI summary settings to the built-in defaults
+      description: |
+        Removes the stored instance AI summary defaults and budgets, so the built-in defaults
+        apply from the next request, and appends one entry (`action: delete`) to
+        the `ai_summary` audit log. Idempotent: with nothing stored it is still a
+        204 and writes no audit entry.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: resetAdminAISummarySettings
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      responses:
+        '204':
+          description: The built-in defaults now apply
+        '404':
+          description: Not found — the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/settings/ai-summary/audit:
+    get:
+      summary: List the instance AI summary settings audit log
+      description: |
+        Returns one page of the instance AI summary settings' audit log (setting
+        `ai_summary`), newest first, with each actor's display name resolved.
+        Pass the previous page's `next_cursor` to continue.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: listAdminAISummarySettingsAudit
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          description: Opaque cursor from a previous page's `next_cursor`.
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Page size.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: One page of audit entries, newest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminInstanceSettingsAuditPage'
+        '400':
+          description: Bad request — malformed cursor, or `limit` out of range
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/{team_id}/comments:
     get:
       summary: List a resource's comments
@@ -28471,9 +28825,12 @@ components:
       type: object
       description: |
         One append-only change to an instance setting. `before` and `after` are
-        REDACTED snapshots: they never contain a credential, only
-        `has_credential` and, on an upsert's `after`, a `secret` marker saying
-        whether the credential was `changed` or `unchanged`.
+        snapshots of the setting's values, filtered to that setting's allowlisted
+        keys, and never contain a credential. For `email_provider` they report
+        only `has_credential` and, on an upsert's `after`, a `secret` marker
+        saying whether the credential was `changed` or `unchanged`; the `search`
+        and `ai_summary` snapshots are the settings' values, which hold no
+        credential.
       additionalProperties: false
       required:
         - id
@@ -28492,6 +28849,14 @@ components:
         setting:
           type: string
           description: The instance setting the entry describes.
+          enum:
+            - email_provider
+            - search
+            - ai_summary
+          x-enum-varnames:
+            - AdminInstanceSettingsAuditEntrySettingEmailProvider
+            - AdminInstanceSettingsAuditEntrySettingSearch
+            - AdminInstanceSettingsAuditEntrySettingAiSummary
           example: email_provider
         action:
           type: string
@@ -28546,6 +28911,400 @@ components:
           type: string
           nullable: true
           description: Opaque cursor for the next page; null on the last page.
+    AdminInstanceSettingsSource:
+      type: string
+      description: |
+        Where the instance values come from: `instance` when an instance admin (or
+        the boot-time config import) stored them, `default` when nothing is stored
+        and the built-in defaults apply.
+      enum:
+        - instance
+        - default
+      x-enum-varnames:
+        - AdminInstanceSettingsSourceInstance
+        - AdminInstanceSettingsSourceDefault
+      example: instance
+    AdminInstanceSearchValues:
+      type: object
+      description: |
+        The instance search ranking defaults. Every team without its own search
+        settings ranks with these; `rank_candidate_cap` is instance-only and applies
+        to every team.
+      additionalProperties: false
+      required:
+        - recency_ranking_enabled
+        - rank_weight_relevance
+        - rank_weight_created
+        - rank_weight_updated
+        - rank_half_life_days
+        - rank_candidate_cap
+      properties:
+        recency_ranking_enabled:
+          type: boolean
+          description: Whether search results are re-ranked by recency.
+          example: false
+        rank_weight_relevance:
+          type: number
+          format: double
+          minimum: 0
+          description: Weight of semantic relevance. The three weights must not all be zero.
+          example: 0.5
+        rank_weight_created:
+          type: number
+          format: double
+          minimum: 0
+          description: Weight of creation recency.
+          example: 0.3
+        rank_weight_updated:
+          type: number
+          format: double
+          minimum: 0
+          description: Weight of update recency.
+          example: 0.2
+        rank_half_life_days:
+          type: number
+          format: double
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 36500
+          description: Recency half-life in days.
+          example: 90
+        rank_candidate_cap:
+          type: integer
+          minimum: 1
+          maximum: 5000
+          description: How many rows are pulled and re-ranked per search.
+          example: 200
+    AdminInstanceSearchLimits:
+      type: object
+      description: The hard bounds the search values are validated against, for form validation.
+      additionalProperties: false
+      required:
+        - rank_weight_min
+        - rank_half_life_days_max
+        - rank_candidate_cap_min
+        - rank_candidate_cap_max
+      properties:
+        rank_weight_min:
+          type: number
+          format: double
+          description: The smallest allowed weight. The three weights must also not all be zero.
+          example: 0
+        rank_half_life_days_max:
+          type: number
+          format: double
+          description: The largest allowed half-life, in days. The half-life must also be positive.
+          example: 36500
+        rank_candidate_cap_min:
+          type: integer
+          example: 1
+        rank_candidate_cap_max:
+          type: integer
+          example: 5000
+    AdminInstanceSearchSettings:
+      type: object
+      description: |
+        The instance search ranking defaults in effect, where they come from and
+        how many teams ignore them because they store search settings of their own.
+      additionalProperties: false
+      required:
+        - values
+        - source
+        - built_in_defaults
+        - limits
+        - teams_with_override
+        - updated_at
+        - updated_by_user_id
+        - updated_by_name
+        - version
+      properties:
+        values:
+          $ref: '#/components/schemas/AdminInstanceSearchValues'
+        source:
+          $ref: '#/components/schemas/AdminInstanceSettingsSource'
+        built_in_defaults:
+          $ref: '#/components/schemas/AdminInstanceSearchValues'
+        limits:
+          $ref: '#/components/schemas/AdminInstanceSearchLimits'
+        teams_with_override:
+          type: integer
+          description: How many teams store search settings of their own, so a change here does not reach them.
+          example: 3
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the values were last stored; null when `source` is `default`.
+        updated_by_user_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            The admin who last stored the values. Null when `source` is `default`,
+            for the boot-time import, or once that user has been deleted.
+        updated_by_name:
+          type: string
+          nullable: true
+          description: That admin's display name (or email), when it could be resolved.
+        version:
+          type: integer
+          format: int64
+          nullable: true
+          description: |
+            The stored row's optimistic-lock version; null when nothing is stored.
+            Send it back as `expected_version` to reject a save that would
+            overwrite someone else's change.
+          example: 4
+    AdminInstanceSearchSettingsUpdate:
+      type: object
+      description: |
+        A whole replacement of the instance search ranking defaults. Every value is
+        required. `expected_version` is optional: when present, the save is
+        rejected with 409 unless it equals the stored version (and when nothing is
+        stored, any `expected_version` other than null is a conflict). Omit it for
+        last-write-wins.
+      additionalProperties: false
+      required:
+        - recency_ranking_enabled
+        - rank_weight_relevance
+        - rank_weight_created
+        - rank_weight_updated
+        - rank_half_life_days
+        - rank_candidate_cap
+      properties:
+        recency_ranking_enabled:
+          type: boolean
+        rank_weight_relevance:
+          type: number
+          format: double
+          minimum: 0
+        rank_weight_created:
+          type: number
+          format: double
+          minimum: 0
+        rank_weight_updated:
+          type: number
+          format: double
+          minimum: 0
+        rank_half_life_days:
+          type: number
+          format: double
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 36500
+        rank_candidate_cap:
+          type: integer
+          minimum: 1
+          maximum: 5000
+        expected_version:
+          type: integer
+          format: int64
+          nullable: true
+          description: The `version` the caller last read; omit or null for last-write-wins.
+    AdminInstanceAISummaryStyle:
+      type: string
+      description: How detailed a summary is.
+      enum:
+        - concise
+        - balanced
+        - detailed
+      x-enum-varnames:
+        - AdminInstanceAISummaryStyleConcise
+        - AdminInstanceAISummaryStyleBalanced
+        - AdminInstanceAISummaryStyleDetailed
+      example: balanced
+    AdminInstanceAISummaryValues:
+      type: object
+      description: |
+        The instance AI summary defaults and budgets. `enabled`, `top_n`, `style`
+        and `max_output_tokens` are the defaults every team without its own AI
+        summary settings uses; the character budgets and the request timeout are
+        instance-only and apply to every team.
+      additionalProperties: false
+      required:
+        - enabled
+        - top_n
+        - style
+        - max_output_tokens
+        - per_document_chars
+        - total_context_chars
+        - request_timeout_ms
+      properties:
+        enabled:
+          type: boolean
+          example: true
+        top_n:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: How many search results a summary reads.
+          example: 5
+        style:
+          $ref: '#/components/schemas/AdminInstanceAISummaryStyle'
+        max_output_tokens:
+          type: integer
+          minimum: 1
+          maximum: 32768
+          example: 800
+        per_document_chars:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: How many characters of each document a summary reads.
+          example: 8000
+        total_context_chars:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: The total character budget of one summary's context; at least `per_document_chars`.
+          example: 32000
+        request_timeout_ms:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: The summary request timeout, in milliseconds.
+          example: 60000
+    AdminInstanceAISummaryLimits:
+      type: object
+      description: The hard bounds the AI summary values are validated against, for form validation.
+      additionalProperties: false
+      required:
+        - top_n_min
+        - top_n_max
+        - max_output_tokens_min
+        - max_output_tokens_max
+        - chars_min
+        - chars_max
+        - request_timeout_ms_min
+        - request_timeout_ms_max
+      properties:
+        top_n_min:
+          type: integer
+          example: 1
+        top_n_max:
+          type: integer
+          example: 10
+        max_output_tokens_min:
+          type: integer
+          example: 1
+        max_output_tokens_max:
+          type: integer
+          example: 32768
+        chars_min:
+          type: integer
+          description: The smallest allowed character budget. `total_context_chars` must also be at least `per_document_chars`.
+          example: 1
+        chars_max:
+          type: integer
+          example: 2147483647
+        request_timeout_ms_min:
+          type: integer
+          example: 1
+        request_timeout_ms_max:
+          type: integer
+          example: 2147483647
+    AdminInstanceAISummarySettings:
+      type: object
+      description: |
+        The instance AI summary defaults in effect, where they come from and how
+        many teams ignore the defaults because they store AI summary settings of
+        their own. The instance-only budgets reach every team regardless.
+      additionalProperties: false
+      required:
+        - values
+        - source
+        - built_in_defaults
+        - limits
+        - teams_with_override
+        - updated_at
+        - updated_by_user_id
+        - updated_by_name
+        - version
+      properties:
+        values:
+          $ref: '#/components/schemas/AdminInstanceAISummaryValues'
+        source:
+          $ref: '#/components/schemas/AdminInstanceSettingsSource'
+        built_in_defaults:
+          $ref: '#/components/schemas/AdminInstanceAISummaryValues'
+        limits:
+          $ref: '#/components/schemas/AdminInstanceAISummaryLimits'
+        teams_with_override:
+          type: integer
+          description: How many teams store AI summary settings of their own, so a change to the team defaults does not reach them.
+          example: 2
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the values were last stored; null when `source` is `default`.
+        updated_by_user_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            The admin who last stored the values. Null when `source` is `default`,
+            for the boot-time import, or once that user has been deleted.
+        updated_by_name:
+          type: string
+          nullable: true
+          description: That admin's display name (or email), when it could be resolved.
+        version:
+          type: integer
+          format: int64
+          nullable: true
+          description: |
+            The stored row's optimistic-lock version; null when nothing is stored.
+            Send it back as `expected_version` to reject a save that would
+            overwrite someone else's change.
+          example: 4
+    AdminInstanceAISummarySettingsUpdate:
+      type: object
+      description: |
+        A whole replacement of the instance AI summary settings. Every value is
+        required. `expected_version` is optional: when present, the save is
+        rejected with 409 unless it equals the stored version (and when nothing is
+        stored, any `expected_version` other than null is a conflict). Omit it for
+        last-write-wins.
+      additionalProperties: false
+      required:
+        - enabled
+        - top_n
+        - style
+        - max_output_tokens
+        - per_document_chars
+        - total_context_chars
+        - request_timeout_ms
+      properties:
+        enabled:
+          type: boolean
+        top_n:
+          type: integer
+          minimum: 1
+          maximum: 10
+        style:
+          $ref: '#/components/schemas/AdminInstanceAISummaryStyle'
+        max_output_tokens:
+          type: integer
+          minimum: 1
+          maximum: 32768
+        per_document_chars:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        total_context_chars:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        request_timeout_ms:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        expected_version:
+          type: integer
+          format: int64
+          nullable: true
+          description: The `version` the caller last read; omit or null for last-write-wins.
     ProjectResponse:
       allOf:
         - $ref: '#/components/schemas/Project'

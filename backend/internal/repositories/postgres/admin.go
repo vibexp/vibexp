@@ -56,6 +56,28 @@ func (r *AdminRepository) GetInstanceCounts(ctx context.Context) (models.Instanc
 	return counts, nil
 }
 
+// CountTeamsWithSearchSettingsOverride returns how many teams store search
+// settings of their own. team_search_settings is keyed by team_id, so one row
+// is one team.
+func (r *AdminRepository) CountTeamsWithSearchSettingsOverride(ctx context.Context) (int, error) {
+	var n int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM team_search_settings`).Scan(&n); err != nil {
+		return 0, fmt.Errorf("failed to count teams with search settings: %w", err)
+	}
+	return n, nil
+}
+
+// CountTeamsWithAISummarySettingsOverride returns how many teams store AI
+// summary settings of their own. team_ai_summary_settings is keyed by team_id,
+// so one row is one team.
+func (r *AdminRepository) CountTeamsWithAISummarySettingsOverride(ctx context.Context) (int, error) {
+	var n int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM team_ai_summary_settings`).Scan(&n); err != nil {
+		return 0, fmt.Errorf("failed to count teams with AI summary settings: %w", err)
+	}
+	return n, nil
+}
+
 // Column identifiers shared by the admin user and team listings' projections,
 // filters and sort clauses.
 const (

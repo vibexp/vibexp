@@ -152,10 +152,10 @@ func TestIntegrationInstanceSearchSettings_UpsertAuditedAndDeleteAudited(t *test
 	ctx := context.Background()
 
 	first := instanceSearchSettingsFixture()
-	require.NoError(t, repo.UpsertAudited(ctx, first, searchAuditEntry(models.InstanceSettingsAuditActionUpsert)))
+	require.NoError(t, repo.UpsertAudited(ctx, first, nil, searchAuditEntry(models.InstanceSettingsAuditActionUpsert)))
 	second := instanceSearchSettingsFixture()
 	second.RankCandidateCap = 900
-	require.NoError(t, repo.UpsertAudited(ctx, second, searchAuditEntry(models.InstanceSettingsAuditActionUpsert)))
+	require.NoError(t, repo.UpsertAudited(ctx, second, nil, searchAuditEntry(models.InstanceSettingsAuditActionUpsert)))
 	assert.Equal(t, int64(2), second.Version)
 
 	deleted, err := repo.DeleteAudited(ctx, searchAuditEntry(models.InstanceSettingsAuditActionDelete))
@@ -191,7 +191,7 @@ func TestIntegrationInstanceSearchSettings_UpsertAudited_AuditFailureRollsBack(t
 
 	// An unknown action violates the audit table's CHECK, failing the insert
 	// after the settings upsert already ran in the same transaction.
-	err := repo.UpsertAudited(ctx, instanceSearchSettingsFixture(), searchAuditEntry("not-an-action"))
+	err := repo.UpsertAudited(ctx, instanceSearchSettingsFixture(), nil, searchAuditEntry("not-an-action"))
 	require.Error(t, err)
 
 	_, err = repo.Get(ctx)
@@ -216,7 +216,7 @@ func TestIntegrationInstanceSearchSettings_ConcurrentFirstSavesAreSerialized(t *
 		s.RankCandidateCap = 100 + i
 		go func() {
 			<-start
-			errs <- repo.UpsertAudited(ctx, s, searchAuditEntry(models.InstanceSettingsAuditActionUpsert))
+			errs <- repo.UpsertAudited(ctx, s, nil, searchAuditEntry(models.InstanceSettingsAuditActionUpsert))
 		}()
 	}
 	close(start)

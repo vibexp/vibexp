@@ -99,6 +99,10 @@ type Container interface {
 	// InstanceEmailProviderService serves the instance-admin email settings
 	// API (#1189): the database-stored instance provider (#1188).
 	InstanceEmailProviderService() services.InstanceEmailProviderServiceInterface
+	// InstanceSearchSettingsService and InstanceAISummarySettingsService serve
+	// the instance-admin search and AI summary settings API (#1200).
+	InstanceSearchSettingsService() services.InstanceSearchSettingsServiceInterface
+	InstanceAISummarySettingsService() services.InstanceAISummarySettingsServiceInterface
 	EmailSenderResolver() services.EmailSenderResolver
 	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface
 	// TeamAISummarySettingsService serves the team AI summary settings API

@@ -243,7 +243,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited(t *testing.T) {
 
 	audit := &testSearchAudit{}
 	s := instanceSearchSettingsFixture()
-	require.NoError(t, NewInstanceSearchSettingsRepository(db).UpsertAudited(context.Background(), s, audit.build))
+	require.NoError(t, NewInstanceSearchSettingsRepository(db).UpsertAudited(context.Background(), s, nil, audit.build))
 
 	assert.Equal(t, 1, audit.calls)
 	require.NotNil(t, audit.before, "the current row is handed over as before")
@@ -266,7 +266,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited_NoRowGivesNilBefore(t *t
 
 	audit := &testSearchAudit{}
 	require.NoError(t, NewInstanceSearchSettingsRepository(db).
-		UpsertAudited(context.Background(), instanceSearchSettingsFixture(), audit.build))
+		UpsertAudited(context.Background(), instanceSearchSettingsFixture(), nil, audit.build))
 
 	assert.Nil(t, audit.before)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -314,7 +314,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited_FailuresRollBack(t *test
 
 			audit := &testSearchAudit{err: tc.auditErr}
 			err := NewInstanceSearchSettingsRepository(db).
-				UpsertAudited(context.Background(), instanceSearchSettingsFixture(), audit.build)
+				UpsertAudited(context.Background(), instanceSearchSettingsFixture(), nil, audit.build)
 
 			assert.ErrorIs(t, err, tc.wantErr)
 			require.NoError(t, mock.ExpectationsWereMet())
@@ -328,7 +328,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited_BeginLockAndCommitErrors
 		mock.ExpectBegin().WillReturnError(errInstanceSettingsDB)
 
 		err := NewInstanceSearchSettingsRepository(db).
-			UpsertAudited(context.Background(), instanceSearchSettingsFixture(), (&testSearchAudit{}).build)
+			UpsertAudited(context.Background(), instanceSearchSettingsFixture(), nil, (&testSearchAudit{}).build)
 
 		assert.ErrorIs(t, err, errInstanceSettingsDB)
 	})
@@ -340,7 +340,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited_BeginLockAndCommitErrors
 		mock.ExpectRollback()
 
 		err := NewInstanceSearchSettingsRepository(db).
-			UpsertAudited(context.Background(), instanceSearchSettingsFixture(), (&testSearchAudit{}).build)
+			UpsertAudited(context.Background(), instanceSearchSettingsFixture(), nil, (&testSearchAudit{}).build)
 
 		assert.ErrorIs(t, err, errInstanceSettingsDB)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -358,7 +358,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited_BeginLockAndCommitErrors
 		mock.ExpectCommit().WillReturnError(errInstanceSettingsDB)
 
 		err := NewInstanceSearchSettingsRepository(db).
-			UpsertAudited(context.Background(), instanceSearchSettingsFixture(), (&testSearchAudit{}).build)
+			UpsertAudited(context.Background(), instanceSearchSettingsFixture(), nil, (&testSearchAudit{}).build)
 
 		assert.ErrorIs(t, err, errInstanceSettingsDB)
 	})
@@ -384,7 +384,7 @@ func TestInstanceSearchSettingsRepository_UpsertAudited_UnredactedEntryRollsBack
 		}, nil
 	}
 	err := NewInstanceSearchSettingsRepository(db).
-		UpsertAudited(context.Background(), instanceSearchSettingsFixture(), leaky)
+		UpsertAudited(context.Background(), instanceSearchSettingsFixture(), nil, leaky)
 
 	assert.ErrorIs(t, err, repositories.ErrInstanceSettingsAuditUnredacted)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -445,4 +445,64 @@ func TestInstanceSearchSettingsRepository_DeleteAudited(t *testing.T) {
 		assert.False(t, deleted)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+}
+
+// A matching expected version is compared under the lock and the write goes
+// ahead exactly as a last-write-wins upsert.
+func TestInstanceSearchSettingsRepository_UpsertAudited_MatchingVersionWrites(t *testing.T) {
+	db, mock := newInstanceSettingsMock(t)
+	now := time.Now().UTC()
+	expectInstanceSearchBegin(mock)
+	mock.ExpectQuery(lockedInstanceSearchRead).
+		WillReturnRows(sqlmock.NewRows(instanceSearchSettingsColumns).
+			AddRow(false, 0.5, 0.3, 0.2, 90.0, 200, now, now, nil, int64(4)))
+	mock.ExpectQuery("INSERT INTO instance_search_settings").
+		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
+			AddRow(now, now, int64(5)))
+	expectInstanceAuditInsert(mock)
+	mock.ExpectCommit()
+
+	expected := int64(4)
+	s := instanceSearchSettingsFixture()
+	require.NoError(t, NewInstanceSearchSettingsRepository(db).
+		UpsertAudited(context.Background(), s, &expected, (&testSearchAudit{}).build))
+
+	assert.Equal(t, int64(5), s.Version)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// A stale expected version, or one sent when nothing is stored, is a conflict:
+// nothing is written, nothing is audited, and the transaction rolls back.
+func TestInstanceSearchSettingsRepository_UpsertAudited_VersionConflictRollsBack(t *testing.T) {
+	now := time.Now().UTC()
+	cases := []struct {
+		name string
+		read func(mock sqlmock.Sqlmock)
+	}{
+		{"stale version", func(mock sqlmock.Sqlmock) {
+			mock.ExpectQuery(lockedInstanceSearchRead).
+				WillReturnRows(sqlmock.NewRows(instanceSearchSettingsColumns).
+					AddRow(false, 0.5, 0.3, 0.2, 90.0, 200, now, now, nil, int64(5)))
+		}},
+		{"nothing stored", func(mock sqlmock.Sqlmock) {
+			mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(sql.ErrNoRows)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db, mock := newInstanceSettingsMock(t)
+			expectInstanceSearchBegin(mock)
+			tc.read(mock)
+			mock.ExpectRollback()
+
+			expected := int64(4)
+			audit := &testSearchAudit{}
+			err := NewInstanceSearchSettingsRepository(db).
+				UpsertAudited(context.Background(), instanceSearchSettingsFixture(), &expected, audit.build)
+
+			require.ErrorIs(t, err, repositories.ErrInstanceSettingsVersionConflict)
+			assert.Zero(t, audit.calls)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }

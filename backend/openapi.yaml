@@ -1036,6 +1036,26 @@ components:
       $ref: "./schemas/admin.yaml#/AdminInstanceSettingsAuditEntry"
     AdminInstanceSettingsAuditPage:
       $ref: "./schemas/admin.yaml#/AdminInstanceSettingsAuditPage"
+    AdminInstanceSettingsSource:
+      $ref: "./schemas/admin.yaml#/AdminInstanceSettingsSource"
+    AdminInstanceSearchValues:
+      $ref: "./schemas/admin.yaml#/AdminInstanceSearchValues"
+    AdminInstanceSearchLimits:
+      $ref: "./schemas/admin.yaml#/AdminInstanceSearchLimits"
+    AdminInstanceSearchSettings:
+      $ref: "./schemas/admin.yaml#/AdminInstanceSearchSettings"
+    AdminInstanceSearchSettingsUpdate:
+      $ref: "./schemas/admin.yaml#/AdminInstanceSearchSettingsUpdate"
+    AdminInstanceAISummaryStyle:
+      $ref: "./schemas/admin.yaml#/AdminInstanceAISummaryStyle"
+    AdminInstanceAISummaryValues:
+      $ref: "./schemas/admin.yaml#/AdminInstanceAISummaryValues"
+    AdminInstanceAISummaryLimits:
+      $ref: "./schemas/admin.yaml#/AdminInstanceAISummaryLimits"
+    AdminInstanceAISummarySettings:
+      $ref: "./schemas/admin.yaml#/AdminInstanceAISummarySettings"
+    AdminInstanceAISummarySettingsUpdate:
+      $ref: "./schemas/admin.yaml#/AdminInstanceAISummarySettingsUpdate"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
@@ -1388,6 +1408,14 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-email-test"
   /api/v1/admin/settings/email/audit:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-email-audit"
+  /api/v1/admin/settings/search:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-search"
+  /api/v1/admin/settings/search/audit:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-search-audit"
+  /api/v1/admin/settings/ai-summary:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-ai-summary"
+  /api/v1/admin/settings/ai-summary/audit:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-ai-summary-audit"
   /api/v1/{team_id}/comments:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
   /api/v1/{team_id}/comments/recent:

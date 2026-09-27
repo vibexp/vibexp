@@ -58,6 +58,10 @@ type adminMockContainer struct {
 	// Instance email settings (#1189). Nil unless a suite installs them.
 	instanceEmailService services.InstanceEmailProviderServiceInterface
 	instanceAuditRepo    repositories.InstanceSettingsAuditRepository
+	// Instance search + AI summary settings (#1200). Nil unless a suite
+	// installs them.
+	instanceSearchService    services.InstanceSearchSettingsServiceInterface
+	instanceAISummaryService services.InstanceAISummarySettingsServiceInterface
 	// apiKeyService lets a full-router test authenticate a caller by API key.
 	apiKeyService services.APIKeyServiceInterface
 }
@@ -111,6 +115,12 @@ func (c *adminMockContainer) InstanceEmailProviderService() services.InstanceEma
 }
 func (c *adminMockContainer) InstanceSettingsAuditRepository() repositories.InstanceSettingsAuditRepository {
 	return c.instanceAuditRepo
+}
+func (c *adminMockContainer) InstanceSearchSettingsService() services.InstanceSearchSettingsServiceInterface {
+	return c.instanceSearchService
+}
+func (c *adminMockContainer) InstanceAISummarySettingsService() services.InstanceAISummarySettingsServiceInterface {
+	return c.instanceAISummaryService
 }
 func (c *adminMockContainer) APIKeyService() services.APIKeyServiceInterface { return c.apiKeyService }
 

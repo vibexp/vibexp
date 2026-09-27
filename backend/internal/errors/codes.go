@@ -72,6 +72,10 @@ const (
 	CodeInstanceEmailProviderNotConfigured    = "INSTANCE_EMAIL_PROVIDER_NOT_CONFIGURED"
 	CodeInstanceEmailProviderValidationFailed = "INSTANCE_EMAIL_PROVIDER_VALIDATION_FAILED"
 
+	// Instance search + AI summary settings errors (#1200)
+	CodeInstanceSettingsValidationFailed = "INSTANCE_SETTINGS_VALIDATION_FAILED"
+	CodeInstanceSettingsVersionConflict  = "INSTANCE_SETTINGS_VERSION_CONFLICT"
+
 	// Model provider errors
 	CodeModelProviderNotFound          = "MODEL_PROVIDER_NOT_FOUND"
 	CodeModelProviderAlreadyExists     = "MODEL_PROVIDER_ALREADY_EXISTS"
@@ -156,6 +160,10 @@ var errorTitles = map[string]string{
 	// Instance email provider errors (#1189)
 	CodeInstanceEmailProviderNotConfigured:    "Instance Email Provider Not Configured",
 	CodeInstanceEmailProviderValidationFailed: "Instance Email Provider Validation Failed",
+
+	// Instance search + AI summary settings errors (#1200)
+	CodeInstanceSettingsValidationFailed: "Instance Settings Validation Failed",
+	CodeInstanceSettingsVersionConflict:  "Instance Settings Version Conflict",
 }
 
 // GetErrorTitle returns the title for a given error code
