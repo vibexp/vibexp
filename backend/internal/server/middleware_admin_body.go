@@ -32,6 +32,11 @@ import (
 // The allowed field set is derived by reflection from the generated request type
 // rather than hand-listed, so it cannot drift from the spec: add a property to
 // the schema, regenerate, and the guard widens with it.
+//
+// The same gap exists for `required`: a non-pointer field the body omits
+// decodes to its zero value. For the whole-row settings replaces (#1200) that
+// would store a value the caller never sent, so those operations also set
+// requireAll, and the required set is derived from the same generated type.
 
 // adminGuardedBody describes one guarded operation: the method and path it
 // matches, plus a zero value of the generated request-body type whose JSON tags
@@ -168,7 +173,8 @@ func jsonFields(v any) []jsonField {
 }
 
 // rejectUnknownAdminBodyFields is chi middleware that 400s an admin request
-// whose JSON body carries a field the operation's schema does not declare.
+// whose JSON body carries a field the operation's schema does not declare, or,
+// for a requireAll operation, omits or nulls a required one.
 //
 // It buffers the body to inspect it and then restores it, so the generated
 // decoder downstream still sees a readable stream.
