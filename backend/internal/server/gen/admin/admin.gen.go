@@ -1837,10 +1837,12 @@ type AdminTeamAISummaryConfig struct {
 	// InstanceDefaults A complete AI summary profile.
 	InstanceDefaults AdminAISummaryValues `json:"instance_defaults"`
 
-	// MaxOutputTokensCeiling Instance-owned upper bound on `max_output_tokens`.
+	// MaxOutputTokensCeiling The hard code limit on `max_output_tokens` (always 32768); kept for client compatibility, to be removed in a later minor.
+	// Deprecated: Reports the hard code limit; kept for client compatibility until a later minor removes it (#1199).
 	MaxOutputTokensCeiling int `json:"max_output_tokens_ceiling"`
 
-	// MaxTopN Instance-owned upper bound on `top_n`.
+	// MaxTopN The hard code limit on `top_n` (always 10); kept for client compatibility, to be removed in a later minor.
+	// Deprecated: Reports the hard code limit; kept for client compatibility until a later minor removes it (#1199).
 	MaxTopN int `json:"max_top_n"`
 
 	// ModelProviderName Name of the provider `values.model_provider_id` selects. `null` when no

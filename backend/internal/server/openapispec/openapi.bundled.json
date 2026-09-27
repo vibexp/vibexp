@@ -36897,7 +36897,7 @@
       },
       "TeamAISummarySettings": {
         "type": "object",
-        "description": "The AI summary settings in effect for a team, with enough context for a client to render the whole settings surface from this one response: the effective values, where they came from, the instance defaults to preview a reset against, the instance-owned top_n and max_output_tokens caps, and whether the team can currently use AI summaries at all.\n",
+        "description": "The AI summary settings in effect for a team, with enough context for a client to render the whole settings surface from this one response: the effective values, where they came from, the instance defaults to preview a reset against, and whether the team can currently use AI summaries at all. `max_top_n` and `max_output_tokens_ceiling` are deprecated and report the hard code limits.\n",
         "required": [
           "source",
           "values",
@@ -36913,7 +36913,7 @@
               "instance",
               "team"
             ],
-            "description": "Where the effective values come from. `instance` means the team has no override and inherits the deployment defaults; `team` means the team has stored its own profile.\n",
+            "description": "Where the effective values come from. `instance` means the team has no override and inherits the instance defaults; `team` means the team has stored its own profile.\n",
             "example": "instance"
           },
           "values": {
@@ -36922,18 +36922,22 @@
           },
           "instance_defaults": {
             "$ref": "#/components/schemas/TeamAISummarySettingsValues",
-            "description": "The deployment-wide defaults from config.yaml, so a client can preview what \"reset to defaults\" would produce without a second request. Equal to `values` when source is `instance`.\n"
+            "description": "The defaults from the instance settings (Admin → Settings → AI Summary), or the built-in defaults when none are stored, so a client can preview what \"reset to defaults\" would produce without a second request. Equal to `values` when source is `instance`.\n"
           },
           "max_top_n": {
             "type": "integer",
-            "description": "Instance-owned ceiling on `top_n`, from `ai_summary.max_top_n`. Not team-configurable — exposed so clients can bound their own input control instead of guessing.\n",
+            "deprecated": true,
+            "x-deprecated-reason": "Reports the hard code limit; kept for client compatibility until a later minor removes it (#1199).",
+            "description": "The hard code limit on `top_n` (always 10); kept for client compatibility, to be removed in a later minor. No instance setting narrows it any more.\n",
             "example": 10
           },
           "max_output_tokens_ceiling": {
             "type": "integer",
             "minimum": 1,
-            "description": "Instance-owned ceiling on `max_output_tokens`, from `ai_summary.max_output_tokens_ceiling`. Not team-configurable — exposed so clients can bound their own input control instead of guessing.\n",
-            "example": 4096
+            "deprecated": true,
+            "x-deprecated-reason": "Reports the hard code limit; kept for client compatibility until a later minor removes it (#1199).",
+            "description": "The hard code limit on `max_output_tokens` (always 32768); kept for client compatibility, to be removed in a later minor. No instance setting narrows it any more.\n",
+            "example": 32768
           },
           "available": {
             "type": "boolean",
@@ -36968,7 +36972,7 @@
           "top_n": {
             "type": "integer",
             "minimum": 1,
-            "description": "How many top-ranked documents are fed to the summarizer. Bounded above by the instance's max_top_n.",
+            "description": "How many top-ranked documents are fed to the summarizer. At most 10 (the hard limit).",
             "example": 5
           },
           "style": {
@@ -36984,14 +36988,14 @@
           "max_output_tokens": {
             "type": "integer",
             "minimum": 1,
-            "description": "Upper bound on tokens the summarizer may generate, within the instance cap.",
+            "description": "Upper bound on tokens the summarizer may generate. At most 32768 (the hard limit).",
             "example": 800
           }
         }
       },
       "UpdateTeamAISummarySettingsRequest": {
         "type": "object",
-        "description": "A complete replacement AI summary profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `max_top_n`, `max_output_tokens_ceiling` and `available` are deliberately absent — all are computed, not settable.\n",
+        "description": "A complete replacement AI summary profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `top_n` is at most 10 and `max_output_tokens` at most 32768 (the hard limits; a larger value is rejected with 400). `max_top_n`, `max_output_tokens_ceiling` and `available` are deliberately absent — all are computed, not settable.\n",
         "additionalProperties": false,
         "required": [
           "enabled",
@@ -38981,11 +38985,15 @@
           },
           "max_top_n": {
             "type": "integer",
-            "description": "Instance-owned upper bound on `top_n`."
+            "deprecated": true,
+            "x-deprecated-reason": "Reports the hard code limit; kept for client compatibility until a later minor removes it (#1199).",
+            "description": "The hard code limit on `top_n` (always 10); kept for client compatibility, to be removed in a later minor.\n"
           },
           "max_output_tokens_ceiling": {
             "type": "integer",
-            "description": "Instance-owned upper bound on `max_output_tokens`."
+            "deprecated": true,
+            "x-deprecated-reason": "Reports the hard code limit; kept for client compatibility until a later minor removes it (#1199).",
+            "description": "The hard code limit on `max_output_tokens` (always 32768); kept for client compatibility, to be removed in a later minor.\n"
           },
           "available": {
             "type": "boolean",

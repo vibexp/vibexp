@@ -1604,10 +1604,18 @@ AdminTeamAISummaryConfig:
         providers.
     max_top_n:
       type: integer
-      description: Instance-owned upper bound on `top_n`.
+      deprecated: true
+      x-deprecated-reason: Reports the hard code limit; kept for client compatibility until a later minor removes it (#1199).
+      description: >
+        The hard code limit on `top_n` (always 10); kept for client
+        compatibility, to be removed in a later minor.
     max_output_tokens_ceiling:
       type: integer
-      description: Instance-owned upper bound on `max_output_tokens`.
+      deprecated: true
+      x-deprecated-reason: Reports the hard code limit; kept for client compatibility until a later minor removes it (#1199).
+      description: >
+        The hard code limit on `max_output_tokens` (always 32768); kept for
+        client compatibility, to be removed in a later minor.
     available:
       type: boolean
       description: Whether the team has at least one model provider (existence, not health).

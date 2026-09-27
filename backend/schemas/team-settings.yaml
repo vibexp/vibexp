@@ -165,7 +165,9 @@ UpdateTeamSearchSettingsRequest:
 # The per-team AI Summary settings singleton, storage/service built by #1071
 # (migration 017). Same whole-row-override contract as TeamSearchSettings
 # above: a team either owns a complete profile or has none and inherits the
-# instance `ai_summary:` defaults from config.yaml.
+# instance AI summary defaults (Admin → Settings → AI Summary, or the built-in
+# defaults). Since #1199 no instance setting narrows a team's choices: top_n and
+# max_output_tokens are bounded by the hard code limits only.
 
 TeamAISummarySettingsValues:
   type: object
@@ -193,7 +195,7 @@ TeamAISummarySettingsValues:
     top_n:
       type: integer
       minimum: 1
-      description: How many top-ranked documents are fed to the summarizer. Bounded above by the instance's max_top_n.
+      description: How many top-ranked documents are fed to the summarizer. At most 10 (the hard limit).
       example: 5
     style:
       type: string
@@ -206,7 +208,7 @@ TeamAISummarySettingsValues:
     max_output_tokens:
       type: integer
       minimum: 1
-      description: Upper bound on tokens the summarizer may generate, within the instance cap.
+      description: Upper bound on tokens the summarizer may generate. At most 32768 (the hard limit).
       example: 800
 
 TeamAISummarySettings:
@@ -215,8 +217,9 @@ TeamAISummarySettings:
     The AI summary settings in effect for a team, with enough context for a
     client to render the whole settings surface from this one response: the
     effective values, where they came from, the instance defaults to preview a
-    reset against, the instance-owned top_n and max_output_tokens caps, and
-    whether the team can currently use AI summaries at all.
+    reset against, and whether the team can currently use AI summaries at all.
+    `max_top_n` and `max_output_tokens_ceiling` are deprecated and report the
+    hard code limits.
   required:
     - source
     - values
@@ -232,7 +235,7 @@ TeamAISummarySettings:
         - team
       description: >
         Where the effective values come from. `instance` means the team has no
-        override and inherits the deployment defaults; `team` means the team
+        override and inherits the instance defaults; `team` means the team
         has stored its own profile.
       example: instance
     values:
@@ -241,25 +244,29 @@ TeamAISummarySettings:
     instance_defaults:
       $ref: '../openapi.yaml#/components/schemas/TeamAISummarySettingsValues'
       description: >
-        The deployment-wide defaults from config.yaml, so a client can preview
-        what "reset to defaults" would produce without a second request. Equal
-        to `values` when source is `instance`.
+        The defaults from the instance settings (Admin → Settings → AI
+        Summary), or the built-in defaults when none are stored, so a client
+        can preview what "reset to defaults" would produce without a second
+        request. Equal to `values` when source is `instance`.
     max_top_n:
       type: integer
+      deprecated: true
+      x-deprecated-reason: Reports the hard code limit; kept for client compatibility until a later minor removes it (#1199).
       description: >
-        Instance-owned ceiling on `top_n`, from `ai_summary.max_top_n`. Not
-        team-configurable — exposed so clients can bound their own input
-        control instead of guessing.
+        The hard code limit on `top_n` (always 10); kept for client
+        compatibility, to be removed in a later minor. No instance setting
+        narrows it any more.
       example: 10
     max_output_tokens_ceiling:
       type: integer
       minimum: 1
+      deprecated: true
+      x-deprecated-reason: Reports the hard code limit; kept for client compatibility until a later minor removes it (#1199).
       description: >
-        Instance-owned ceiling on `max_output_tokens`, from
-        `ai_summary.max_output_tokens_ceiling`. Not team-configurable —
-        exposed so clients can bound their own input control instead of
-        guessing.
-      example: 4096
+        The hard code limit on `max_output_tokens` (always 32768); kept for
+        client compatibility, to be removed in a later minor. No
+        instance setting narrows it any more.
+      example: 32768
     available:
       type: boolean
       description: >
@@ -273,8 +280,10 @@ UpdateTeamAISummarySettingsRequest:
   description: >
     A complete replacement AI summary profile for the team. There is no
     partial update: every field is required, and the whole profile is stored
-    or replaced atomically. `max_top_n`, `max_output_tokens_ceiling` and
-    `available` are deliberately absent — all are computed, not settable.
+    or replaced atomically. `top_n` is at most 10 and `max_output_tokens` at
+    most 32768 (the hard limits; a larger value is rejected with 400).
+    `max_top_n`, `max_output_tokens_ceiling` and `available` are deliberately
+    absent — all are computed, not settable.
   additionalProperties: false
   required:
     - enabled

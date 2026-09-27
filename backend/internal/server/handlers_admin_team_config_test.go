@@ -250,7 +250,7 @@ func TestGetAdminTeamAISummaryConfig(t *testing.T) {
 			name: "inherited team reports instance with no provider lookup",
 			view: models.TeamAISummarySettingsView{
 				Source: models.TeamAISummarySettingsSourceInstance, Values: defaults, InstanceDefaults: defaults,
-				MaxTopN: 20, MaxOutputTokensCeiling: 4000, Available: false,
+				MaxTopN: models.MaxAISummaryTopN, MaxOutputTokensCeiling: models.MaxAISummaryOutputTokens, Available: false,
 			},
 			setupRepo: func(*repomocks.MockModelProviderRepository) {},
 			source:    "instance",
@@ -259,7 +259,7 @@ func TestGetAdminTeamAISummaryConfig(t *testing.T) {
 			name: "team override resolves the provider name only",
 			view: models.TeamAISummarySettingsView{
 				Source: models.TeamAISummarySettingsSourceTeam, Values: custom, InstanceDefaults: defaults,
-				MaxTopN: 20, MaxOutputTokensCeiling: 4000, Available: true,
+				MaxTopN: models.MaxAISummaryTopN, MaxOutputTokensCeiling: models.MaxAISummaryOutputTokens, Available: true,
 			},
 			setupRepo: func(m *repomocks.MockModelProviderRepository) {
 				m.EXPECT().GetByID(mock.Anything, teamID, providerID).Return(&models.ModelProvider{
@@ -273,7 +273,7 @@ func TestGetAdminTeamAISummaryConfig(t *testing.T) {
 			name: "a deleted provider is a null name, not an error",
 			view: models.TeamAISummarySettingsView{
 				Source: models.TeamAISummarySettingsSourceTeam, Values: custom, InstanceDefaults: defaults,
-				MaxTopN: 20, MaxOutputTokensCeiling: 4000, Available: true,
+				MaxTopN: models.MaxAISummaryTopN, MaxOutputTokensCeiling: models.MaxAISummaryOutputTokens, Available: true,
 			},
 			setupRepo: func(m *repomocks.MockModelProviderRepository) {
 				m.EXPECT().GetByID(mock.Anything, teamID, providerID).Return(nil, repositories.ErrModelProviderNotFound)
@@ -298,8 +298,9 @@ func TestGetAdminTeamAISummaryConfig(t *testing.T) {
 			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 			assert.Equal(t, tc.source, string(resp.Source))
 			assert.Equal(t, tc.providerName, resp.ModelProviderName)
-			assert.Equal(t, 20, resp.MaxTopN)
-			assert.Equal(t, 4000, resp.MaxOutputTokensCeiling)
+			// Deprecated fields: the hard limits (#1199).
+			assert.Equal(t, 10, resp.MaxTopN)
+			assert.Equal(t, 32768, resp.MaxOutputTokensCeiling)
 			assert.Equal(t, tc.view.Available, resp.Available)
 			assert.Equal(t, tc.view.Values.TopN, resp.Values.TopN)
 			assert.Equal(t, 5, resp.InstanceDefaults.TopN)

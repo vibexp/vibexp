@@ -90,8 +90,8 @@ func toGenTeamAISummarySettings(view *models.TeamAISummarySettingsView) teamsett
 		Source:           teamsettingsgen.TeamAISummarySettingsSource(view.Source),
 		Values:           toGenTeamAISummarySettingsValues(view.Values),
 		InstanceDefaults: toGenTeamAISummarySettingsValues(view.InstanceDefaults),
-		MaxTopN:          view.MaxTopN,
-		// Instance-owned, like MaxTopN (#1085).
+		// Deprecated on the wire (#1199): both report the hard code limits.
+		MaxTopN:                view.MaxTopN,
 		MaxOutputTokensCeiling: view.MaxOutputTokensCeiling,
 		Available:              view.Available,
 	}

@@ -32,3 +32,86 @@ type InstanceAISummarySettings struct {
 	UpdatedBy *string `json:"updated_by,omitempty" db:"updated_by"`
 	Version   int64   `json:"version" db:"version"`
 }
+
+// MaxAISummaryTopN is the hard limit on how many documents a single summary
+// request may assemble, for every team and for the instance defaults alike. It
+// is a code constant, not a setting (epic #1196, decision 3): the
+// team_ai_summary_settings.top_n and instance_ai_summary_settings.top_n CHECK
+// constraints (migrations 017 and 022) mirror it bound for bound, so a value
+// the database would reject can never be saved. Change them together.
+const MaxAISummaryTopN = 10
+
+// MaxAISummaryOutputTokens is the hard limit on a summary's max_output_tokens,
+// for every team and for the instance defaults alike. The
+// instance_ai_summary_settings.max_output_tokens CHECK constraint (migration
+// 022) pins it for the instance row; the team row is checked only for > 0
+// (migration 017), so for a team the bound is enforced by the settings service
+// on save and clamped again by the summary service at request time.
+const MaxAISummaryOutputTokens = 32768
+
+// Provenance of the instance AI summary settings.
+const (
+	// InstanceAISummarySettingsSourceInstance means an instance admin (or the
+	// boot-time config import) stored the settings in
+	// instance_ai_summary_settings.
+	InstanceAISummarySettingsSourceInstance = "instance"
+	// InstanceAISummarySettingsSourceDefault means no row is stored and the
+	// built-in defaults are in effect.
+	InstanceAISummarySettingsSourceDefault = "default"
+)
+
+// InstanceAISummarySettingsValues is the complete set of instance AI summary
+// defaults and budgets, without the storage metadata carried by
+// InstanceAISummarySettings.
+type InstanceAISummarySettingsValues struct {
+	Enabled           bool          `json:"enabled"`
+	TopN              int           `json:"top_n"`
+	Style             string        `json:"style"`
+	MaxOutputTokens   int           `json:"max_output_tokens"`
+	PerDocumentChars  int           `json:"per_document_chars"`
+	TotalContextChars int           `json:"total_context_chars"`
+	RequestTimeout    time.Duration `json:"request_timeout"`
+}
+
+// DefaultInstanceAISummarySettings returns the built-in instance AI summary
+// defaults and budgets, in effect when no instance_ai_summary_settings row is
+// stored. It is the single definition of those numbers: config.yaml's
+// `ai_summary:` defaults are built from it until that block is removed (#1203).
+func DefaultInstanceAISummarySettings() InstanceAISummarySettingsValues {
+	return InstanceAISummarySettingsValues{
+		Enabled:           true,
+		TopN:              5,
+		Style:             AISummaryStyleBalanced,
+		MaxOutputTokens:   800,
+		PerDocumentChars:  8000,
+		TotalContextChars: 32000,
+		RequestTimeout:    60 * time.Second,
+	}
+}
+
+// TeamValues projects the instance defaults onto the team-overridable profile.
+// ModelProviderID is always nil: the instance has no opinion on which of a
+// team's model providers to use, so inheriting means "the team default".
+func (v InstanceAISummarySettingsValues) TeamValues() TeamAISummarySettingsValues {
+	return TeamAISummarySettingsValues{
+		Enabled:         v.Enabled,
+		ModelProviderID: nil,
+		TopN:            v.TopN,
+		Style:           v.Style,
+		MaxOutputTokens: v.MaxOutputTokens,
+	}
+}
+
+// InstanceAISummarySettingsView is the read model for the instance AI summary
+// settings: the values in effect and where they came from.
+type InstanceAISummarySettingsView struct {
+	// Source is InstanceAISummarySettingsSourceInstance or
+	// InstanceAISummarySettingsSourceDefault.
+	Source string
+	Values InstanceAISummarySettingsValues
+	// UpdatedAt and UpdatedBy describe the stored row; both are nil when
+	// Source is InstanceAISummarySettingsSourceDefault, and UpdatedBy is also
+	// nil for the boot-time import or once the saving user has been deleted.
+	UpdatedAt *time.Time
+	UpdatedBy *string
+}

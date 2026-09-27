@@ -5,6 +5,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -141,4 +142,70 @@ func TestIntegrationInstanceSettingsAudit_SearchAndAISummarySettingsRoundTrip(t 
 		assert.Nil(t, entries[0].ActorUserID)
 		assert.JSONEq(t, `{"enabled":true}`, string(entries[0].After))
 	}
+}
+
+func aiSummaryAuditEntry(action string) repositories.InstanceAISummarySettingsAuditFunc {
+	return func(before, after *models.InstanceAISummarySettings) (*models.InstanceSettingsAuditEntry, error) {
+		entry := &models.InstanceSettingsAuditEntry{Setting: models.InstanceSettingAISummary, Action: action}
+		if before != nil {
+			entry.Before = []byte(fmt.Sprintf(`{"top_n":%d}`, before.TopN))
+		}
+		if after != nil {
+			entry.After = []byte(fmt.Sprintf(`{"top_n":%d}`, after.TopN))
+		}
+		return entry, nil
+	}
+}
+
+// Audited writes (#1199): one entry per write, before read inside the
+// transaction, none for a no-op reset.
+func TestIntegrationInstanceAISummarySettings_UpsertAuditedAndDeleteAudited(t *testing.T) {
+	resetInstanceSettingsAuditTables(t)
+	resetInstanceSettingsTable(t, "instance_ai_summary_settings")
+	repo := NewInstanceAISummarySettingsRepository(integrationDB)
+	ctx := context.Background()
+
+	first := instanceAISummarySettingsFixture()
+	require.NoError(t, repo.UpsertAudited(ctx, first, aiSummaryAuditEntry(models.InstanceSettingsAuditActionUpsert)))
+	second := instanceAISummarySettingsFixture()
+	second.TopN = 9
+	require.NoError(t, repo.UpsertAudited(ctx, second, aiSummaryAuditEntry(models.InstanceSettingsAuditActionUpsert)))
+	assert.Equal(t, int64(2), second.Version)
+
+	got, err := repo.Get(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 9, got.TopN)
+	assert.Equal(t, 45*time.Second, got.RequestTimeout)
+
+	deleted, err := repo.DeleteAudited(ctx, aiSummaryAuditEntry(models.InstanceSettingsAuditActionDelete))
+	require.NoError(t, err)
+	assert.True(t, deleted)
+	deleted, err = repo.DeleteAudited(ctx, aiSummaryAuditEntry(models.InstanceSettingsAuditActionDelete))
+	require.NoError(t, err)
+	assert.False(t, deleted, "a reset with no row deletes nothing")
+
+	entries, _, err := NewInstanceSettingsAuditRepository(integrationDB).
+		List(ctx, models.InstanceSettingAISummary, 10, nil)
+	require.NoError(t, err)
+	require.Len(t, entries, 3, "one entry per write, none for the no-op reset")
+	assert.Equal(t, models.InstanceSettingsAuditActionDelete, entries[0].Action)
+	assert.JSONEq(t, `{"top_n":9}`, string(entries[0].Before))
+	assert.Nil(t, entries[0].After)
+	assert.JSONEq(t, `{"top_n":5}`, string(entries[1].Before), "before is read inside the transaction")
+	assert.Nil(t, entries[2].Before, "the first save had no previous row")
+}
+
+// A failed audit insert rolls the settings write back.
+func TestIntegrationInstanceAISummarySettings_UpsertAudited_AuditFailureRollsBack(t *testing.T) {
+	resetInstanceSettingsAuditTables(t)
+	resetInstanceSettingsTable(t, "instance_ai_summary_settings")
+	repo := NewInstanceAISummarySettingsRepository(integrationDB)
+	ctx := context.Background()
+
+	// An unknown action violates the audit table's CHECK after the upsert ran.
+	err := repo.UpsertAudited(ctx, instanceAISummarySettingsFixture(), aiSummaryAuditEntry("not-an-action"))
+	require.Error(t, err)
+
+	_, err = repo.Get(ctx)
+	assert.ErrorIs(t, err, repositories.ErrInstanceAISummarySettingsNotFound, "the upsert must have rolled back")
 }

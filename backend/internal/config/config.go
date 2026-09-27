@@ -507,13 +507,14 @@ type SearchConfig struct {
 	RankCandidateCap      int     `koanf:"rank_candidate_cap"`
 }
 
-// AISummaryConfig holds the instance-wide AI summary defaults (#1071).
+// AISummaryConfig holds the `ai_summary:` block of config.yaml (#1071).
 //
-// It is the operator's half of the feature: the context budgets have to match
-// the deployment's hardware and the model behind it, so they are not
-// team-configurable at all. The knobs a team MAY override (Enabled, TopN, Style,
-// MaxOutputTokens) are also the fallback for every team with no stored profile,
-// and are reported as `instance_defaults` on every read.
+// Since #1199 no service reads it at runtime: the instance defaults and budgets
+// come from the instance_ai_summary_settings row (InstanceAISummarySettingsService,
+// edited under Admin → Settings → AI Summary), or from
+// models.DefaultInstanceAISummarySettings when none is stored. The block is only
+// validated at startup (validateAISummaryConfig) until the boot-time import
+// (#1201) seeds the row from it, and is removed in #1203.
 type AISummaryConfig struct {
 	// Enabled switches the feature on for the whole instance. EnvBool so the
 	// combined image can expose it as ${AI_SUMMARY_ENABLED}.
@@ -521,10 +522,9 @@ type AISummaryConfig struct {
 	// TopN is the default number of documents fed to the summariser. EnvInt for
 	// the same reason as Enabled.
 	TopN EnvInt `koanf:"top_n"`
-	// MaxTopN is the instance-owned ceiling on TopN. It is NOT team-configurable
-	// and team_ai_summary_settings has no column for it: it bounds how much work
-	// one request can ask of the server and of the operator's model, exactly as
-	// search.rank_candidate_cap does. Teams tune inside the cap.
+	// MaxTopN is still validated (TopN must fit inside it) but bounds nothing
+	// else since #1199: a team's top_n is bounded by the hard limit
+	// MaxAISummaryTopN alone.
 	MaxTopN int `koanf:"max_top_n"`
 	// PerDocumentChars truncates each document before it enters the prompt.
 	PerDocumentChars int `koanf:"per_document_chars"`
@@ -533,10 +533,9 @@ type AISummaryConfig struct {
 	TotalContextChars int `koanf:"total_context_chars"`
 	// MaxOutputTokens is the default answer-length budget.
 	MaxOutputTokens int `koanf:"max_output_tokens"`
-	// MaxOutputTokensCeiling is the instance-owned ceiling on MaxOutputTokens
-	// (#1085). Like MaxTopN it is NOT team-configurable and has no column in
-	// team_ai_summary_settings: output tokens are billed and latency-bearing per
-	// request on the operator's model account, so teams tune inside the cap.
+	// MaxOutputTokensCeiling (#1085) is, like MaxTopN, still validated but
+	// bounds nothing else since #1199: a team's max_output_tokens is bounded by
+	// the hard limit MaxAISummaryOutputTokens alone.
 	MaxOutputTokensCeiling int `koanf:"max_output_tokens_ceiling"`
 	// RequestTimeout bounds a single summarisation call to the model provider.
 	RequestTimeout time.Duration `koanf:"request_timeout"`
@@ -807,22 +806,16 @@ func validateSearchRankingConfig(cfg *Config) error {
 	return nil
 }
 
-// MaxAISummaryTopN is the absolute ceiling on how many documents a single
-// summary request may assemble, for the whole deployment. ai_summary.max_top_n
-// tunes the per-team limit DOWNWARD inside it, and the
-// team_ai_summary_settings.top_n and instance_ai_summary_settings.top_n CHECK
-// constraints (migrations 017 and 022) mirror this constant bound for bound — so
-// a value the database would reject can never be configured.
-const MaxAISummaryTopN = 10
-
-// MaxAISummaryOutputTokens is the absolute ceiling on
-// ai_summary.max_output_tokens_ceiling (#1085). The
-// instance_ai_summary_settings.max_output_tokens CHECK constraint (migration
-// 022) pins it for the instance row; change both together. The team row is
-// deliberately checked only for > 0 (migration 017): the bound for a team is
-// enforced in the service on save and clamped again at request time, which also
-// covers an operator lowering the ceiling later.
-const MaxAISummaryOutputTokens = 32768
+// MaxAISummaryTopN and MaxAISummaryOutputTokens alias the hard AI summary
+// limits, whose single definition is in models (they are shared with the
+// services layer, which config must not import). ai_summary.max_top_n and
+// ai_summary.max_output_tokens_ceiling are still validated against them until
+// the `ai_summary:` block is removed from config (#1201/#1203), but since #1199
+// neither bounds a team any more: teams are bounded by these limits alone.
+const (
+	MaxAISummaryTopN         = models.MaxAISummaryTopN
+	MaxAISummaryOutputTokens = models.MaxAISummaryOutputTokens
+)
 
 // validateAISummaryConfig fails closed on an AI summary block that could not be
 // satisfied: a non-positive budget, a top_n outside the instance cap, or a style
@@ -1329,18 +1322,23 @@ func defaults() map[string]any {
 // own map, merged above, because defaults() sits at golangci's function-length
 // ceiling — folding a section in keeps adding one knob from forcing an unrelated
 // refactor of every other default.
+//
+// The values themselves come from models.DefaultInstanceAISummarySettings, the
+// same built-in defaults the instance settings service falls back to, so the
+// numbers exist once.
 func aiSummaryDefaults() map[string]any {
+	d := models.DefaultInstanceAISummarySettings()
 	return map[string]any{
-		"ai_summary.enabled":             true,
-		"ai_summary.top_n":               5,
+		"ai_summary.enabled":             d.Enabled,
+		"ai_summary.top_n":               d.TopN,
 		"ai_summary.max_top_n":           MaxAISummaryTopN,
-		"ai_summary.per_document_chars":  8000,
-		"ai_summary.total_context_chars": 32000,
-		"ai_summary.max_output_tokens":   800,
+		"ai_summary.per_document_chars":  d.PerDocumentChars,
+		"ai_summary.total_context_chars": d.TotalContextChars,
+		"ai_summary.max_output_tokens":   d.MaxOutputTokens,
 		// 4096 leaves the 800 default ample headroom; see MaxAISummaryOutputTokens.
 		"ai_summary.max_output_tokens_ceiling": 4096,
-		"ai_summary.request_timeout":           "60s",
-		"ai_summary.style":                     models.AISummaryStyleBalanced,
+		"ai_summary.request_timeout":           d.RequestTimeout.String(),
+		"ai_summary.style":                     d.Style,
 	}
 }
 

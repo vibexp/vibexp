@@ -1315,7 +1315,8 @@ type TeamSearchSettingsRepository interface {
 // override data access operations (#1071).
 //
 // The override is whole-row: a team either has a complete profile stored or no
-// row at all, in which case it inherits the instance defaults from config.yaml.
+// row at all, in which case it inherits the instance defaults
+// (instance_ai_summary_settings, or the built-in defaults when none is stored).
 type TeamAISummarySettingsRepository interface {
 	// Get returns (nil, nil) — not an error — when the team has no override
 	// row, so callers can fall back to the instance defaults.
@@ -1599,7 +1600,27 @@ type InstanceAISummarySettingsRepository interface {
 	// Delete removes the stored settings, reverting to the built-in ones. It
 	// is a no-op, not an error, when no row exists.
 	Delete(ctx context.Context) error
+	// UpsertAudited is Upsert plus one instance_settings_audit entry, written
+	// in the same transaction, with the same contract as
+	// InstanceSearchSettingsRepository.UpsertAudited: a table-level write lock
+	// serializes audited writers, before is the row read under it (nil when
+	// none was stored), and an audit error rolls the upsert back.
+	UpsertAudited(
+		ctx context.Context, settings *models.InstanceAISummarySettings, audit InstanceAISummarySettingsAuditFunc,
+	) error
+	// DeleteAudited is Delete plus one instance_settings_audit entry, in the
+	// same transaction. It reports whether a row was deleted; when none was
+	// stored it writes nothing and audit is not called.
+	DeleteAudited(ctx context.Context, audit InstanceAISummarySettingsAuditFunc) (deleted bool, err error)
 }
+
+// InstanceAISummarySettingsAuditFunc builds the audit entry for one change to
+// the instance AI summary settings. before is the row read inside the change's
+// transaction (nil when none was stored); after is the row as written (nil for
+// a delete).
+type InstanceAISummarySettingsAuditFunc func(
+	before, after *models.InstanceAISummarySettings,
+) (*models.InstanceSettingsAuditEntry, error)
 
 // FeedRepository defines the interface for feed data access operations
 type FeedRepository interface {
