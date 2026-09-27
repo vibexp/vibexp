@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 
 import { toast } from '@/lib/toast'
+import { onInstanceEmailChanged } from '@/pages/admin/instanceEmailEvents'
 import type {
   AdminInstanceEmailSettings,
   AdminInstanceEmailTestResponse,
@@ -104,8 +105,17 @@ const saveButton = () => screen.getByRole('button', { name: /save changes/i })
 const testButton = () =>
   screen.getByRole('button', { name: /send test email/i })
 
+// The admin shell's banner and the dashboard card listen for this (#1192).
+const emailChanged = vi.fn()
+let unsubscribeEmailChanged: () => void = () => undefined
+
+afterEach(() => {
+  unsubscribeEmailChanged()
+})
+
 beforeEach(() => {
   vi.clearAllMocks()
+  unsubscribeEmailChanged = onInstanceEmailChanged(emailChanged)
   service.getInstanceEmailSettings.mockResolvedValue(unconfigured)
   service.listInstanceEmailSettingsAudit.mockResolvedValue({
     entries: [],
@@ -238,6 +248,7 @@ describe('AdminEmailSettings — save', () => {
     expect(mockedToast.success).toHaveBeenCalledWith(
       'Instance email settings saved'
     )
+    expect(emailChanged).toHaveBeenCalledTimes(1)
     await waitFor(() => {
       expect(service.listInstanceEmailSettingsAudit).toHaveBeenCalledTimes(2)
     })
@@ -270,6 +281,7 @@ describe('AdminEmailSettings — save', () => {
 
     expect(await screen.findByText('is not reachable')).toBeInTheDocument()
     expect(mockHandleError).not.toHaveBeenCalled()
+    expect(emailChanged).not.toHaveBeenCalled()
   })
 
   it('falls back to the error handler for an error with no matching input', async () => {
@@ -394,6 +406,7 @@ describe('AdminEmailSettings — remove', () => {
       screen.queryByRole('button', { name: /remove configuration/i })
     ).not.toBeInTheDocument()
     expect(service.getInstanceEmailSettings).toHaveBeenCalledTimes(1)
+    expect(emailChanged).toHaveBeenCalledTimes(1)
     await waitFor(() => {
       expect(service.listInstanceEmailSettingsAudit).toHaveBeenCalledTimes(2)
     })
@@ -418,6 +431,7 @@ describe('AdminEmailSettings — remove', () => {
       await screen.findByText(/instance email is not configured/i)
     ).toBeInTheDocument()
     expect(mockHandleError).not.toHaveBeenCalled()
+    expect(emailChanged).toHaveBeenCalledTimes(1)
   })
 
   it('reports any other delete failure and keeps the configuration', async () => {
@@ -443,5 +457,6 @@ describe('AdminEmailSettings — remove', () => {
       )
     })
     expect(service.getInstanceEmailSettings).toHaveBeenCalledTimes(1)
+    expect(emailChanged).not.toHaveBeenCalled()
   })
 })

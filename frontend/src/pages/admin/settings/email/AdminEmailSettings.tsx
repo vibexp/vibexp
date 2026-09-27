@@ -25,6 +25,7 @@ import {
 import { TestResultAlert } from '@/features/email-provider/TestResultAlert'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
+import { emitInstanceEmailChanged } from '@/pages/admin/instanceEmailEvents'
 import {
   type AdminInstanceEmailSettings,
   type AdminInstanceEmailTestResponse,
@@ -152,6 +153,7 @@ export function AdminEmailSettings() {
         )
       )
       setAuditKey(key => key + 1)
+      emitInstanceEmailChanged()
       toast.success('Instance email settings saved')
     } catch (err) {
       reportError(err, 'Failed to save the email settings')
@@ -207,6 +209,7 @@ export function AdminEmailSettings() {
     setTestResult(null)
     setRemoving(false)
     setAuditKey(key => key + 1)
+    emitInstanceEmailChanged()
   }
 
   if (loading && !settings) {

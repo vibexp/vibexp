@@ -18,6 +18,15 @@ vi.mock('@/services/adminService', () => ({
   },
 }))
 
+// The "Instance email" card fetches its own status and links out; its states
+// are covered in `dashboard/__tests__/InstanceEmailCard.test.tsx`. Here it is
+// a marker, so this suite can assert where the dashboard places it.
+vi.mock('@/pages/admin/dashboard/InstanceEmailCard', () => ({
+  InstanceEmailCard: function InstanceEmailCardStub() {
+    return <div data-testid="instance-email-card" />
+  },
+}))
+
 import { adminService } from '@/services/adminService'
 
 import { AdminDashboard } from '../AdminDashboard'
@@ -262,6 +271,8 @@ describe('failure isolation', () => {
     expect(screen.getByText('overview exploded')).toBeInTheDocument()
     // Charts unaffected.
     expect(screen.getByText('New entities')).toBeInTheDocument()
+    // The mail status has its own request, so it survives too (#1192).
+    expect(screen.getByTestId('instance-email-card')).toBeInTheDocument()
   })
 
   it('clears a previous error once a later request succeeds', async () => {
@@ -355,4 +366,6 @@ it('shows skeletons while the overview is in flight', () => {
   render(<AdminDashboard />)
 
   expect(screen.getAllByTestId('stat-skeleton')).toHaveLength(10)
+  // Not held behind the overview's loading state (#1192).
+  expect(screen.getByTestId('instance-email-card')).toBeInTheDocument()
 })
