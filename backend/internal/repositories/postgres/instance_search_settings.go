@@ -51,8 +51,15 @@ const instanceSearchSettingsSelect = `SELECT recency_ranking_enabled, rank_weigh
 		FROM instance_search_settings`
 
 // instanceSearchSettingsUpsert creates or replaces the row in one INSERT ... ON
-// CONFLICT (id), so two concurrent writers cannot both decide it is absent.
-const instanceSearchSettingsUpsert = instanceSearchSettingsInsert + `
+// CONFLICT (id), so two concurrent writers cannot both decide it is absent. It
+// repeats instanceSearchSettingsInsert's columns as one literal (same order as
+// instanceSearchSettingsArgs) rather than concatenating, so it is a single
+// static statement.
+const instanceSearchSettingsUpsert = `
+	INSERT INTO instance_search_settings
+	(recency_ranking_enabled, rank_weight_relevance, rank_weight_created,
+	rank_weight_updated, rank_half_life_days, rank_candidate_cap, updated_by)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (id)
 		DO UPDATE SET
 			recency_ranking_enabled = EXCLUDED.recency_ranking_enabled,
