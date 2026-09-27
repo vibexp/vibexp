@@ -2,9 +2,7 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -127,12 +125,7 @@ func (r *InstanceEmailProviderRepository) Upsert(
 }
 
 // InsertIfAbsent stores the provider only when no row exists and reports
-// whether it did.
-//
-// ON CONFLICT DO NOTHING returns no row when one already exists, so
-// sql.ErrNoRows is the "already configured" answer rather than a fault. The
-// database decides, not a prior read, which is what makes two replicas booting
-// at once safe: exactly one of them inserts.
+// whether it did. See insertSingletonIfAbsent.
 func (r *InstanceEmailProviderRepository) InsertIfAbsent(
 	ctx context.Context, provider *models.InstanceEmailProvider,
 ) (bool, error) {
@@ -140,16 +133,13 @@ func (r *InstanceEmailProviderRepository) InsertIfAbsent(
 		ON CONFLICT (id) DO NOTHING
 		RETURNING created_at, updated_at, version`
 
-	err := r.db.QueryRowContext(ctx, query, instanceEmailProviderArgs(provider)...).
-		Scan(&provider.CreatedAt, &provider.UpdatedAt, &provider.Version)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
+	inserted, err := insertSingletonIfAbsent(ctx, r.db, query, instanceEmailProviderArgs(provider),
+		&provider.CreatedAt, &provider.UpdatedAt, &provider.Version)
 	if err != nil {
 		return false, fmt.Errorf("failed to insert instance email provider: %w", err)
 	}
 
-	return true, nil
+	return inserted, nil
 }
 
 // Delete removes the instance provider.
