@@ -6,7 +6,7 @@ import { generateBlueprintData } from '../../fixtures/test-data'
  *
  * Blueprints live at /blueprints with :project/:slug detail URLs. Creation
  * requires picking a project in the searchable `ProjectPicker` (#915 put this
- * form on the shared `ResourceFormPage`, so it is the same control the artifact
+ * form on the shared generated form, so it is the same control the artifact
  * and prompt forms use, not the plain Radix Select it once was) — every
  * dev-login team ships with a default project, so a first option always exists.
  */

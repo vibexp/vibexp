@@ -5,6 +5,12 @@ import type { Mock } from 'vitest'
 
 import type { Artifact } from '@/services/artifactService'
 
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router', async importOriginal => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useNavigate: () => mockNavigate,
+}))
+
 const mockUseTeam = vi.hoisted(() => vi.fn())
 vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
@@ -100,6 +106,16 @@ describe('ArtifactCreate', () => {
     ;(artifactService.createArtifact as Mock).mockResolvedValue(created)
   })
 
+  it('renders in the reading shell, and Cancel returns to the list (#1181)', async () => {
+    const user = userEvent.setup()
+    renderCreate()
+    const page = await screen.findByTestId('reading-page')
+    expect(page).toHaveAttribute('data-presentation', 'editing')
+    expect(page).toContainElement(screen.getByTestId('resource-form'))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(mockNavigate).toHaveBeenCalledWith('/artifacts')
+  })
+
   it('renders the generated form rather than a page-local one', () => {
     renderCreate()
     expect(screen.getByTestId('resource-form')).toBeInTheDocument()
@@ -145,6 +161,9 @@ describe('ArtifactCreate', () => {
         metadata: { source: 'wiki' },
       })
     })
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/artifacts/project-1/my-artifact'
+    )
   })
 
   it('sends an empty metadata object rather than omitting it when the bag is empty (#947)', async () => {

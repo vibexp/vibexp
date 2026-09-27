@@ -59,7 +59,7 @@ export function toBlueprintRequest(
 /**
  * A sub-agents blueprint must carry a `model` metadata key
  * (`internal/services/blueprint.go`), so the metadata editor must not let it be
- * deleted or renamed. Module-level because `ResourceFormPage` documents
+ * deleted or renamed. Module-level because `ResourceFormReadingPage` documents
  * `metadataRequiredKeys` as needing a stable reference.
  */
 const SUB_AGENTS_REQUIRED_KEYS = ['model']

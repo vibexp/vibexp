@@ -1,19 +1,12 @@
-import { ArrowLeft, Save } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 
-import { PageHeader } from '@/components/PageHeader'
-import type {
-  ResourceFormHandle,
-  ResourceFormValues,
-} from '@/components/patterns/resource'
+import type { ResourceFormValues } from '@/components/patterns/resource'
 import {
   formHeading,
-  formSaveLabel,
   getResourceDescriptor,
-  ResourceFormPage,
+  ResourceFormReadingPage,
 } from '@/components/patterns/resource'
-import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -32,7 +25,6 @@ export function BlueprintCreate() {
   const { trackEvent } = useAnalytics()
 
   const [creating, setCreating] = useState(false)
-  const formRef = useRef<ResourceFormHandle>(null)
 
   const handleSubmit = async (values: ResourceFormValues) => {
     if (!currentTeam) {
@@ -66,40 +58,15 @@ export function BlueprintCreate() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={formHeading(descriptor, 'create')}
-        description="Save AI-generated content to reuse later."
-        actions={
-          <>
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate('/blueprints')
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-            <Button
-              onClick={() => {
-                formRef.current?.submit()
-              }}
-              disabled={creating}
-            >
-              <Save className="mr-2 size-4" />
-              {creating ? 'Creating…' : formSaveLabel(descriptor, 'create')}
-            </Button>
-          </>
-        }
-      />
-      <ResourceFormPage
-        ref={formRef}
-        descriptor={descriptor}
-        mode="create"
-        onSubmit={handleSubmit}
-        isLoading={creating}
-      />
-    </div>
+    <ResourceFormReadingPage
+      title={formHeading(descriptor, 'create')}
+      descriptor={descriptor}
+      mode="create"
+      onSubmit={handleSubmit}
+      isLoading={creating}
+      onCancel={() => {
+        void navigate('/blueprints')
+      }}
+    />
   )
 }

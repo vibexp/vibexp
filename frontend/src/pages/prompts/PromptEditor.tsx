@@ -1,8 +1,6 @@
-import { ArrowLeft, Save } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router'
 
-import { PageHeader } from '@/components/PageHeader'
 import { ReadingPage } from '@/components/patterns/reading-page'
 import type {
   BodySlotProps,
@@ -12,14 +10,11 @@ import type {
 } from '@/components/patterns/resource'
 import {
   formHeading,
-  formSaveLabel,
   getResourceDescriptor,
   ResourceBodyEditor,
-  ResourceFormPage,
   ResourceFormReadingPage,
 } from '@/components/patterns/resource'
 import { PromptTemplateLoader } from '@/components/PromptTemplateLoader'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAnalytics } from '@/hooks'
@@ -57,7 +52,8 @@ function prefilledValues(prefilled: PrefilledPrompt | null) {
 }
 
 /**
- * Create and edit a prompt, on the shared `ResourceFormPage` (#915).
+ * Create and edit a prompt, on the shared `ResourceFormReadingPage` (#915,
+ * #1181 for create).
  *
  * The three things that really are prompt-only survive as extensions rather
  * than as a second form architecture: the body editor's `@`-mention textarea,
@@ -79,7 +75,7 @@ export function PromptEditor() {
   const [loading, setLoading] = useState(!!slug)
   // Create mode waits for the projects fetch before painting the form. Seeding
   // `initialValues` after first paint is a `reset`, and a reset discards
-  // everything typed in the meantime — the trap `ResourceFormPage` documents.
+  // everything typed in the meantime — the trap `useResourceForm` documents.
   const [loadingProjects, setLoadingProjects] = useState(!slug)
   const [view, setView] = useState<EditorView>('write')
   const [showTemplateLoader, setShowTemplateLoader] = useState(false)
@@ -171,7 +167,7 @@ export function PromptEditor() {
     }
   }, [slug, loadPrompt, isLoadingTeam])
 
-  // Content-stable: `ResourceFormPage` re-seeds whenever these values differ
+  // Content-stable: the form re-seeds whenever these values differ
   // from the last ones, so a loaded prompt, a preselected project and a loaded
   // template each reach the form exactly once.
   const initialValues = useMemo<ResourceFormValues | undefined>(() => {
@@ -275,42 +271,27 @@ export function PromptEditor() {
     />
   )
 
-  // The shared wording, not the old "Publish" / "Save as draft" pair: that
-  // label was read off the form's own status, which lives inside
-  // `ResourceFormPage` now while the button stays in the page header. It was
-  // also already misleading — it said "Publish" when saving an ALREADY
-  // published prompt — and every other kind says "Create …" / "Save changes".
-  const saveLabel = saving ? 'Saving…' : formSaveLabel(descriptor, mode)
-
   if (loading || loadingProjects) {
-    // Editing renders its skeleton inside the reading shell, so the layout is
-    // in place before the fetch resolves rather than arriving with the prompt.
-    return isEditing ? (
+    // The skeleton renders inside the reading shell, so the layout is in place
+    // before the fetch resolves rather than arriving with the prompt.
+    return (
       <ReadingPage
         title={formHeading(descriptor, mode)}
-        description="Loading prompt…"
+        description={isEditing ? 'Loading prompt…' : 'Loading projects…'}
         presentation="editing"
       >
         <Skeleton className="h-64 w-full" />
       </ReadingPage>
-    ) : (
-      <div className="space-y-6">
-        <PageHeader
-          title={formHeading(descriptor, mode)}
-          description="Loading projects…"
-        />
-        <Skeleton className="h-64 w-full" />
-      </div>
     )
   }
 
-  // Editing a prompt is the same document as reading it, so it goes through the
-  // reading shell (#916). Creating one is not — `prompts/new` keeps the
-  // standalone form, alongside the other three create pages, and keeps the
-  // template loader that only exists while creating.
-  if (isEditing) {
-    return (
+  // Creating a prompt is the same document as editing it, which is the same
+  // document as reading it, so both go through the reading shell (#916,
+  // #1181). The template loader only exists while creating.
+  return (
+    <>
       <ResourceFormReadingPage
+        ref={formRef}
         title={formHeading(descriptor, mode)}
         updatedAt={prompt?.updated_at}
         headerExtra={prompt?.is_shared && <SharedBadge />}
@@ -337,68 +318,17 @@ export function PromptEditor() {
           void navigate(prompt ? `/prompts/${prompt.slug}` : '/prompts')
         }}
       />
-    )
-  }
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title={formHeading(descriptor, mode)}
-        description="Create a new AI prompt with markdown support."
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                void navigate('/prompts')
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-            <Button
-              size="sm"
-              data-testid="prompt-save-button"
-              onClick={() => {
-                formRef.current?.submit()
-              }}
-              disabled={saving}
-            >
-              <Save className="mr-2 size-4" />
-              {saveLabel}
-            </Button>
-          </div>
-        }
-      />
-
-      <ResourceFormPage
-        ref={formRef}
-        descriptor={descriptor}
-        mode={mode}
-        initialValues={initialValues}
-        onSubmit={handleSubmit}
-        isLoading={saving}
-        renderBody={renderBody}
-        extensions={{
-          'mcp-exposure': (
-            <McpExposureCard
-              value={mcpExpose}
-              onChange={setMcpExpose}
-              disabled={saving}
-            />
-          ),
-        }}
-      />
-
-      <PromptTemplateLoader
-        isOpen={showTemplateLoader}
-        onClose={() => {
-          setShowTemplateLoader(false)
-        }}
-        onSelectPrompt={handleLoadTemplate}
-        excludeCurrentPrompt={prompt?.slug}
-      />
-    </div>
+      {!isEditing && (
+        <PromptTemplateLoader
+          isOpen={showTemplateLoader}
+          onClose={() => {
+            setShowTemplateLoader(false)
+          }}
+          onSelectPrompt={handleLoadTemplate}
+          excludeCurrentPrompt={prompt?.slug}
+        />
+      )}
+    </>
   )
 }

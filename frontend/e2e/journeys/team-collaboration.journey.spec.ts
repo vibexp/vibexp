@@ -469,7 +469,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
         authenticatedPage.locator('[data-testid="current-team-name"]')
       ).toHaveText(/resource sharing team/i, { timeout: 10000 })
       await authenticatedPage.fill(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         promptName
       )
       await authenticatedPage.fill(

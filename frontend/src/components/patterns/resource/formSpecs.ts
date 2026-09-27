@@ -64,20 +64,17 @@ export function slugFormField(
   }
 }
 
-/** The one-line description under the name. Optional on every kind. */
+/**
+ * The one-line description under the name. Optional on every kind. No
+ * placeholder: it renders as the inline header input, which says "Add a
+ * description…" on every kind (#1179, #1181).
+ */
 export function summaryFormField(
   key: string,
   maxLength: number,
   testId: string
 ): FormFieldSpec {
-  return {
-    key,
-    control: 'textarea',
-    section: 'details',
-    maxLength,
-    placeholder: 'Enter a brief description…',
-    testId,
-  }
+  return { key, control: 'textarea', section: 'details', maxLength, testId }
 }
 
 /** The long-form content, in the wide editor column. */

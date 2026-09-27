@@ -111,7 +111,7 @@ export function MemoryEdit() {
     }
   }
 
-  // Memoised on the resource, not rebuilt per render: `ResourceFormPage`
+  // Memoised on the resource, not rebuilt per render: the form
   // re-seeds on a CONTENT change, so a fresh literal is harmless but a fresh
   // `JSON.stringify` of the whole memory on every keystroke is not.
   const initialValues = useMemo(

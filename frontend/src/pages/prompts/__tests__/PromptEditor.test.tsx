@@ -294,19 +294,22 @@ async function fillRequiredFields(
 }
 
 describe('PromptEditor — create mode', () => {
-  it('renders the generated form and navigates back on Back', async () => {
+  it('renders the generated form in the reading shell and navigates back on Cancel', async () => {
     const user = userEvent.setup()
     await renderCreated()
 
     expect(
       screen.getByRole('heading', { name: 'Create prompt' })
     ).toBeInTheDocument()
-    expect(screen.getByTestId('resource-form')).toBeInTheDocument()
+    // The same shell as edit and read (#1181), not the standalone card grid.
+    const page = screen.getByTestId('reading-page')
+    expect(page).toHaveAttribute('data-presentation', 'editing')
+    expect(page).toContainElement(screen.getByTestId('resource-form'))
     expect(screen.getByTestId('prompt-name-input')).toHaveValue('')
     expect(screen.getByTestId('prompt-body-textarea')).toHaveValue('')
     expect(promptService.getPrompt).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: /back/i }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(mockNavigate).toHaveBeenCalledWith('/prompts')
   })
 

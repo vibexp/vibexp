@@ -5,6 +5,12 @@ import type { Mock } from 'vitest'
 
 import type { Blueprint } from '@/services/blueprintService'
 
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router', async importOriginal => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useNavigate: () => mockNavigate,
+}))
+
 const mockUseTeam = vi.hoisted(() => vi.fn())
 vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
@@ -93,6 +99,16 @@ describe('BlueprintCreate', () => {
     ;(blueprintService.createBlueprint as Mock).mockResolvedValue(created)
   })
 
+  it('renders in the reading shell, and Cancel returns to the list (#1181)', async () => {
+    const user = userEvent.setup()
+    renderCreate()
+    const page = await screen.findByTestId('reading-page')
+    expect(page).toHaveAttribute('data-presentation', 'editing')
+    expect(page).toContainElement(screen.getByTestId('resource-form'))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(mockNavigate).toHaveBeenCalledWith('/blueprints')
+  })
+
   it('offers the status and labels controls the old form never had', () => {
     renderCreate()
     // The gap #915 actually closes: the API has always accepted a blueprint
@@ -139,6 +155,9 @@ describe('BlueprintCreate', () => {
         metadata: {},
       })
     })
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/blueprints/project-1/my-blueprint'
+    )
   })
 
   it('offers exactly the two statuses the spec allows, and saves one', async () => {

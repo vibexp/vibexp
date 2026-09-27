@@ -18,7 +18,7 @@ export interface McpExposureCardProps {
  * descriptor field (there is no boolean control kind, deliberately).
  *
  * The switch appears only once the prompt is `published`, which is the one
- * thing the slot needs from the form itself. `ResourceFormPage` renders its
+ * thing the slot needs from the form itself. `ResourceFormReadingPage` renders its
  * extensions INSIDE the `FormProvider`, so `useWatch` reads the live status
  * without the page having to mirror the form's state or the shared component
  * having to grow a values callback.

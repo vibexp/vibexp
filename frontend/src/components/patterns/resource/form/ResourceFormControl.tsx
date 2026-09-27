@@ -189,7 +189,7 @@ function TypeCatalogSelect(
 /**
  * One control of a generated resource form.
  *
- * Kept out of `ResourceFormPage` so the page stays a layout: the switch here is
+ * Kept out of `useResourceForm` so the form stays a set of slots: the switch here is
  * over the closed `FormControl` union, never over a resource kind, which is
  * what lets a descriptor the SPA has never seen render a working form.
  */

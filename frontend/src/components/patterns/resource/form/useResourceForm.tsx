@@ -51,12 +51,6 @@ export interface UseResourceFormOptions {
    * error they cannot fix (#916).
    */
   onInvalidSubmit?: (invalidKeys: readonly string[]) => void
-  /**
-   * Render the name and summary fields as the page's own header — inline, in
-   * the heading's typography — instead of in the details column (#1179). Only
-   * the reading-shell layout asks for it; the standalone card grid does not.
-   */
-  inlineHeader?: boolean
 }
 
 /** The generated form, as nodes a layout places wherever it wants. */
@@ -75,12 +69,12 @@ export interface ResourceFormSlots {
   bodyNode: ReactNode
   /**
    * Controls of `section: 'details'`, or null when the kind declares none.
-   * Excludes the header fields when `inlineHeader` rendered them.
+   * Excludes the header fields, which render as `titleNode` / `summaryNode`.
    */
   detailsNode: ReactNode
-  /** The inline name input (`inlineHeader` only), or null when the kind has none. */
+  /** The inline name input, or null when the kind has none. */
   titleNode: ReactNode
-  /** The inline summary input (`inlineHeader` only), or null when the kind has none. */
+  /** The inline summary input, or null when the kind has none. */
   summaryNode: ReactNode
   /** Keys of the fields rendered in the header rather than the details column. */
   headerKeys: readonly string[]
@@ -120,12 +114,12 @@ function blockEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
 /**
  * The generated create/edit form (#913), as slots rather than as a layout.
  *
- * One form context, two layouts (#916): `ResourceFormPage` renders these nodes
- * as the standalone card grid, and `ResourceFormReadingPage` renders the same
- * nodes into the reading shell's article and details column. Everything that
+ * The layout is `ResourceFormReadingPage`, which renders these nodes into the
+ * reading shell's header, article and details column (#916, #1179; #1181
+ * retired the standalone card grid that was the second layout). Everything that
  * makes the form behave — the zod schema, the content-keyed re-seed, the slug
- * auto-fill, the metadata validity gate — lives here exactly once, so the two
- * layouts cannot drift into two form implementations.
+ * auto-fill, the metadata validity gate — lives here exactly once, so create
+ * and edit cannot drift into two form implementations.
  *
  * There is no `switch (kind)` here and there must never be one: the switch is
  * over the closed `FormControl` union in `ResourceFormControl`.
@@ -140,7 +134,6 @@ export function useResourceForm({
   metadataRequiredKeys,
   metadataReservedKeys,
   onInvalidSubmit,
-  inlineHeader = false,
 }: UseResourceFormOptions): ResourceFormSlots {
   const formElRef = useRef<HTMLFormElement>(null)
   const slugManuallyEdited = useRef(mode === 'edit')
@@ -174,17 +167,17 @@ export function useResourceForm({
   const slugSpec = specs.find(spec => spec.pattern === 'slug')
   const metadataSpec = specs.find(spec => spec.control === 'metadata')
 
-  // The header fields, read off the descriptor's roles: a kind with no `name`
-  // text field or no `summary` textarea simply keeps that one in the column.
+  // The header fields (#1179) — the name and summary render as the page's own
+  // header, inline in the heading's typography — read off the descriptor's
+  // roles: a kind with no `name` text field or no `summary` textarea simply
+  // keeps that one in the column.
   const summaryField = fieldOfRole(descriptor, 'summary')
-  const titleSpec = inlineHeader
-    ? specs.find(spec => spec.key === nameField?.key && spec.control === 'text')
-    : undefined
-  const summarySpec = inlineHeader
-    ? specs.find(
-        spec => spec.key === summaryField?.key && spec.control === 'textarea'
-      )
-    : undefined
+  const titleSpec = specs.find(
+    spec => spec.key === nameField?.key && spec.control === 'text'
+  )
+  const summarySpec = specs.find(
+    spec => spec.key === summaryField?.key && spec.control === 'textarea'
+  )
   const headerSpecs = [titleSpec, summarySpec].filter(
     (spec): spec is FormFieldSpec => spec !== undefined
   )

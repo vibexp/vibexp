@@ -1,6 +1,6 @@
 import { Info, Save, Tags, X } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import type { ReactNode, Ref } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 
 import { useShell } from '@/components/layout/ShellContext'
 import {
@@ -16,8 +16,9 @@ import { fieldOfRole } from '../fieldOfRole'
 import { fieldLabel, fieldTone, statusFieldOf } from '../statusTone'
 import type { ResourceDescriptor } from '../types'
 import type { ResourceFormValues } from './buildFormSchema'
+import type { ResourceFormMode } from './formLabels'
 import { formSaveLabel } from './formLabels'
-import type { ResourceFormPageProps } from './ResourceFormPage'
+import type { BodySlotProps } from './ResourceFormControl'
 import { useResourceForm } from './useResourceForm'
 
 /** Section ids, exported for the tests that assert the `data-section` anchors. */
@@ -33,7 +34,49 @@ export const RESOURCE_FORM_SECTION_IDS = {
  */
 const REVEAL_ERROR_DELAY_MS = 0
 
-export interface ResourceFormReadingPageProps extends ResourceFormPageProps {
+/**
+ * What a page can reach of the form it hands its fields to — for a Save that
+ * lives outside the page, and for an extension that has to read the form.
+ */
+export interface ResourceFormHandle {
+  submit: () => void
+  /**
+   * The form's current values.
+   *
+   * The page owns the extension slots but not the form, and an extension
+   * occasionally has to read it: the prompt editor's template loader must not
+   * replace a body the user has already typed into, and re-seeding through
+   * `initialValues` would otherwise discard every OTHER field along with it.
+   * Reading, never writing — a slot that wants to change a field re-seeds.
+   */
+  getValues: () => ResourceFormValues
+}
+
+export interface ResourceFormReadingPageProps {
+  descriptor: ResourceDescriptor
+  mode: ResourceFormMode
+  /** The resource being edited, as a value map. Omit when creating. */
+  initialValues?: ResourceFormValues
+  onSubmit: (values: ResourceFormValues) => void | Promise<void>
+  /** Disables every control while the page is saving. */
+  isLoading?: boolean
+  /**
+   * A node per name in `descriptor.form.extensions`, rendered under the
+   * details fields in the order the descriptor declares. A name with no node
+   * is simply not rendered — a page may fill one slot and not another.
+   */
+  extensions?: Readonly<Record<string, ReactNode>>
+  /**
+   * Replaces the shared `ResourceBodyEditor` the body control renders by
+   * default — how a page opts into the prompt-only extensions (#914).
+   */
+  renderBody?: (props: BodySlotProps) => ReactNode
+  /** Forwarded to the `metadata` control. Must be a stable reference. */
+  metadataRequiredKeys?: string[]
+  /** Forwarded to the `metadata` control. Must be a stable reference. */
+  metadataReservedKeys?: string[]
+  /** The form's handle (React 19 passes `ref` as a plain prop). */
+  ref?: Ref<ResourceFormHandle>
   /**
    * The page's name — "Edit artifact". The visible `<h1>` only for a kind
    * whose name is not edited in the header; otherwise the accessible heading.
@@ -56,6 +99,11 @@ export interface ResourceFormReadingPageProps extends ResourceFormPageProps {
   /** Forwarded to the Save action, for pages an e2e spec addresses by id. */
   saveTestId?: string
   /**
+   * Disables Save without locking the form — a create page whose submit
+   * cannot succeed yet (the memory page before the team has a project).
+   */
+  saveDisabled?: boolean
+  /**
    * Unsaved state the form does not own — a page's `extensions` are its own
    * `useState` and are invisible to react-hook-form, so the memory's tags and
    * the prompt's MCP toggle would otherwise be discarded by Cancel or by a tab
@@ -68,6 +116,16 @@ export interface ResourceFormReadingPageProps extends ResourceFormPageProps {
 function valueOf(values: ResourceFormValues | undefined, key: string) {
   const value = new Map(Object.entries(values ?? {})).get(key)
   return typeof value === 'string' ? value : ''
+}
+
+/** "Create artifact" / "Save changes", and what it says while that runs. */
+function saveActionLabel(
+  descriptor: ResourceDescriptor,
+  mode: ResourceFormMode,
+  isLoading: boolean
+) {
+  if (!isLoading) return formSaveLabel(descriptor, mode)
+  return mode === 'create' ? 'Creating…' : 'Saving…'
 }
 
 /**
@@ -87,7 +145,9 @@ function headingText(
 }
 
 /**
- * The generated form (#913) rendered in the reading shell (#916).
+ * The generated form (#913) rendered in the reading shell (#916) — the one
+ * create/edit layout since #1181 moved the four create pages onto it, so
+ * creating a resource looks like editing it, which looks like reading it.
  *
  * View and edit are the same document, so they get the same layout: the body
  * editor takes the article slot at the identical reading measure and gutters, the
@@ -110,7 +170,9 @@ export function ResourceFormReadingPage({
   headerExtra,
   onCancel,
   saveTestId,
+  saveDisabled = false,
   extraDirty = false,
+  ref,
   descriptor,
   mode,
   initialValues,
@@ -146,6 +208,7 @@ export function ResourceFormReadingPage({
     formElRef,
     onFormSubmit,
     submit,
+    getValues,
     isDirty,
     bodyNode,
     detailsNode,
@@ -162,7 +225,6 @@ export function ResourceFormReadingPage({
     renderBody,
     metadataRequiredKeys,
     metadataReservedKeys,
-    inlineHeader: true,
     // Most fields live in the details column, and the column folds to a 48px
     // rail that renders none of them. A validation error the reader cannot
     // reach is one they cannot fix, so a failed submit reopens the column —
@@ -188,6 +250,8 @@ export function ResourceFormReadingPage({
   useEffect(() => {
     headerKeysNow.current = headerKeys
   })
+
+  useImperativeHandle(ref, () => ({ submit, getValues }), [submit, getValues])
 
   // The header's badge row reads the LIVE form, so changing Status in the
   // column recolours the badge at once — the header is the same header as on
@@ -279,10 +343,10 @@ export function ResourceFormReadingPage({
   const actions: ReadingAction[] = [
     {
       id: 'save',
-      label: isLoading ? 'Saving…' : formSaveLabel(descriptor, mode),
+      label: saveActionLabel(descriptor, mode, isLoading),
       icon: Save,
       emphasis: 'primary',
-      disabled: isLoading,
+      disabled: isLoading || saveDisabled,
       onClick: submit,
       testId: saveTestId,
     },
@@ -298,9 +362,9 @@ export function ResourceFormReadingPage({
   ]
 
   // The extension slots (the prompt's MCP exposure card, the memory's tags)
-  // keep the position the standalone layout gives them — under the details
-  // fields — rather than becoming rail entries of their own: they are
-  // self-titled cards, and the descriptor declares only their names.
+  // sit under the details fields rather than becoming rail entries of their
+  // own: they are self-titled cards, and the descriptor declares only their
+  // names.
   const extensionCards = declaredExtensions
     .map(name => {
       const node = extensionNodes.get(name)

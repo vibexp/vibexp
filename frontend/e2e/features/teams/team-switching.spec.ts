@@ -165,13 +165,13 @@ test.describe('Team Context Switching', () => {
       // Create a prompt in current team
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const promptName = `Team Scoped ${Date.now()}`
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -282,13 +282,13 @@ test.describe('Team Context Switching', () => {
       // Create a prompt in current team
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const promptName = `Isolation Test ${Date.now()}`
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -361,14 +361,14 @@ test.describe('Team Context Switching', () => {
     }) => {
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const promptName = `API Team Test ${Date.now()}`
 
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')

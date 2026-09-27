@@ -65,7 +65,6 @@ export const memoryDescriptor = defineResource({
         control: 'text',
         section: 'details',
         maxLength: 255,
-        placeholder: 'Optional short title…',
         testId: 'memory-title-input',
       },
       // The test id is the one `e2e/memories.spec.ts` has always driven this

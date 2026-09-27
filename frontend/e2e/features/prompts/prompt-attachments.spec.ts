@@ -30,12 +30,10 @@ test.describe('Prompt Attachments', () => {
     await expect(page).toHaveURL(/prompts\/new/)
 
     const promptName = `Attach Test ${String(Date.now())}`
-    await page.waitForSelector('input[placeholder*="Enter prompt name"]', {
+    await page.waitForSelector('[data-testid="prompt-name-input"]', {
       timeout: 10000,
     })
-    await page
-      .locator('input[placeholder*="Enter prompt name"]')
-      .fill(promptName)
+    await page.locator('[data-testid="prompt-name-input"]').fill(promptName)
     await page
       .locator('textarea[placeholder*="Write your prompt here"]')
       .fill('Prompt used to exercise the attachment upload/delete flow.')

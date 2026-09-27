@@ -51,12 +51,12 @@ test.describe('Prompt CRUD Operations', () => {
       const promptBody = 'This is a test prompt content for E2E testing'
 
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -77,7 +77,7 @@ test.describe('Prompt CRUD Operations', () => {
     }) => {
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
@@ -100,13 +100,13 @@ test.describe('Prompt CRUD Operations', () => {
     }) => {
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const promptName = `Auto Slug Test ${Date.now()}`
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
 
       // Check if slug field is auto-populated
@@ -124,7 +124,7 @@ test.describe('Prompt CRUD Operations', () => {
     test('should allow custom slug override', async ({ authenticatedPage }) => {
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
@@ -132,7 +132,7 @@ test.describe('Prompt CRUD Operations', () => {
       const customSlug = `custom-slug-${Date.now()}`
 
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
 
       // Override the slug
@@ -162,12 +162,12 @@ test.describe('Prompt CRUD Operations', () => {
     }) => {
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill('Test Prompt')
 
       const slugInput = authenticatedPage.locator(
@@ -187,7 +187,7 @@ test.describe('Prompt CRUD Operations', () => {
 
         // The inline slug-format error blocks submission (still on create
         // page). The wording is the shared one every kind now uses: #915 put
-        // the prompt on `ResourceFormPage`, whose slug rule is declared once
+        // the prompt on the generated form, whose slug rule is declared once
         // (`SLUG_MESSAGE`) instead of spelled three ways across three forms.
         await expect(
           authenticatedPage.getByText(
@@ -201,13 +201,13 @@ test.describe('Prompt CRUD Operations', () => {
     test('should add tags to prompt', async ({ authenticatedPage }) => {
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const promptName = `Tagged Prompt ${Date.now()}`
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -233,13 +233,13 @@ test.describe('Prompt CRUD Operations', () => {
     }) => {
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const promptName = `Status Test ${Date.now()}`
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -266,13 +266,13 @@ test.describe('Prompt CRUD Operations', () => {
       // Create a prompt
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const promptName = `List Test ${Date.now()}`
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -301,13 +301,13 @@ test.describe('Prompt CRUD Operations', () => {
       // Create a prompt first
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const promptName = `Detail Nav ${Date.now()}`
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -329,7 +329,7 @@ test.describe('Prompt CRUD Operations', () => {
     }) => {
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
@@ -337,7 +337,7 @@ test.describe('Prompt CRUD Operations', () => {
       const promptBody = 'Content with full metadata'
 
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -363,13 +363,13 @@ test.describe('Prompt CRUD Operations', () => {
       // Create a prompt
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const originalName = `Edit Content ${Date.now()}`
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(originalName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -416,13 +416,13 @@ test.describe('Prompt CRUD Operations', () => {
     }) => {
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const originalName = `Metadata Edit ${Date.now()}`
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(originalName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -523,13 +523,13 @@ test.describe('Prompt CRUD Operations', () => {
       // Create a prompt to delete
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const promptName = `Delete Confirm ${Date.now()}`
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -564,13 +564,13 @@ test.describe('Prompt CRUD Operations', () => {
       // Create a prompt
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const promptName = `Keep Prompt ${Date.now()}`
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -618,13 +618,13 @@ test.describe('Prompt CRUD Operations', () => {
       // Create a prompt to delete
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       const promptName = `Delete Me ${Date.now()}`
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill(promptName)
       await authenticatedPage
         .locator('textarea[placeholder*="Write your prompt here"]')
@@ -682,12 +682,12 @@ test.describe('Prompt CRUD Operations', () => {
       // Create first prompt with specific slug
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill('First Prompt')
 
       const slugInput = authenticatedPage.locator(
@@ -710,12 +710,12 @@ test.describe('Prompt CRUD Operations', () => {
       // Try to create second prompt with same slug
       await authenticatedPage.goto('/prompts/new')
       await authenticatedPage.waitForSelector(
-        'input[placeholder*="Enter prompt name"]',
+        '[data-testid="prompt-name-input"]',
         { timeout: 10000 }
       )
 
       await authenticatedPage
-        .locator('input[placeholder*="Enter prompt name"]')
+        .locator('[data-testid="prompt-name-input"]')
         .fill('Second Prompt')
 
       if (await slugInput.isVisible()) {
