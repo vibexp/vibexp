@@ -225,7 +225,6 @@ export function ResourceFormReadingPage({
     renderBody,
     metadataRequiredKeys,
     metadataReservedKeys,
-    inlineHeader: true,
     // Most fields live in the details column, and the column folds to a 48px
     // rail that renders none of them. A validation error the reader cannot
     // reach is one they cannot fix, so a failed submit reopens the column —
@@ -364,8 +363,8 @@ export function ResourceFormReadingPage({
 
   // The extension slots (the prompt's MCP exposure card, the memory's tags)
   // sit under the details fields rather than becoming rail entries of their
-  // own: they are
-  // self-titled cards, and the descriptor declares only their names.
+  // own: they are self-titled cards, and the descriptor declares only their
+  // names.
   const extensionCards = declaredExtensions
     .map(name => {
       const node = extensionNodes.get(name)
