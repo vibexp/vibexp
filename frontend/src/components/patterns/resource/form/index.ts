@@ -29,10 +29,6 @@ export {
 } from './ResourceFormControl'
 export {
   type ResourceFormHandle,
-  ResourceFormPage,
-  type ResourceFormPageProps,
-} from './ResourceFormPage'
-export {
   ResourceFormReadingPage,
   type ResourceFormReadingPageProps,
 } from './ResourceFormReadingPage'

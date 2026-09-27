@@ -17,12 +17,10 @@ test.describe('Public Shared Prompt', () => {
     // --- Create a prompt through the UI (mirrors the prompt-crud happy path) ---
     const promptName = `Shared Prompt ${Date.now()}`
     await page.goto('/prompts/new')
-    await page.waitForSelector('input[placeholder*="Enter prompt name"]', {
+    await page.waitForSelector('[data-testid="prompt-name-input"]', {
       timeout: 10000,
     })
-    await page
-      .locator('input[placeholder*="Enter prompt name"]')
-      .fill(promptName)
+    await page.locator('[data-testid="prompt-name-input"]').fill(promptName)
     await page
       .locator('textarea[placeholder*="Write your prompt here"]')
       .fill('Body of a prompt shared publicly for E2E.')

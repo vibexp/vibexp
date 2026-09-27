@@ -49,7 +49,7 @@
  * ## Form behaviour
  *
  * The optional `form` section says which fields a create/edit page edits, in
- * which control and in which of its three sections, so `ResourceFormPage`
+ * which control and in which of its three sections, so `useResourceForm`
  * generates the zod schema and the layout from the resource type rather than
  * each page hand-writing both (#913). Absent for kinds with no form.
  */

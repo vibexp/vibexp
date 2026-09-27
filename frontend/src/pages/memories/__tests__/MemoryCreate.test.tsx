@@ -1,9 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import type { Mock } from 'vitest'
 
 import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
+
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router', async importOriginal => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useNavigate: () => mockNavigate,
+}))
 
 const mockUseTeam = vi.hoisted(() => vi.fn())
 vi.mock('@/contexts/TeamContext', () => ({
@@ -113,6 +120,25 @@ describe('MemoryCreate', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('renders in the reading shell, and Cancel returns to the list (#1181)', async () => {
+    ;(projectService.getProjects as Mock).mockResolvedValue({
+      projects: [mockProject],
+      total_count: 1,
+      page: 1,
+      per_page: 100,
+      total_pages: 1,
+    })
+    const user = userEvent.setup()
+    renderMemoryCreate()
+    // Past the projects fetch, whose skeleton is a reading page of its own.
+    const form = await screen.findByTestId('resource-form')
+    const page = screen.getByTestId('reading-page')
+    expect(page).toHaveAttribute('data-presentation', 'editing')
+    expect(page).toContainElement(form)
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(mockNavigate).toHaveBeenCalledWith('/memories')
+  })
+
   it('renders form once projects are loaded', async () => {
     ;(projectService.getProjects as Mock).mockResolvedValue({
       projects: [mockProject],
@@ -214,6 +240,7 @@ describe('MemoryCreate', () => {
       Record<string, unknown>,
     ]
     expect(payload).not.toHaveProperty('title')
+    expect(mockNavigate).toHaveBeenCalledWith('/memories')
   })
 
   it('sends a typed title', async () => {

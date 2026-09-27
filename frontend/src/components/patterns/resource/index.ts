@@ -21,8 +21,6 @@ export {
   recordValue,
   type ResourceFormHandle,
   type ResourceFormMode,
-  ResourceFormPage,
-  type ResourceFormPageProps,
   ResourceFormReadingPage,
   type ResourceFormReadingPageProps,
   type ResourceFormSlots,

@@ -8,12 +8,10 @@ export type ResourceFormMode = 'create' | 'edit'
 /*
  * The wording around a generated form, derived from the descriptor.
  *
- * The page header is not part of `ResourceFormPage` — every create/edit page
- * owns its own `PageHeader` (with Back, Save, and the page's navigation), and
- * the `forwardRef` submit handle exists precisely so the Save button can live
- * up there. These helpers are what stop the header drifting from the form
- * below it: today the four pages read "Create artifact", "Create Blueprint",
- * "Save Prompt" and "Update memory".
+ * `ResourceFormReadingPage` takes the page's name as its `title` and labels
+ * its Save action from the mode. These helpers are what stop that wording
+ * drifting between kinds — before #913 the four pages read "Create artifact",
+ * "Create Blueprint", "Save Prompt" and "Update memory".
  */
 
 /** "Create artifact" / "Edit artifact". */

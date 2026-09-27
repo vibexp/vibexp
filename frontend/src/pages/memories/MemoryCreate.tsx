@@ -1,20 +1,14 @@
-import { ArrowLeft, Save } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { PageHeader } from '@/components/PageHeader'
-import type {
-  ResourceFormHandle,
-  ResourceFormValues,
-} from '@/components/patterns/resource'
+import { ReadingPage } from '@/components/patterns/reading-page'
+import type { ResourceFormValues } from '@/components/patterns/resource'
 import {
   formHeading,
-  formSaveLabel,
   getResourceDescriptor,
-  ResourceFormPage,
+  ResourceFormReadingPage,
 } from '@/components/patterns/resource'
-import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -41,7 +35,6 @@ export function MemoryCreate() {
   const [loadingProjects, setLoadingProjects] = useState(true)
   const [creating, setCreating] = useState(false)
   const [tags, setTags] = useState<string[]>([])
-  const formRef = useRef<ResourceFormHandle>(null)
 
   const fetchProjects = useCallback(async () => {
     if (isLoadingTeam) return
@@ -110,63 +103,44 @@ export function MemoryCreate() {
     }
   }
 
+  // The skeleton renders in the reading shell too, so the layout is in place
+  // before the projects resolve rather than arriving with the form.
   if (loadingProjects) {
     return (
-      <div className="space-y-6">
-        <PageHeader title={formHeading(descriptor, 'create')} />
+      <ReadingPage
+        title={formHeading(descriptor, 'create')}
+        presentation="editing"
+      >
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
-      </div>
+      </ReadingPage>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={formHeading(descriptor, 'create')}
-        description="Save a new memory for future reference."
-        actions={
-          <>
-            <Button
-              variant="outline"
-              onClick={() => {
-                void navigate('/memories')
-              }}
-            >
-              <ArrowLeft className="mr-2 size-4" />
-              Back
-            </Button>
-            <Button
-              onClick={() => {
-                formRef.current?.submit()
-              }}
-              disabled={creating || projects.length === 0}
-            >
-              <Save className="mr-2 size-4" />
-              {creating ? 'Creating…' : formSaveLabel(descriptor, 'create')}
-            </Button>
-          </>
-        }
-      />
-      <ResourceFormPage
-        ref={formRef}
-        descriptor={descriptor}
-        mode="create"
-        initialValues={initialValues}
-        onSubmit={handleSubmit}
-        isLoading={creating}
-        metadataReservedKeys={RESERVED_METADATA_KEYS}
-        extensions={{
-          tags: (
-            <MemoryTagsCard
-              value={tags}
-              onChange={setTags}
-              disabled={creating}
-            />
-          ),
-        }}
-      />
-    </div>
+    <ResourceFormReadingPage
+      title={formHeading(descriptor, 'create')}
+      descriptor={descriptor}
+      mode="create"
+      initialValues={initialValues}
+      onSubmit={handleSubmit}
+      isLoading={creating}
+      // A memory must belong to a project; with none to pick, Create could
+      // only ever fail validation.
+      saveDisabled={projects.length === 0}
+      // The tags are page state, invisible to react-hook-form: without this,
+      // adding one and hitting Cancel discards it with no prompt.
+      extraDirty={tags.length > 0}
+      metadataReservedKeys={RESERVED_METADATA_KEYS}
+      extensions={{
+        tags: (
+          <MemoryTagsCard value={tags} onChange={setTags} disabled={creating} />
+        ),
+      }}
+      onCancel={() => {
+        void navigate('/memories')
+      }}
+    />
   )
 }

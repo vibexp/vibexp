@@ -1,6 +1,17 @@
-import { act, render, screen, within } from '@testing-library/react'
+/**
+ * The generated form's behaviour — controls, create-vs-edit, extensions,
+ * submit, re-seeding — driven through the one layout that renders it,
+ * `ResourceFormReadingPage` (#1181 retired the standalone `ResourceFormPage`
+ * these cases were written against). The layout itself — sections, rail,
+ * actions, header — is `ResourceFormReadingPage.test.tsx`'s subject.
+ */
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRef } from 'react'
+
+import { ShellProvider } from '@/components/layout/ShellContext'
+import { mockViewportWidth } from '@/lib/testing/matchMedia'
+import { storage } from '@/utils/storage'
 
 // The picker is an async combobox over the projects API; stub it to a button
 // that selects a fixed project, as the four page suites already do.
@@ -39,11 +50,12 @@ import { blueprintDescriptor } from '../../descriptors/blueprint'
 import { memoryDescriptor } from '../../descriptors/memory'
 import { promptDescriptor } from '../../descriptors/prompt'
 import type { ResourceDescriptor } from '../../types'
+import type { BodySlotProps } from '../ResourceFormControl'
 import type {
   ResourceFormHandle,
-  ResourceFormPageProps,
-} from '../ResourceFormPage'
-import { ResourceFormPage } from '../ResourceFormPage'
+  ResourceFormReadingPageProps,
+} from '../ResourceFormReadingPage'
+import { ResourceFormReadingPage } from '../ResourceFormReadingPage'
 
 const FORM_KINDS: readonly (readonly [string, ResourceDescriptor])[] = [
   ['prompt', promptDescriptor],
@@ -52,23 +64,43 @@ const FORM_KINDS: readonly (readonly [string, ResourceDescriptor])[] = [
   ['memory', memoryDescriptor],
 ]
 
+type PageProps = Partial<ResourceFormReadingPageProps> &
+  Pick<ResourceFormReadingPageProps, 'descriptor'>
+
+function page(props: PageProps) {
+  return (
+    <ShellProvider>
+      <ResourceFormReadingPage
+        title={`Create ${props.descriptor.singular}`}
+        mode="create"
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+        {...props}
+      />
+    </ShellProvider>
+  )
+}
+
 function renderPage(
   descriptor: ResourceDescriptor,
-  overrides: Partial<ResourceFormPageProps> = {}
+  overrides: Partial<ResourceFormReadingPageProps> = {}
 ) {
   const onSubmit = vi.fn().mockResolvedValue(undefined)
   const ref = createRef<ResourceFormHandle>()
-  const view = render(
-    <ResourceFormPage
-      ref={ref}
-      descriptor={descriptor}
-      mode="create"
-      onSubmit={onSubmit}
-      {...overrides}
-    />
-  )
+  const view = render(page({ ref, descriptor, onSubmit, ...overrides }))
   return { onSubmit, ref, view }
 }
+
+let viewport: ReturnType<typeof mockViewportWidth>
+
+beforeEach(() => {
+  storage.clear()
+  viewport = mockViewportWidth(1280)
+})
+
+afterEach(() => {
+  viewport.restore()
+})
 
 async function submit(ref: React.RefObject<ResourceFormHandle | null>) {
   await act(async () => {
@@ -77,7 +109,7 @@ async function submit(ref: React.RefObject<ResourceFormHandle | null>) {
   })
 }
 
-describe('ResourceFormPage — every registered descriptor', () => {
+describe('useResourceForm — every registered descriptor', () => {
   it.each(FORM_KINDS)('renders a create form for %s', (_kind, descriptor) => {
     renderPage(descriptor)
     expect(screen.getByTestId('resource-form')).toBeInTheDocument()
@@ -92,49 +124,13 @@ describe('ResourceFormPage — every registered descriptor', () => {
     renderPage(descriptor, { mode: 'edit', initialValues: {} })
     expect(screen.getByTestId('resource-form')).toBeInTheDocument()
   })
-
-  /**
-   * The AC that this replaces four layouts with one: every kind puts its
-   * details fields in the same card, in descriptor order, and grows a taxonomy
-   * card exactly when it declares taxonomy fields — no per-kind sidebar.
-   */
-  it.each(FORM_KINDS)(
-    'lays %s out in the shared sections',
-    (_kind, descriptor) => {
-      renderPage(descriptor)
-      const specs = descriptor.form?.fields ?? []
-
-      const details = screen.getByTestId('resource-form-details')
-      expect(within(details).getByText('Details')).toBeInTheDocument()
-      const detailLabels = [...details.querySelectorAll('label')].map(
-        node => node.textContent
-      )
-      expect(detailLabels).toEqual(
-        specs
-          .filter(spec => spec.section === 'details')
-          .map(spec => descriptor.fields.find(f => f.key === spec.key)?.label)
-      )
-
-      const taxonomySpecs = specs.filter(spec => spec.section === 'taxonomy')
-      const taxonomy = screen.queryByTestId('resource-form-taxonomy')
-      if (taxonomySpecs.length === 0) {
-        expect(taxonomy).not.toBeInTheDocument()
-        return
-      }
-      expect(taxonomy).toBeInTheDocument()
-      expect(
-        within(screen.getByTestId('resource-form-taxonomy')).getByText(
-          'Labels & metadata'
-        )
-      ).toBeInTheDocument()
-    }
-  )
 })
 
-describe('ResourceFormPage — controls', () => {
-  it('renders a text control for the name and a body control for the content', () => {
+describe('useResourceForm — controls', () => {
+  it('renders the name inline in the header and a body control for the content', () => {
     renderPage(artifactDescriptor)
-    expect(screen.getByTestId('artifact-title-input').tagName).toBe('INPUT')
+    // A textarea so a long name wraps on a phone (#1179).
+    expect(screen.getByTestId('artifact-title-input').tagName).toBe('TEXTAREA')
     expect(screen.getByTestId('artifact-content-textarea').tagName).toBe(
       'TEXTAREA'
     )
@@ -184,7 +180,7 @@ describe('ResourceFormPage — controls', () => {
 
   it('replaces the body control when a body slot is supplied', () => {
     renderPage(memoryDescriptor, {
-      renderBody: props => (
+      renderBody: (props: BodySlotProps) => (
         <textarea data-testid="custom-body" value={props.value} readOnly />
       ),
     })
@@ -195,7 +191,7 @@ describe('ResourceFormPage — controls', () => {
   })
 })
 
-describe('ResourceFormPage — create versus edit', () => {
+describe('useResourceForm — create versus edit', () => {
   it('auto-fills the slug from the name while creating', async () => {
     const user = userEvent.setup()
     renderPage(artifactDescriptor)
@@ -243,7 +239,7 @@ describe('ResourceFormPage — create versus edit', () => {
   })
 })
 
-describe('ResourceFormPage — extensions', () => {
+describe('useResourceForm — extensions', () => {
   it('renders a node for a slot the descriptor declares', () => {
     renderPage(promptDescriptor, {
       extensions: { 'mcp-exposure': <div data-testid="mcp-slot">MCP</div> },
@@ -264,7 +260,7 @@ describe('ResourceFormPage — extensions', () => {
   })
 })
 
-describe('ResourceFormPage — submit', () => {
+describe('useResourceForm — submit', () => {
   it('hands the parsed values to onSubmit', async () => {
     const { ref, onSubmit } = renderPage(memoryDescriptor, {
       initialValues: { text: '  A memory  ', project_id: 'p1' },
@@ -312,12 +308,11 @@ describe('ResourceFormPage — submit', () => {
       initialValues: {},
     })
     view.rerender(
-      <ResourceFormPage
-        descriptor={artifactDescriptor}
-        mode="edit"
-        initialValues={{ title: 'Loaded later' }}
-        onSubmit={vi.fn()}
-      />
+      page({
+        descriptor: artifactDescriptor,
+        mode: 'edit',
+        initialValues: { title: 'Loaded later' },
+      })
     )
     expect(screen.getByTestId('artifact-title-input')).toHaveValue(
       'Loaded later'
@@ -334,7 +329,7 @@ describe('ResourceFormPage — submit', () => {
  * (`BlueprintForm.test.tsx`), so losing it would be a regression that only
  * showed up as deleted assertions in #915.
  */
-describe('ResourceFormPage — label and error association', () => {
+describe('useResourceForm — label and error association', () => {
   /**
    * Asserted through the LABEL's own `htmlFor`, not through `getByLabelText`:
    * the taxonomy and select controls already carried an `aria-label`, so a
@@ -373,7 +368,7 @@ describe('ResourceFormPage — label and error association', () => {
   })
 })
 
-describe('ResourceFormPage — taxonomy bounds', () => {
+describe('useResourceForm — taxonomy bounds', () => {
   it('stops adding past the descriptor’s cap', async () => {
     const user = userEvent.setup()
     renderPage(promptDescriptor, {
@@ -388,16 +383,9 @@ describe('ResourceFormPage — taxonomy bounds', () => {
   })
 })
 
-describe('ResourceFormPage — re-seeding', () => {
+describe('useResourceForm — re-seeding', () => {
   function editTree(initialValues: Record<string, unknown>) {
-    return (
-      <ResourceFormPage
-        descriptor={artifactDescriptor}
-        mode="edit"
-        initialValues={initialValues}
-        onSubmit={vi.fn()}
-      />
-    )
+    return page({ descriptor: artifactDescriptor, mode: 'edit', initialValues })
   }
 
   it('keeps typed input when the parent re-renders with an equal seed', async () => {
@@ -420,7 +408,7 @@ describe('ResourceFormPage — re-seeding', () => {
   })
 })
 
-describe('ResourceFormPage — taxonomy entry length', () => {
+describe('useResourceForm — taxonomy entry length', () => {
   it('cannot create an entry longer than the descriptor allows', async () => {
     const user = userEvent.setup()
     const { ref, onSubmit } = renderPage(promptDescriptor, {

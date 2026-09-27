@@ -1,5 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createRef } from 'react'
 import type { MockInstance } from 'vitest'
 
 import { ShellProvider } from '@/components/layout/ShellContext'
@@ -44,7 +45,10 @@ import { blueprintDescriptor } from '../../descriptors/blueprint'
 import { memoryDescriptor } from '../../descriptors/memory'
 import { promptDescriptor } from '../../descriptors/prompt'
 import type { ResourceDescriptor } from '../../types'
-import type { ResourceFormReadingPageProps } from '../ResourceFormReadingPage'
+import type {
+  ResourceFormHandle,
+  ResourceFormReadingPageProps,
+} from '../ResourceFormReadingPage'
 import {
   RESOURCE_FORM_SECTION_IDS,
   ResourceFormReadingPage,
@@ -640,6 +644,125 @@ describe('ResourceFormReadingPage', () => {
       })
       expect(addSpy.mock.calls.some(call => call[0] === 'beforeunload')).toBe(
         true
+      )
+    })
+  })
+
+  // #1181: the four create pages render here too, so creating a resource looks
+  // like editing it.
+  describe('create mode', () => {
+    function renderCreatePage(
+      descriptor: ResourceDescriptor,
+      overrides: Partial<ResourceFormReadingPageProps> = {}
+    ) {
+      return renderEditPage(descriptor, {
+        title: `Create ${descriptor.singular}`,
+        mode: 'create',
+        ...overrides,
+      })
+    }
+
+    function headerMeta() {
+      return within(
+        screen.getByTestId('reading-page').querySelector('article header')!
+      ).getByTestId('resource-header-meta')
+    }
+
+    it.each(EDIT_KINDS)(
+      'renders the %s create form inside the reading shell',
+      (_kind, descriptor) => {
+        renderCreatePage(descriptor)
+        expect(screen.getByTestId('reading-page')).toHaveAttribute(
+          'data-presentation',
+          'editing'
+        )
+        const column = within(screen.getByTestId('details-column'))
+        expect(
+          column.getByRole('button', {
+            name: `Create ${descriptor.singular}`,
+          })
+        ).toHaveClass('bg-primary')
+        expect(column.getByRole('button', { name: 'Cancel' })).toBeEnabled()
+      }
+    )
+
+    it('opens on an empty, placeholder-titled header with no badge row', () => {
+      renderCreatePage(blueprintDescriptor, { initialValues: {} })
+      expect(screen.getByTestId('blueprint-title-input')).toHaveAttribute(
+        'placeholder',
+        'Untitled blueprint'
+      )
+      expect(screen.getByPlaceholderText('Add a description…')).toHaveValue('')
+      // Nothing is saved yet: no Updated line, and no slug chip until the
+      // title gives the slug a value. The status badge is the form's default.
+      expect(headerMeta()).not.toHaveTextContent(/Updated/)
+      expect(headerMeta().querySelector('code, button')).not.toBeInTheDocument()
+    })
+
+    it('shows the auto-filled slug read-only in the header while the field stays editable', async () => {
+      const user = userEvent.setup()
+      renderCreatePage(artifactDescriptor)
+      await user.type(screen.getByTestId('artifact-title-input'), 'My Draft')
+      const chip = within(headerMeta()).getByText('my-draft')
+      // A plain chip, not the click-to-copy button edit renders: there is
+      // nothing to copy an address of until the resource exists.
+      expect(chip.tagName).toBe('CODE')
+      expect(within(headerMeta()).queryByRole('button')).toBeNull()
+      expect(screen.getByTestId('artifact-slug-input')).toBeEnabled()
+      expect(screen.getByTestId('artifact-slug-input')).toHaveValue('my-draft')
+    })
+
+    it('surfaces a blank required title under the header input and focuses it', async () => {
+      const user = userEvent.setup()
+      Element.prototype.scrollIntoView = vi.fn()
+      renderCreatePage(artifactDescriptor, {
+        initialValues: { content: 'Body', project_id: 'p1', type: 'general' },
+      })
+      const title = screen.getByTestId('artifact-title-input')
+      await user.click(screen.getByRole('button', { name: 'Create artifact' }))
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0))
+      })
+      expect(title).toHaveAttribute('aria-invalid', 'true')
+      expect(title).toHaveFocus()
+      expect(
+        within(
+          screen.getByTestId('reading-page').querySelector('article header')!
+        ).getByText('Title is required')
+      ).toBeInTheDocument()
+    })
+
+    it('says Creating… while the create runs', () => {
+      renderCreatePage(artifactDescriptor, { isLoading: true })
+      const column = within(screen.getByTestId('details-column'))
+      expect(column.getByRole('button', { name: 'Creating…' })).toBeDisabled()
+    })
+
+    it('disables only Create when the page says the submit cannot succeed', () => {
+      renderCreatePage(memoryDescriptor, { saveDisabled: true })
+      const column = within(screen.getByTestId('details-column'))
+      expect(
+        column.getByRole('button', { name: 'Create memory' })
+      ).toBeDisabled()
+      expect(column.getByRole('button', { name: 'Cancel' })).toBeEnabled()
+      expect(screen.getByTestId('memory-content-textarea')).toBeEnabled()
+    })
+
+    it('hands the page a handle that reads and submits the form', async () => {
+      const ref = createRef<ResourceFormHandle>()
+      const { onSubmit } = renderCreatePage(memoryDescriptor, {
+        ref,
+        initialValues: { text: 'Remember this', project_id: 'p1' },
+      })
+      expect(ref.current?.getValues()).toEqual(
+        expect.objectContaining({ text: 'Remember this' })
+      )
+      await act(async () => {
+        ref.current?.submit()
+        await new Promise(resolve => setTimeout(resolve, 0))
+      })
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ text: 'Remember this', project_id: 'p1' })
       )
     })
   })

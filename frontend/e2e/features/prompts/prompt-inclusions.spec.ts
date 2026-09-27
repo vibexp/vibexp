@@ -20,12 +20,12 @@ test.describe('Prompt Inclusions (@mentions)', () => {
     const basePromptName = `Base ${Date.now()}`
     await authenticatedPage.goto('/prompts/new')
     await authenticatedPage.waitForSelector(
-      'input[placeholder*="Enter prompt name"]',
+      '[data-testid="prompt-name-input"]',
       { timeout: 10000 }
     )
 
     await authenticatedPage
-      .locator('input[placeholder*="Enter prompt name"]')
+      .locator('[data-testid="prompt-name-input"]')
       .fill(basePromptName)
     await authenticatedPage
       .locator('textarea[placeholder*="Write your prompt here"]')
@@ -48,12 +48,12 @@ test.describe('Prompt Inclusions (@mentions)', () => {
     const referencePromptName = `Reference ${Date.now()}`
     await authenticatedPage.goto('/prompts/new')
     await authenticatedPage.waitForSelector(
-      'input[placeholder*="Enter prompt name"]',
+      '[data-testid="prompt-name-input"]',
       { timeout: 10000 }
     )
 
     await authenticatedPage
-      .locator('input[placeholder*="Enter prompt name"]')
+      .locator('[data-testid="prompt-name-input"]')
       .fill(referencePromptName)
     await authenticatedPage
       .locator('textarea[placeholder*="Write your prompt here"]')

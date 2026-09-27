@@ -54,15 +54,13 @@ test.describe('Core Feature Smoke Tests', () => {
     await expect(page).toHaveURL(/prompts\/new/)
 
     // Wait for form to be ready
-    await page.waitForSelector('input[placeholder*="Enter prompt name"]', {
+    await page.waitForSelector('[data-testid="prompt-name-input"]', {
       timeout: 10000,
     })
 
     // Fill prompt form
     const promptName = `Smoke Test Prompt ${Date.now()}`
-    await page
-      .locator('input[placeholder*="Enter prompt name"]')
-      .fill(promptName)
+    await page.locator('[data-testid="prompt-name-input"]').fill(promptName)
     await page
       .locator('textarea[placeholder*="Write your prompt here"]')
       .fill('Test prompt content for smoke test')

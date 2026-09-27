@@ -141,7 +141,7 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
       await expect(authenticatedPage).toHaveURL('/prompts/new')
 
       // Should have pre-filled name with "Based on:" prefix
-      const nameField = authenticatedPage.getByPlaceholder(/enter prompt name/i)
+      const nameField = authenticatedPage.getByTestId('prompt-name-input')
       const nameValue = await nameField.inputValue()
       expect(nameValue).toContain('Based on:')
       expect(nameValue).toContain('SQL Query Optimization')
@@ -165,8 +165,9 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
         .click()
       await authenticatedPage.waitForTimeout(2000)
 
-      // Verify placeholders in content
-      const contentField = authenticatedPage.locator('textarea').first()
+      // Verify placeholders in content. By test id: the inline name is a
+      // textarea too since the create page moved to the reading shell (#1181).
+      const contentField = authenticatedPage.getByTestId('prompt-body-textarea')
       const content = await contentField.inputValue()
 
       expect(content).toContain('{{query}}')
@@ -195,7 +196,7 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
       await authenticatedPage.waitForTimeout(2000)
 
       // STEP 2: Customize prompt
-      const nameField = authenticatedPage.getByPlaceholder(/enter prompt name/i)
+      const nameField = authenticatedPage.getByTestId('prompt-name-input')
       await nameField.clear()
       await nameField.fill('My Automated Test Prompt')
 
@@ -211,8 +212,7 @@ test.describe('Journey 4: Prompt Gallery to Custom Prompt', () => {
 
       // STEP 4: Save. The button reads "Create prompt" since #915 — the old
       // "Save as draft" / "Publish" pair was read off the form's own status,
-      // which now lives inside `ResourceFormPage` while the button stays in the
-      // page header, and every other kind already said "Create <singular>".
+      // and every other kind already said "Create <singular>".
       await authenticatedPage.getByTestId('prompt-save-button').click()
       await authenticatedPage.waitForTimeout(3000)
 

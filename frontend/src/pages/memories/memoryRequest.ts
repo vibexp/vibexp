@@ -22,7 +22,7 @@ const MEMORY_STATUSES: readonly [MemoryStatus, ...MemoryStatus[]] = [
  *
  * A memory has no `tags` FIELD — the chips edit `metadata.tags` — so the
  * metadata editor must hide the key rather than let it be edited twice. Kept at
- * module scope because `ResourceFormPage` documents `metadataReservedKeys` as
+ * module scope because `ResourceFormReadingPage` documents `metadataReservedKeys` as
  * needing a stable reference.
  */
 export const RESERVED_METADATA_KEYS = ['tags']
@@ -47,7 +47,7 @@ export function extractExtras(
 /**
  * A fetched memory as form values.
  *
- * Unlike the other kinds the resource cannot be handed to `ResourceFormPage`
+ * Unlike the other kinds the resource cannot be handed to the form
  * unchanged: `metadata` is shown by two controls at once — the chip card owns
  * `tags` and the metadata editor owns the rest — so the form's copy must not
  * carry `tags` or the reserved key would come back through the editor.

@@ -30,7 +30,7 @@ const ARTIFACT_STATUSES: readonly [ArtifactStatus, ...ArtifactStatus[]] = [
  * Shared by `ArtifactCreate` and `ArtifactEdit` because the mapping is the same
  * for both — `UpdateArtifactRequest`'s fields are all optional, so a full
  * create body satisfies it. Building the payload stays with the pages (it is
- * the half `ResourceFormPage` deliberately does not own); this is only what
+ * the half `ResourceFormReadingPage` deliberately does not own); this is only what
  * they have in common.
  */
 export function toArtifactRequest(

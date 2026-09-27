@@ -20,12 +20,12 @@ test.describe('Prompt Placeholder Variables', () => {
 
     await authenticatedPage.goto('/prompts/new')
     await authenticatedPage.waitForSelector(
-      'input[placeholder*="Enter prompt name"]',
+      '[data-testid="prompt-name-input"]',
       { timeout: 10000 }
     )
 
     await authenticatedPage
-      .locator('input[placeholder*="Enter prompt name"]')
+      .locator('[data-testid="prompt-name-input"]')
       .fill(promptName)
     await authenticatedPage
       .locator('textarea[placeholder*="Write your prompt here"]')

@@ -53,8 +53,7 @@ export interface UseResourceFormOptions {
   onInvalidSubmit?: (invalidKeys: readonly string[]) => void
   /**
    * Render the name and summary fields as the page's own header — inline, in
-   * the heading's typography — instead of in the details column (#1179). Only
-   * the reading-shell layout asks for it; the standalone card grid does not.
+   * the heading's typography — instead of in the details column (#1179).
    */
   inlineHeader?: boolean
 }
@@ -120,12 +119,12 @@ function blockEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
 /**
  * The generated create/edit form (#913), as slots rather than as a layout.
  *
- * One form context, two layouts (#916): `ResourceFormPage` renders these nodes
- * as the standalone card grid, and `ResourceFormReadingPage` renders the same
- * nodes into the reading shell's article and details column. Everything that
+ * The layout is `ResourceFormReadingPage`, which renders these nodes into the
+ * reading shell's header, article and details column (#916, #1179; #1181
+ * retired the standalone card grid that was the second layout). Everything that
  * makes the form behave — the zod schema, the content-keyed re-seed, the slug
- * auto-fill, the metadata validity gate — lives here exactly once, so the two
- * layouts cannot drift into two form implementations.
+ * auto-fill, the metadata validity gate — lives here exactly once, so create
+ * and edit cannot drift into two form implementations.
  *
  * There is no `switch (kind)` here and there must never be one: the switch is
  * over the closed `FormControl` union in `ResourceFormControl`.

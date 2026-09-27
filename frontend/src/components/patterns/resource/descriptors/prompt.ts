@@ -72,16 +72,10 @@ export const promptDescriptor = defineResource({
   },
   form: {
     fields: [
-      // The placeholders on `name` and `body` are load-bearing, not cosmetic:
-      // `e2e/smoke/critical-paths.smoke.spec.ts` and every slug test in
-      // `e2e/features/prompts/prompt-crud.spec.ts` locate those two controls by
-      // placeholder text rather than by test id. On the CREATE form only: the
-      // edit page renders the name as the inline header input (#1179), which
-      // has its own placeholder, so edit specs locate it by test id.
-      {
-        ...nameFormField('name', 50, 'prompt-name-input'),
-        placeholder: 'Enter prompt name',
-      },
+      // The name renders as the inline header input on create and edit alike
+      // (#1179, #1181), with its own "Untitled prompt" placeholder, so e2e
+      // specs locate it by test id.
+      nameFormField('name', 50, 'prompt-name-input'),
       // The only slug that stays editable after create: a prompt is addressed
       // by slug alone, so renaming it is a legitimate edit rather than a
       // change of identity. A collision is rejected server-side.
@@ -89,6 +83,8 @@ export const promptDescriptor = defineResource({
       summaryFormField('description', 200, 'prompt-description-input'),
       projectFormField('prompt-project-select'),
       statusFormField('prompt'),
+      // The body's placeholder is load-bearing, not cosmetic: the prompt e2e
+      // specs locate the body editor by its placeholder text.
       {
         ...bodyFormField('body', 'prompt-body-textarea'),
         placeholder:
