@@ -566,9 +566,10 @@ func ProvideTeamSearchSettingsService(
 // defaults) and the surface an instance admin edits them through.
 //
 // It returns the CONCRETE type because the service satisfies two interfaces —
-// InstanceAISummarySettingsResolver (the fail-open read the team settings and
-// search summary services build on) and InstanceAISummarySettingsServiceInterface
-// (the admin read + writes). wire.Bind in wire.go maps it to both.
+// InstanceAISummarySettingsResolver (the fail-open read the search summary
+// service builds on), InstanceAISummarySettingsReader (both reads, for the team
+// settings service) and InstanceAISummarySettingsServiceInterface (the admin
+// read + writes). wire.Bind in wire.go maps it to all three.
 func ProvideInstanceAISummarySettingsService(
 	repo repositories.InstanceAISummarySettingsRepository,
 	logger *slog.Logger,
@@ -577,7 +578,7 @@ func ProvideInstanceAISummarySettingsService(
 }
 
 // ProvideTeamAISummarySettingsService creates the team AI summary settings
-// service (#1071). The instance resolver supplies, per request, both the
+// service (#1071). The instance reader supplies, per request, both the
 // fallback for a team with no stored profile and the instance_defaults reported
 // on every read.
 // The model provider repository is the tenancy check on a submitted
@@ -592,7 +593,7 @@ func ProvideTeamAISummarySettingsService(
 	repo repositories.TeamAISummarySettingsRepository,
 	modelProviders repositories.ModelProviderRepository,
 	authzService services.AuthorizationServiceInterface,
-	instance services.InstanceAISummarySettingsResolver,
+	instance services.InstanceAISummarySettingsReader,
 	logger *slog.Logger,
 ) *services.TeamAISummarySettingsService {
 	return services.NewTeamAISummarySettingsService(

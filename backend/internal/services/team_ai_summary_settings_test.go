@@ -33,15 +33,27 @@ func aiSummaryInstanceValues() models.InstanceAISummarySettingsValues {
 	return models.DefaultInstanceAISummarySettings()
 }
 
-// fakeAISummaryInstance resolves whatever values it currently holds, so a test
+// fakeAISummaryInstance reads whatever values it currently holds, so a test
 // can change the instance defaults between two calls — the stand-in for an
 // instance admin saving new ones — and observe the next call pick them up.
+// getErr fails the fail-closed Get only; Resolve fails open by contract, so it
+// always answers.
 type fakeAISummaryInstance struct {
 	values models.InstanceAISummarySettingsValues
+	getErr error
 }
 
 func (f *fakeAISummaryInstance) Resolve(context.Context) models.InstanceAISummarySettingsValues {
 	return f.values
+}
+
+func (f *fakeAISummaryInstance) Get(context.Context) (*models.InstanceAISummarySettingsView, error) {
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
+	return &models.InstanceAISummarySettingsView{
+		Source: models.InstanceAISummarySettingsSourceInstance, Values: f.values,
+	}, nil
 }
 
 // aiSummaryTeamProfile is deliberately different from the instance defaults in
@@ -71,7 +83,7 @@ func newAISummarySettingsService(
 
 func newAISummarySettingsServiceWithInstance(
 	t *testing.T, authzSvc services.AuthorizationServiceInterface, logs *bytes.Buffer,
-	instance services.InstanceAISummarySettingsResolver,
+	instance services.InstanceAISummarySettingsReader,
 ) (
 	*services.TeamAISummarySettingsService,
 	*repomocks.MockTeamAISummarySettingsRepository,
@@ -635,4 +647,49 @@ func TestTeamAISummarySettingsService_Availability_SettingsErrorFailsOpen(t *tes
 
 	assert.Equal(t, models.AISummaryAvailability{Available: true, Enabled: true}, got)
 	assertAISummaryWarnLogged(t, logs.String())
+}
+
+// Get and the Update response are the settings API's reads and fail CLOSED on
+// the instance defaults too: reporting the built-in defaults as instance_defaults
+// (or as a no-profile team's values) during an outage would present a guess as
+// fact and invite an admin to save it as an override.
+func TestTeamAISummarySettingsService_Get_InstanceReadErrorPropagates(t *testing.T) {
+	instance := &fakeAISummaryInstance{values: aiSummaryInstanceValues(), getErr: errors.New("instance row unreadable")}
+	svc, repo, providers := newAISummarySettingsServiceWithInstance(t, allowAllAuthz{}, nil, instance)
+	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
+	expectProviderCount(providers, 1)
+
+	view, err := svc.Get(context.Background(), testTeamID)
+
+	assert.ErrorContains(t, err, "instance row unreadable")
+	assert.Nil(t, view)
+}
+
+func TestTeamAISummarySettingsService_Update_InstanceReadErrorPropagates(t *testing.T) {
+	instance := &fakeAISummaryInstance{values: aiSummaryInstanceValues(), getErr: errors.New("instance row unreadable")}
+	svc, repo, providers := newAISummarySettingsServiceWithInstance(t, allowAllAuthz{}, nil, instance)
+	expectProviderOwnedByTeam(providers)
+	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
+	expectProviderCount(providers, 1)
+
+	view, err := svc.Update(context.Background(), testAISummaryUserID, testTeamID, aiSummaryTeamProfile())
+
+	assert.ErrorContains(t, err, "instance row unreadable")
+	assert.Nil(t, view)
+}
+
+// Resolve and Availability stay fail-open: the same instance outage that fails
+// Get must not fail a summary or a search response.
+func TestTeamAISummarySettingsService_Resolve_IgnoresTheFailClosedInstanceRead(t *testing.T) {
+	instance := &fakeAISummaryInstance{values: aiSummaryInstanceValues(), getErr: errors.New("instance row unreadable")}
+	svc, repo, providers := newAISummarySettingsServiceWithInstance(t, allowAllAuthz{}, nil, instance)
+	repo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
+	expectProviderCount(providers, 1)
+
+	view, err := svc.Resolve(context.Background(), testTeamID)
+
+	require.NoError(t, err)
+	assert.Equal(t, aiSummaryInstanceValues().TeamValues(), view.Values)
+	assert.Equal(t, models.AISummaryAvailability{Available: true, Enabled: true},
+		svc.Availability(context.Background(), testTeamID))
 }

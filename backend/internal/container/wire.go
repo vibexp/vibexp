@@ -155,6 +155,8 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideInstanceAISummarySettingsService,
 	wire.Bind(new(services.InstanceAISummarySettingsResolver),
 		new(*services.InstanceAISummarySettingsService)),
+	wire.Bind(new(services.InstanceAISummarySettingsReader),
+		new(*services.InstanceAISummarySettingsService)),
 	wire.Bind(new(services.InstanceAISummarySettingsServiceInterface),
 		new(*services.InstanceAISummarySettingsService)),
 	providers.ProvideTeamAISummarySettingsService,

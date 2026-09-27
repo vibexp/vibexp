@@ -27,15 +27,23 @@ type InstanceAISummarySettingsResolver interface {
 	Resolve(ctx context.Context) models.InstanceAISummarySettingsValues
 }
 
+// InstanceAISummarySettingsReader is the read half of the instance settings:
+// the fail-open Resolve plus the fail-closed Get. The team settings service
+// holds it, so its own fail-closed reads (the settings API) can report a failed
+// instance read instead of a guess.
+type InstanceAISummarySettingsReader interface {
+	InstanceAISummarySettingsResolver
+	// Get returns the settings in effect and where they come from. Unlike
+	// Resolve it returns a repository error, so a caller sees real state.
+	Get(ctx context.Context) (*models.InstanceAISummarySettingsView, error)
+}
+
 // InstanceAISummarySettingsServiceInterface is the instance-level AI summary
 // settings surface an instance admin edits (#1200). Instance-admin
 // authorization is the route middleware's job, so no method takes a permission
 // check of its own.
 type InstanceAISummarySettingsServiceInterface interface {
-	InstanceAISummarySettingsResolver
-	// Get returns the settings in effect and where they come from. Unlike
-	// Resolve it returns a repository error, so an admin sees real state.
-	Get(ctx context.Context) (*models.InstanceAISummarySettingsView, error)
+	InstanceAISummarySettingsReader
 	// Update validates and stores a complete replacement set of settings,
 	// auditing the change in the same transaction. Invalid input returns an
 	// ErrInvalidInstanceAISummarySettings-wrapped error and writes nothing.

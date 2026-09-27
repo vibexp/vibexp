@@ -70,10 +70,13 @@ type AISummaryAvailabilityResolver interface {
 // TeamAISummarySettingsService implements TeamAISummarySettingsServiceInterface,
 // AISummarySettingsResolver and AISummaryAvailabilityResolver.
 //
-// instance resolves the instance AI summary defaults per call (#1199). They are
+// instance reads the instance AI summary defaults per call (#1199). They are
 // both the fallback for a team with no stored profile and the instance_defaults
 // reported on every read, so a client can preview a reset without a second
 // request, and a change to them applies on the next call without a restart.
+// Resolve and Availability read them fail-open (instance.Resolve); Get and the
+// Update response read them fail-closed (instance.Get), for the same reason the
+// team row is read that way there.
 type TeamAISummarySettingsService struct {
 	repo repositories.TeamAISummarySettingsRepository
 	// providers resolves a submitted model_provider_id WITHIN the team, which
@@ -81,7 +84,7 @@ type TeamAISummarySettingsService struct {
 	// model_providers(id) alone and therefore proves existence, not ownership.
 	providers repositories.ModelProviderRepository
 	authz     AuthorizationServiceInterface
-	instance  InstanceAISummarySettingsResolver
+	instance  InstanceAISummarySettingsReader
 	logger    *slog.Logger
 }
 
@@ -96,7 +99,7 @@ func NewTeamAISummarySettingsService(
 	repo repositories.TeamAISummarySettingsRepository,
 	providers repositories.ModelProviderRepository,
 	authzService AuthorizationServiceInterface,
-	instance InstanceAISummarySettingsResolver,
+	instance InstanceAISummarySettingsReader,
 	logger *slog.Logger,
 ) *TeamAISummarySettingsService {
 	return &TeamAISummarySettingsService{
@@ -158,7 +161,9 @@ func (s *TeamAISummarySettingsService) availabilityOrFalse(ctx context.Context, 
 // Unlike Resolve it does NOT fail open: the caller is asking what the settings
 // ARE, and answering "the instance defaults" during a database outage would
 // report a guess as fact — and, through the settings UI, invite an admin to
-// save those defaults over a profile they cannot currently see.
+// save those defaults over a profile they cannot currently see. That covers
+// the instance defaults too: a failed instance read is an error here, never the
+// built-in defaults.
 func (s *TeamAISummarySettingsService) Get(
 	ctx context.Context, teamID string,
 ) (*models.TeamAISummarySettingsView, error) {
@@ -170,13 +175,16 @@ func (s *TeamAISummarySettingsService) Get(
 	if err != nil {
 		return nil, fmt.Errorf("TeamAISummarySettingsService.Get: %w", err)
 	}
-	instance := s.instance.Resolve(ctx)
+	instance, err := s.instance.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("TeamAISummarySettingsService.Get: reading instance defaults: %w", err)
+	}
 	if stored == nil {
 		return teamAISummarySettingsView(
-			models.TeamAISummarySettingsSourceInstance, instance.TeamValues(), instance, available), nil
+			models.TeamAISummarySettingsSourceInstance, instance.Values.TeamValues(), instance.Values, available), nil
 	}
 	return teamAISummarySettingsView(
-		models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), instance, available), nil
+		models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), instance.Values, available), nil
 }
 
 // Resolve implements AISummarySettingsResolver.
@@ -273,9 +281,13 @@ func (s *TeamAISummarySettingsService) Update(
 	if err != nil {
 		return nil, fmt.Errorf("TeamAISummarySettingsService.Update: %w", err)
 	}
+	instance, err := s.instance.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("TeamAISummarySettingsService.Update: reading instance defaults: %w", err)
+	}
 
 	return teamAISummarySettingsView(
-		models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), s.instance.Resolve(ctx), available), nil
+		models.TeamAISummarySettingsSourceTeam, aiSummaryValuesFromStored(stored), instance.Values, available), nil
 }
 
 // Reset implements TeamAISummarySettingsServiceInterface.
