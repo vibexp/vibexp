@@ -243,3 +243,26 @@ func TestStartScheduler_EnabledStartsLoop(t *testing.T) {
 		t.Fatal("scheduler was enabled but the loop never polled for due schedules")
 	}
 }
+
+// recordingImporter records the context RunStartupImports was called with.
+type recordingImporter struct {
+	calls    int
+	deadline time.Time
+	hasLimit bool
+}
+
+func (r *recordingImporter) RunStartupImports(ctx context.Context) {
+	r.calls++
+	r.deadline, r.hasLimit = ctx.Deadline()
+}
+
+func TestRunStartupImports_InvokesHookOnceWithBoundedContext(t *testing.T) {
+	importer := &recordingImporter{}
+	before := time.Now()
+
+	runStartupImports(context.Background(), importer)
+
+	assert.Equal(t, 1, importer.calls)
+	require.True(t, importer.hasLimit, "the import must run under a bounded context")
+	assert.WithinDuration(t, before.Add(startupImportTimeout), importer.deadline, 5*time.Second)
+}

@@ -393,6 +393,8 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		schedulerRegistry:                schedulerRegistry,
 		instanceSettingsAuditRepo:        instanceSettingsAuditRepository,
 		instanceEmailProviderService:     instanceEmailProviderServiceInterface,
+		instanceEmailProviderRepo:        instanceEmailProviderRepository,
+		encryptionService:                encryptionServiceInterface,
 		instanceSearchSettingsService:    instanceSearchSettingsService,
 		instanceAISummarySettingsService: instanceAISummarySettingsService,
 		identityRegistry:                 registry,

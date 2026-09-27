@@ -187,7 +187,9 @@
           "$ref": "#/$defs/MCPConfig"
         },
         "email": {
-          "$ref": "#/$defs/EmailConfig"
+          "$ref": "#/$defs/LegacyEmailConfig",
+          "description": "Deprecated: imported into the database once at boot when no instance email provider is stored, ignored afterwards, and removed in the next minor release. Configure instance mail under Admin → Settings → Email.",
+          "deprecated": true
         },
         "frontend": {
           "$ref": "#/$defs/FrontendConfig"
@@ -290,36 +292,6 @@
         },
         "k_revision": {
           "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "EmailConfig": {
-      "properties": {
-        "provider": {
-          "type": "string"
-        },
-        "from_address": {
-          "type": "string"
-        },
-        "contact_recipient_address": {
-          "type": "string"
-        },
-        "privacy_policy_url": {
-          "type": "string"
-        },
-        "smtp": {
-          "$ref": "#/$defs/SMTPConfig"
-        },
-        "mailgun": {
-          "$ref": "#/$defs/MailgunConfig"
-        },
-        "postmark": {
-          "$ref": "#/$defs/PostmarkConfig"
-        },
-        "sendgrid": {
-          "$ref": "#/$defs/SendGridConfig"
         }
       },
       "additionalProperties": false,
@@ -478,6 +450,36 @@
         },
         "redirect_uri": {
           "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "LegacyEmailConfig": {
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "from_address": {
+          "type": "string"
+        },
+        "contact_recipient_address": {
+          "type": "string"
+        },
+        "privacy_policy_url": {
+          "type": "string"
+        },
+        "smtp": {
+          "$ref": "#/$defs/SMTPConfig"
+        },
+        "mailgun": {
+          "$ref": "#/$defs/MailgunConfig"
+        },
+        "postmark": {
+          "$ref": "#/$defs/PostmarkConfig"
+        },
+        "sendgrid": {
+          "$ref": "#/$defs/SendGridConfig"
         }
       },
       "additionalProperties": false,
