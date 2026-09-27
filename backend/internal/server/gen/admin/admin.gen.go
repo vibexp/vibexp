@@ -25,19 +25,19 @@ const (
 
 // Defines values for AdminAISummaryValuesStyle.
 const (
-	AdminAISummaryValuesStyleBalanced AdminAISummaryValuesStyle = "balanced"
-	AdminAISummaryValuesStyleConcise  AdminAISummaryValuesStyle = "concise"
-	AdminAISummaryValuesStyleDetailed AdminAISummaryValuesStyle = "detailed"
+	Balanced AdminAISummaryValuesStyle = "balanced"
+	Concise  AdminAISummaryValuesStyle = "concise"
+	Detailed AdminAISummaryValuesStyle = "detailed"
 )
 
 // Valid indicates whether the value is a known member of the AdminAISummaryValuesStyle enum.
 func (e AdminAISummaryValuesStyle) Valid() bool {
 	switch e {
-	case AdminAISummaryValuesStyleBalanced:
+	case Balanced:
 		return true
-	case AdminAISummaryValuesStyleConcise:
+	case Concise:
 		return true
-	case AdminAISummaryValuesStyleDetailed:
+	case Detailed:
 		return true
 	default:
 		return false
@@ -220,16 +220,16 @@ func (e AdminSavedFilterListName) Valid() bool {
 
 // Defines values for AdminTeamConfigSource.
 const (
-	AdminTeamConfigSourceInstance AdminTeamConfigSource = "instance"
-	AdminTeamConfigSourceTeam     AdminTeamConfigSource = "team"
+	Instance AdminTeamConfigSource = "instance"
+	Team     AdminTeamConfigSource = "team"
 )
 
 // Valid indicates whether the value is a known member of the AdminTeamConfigSource enum.
 func (e AdminTeamConfigSource) Valid() bool {
 	switch e {
-	case AdminTeamConfigSourceInstance:
+	case Instance:
 		return true
-	case AdminTeamConfigSourceTeam:
+	case Team:
 		return true
 	default:
 		return false

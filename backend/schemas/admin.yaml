@@ -2825,6 +2825,10 @@ AdminInstanceSettingsSource:
   enum:
     - instance
     - default
+  # Explicit constant names, for the same reason as AdminInstanceAISummaryStyle.
+  x-enum-varnames:
+    - AdminInstanceSettingsSourceInstance
+    - AdminInstanceSettingsSourceDefault
   example: instance
 
 AdminInstanceSearchValues:
@@ -3015,6 +3019,13 @@ AdminInstanceAISummaryStyle:
     - concise
     - balanced
     - detailed
+  # Explicit constant names: generated clients emit every schema into one
+  # package, and a bare `Balanced`/`Concise`/`Detailed` would collide with
+  # the team settings style enum and rename its existing constants.
+  x-enum-varnames:
+    - AdminInstanceAISummaryStyleConcise
+    - AdminInstanceAISummaryStyleBalanced
+    - AdminInstanceAISummaryStyleDetailed
   example: balanced
 
 AdminInstanceAISummaryValues:

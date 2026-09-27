@@ -40846,6 +40846,10 @@
           "instance",
           "default"
         ],
+        "x-enum-varnames": [
+          "AdminInstanceSettingsSourceInstance",
+          "AdminInstanceSettingsSourceDefault"
+        ],
         "example": "instance"
       },
       "AdminInstanceSearchValues": {
@@ -41055,6 +41059,11 @@
           "concise",
           "balanced",
           "detailed"
+        ],
+        "x-enum-varnames": [
+          "AdminInstanceAISummaryStyleConcise",
+          "AdminInstanceAISummaryStyleBalanced",
+          "AdminInstanceAISummaryStyleDetailed"
         ],
         "example": "balanced"
       },

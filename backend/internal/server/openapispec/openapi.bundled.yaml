@@ -28905,6 +28905,9 @@ components:
       enum:
         - instance
         - default
+      x-enum-varnames:
+        - AdminInstanceSettingsSourceInstance
+        - AdminInstanceSettingsSourceDefault
       example: instance
     AdminInstanceSearchValues:
       type: object
@@ -29090,6 +29093,10 @@ components:
         - concise
         - balanced
         - detailed
+      x-enum-varnames:
+        - AdminInstanceAISummaryStyleConcise
+        - AdminInstanceAISummaryStyleBalanced
+        - AdminInstanceAISummaryStyleDetailed
       example: balanced
     AdminInstanceAISummaryValues:
       type: object
