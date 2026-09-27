@@ -179,3 +179,270 @@ func TestInstanceSearchSettingsRepository_Delete_NoRowIsNotAnError(t *testing.T)
 	require.NoError(t, NewInstanceSearchSettingsRepository(db).Delete(context.Background()))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+// instanceSearchSettingsColumns is the Get / locked-read projection.
+var instanceSearchSettingsColumns = []string{
+	"recency_ranking_enabled", "rank_weight_relevance", "rank_weight_created",
+	"rank_weight_updated", "rank_half_life_days", "rank_candidate_cap",
+	"created_at", "updated_at", "updated_by", "version",
+}
+
+const (
+	instanceSearchWriteLock  = "LOCK TABLE instance_search_settings IN SHARE ROW EXCLUSIVE MODE"
+	lockedInstanceSearchRead = "SELECT (.+) FROM instance_search_settings"
+)
+
+// expectInstanceSearchBegin expects the transaction start and its write lock.
+func expectInstanceSearchBegin(mock sqlmock.Sqlmock) {
+	mock.ExpectBegin()
+	mock.ExpectExec(instanceSearchWriteLock).WillReturnResult(sqlmock.NewResult(0, 0))
+}
+
+// testSearchAudit builds a minimal, valid entry and records what it was given.
+type testSearchAudit struct {
+	calls         int
+	before, after *models.InstanceSearchSettings
+	err           error
+}
+
+func (a *testSearchAudit) build(before, after *models.InstanceSearchSettings) (*models.InstanceSettingsAuditEntry, error) {
+	a.calls++
+	a.before, a.after = before, after
+	if a.err != nil {
+		return nil, a.err
+	}
+	return &models.InstanceSettingsAuditEntry{
+		Setting: models.InstanceSettingSearch,
+		Action:  models.InstanceSettingsAuditActionUpsert,
+		After:   []byte(`{"rank_candidate_cap":200}`),
+	}, nil
+}
+
+func expectInstanceAuditInsert(mock sqlmock.Sqlmock) {
+	now := time.Now().UTC()
+	mock.ExpectQuery("INSERT INTO instance_settings_audit").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "setting", "action", "actor_user_id", "before", "after", "created_at",
+		}).AddRow("aaaaaaaa-0000-0000-0000-000000000001", models.InstanceSettingSearch,
+			models.InstanceSettingsAuditActionUpsert, nil, nil, []byte(`{}`), now))
+}
+
+func TestInstanceSearchSettingsRepository_UpsertAudited(t *testing.T) {
+	db, mock := newInstanceSettingsMock(t)
+	now := time.Now().UTC()
+	expectInstanceSearchBegin(mock)
+	mock.ExpectQuery(lockedInstanceSearchRead).
+		WillReturnRows(sqlmock.NewRows(instanceSearchSettingsColumns).
+			AddRow(false, 0.5, 0.3, 0.2, 90.0, 200, now, now, nil, int64(1)))
+	mock.ExpectQuery("INSERT INTO instance_search_settings (.+) ON CONFLICT \\(id\\)\\s+DO UPDATE").
+		WithArgs(true, 0.7, 0.1, 0.2, 30.0, 200, nil).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
+			AddRow(now, now, int64(2)))
+	expectInstanceAuditInsert(mock)
+	mock.ExpectCommit()
+
+	audit := &testSearchAudit{}
+	s := instanceSearchSettingsFixture()
+	require.NoError(t, NewInstanceSearchSettingsRepository(db).UpsertAudited(context.Background(), s, audit.build))
+
+	assert.Equal(t, 1, audit.calls)
+	require.NotNil(t, audit.before, "the current row is handed over as before")
+	assert.InDelta(t, 90.0, audit.before.RankHalfLifeDays, 1e-9)
+	assert.Same(t, s, audit.after, "after is the row as written")
+	assert.Equal(t, int64(2), s.Version)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestInstanceSearchSettingsRepository_UpsertAudited_NoRowGivesNilBefore(t *testing.T) {
+	db, mock := newInstanceSettingsMock(t)
+	now := time.Now().UTC()
+	expectInstanceSearchBegin(mock)
+	mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("INSERT INTO instance_search_settings").
+		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
+			AddRow(now, now, int64(1)))
+	expectInstanceAuditInsert(mock)
+	mock.ExpectCommit()
+
+	audit := &testSearchAudit{}
+	require.NoError(t, NewInstanceSearchSettingsRepository(db).
+		UpsertAudited(context.Background(), instanceSearchSettingsFixture(), audit.build))
+
+	assert.Nil(t, audit.before)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// Every failure inside the transaction rolls the whole change back: there is
+// never a settings write without its audit entry.
+func TestInstanceSearchSettingsRepository_UpsertAudited_FailuresRollBack(t *testing.T) {
+	now := time.Now().UTC()
+	upsertOK := func(mock sqlmock.Sqlmock) {
+		mock.ExpectQuery("INSERT INTO instance_search_settings").
+			WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
+				AddRow(now, now, int64(1)))
+	}
+	errBuild := errors.New("snapshot failed")
+	cases := []struct {
+		name     string
+		auditErr error
+		setup    func(mock sqlmock.Sqlmock)
+		wantErr  error
+	}{
+		{"current-row read fails", nil, func(mock sqlmock.Sqlmock) {
+			mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(errInstanceSettingsDB)
+		}, errInstanceSettingsDB},
+		{"upsert fails", nil, func(mock sqlmock.Sqlmock) {
+			mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(sql.ErrNoRows)
+			mock.ExpectQuery("INSERT INTO instance_search_settings").WillReturnError(errInstanceSettingsDB)
+		}, errInstanceSettingsDB},
+		{"building the entry fails", errBuild, func(mock sqlmock.Sqlmock) {
+			mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(sql.ErrNoRows)
+			upsertOK(mock)
+		}, errBuild},
+		{"audit insert fails", nil, func(mock sqlmock.Sqlmock) {
+			mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(sql.ErrNoRows)
+			upsertOK(mock)
+			mock.ExpectQuery("INSERT INTO instance_settings_audit").WillReturnError(errInstanceSettingsDB)
+		}, errInstanceSettingsDB},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db, mock := newInstanceSettingsMock(t)
+			expectInstanceSearchBegin(mock)
+			tc.setup(mock)
+			mock.ExpectRollback()
+
+			audit := &testSearchAudit{err: tc.auditErr}
+			err := NewInstanceSearchSettingsRepository(db).
+				UpsertAudited(context.Background(), instanceSearchSettingsFixture(), audit.build)
+
+			assert.ErrorIs(t, err, tc.wantErr)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestInstanceSearchSettingsRepository_UpsertAudited_BeginLockAndCommitErrors(t *testing.T) {
+	t.Run("begin", func(t *testing.T) {
+		db, mock := newInstanceSettingsMock(t)
+		mock.ExpectBegin().WillReturnError(errInstanceSettingsDB)
+
+		err := NewInstanceSearchSettingsRepository(db).
+			UpsertAudited(context.Background(), instanceSearchSettingsFixture(), (&testSearchAudit{}).build)
+
+		assert.ErrorIs(t, err, errInstanceSettingsDB)
+	})
+
+	t.Run("lock", func(t *testing.T) {
+		db, mock := newInstanceSettingsMock(t)
+		mock.ExpectBegin()
+		mock.ExpectExec(instanceSearchWriteLock).WillReturnError(errInstanceSettingsDB)
+		mock.ExpectRollback()
+
+		err := NewInstanceSearchSettingsRepository(db).
+			UpsertAudited(context.Background(), instanceSearchSettingsFixture(), (&testSearchAudit{}).build)
+
+		assert.ErrorIs(t, err, errInstanceSettingsDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("commit", func(t *testing.T) {
+		db, mock := newInstanceSettingsMock(t)
+		now := time.Now().UTC()
+		expectInstanceSearchBegin(mock)
+		mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(sql.ErrNoRows)
+		mock.ExpectQuery("INSERT INTO instance_search_settings").
+			WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
+				AddRow(now, now, int64(1)))
+		expectInstanceAuditInsert(mock)
+		mock.ExpectCommit().WillReturnError(errInstanceSettingsDB)
+
+		err := NewInstanceSearchSettingsRepository(db).
+			UpsertAudited(context.Background(), instanceSearchSettingsFixture(), (&testSearchAudit{}).build)
+
+		assert.ErrorIs(t, err, errInstanceSettingsDB)
+	})
+}
+
+// A redaction failure in the built entry is refused before the audit insert and
+// rolls the settings write back.
+func TestInstanceSearchSettingsRepository_UpsertAudited_UnredactedEntryRollsBack(t *testing.T) {
+	db, mock := newInstanceSettingsMock(t)
+	now := time.Now().UTC()
+	expectInstanceSearchBegin(mock)
+	mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("INSERT INTO instance_search_settings").
+		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
+			AddRow(now, now, int64(1)))
+	mock.ExpectRollback()
+
+	leaky := func(_, _ *models.InstanceSearchSettings) (*models.InstanceSettingsAuditEntry, error) {
+		return &models.InstanceSettingsAuditEntry{
+			Setting: models.InstanceSettingSearch,
+			Action:  models.InstanceSettingsAuditActionUpsert,
+			After:   []byte(`{"secret":"x"}`),
+		}, nil
+	}
+	err := NewInstanceSearchSettingsRepository(db).
+		UpsertAudited(context.Background(), instanceSearchSettingsFixture(), leaky)
+
+	assert.ErrorIs(t, err, repositories.ErrInstanceSettingsAuditUnredacted)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestInstanceSearchSettingsRepository_DeleteAudited(t *testing.T) {
+	t.Run("a stored row is deleted and audited", func(t *testing.T) {
+		db, mock := newInstanceSettingsMock(t)
+		now := time.Now().UTC()
+		expectInstanceSearchBegin(mock)
+		mock.ExpectQuery(lockedInstanceSearchRead).
+			WillReturnRows(sqlmock.NewRows(instanceSearchSettingsColumns).
+				AddRow(true, 0.7, 0.1, 0.2, 30.0, 200, now, now, nil, int64(3)))
+		mock.ExpectExec("DELETE FROM instance_search_settings").WillReturnResult(sqlmock.NewResult(0, 1))
+		expectInstanceAuditInsert(mock)
+		mock.ExpectCommit()
+
+		audit := &testSearchAudit{}
+		deleted, err := NewInstanceSearchSettingsRepository(db).DeleteAudited(context.Background(), audit.build)
+
+		require.NoError(t, err)
+		assert.True(t, deleted)
+		require.NotNil(t, audit.before)
+		assert.Equal(t, int64(3), audit.before.Version)
+		assert.Nil(t, audit.after)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("no row writes nothing and builds no entry", func(t *testing.T) {
+		db, mock := newInstanceSettingsMock(t)
+		expectInstanceSearchBegin(mock)
+		mock.ExpectQuery(lockedInstanceSearchRead).WillReturnError(sql.ErrNoRows)
+		mock.ExpectRollback()
+
+		audit := &testSearchAudit{}
+		deleted, err := NewInstanceSearchSettingsRepository(db).DeleteAudited(context.Background(), audit.build)
+
+		require.NoError(t, err)
+		assert.False(t, deleted)
+		assert.Zero(t, audit.calls)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("a delete failure rolls back", func(t *testing.T) {
+		db, mock := newInstanceSettingsMock(t)
+		now := time.Now().UTC()
+		expectInstanceSearchBegin(mock)
+		mock.ExpectQuery(lockedInstanceSearchRead).
+			WillReturnRows(sqlmock.NewRows(instanceSearchSettingsColumns).
+				AddRow(true, 0.7, 0.1, 0.2, 30.0, 200, now, now, nil, int64(3)))
+		mock.ExpectExec("DELETE FROM instance_search_settings").WillReturnError(errInstanceSettingsDB)
+		mock.ExpectRollback()
+
+		deleted, err := NewInstanceSearchSettingsRepository(db).
+			DeleteAudited(context.Background(), (&testSearchAudit{}).build)
+
+		assert.ErrorIs(t, err, errInstanceSettingsDB)
+		assert.False(t, deleted)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}

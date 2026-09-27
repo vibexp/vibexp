@@ -13,7 +13,7 @@
 -- invariant (epic decision 6).
 --
 -- No row means "use the built-in defaults", so DELETE is the reset (epic
--- decision 7). Every CHECK below mirrors a Go constant -- config.MaxSearchRank*,
+-- decision 7). Every CHECK below mirrors a Go constant -- models.MaxSearchRank*,
 -- config.MaxAISummaryTopN, config.MaxAISummaryOutputTokens and
 -- models.AISummaryStyles -- and a change on either side must change both. The
 -- CHECKs are the storage backstop; the services validate first.
@@ -45,10 +45,10 @@ CREATE TABLE instance_search_settings (
         rank_weight_relevance >= 0 AND rank_weight_created >= 0 AND rank_weight_updated >= 0),
     CONSTRAINT instance_search_settings_weights_nonzero CHECK (
         rank_weight_relevance + rank_weight_created + rank_weight_updated > 0),
-    -- Mirrors config.MaxSearchRankHalfLifeDays.
+    -- Mirrors models.MaxSearchRankHalfLifeDays.
     CONSTRAINT instance_search_settings_half_life CHECK (
         rank_half_life_days > 0 AND rank_half_life_days <= 36500),
-    -- Mirrors config.MaxSearchRankCandidateCap.
+    -- Mirrors models.MaxSearchRankCandidateCap.
     CONSTRAINT instance_search_settings_candidate_cap CHECK (
         rank_candidate_cap BETWEEN 1 AND 5000)
 );
@@ -58,9 +58,9 @@ COMMENT ON TABLE instance_search_settings IS
 COMMENT ON COLUMN instance_search_settings.id IS
     'Singleton key: always true, so the primary key admits exactly one row.';
 COMMENT ON COLUMN instance_search_settings.rank_half_life_days IS
-    'Recency half-life in days, (0, 36500]. The bound mirrors config.MaxSearchRankHalfLifeDays; change both together.';
+    'Recency half-life in days, (0, 36500]. The bound mirrors models.MaxSearchRankHalfLifeDays; change both together.';
 COMMENT ON COLUMN instance_search_settings.rank_candidate_cap IS
-    'Instance-only re-rank candidate pool, [1, 5000]. The bound mirrors config.MaxSearchRankCandidateCap; change both together.';
+    'Instance-only re-rank candidate pool, [1, 5000]. The bound mirrors models.MaxSearchRankCandidateCap; change both together.';
 COMMENT ON COLUMN instance_search_settings.updated_by IS
     'Last editor. NULL for the boot-time config.yaml import, and SET NULL when that user is deleted.';
 

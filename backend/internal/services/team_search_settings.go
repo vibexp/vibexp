@@ -7,7 +7,6 @@ import (
 	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/authz"
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -37,13 +36,14 @@ type TeamSearchSettingsServiceInterface interface {
 
 // TeamSearchSettingsService implements TeamSearchSettingsServiceInterface.
 //
-// defaults is the deployment-wide `search:` config. It is both the fallback for
-// a team with no stored profile and the `instance_defaults` reported on every
-// read, so a client can preview a reset without a second request.
+// instance resolves the instance ranking defaults per call. They are both the
+// fallback for a team with no stored profile and the `instance_defaults`
+// reported on every read, so a client can preview a reset without a second
+// request.
 type TeamSearchSettingsService struct {
 	repo     repositories.TeamSearchSettingsRepository
 	authz    AuthorizationServiceInterface
-	defaults config.SearchConfig
+	instance InstanceSearchSettingsResolver
 	logger   *slog.Logger
 }
 
@@ -53,39 +53,31 @@ var _ TeamSearchSettingsServiceInterface = (*TeamSearchSettingsService)(nil)
 func NewTeamSearchSettingsService(
 	repo repositories.TeamSearchSettingsRepository,
 	authzService AuthorizationServiceInterface,
-	defaults config.SearchConfig,
+	instance InstanceSearchSettingsResolver,
 	logger *slog.Logger,
 ) *TeamSearchSettingsService {
 	return &TeamSearchSettingsService{
 		repo:     repo,
 		authz:    authzService,
-		defaults: defaults,
+		instance: instance,
 		logger:   logger,
 	}
 }
 
-// instanceValues renders the deployment defaults as a profile.
-func (s *TeamSearchSettingsService) instanceValues() models.TeamSearchSettingsValues {
-	return models.TeamSearchSettingsValues{
-		RecencyRankingEnabled: s.defaults.RecencyRankingEnabled,
-		RankWeightRelevance:   s.defaults.RankWeightRelevance,
-		RankWeightCreated:     s.defaults.RankWeightCreated,
-		RankWeightUpdated:     s.defaults.RankWeightUpdated,
-		RankHalfLifeDays:      s.defaults.RankHalfLifeDays,
-	}
-}
-
-// view assembles the response shape from the effective values and their source.
-func (s *TeamSearchSettingsService) view(
-	source string, values models.TeamSearchSettingsValues,
+// teamSearchSettingsView assembles the response shape from the effective
+// values, their source and the instance defaults. The caller resolves the
+// instance defaults once per request, so every field of one response comes from
+// the same snapshot.
+func teamSearchSettingsView(
+	source string, values models.TeamSearchSettingsValues, instance models.InstanceSearchSettingsValues,
 ) *models.TeamSearchSettingsView {
 	return &models.TeamSearchSettingsView{
 		Source:           source,
 		Values:           values,
-		InstanceDefaults: s.instanceValues(),
+		InstanceDefaults: instance.TeamValues(),
 		// Instance-owned and never team-configurable: it bounds per-query cost
 		// for the whole deployment.
-		RankCandidateCap: s.defaults.RankCandidateCap,
+		RankCandidateCap: instance.RankCandidateCap,
 	}
 }
 
@@ -97,10 +89,11 @@ func (s *TeamSearchSettingsService) Get(
 	if err != nil {
 		return nil, fmt.Errorf("TeamSearchSettingsService.Get: %w", err)
 	}
+	instance := s.instance.Resolve(ctx)
 	if stored == nil {
-		return s.view(models.TeamSearchSettingsSourceInstance, s.instanceValues()), nil
+		return teamSearchSettingsView(models.TeamSearchSettingsSourceInstance, instance.TeamValues(), instance), nil
 	}
-	return s.view(models.TeamSearchSettingsSourceTeam, valuesFromStored(stored)), nil
+	return teamSearchSettingsView(models.TeamSearchSettingsSourceTeam, valuesFromStored(stored), instance), nil
 }
 
 // Update implements TeamSearchSettingsServiceInterface.
@@ -126,7 +119,8 @@ func (s *TeamSearchSettingsService) Update(
 		return nil, fmt.Errorf("TeamSearchSettingsService.Update: %w", err)
 	}
 
-	return s.view(models.TeamSearchSettingsSourceTeam, valuesFromStored(stored)), nil
+	return teamSearchSettingsView(
+		models.TeamSearchSettingsSourceTeam, valuesFromStored(stored), s.instance.Resolve(ctx)), nil
 }
 
 // Reset implements TeamSearchSettingsServiceInterface.
@@ -151,13 +145,21 @@ func valuesFromStored(stored *models.TeamSearchSettings) models.TeamSearchSettin
 	}
 }
 
-// ValidateSearchSettings rejects a degenerate ranking profile, mirroring
-// config.validateSearchRankingConfig bound for bound and reusing its message
-// wording so operators reading startup errors and API clients reading a 400 see
-// one vocabulary. The team_search_settings CHECK constraints enforce the same
-// bounds in the database, so this is the friendly-error layer over a guarantee
-// the schema already makes.
+// ValidateSearchSettings rejects a degenerate team ranking profile. The
+// team_search_settings CHECK constraints enforce the same bounds in the
+// database, so this is the friendly-error layer over a guarantee the schema
+// already makes.
 func ValidateSearchSettings(v models.TeamSearchSettingsValues) error {
+	return validateSearchRankingWeightsAndHalfLife(v)
+}
+
+// validateSearchRankingWeightsAndHalfLife holds the rules every ranking profile
+// shares, team and instance alike: non-negative weights that are not all zero,
+// and a half-life in (0, models.MaxSearchRankHalfLifeDays]. It mirrors
+// config.validateSearchRankingConfig bound for bound and reuses its message
+// wording, so operators reading startup errors and API clients reading a 400
+// see one vocabulary.
+func validateSearchRankingWeightsAndHalfLife(v models.TeamSearchSettingsValues) error {
 	weights := []float64{v.RankWeightRelevance, v.RankWeightCreated, v.RankWeightUpdated}
 	var sum float64
 	for _, w := range weights {
@@ -174,9 +176,9 @@ func ValidateSearchSettings(v models.TeamSearchSettingsValues) error {
 		return fmt.Errorf("%w: rank_half_life_days must be positive, got %v",
 			ErrInvalidSearchSettings, v.RankHalfLifeDays)
 	}
-	if v.RankHalfLifeDays > config.MaxSearchRankHalfLifeDays {
+	if v.RankHalfLifeDays > models.MaxSearchRankHalfLifeDays {
 		return fmt.Errorf("%w: rank_half_life_days must be <= %d, got %v",
-			ErrInvalidSearchSettings, config.MaxSearchRankHalfLifeDays, v.RankHalfLifeDays)
+			ErrInvalidSearchSettings, models.MaxSearchRankHalfLifeDays, v.RankHalfLifeDays)
 	}
 	return nil
 }

@@ -633,8 +633,17 @@ func TestSearchService_Search_PerTeamProfilesChangeOrdering(t *testing.T) {
 func TestSearchService_Search_TeamWithoutOverrideMatchesInstanceDefaults(t *testing.T) {
 	settingsRepo := repomocks.NewMockTeamSearchSettingsRepository(t)
 	settingsRepo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
+	instance := svcmocks.NewMockInstanceSearchSettingsResolver(t)
+	instance.EXPECT().Resolve(mock.Anything).Return(models.InstanceSearchSettingsValues{
+		RecencyRankingEnabled: true,
+		RankWeightRelevance:   0.5,
+		RankWeightCreated:     0.3,
+		RankWeightUpdated:     0.2,
+		RankHalfLifeDays:      90,
+		RankCandidateCap:      200,
+	})
 	resolver := services.NewTeamSearchSettingsResolver(
-		settingsRepo, enabledRanking(), slog.New(slog.DiscardHandler))
+		settingsRepo, instance, slog.New(slog.DiscardHandler))
 
 	svc, repo, embedder := newTestSearchServiceWithResolver(t, resolver)
 	now := time.Date(2026, 5, 26, 0, 0, 0, 0, time.UTC)

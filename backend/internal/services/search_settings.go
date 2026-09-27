@@ -5,16 +5,17 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 // HalfLifeFromDays converts a half-life expressed in days into a Duration. It
-// is the single definition of that conversion, shared by the instance-default
-// ranking config built at wire time and by per-team overrides resolved per
-// request, so the two can never interpret the same number differently.
+// is the single definition of that conversion, shared by the instance defaults
+// and by per-team overrides (both resolved per request), so the two can never
+// interpret the same number differently.
 //
 // Callers are expected to have validated the input against
-// config.MaxSearchRankHalfLifeDays, which keeps the result clear of int64
+// models.MaxSearchRankHalfLifeDays, which keeps the result clear of int64
 // nanosecond overflow.
 func HalfLifeFromDays(days float64) time.Duration {
 	return time.Duration(days * float64(24*time.Hour))
@@ -31,49 +32,67 @@ type SearchSettingsResolver interface {
 }
 
 // TeamSearchSettingsResolver resolves a team's stored ranking profile, falling
-// back to the instance defaults when the team has not overridden them.
+// back to the instance defaults when the team has not overridden them. The
+// precedence is team row → instance row → built-in defaults; the last two are
+// the InstanceSearchSettingsResolver's job.
 //
-// It performs one primary-key lookup per search. That is deliberate: there is
-// NO caching here. A TTL cache would mean "I changed the setting and search
-// didn't change" in a multi-replica deployment — a worse failure than the cost
-// it saves, given the lookup rides alongside a pgvector similarity scan that
-// dominates the request. The interface leaves room to add caching if profiling
-// ever justifies it; please do not add it speculatively.
+// It performs two primary-key lookups per search (the instance singleton and the
+// team row). That is deliberate: there is NO caching here. A TTL cache would
+// mean "I changed the setting and search didn't change" in a multi-replica
+// deployment — a worse failure than the cost it saves, given the lookups ride
+// alongside a pgvector similarity scan that dominates the request. The
+// interface leaves room to add caching if profiling ever justifies it; please
+// do not add it speculatively.
 type TeamSearchSettingsResolver struct {
 	repo     repositories.TeamSearchSettingsRepository
-	defaults SearchRankingConfig
+	instance InstanceSearchSettingsResolver
 	logger   *slog.Logger
 }
 
 var _ SearchSettingsResolver = (*TeamSearchSettingsResolver)(nil)
 
 // NewTeamSearchSettingsResolver creates a resolver over the team settings
-// repository. defaults is the instance-wide ranking config from config.yaml,
-// returned whenever a team has no override of its own.
+// repository. instance supplies the instance defaults, returned whenever a team
+// has no override of its own.
 func NewTeamSearchSettingsResolver(
 	repo repositories.TeamSearchSettingsRepository,
-	defaults SearchRankingConfig,
+	instance InstanceSearchSettingsResolver,
 	logger *slog.Logger,
 ) *TeamSearchSettingsResolver {
-	return &TeamSearchSettingsResolver{repo: repo, defaults: defaults, logger: logger}
+	return &TeamSearchSettingsResolver{repo: repo, instance: instance, logger: logger}
+}
+
+// rankingFromInstance renders the instance defaults as a ranking config.
+func rankingFromInstance(v models.InstanceSearchSettingsValues) SearchRankingConfig {
+	return SearchRankingConfig{
+		Enabled:         v.RecencyRankingEnabled,
+		WeightRelevance: v.RankWeightRelevance,
+		WeightCreated:   v.RankWeightCreated,
+		WeightUpdated:   v.RankWeightUpdated,
+		HalfLife:        HalfLifeFromDays(v.RankHalfLifeDays),
+		CandidateCap:    v.RankCandidateCap,
+	}
 }
 
 // Resolve returns the ranking config for teamID.
 //
-// It FAILS OPEN: a repository error logs at warn and yields the instance
-// defaults instead of an error. The search query hits the same database moments
+// It FAILS OPEN: a team repository error logs at warn and yields the instance
+// defaults instead of an error (and the instance resolver fails open to the
+// built-in defaults in turn). The search query hits the same database moments
 // later, so a genuine outage still surfaces as a failed search; a transient blip
 // reading a settings row must not turn a working search into a 500.
 func (r *TeamSearchSettingsResolver) Resolve(ctx context.Context, teamID string) SearchRankingConfig {
+	defaults := rankingFromInstance(r.instance.Resolve(ctx))
+
 	settings, err := r.repo.Get(ctx, teamID)
 	if err != nil {
 		r.logger.With("team_id", teamID, "error", err).
 			Warn("failed to read team search settings; falling back to instance defaults")
-		return r.defaults
+		return defaults
 	}
 	if settings == nil {
 		// No override row: the team inherits the instance defaults entirely.
-		return r.defaults
+		return defaults
 	}
 
 	return SearchRankingConfig{
@@ -87,6 +106,6 @@ func (r *TeamSearchSettingsResolver) Resolve(ctx context.Context, teamID string)
 		// ranked query, so letting one team raise it would let that team degrade
 		// the whole instance. This is a cost/isolation boundary, not a default —
 		// team_search_settings deliberately has no column for it.
-		CandidateCap: r.defaults.CandidateCap,
+		CandidateCap: defaults.CandidateCap,
 	}
 }

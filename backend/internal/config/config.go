@@ -768,28 +768,15 @@ func (c *Config) GetDeploymentEnvironment() string {
 	return "production"
 }
 
-// MaxSearchRankHalfLifeDays caps the half-life at 100 years. This keeps the
-// days→time.Duration conversion (services.HalfLifeFromDays) well clear of int64
-// nanosecond overflow, which would otherwise wrap to a negative duration and
-// silently zero the recency contribution.
-//
-// Exported because it is the single definition shared by four enforcement
-// points: this validator, the team_search_settings CHECK constraints
-// (migration 011_consolidated), the instance_search_settings CHECK constraint (migration
-// 022), and the per-team settings request validator. Change them together.
-const MaxSearchRankHalfLifeDays = 36500
-
-// MaxSearchRankCandidateCap bounds the re-rank candidate pool so a misconfigured
-// cap cannot blow up per-query memory and sort cost (the cap becomes the SQL
-// LIMIT and the in-memory slice that is sorted on every ranked query). The
-// instance_search_settings.rank_candidate_cap CHECK constraint (migration 022)
-// mirrors it; change both together.
-const MaxSearchRankCandidateCap = 5000
-
 // validateSearchRankingConfig rejects degenerate ranking parameters so a
 // misconfigured deployment fails fast at startup rather than silently producing
 // garbage ordering. Weights must be non-negative (and not all zero); the
-// half-life and candidate cap must each be positive and within a sane ceiling.
+// half-life and candidate cap must each be positive and within a sane ceiling
+// (models.MaxSearchRankHalfLifeDays, models.MaxSearchRankCandidateCap).
+//
+// services.ValidateInstanceSearchSettings enforces the same bounds on the
+// database-stored instance defaults; this copy stays until the `search:` block
+// is removed from config (#1203).
 func validateSearchRankingConfig(cfg *Config) error {
 	s := cfg.Search
 	weights := []float64{s.RankWeightRelevance, s.RankWeightCreated, s.RankWeightUpdated}
@@ -806,16 +793,16 @@ func validateSearchRankingConfig(cfg *Config) error {
 	if s.RankHalfLifeDays <= 0 {
 		return fmt.Errorf("search.rank_half_life_days must be positive, got %v", s.RankHalfLifeDays)
 	}
-	if s.RankHalfLifeDays > MaxSearchRankHalfLifeDays {
+	if s.RankHalfLifeDays > models.MaxSearchRankHalfLifeDays {
 		return fmt.Errorf("search.rank_half_life_days must be <= %d, got %v",
-			MaxSearchRankHalfLifeDays, s.RankHalfLifeDays)
+			models.MaxSearchRankHalfLifeDays, s.RankHalfLifeDays)
 	}
 	if s.RankCandidateCap < 1 {
 		return fmt.Errorf("search.rank_candidate_cap must be >= 1, got %d", s.RankCandidateCap)
 	}
-	if s.RankCandidateCap > MaxSearchRankCandidateCap {
+	if s.RankCandidateCap > models.MaxSearchRankCandidateCap {
 		return fmt.Errorf("search.rank_candidate_cap must be <= %d, got %d",
-			MaxSearchRankCandidateCap, s.RankCandidateCap)
+			models.MaxSearchRankCandidateCap, s.RankCandidateCap)
 	}
 	return nil
 }

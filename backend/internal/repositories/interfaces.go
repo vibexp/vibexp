@@ -1555,7 +1555,30 @@ type InstanceSearchSettingsRepository interface {
 	// Delete removes the stored defaults, reverting to the built-in ones. It
 	// is a no-op, not an error, when no row exists.
 	Delete(ctx context.Context) error
+	// UpsertAudited is Upsert plus one instance_settings_audit entry, written
+	// in the same transaction: the change and its audit record land together
+	// or not at all. The transaction first takes a table-level write lock, so
+	// concurrent audited writes are serialized even while no row exists; the
+	// current row is then read and handed to audit as before (nil when none was
+	// stored); after is settings as written. An audit error rolls the upsert
+	// back.
+	UpsertAudited(
+		ctx context.Context, settings *models.InstanceSearchSettings, audit InstanceSearchSettingsAuditFunc,
+	) error
+	// DeleteAudited is Delete plus one instance_settings_audit entry, in the
+	// same transaction. It reports whether a row was deleted; when none was
+	// stored it writes nothing and audit is not called.
+	DeleteAudited(ctx context.Context, audit InstanceSearchSettingsAuditFunc) (deleted bool, err error)
 }
+
+// InstanceSearchSettingsAuditFunc builds the audit entry for one change to the
+// instance search defaults. before is the row read inside the change's
+// transaction (nil when none was stored); after is the row as written (nil for a
+// delete). Building the redacted snapshot is the caller's job; the repository
+// only persists what it returns.
+type InstanceSearchSettingsAuditFunc func(
+	before, after *models.InstanceSearchSettings,
+) (*models.InstanceSettingsAuditEntry, error)
 
 // InstanceAISummarySettingsRepository defines the data access operations for
 // the instance's AI summary defaults and budgets (#1197, epic #1196). It has
