@@ -40,7 +40,7 @@ require (
 	github.com/oapi-codegen/runtime v1.7.0
 	github.com/ory/fosite v0.49.0
 	github.com/panjf2000/ants/v2 v2.12.1
-	github.com/pb33f/libopenapi v0.40.0
+	github.com/pb33f/libopenapi v0.38.7 // held at 0.38.x: libopenapi-validator v0.14.0 is built against it; >=0.39 fails response-schema compile ("schema node was not found in its root document", pb33f/libopenapi-validator#314)
 	github.com/pb33f/libopenapi-validator v0.14.0
 	github.com/pgvector/pgvector-go v0.4.1
 	github.com/samber/lo v1.53.0
