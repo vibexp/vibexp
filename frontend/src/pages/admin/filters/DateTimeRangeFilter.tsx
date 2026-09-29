@@ -1,5 +1,3 @@
-import { useId } from 'react'
-
 import type { DateRangeValue } from '@/components/ui/date-range'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 
@@ -24,16 +22,11 @@ export function DateTimeRangeFilter({
   onChange,
   now,
 }: Readonly<DateTimeRangeFilterProps>) {
-  const labelId = useId()
   return (
-    <div
-      role="group"
-      aria-labelledby={labelId}
-      className="flex flex-col gap-1.5"
-    >
-      <span id={labelId} className="text-sm font-medium leading-none">
+    <fieldset className="flex min-w-0 flex-col gap-1.5">
+      <legend className="mb-1.5 text-sm font-medium leading-none">
         {label}
-      </span>
+      </legend>
       <DateRangePicker
         value={value}
         onChange={onChange}
@@ -41,6 +34,6 @@ export function DateTimeRangeFilter({
         ariaLabel={label}
         now={now}
       />
-    </div>
+    </fieldset>
   )
 }
