@@ -60,3 +60,31 @@ func TestNew_WrapsOIDCWithGoogleName(t *testing.T) {
 	assert.Contains(t, authURL, srv.URL+"/o/oauth2/v2/auth")
 	assert.Contains(t, authURL, "state=state-1")
 }
+
+// TestNew_NameAndIssuerOverride confirms a DB-managed Google provider reports
+// its slug and that the issuer override is used for discovery.
+func TestNew_NameAndIssuerOverride(t *testing.T) {
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                 srv.URL,
+			"authorization_endpoint": srv.URL + "/auth",
+			"token_endpoint":         srv.URL + "/token",
+			"jwks_uri":               srv.URL + "/jwks",
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	p, err := New(context.Background(), Config{
+		Name:         "google-workspace",
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		IssuerURL:    srv.URL,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, idp.ProviderName("google-workspace"), p.Name())
+	assert.Contains(t, p.AuthorizeURL("s", "", ""), srv.URL+"/auth")
+}

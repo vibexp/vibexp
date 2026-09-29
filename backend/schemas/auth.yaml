@@ -124,27 +124,42 @@ AuthProvider:
     name:
       type: string
       description: |
-        Canonical provider name, also the value to pass as the `provider`
-        query parameter to GET /api/v1/auth/login (e.g. `google`, `github`,
-        `oidc`).
+        Provider slug, also the value to pass as the `provider` query
+        parameter to GET /api/v1/auth/login (e.g. `google`, `github`, `oidc`,
+        or an admin-chosen slug such as `corp-sso`).
       example: "google"
     display_name:
       type: string
       description: Human-readable label for the provider button in the login UI
       example: "Google"
+    type:
+      type: string
+      description: |
+        The provider kind. Several `oidc` providers may be enabled side by
+        side, each with its own slug.
+      enum:
+        - google
+        - github
+        - oidc
+      x-enum-varnames:
+        - AuthProviderTypeGoogle
+        - AuthProviderTypeGitHub
+        - AuthProviderTypeOIDC
+      example: "google"
   required:
     - name
     - display_name
+    - type
 
 ProvidersResponse:
   type: object
   description: |
     Response body returned by GET /api/v1/auth/providers listing the login
-    providers enabled in this deployment's configuration.
+    providers enabled on this instance.
   properties:
     providers:
       type: array
-      description: Enabled login providers, stable-sorted by canonical name
+      description: Enabled login providers, ordered by the admin-defined sort order
       items:
         $ref: '#/AuthProvider'
   required:

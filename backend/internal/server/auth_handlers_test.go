@@ -26,8 +26,9 @@ func TestAuthLogin_Endpoints(t *testing.T) {
 		path     string
 		expected int
 	}{
-		// Login returns 503 (Service Unavailable) when identity provider not configured (stub/local dev)
-		{"Login - GET returns 503 when IDP not configured", "GET", "/api/v1/auth/login", http.StatusServiceUnavailable},
+		// GET login now resolves providers from the database (#1234), which this
+		// DB-less server has none of; its 503 paths are covered by
+		// TestHandleLogin_NoProvidersEnabled and TestHandleLogin_ResolverError.
 		// POST to login should return method not allowed
 		{"Login - Method Not Allowed", "POST", "/api/v1/auth/login", http.StatusMethodNotAllowed},
 		// Callback without code returns 400

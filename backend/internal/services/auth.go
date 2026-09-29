@@ -15,13 +15,14 @@ import (
 )
 
 // AuthService handles authentication operations. It dispatches web login to
-// one of the identity providers held in the registry, selected per-request by
-// the provider name carried through the login/callback flow. Tokens are
+// one of the identity providers resolved from the database at runtime (#1234),
+// selected per-request by the provider slug carried through the login/callback
+// flow. Tokens are
 // delivered via AES-GCM encrypted httpOnly cookies managed by the session
 // package — HS256 JWT signing is removed in this release.
 type AuthService struct {
 	userRepo       repositories.UserRepository
-	registry       *idp.Registry
+	resolver       IdentityProviderResolver
 	featureFlagSvc feature_flags.FeatureFlagServiceInterface
 	eventManager   events.EventPublisher
 	logger         *slog.Logger
@@ -35,6 +36,26 @@ var _ AuthServiceInterface = (*AuthService)(nil)
 // HTTP layer branches on it with errors.Is to surface a policy denial (redirect
 // for the OAuth callback, 403 for dev login) distinct from other failures.
 var ErrAccessRestricted = errors.New("access restricted by allowlist")
+
+// ErrIdentityProviderUnavailable is returned by HandleCallback and
+// RefreshTokens when the provider slug names no enabled provider, e.g. one
+// disabled between login and callback.
+var ErrIdentityProviderUnavailable = errors.New("identity provider is not enabled")
+
+// ErrIdentityProvidersUnresolvable is returned when the enabled providers could
+// not be read (the database is unreachable).
+var ErrIdentityProvidersUnresolvable = errors.New("identity providers could not be resolved")
+
+// ProviderInfo describes one enabled login provider.
+type ProviderInfo struct {
+	// Slug is the provider's identity: passed back as ?provider=, carried in
+	// the state cookie and the session, and persisted as users.idp_provider.
+	Slug string
+	// DisplayName is the label the login UI shows.
+	DisplayName string
+	// Type is the provider kind: google, github or oidc.
+	Type string
+}
 
 // ensureAccessAllowed denies sign-in when email is not permitted by the access
 // allowlist, returning ErrAccessRestricted. An unconfigured allowlist (both
@@ -72,58 +93,81 @@ func (as *AuthService) ensureAccessAllowed(
 }
 
 func NewAuthService(
-	userRepo repositories.UserRepository, registry *idp.Registry,
+	userRepo repositories.UserRepository, resolver IdentityProviderResolver,
 	eventManager events.EventPublisher, logger *slog.Logger,
 	featureFlagSvc feature_flags.FeatureFlagServiceInterface,
 ) *AuthService {
 	return &AuthService{
 		userRepo:       userRepo,
-		registry:       registry,
+		resolver:       resolver,
 		featureFlagSvc: featureFlagSvc,
 		eventManager:   eventManager,
 		logger:         logger,
 	}
 }
 
-// EnabledProviders returns the canonical names of the enabled login providers,
-// stable-sorted, for the HTTP layer to validate the ?provider= hint against
-// and to surface the available choices.
-func (as *AuthService) EnabledProviders() []string {
-	enabled := as.registry.Enabled()
-	names := make([]string, len(enabled))
-	for i, n := range enabled {
-		names[i] = string(n)
+// snapshot resolves the enabled providers, wrapping a failure in
+// ErrIdentityProvidersUnresolvable.
+func (as *AuthService) snapshot(ctx context.Context) (*idp.Registry, error) {
+	reg, err := as.resolver.Snapshot(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrIdentityProvidersUnresolvable, err)
 	}
-	return names
+	return reg, nil
 }
 
-// GetLoginURL returns the authorization URL for the named provider. It returns
-// an empty string when the provider is not enabled, so the caller can surface
-// a "provider unavailable" response. Each provider uses its own configured
-// redirect URI (the empty override here means "use the provider's default").
-func (as *AuthService) GetLoginURL(state, provider string) string {
-	p, ok := as.registry.Get(idp.ProviderName(provider))
+// EnabledProviders returns the enabled login providers in the admin-defined
+// sort order, for the HTTP layer to validate the ?provider= hint against and to
+// surface the available choices.
+func (as *AuthService) EnabledProviders(ctx context.Context) ([]ProviderInfo, error) {
+	reg, err := as.snapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entries := reg.Entries()
+	out := make([]ProviderInfo, len(entries))
+	for i, e := range entries {
+		out[i] = ProviderInfo{Slug: string(e.Provider.Name()), DisplayName: e.DisplayName, Type: string(e.Type)}
+	}
+	return out, nil
+}
+
+// GetLoginURL returns the authorization URL for the provider with slug. It
+// returns an empty string when no such provider is enabled, so the caller can
+// surface a "provider unavailable" response. Every provider is built with the
+// derived callback URL (config.Config.AuthCallbackURL), so no override is
+// passed here.
+func (as *AuthService) GetLoginURL(ctx context.Context, state, slug string) (string, error) {
+	reg, err := as.snapshot(ctx)
+	if err != nil {
+		return "", err
+	}
+	p, ok := reg.Get(idp.ProviderName(slug))
 	if !ok {
-		return ""
+		return "", nil
 	}
-	return p.AuthorizeURL(state, "", provider)
+	return p.AuthorizeURL(state, "", slug), nil
 }
 
-// HandleCallback exchanges the authorization code for tokens using the named
-// provider, looks up or creates the user, and returns the user, IDP tokens,
-// and whether they are new. The provider name is resolved from the signed
-// state cookie by the HTTP layer.
+// HandleCallback exchanges the authorization code for tokens using the provider
+// with slug, looks up or creates the user, and returns the user, IDP tokens,
+// and whether they are new. The slug is resolved from the signed state cookie
+// by the HTTP layer.
 func (as *AuthService) HandleCallback(
-	ctx context.Context, code, provider string,
+	ctx context.Context, code, slug string,
 ) (*models.User, *idp.Tokens, bool, error) {
-	as.logger.With("provider", provider).Info("Processing OAuth callback")
+	as.logger.With("provider", slug).Info("Processing OAuth callback")
 
-	p, ok := as.registry.Get(idp.ProviderName(provider))
+	reg, err := as.snapshot(ctx)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	entry, ok := reg.Entry(idp.ProviderName(slug))
 	if !ok {
-		return nil, nil, false, fmt.Errorf("unknown identity provider %q", provider)
+		return nil, nil, false, fmt.Errorf("%w: %q", ErrIdentityProviderUnavailable, slug)
 	}
 
-	tokens, claims, err := p.ExchangeCode(ctx, code, "")
+	tokens, claims, err := entry.Provider.ExchangeCode(ctx, code, "")
 	if err != nil {
 		as.logger.With("error", err).Error("Failed to exchange OAuth token")
 		return nil, nil, false, fmt.Errorf("failed to exchange token: %w", err)
@@ -150,16 +194,16 @@ func (as *AuthService) HandleCallback(
 	// Enforce the access allowlist BEFORE any user row is created or updated, so
 	// a denied identity leaves zero database residue and emits no user.created
 	// event.
-	if err = as.ensureAccessAllowed(ctx, claims.Email, string(p.Name()), claims.EmailVerified); err != nil {
+	if err = as.ensureAccessAllowed(ctx, claims.Email, slug, claims.EmailVerified); err != nil {
 		return nil, nil, false, err
 	}
 
-	user, isNewUser, err := as.createOrUpdateUserFromClaims(ctx, string(p.Name()), claims)
+	user, isNewUser, err := as.createOrUpdateUserFromClaims(ctx, slug, entry.Type, claims)
 	if err != nil {
 		as.logger.With(
 			"email", claims.Email,
 			"error", fmt.Sprintf("%+v", err),
-			"idp", string(p.Name()),
+			"idp", slug,
 			"idp_subject", claims.Subject,
 		).Error("Failed to create or update user")
 		return nil, nil, false, fmt.Errorf("failed to create or update user: %w", err)
@@ -173,25 +217,29 @@ func (as *AuthService) HandleCallback(
 	return user, tokens, isNewUser, nil
 }
 
-// RefreshTokens refreshes the access token using the named provider. The
-// provider name is carried in the session so the right provider rotates the
-// token (different providers use different refresh endpoints; some, like
-// GitHub, do not support refresh at all).
+// RefreshTokens refreshes the access token using the provider with slug. The
+// slug is carried in the session so the right provider rotates the token
+// (different providers use different refresh endpoints; some, like GitHub, do
+// not support refresh at all).
 func (as *AuthService) RefreshTokens(
-	ctx context.Context, provider, refreshToken string,
+	ctx context.Context, slug, refreshToken string,
 ) (*idp.Tokens, error) {
-	name := idp.ProviderName(provider)
-	if provider == "" {
+	reg, err := as.snapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	name := idp.ProviderName(slug)
+	if slug == "" {
 		// Back-compat: sessions issued before multi-provider support carry no
 		// provider name. When the deployment runs a single provider, route to
 		// it so those sessions keep refreshing across the upgrade.
-		if enabled := as.registry.Enabled(); len(enabled) == 1 {
+		if enabled := reg.Enabled(); len(enabled) == 1 {
 			name = enabled[0]
 		}
 	}
-	p, ok := as.registry.Get(name)
+	p, ok := reg.Get(name)
 	if !ok {
-		return nil, fmt.Errorf("unknown identity provider %q", provider)
+		return nil, fmt.Errorf("%w: %q", ErrIdentityProviderUnavailable, slug)
 	}
 	return p.Refresh(ctx, refreshToken)
 }
@@ -203,18 +251,20 @@ func (as *AuthService) RefreshTokens(
 func (as *AuthService) ProvisionFromClaims(
 	ctx context.Context, providerName string, claims *idp.Claims,
 ) (*models.User, error) {
-	user, _, err := as.createOrUpdateUserFromClaims(ctx, providerName, claims)
+	// The AS login leg names providers by their built-in type names.
+	user, _, err := as.createOrUpdateUserFromClaims(ctx, providerName, idp.ProviderName(providerName), claims)
 	return user, err
 }
 
 // createOrUpdateUserFromClaims looks up an existing user via the
 // (idp_provider, idp_subject) tuple, falling back to legacy lookup by
 // google_id, then creates a new user if none is found. providerName is the
-// canonical name of the provider that produced the claims.
+// slug of the provider that produced the claims (persisted as idp_provider) and
+// providerType its kind, which decides the Google-only legacy handling.
 func (as *AuthService) createOrUpdateUserFromClaims(
-	ctx context.Context, providerName string, claims *idp.Claims,
+	ctx context.Context, providerName string, providerType idp.ProviderName, claims *idp.Claims,
 ) (*models.User, bool, error) {
-	user, err := as.findUserForClaims(ctx, providerName, claims.Subject)
+	user, err := as.findUserForClaims(ctx, providerName, providerType, claims.Subject)
 	if err != nil {
 		return nil, false, err
 	}
@@ -225,7 +275,7 @@ func (as *AuthService) createOrUpdateUserFromClaims(
 	}
 
 	if user == nil {
-		return as.createUserFromClaims(ctx, providerName, claims, avatarURL)
+		return as.createUserFromClaims(ctx, providerName, providerType, claims, avatarURL)
 	}
 
 	user.Email = claims.Email
@@ -258,7 +308,7 @@ func isUserNotFoundErr(err error) bool {
 // future repository implementation that loosens the lookup, and against
 // any code path that aliases a non-Google IdP under the "google" name.
 func (as *AuthService) findUserForClaims(
-	ctx context.Context, providerName, subject string,
+	ctx context.Context, providerName string, providerType idp.ProviderName, subject string,
 ) (*models.User, error) {
 	user, err := as.userRepo.GetByIDPSubject(ctx, providerName, subject)
 	if err != nil && !isUserNotFoundErr(err) {
@@ -271,9 +321,10 @@ func (as *AuthService) findUserForClaims(
 		}
 		return user, nil
 	}
-	// Legacy fallback only applies when the current provider IS Google;
-	// non-Google providers must never claim an existing google_id row.
-	if providerName != string(idp.ProviderGoogle) {
+	// Legacy fallback only applies when the current provider IS Google (by
+	// type, since the slug is admin-chosen); non-Google providers must never
+	// claim an existing google_id row.
+	if providerType != idp.ProviderGoogle {
 		return nil, nil
 	}
 	legacy, lerr := as.userRepo.GetByGoogleID(ctx, subject)
@@ -286,7 +337,7 @@ func (as *AuthService) findUserForClaims(
 // createUserFromClaims persists a new user populated from the IDP claims
 // and emits a user.created event.
 func (as *AuthService) createUserFromClaims(
-	ctx context.Context, providerName string, claims *idp.Claims, avatarURL *string,
+	ctx context.Context, providerName string, providerType idp.ProviderName, claims *idp.Claims, avatarURL *string,
 ) (*models.User, bool, error) {
 	now := time.Now()
 	newUser := &models.User{
@@ -300,7 +351,7 @@ func (as *AuthService) createUserFromClaims(
 	}
 	// Maintain google_id for Google users (legacy compatibility).
 	// Non-Google providers do not receive a google_id.
-	if providerName == string(idp.ProviderGoogle) {
+	if providerType == idp.ProviderGoogle {
 		subject := claims.Subject
 		newUser.GoogleID = &subject
 	}

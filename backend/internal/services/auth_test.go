@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -70,9 +71,32 @@ func denialReason(t *testing.T, recorder *logtest.Recorder) string {
 // newTestRegistry wraps a mock identity provider in a registry. It defaults the
 // provider's Name() to the generic OIDC provider (the registry keys by Name()
 // at build time) when the test has not already stubbed it.
-func newTestRegistry(p *idpmocks.MockIdentityProvider) *idp.Registry {
+func newTestRegistry(p *idpmocks.MockIdentityProvider) IdentityProviderResolver {
 	p.On("Name").Return(idp.ProviderOIDC).Maybe()
-	return idp.NewRegistry(p)
+	return staticIDPResolver{reg: idp.NewRegistry(p)}
+}
+
+// staticIDPResolver is an IdentityProviderResolver serving a fixed registry (or
+// a fixed error). The services tests cannot import services/mocks (cycle).
+type staticIDPResolver struct {
+	reg *idp.Registry
+	err error
+}
+
+func (s staticIDPResolver) Snapshot(context.Context) (*idp.Registry, error) { return s.reg, s.err }
+
+func (s staticIDPResolver) Provider(_ context.Context, slug string) (idp.IdentityProvider, bool, error) {
+	if s.err != nil {
+		return nil, false, s.err
+	}
+	p, ok := s.reg.Get(idp.ProviderName(slug))
+	return p, ok, nil
+}
+
+func (s staticIDPResolver) Health() map[string]ProviderHealth { return nil }
+
+func (s staticIDPResolver) TestProvider(context.Context, models.InstanceAuthProvider, *string) error {
+	return nil
 }
 
 // createTestClaims builds the claims a real identity provider returns. Email is
@@ -231,7 +255,7 @@ func TestAuthService_CreateOrUpdateUserFromClaims(t *testing.T) {
 			tt.setupMocks(mockRepo)
 
 			ctx := context.Background()
-			user, _, err := service.createOrUpdateUserFromClaims(ctx, testProvider, claims)
+			user, _, err := service.createOrUpdateUserFromClaims(ctx, testProvider, idp.ProviderName(testProvider), claims)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -260,7 +284,8 @@ func TestAuthService_GetLoginURL(t *testing.T) {
 	// so the provider uses its own configured redirect URI.
 	mockIDP.On("AuthorizeURL", "test-state", "", "oidc").Return(expectedURL)
 
-	url := service.GetLoginURL("test-state", "oidc")
+	url, err := service.GetLoginURL(context.Background(), "test-state", "oidc")
+	require.NoError(t, err)
 	assert.NotEmpty(t, url)
 	assert.Equal(t, expectedURL, url)
 
@@ -274,7 +299,8 @@ func TestAuthService_GetLoginURL_UnknownProvider_ReturnsEmpty(t *testing.T) {
 
 	// "github" is not in the registry (only "oidc" is) → empty URL, and
 	// AuthorizeURL is never called.
-	got := service.GetLoginURL("some-state", "github")
+	got, err := service.GetLoginURL(context.Background(), "some-state", "github")
+	require.NoError(t, err)
 	assert.Empty(t, got)
 	mockIDP.AssertNotCalled(t, "AuthorizeURL", mock.Anything, mock.Anything, mock.Anything)
 }
@@ -284,7 +310,9 @@ func TestAuthService_EnabledProviders(t *testing.T) {
 	mockIDP := &idpmocks.MockIdentityProvider{}
 	service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
 
-	assert.Equal(t, []string{"oidc"}, service.EnabledProviders())
+	got, err := service.EnabledProviders(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []ProviderInfo{{Slug: "oidc", DisplayName: "Single Sign-On", Type: "oidc"}}, got)
 }
 
 func TestAuthService_RefreshTokens(t *testing.T) {
@@ -857,7 +885,7 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 				logger, nil, []string{"test@example.com", "dev@example.com"})
 			featureFlagSvc.RegisterFlag(userSignInAllowlist)
 
-			service := NewAuthService(mockRepo, idp.NewRegistry(mockIDP), mockEventManager, logger, featureFlagSvc)
+			service := NewAuthService(mockRepo, staticIDPResolver{reg: idp.NewRegistry(mockIDP)}, mockEventManager, logger, featureFlagSvc)
 
 			tt.setupMocks(mockRepo, mockEventManager)
 
@@ -867,7 +895,7 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 				_, err := service.HandleDevLogin(ctx, "dev@example.com", "Dev User")
 				assert.NoError(t, err)
 			} else {
-				_, _, err := service.createOrUpdateUserFromClaims(ctx, testProvider, testClaims)
+				_, _, err := service.createOrUpdateUserFromClaims(ctx, testProvider, idp.ProviderName(testProvider), testClaims)
 				assert.NoError(t, err)
 			}
 
@@ -915,11 +943,107 @@ func TestAuthService_GoogleLegacyFallback(t *testing.T) {
 	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
 	featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
 
-	service := NewAuthService(mockRepo, idp.NewRegistry(mockIDP), nil, logger, featureFlagSvc)
+	service := NewAuthService(mockRepo, staticIDPResolver{reg: idp.NewRegistry(mockIDP)}, nil, logger, featureFlagSvc)
 
-	user, _, err := service.createOrUpdateUserFromClaims(context.Background(), googleProvider, testClaims)
+	user, _, err := service.createOrUpdateUserFromClaims(context.Background(), googleProvider, idp.ProviderGoogle, testClaims)
 	assert.NoError(t, err)
 	assert.Equal(t, "legacy-1", user.ID)
 
 	mockRepo.AssertExpectations(t)
+}
+
+// slugProvider returns a mock identity provider named slug.
+func slugProvider(slug string) *idpmocks.MockIdentityProvider {
+	p := &idpmocks.MockIdentityProvider{}
+	p.On("Name").Return(idp.ProviderName(slug)).Maybe()
+	return p
+}
+
+// newResolverAuthService builds an AuthService with open access over resolver.
+func newResolverAuthService(userRepo *repo_mocks.MockUserRepository, resolver IdentityProviderResolver) *AuthService {
+	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
+	flags := feature_flags.NewFeatureFlagService(logger)
+	flags.RegisterFlag(feature_flags.NewUserSignInAllowlistFlag(logger, nil, nil))
+	return NewAuthService(userRepo, resolver, nil, logger, flags)
+}
+
+func TestAuthService_ResolverFailureIsUnresolvable(t *testing.T) {
+	svc := newResolverAuthService(&repo_mocks.MockUserRepository{}, staticIDPResolver{err: errors.New("db down")})
+	ctx := context.Background()
+
+	_, err := svc.EnabledProviders(ctx)
+	assert.ErrorIs(t, err, ErrIdentityProvidersUnresolvable)
+	_, err = svc.GetLoginURL(ctx, "s", "corp-sso")
+	assert.ErrorIs(t, err, ErrIdentityProvidersUnresolvable)
+	_, _, _, err = svc.HandleCallback(ctx, "code", "corp-sso")
+	assert.ErrorIs(t, err, ErrIdentityProvidersUnresolvable)
+	_, err = svc.RefreshTokens(ctx, "corp-sso", "tok")
+	assert.ErrorIs(t, err, ErrIdentityProvidersUnresolvable)
+}
+
+func TestAuthService_UnknownSlugIsUnavailable(t *testing.T) {
+	p := slugProvider("corp-sso")
+	svc := newResolverAuthService(&repo_mocks.MockUserRepository{}, staticIDPResolver{reg: idp.NewRegistry(p)})
+	ctx := context.Background()
+
+	_, _, _, err := svc.HandleCallback(ctx, "code", "partner-sso")
+	assert.ErrorIs(t, err, ErrIdentityProviderUnavailable)
+	_, err = svc.RefreshTokens(ctx, "partner-sso", "tok")
+	assert.ErrorIs(t, err, ErrIdentityProviderUnavailable)
+	p.AssertNotCalled(t, "ExchangeCode", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// TestAuthService_HandleCallback_PersistsSlug covers multi-OIDC identity: the
+// user row is keyed by the provider SLUG, and an OIDC provider never takes the
+// Google-only google_id fallback even when an admin slugged it "google".
+func TestAuthService_HandleCallback_PersistsSlug(t *testing.T) {
+	claims := &idp.Claims{Subject: "sub-1", Email: "u@example.com", EmailVerified: true, Name: "U"}
+	for _, slug := range []string{"corp-sso", "google"} {
+		t.Run(slug, func(t *testing.T) {
+			p := slugProvider(slug)
+			p.On("ExchangeCode", mock.Anything, "code", "").Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
+			repo := &repo_mocks.MockUserRepository{}
+			repo.On("GetByIDPSubject", mock.Anything, slug, "sub-1").Return(nil, repositories.ErrUserNotFound)
+			repo.On("Create", mock.Anything, mock.MatchedBy(func(u *models.User) bool {
+				return u.IDPProvider != nil && *u.IDPProvider == slug && u.GoogleID == nil
+			})).Return(nil)
+			reg := idp.NewRegistryFromEntries(idp.Entry{Provider: p, Type: idp.ProviderOIDC, DisplayName: "SSO"})
+			svc := newResolverAuthService(repo, staticIDPResolver{reg: reg})
+
+			user, _, isNew, err := svc.HandleCallback(context.Background(), "code", slug)
+			require.NoError(t, err)
+			assert.True(t, isNew)
+			assert.Equal(t, slug, *user.IDPProvider)
+			repo.AssertNotCalled(t, "GetByGoogleID", mock.Anything, mock.Anything)
+			repo.AssertExpectations(t)
+		})
+	}
+}
+
+// TestAuthService_HandleCallback_GoogleTypeKeepsLegacyFallback pins that a
+// google-TYPE provider still matches a legacy google_id user and stamps new
+// users with google_id, whatever its slug.
+func TestAuthService_HandleCallback_GoogleTypeKeepsLegacyFallback(t *testing.T) {
+	claims := &idp.Claims{Subject: "g-1", Email: "g@example.com", EmailVerified: true}
+	p := slugProvider("google-workspace")
+	p.On("ExchangeCode", mock.Anything, "code", "").Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
+	repo := &repo_mocks.MockUserRepository{}
+	repo.On("GetByIDPSubject", mock.Anything, "google-workspace", "g-1").Return(nil, repositories.ErrUserNotFound)
+	repo.On("GetByGoogleID", mock.Anything, "g-1").Return(nil, repositories.ErrUserNotFound)
+	repo.On("Create", mock.Anything, mock.MatchedBy(func(u *models.User) bool {
+		return u.GoogleID != nil && *u.GoogleID == "g-1" && *u.IDPProvider == "google-workspace"
+	})).Return(nil)
+	reg := idp.NewRegistryFromEntries(idp.Entry{Provider: p, Type: idp.ProviderGoogle, DisplayName: "Google"})
+	svc := newResolverAuthService(repo, staticIDPResolver{reg: reg})
+
+	_, _, _, err := svc.HandleCallback(context.Background(), "code", "google-workspace")
+	require.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+func TestAuthService_RefreshTokens_EmptySlugWithSeveralProvidersIsUnavailable(t *testing.T) {
+	reg := idp.NewRegistry(slugProvider("corp-sso"), slugProvider("partner-sso"))
+	svc := newResolverAuthService(&repo_mocks.MockUserRepository{}, staticIDPResolver{reg: reg})
+	_, err := svc.RefreshTokens(context.Background(), "", "tok")
+	assert.ErrorIs(t, err, ErrIdentityProviderUnavailable, "no silent pick among several providers")
 }

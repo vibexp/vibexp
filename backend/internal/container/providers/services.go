@@ -3,7 +3,6 @@ package providers
 import (
 	"log/slog"
 
-	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -25,12 +24,12 @@ import (
 // ProvideAuthService creates a new AuthService
 func ProvideAuthService(
 	userRepo repositories.UserRepository,
-	registry *idp.Registry,
+	resolver services.IdentityProviderResolver,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 	featureFlagSvc *feature_flags.FeatureFlagService,
 ) services.AuthServiceInterface {
-	return services.NewAuthService(userRepo, registry, eventManager, logger, featureFlagSvc)
+	return services.NewAuthService(userRepo, resolver, eventManager, logger, featureFlagSvc)
 }
 
 // ProvideAPIKeyService creates a new APIKeyService
@@ -489,6 +488,25 @@ func ProvideInstanceAdminResolver(
 	logger *slog.Logger,
 ) services.InstanceAdminResolver {
 	return services.NewInstanceAdminService(cfg.Auth.InstanceAdmins, grants, userRepo, logger)
+}
+
+// ProvideIdentityProviderResolver creates the runtime sign-in provider resolver
+// (#1234): providers are read from instance_auth_providers per sign-in, cached
+// by the auth settings version, and built with the derived callback URL.
+func ProvideIdentityProviderResolver(
+	repo repositories.InstanceAuthProviderRepository,
+	versions repositories.InstanceAuthSettingsVersionRepository,
+	enc services.EncryptionServiceInterface,
+	cfg *config.Config,
+	logger *slog.Logger,
+) services.IdentityProviderResolver {
+	return services.NewIdentityProviderResolver(services.IdentityProviderResolverDeps{
+		Providers:   repo,
+		Versions:    versions,
+		Enc:         enc,
+		CallbackURL: cfg.AuthCallbackURL(),
+		Logger:      logger,
+	})
 }
 
 // ProvideEmailSenderResolver creates the send-time sender resolver. Both the

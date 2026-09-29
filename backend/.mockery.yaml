@@ -49,6 +49,7 @@ packages:
       GitHubAppClientResolver:
       GitHubAppConfigServiceInterface:
       GitHubAppServiceInterface:
+      IdentityProviderResolver:
       InstanceAdminPredicate:
       InstanceAdminResolver:
       MemoryServiceInterface:

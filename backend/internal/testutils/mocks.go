@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
-	"github.com/vibexp/vibexp/internal/auth/idp"
 	idpmocks "github.com/vibexp/vibexp/internal/auth/idp/mocks"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/external"
@@ -336,12 +335,12 @@ func (m *MockAppContainer) EnvironmentService() *services.EnvironmentService {
 }
 
 // External methods
-func (m *MockAppContainer) IdentityProviderRegistry() *idp.Registry {
+func (m *MockAppContainer) IdentityProviderResolver() services.IdentityProviderResolver {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(*idp.Registry)
+	return args.Get(0).(services.IdentityProviderResolver)
 }
 
 func (m *MockAppContainer) EmailSender() external.EmailSender {

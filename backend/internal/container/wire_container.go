@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/container/providers"
 	"github.com/vibexp/vibexp/internal/database"
@@ -140,8 +139,8 @@ type WireContainer struct {
 	instanceAdminResolver services.InstanceAdminResolver
 
 	// External dependencies
-	identityRegistry *idp.Registry
-	smtpClient       external.EmailSender
+	identityProviderResolver services.IdentityProviderResolver
+	smtpClient               external.EmailSender
 
 	// Event system
 	eventSystemDeps *providers.EventSystemDeps
@@ -535,8 +534,9 @@ func (c *WireContainer) RelationSeedService() services.RelationSeedServiceInterf
 }
 
 // External dependencies
-func (c *WireContainer) IdentityProviderRegistry() *idp.Registry {
-	return c.identityRegistry
+// IdentityProviderResolver returns the runtime sign-in provider resolver (#1234).
+func (c *WireContainer) IdentityProviderResolver() services.IdentityProviderResolver {
+	return c.identityProviderResolver
 }
 
 func (c *WireContainer) EmailSender() external.EmailSender {

@@ -224,6 +224,12 @@ func ProvideInstanceAuthProviderRepository(db *database.DB) repositories.Instanc
 	return postgres.NewInstanceAuthProviderRepository(db)
 }
 
+// ProvideInstanceAuthSettingsVersionRepository creates the reader of the shared
+// auth settings version, the cache key of the identity provider resolver.
+func ProvideInstanceAuthSettingsVersionRepository(db *database.DB) repositories.InstanceAuthSettingsVersionRepository {
+	return postgres.NewInstanceAuthSettingsVersionRepository(db)
+}
+
 // ProvideInstanceAdminRepository creates a new InstanceAdminRepository (#1231).
 func ProvideInstanceAdminRepository(db *database.DB) repositories.InstanceAdminRepository {
 	return postgres.NewInstanceAdminRepository(db)

@@ -230,7 +230,7 @@
     "/api/v1/auth/login": {
       "get": {
         "summary": "Initiate login with an identity provider",
-        "description": "Selects an enabled identity provider, generates a CSRF state, stores the\n(state, provider) pair in a signed `vx_state` cookie, and returns the\nprovider's authorization URL. The client should redirect the user to this\nURL to begin the authentication flow.\n\nThe provider is chosen with the `provider` query parameter, whose value is\none of the deployment's enabled providers (e.g. `google`, `github`,\n`oidc`). When exactly one provider is enabled the parameter may be omitted\nand that provider is used. When several are enabled the parameter is\nrequired; an unknown or disabled value is rejected (no silent default).\n",
+        "description": "Selects an enabled identity provider, generates a CSRF state, stores the\n(state, provider) pair in a signed `vx_state` cookie, and returns the\nprovider's authorization URL. The client should redirect the user to this\nURL to begin the authentication flow.\n\nThe provider is chosen with the `provider` query parameter, whose value is\nthe slug of one of the deployment's enabled providers (e.g. `google`,\n`github`, `oidc`, or an admin-chosen slug such as `corp-sso`). When exactly one provider is enabled the parameter may be omitted\nand that provider is used. When several are enabled the parameter is\nrequired; an unknown or disabled value is rejected (no silent default).\n",
         "operationId": "login",
         "security": [],
         "parameters": [
@@ -238,7 +238,7 @@
             "name": "provider",
             "in": "query",
             "required": false,
-            "description": "Canonical name of the identity provider to use (e.g. `google`,\n`github`, `oidc`). Optional when a single provider is enabled;\nrequired when more than one is enabled.\n",
+            "description": "Slug of the identity provider to use (the `name` returned by\nGET /api/v1/auth/providers). Optional when a single provider is\nenabled; required when more than one is enabled.\n",
             "schema": {
               "type": "string",
               "example": "google"
@@ -277,7 +277,7 @@
             }
           },
           "503": {
-            "description": "No identity provider is configured (web login unavailable)",
+            "description": "No identity provider is enabled (web login unavailable), or the\nenabled providers could not be read\n",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -295,7 +295,7 @@
     "/api/v1/auth/providers": {
       "get": {
         "summary": "List enabled login providers",
-        "description": "Returns the login providers enabled in this deployment's configuration,\neach with a canonical `name` (the value to pass as `?provider=` to\n`GET /api/v1/auth/login`) and a human-readable `display_name` for the\nlogin UI. The login screen uses this to render a provider picker instead\nof hardcoding the provider list. The list is stable-sorted and may be\nempty when no provider is configured.\n",
+        "description": "Returns the login providers enabled on this instance, each with its slug\nas `name` (the value to pass as `?provider=` to\n`GET /api/v1/auth/login`), a human-readable `display_name` for the login\nUI and its `type`. The login screen uses this to render a provider picker\ninstead of hardcoding the provider list. The list is in the\nadmin-defined sort order, reflects provider changes with no restart, and\nmay be empty when no provider is enabled.\n",
         "operationId": "listAuthProviders",
         "security": [],
         "responses": {
@@ -311,6 +311,16 @@
           },
           "500": {
             "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The enabled providers could not be read",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -355,7 +365,7 @@
         ],
         "responses": {
           "302": {
-            "description": "Redirects the browser to the frontend. On success, to the home page\n(a session cookie is set). When sign-in is denied by the access\nallowlist, to `/auth/callback?error=access_restricted` with no session\ncookie set.\n",
+            "description": "Redirects the browser to the frontend. On success, to the home page\n(a session cookie is set). When sign-in is denied by the access\nallowlist, to `/auth/callback?error=access_restricted` with no session\ncookie set. When the provider the flow started with was disabled or\nremoved before the callback, to\n`/auth/callback?error=provider_unavailable`.\n",
             "headers": {
               "Location": {
                 "description": "Frontend URL — the home page on success (e.g. https://app.example.com/),\nor /auth/callback?error=access_restricted on an allowlist denial.\n",
@@ -394,6 +404,16 @@
           },
           "500": {
             "description": "Identity provider authentication failed or session could not be created",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The enabled providers could not be read",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -28340,27 +28360,43 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Canonical provider name, also the value to pass as the `provider`\nquery parameter to GET /api/v1/auth/login (e.g. `google`, `github`,\n`oidc`).\n",
+            "description": "Provider slug, also the value to pass as the `provider` query\nparameter to GET /api/v1/auth/login (e.g. `google`, `github`, `oidc`,\nor an admin-chosen slug such as `corp-sso`).\n",
             "example": "google"
           },
           "display_name": {
             "type": "string",
             "description": "Human-readable label for the provider button in the login UI",
             "example": "Google"
+          },
+          "type": {
+            "type": "string",
+            "description": "The provider kind. Several `oidc` providers may be enabled side by\nside, each with its own slug.\n",
+            "enum": [
+              "google",
+              "github",
+              "oidc"
+            ],
+            "x-enum-varnames": [
+              "AuthProviderTypeGoogle",
+              "AuthProviderTypeGitHub",
+              "AuthProviderTypeOIDC"
+            ],
+            "example": "google"
           }
         },
         "required": [
           "name",
-          "display_name"
+          "display_name",
+          "type"
         ]
       },
       "ProvidersResponse": {
         "type": "object",
-        "description": "Response body returned by GET /api/v1/auth/providers listing the login\nproviders enabled in this deployment's configuration.\n",
+        "description": "Response body returned by GET /api/v1/auth/providers listing the login\nproviders enabled on this instance.\n",
         "properties": {
           "providers": {
             "type": "array",
-            "description": "Enabled login providers, stable-sorted by canonical name",
+            "description": "Enabled login providers, ordered by the admin-defined sort order",
             "items": {
               "$ref": "#/components/schemas/AuthProvider"
             }

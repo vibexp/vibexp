@@ -15,18 +15,21 @@ import (
 // JWT-based authentication is removed; sessions are managed via the session
 // package (AES-GCM encrypted httpOnly cookies).
 type AuthServiceInterface interface {
-	// EnabledProviders returns the canonical names of the enabled login
-	// providers (stable-sorted), e.g. ["github", "google"].
-	EnabledProviders() []string
-	// GetLoginURL returns the authorization URL for the named provider, or an
-	// empty string when the provider is not enabled.
-	GetLoginURL(state, provider string) string
-	// HandleCallback exchanges the authorization code using the named provider,
-	// looks up/creates the user, and returns the user, IDP tokens, and whether
-	// the user is newly created.
-	HandleCallback(ctx context.Context, code, provider string) (*models.User, *idp.Tokens, bool, error)
+	// EnabledProviders returns the enabled login providers in the
+	// admin-defined sort order. The error is non-nil only when the providers
+	// could not be resolved.
+	EnabledProviders(ctx context.Context) ([]ProviderInfo, error)
+	// GetLoginURL returns the authorization URL for the provider with slug, or
+	// an empty string when no such provider is enabled.
+	GetLoginURL(ctx context.Context, state, slug string) (string, error)
+	// HandleCallback exchanges the authorization code using the provider with
+	// slug, looks up/creates the user, and returns the user, IDP tokens, and
+	// whether the user is newly created. An unknown or disabled slug returns
+	// ErrIdentityProviderUnavailable; a failure to resolve the providers
+	// returns ErrIdentityProvidersUnresolvable.
+	HandleCallback(ctx context.Context, code, slug string) (*models.User, *idp.Tokens, bool, error)
 	// RefreshTokens exchanges a refresh token for new access/refresh tokens
-	// using the named provider.
+	// using the provider with slug (the one the session was issued by).
 	RefreshTokens(ctx context.Context, provider, refreshToken string) (*idp.Tokens, error)
 	// ProvisionFromClaims resolves or creates a user from upstream IdP claims,
 	// used by the embedded OAuth Authorization Server's login leg (issue #31).

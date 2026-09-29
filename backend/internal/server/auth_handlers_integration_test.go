@@ -221,12 +221,12 @@ func createTestAuthServer(container *MockAuthContainer) *Server {
 }
 
 // TestHandleListProviders_Mapping verifies the providers endpoint returns the
-// enabled providers (preserving the service's stable order) with their UI
-// display names, including the title-cased fallback for unknown names.
+// enabled providers in the service's (admin-defined, not alphabetical) order
+// with their slug, display name and type.
 func TestHandleListProviders_Mapping(t *testing.T) {
 	mockContainer := newMockAuthContainer(t)
-	mockContainer.authService.On("EnabledProviders").
-		Return([]string{"github", "google", "oidc", "okta"})
+	mockContainer.authService.On("EnabledProviders", mock.Anything).
+		Return(providerInfos("oidc", "github", "okta", "google"), nil)
 
 	srv := createTestAuthServer(mockContainer)
 	req := httptest.NewRequest("GET", "/api/v1/auth/providers", nil)
@@ -240,10 +240,10 @@ func TestHandleListProviders_Mapping(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 	assert.Equal(t, []AuthProvider{
-		{Name: "github", DisplayName: "GitHub"},
-		{Name: "google", DisplayName: "Google"},
-		{Name: "oidc", DisplayName: "Single Sign-On"},
-		{Name: "okta", DisplayName: "Okta"}, // unknown -> title-cased fallback
+		{Name: "oidc", DisplayName: "Single Sign-On", Type: "oidc"},
+		{Name: "github", DisplayName: "GitHub", Type: "github"},
+		{Name: "okta", DisplayName: "Okta", Type: "oidc"}, // an OIDC provider slugged "okta"
+		{Name: "google", DisplayName: "Google", Type: "google"},
 	}, []AuthProvider(response.Providers))
 	specconformance.AssertConformsToSpec(t, req, w)
 
@@ -254,7 +254,7 @@ func TestHandleListProviders_Mapping(t *testing.T) {
 // endpoint returns 200 with an empty (non-null) providers array.
 func TestHandleListProviders_Empty(t *testing.T) {
 	mockContainer := newMockAuthContainer(t)
-	mockContainer.authService.On("EnabledProviders").Return([]string{})
+	mockContainer.authService.On("EnabledProviders", mock.Anything).Return(providerInfos(), nil)
 
 	srv := createTestAuthServer(mockContainer)
 	req := httptest.NewRequest("GET", "/api/v1/auth/providers", nil)
@@ -276,10 +276,10 @@ func TestHandleLogin_Success(t *testing.T) {
 	expectedLoginURL := "https://idp.example.com/authorize?state=test-state&client_id=test"
 
 	// A single enabled provider lets the no-param login default to it.
-	mockContainer.authService.On("EnabledProviders").Return([]string{"oidc"})
-	mockContainer.authService.On("GetLoginURL", mock.MatchedBy(func(state string) bool {
+	mockContainer.authService.On("EnabledProviders", mock.Anything).Return(providerInfos("oidc"), nil)
+	mockContainer.authService.On("GetLoginURL", mock.Anything, mock.MatchedBy(func(state string) bool {
 		return state != ""
-	}), "oidc").Return(expectedLoginURL)
+	}), "oidc").Return(expectedLoginURL, nil)
 
 	srv := createTestAuthServer(mockContainer)
 	req := httptest.NewRequest("GET", "/api/v1/auth/login", nil)
@@ -790,6 +790,21 @@ func assertCounterValueForAuthHandler(t *testing.T, rm *metricdata.ResourceMetri
 	assert.True(t, found, "metric %s not found - handler did not record it!", metricName)
 }
 
+// providerInfos builds the EnabledProviders result for slugs, each typed and
+// labelled as the built-in provider of the same name (an unknown slug is typed
+// oidc).
+func providerInfos(slugs ...string) []services.ProviderInfo {
+	out := make([]services.ProviderInfo, len(slugs))
+	for i, slug := range slugs {
+		typ := slug
+		if typ != "google" && typ != "github" {
+			typ = "oidc"
+		}
+		out[i] = services.ProviderInfo{Slug: slug, DisplayName: idp.DefaultDisplayName(idp.ProviderName(slug)), Type: typ}
+	}
+	return out
+}
+
 // enabledForLoginTests is the multi-provider set used by the login
 // query-param tests below.
 var enabledForLoginTests = []string{"github", "google", "oidc"}
@@ -810,12 +825,13 @@ func TestHandleLogin_ProviderQueryParam_Allowed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockContainer := newMockAuthContainer(t)
 			expectedLoginURL := "https://idp.example.com/authorize?state=x"
-			mockContainer.authService.On("EnabledProviders").Return(enabledForLoginTests)
+			mockContainer.authService.On("EnabledProviders", mock.Anything).Return(providerInfos(enabledForLoginTests...), nil)
 			mockContainer.authService.On(
 				"GetLoginURL",
+				mock.Anything,
 				mock.MatchedBy(func(state string) bool { return state != "" }),
 				tt.provider,
-			).Return(expectedLoginURL)
+			).Return(expectedLoginURL, nil)
 
 			srv := createTestAuthServer(mockContainer)
 			req := httptest.NewRequest("GET", tt.url, nil)
@@ -835,12 +851,13 @@ func TestHandleLogin_ProviderQueryParam_Allowed(t *testing.T) {
 // provider and no ?provider= hint, that provider is used.
 func TestHandleLogin_SingleProviderDefaults(t *testing.T) {
 	mockContainer := newMockAuthContainer(t)
-	mockContainer.authService.On("EnabledProviders").Return([]string{"google"})
+	mockContainer.authService.On("EnabledProviders", mock.Anything).Return(providerInfos("google"), nil)
 	mockContainer.authService.On(
 		"GetLoginURL",
+		mock.Anything,
 		mock.MatchedBy(func(state string) bool { return state != "" }),
 		"google",
-	).Return("https://idp.example.com/authorize?state=x")
+	).Return("https://idp.example.com/authorize?state=x", nil)
 
 	srv := createTestAuthServer(mockContainer)
 	req := httptest.NewRequest("GET", "/api/v1/auth/login", nil)
@@ -867,7 +884,7 @@ func TestHandleLogin_ProviderQueryParam_Rejected(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			mockContainer := newMockAuthContainer(t)
-			mockContainer.authService.On("EnabledProviders").Return(enabledForLoginTests)
+			mockContainer.authService.On("EnabledProviders", mock.Anything).Return(providerInfos(enabledForLoginTests...), nil)
 
 			srv := createTestAuthServer(mockContainer)
 			req := httptest.NewRequest("GET", tt.url, nil)
@@ -875,7 +892,7 @@ func TestHandleLogin_ProviderQueryParam_Rejected(t *testing.T) {
 			srv.ServeHTTP(w, req)
 
 			assert.Equal(t, http.StatusBadRequest, w.Code)
-			mockContainer.authService.AssertNotCalled(t, "GetLoginURL", mock.Anything, mock.Anything)
+			mockContainer.authService.AssertNotCalled(t, "GetLoginURL", mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -884,7 +901,7 @@ func TestHandleLogin_ProviderQueryParam_Rejected(t *testing.T) {
 // login endpoint returns 503 (web login unavailable).
 func TestHandleLogin_NoProvidersEnabled(t *testing.T) {
 	mockContainer := newMockAuthContainer(t)
-	mockContainer.authService.On("EnabledProviders").Return([]string{})
+	mockContainer.authService.On("EnabledProviders", mock.Anything).Return(providerInfos(), nil)
 
 	srv := createTestAuthServer(mockContainer)
 	req := httptest.NewRequest("GET", "/api/v1/auth/login", nil)
