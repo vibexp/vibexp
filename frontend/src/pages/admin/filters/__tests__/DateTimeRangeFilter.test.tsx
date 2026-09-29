@@ -25,6 +25,23 @@ describe('DateTimeRangeFilter', () => {
     ).toHaveTextContent('Any time')
   })
 
+  it('groups with a native fieldset and legend, not an ARIA role', () => {
+    render(
+      <DateTimeRangeFilter
+        label="Last resource created"
+        value={{}}
+        onChange={vi.fn()}
+        now={NOW}
+      />
+    )
+    const group = screen.getByRole('group', { name: 'Last resource created' })
+    expect(group.tagName).toBe('FIELDSET')
+    expect(group).not.toHaveAttribute('role')
+    expect(group.querySelector(':scope > legend')).toHaveTextContent(
+      'Last resource created'
+    )
+  })
+
   it('passes a picked preset through', async () => {
     const onChange = vi.fn()
     render(
