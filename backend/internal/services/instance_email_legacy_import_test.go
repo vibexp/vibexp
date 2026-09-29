@@ -480,7 +480,7 @@ func TestImportLegacyEmailConfig_UnconfiguredWarnings(t *testing.T) {
 		f.run(dockerDefaultsLegacyEmail(), "", " ")
 
 		warnings := f.messagesAt(slog.LevelWarn)
-		require.Len(t, warnings, 1, "blank entries are not admins (Config.IsInstanceAdmin ignores them)")
+		require.Len(t, warnings, 1, "blank entries are not admins (IsRootAdmin ignores them)")
 		assert.Contains(t, warnings[0], "nobody can configure it")
 	})
 

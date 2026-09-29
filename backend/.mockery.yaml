@@ -50,6 +50,7 @@ packages:
       GitHubAppConfigServiceInterface:
       GitHubAppServiceInterface:
       InstanceAdminPredicate:
+      InstanceAdminResolver:
       MemoryServiceInterface:
       MetadataCatalogServiceInterface:
       ModelProvider:

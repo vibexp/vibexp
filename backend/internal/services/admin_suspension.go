@@ -21,8 +21,9 @@ func (e *ErrAdminSuspendSelf) Error() string {
 	return "an instance admin cannot suspend their own account"
 }
 
-// ErrAdminSuspendInstanceAdmin is returned when the target's email is in the
-// auth.instance_admins config allowlist. The handler maps it to 409.
+// ErrAdminSuspendInstanceAdmin is returned when the target is a ROOT instance
+// admin (in the auth.instance_admins config allowlist). A DB-granted admin is
+// not protected. The handler maps it to 409.
 type ErrAdminSuspendInstanceAdmin struct {
 	Email string
 }
@@ -31,10 +32,11 @@ func (e *ErrAdminSuspendInstanceAdmin) Error() string {
 	return fmt.Sprintf("%s is a configured instance admin and cannot be suspended", e.Email)
 }
 
-// InstanceAdminPredicate reports whether an email is a config-listed instance
-// admin. It is the same predicate instanceAdminMiddleware gates the admin
-// surface with (config.Config.IsInstanceAdmin), injected rather than imported so
-// the service does not depend on the config package.
+// InstanceAdminPredicate reports whether an email is a ROOT instance admin
+// (config-listed in auth.instance_admins): InstanceAdminResolver.IsRootAdmin.
+// Only root admins are protected from suspension and deletion; a DB-granted
+// admin (#1233) can be suspended or deleted like any user, and suspension also
+// removes their admin access.
 type InstanceAdminPredicate func(email string) bool
 
 // SuspendUser blocks an account at every authentication entry point.
@@ -42,7 +44,7 @@ type InstanceAdminPredicate func(email string) bool
 // Guards, in order:
 //  1. unknown id → (nil, nil), which the handler maps to 404;
 //  2. self-suspension → *ErrAdminSuspendSelf;
-//  3. config-listed instance admin → *ErrAdminSuspendInstanceAdmin.
+//  3. root (config-listed) instance admin → *ErrAdminSuspendInstanceAdmin.
 //
 // Because auth.instance_admins is CONFIG rather than data, guard 3 also means an
 // operator can always recover from a lockout by editing config — there is no

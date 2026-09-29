@@ -23,8 +23,8 @@ func (e *ErrAdminDeleteSelf) Error() string {
 	return "an instance admin cannot delete their own account"
 }
 
-// ErrAdminDeleteInstanceAdmin is returned when the target is a config-listed
-// instance admin.
+// ErrAdminDeleteInstanceAdmin is returned when the target is a ROOT
+// (config-listed) instance admin. A DB-granted admin can be deleted.
 type ErrAdminDeleteInstanceAdmin struct {
 	Email string
 }
@@ -70,7 +70,7 @@ func (s *AdminService) UpdateUserName(
 //
 //  1. unknown id → (nil, nil), which the handler maps to 404;
 //  2. self-deletion → *ErrAdminDeleteSelf;
-//  3. config-listed instance admin → *ErrAdminDeleteInstanceAdmin;
+//  3. root (config-listed) instance admin → *ErrAdminDeleteInstanceAdmin;
 //  4. owns shared teams with other members → *ErrAdminDeleteBlocked.
 //
 // Guard 4 is evaluated by the repository INSIDE the delete transaction rather

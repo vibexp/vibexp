@@ -224,6 +224,11 @@ func ProvideInstanceAuthProviderRepository(db *database.DB) repositories.Instanc
 	return postgres.NewInstanceAuthProviderRepository(db)
 }
 
+// ProvideInstanceAdminRepository creates a new InstanceAdminRepository (#1231).
+func ProvideInstanceAdminRepository(db *database.DB) repositories.InstanceAdminRepository {
+	return postgres.NewInstanceAdminRepository(db)
+}
+
 // ProvideInstanceAuthAllowlistRepository creates a new InstanceAuthAllowlistRepository
 func ProvideInstanceAuthAllowlistRepository(db *database.DB) repositories.InstanceAuthAllowlistRepository {
 	return postgres.NewInstanceAuthAllowlistRepository(db)

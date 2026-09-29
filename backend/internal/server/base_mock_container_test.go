@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/container"
@@ -272,6 +273,21 @@ func (b *BaseMockContainer) TeamAISummarySettingsService() services.TeamAISummar
 // TeamSettingsAuditRepository returns nil; suites that exercise it install their own.
 func (b *BaseMockContainer) TeamSettingsAuditRepository() repositories.TeamSettingsAuditRepository {
 	return nil
+}
+
+// noInstanceAdminGrants is an InstanceAdminRepository holding no DB grants.
+type noInstanceAdminGrants struct {
+	repositories.InstanceAdminRepository
+}
+
+func (noInstanceAdminGrants) IsGranted(context.Context, string) (bool, error) { return false, nil }
+
+// InstanceAdminResolver returns a resolver with no root admins and no DB
+// grants, so nobody is an instance admin. Admin suites install one built from
+// their config (see newAdminTestServer).
+func (b *BaseMockContainer) InstanceAdminResolver() services.InstanceAdminResolver {
+	return services.NewInstanceAdminService(nil, noInstanceAdminGrants{}, alwaysActiveUserRepository{},
+		slog.New(slog.DiscardHandler))
 }
 
 // InstanceSettingsAuditRepository returns nil; suites that exercise it install their own.

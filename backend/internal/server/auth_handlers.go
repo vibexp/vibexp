@@ -371,9 +371,23 @@ func (s *Server) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	resolver := s.container.InstanceAdminResolver()
+	isAdmin, err := resolver.IsInstanceAdmin(r.Context(), user)
+	if err != nil {
+		// The flag is UI convenience only (every admin call is authorized
+		// server-side), so a grant lookup failure degrades it rather than /me.
+		s.logger.With(
+			"service", serverLogServiceName,
+			"handler", "handleGetMe",
+			"user_id", userID,
+			"error", err,
+		).Warn("Failed to resolve instance admin; reporting is_instance_admin=false")
+	}
+
 	writeOK(w, &models.CurrentUserResponse{
-		User:            user,
-		IsInstanceAdmin: s.config.IsInstanceAdmin(user.Email),
+		User:                user,
+		IsInstanceAdmin:     isAdmin,
+		IsRootInstanceAdmin: resolver.IsRootAdmin(user.Email),
 	}, s.logger)
 }
 

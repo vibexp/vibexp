@@ -97,9 +97,10 @@ auth:
     domains: "${AUTH_ALLOWED_DOMAINS:-}"
     emails: "${AUTH_ALLOWED_EMAILS:-}"
 
-  # Instance admins: comma-separated admin email addresses granted access to
-  # instance-level admin surfaces (resolved case-insensitively). Empty (the
-  # default) leaves the feature dormant. e.g.
+  # Root instance admins: comma-separated admin email addresses granted access
+  # to instance-level admin surfaces (resolved case-insensitively). Only root
+  # admins may grant or revoke further (DB-granted) instance admins. Empty (the
+  # default) means no root admin. e.g.
   # INSTANCE_ADMIN_EMAILS=alice@example.com,bob@other.com
   instance_admins: "${INSTANCE_ADMIN_EMAILS:-}"
 

@@ -480,6 +480,17 @@ func ProvideInstanceEmailProviderService(
 	return services.NewInstanceEmailProviderService(repo, audit, userRepo, enc, logger)
 }
 
+// ProvideInstanceAdminResolver creates the instance admin resolver (#1233):
+// root admins come from auth.instance_admins, DB admins from instance_admins.
+func ProvideInstanceAdminResolver(
+	cfg *config.Config,
+	grants repositories.InstanceAdminRepository,
+	userRepo repositories.UserRepository,
+	logger *slog.Logger,
+) services.InstanceAdminResolver {
+	return services.NewInstanceAdminService(cfg.Auth.InstanceAdmins, grants, userRepo, logger)
+}
+
 // ProvideEmailSenderResolver creates the send-time sender resolver. Both the
 // team provider and the INSTANCE FALLBACK are read from the database per send
 // (#1188), so nothing about the instance provider is fixed at wire time.

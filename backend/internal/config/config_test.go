@@ -908,33 +908,6 @@ func TestValidateDatabaseSSLMode(t *testing.T) {
 	}
 }
 
-func TestIsInstanceAdmin(t *testing.T) {
-	admins := EnvStringSlice{"Alice@Example.com", "  bob@corp.io  "}
-
-	tests := []struct {
-		name   string
-		admins EnvStringSlice
-		email  string
-		want   bool
-	}{
-		{"empty list is always false", nil, "alice@example.com", false},
-		{"empty email is false", admins, "", false},
-		{"empty email against empty list is false", nil, "", false},
-		{"exact match", admins, "alice@example.com", true},
-		{"case-insensitive match", admins, "ALICE@EXAMPLE.COM", true},
-		{"input whitespace trimmed", admins, "  alice@example.com  ", true},
-		{"configured-entry whitespace trimmed", admins, "bob@corp.io", true},
-		{"non-member is false", admins, "carol@example.com", false},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := &Config{Auth: AuthConfig{InstanceAdmins: tc.admins}}
-			assert.Equal(t, tc.want, cfg.IsInstanceAdmin(tc.email))
-		})
-	}
-}
-
 func TestValidateInstanceAdmins(t *testing.T) {
 	tests := []struct {
 		name    string

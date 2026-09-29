@@ -67,20 +67,31 @@ CurrentUser:
   description: |
     The authenticated user as returned by GET /api/v1/auth/me — the full User
     object plus session-relative flags. `is_instance_admin` lets the SPA gate the
-    Admin Portal menu and /admin routes; it is UI convenience only, as every
-    /api/v1/admin/* call is authorized server-side regardless.
+    Admin Portal menu and /admin routes, and `is_root_instance_admin` lets it
+    hide the grant/revoke admin controls; both are UI convenience only, as every
+    /api/v1/admin/* call (and every grant or revoke) is authorized server-side
+    regardless.
   allOf:
     - $ref: '#/User'
     - type: object
       required:
         - is_instance_admin
+        - is_root_instance_admin
       properties:
         is_instance_admin:
           type: boolean
           description: |
+            Whether the authenticated user is an instance admin: either a root
+            admin (see `is_root_instance_admin`) or a non-suspended user granted
+            instance admin in the database by a root admin.
+          example: false
+        is_root_instance_admin:
+          type: boolean
+          description: |
             Whether the authenticated user's email is in the configured
-            auth.instance_admins list (matched case-insensitively). False when the
-            list is empty (feature dormant).
+            auth.instance_admins list (matched case-insensitively). Only root
+            admins may grant or revoke other instance admins. UI convenience
+            only; grant/revoke is authorized server-side.
           example: false
 
 LoginResponse:
