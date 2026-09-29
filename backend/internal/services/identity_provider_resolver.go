@@ -20,6 +20,7 @@ import (
 	"github.com/vibexp/vibexp/internal/auth/idp/github"
 	"github.com/vibexp/vibexp/internal/auth/idp/google"
 	"github.com/vibexp/vibexp/internal/auth/idp/oidc"
+	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -140,6 +141,34 @@ type identityProviderResolver struct {
 
 var _ IdentityProviderResolver = (*identityProviderResolver)(nil)
 
+// WarnIgnoredLegacyRedirectURIs logs one WARN for each provider enabled in the
+// legacy config.yaml (auth.providers / auth.provider) whose redirect_uri
+// differs from the derived callbackURL. Providers not enabled there are skipped:
+// the combined image's config.docker.yaml defaults every redirect_uri, so
+// warning on those would fire on every boot for nothing. The
+// resolver builds every provider with the derived URL (#1234), so such a
+// redirect_uri no longer has any effect, and an IdP console registered with it
+// rejects sign-in until the derived URL is registered there instead.
+func WarnIgnoredLegacyRedirectURIs(auth config.AuthConfig, callbackURL string, logger *slog.Logger) {
+	redirectURIs := map[string]string{
+		string(idp.ProviderGoogle): auth.LegacyGoogle.RedirectURI,
+		string(idp.ProviderGitHub): auth.LegacyGitHub.RedirectURI,
+		string(idp.ProviderOIDC):   auth.LegacyOIDC.RedirectURI,
+	}
+	for _, name := range auth.LegacyEnabledProviderNames() {
+		configured := strings.TrimSpace(redirectURIs[name])
+		if configured == "" || configured == callbackURL {
+			continue
+		}
+		logger.With(
+			"provider", name,
+			"configured_redirect_uri", configured,
+			"callback_url", callbackURL,
+		).Warn("auth." + name + ".redirect_uri is ignored: every sign-in provider now redirects to the " +
+			"derived callback URL; register callback_url in the identity provider's console")
+	}
+}
+
 // NewIdentityProviderResolver creates the runtime identity provider resolver.
 func NewIdentityProviderResolver(deps IdentityProviderResolverDeps) IdentityProviderResolver {
 	return newIdentityProviderResolver(deps)
@@ -173,18 +202,24 @@ func (r *identityProviderResolver) Snapshot(ctx context.Context) (*idp.Registry,
 	// One rebuild at a time, shared by every caller that arrives meanwhile. It
 	// runs detached from the caller's cancellation, so one aborted sign-in
 	// cannot fail the rebuild for everyone waiting on it; each discovery is
-	// bounded by discoveryTimeout instead.
-	res, err, _ := r.group.Do("rebuild", func() (any, error) {
+	// bounded by discoveryTimeout instead. A caller whose own request ends
+	// stops waiting, while the rebuild carries on for the others.
+	ch := r.group.DoChan("rebuild", func() (any, error) {
 		if s := r.snap.Load(); r.fresh(s, version) || (s != nil && s.version > version) {
 			// Built meanwhile, possibly at a newer version than this caller read.
 			return s, nil
 		}
 		return r.rebuild(context.WithoutCancel(ctx), version)
 	})
-	if err != nil {
-		return nil, err
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-ch:
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		return res.Val.(*idpSnapshot).registry, nil
 	}
-	return res.(*idpSnapshot).registry, nil
 }
 
 // fresh reports whether s can be served for version: built at that version,

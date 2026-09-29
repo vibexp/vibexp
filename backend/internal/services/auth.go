@@ -42,6 +42,12 @@ var ErrAccessRestricted = errors.New("access restricted by allowlist")
 // disabled between login and callback.
 var ErrIdentityProviderUnavailable = errors.New("identity provider is not enabled")
 
+// ErrIdentityProviderTemporarilyUnavailable is returned by RefreshTokens when
+// the session's provider is enabled but currently failed to build (unhealthy,
+// see IdentityProviderResolver.Health): the session is still valid and a later
+// refresh may succeed, so it must not be treated as a revoked session.
+var ErrIdentityProviderTemporarilyUnavailable = errors.New("identity provider is temporarily unavailable")
+
 // ErrIdentityProvidersUnresolvable is returned when the enabled providers could
 // not be read (the database is unreachable).
 var ErrIdentityProvidersUnresolvable = errors.New("identity providers could not be resolved")
@@ -220,7 +226,10 @@ func (as *AuthService) HandleCallback(
 // RefreshTokens refreshes the access token using the provider with slug. The
 // slug is carried in the session so the right provider rotates the token
 // (different providers use different refresh endpoints; some, like GitHub, do
-// not support refresh at all).
+// not support refresh at all). A failure to read the providers returns
+// ErrIdentityProvidersUnresolvable and an enabled-but-unhealthy provider
+// ErrIdentityProviderTemporarilyUnavailable, both transient; only a provider
+// that is not enabled returns ErrIdentityProviderUnavailable.
 func (as *AuthService) RefreshTokens(
 	ctx context.Context, slug, refreshToken string,
 ) (*idp.Tokens, error) {
@@ -239,6 +248,11 @@ func (as *AuthService) RefreshTokens(
 	}
 	p, ok := reg.Get(name)
 	if !ok {
+		// Health lists every ENABLED provider, so an entry here means the
+		// provider is enabled but failed to build: a transient condition.
+		if _, enabled := as.resolver.Health()[string(name)]; enabled {
+			return nil, fmt.Errorf("%w: %q", ErrIdentityProviderTemporarilyUnavailable, slug)
+		}
 		return nil, fmt.Errorf("%w: %q", ErrIdentityProviderUnavailable, slug)
 	}
 	return p.Refresh(ctx, refreshToken)

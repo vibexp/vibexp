@@ -103,14 +103,15 @@ services:
       # once migrated (they become a boot failure in a later release).
       # With a non-localhost FRONTEND_BASE_URL, configure a web-login provider.
       # AUTH_PROVIDER selects one of google | github | oidc; set its client id +
-      # secret (and redirect_uri if it differs from the default
-      # <FRONTEND_BASE_URL>/api/v1/auth/callback). For several providers at once,
-      # mount a config.yaml with `auth.providers: [...]` (see volumes below).
+      # secret. The callback is always derived as
+      # <FRONTEND_BASE_URL>/api/v1/auth/callback: register that URL in the
+      # provider's console (a *_REDIRECT_URI variable is ignored). For several
+      # providers at once, mount a config.yaml with `auth.providers: [...]` (see
+      # volumes below).
       # AUTH_PROVIDER: "oidc"
       # OIDC_ISSUER_URL: "https://idp.example.com"
       # OIDC_CLIENT_ID: "client_..."
       # OIDC_CLIENT_SECRET: "secret_..."
-      # OIDC_REDIRECT_URI: "https://vibexp.example.com/api/v1/auth/callback"
       #
       # Enable the embedded MCP OAuth server in production. Set BOTH the HTTPS
       # issuer URL and the public MCP resource URI (the token audience, RFC 8707):

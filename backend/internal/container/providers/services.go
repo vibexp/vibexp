@@ -500,6 +500,7 @@ func ProvideIdentityProviderResolver(
 	cfg *config.Config,
 	logger *slog.Logger,
 ) services.IdentityProviderResolver {
+	services.WarnIgnoredLegacyRedirectURIs(cfg.Auth, cfg.AuthCallbackURL(), logger)
 	return services.NewIdentityProviderResolver(services.IdentityProviderResolverDeps{
 		Providers:   repo,
 		Versions:    versions,

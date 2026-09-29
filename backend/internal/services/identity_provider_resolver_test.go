@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
+	"github.com/vibexp/vibexp/internal/config"
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/testutils/fakeoidc"
@@ -486,4 +488,56 @@ func TestIDPResolver_TestProviderGitHubCredentialCheck(t *testing.T) {
 
 	h.r.githubExchangeURL = "http://127.0.0.1:1"
 	require.ErrorContains(t, h.r.TestProvider(ctx, stored, nil), "credential check")
+}
+
+func TestWarnIgnoredLegacyRedirectURIs(t *testing.T) {
+	const derived = "https://vibexp.example.com/api/v1/auth/callback"
+	auth := config.AuthConfig{
+		LegacyProviders: []string{"oidc", "github", "google"},
+		LegacyOIDC:      config.OIDCAuthConfig{RedirectURI: "https://api.example.com/api/v1/auth/callback"},
+		LegacyGitHub:    config.GitHubAuthConfig{RedirectURI: derived},
+		// Google is enabled but has no redirect_uri configured.
+	}
+	logger, rec := logtest.New()
+	WarnIgnoredLegacyRedirectURIs(auth, derived, logger)
+
+	var warned []string
+	for _, e := range rec.AllEntries() {
+		if e.Level == slog.LevelWarn {
+			warned = append(warned, e.Data["provider"].(string))
+			assert.Equal(t, derived, e.Data["callback_url"])
+			assert.Equal(t, "https://api.example.com/api/v1/auth/callback", e.Data["configured_redirect_uri"])
+		}
+	}
+	assert.Equal(t, []string{"oidc"}, warned, "only an enabled provider whose redirect_uri differs is reported")
+
+	t.Run("a redirect_uri of a provider that is not enabled is not reported", func(t *testing.T) {
+		logger, rec := logtest.New()
+		WarnIgnoredLegacyRedirectURIs(config.AuthConfig{
+			LegacyProvider: "github",
+			LegacyOIDC:     config.OIDCAuthConfig{RedirectURI: "http://localhost:8080/api/v1/auth/callback"},
+		}, derived, logger)
+		assert.Empty(t, rec.AllEntries())
+	})
+}
+
+func TestIDPResolver_WaiterLeavesWhenItsRequestEnds(t *testing.T) {
+	h := newIDPResolverHarness(t)
+	iss := newIDPTestIssuer(t)
+	h.repo.set(h.row(t, "id-1", "corp-sso", models.InstanceAuthProviderOIDC, iss.URL))
+	h.repo.gate = make(chan struct{})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := h.r.Snapshot(ctx)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), time.Second, "the caller stops waiting when its own request ends")
+
+	// The rebuild itself was not cancelled: it completes for the next caller.
+	close(h.repo.gate)
+	reg, err := h.r.Snapshot(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"corp-sso"}, slugs(reg))
+	assert.EqualValues(t, 1, h.repo.lists.Load(), "the detached rebuild served the later caller")
 }

@@ -79,8 +79,9 @@ func newTestRegistry(p *idpmocks.MockIdentityProvider) IdentityProviderResolver 
 // staticIDPResolver is an IdentityProviderResolver serving a fixed registry (or
 // a fixed error). The services tests cannot import services/mocks (cycle).
 type staticIDPResolver struct {
-	reg *idp.Registry
-	err error
+	reg    *idp.Registry
+	err    error
+	health map[string]ProviderHealth
 }
 
 func (s staticIDPResolver) Snapshot(context.Context) (*idp.Registry, error) { return s.reg, s.err }
@@ -93,7 +94,7 @@ func (s staticIDPResolver) Provider(_ context.Context, slug string) (idp.Identit
 	return p, ok, nil
 }
 
-func (s staticIDPResolver) Health() map[string]ProviderHealth { return nil }
+func (s staticIDPResolver) Health() map[string]ProviderHealth { return s.health }
 
 func (s staticIDPResolver) TestProvider(context.Context, models.InstanceAuthProvider, *string) error {
 	return nil
@@ -1046,4 +1047,17 @@ func TestAuthService_RefreshTokens_EmptySlugWithSeveralProvidersIsUnavailable(t 
 	svc := newResolverAuthService(&repo_mocks.MockUserRepository{}, staticIDPResolver{reg: reg})
 	_, err := svc.RefreshTokens(context.Background(), "", "tok")
 	assert.ErrorIs(t, err, ErrIdentityProviderUnavailable, "no silent pick among several providers")
+}
+
+func TestAuthService_RefreshTokens_UnhealthyProviderIsTemporarilyUnavailable(t *testing.T) {
+	reg := idp.NewRegistry(slugProvider("github"))
+	health := map[string]ProviderHealth{"corp-sso": {Healthy: false, LastError: "discovery timed out"}}
+	svc := newResolverAuthService(&repo_mocks.MockUserRepository{}, staticIDPResolver{reg: reg, health: health})
+
+	_, err := svc.RefreshTokens(context.Background(), "corp-sso", "tok")
+	assert.ErrorIs(t, err, ErrIdentityProviderTemporarilyUnavailable, "enabled but unhealthy is transient")
+	assert.NotErrorIs(t, err, ErrIdentityProviderUnavailable)
+
+	_, err = svc.RefreshTokens(context.Background(), "partner-sso", "tok")
+	assert.ErrorIs(t, err, ErrIdentityProviderUnavailable, "not enabled at all is permanent")
 }

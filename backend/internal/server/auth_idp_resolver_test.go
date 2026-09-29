@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -358,4 +359,72 @@ func TestHandleCallback_ProviderErrors(t *testing.T) {
 			specconformance.AssertConformsToSpec(t, req, w)
 		})
 	}
+}
+
+// expiredSessionCookie returns a vx_session cookie whose access token has
+// expired, so the next authenticated request refreshes it through slug.
+func expiredSessionCookie(t *testing.T, srv *Server, slug string) *http.Cookie {
+	t.Helper()
+	w := httptest.NewRecorder()
+	require.NoError(t, srv.sessionManager.Write(w, &sesslib.Session{
+		AccessToken: "old", RefreshToken: "refresh-1", ExpiresAt: time.Now().Add(-time.Minute),
+		IDPSubject: rtSubject, UserID: "user-1", Provider: slug,
+	}))
+	for _, c := range w.Result().Cookies() {
+		if c.Name == sesslib.CookieName {
+			return c
+		}
+	}
+	t.Fatal("no session cookie written")
+	return nil
+}
+
+// sessionCleared reports whether the response expires the session cookie.
+func sessionCleared(w *httptest.ResponseRecorder) bool {
+	for _, c := range w.Result().Cookies() {
+		if c.Name == sesslib.CookieName && c.MaxAge < 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// TestResolverAuth_RefreshKeepsSessionWhenProviderIsUnhealthy pins that a
+// session whose provider is enabled but failed to build is kept (503, retry),
+// while one whose provider is no longer enabled is cleared (401).
+func TestResolverAuth_RefreshKeepsSessionWhenProviderIsUnhealthy(t *testing.T) {
+	h := newResolverAuthHarness(t)
+	// Nothing listens on port 1, so discovery fails at once: enabled, unhealthy.
+	h.providers.replace(h.oidcRow(t, "id-a", "corp-sso", "http://127.0.0.1:1", 0))
+
+	get := func(slug string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+		req.AddCookie(expiredSessionCookie(t, h.srv, slug))
+		w := httptest.NewRecorder()
+		h.srv.ServeHTTP(w, req)
+		return w
+	}
+
+	w := get("corp-sso")
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code, w.Body.String())
+	assert.Equal(t, "5", w.Header().Get("Retry-After"))
+	assert.False(t, sessionCleared(w), "an unhealthy provider must not sign the user out")
+
+	w = get("partner-sso")
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.True(t, sessionCleared(w), "a provider that is not enabled ends the session")
+}
+
+func TestRefresh_ResolverErrorKeepsSession(t *testing.T) {
+	mc := newMockAuthContainer(t)
+	mc.authService.On("RefreshTokens", mock.Anything, "corp-sso", "refresh-1").
+		Return(nil, fmt.Errorf("%w: driver: bad connection", services.ErrIdentityProvidersUnresolvable))
+	srv := createTestAuthServer(mc)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	req.AddCookie(expiredSessionCookie(t, srv, "corp-sso"))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.False(t, sessionCleared(w), "a database hiccup must not sign the user out")
 }

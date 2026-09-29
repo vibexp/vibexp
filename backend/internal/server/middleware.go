@@ -15,6 +15,7 @@ import (
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/services"
 )
 
 // refreshLockFor returns a per-user mutex used to serialize refresh-token
@@ -33,6 +34,13 @@ func (s *Server) refreshLockFor(userID string) *sync.Mutex {
 func isTransientRefreshError(err error) bool {
 	if err == nil {
 		return false
+	}
+	// The providers are resolved from the database per refresh (#1234): an
+	// unreadable provider table or an enabled-but-unhealthy provider says
+	// nothing about the session, so keep it and let the client retry.
+	if errors.Is(err, services.ErrIdentityProvidersUnresolvable) ||
+		errors.Is(err, services.ErrIdentityProviderTemporarilyUnavailable) {
+		return true
 	}
 	msg := err.Error()
 	// The provider client surfaces non-2xx status codes as "endpoint returned %d: ...".
