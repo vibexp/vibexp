@@ -26,7 +26,8 @@ import (
 // legacyEmailSection names the config.yaml section in every log line.
 const legacyEmailSection = "email"
 
-// legacyEmailImportFailedMsg is logged by every branch that aborts the import.
+// legacyEmailImportFailedMsg is logged when encrypting, building or inserting
+// the imported row fails.
 const legacyEmailImportFailedMsg = "Failed to import the config.yaml email: section"
 
 // LegacyEmailImportDeps are the collaborators of ImportLegacyEmailConfig.
