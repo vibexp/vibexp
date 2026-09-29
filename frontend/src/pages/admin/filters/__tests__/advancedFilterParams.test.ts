@@ -133,6 +133,61 @@ describe('sanitizeAdvanced', () => {
     expect(activeCount).toBe(0)
   })
 
+  it.each([
+    [{ prompt_count_min: '3' }, { prompt_count_min: 3 }],
+    [{ prompt_count_max: '4' }, { prompt_count_max: 4 }],
+    [
+      { last_resource_created_from: '2026-07-01' },
+      {
+        last_resource_created_from: startOfDay(
+          new Date(2026, 6, 1)
+        ).toISOString(),
+      },
+    ],
+    [
+      { last_resource_created_to: '2026-07-03' },
+      {
+        last_resource_created_to: endOfDay(new Date(2026, 6, 3)).toISOString(),
+      },
+    ],
+    [{ has_projects: 'true' }, { has_projects: true }],
+    [{ has_projects: 'false' }, { has_projects: false }],
+  ])('keeps a lone valid value %o and counts it once', (filters, expected) => {
+    expect(sanitizeAdvanced(SPEC, filters)).toEqual({
+      params: expected,
+      activeCount: 1,
+    })
+  })
+
+  it('counts every declared filter of each kind', () => {
+    const { params, activeCount } = sanitizeAdvanced(
+      {
+        ranges: ['prompt_count', 'memory_count'],
+        triStates: ['has_projects', 'is_admin'],
+      },
+      {
+        prompt_count_min: '1',
+        memory_count_max: '2',
+        has_projects: 'true',
+        is_admin: 'false',
+      }
+    )
+    expect(params).toEqual({
+      prompt_count_min: 1,
+      memory_count_max: 2,
+      has_projects: true,
+      is_admin: false,
+    })
+    expect(activeCount).toBe(4)
+  })
+
+  it('is empty for a spec with no declarations', () => {
+    expect(sanitizeAdvanced({}, { prompt_count_min: '1' })).toEqual({
+      params: {},
+      activeCount: 0,
+    })
+  })
+
   it('is empty without a spec', () => {
     expect(sanitizeAdvanced(undefined, { a: '1' })).toEqual({
       params: {},
