@@ -165,17 +165,28 @@ it('stays dismissed for the session, across remounts', async () => {
   expect(screen.queryByTestId('admin-email-warning')).not.toBeInTheDocument()
 })
 
-it.each(['/admin/settings/email', '/admin/settings/email/'])(
-  'never renders on the email settings page (%s)',
+it.each([
+  '/admin/settings/email',
+  '/admin/settings/email/',
+  '/admin/settings/email//',
+])('never renders on the email settings page (%s)', async path => {
+  service.getInstanceEmailSettings.mockResolvedValue(unconfigured)
+  renderBanner(path)
+  await settled()
+  await act(async () => {
+    await Promise.resolve()
+  })
+
+  expect(screen.queryByTestId('admin-email-warning')).not.toBeInTheDocument()
+})
+
+it.each(['/admin/settings/', '/admin/settings/email/smtp/', '/'])(
+  'still renders on other admin paths with trailing slashes (%s)',
   async path => {
     service.getInstanceEmailSettings.mockResolvedValue(unconfigured)
     renderBanner(path)
-    await settled()
-    await act(async () => {
-      await Promise.resolve()
-    })
 
-    expect(screen.queryByTestId('admin-email-warning')).not.toBeInTheDocument()
+    expect(await screen.findByTestId('admin-email-warning')).toBeInTheDocument()
   }
 )
 
