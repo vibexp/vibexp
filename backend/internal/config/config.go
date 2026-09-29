@@ -1298,6 +1298,13 @@ const configFileDefaultPath = "./config.yaml"
 // default redirect_uri for every identity provider.
 const defaultAuthRedirectURI = "http://localhost:8080/api/v1/auth/callback"
 
+// IsDefaultAuthRedirectURI reports whether uri is the built-in default
+// redirect_uri (also baked into config.docker.yaml), i.e. one the operator most
+// likely never set.
+func IsDefaultAuthRedirectURI(uri string) bool {
+	return strings.TrimSpace(uri) == defaultAuthRedirectURI
+}
+
 // Code defaults of the deprecated `email:` section (#1190). Exported so the
 // boot-time import can tell an inherited default from a value an operator
 // chose: koanf merges defaults() into the loaded struct, so an unset key and a

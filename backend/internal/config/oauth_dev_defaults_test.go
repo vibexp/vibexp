@@ -140,3 +140,9 @@ func TestAuthCallbackURL(t *testing.T) {
 		})
 	}
 }
+
+func TestIsDefaultAuthRedirectURI(t *testing.T) {
+	assert.True(t, IsDefaultAuthRedirectURI(" http://localhost:8080/api/v1/auth/callback "))
+	assert.False(t, IsDefaultAuthRedirectURI("https://vibexp.example.com/api/v1/auth/callback"))
+	assert.False(t, IsDefaultAuthRedirectURI(""))
+}

@@ -143,9 +143,10 @@ var _ IdentityProviderResolver = (*identityProviderResolver)(nil)
 
 // WarnIgnoredLegacyRedirectURIs logs one WARN for each provider enabled in the
 // legacy config.yaml (auth.providers / auth.provider) whose redirect_uri
-// differs from the derived callbackURL. Providers not enabled there are skipped:
-// the combined image's config.docker.yaml defaults every redirect_uri, so
-// warning on those would fire on every boot for nothing. The
+// differs from the derived callbackURL. Providers not enabled there, and a
+// redirect_uri still at the built-in default (config.docker.yaml bakes it for
+// every provider), are skipped, so the WARN never fires for a value nobody set.
+// The
 // resolver builds every provider with the derived URL (#1234), so such a
 // redirect_uri no longer has any effect, and an IdP console registered with it
 // rejects sign-in until the derived URL is registered there instead.
@@ -157,7 +158,8 @@ func WarnIgnoredLegacyRedirectURIs(auth config.AuthConfig, callbackURL string, l
 	}
 	for _, name := range auth.LegacyEnabledProviderNames() {
 		configured := strings.TrimSpace(redirectURIs[name])
-		if configured == "" || configured == callbackURL {
+		if configured == "" || configured == callbackURL || config.IsDefaultAuthRedirectURI(configured) {
+			// Unset, already right, or the built-in default nobody chose.
 			continue
 		}
 		logger.With(

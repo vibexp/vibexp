@@ -511,11 +511,20 @@ func TestWarnIgnoredLegacyRedirectURIs(t *testing.T) {
 	}
 	assert.Equal(t, []string{"oidc"}, warned, "only an enabled provider whose redirect_uri differs is reported")
 
+	t.Run("the built-in default redirect_uri is not reported", func(t *testing.T) {
+		logger, rec := logtest.New()
+		WarnIgnoredLegacyRedirectURIs(config.AuthConfig{
+			LegacyProvider: "oidc",
+			LegacyOIDC:     config.OIDCAuthConfig{RedirectURI: "http://localhost:8080/api/v1/auth/callback"},
+		}, derived, logger)
+		assert.Empty(t, rec.AllEntries(), "config.docker.yaml's baked default is not an operator choice")
+	})
+
 	t.Run("a redirect_uri of a provider that is not enabled is not reported", func(t *testing.T) {
 		logger, rec := logtest.New()
 		WarnIgnoredLegacyRedirectURIs(config.AuthConfig{
 			LegacyProvider: "github",
-			LegacyOIDC:     config.OIDCAuthConfig{RedirectURI: "http://localhost:8080/api/v1/auth/callback"},
+			LegacyOIDC:     config.OIDCAuthConfig{RedirectURI: "https://api.example.com/api/v1/auth/callback"},
 		}, derived, logger)
 		assert.Empty(t, rec.AllEntries())
 	})
