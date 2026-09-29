@@ -48,11 +48,7 @@ func (r *noAuthRelay) serveOne() {
 	if err != nil {
 		return
 	}
-	defer func() {
-		if cerr := conn.Close(); cerr != nil {
-			return
-		}
-	}()
+	defer func() { _ = conn.Close() }() //nolint:errcheck // close error is irrelevant to the fake relay
 
 	reader := bufio.NewReader(conn)
 	reply := func(line string) bool {
