@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -217,6 +218,40 @@ func TestSuspendAdminUser_PassesActingAdminAndPredicate(t *testing.T) {
 	).Return(adminUserDetailWithStatus(targetID, models.UserStatusSuspended), nil)
 
 	srv := newAdminTestServer(cfg, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("POST", "/api/v1/admin/users/"+targetID+"/suspend", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, actingID))
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+}
+
+// TestSuspendAdminUser_DBAdminIsNotProtected pins that the guard predicate is
+// the ROOT predicate (#1233): a DB-granted admin can be suspended like any user,
+// while the config-listed root admin stays protected.
+func TestSuspendAdminUser_DBAdminIsNotProtected(t *testing.T) {
+	targetID := uuid.NewString()
+	actingID := uuid.NewString()
+
+	cfg := &config.Config{}
+	cfg.Auth.InstanceAdmins = []string{"root@example.com"}
+	delegate := &models.User{ID: targetID, Email: "delegate@example.com", Status: models.UserStatusActive}
+	resolver := services.NewInstanceAdminService(cfg.Auth.InstanceAdmins,
+		&memInstanceAdminGrants{granted: map[string]bool{targetID: true}},
+		memUsers{users: map[string]*models.User{targetID: delegate}}, slog.New(slog.DiscardHandler))
+	isAdmin, err := resolver.IsInstanceAdmin(context.Background(), delegate)
+	require.NoError(t, err)
+	require.True(t, isAdmin, "precondition: the target is a DB-granted admin")
+
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("SuspendUser", mock.Anything, actingID, targetID,
+		mock.MatchedBy(func(p services.InstanceAdminPredicate) bool {
+			return p != nil && p("root@example.com") && !p(delegate.Email)
+		}),
+	).Return(adminUserDetailWithStatus(targetID, models.UserStatusSuspended), nil)
+
+	srv := newAdminTestServer(cfg, &adminMockContainer{adminService: mockAdmin, instanceAdminResolver: resolver})
 
 	req := httptest.NewRequest("POST", "/api/v1/admin/users/"+targetID+"/suspend", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, actingID))

@@ -28279,7 +28279,7 @@
         ]
       },
       "CurrentUser": {
-        "description": "The authenticated user as returned by GET /api/v1/auth/me — the full User\nobject plus session-relative flags. `is_instance_admin` lets the SPA gate the\nAdmin Portal menu and /admin routes; it is UI convenience only, as every\n/api/v1/admin/* call is authorized server-side regardless.\n",
+        "description": "The authenticated user as returned by GET /api/v1/auth/me — the full User\nobject plus session-relative flags. `is_instance_admin` lets the SPA gate the\nAdmin Portal menu and /admin routes, and `is_root_instance_admin` lets it\nhide the grant/revoke admin controls; both are UI convenience only, as every\n/api/v1/admin/* call (and every grant or revoke) is authorized server-side\nregardless.\n",
         "allOf": [
           {
             "$ref": "#/components/schemas/User"
@@ -28287,12 +28287,18 @@
           {
             "type": "object",
             "required": [
-              "is_instance_admin"
+              "is_instance_admin",
+              "is_root_instance_admin"
             ],
             "properties": {
               "is_instance_admin": {
                 "type": "boolean",
-                "description": "Whether the authenticated user's email is in the configured\nauth.instance_admins list (matched case-insensitively). False when the\nlist is empty (feature dormant).\n",
+                "description": "Whether the authenticated user is an instance admin: either a root\nadmin (see `is_root_instance_admin`) or a non-suspended user granted\ninstance admin in the database by a root admin.\n",
+                "example": false
+              },
+              "is_root_instance_admin": {
+                "type": "boolean",
+                "description": "Whether the authenticated user's email is in the configured\nauth.instance_admins list (matched case-insensitively). Only root\nadmins may grant or revoke other instance admins. UI convenience\nonly; grant/revoke is authorized server-side.\n",
                 "example": false
               }
             }

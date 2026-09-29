@@ -569,8 +569,11 @@ func (s *Server) backofficeAuthMiddleware(next http.Handler) http.Handler {
 
 // instanceAdminMiddleware guards the /api/v1/admin surface. It runs after an
 // auth middleware that only OPTIONALLY populates the user (optionalAuthMiddleware),
-// resolves that user, and requires config.IsInstanceAdmin(user.Email). Any
-// failure — no authenticated user, a lookup error, or a non-admin — returns 404
+// resolves that user, and requires InstanceAdminResolver.IsInstanceAdmin (a
+// root admin from auth.instance_admins, or a non-suspended DB-granted admin,
+// #1233). The grant is read per request, so a revocation takes effect on the
+// next request. Any failure — no authenticated user, a lookup error, a grant
+// lookup error (fail closed), or a non-admin — returns 404
 // (Not Found), not 401/403, so the admin surface is not advertised to non-admins
 // (mirrors the dev-login non-advertisement pattern). It deliberately stays
 // OUTSIDE internal/authz, which is team-scoped by that package's contract.
@@ -592,7 +595,17 @@ func (s *Server) instanceAdminMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if !s.config.IsInstanceAdmin(user.Email) {
+		isAdmin, err := s.container.InstanceAdminResolver().IsInstanceAdmin(r.Context(), user)
+		if err != nil {
+			s.logger.With(
+				"middleware", "instanceAdminMiddleware",
+				"user_id", userID,
+				"error", err,
+			).Error("Failed to resolve instance admin; denying")
+			notFound()
+			return
+		}
+		if !isAdmin {
 			notFound()
 			return
 		}

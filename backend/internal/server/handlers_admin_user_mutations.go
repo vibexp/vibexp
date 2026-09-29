@@ -56,7 +56,7 @@ func (a *adminStrictServer) DeleteAdminUser(
 	// its guards, and after the delete there is nothing left to read it from, so
 	// the audit row would otherwise name nobody.
 	targetEmail, deleted, err := a.s.container.AdminService().DeleteUser(
-		ctx, a.actingAdminID(ctx), targetID, a.s.config.IsInstanceAdmin,
+		ctx, a.actingAdminID(ctx), targetID, a.s.container.InstanceAdminResolver().IsRootAdmin,
 	)
 	if err != nil {
 		return nil, a.mapDeleteError(err)

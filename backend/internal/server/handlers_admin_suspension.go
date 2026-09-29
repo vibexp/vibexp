@@ -21,7 +21,7 @@ func (a *adminStrictServer) SuspendAdminUser(
 	targetID := request.Id.String()
 
 	detail, err := a.s.container.AdminService().SuspendUser(
-		ctx, a.actingAdminID(ctx), targetID, a.s.config.IsInstanceAdmin,
+		ctx, a.actingAdminID(ctx), targetID, a.s.container.InstanceAdminResolver().IsRootAdmin,
 	)
 	if err != nil {
 		return nil, a.mapSuspensionError(err, "SuspendAdminUser")

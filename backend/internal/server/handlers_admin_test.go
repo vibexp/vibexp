@@ -64,6 +64,13 @@ type adminMockContainer struct {
 	instanceAISummaryService services.InstanceAISummarySettingsServiceInterface
 	// apiKeyService lets a full-router test authenticate a caller by API key.
 	apiKeyService services.APIKeyServiceInterface
+	// instanceAdminResolver gates the admin surface (#1233). newAdminTestServer
+	// installs a root-only one built from the test config when unset.
+	instanceAdminResolver services.InstanceAdminResolver
+}
+
+func (c *adminMockContainer) InstanceAdminResolver() services.InstanceAdminResolver {
+	return c.instanceAdminResolver
 }
 
 func (c *adminMockContainer) TeamRepository() repositories.TeamRepository { return c.teamRepo }
@@ -140,9 +147,19 @@ func (c *adminMockContainer) ActivityService() activities.ActivityService {
 }
 
 func newAdminTestServer(cfg *config.Config, container *adminMockContainer) *Server {
+	if container.instanceAdminResolver == nil {
+		container.instanceAdminResolver = rootOnlyInstanceAdminResolver(cfg)
+	}
 	srv := New("8080", nil, "test-api-key", cfg, slog.New(slog.DiscardHandler))
 	srv.container = container
 	return srv
+}
+
+// rootOnlyInstanceAdminResolver is the real resolver over cfg's root admins
+// with no DB grants.
+func rootOnlyInstanceAdminResolver(cfg *config.Config) services.InstanceAdminResolver {
+	return services.NewInstanceAdminService(cfg.Auth.InstanceAdmins, noInstanceAdminGrants{},
+		alwaysActiveUserRepository{}, slog.New(slog.DiscardHandler))
 }
 
 // TestInstanceAdminMiddleware verifies the 404-not-403 non-advertisement gate:

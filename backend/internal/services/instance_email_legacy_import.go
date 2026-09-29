@@ -329,7 +329,9 @@ func warnInstanceEmailUnconfigured(logger *slog.Logger, instanceAdmins []string)
 
 // hasInstanceAdmin reports whether any auth.instance_admins entry is non-blank.
 // Blank entries are accepted by the config loader and ignored by
-// Config.IsInstanceAdmin, so they are not admins here either.
+// InstanceAdminResolver.IsRootAdmin, so they are not admins here either. This
+// deliberately looks at root admins only: at boot the question is whether
+// anyone can configure email, and DB admins are granted by a root admin.
 func hasInstanceAdmin(instanceAdmins []string) bool {
 	for _, admin := range instanceAdmins {
 		if strings.TrimSpace(admin) != "" {

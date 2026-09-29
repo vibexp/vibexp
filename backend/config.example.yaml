@@ -130,9 +130,10 @@ auth:
     domains: []
     emails: []
 
-  # Instance admins: email addresses granted access to instance-level admin
-  # surfaces (resolved case-insensitively). Empty (the default) leaves the
-  # feature dormant — no user is an instance admin. In the combined image this is
+  # Root instance admins: email addresses granted access to instance-level admin
+  # surfaces (resolved case-insensitively). Only root admins may grant or revoke
+  # further (DB-granted) instance admins, and they cannot be suspended, deleted
+  # or revoked. Empty (the default) means no root admin. In the combined image this is
   # a comma-separated ${INSTANCE_ADMIN_EMAILS} env value; here (dev-tuned) it is a
   # YAML list, e.g. [you@example.com].
   instance_admins: []

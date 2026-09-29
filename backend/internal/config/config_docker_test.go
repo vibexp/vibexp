@@ -187,7 +187,6 @@ func TestConfigDockerYAML_InstanceAdminsEnvSplitsToSlice(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"alice@example.com", "bob@other.com"}, []string(cfg.Auth.InstanceAdmins))
-	require.True(t, cfg.IsInstanceAdmin("BOB@other.com"))
 }
 
 // TestConfigDockerYAML_InstanceAdminsDefaultDormant verifies the dormant default:
@@ -199,7 +198,6 @@ func TestConfigDockerYAML_InstanceAdminsDefaultDormant(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, cfg.Auth.InstanceAdmins)
-	require.False(t, cfg.IsInstanceAdmin("alice@example.com"))
 }
 
 // TestConfigDockerYAML_MatchesSchema validates the baked config against the

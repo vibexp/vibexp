@@ -136,6 +136,9 @@ type WireContainer struct {
 	instanceAuthProviderRepo  repositories.InstanceAuthProviderRepository
 	instanceAuthAllowlistRepo repositories.InstanceAuthAllowlistRepository
 
+	// Instance admins: root (config) + DB-granted (#1233)
+	instanceAdminResolver services.InstanceAdminResolver
+
 	// External dependencies
 	identityRegistry *idp.Registry
 	smtpClient       external.EmailSender
@@ -273,6 +276,11 @@ func (c *WireContainer) TeamRepository() repositories.TeamRepository {
 // InstanceSettingsAuditRepository returns the instance settings audit log repository.
 func (c *WireContainer) InstanceSettingsAuditRepository() repositories.InstanceSettingsAuditRepository {
 	return c.instanceSettingsAuditRepo
+}
+
+// InstanceAdminResolver returns the instance admin resolver (#1233).
+func (c *WireContainer) InstanceAdminResolver() services.InstanceAdminResolver {
+	return c.instanceAdminResolver
 }
 
 // TeamSettingsAuditRepository returns the team settings audit log repository.

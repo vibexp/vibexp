@@ -307,13 +307,15 @@ type AuthConfig struct {
 	// LegacyProviders.
 	LegacyAccessAllowlist AccessAllowlistConfig `koanf:"access_allowlist"`
 
-	// InstanceAdmins is the set of instance-admin email addresses (authored as a
-	// comma-separated ${VAR} in the combined image, or a YAML list), declaring
-	// who may access instance-level admin surfaces. Resolved at request time by
-	// Config.IsInstanceAdmin (case-insensitive). Empty (the zero value) means the
-	// feature is dormant — no user is an instance admin — preserving the behavior
-	// of every existing deployment. Follows the same EnvStringSlice pattern as
-	// AccessAllowlist.
+	// InstanceAdmins is the set of ROOT instance-admin email addresses (authored
+	// as a comma-separated ${VAR} in the combined image, or a YAML list). Root
+	// admins may access instance-level admin surfaces, are the only ones who may
+	// grant or revoke DB-granted instance admins (#1233), and cannot be
+	// suspended, deleted or revoked. Resolved at request time by
+	// services.InstanceAdminResolver (case-insensitive, whitespace-trimmed,
+	// blank entries ignored). Empty (the zero value) means no root admin, so no
+	// one can grant a DB admin either. Follows the same EnvStringSlice pattern
+	// as AccessAllowlist.
 	InstanceAdmins EnvStringSlice `koanf:"instance_admins"`
 
 	// LegacyGoogle, LegacyGitHub and LegacyOIDC are the web-login clients of
@@ -1055,23 +1057,6 @@ func (c *Config) IsLocalDevelopment() bool {
 		return false
 	}
 	return strings.Contains(u, "localhost") || strings.Contains(u, "127.0.0.1")
-}
-
-// IsInstanceAdmin reports whether email belongs to a configured instance admin.
-// Matching is case-insensitive and whitespace-trimmed on both sides. An empty
-// auth.instance_admins list (or an empty email) ⇒ always false: the feature is
-// dormant and existing deployments are unaffected.
-func (c *Config) IsInstanceAdmin(email string) bool {
-	target := strings.ToLower(strings.TrimSpace(email))
-	if target == "" {
-		return false
-	}
-	for _, admin := range c.Auth.InstanceAdmins {
-		if strings.ToLower(strings.TrimSpace(admin)) == target {
-			return true
-		}
-	}
-	return false
 }
 
 // applyDevOAuthASDefaults auto-enables the embedded Authorization Server for local

@@ -51,11 +51,13 @@ type User struct {
 // CurrentUserResponse is the GET /api/v1/auth/me payload: the authenticated
 // User plus session-relative flags. It embeds *User so every User field is
 // inlined into the JSON, matching the CurrentUser schema (allOf[User, ...]).
-// IsInstanceAdmin is resolved per-request from config (Config.IsInstanceAdmin)
-// rather than stored on the domain model.
+// IsInstanceAdmin (root OR DB-granted admin) and IsRootInstanceAdmin (named in
+// auth.instance_admins) are resolved per request by
+// services.InstanceAdminResolver rather than stored on the domain model.
 type CurrentUserResponse struct {
 	*User
-	IsInstanceAdmin bool `json:"is_instance_admin"`
+	IsInstanceAdmin     bool `json:"is_instance_admin"`
+	IsRootInstanceAdmin bool `json:"is_root_instance_admin"`
 }
 
 type GoogleUserInfo struct {

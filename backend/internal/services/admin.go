@@ -63,7 +63,7 @@ type AdminServiceInterface interface {
 	// UpdateUserName changes the only admin-editable user field and returns the
 	// refreshed detail. (nil, nil) for an unknown id (handler: 404).
 	UpdateUserName(ctx context.Context, targetID, name string) (*models.AdminUserDetail, error)
-	// DeleteUser hard-deletes a user after the self / config-admin / owned-shared-
+	// DeleteUser hard-deletes a user after the self / root-admin / owned-shared-
 	// team guards. Returns (false, nil) for an unknown id (handler: 404), and
 	// *ErrAdminDeleteSelf, *ErrAdminDeleteInstanceAdmin or *ErrAdminDeleteBlocked
 	// (handler: 409) when refused — in every refusal case nothing is deleted.
