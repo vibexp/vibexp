@@ -12,6 +12,13 @@ import {
 } from '@/pages/admin/useInstanceEmailStatus'
 import { sessionStore } from '@/utils/storage'
 
+/** Drops trailing slashes without a backtracking regex (Sonar S8786). */
+function stripTrailingSlashes(path: string): string {
+  let end = path.length
+  while (end > 0 && path[end - 1] === '/') end--
+  return path.slice(0, end)
+}
+
 function readDismissed(): boolean {
   return sessionStore.get(STORAGE_KEYS.ADMIN_EMAIL_BANNER_DISMISSED) === 'true'
 }
@@ -31,7 +38,8 @@ export function AdminEmailWarningBanner() {
   const [dismissed, setDismissed] = useState(readDismissed)
 
   if (dismissed) return null
-  if (pathname.replace(/\/+$/, '') === INSTANCE_EMAIL_SETTINGS_PATH) return null
+  if (stripTrailingSlashes(pathname) === INSTANCE_EMAIL_SETTINGS_PATH)
+    return null
   if (state !== 'unconfigured' && state !== 'failing') return null
 
   const dismiss = () => {
