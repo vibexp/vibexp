@@ -92,6 +92,26 @@ it('warns that the last send failed, with its time', async () => {
   )
 })
 
+it('keeps the full failure message byte-identical, with and without its time', async () => {
+  service.getInstanceEmailSettings.mockResolvedValue(failing)
+  const { unmount } = renderBanner()
+  const tail =
+    'Invitations, notifications and digests from teams without their own mail provider may not be delivered.'
+
+  const withTime = await screen.findByTestId('admin-email-warning')
+  const withTimeText = withTime.querySelector('p')?.textContent ?? ''
+  expect(withTimeText.startsWith('It failed at ')).toBe(true)
+  expect(withTimeText.endsWith(`. ${tail}`)).toBe(true)
+  unmount()
+
+  service.getInstanceEmailSettings.mockResolvedValue(
+    configured({ is_healthy: false, last_error_at: null })
+  )
+  renderBanner()
+  const withoutTime = await screen.findByTestId('admin-email-warning')
+  expect(withoutTime.querySelector('p')?.textContent).toBe(tail)
+})
+
 it.each([
   ['healthy', configured()],
   [

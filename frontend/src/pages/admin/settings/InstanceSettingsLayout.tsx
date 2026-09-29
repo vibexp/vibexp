@@ -38,6 +38,7 @@ export function InstanceSettingsStatus({
 }>) {
   const customized = settings.source === 'instance'
   const overrides = settings.teams_with_override
+  const overridingTeams = overrides === 1 ? 'team overrides' : 'teams override'
   return (
     <Card data-testid="instance-settings-status">
       <CardContent className="space-y-2 pt-4 text-sm">
@@ -65,7 +66,7 @@ export function InstanceSettingsStatus({
           <Users className="mt-0.5 size-4 shrink-0" />
           {overrides === 0
             ? 'No team overrides these settings, so a change here reaches every team.'
-            : `${String(overrides)} ${overrides === 1 ? 'team overrides' : 'teams override'} these settings. ${overrideNote}`}
+            : `${String(overrides)} ${overridingTeams} these settings. ${overrideNote}`}
         </p>
       </CardContent>
     </Card>
