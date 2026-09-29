@@ -128,37 +128,51 @@ func run() error {
 	return nil
 }
 
-// legacyDeprecations describes the deprecated root sections, keyed by their
-// config.yaml name: `email:` (#1190), `search:` and `ai_summary:` (#1201).
-// invopop/jsonschema has a Schema.Deprecated field but no struct-tag keyword
-// for it, so it is set here after reflection.
-var legacyDeprecations = []struct{ property, description string }{
-	{"email", "Deprecated: imported into the database once at boot when no instance email " +
+// legacyAuthKeyDeprecation describes every deprecated auth provider and
+// allowlist key (#1232).
+const legacyAuthKeyDeprecation = "Deprecated: sign-in providers and the access allowlist are stored in the " +
+	"database and managed under Admin → Settings → Authentication. Imported into the database once at boot " +
+	"when it holds none, ignored afterwards, and a boot failure no earlier than the second minor release " +
+	"after the one that deprecated it."
+
+// legacyDeprecations describes the deprecated properties: the root sections
+// `email:` (#1190), `search:` and `ai_summary:` (#1201), and the auth provider
+// and allowlist keys nested in `auth:` (#1232). definition is the $defs entry
+// holding the property. invopop/jsonschema has a Schema.Deprecated field but no
+// struct-tag keyword for it, so it is set here after reflection.
+var legacyDeprecations = []struct{ definition, property, description string }{
+	{"Config", "email", "Deprecated: imported into the database once at boot when no instance email " +
 		"provider is stored, ignored afterwards, and removed in the next minor release. " +
 		"Configure instance mail under Admin → Settings → Email."},
-	{"search", "Deprecated: imported into the database once at boot when it differs from the " +
+	{"Config", "search", "Deprecated: imported into the database once at boot when it differs from the " +
 		"built-in defaults and no instance search settings are stored, ignored afterwards, and " +
 		"removed in the next minor release. Configure search ranking under Admin → Settings → Search."},
-	{"ai_summary", "Deprecated: imported into the database once at boot when it differs from the " +
+	{"Config", "ai_summary", "Deprecated: imported into the database once at boot when it differs from the " +
 		"built-in defaults and no instance AI summary settings are stored, ignored afterwards, and " +
 		"removed in the next minor release (max_top_n and max_output_tokens_ceiling are ignored). " +
 		"Configure AI summaries under Admin → Settings → AI Summary."},
+	{"AuthConfig", "providers", legacyAuthKeyDeprecation},
+	{"AuthConfig", "provider", legacyAuthKeyDeprecation},
+	{"AuthConfig", "access_allowlist", legacyAuthKeyDeprecation},
+	{"AuthConfig", "google", legacyAuthKeyDeprecation},
+	{"AuthConfig", "github", legacyAuthKeyDeprecation},
+	{"AuthConfig", "oidc", legacyAuthKeyDeprecation},
 }
 
-// markLegacySectionsDeprecated flags the root config's deprecated properties
-// so editors strike them through.
+// markLegacySectionsDeprecated flags the deprecated properties so editors
+// strike them through.
 func markLegacySectionsDeprecated(schema *jsonschema.Schema) error {
-	root, ok := schema.Definitions["Config"]
-	if !ok || root.Properties == nil {
-		return fmt.Errorf("mark sections deprecated: no Config definition")
-	}
 	for _, d := range legacyDeprecations {
-		section, ok := root.Properties.Get(d.property)
-		if !ok {
-			return fmt.Errorf("mark sections deprecated: Config has no %s property", d.property)
+		def, ok := schema.Definitions[d.definition]
+		if !ok || def.Properties == nil {
+			return fmt.Errorf("mark sections deprecated: no %s definition", d.definition)
 		}
-		section.Deprecated = true
-		section.Description = d.description
+		property, ok := def.Properties.Get(d.property)
+		if !ok {
+			return fmt.Errorf("mark sections deprecated: %s has no %s property", d.definition, d.property)
+		}
+		property.Deprecated = true
+		property.Description = d.description
 	}
 	return nil
 }

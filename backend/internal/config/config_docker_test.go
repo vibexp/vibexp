@@ -118,8 +118,8 @@ func TestConfigDockerYAML_AccessAllowlistEnvSplitsToSlices(t *testing.T) {
 	cfg, err := Load(dockerConfigPath)
 	require.NoError(t, err)
 
-	require.Equal(t, []string{"example.com", "corp.io"}, []string(cfg.Auth.AccessAllowlist.Domains))
-	require.Equal(t, []string{"alice@example.com", "bob@other.com"}, []string(cfg.Auth.AccessAllowlist.Emails))
+	require.Equal(t, []string{"example.com", "corp.io"}, []string(cfg.Auth.LegacyAccessAllowlist.Domains))
+	require.Equal(t, []string{"alice@example.com", "bob@other.com"}, []string(cfg.Auth.LegacyAccessAllowlist.Emails))
 }
 
 // TestConfigDockerYAML_AccessAllowlistDefaultsOpen verifies the fail-open
@@ -131,8 +131,8 @@ func TestConfigDockerYAML_AccessAllowlistDefaultsOpen(t *testing.T) {
 	cfg, err := Load(dockerConfigPath)
 	require.NoError(t, err)
 
-	require.Empty(t, cfg.Auth.AccessAllowlist.Domains)
-	require.Empty(t, cfg.Auth.AccessAllowlist.Emails)
+	require.Empty(t, cfg.Auth.LegacyAccessAllowlist.Domains)
+	require.Empty(t, cfg.Auth.LegacyAccessAllowlist.Emails)
 }
 
 // TestConfigDockerYAML_OutboundAllowedCIDRsEnv proves the #745 acceptance
@@ -434,4 +434,57 @@ func TestConfigSchema_EnvPlaceholderTypesAreOptIn(t *testing.T) {
 		require.Equal(t, "boolean", prop.Type, "%s.%s must stay a strict boolean", tc.def, tc.field)
 		require.Empty(t, prop.OneOf, "%s.%s must not accept a placeholder — it is a literal knob", tc.def, tc.field)
 	}
+}
+
+// legacyAuthEnvVars are the env vars config.docker.yaml interpolates into the
+// deprecated auth provider and allowlist keys (#1232).
+var legacyAuthEnvVars = []string{
+	"AUTH_PROVIDER", "AUTH_ALLOWED_DOMAINS", "AUTH_ALLOWED_EMAILS",
+	"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI",
+	"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "GITHUB_REDIRECT_URI",
+	"OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "OIDC_REDIRECT_URI",
+}
+
+// clearLegacyAuthEnv blanks every legacy auth env var, so a developer's
+// exported GOOGLE_CLIENT_ID (or backend/.env) cannot leak into the stock case.
+// ${VAR:-default} treats an empty value as unset.
+func clearLegacyAuthEnv(t *testing.T) {
+	t.Helper()
+	for _, name := range legacyAuthEnvVars {
+		t.Setenv(name, "")
+	}
+}
+
+// TestConfigDockerYAML_StockHasNoDeprecationWarnings pins the populated-not-
+// present rule (#1232): the baked config.docker.yaml declares every deprecated
+// auth key on every install (empty, with a localhost redirect_uri default), and
+// that alone must not warn on every boot.
+func TestConfigDockerYAML_StockHasNoDeprecationWarnings(t *testing.T) {
+	setDockerRequiredEnv(t)
+	clearLegacyAuthEnv(t)
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+	require.Empty(t, cfg.DeprecationWarnings)
+}
+
+// TestConfigDockerYAML_LegacyAuthEnvWarns is the other half: configuring login
+// through the deprecated env vars loads unchanged and warns once per key.
+func TestConfigDockerYAML_LegacyAuthEnvWarns(t *testing.T) {
+	setDockerRequiredEnv(t)
+	clearLegacyAuthEnv(t)
+	t.Setenv("AUTH_PROVIDER", "google")
+	t.Setenv("GOOGLE_CLIENT_ID", "google-client")
+	t.Setenv("GOOGLE_CLIENT_SECRET", "legacy-docker-sentinel")
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+	require.Len(t, cfg.DeprecationWarnings, 2)
+	require.Contains(t, cfg.DeprecationWarnings[0], `"auth.google"`)
+	require.Contains(t, cfg.DeprecationWarnings[1], `"auth.provider"`)
+	for _, w := range cfg.DeprecationWarnings {
+		require.NotContains(t, w, "legacy-docker-sentinel", "a warning never carries a value")
+	}
+	require.Equal(t, "google", cfg.Auth.LegacyProvider)
+	require.Equal(t, "google-client", cfg.Auth.LegacyGoogle.ClientID)
 }

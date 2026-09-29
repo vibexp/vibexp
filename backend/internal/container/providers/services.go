@@ -664,14 +664,14 @@ func ProvideEnvironmentService(cfg *config.Config) *services.EnvironmentService 
 
 // ProvideFeatureFlagService creates a new FeatureFlagService and registers all feature flags.
 //
-// The sign-in allowlist is configured from cfg.Auth.AccessAllowlist
+// The sign-in allowlist is configured from cfg.Auth.LegacyAccessAllowlist
 // (AUTH_ALLOWED_DOMAINS / AUTH_ALLOWED_EMAILS). Both lists empty means open
 // registration; otherwise a user may sign in by exact email or by email domain.
 func ProvideFeatureFlagService(cfg *config.Config, logger *slog.Logger) *feature_flags.FeatureFlagService {
 	service := feature_flags.NewFeatureFlagService(logger)
 
 	service.RegisterFlag(feature_flags.NewUserSignInAllowlistFlag(
-		logger, cfg.Auth.AccessAllowlist.Domains, cfg.Auth.AccessAllowlist.Emails,
+		logger, cfg.Auth.LegacyAccessAllowlist.Domains, cfg.Auth.LegacyAccessAllowlist.Emails,
 	))
 
 	return service

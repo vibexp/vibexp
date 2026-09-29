@@ -95,6 +95,12 @@ services:
       LOG_LEVEL: info
 
       # --- Authentication (production) -----------------------------------
+      # DEPRECATED (#1232): sign-in providers and the access allowlist are now
+      # managed under Admin -> Settings -> Authentication and stored in the
+      # database. The AUTH_* / GOOGLE_* / GITHUB_* / OIDC_* variables below still
+      # work: they are imported once at boot when the database holds none, then
+      # ignored. A warning is logged on every boot while they are set; remove them
+      # once migrated (they become a boot failure in a later release).
       # With a non-localhost FRONTEND_BASE_URL, configure a web-login provider.
       # AUTH_PROVIDER selects one of google | github | oidc; set its client id +
       # secret (and redirect_uri if it differs from the default

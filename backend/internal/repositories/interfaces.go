@@ -1720,11 +1720,14 @@ type InstanceAuthProviderRepository interface {
 	// Delete removes the provider with id. Returns
 	// ErrInstanceAuthProviderNotFound when no such provider exists.
 	Delete(ctx context.Context, id string, actorUserID *string, expectedVersion *int64) error
-	// InsertIfAbsent stores provider for the boot-time config.yaml import
-	// (audited as an import with no actor) only when neither its slug nor, for
-	// google/github, its type is already stored, and reports whether it did.
-	// It bumps the shared version only when it inserts.
-	InsertIfAbsent(ctx context.Context, provider *models.InstanceAuthProvider) (inserted bool, err error)
+	// InsertIfEmpty stores providers for the boot-time config.yaml import
+	// (#1232) only when no provider is stored at all, and reports whether it
+	// did. The set is all-or-nothing: every provider, one import audit entry
+	// each (no actor), and a single version bump land in one transaction, so a
+	// crash or a rejected row can never leave a partial set that a later boot
+	// would refuse to complete. Concurrent callers serialize on the version lock
+	// and only the first inserts. An empty set writes nothing.
+	InsertIfEmpty(ctx context.Context, providers []*models.InstanceAuthProvider) (inserted bool, err error)
 }
 
 // InstanceAuthAllowlistRepository defines the data access operations for the

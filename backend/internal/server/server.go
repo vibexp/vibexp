@@ -437,7 +437,7 @@ func newConsentAccessChecker(
 	return consentAccessPolicyAdapter{
 		users: c.UserRepository(),
 		allowlist: feature_flags.NewUserSignInAllowlistFlag(
-			logger, cfg.Auth.AccessAllowlist.Domains, cfg.Auth.AccessAllowlist.Emails,
+			logger, cfg.Auth.LegacyAccessAllowlist.Domains, cfg.Auth.LegacyAccessAllowlist.Emails,
 		),
 	}
 }

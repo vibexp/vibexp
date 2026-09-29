@@ -44,7 +44,7 @@ var _ FeatureFlagEvaluator = (*UserSignInAllowlistFlag)(nil)
 // NewUserSignInAllowlistFlag creates a new UserSignInAllowlistFlag.
 //
 // domains and emails are the configured allowlist (typically
-// config.Auth.AccessAllowlist.Domains / .Emails). When BOTH are empty, sign-in
+// config.Auth.LegacyAccessAllowlist.Domains / .Emails). When BOTH are empty, sign-in
 // is open: every email is allowed. Pass AllowedSignInUsers to fall back to the
 // (empty) package default.
 func NewUserSignInAllowlistFlag(logger *slog.Logger, domains, emails []string) *UserSignInAllowlistFlag {

@@ -63,6 +63,17 @@ security:
   outbound_allowed_cidrs: "${OUTBOUND_ALLOWED_CIDRS:-}"
 
 auth:
+  # DEPRECATED (#1232): sign-in providers (providers, provider, google, github,
+  # oidc) and the access_allowlist below are now stored in the database and
+  # managed under Admin -> Settings -> Authentication. They are read only once,
+  # at boot: when the database holds no provider / no allowlist and these keys
+  # (or their AUTH_* / GOOGLE_* / GITHUB_* / OIDC_* env vars) are populated,
+  # they are imported (secrets encrypted, audited) and ignored from then on.
+  # Unset env vars are not "populated", so a stock install never warns. A
+  # warning is logged on every boot while they are set, and they become a boot
+  # failure no earlier than the second minor release after this one, so migrate
+  # and then unset them.
+  #
   # Single web-login provider (google | github | oidc). For more than one
   # provider at once, mount a config.yaml with `auth.providers: [...]`.
   provider: "${AUTH_PROVIDER:-}"

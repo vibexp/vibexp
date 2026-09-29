@@ -122,10 +122,14 @@
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Deprecated: sign-in providers and the access allowlist are stored in the database and managed under Admin → Settings → Authentication. Imported into the database once at boot when it holds none, ignored afterwards, and a boot failure no earlier than the second minor release after the one that deprecated it.",
+          "deprecated": true
         },
         "provider": {
-          "type": "string"
+          "type": "string",
+          "description": "Deprecated: sign-in providers and the access allowlist are stored in the database and managed under Admin → Settings → Authentication. Imported into the database once at boot when it holds none, ignored afterwards, and a boot failure no earlier than the second minor release after the one that deprecated it.",
+          "deprecated": true
         },
         "session_encryption_key": {
           "type": "string"
@@ -134,7 +138,9 @@
           "type": "boolean"
         },
         "access_allowlist": {
-          "$ref": "#/$defs/AccessAllowlistConfig"
+          "$ref": "#/$defs/AccessAllowlistConfig",
+          "description": "Deprecated: sign-in providers and the access allowlist are stored in the database and managed under Admin → Settings → Authentication. Imported into the database once at boot when it holds none, ignored afterwards, and a boot failure no earlier than the second minor release after the one that deprecated it.",
+          "deprecated": true
         },
         "instance_admins": {
           "oneOf": [
@@ -151,13 +157,19 @@
           ]
         },
         "google": {
-          "$ref": "#/$defs/GoogleAuthConfig"
+          "$ref": "#/$defs/GoogleAuthConfig",
+          "description": "Deprecated: sign-in providers and the access allowlist are stored in the database and managed under Admin → Settings → Authentication. Imported into the database once at boot when it holds none, ignored afterwards, and a boot failure no earlier than the second minor release after the one that deprecated it.",
+          "deprecated": true
         },
         "github": {
-          "$ref": "#/$defs/GitHubAuthConfig"
+          "$ref": "#/$defs/GitHubAuthConfig",
+          "description": "Deprecated: sign-in providers and the access allowlist are stored in the database and managed under Admin → Settings → Authentication. Imported into the database once at boot when it holds none, ignored afterwards, and a boot failure no earlier than the second minor release after the one that deprecated it.",
+          "deprecated": true
         },
         "oidc": {
-          "$ref": "#/$defs/OIDCAuthConfig"
+          "$ref": "#/$defs/OIDCAuthConfig",
+          "description": "Deprecated: sign-in providers and the access allowlist are stored in the database and managed under Admin → Settings → Authentication. Imported into the database once at boot when it holds none, ignored afterwards, and a boot failure no earlier than the second minor release after the one that deprecated it.",
+          "deprecated": true
         },
         "oauth_as": {
           "$ref": "#/$defs/OAuthASConfig"

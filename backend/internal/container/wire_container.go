@@ -132,6 +132,10 @@ type WireContainer struct {
 	instanceSearchSettingsRepo    repositories.InstanceSearchSettingsRepository
 	instanceAISummarySettingsRepo repositories.InstanceAISummarySettingsRepository
 
+	// Legacy config.yaml auth provider/allowlist import run at boot (#1232)
+	instanceAuthProviderRepo  repositories.InstanceAuthProviderRepository
+	instanceAuthAllowlistRepo repositories.InstanceAuthAllowlistRepository
+
 	// External dependencies
 	identityRegistry *idp.Registry
 	smtpClient       external.EmailSender
@@ -552,9 +556,10 @@ func (c *WireContainer) StartEventListeners() {
 }
 
 // RunStartupImports imports the deprecated config.yaml email: (#1190),
-// search: and ai_summary: (#1201) sections into their instance settings tables
-// when no row exists, and logs the deprecation and ignored-section warnings. It
-// never fails boot.
+// search: and ai_summary: (#1201) sections, and the auth provider and
+// allowlist keys (#1232), into their instance settings tables when nothing is
+// stored, and logs the deprecation and ignored-section warnings. It never fails
+// boot.
 func (c *WireContainer) RunStartupImports(ctx context.Context) {
 	services.ImportLegacyEmailConfig(ctx, services.LegacyEmailImportDeps{
 		Repo:   c.instanceEmailProviderRepo,
@@ -565,6 +570,12 @@ func (c *WireContainer) RunStartupImports(ctx context.Context) {
 	services.ImportLegacySearchSettings(ctx, c.instanceSearchSettingsRepo, c.config.Search.InstanceValues(), c.logger)
 	services.ImportLegacyAISummarySettings(ctx, c.instanceAISummarySettingsRepo,
 		c.config.AISummary.InstanceValues(), c.config.AISummary.LegacyCeilingsSet(), c.logger)
+	services.ImportLegacyAuthConfig(ctx, services.LegacyAuthImportDeps{
+		ProviderRepo:  c.instanceAuthProviderRepo,
+		AllowlistRepo: c.instanceAuthAllowlistRepo,
+		Enc:           c.encryptionService,
+		Logger:        c.logger,
+	}, c.config.Auth)
 }
 
 // Close cleans up resources

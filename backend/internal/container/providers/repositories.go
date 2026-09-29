@@ -219,6 +219,16 @@ func ProvideInstanceAISummarySettingsRepository(db *database.DB) repositories.In
 	return postgres.NewInstanceAISummarySettingsRepository(db)
 }
 
+// ProvideInstanceAuthProviderRepository creates a new InstanceAuthProviderRepository
+func ProvideInstanceAuthProviderRepository(db *database.DB) repositories.InstanceAuthProviderRepository {
+	return postgres.NewInstanceAuthProviderRepository(db)
+}
+
+// ProvideInstanceAuthAllowlistRepository creates a new InstanceAuthAllowlistRepository
+func ProvideInstanceAuthAllowlistRepository(db *database.DB) repositories.InstanceAuthAllowlistRepository {
+	return postgres.NewInstanceAuthAllowlistRepository(db)
+}
+
 // ProvideTeamSearchSettingsRepository creates a new TeamSearchSettingsRepository
 func ProvideTeamSearchSettingsRepository(db *database.DB) repositories.TeamSearchSettingsRepository {
 	return postgres.NewTeamSearchSettingsRepository(db)

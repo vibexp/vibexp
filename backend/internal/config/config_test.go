@@ -344,20 +344,20 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, EnvStringSlice{"172.16.0.0/12", "127.0.0.1/32"}, cfg.Security.OutboundAllowedCIDRs)
 
 	// Auth + sub-structs. providers is a comma string; allowlist lists are YAML lists.
-	assert.Equal(t, []string{"google", "github"}, cfg.Auth.Providers)
-	assert.Equal(t, "google", cfg.Auth.Provider)
+	assert.Equal(t, []string{"google", "github"}, cfg.Auth.LegacyProviders)
+	assert.Equal(t, "google", cfg.Auth.LegacyProvider)
 	assert.Equal(t, "sessionkey", cfg.Auth.SessionEncryptionKey)
 	assert.True(t, cfg.Auth.DevLoginEnabled)
-	assert.Equal(t, []string{"example.com", "corp.io"}, []string(cfg.Auth.AccessAllowlist.Domains))
-	assert.Equal(t, []string{"alice@example.com", "bob@example.com"}, []string(cfg.Auth.AccessAllowlist.Emails))
+	assert.Equal(t, []string{"example.com", "corp.io"}, []string(cfg.Auth.LegacyAccessAllowlist.Domains))
+	assert.Equal(t, []string{"alice@example.com", "bob@example.com"}, []string(cfg.Auth.LegacyAccessAllowlist.Emails))
 	assert.Equal(t, []string{"admin@example.com", "root@corp.io"}, []string(cfg.Auth.InstanceAdmins))
-	assert.Equal(t, "g-id", cfg.Auth.Google.ClientID)
-	assert.Equal(t, "g-secret", cfg.Auth.Google.ClientSecret)
-	assert.Equal(t, "https://app.example.com/cb/google", cfg.Auth.Google.RedirectURI)
-	assert.Equal(t, "gh-id", cfg.Auth.GitHub.ClientID)
-	assert.Equal(t, "https://app.example.com/cb/github", cfg.Auth.GitHub.RedirectURI)
-	assert.Equal(t, "https://oidc.example.com", cfg.Auth.OIDC.IssuerURL)
-	assert.Equal(t, "o-secret", cfg.Auth.OIDC.ClientSecret)
+	assert.Equal(t, "g-id", cfg.Auth.LegacyGoogle.ClientID)
+	assert.Equal(t, "g-secret", cfg.Auth.LegacyGoogle.ClientSecret)
+	assert.Equal(t, "https://app.example.com/cb/google", cfg.Auth.LegacyGoogle.RedirectURI)
+	assert.Equal(t, "gh-id", cfg.Auth.LegacyGitHub.ClientID)
+	assert.Equal(t, "https://app.example.com/cb/github", cfg.Auth.LegacyGitHub.RedirectURI)
+	assert.Equal(t, "https://oidc.example.com", cfg.Auth.LegacyOIDC.IssuerURL)
+	assert.Equal(t, "o-secret", cfg.Auth.LegacyOIDC.ClientSecret)
 	assert.Equal(t, "https://connect.example.com", cfg.Auth.OAuthAS.IssuerURL)
 	assert.Equal(t, 30*time.Minute, cfg.Auth.OAuthAS.AccessTokenTTL)
 	assert.Equal(t, 1000*time.Hour, cfg.Auth.OAuthAS.RefreshTokenTTL)
@@ -553,13 +553,13 @@ event_bus:
   retry_backoff: 1s
 `)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1048576), cfg.Server.MaxBodySizeBytes)    // int64
-	assert.Equal(t, 720*time.Hour, cfg.Auth.OAuthAS.AccessTokenTTL) // duration
-	assert.InDelta(t, 0.75, cfg.Search.RankWeightRelevance, 1e-9)   // float
-	assert.True(t, cfg.Search.RecencyRankingEnabled)                // bool (native)
-	assert.False(t, cfg.EventBus.RetryJitter)                       // bool via interpolated string
-	assert.Equal(t, time.Second, cfg.EventBus.RetryBackoff)         // duration
-	assert.Equal(t, []string{"google", "oidc"}, cfg.Auth.Providers) // comma slice
+	assert.Equal(t, int64(1048576), cfg.Server.MaxBodySizeBytes)          // int64
+	assert.Equal(t, 720*time.Hour, cfg.Auth.OAuthAS.AccessTokenTTL)       // duration
+	assert.InDelta(t, 0.75, cfg.Search.RankWeightRelevance, 1e-9)         // float
+	assert.True(t, cfg.Search.RecencyRankingEnabled)                      // bool (native)
+	assert.False(t, cfg.EventBus.RetryJitter)                             // bool via interpolated string
+	assert.Equal(t, time.Second, cfg.EventBus.RetryBackoff)               // duration
+	assert.Equal(t, []string{"google", "oidc"}, cfg.Auth.LegacyProviders) // comma slice
 }
 
 // --- Validators ----------------------------------------------------------
