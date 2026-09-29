@@ -54,6 +54,12 @@ type Config struct {
 	EventBus events.Config `koanf:"event_bus"`
 	// OTel holds OpenTelemetry export configuration (see internal/observability).
 	OTel observability.Config `koanf:"otel"`
+
+	// DeprecationWarnings lists the deprecated keys the loaded config.yaml
+	// still sets, one operator-facing message each (see removedConfigKeys). The
+	// loader has no logger, so the server logs them at boot. Never read from the
+	// file.
+	DeprecationWarnings []string `koanf:"-"`
 }
 
 // ServerConfig holds HTTP server, logging, and build-metadata settings.
@@ -262,15 +268,27 @@ func overlappingNeverAllowlistable(network *net.IPNet) string {
 // AuthConfig holds web-login identity-provider settings and the embedded
 // OAuth 2.1 Authorization Server configuration.
 type AuthConfig struct {
-	// Providers is the comma-separated (or YAML list) set of web-login identity
-	// providers to enable simultaneously (e.g. "google,github,oidc"). When set it
-	// takes precedence over Provider. Unknown names are ignored with a warning;
-	// providers with missing credentials are skipped at startup. Matched
-	// case-insensitively against "google", "github", and "oidc".
-	Providers []string `koanf:"providers"`
-	// Provider selects a single web-login provider; the backward-compatible shim
-	// used only when Providers is empty.
-	Provider string `koanf:"provider"`
+	// LegacyProviders is the comma-separated (or YAML list) set of web-login
+	// identity providers to enable simultaneously (e.g. "google,github,oidc").
+	// When set it takes precedence over LegacyProvider. Unknown names are ignored
+	// with a warning; providers with missing credentials are skipped at startup.
+	// Matched case-insensitively against "google", "github", and "oidc".
+	//
+	// DEPRECATED, like every Legacy* field of AuthConfig, and deliberately not in
+	// the Go "Deprecated:" form (staticcheck SA1019 would then flag the bridge's
+	// own reads): sign-in providers and the access allowlist are stored in the
+	// database and configured under Admin → Settings → Authentication (epic
+	// #1230). At boot these keys are imported once into the database when it
+	// holds none (services.ImportLegacyAuthConfig, #1232) and a deprecation
+	// warning is logged on every boot while they are set
+	// (Config.DeprecationWarnings). They become a boot failure no earlier than the
+	// second minor release after the one that deprecated them (#1240). Until the
+	// runtime reads the database (#1234, #1235) they are still what login uses.
+	LegacyProviders []string `koanf:"providers"`
+	// LegacyProvider selects a single web-login provider; the
+	// backward-compatible shim used only when LegacyProviders is empty.
+	// DEPRECATED, see LegacyProviders.
+	LegacyProvider string `koanf:"provider"`
 
 	// SessionEncryptionKey is the hex-encoded secret backing the AES-256-GCM
 	// session cookie (and, via domain separation, the OAuth state HMAC). It must
@@ -283,10 +301,11 @@ type AuthConfig struct {
 	// (frontend.base_url points at localhost) for the endpoint to respond.
 	DevLoginEnabled bool `koanf:"dev_login_enabled"`
 
-	// AccessAllowlist restricts which users may sign in, by email domain and/or
-	// exact email address. Both lists empty (the zero value) means open access:
-	// anyone may sign in. See AccessAllowlistConfig.
-	AccessAllowlist AccessAllowlistConfig `koanf:"access_allowlist"`
+	// LegacyAccessAllowlist restricts which users may sign in, by email domain
+	// and/or exact email address. Both lists empty (the zero value) means open
+	// access: anyone may sign in. See AccessAllowlistConfig. DEPRECATED, see
+	// LegacyProviders.
+	LegacyAccessAllowlist AccessAllowlistConfig `koanf:"access_allowlist"`
 
 	// InstanceAdmins is the set of instance-admin email addresses (authored as a
 	// comma-separated ${VAR} in the combined image, or a YAML list), declaring
@@ -297,11 +316,45 @@ type AuthConfig struct {
 	// AccessAllowlist.
 	InstanceAdmins EnvStringSlice `koanf:"instance_admins"`
 
-	Google  GoogleAuthConfig `koanf:"google"`
-	GitHub  GitHubAuthConfig `koanf:"github"`
-	OIDC    OIDCAuthConfig   `koanf:"oidc"`
-	OAuthAS OAuthASConfig    `koanf:"oauth_as"`
-	APIAuth APIOAuthConfig   `koanf:"api_oauth"`
+	// LegacyGoogle, LegacyGitHub and LegacyOIDC are the web-login clients of
+	// the three provider kinds. DEPRECATED, see LegacyProviders.
+	LegacyGoogle GoogleAuthConfig `koanf:"google"`
+	LegacyGitHub GitHubAuthConfig `koanf:"github"`
+	LegacyOIDC   OIDCAuthConfig   `koanf:"oidc"`
+
+	OAuthAS OAuthASConfig  `koanf:"oauth_as"`
+	APIAuth APIOAuthConfig `koanf:"api_oauth"`
+}
+
+// LegacyEnabledProviderNames is the ordered, de-duplicated list of web-login
+// providers the deprecated keys enable: auth.providers when it has any entry,
+// else auth.provider. Names are trimmed and lower-cased; blanks and "none" are
+// dropped. Unknown names are kept for the caller to report. The identity
+// provider registry and the boot-time import (#1232) both read it, so they can
+// never disagree about which providers are enabled.
+func (a AuthConfig) LegacyEnabledProviderNames() []string {
+	var raw []string
+	switch {
+	case len(a.LegacyProviders) > 0:
+		raw = a.LegacyProviders
+	case strings.TrimSpace(a.LegacyProvider) != "":
+		raw = []string{a.LegacyProvider}
+	}
+
+	seen := make(map[string]struct{}, len(raw))
+	names := make([]string, 0, len(raw))
+	for _, r := range raw {
+		name := strings.ToLower(strings.TrimSpace(r))
+		if name == "" || name == "none" {
+			continue
+		}
+		if _, dup := seen[name]; dup {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	return names
 }
 
 // EnvStringSlice is a []string that, in the combined-image config.docker.yaml,
@@ -1439,7 +1492,8 @@ func decode(path string) (*Config, error) {
 	}
 	interpolateNode(parsed)
 
-	if err := checkRemovedSections(path, parsed); err != nil {
+	deprecationWarnings, err := checkRemovedSections(path, parsed)
+	if err != nil {
 		return nil, err
 	}
 
@@ -1466,11 +1520,42 @@ func decode(path string) (*Config, error) {
 	if err := k.UnmarshalWithConf("", &cfg, unmarshalConf); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	cfg.DeprecationWarnings = deprecationWarnings
 	return &cfg, nil
 }
 
-// removedConfigSections maps a deleted TOP-LEVEL config section to the guidance
-// an operator needs when their config.yaml still carries it.
+// removalMode is what the loader does when config.yaml still sets a removed
+// key: fail boot, or only warn on every boot.
+type removalMode int
+
+const (
+	// removalFatal fails startup while the key is present at all.
+	removalFatal removalMode = iota
+	// removalWarn adds a deprecation warning while the key is populated (see
+	// populatedConfigValue), and loads normally.
+	removalWarn
+)
+
+// removedConfigKey is one config.yaml key an operator must stop setting.
+type removedConfigKey struct {
+	// path is the dotted key, e.g. "github" or "auth.google".
+	path string
+	mode removalMode
+	// guidance tells the operator where the setting went.
+	guidance string
+}
+
+// legacyAuthKeyGuidance is the warning for every deprecated auth provider and
+// allowlist key (#1232). #1240 flips those entries to removalFatal.
+const legacyAuthKeyGuidance = "sign-in providers and the access allowlist are now stored in the database " +
+	"and managed under Admin → Settings → Authentication. At boot this key is imported once when the " +
+	"database holds none, and ignored afterwards. Delete it from your config.yaml (and its env vars): it " +
+	"becomes a boot failure no earlier than the second minor release after this one. " +
+	"See https://vibexp.io/docs/user-guide/self-hosting/upgrading"
+
+// removedConfigKeys lists the config.yaml keys that no longer do what they
+// used to, with the guidance an operator needs when their config.yaml still
+// carries one.
 //
 // This exists because unknown keys are otherwise SILENT. config.schema.json is
 // `additionalProperties: false`, but that schema is a drift gate and an
@@ -1479,41 +1564,101 @@ func decode(path string) (*Config, error) {
 // #483 would keep a `github:` block full of credentials that does nothing, and
 // conclude the integration is configured when it is not. Failing at boot is the
 // whole point: loud beats silently wrong.
-var removedConfigSections = map[string]string{
-	"github": "GitHub App credentials are now configured per team in the UI " +
+//
+// Paths are matched exactly, so the top-level `github` entry never matches
+// `auth.github`, and an `auth.*` entry never touches a sibling auth key
+// (instance_admins, oauth_as, session_encryption_key, …).
+var removedConfigKeys = []removedConfigKey{
+	{path: "github", mode: removalFatal, guidance: "GitHub App credentials are now configured per team in the UI " +
 		"(open the team, then Settings → GitHub Integration), not instance-wide. " +
 		"Delete the `github:` section from your config.yaml and re-register the App on each team. " +
-		"Note this is NOT `auth.github` (the web-login OAuth client), which is unaffected.",
+		"Note this is NOT `auth.github` (the web-login OAuth client), which is unaffected."},
+	{path: "auth.providers", mode: removalWarn, guidance: legacyAuthKeyGuidance},
+	{path: "auth.provider", mode: removalWarn, guidance: legacyAuthKeyGuidance},
+	{path: "auth.access_allowlist", mode: removalWarn, guidance: legacyAuthKeyGuidance},
+	{path: "auth.google", mode: removalWarn, guidance: legacyAuthKeyGuidance},
+	{path: "auth.github", mode: removalWarn, guidance: legacyAuthKeyGuidance},
+	{path: "auth.oidc", mode: removalWarn, guidance: legacyAuthKeyGuidance},
 }
 
-// checkRemovedSections fails startup when config.yaml still declares one or
-// more sections that no longer exist.
+// checkRemovedSections inspects the interpolated config.yaml for the keys in
+// removedConfigKeys. It fails startup when one or more fatal keys are present,
+// and otherwise returns one warning per populated warn-mode key.
 //
-// It matches TOP-LEVEL keys only, which is what keeps `auth.github` — a
-// different credential set on a different code path — out of scope.
-//
-// Every offending section is reported at once, in a fixed order: map iteration
-// is randomized, and an operator mid-migration should not have to restart once
-// per removed section to discover them one at a time.
-func checkRemovedSections(path string, parsed map[string]interface{}) error {
-	found := make([]string, 0, len(removedConfigSections))
-	for section := range removedConfigSections {
-		if _, present := parsed[section]; present {
-			found = append(found, section)
+// Every offending key is reported at once, in a fixed order: an operator
+// mid-migration should not have to restart once per removed key to discover
+// them one at a time.
+func checkRemovedSections(path string, parsed map[string]interface{}) (warnings []string, err error) {
+	var fatal []removedConfigKey
+	for _, key := range removedConfigKeys {
+		value, present := lookupConfigPath(parsed, key.path)
+		switch {
+		case !present:
+		case key.mode == removalFatal:
+			fatal = append(fatal, key)
+		case populatedConfigValue(value):
+			warnings = append(warnings, fmt.Sprintf("config key %q is deprecated: %s", key.path, key.guidance))
 		}
 	}
-	if len(found) == 0 {
-		return nil
+	sort.Strings(warnings)
+	if len(fatal) == 0 {
+		return warnings, nil
 	}
-	sort.Strings(found)
+	sort.Slice(fatal, func(i, j int) bool { return fatal[i].path < fatal[j].path })
 
-	details := make([]string, 0, len(found))
-	for _, section := range found {
-		details = append(details, fmt.Sprintf("%q: %s", section, removedConfigSections[section]))
+	details := make([]string, 0, len(fatal))
+	for _, key := range fatal {
+		details = append(details, fmt.Sprintf("%q: %s", key.path, key.guidance))
 	}
-	return fmt.Errorf(
-		"config file %q declares removed top-level section(s) — %s",
+	return nil, fmt.Errorf(
+		"config file %q declares removed section(s) — %s",
 		path, strings.Join(details, " | "))
+}
+
+// lookupConfigPath walks a dotted path through the parsed config maps and
+// reports the value found there, and whether the key is present at all.
+func lookupConfigPath(parsed map[string]interface{}, dotted string) (interface{}, bool) {
+	var node interface{} = parsed
+	for _, part := range strings.Split(dotted, ".") {
+		m, ok := node.(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		if node, ok = m[part]; !ok {
+			return nil, false
+		}
+	}
+	return node, true
+}
+
+// populatedConfigValue reports whether a config value carries something an
+// operator set: a non-blank string, a list or map with a populated element,
+// or any other scalar. A `redirect_uri` is not counted: the baked
+// config.docker.yaml defaults it to a localhost URL on every install, so it
+// alone never makes a provider block populated.
+func populatedConfigValue(value interface{}) bool {
+	switch v := value.(type) {
+	case nil:
+		return false
+	case string:
+		return strings.TrimSpace(v) != ""
+	case []interface{}:
+		for _, item := range v {
+			if populatedConfigValue(item) {
+				return true
+			}
+		}
+		return false
+	case map[string]interface{}:
+		for key, item := range v {
+			if key != "redirect_uri" && populatedConfigValue(item) {
+				return true
+			}
+		}
+		return false
+	default:
+		return true
+	}
 }
 
 // Load reads, interpolates, validates, and returns the application configuration

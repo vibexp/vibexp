@@ -47,8 +47,8 @@ func TestProvideRegistry_OIDCDiscoverable_RegistersOIDCClient(t *testing.T) {
 	srv := newDiscoverableIssuer(t)
 	cfg := &config.Config{
 		Auth: config.AuthConfig{
-			Provider: "oidc",
-			OIDC: config.OIDCAuthConfig{
+			LegacyProvider: "oidc",
+			LegacyOIDC: config.OIDCAuthConfig{
 				IssuerURL:    srv.URL,
 				ClientID:     "client-id",
 				ClientSecret: "client-secret",
@@ -71,8 +71,8 @@ func TestProvideRegistry_OIDCDiscoverable_RegistersOIDCClient(t *testing.T) {
 func TestProvideRegistry_OIDCDiscoveryFailure_NonFatalSkip(t *testing.T) {
 	cfg := &config.Config{
 		Auth: config.AuthConfig{
-			Provider: "oidc",
-			OIDC: config.OIDCAuthConfig{
+			LegacyProvider: "oidc",
+			LegacyOIDC: config.OIDCAuthConfig{
 				IssuerURL:    "https://oidc.invalid.example.com",
 				ClientID:     "client-id",
 				ClientSecret: "client-secret",
@@ -90,7 +90,7 @@ func TestProvideRegistry_OIDCDiscoveryFailure_NonFatalSkip(t *testing.T) {
 func TestProvideRegistry_OIDCMissingConfig_NonFatalSkip(t *testing.T) {
 	cfg := &config.Config{
 		Auth: config.AuthConfig{
-			Provider: "oidc",
+			LegacyProvider: "oidc",
 			// no OIDC_* fields set -> oidc.Config.Validate fails -> skipped
 		},
 	}
@@ -104,7 +104,7 @@ func TestProvideRegistry_OIDCMissingConfig_NonFatalSkip(t *testing.T) {
 func TestProvideRegistry_EmptyProvider_Empty(t *testing.T) {
 	cfg := &config.Config{
 		Auth: config.AuthConfig{
-			Provider: "",
+			LegacyProvider: "",
 		},
 	}
 
@@ -117,7 +117,7 @@ func TestProvideRegistry_EmptyProvider_Empty(t *testing.T) {
 func TestProvideRegistry_UnrecognizedProvider_Skipped(t *testing.T) {
 	cfg := &config.Config{
 		Auth: config.AuthConfig{
-			Providers: []string{"okta-magic"},
+			LegacyProviders: []string{"okta-magic"},
 		},
 	}
 
@@ -131,8 +131,8 @@ func TestProvideRegistry_CaseInsensitive_OIDC(t *testing.T) {
 	srv := newDiscoverableIssuer(t)
 	cfg := &config.Config{
 		Auth: config.AuthConfig{
-			Provider: "  OIDC  ",
-			OIDC: config.OIDCAuthConfig{
+			LegacyProvider: "  OIDC  ",
+			LegacyOIDC: config.OIDCAuthConfig{
 				IssuerURL:    srv.URL,
 				ClientID:     "client-id",
 				ClientSecret: "client-secret",
@@ -155,12 +155,12 @@ func TestProvideRegistry_MultipleProviders(t *testing.T) {
 	srv := newDiscoverableIssuer(t)
 	cfg := &config.Config{
 		Auth: config.AuthConfig{
-			Providers: []string{"github", "oidc"},
-			GitHub: config.GitHubAuthConfig{
+			LegacyProviders: []string{"github", "oidc"},
+			LegacyGitHub: config.GitHubAuthConfig{
 				ClientID:     "gh-client-id",
 				ClientSecret: "gh-client-secret",
 			},
-			OIDC: config.OIDCAuthConfig{
+			LegacyOIDC: config.OIDCAuthConfig{
 				IssuerURL:    srv.URL,
 				ClientID:     "client-id",
 				ClientSecret: "client-secret",
@@ -180,9 +180,9 @@ func TestProvideRegistry_MultipleProviders(t *testing.T) {
 func TestProvideRegistry_AuthProvidersOverridesAuthProvider(t *testing.T) {
 	cfg := &config.Config{
 		Auth: config.AuthConfig{
-			Providers: []string{"github"},
-			Provider:  "oidc",
-			GitHub: config.GitHubAuthConfig{
+			LegacyProviders: []string{"github"},
+			LegacyProvider:  "oidc",
+			LegacyGitHub: config.GitHubAuthConfig{
 				ClientID:     "gh-client-id",
 				ClientSecret: "gh-client-secret",
 			},

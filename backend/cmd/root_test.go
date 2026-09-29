@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -265,4 +267,26 @@ func TestRunStartupImports_InvokesHookOnceWithBoundedContext(t *testing.T) {
 	assert.Equal(t, 1, importer.calls)
 	require.True(t, importer.hasLimit, "the import must run under a bounded context")
 	assert.WithinDuration(t, before.Add(startupImportTimeout), importer.deadline, 5*time.Second)
+}
+
+// TestLogDeprecationWarnings pins that every deprecated config.yaml key the
+// loader collected is logged at WARN on boot (#1232).
+func TestLogDeprecationWarnings(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	cfg := &config.Config{DeprecationWarnings: []string{
+		`config key "auth.google" is deprecated: go away`,
+		`config key "auth.provider" is deprecated: go away`,
+	}}
+
+	logDeprecationWarnings(cfg, logger)
+
+	out := buf.String()
+	assert.Equal(t, 2, strings.Count(out, "level=WARN"))
+	assert.Contains(t, out, `auth.google`)
+	assert.Contains(t, out, `auth.provider`)
+
+	buf.Reset()
+	logDeprecationWarnings(&config.Config{}, logger)
+	assert.Empty(t, buf.String(), "nothing is logged when no deprecated key is set")
 }

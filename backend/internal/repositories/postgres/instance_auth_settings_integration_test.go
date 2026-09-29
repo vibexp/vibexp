@@ -17,7 +17,7 @@ import (
 )
 
 // Behavior-level suite for the auth settings repositories (#1231) against real
-// Postgres: provider CRUD and InsertIfAbsent, the allowlist singleton, admin
+// Postgres: provider CRUD and InsertIfEmpty, the allowlist singleton, admin
 // grants, the shared version bump on every provider/allowlist write (and not on
 // a no-op or a rolled-back write), and the audit entry each write appends. The
 // tables are global to the shared test database, so no test runs in parallel.
@@ -223,49 +223,71 @@ func TestIntegrationInstanceAuthProviders_ExpectedVersion(t *testing.T) {
 	require.NoError(t, repo.Delete(ctx, p.ID, nil, &latest))
 }
 
-func TestIntegrationInstanceAuthProviders_InsertIfAbsent(t *testing.T) {
+func TestIntegrationInstanceAuthProviders_InsertIfEmpty(t *testing.T) {
 	resetInstanceAuthSettings(t)
 	repo := NewInstanceAuthProviderRepository(integrationDB)
 	ctx := context.Background()
 	start := authSettingsVersion(t)
 
+	inserted, err := repo.InsertIfEmpty(ctx, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted, "an empty set writes nothing")
+	assert.Equal(t, start, authSettingsVersion(t))
+
 	cipher := providerCiphertext
-	inserted, err := repo.InsertIfAbsent(ctx, googleProviderFixture(&cipher))
+	inserted, err = repo.InsertIfEmpty(ctx, []*models.InstanceAuthProvider{
+		googleProviderFixture(&cipher), oidcProviderFixture("oidc", 1),
+	})
 	require.NoError(t, err)
 	assert.True(t, inserted)
-	assert.Equal(t, start+1, authSettingsVersion(t), "an insert bumps the shared version")
+	assert.Equal(t, start+1, authSettingsVersion(t), "the whole set bumps the shared version once")
 
-	sameSlug := oidcProviderFixture("google", 0)
-	inserted, err = repo.InsertIfAbsent(ctx, sameSlug)
+	inserted, err = repo.InsertIfEmpty(ctx, []*models.InstanceAuthProvider{oidcProviderFixture("other", 0)})
 	require.NoError(t, err)
-	assert.False(t, inserted, "the slug is taken")
-
-	otherGoogle := googleProviderFixture(nil)
-	otherGoogle.Slug = "google-2"
-	inserted, err = repo.InsertIfAbsent(ctx, otherGoogle)
-	require.NoError(t, err)
-	assert.False(t, inserted, "a google provider is already stored")
+	assert.False(t, inserted, "providers are already stored")
 	assert.Equal(t, start+1, authSettingsVersion(t), "a no-op does not bump the version")
 
+	list, err := repo.List(ctx)
+	require.NoError(t, err)
+	require.Len(t, list, 2)
+
 	entries := authAuditEntries(t, models.InstanceSettingAuthProviders)
-	require.Len(t, entries, 1, "only the insert is audited")
-	assert.Equal(t, models.InstanceSettingsAuditActionImport, entries[0].Action)
-	assert.Nil(t, entries[0].ActorUserID)
-	assert.Nil(t, entries[0].Before)
+	require.Len(t, entries, 2, "one import entry per provider")
+	for _, e := range entries {
+		assert.Equal(t, models.InstanceSettingsAuditActionImport, e.Action)
+		assert.Nil(t, e.ActorUserID)
+		assert.Nil(t, e.Before)
+	}
 
 	stored, err := repo.GetBySlug(ctx, "google")
 	require.NoError(t, err)
 	assert.Nil(t, stored.UpdatedBy, "an import has no editor")
-
-	bad := oidcProviderFixture("bad", 0)
-	bad.IssuerURL = nil
-	_, err = repo.InsertIfAbsent(ctx, bad)
-	assert.ErrorIs(t, err, repositories.ErrInstanceAuthProviderInvalid)
 }
 
-// Replicas importing the same provider at once: the database decides, and
-// exactly one of them inserts.
-func TestIntegrationInstanceAuthProviders_ConcurrentInsertIfAbsent(t *testing.T) {
+// A rejected row rolls the whole set back: nothing is stored, audited or
+// bumped, so a later boot can still import the set.
+func TestIntegrationInstanceAuthProviders_InsertIfEmptyAllOrNothing(t *testing.T) {
+	resetInstanceAuthSettings(t)
+	repo := NewInstanceAuthProviderRepository(integrationDB)
+	ctx := context.Background()
+	start := authSettingsVersion(t)
+
+	bad := oidcProviderFixture("bad", 1)
+	bad.IssuerURL = nil
+	cipher := providerCiphertext
+	_, err := repo.InsertIfEmpty(ctx, []*models.InstanceAuthProvider{googleProviderFixture(&cipher), bad})
+	assert.ErrorIs(t, err, repositories.ErrInstanceAuthProviderInvalid)
+
+	list, err := repo.List(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, list, "the valid provider before the bad one is rolled back")
+	assert.Empty(t, authAuditEntries(t, models.InstanceSettingAuthProviders))
+	assert.Equal(t, start, authSettingsVersion(t))
+}
+
+// Replicas importing at once: the version lock serializes them, and exactly one
+// stores the set.
+func TestIntegrationInstanceAuthProviders_ConcurrentInsertIfEmpty(t *testing.T) {
 	resetInstanceAuthSettings(t)
 	repo := NewInstanceAuthProviderRepository(integrationDB)
 	ctx := context.Background()
@@ -281,7 +303,9 @@ func TestIntegrationInstanceAuthProviders_ConcurrentInsertIfAbsent(t *testing.T)
 		go func() {
 			defer wg.Done()
 			<-begin
-			ok, err := repo.InsertIfAbsent(ctx, oidcProviderFixture("corp", 0))
+			ok, err := repo.InsertIfEmpty(ctx, []*models.InstanceAuthProvider{
+				oidcProviderFixture("corp", 0), oidcProviderFixture("partner", 1),
+			})
 			results <- ok
 			errs <- err
 		}()
@@ -302,7 +326,10 @@ func TestIntegrationInstanceAuthProviders_ConcurrentInsertIfAbsent(t *testing.T)
 	}
 	assert.Equal(t, 1, insertedCount)
 	assert.Equal(t, start+1, authSettingsVersion(t))
-	assert.Len(t, authAuditEntries(t, models.InstanceSettingAuthProviders), 1)
+	assert.Len(t, authAuditEntries(t, models.InstanceSettingAuthProviders), 2)
+	list, err := repo.List(ctx)
+	require.NoError(t, err)
+	assert.Len(t, list, 2)
 }
 
 // Concurrent creates with the same expected version: the version lock

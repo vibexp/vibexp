@@ -3,7 +3,6 @@ package providers
 import (
 	"context"
 	"log/slog"
-	"strings"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/auth/idp/github"
@@ -55,32 +54,12 @@ func ProvideIdentityProviderRegistry(cfg *config.Config, logger *slog.Logger) (*
 
 // resolveEnabledProviderNames computes the ordered, de-duplicated list of
 // provider names to enable, applying the AUTH_PROVIDERS → AUTH_PROVIDER
-// precedence.
+// precedence (config.AuthConfig.LegacyEnabledProviderNames).
 func resolveEnabledProviderNames(cfg *config.Config) []idp.ProviderName {
-	normalize := func(raw string) idp.ProviderName {
-		return idp.ProviderName(strings.ToLower(strings.TrimSpace(raw)))
-	}
-
-	var raw []string
-	switch {
-	case len(cfg.Auth.Providers) > 0:
-		raw = cfg.Auth.Providers
-	case strings.TrimSpace(cfg.Auth.Provider) != "":
-		raw = []string{cfg.Auth.Provider}
-	}
-
-	seen := make(map[idp.ProviderName]struct{}, len(raw))
-	names := make([]idp.ProviderName, 0, len(raw))
-	for _, r := range raw {
-		name := normalize(r)
-		if name == "" || name == "none" {
-			continue
-		}
-		if _, dup := seen[name]; dup {
-			continue
-		}
-		seen[name] = struct{}{}
-		names = append(names, name)
+	enabled := cfg.Auth.LegacyEnabledProviderNames()
+	names := make([]idp.ProviderName, len(enabled))
+	for i, name := range enabled {
+		names[i] = idp.ProviderName(name)
 	}
 	return names
 }
@@ -107,15 +86,15 @@ func buildIdentityProvider(
 }
 
 func buildGoogleProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, bool) {
-	if cfg.Auth.Google.ClientID == "" || cfg.Auth.Google.ClientSecret == "" {
+	if cfg.Auth.LegacyGoogle.ClientID == "" || cfg.Auth.LegacyGoogle.ClientSecret == "" {
 		logger.With("provider", "google").
 			Warn("Google enabled but GOOGLE_CLIENT_ID/SECRET are absent; skipping")
 		return nil, false
 	}
 	provider, err := google.New(context.Background(), google.Config{
-		ClientID:     cfg.Auth.Google.ClientID,
-		ClientSecret: cfg.Auth.Google.ClientSecret,
-		RedirectURL:  cfg.Auth.Google.RedirectURI,
+		ClientID:     cfg.Auth.LegacyGoogle.ClientID,
+		ClientSecret: cfg.Auth.LegacyGoogle.ClientSecret,
+		RedirectURL:  cfg.Auth.LegacyGoogle.RedirectURI,
 	})
 	if err != nil {
 		logger.With("provider", "google", "error", err).
@@ -127,15 +106,15 @@ func buildGoogleProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityP
 }
 
 func buildGitHubProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, bool) {
-	if cfg.Auth.GitHub.ClientID == "" || cfg.Auth.GitHub.ClientSecret == "" {
+	if cfg.Auth.LegacyGitHub.ClientID == "" || cfg.Auth.LegacyGitHub.ClientSecret == "" {
 		logger.With("provider", "github").
 			Warn("GitHub enabled but GITHUB_CLIENT_ID/SECRET are absent; skipping")
 		return nil, false
 	}
 	provider, err := github.New(github.Config{
-		ClientID:     cfg.Auth.GitHub.ClientID,
-		ClientSecret: cfg.Auth.GitHub.ClientSecret,
-		RedirectURL:  cfg.Auth.GitHub.RedirectURI,
+		ClientID:     cfg.Auth.LegacyGitHub.ClientID,
+		ClientSecret: cfg.Auth.LegacyGitHub.ClientSecret,
+		RedirectURL:  cfg.Auth.LegacyGitHub.RedirectURI,
 	})
 	if err != nil {
 		logger.With("provider", "github", "error", err).
@@ -149,17 +128,17 @@ func buildGitHubProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityP
 func buildOIDCProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, bool) {
 	provider, err := oidc.New(context.Background(), oidc.Config{
 		Name:         idp.ProviderOIDC,
-		IssuerURL:    cfg.Auth.OIDC.IssuerURL,
-		ClientID:     cfg.Auth.OIDC.ClientID,
-		ClientSecret: cfg.Auth.OIDC.ClientSecret,
-		RedirectURL:  cfg.Auth.OIDC.RedirectURI,
+		IssuerURL:    cfg.Auth.LegacyOIDC.IssuerURL,
+		ClientID:     cfg.Auth.LegacyOIDC.ClientID,
+		ClientSecret: cfg.Auth.LegacyOIDC.ClientSecret,
+		RedirectURL:  cfg.Auth.LegacyOIDC.RedirectURI,
 	})
 	if err != nil {
-		logger.With("provider", "oidc", "issuer_url", cfg.Auth.OIDC.IssuerURL, "error", err).
+		logger.With("provider", "oidc", "issuer_url", cfg.Auth.LegacyOIDC.IssuerURL, "error", err).
 			Warn("OIDC provider initialization failed; skipping")
 		return nil, false
 	}
-	logger.With("provider", "oidc", "issuer_url", cfg.Auth.OIDC.IssuerURL).Info(msgIdentityProviderEnabled)
+	logger.With("provider", "oidc", "issuer_url", cfg.Auth.LegacyOIDC.IssuerURL).Info(msgIdentityProviderEnabled)
 	return provider, true
 }
 

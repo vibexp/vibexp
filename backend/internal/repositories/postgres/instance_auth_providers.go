@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/vibexp/vibexp/internal/database"
@@ -52,14 +51,8 @@ const instanceAuthProviderInsert = `INSERT INTO instance_auth_providers
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	RETURNING id, created_at, updated_at`
 
-// instanceAuthProviderInsertIfAbsent is instanceAuthProviderInsert that yields
-// no row when the slug, or for google/github the type, is already stored. With
-// no conflict target it covers both unique indexes.
-const instanceAuthProviderInsertIfAbsent = `INSERT INTO instance_auth_providers
-	(type, slug, display_name, enabled, sort_order, client_id, client_secret_encrypted, issuer_url, updated_by)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	ON CONFLICT DO NOTHING
-	RETURNING id, created_at, updated_at`
+// instanceAuthProviderAny reports whether any provider is stored.
+const instanceAuthProviderAny = `SELECT EXISTS (SELECT 1 FROM instance_auth_providers)`
 
 // instanceAuthProviderUpdate replaces the mutable columns. Slug and type are
 // immutable, so neither is written; both are returned so the caller's struct
@@ -185,30 +178,49 @@ func (r *InstanceAuthProviderRepository) Delete(
 		})
 }
 
-// InsertIfAbsent stores a provider for the boot-time import; see the interface.
-func (r *InstanceAuthProviderRepository) InsertIfAbsent(
-	ctx context.Context, p *models.InstanceAuthProvider,
+// InsertIfEmpty stores the boot-time import's provider set; see the interface.
+// Under the version lock no other writer can add a provider between the
+// emptiness check and the inserts.
+func (r *InstanceAuthProviderRepository) InsertIfEmpty(
+	ctx context.Context, providers []*models.InstanceAuthProvider,
 ) (bool, error) {
-	p.UpdatedBy = nil
+	if len(providers) == 0 {
+		return false, nil
+	}
 	var inserted bool
 	err := r.inTx(ctx, "import", nil,
 		func(tx *sql.Tx, _ *models.InstanceAuthProvider, _ int64) (bool, error) {
-			err := tx.QueryRowContext(ctx, instanceAuthProviderInsertIfAbsent, instanceAuthProviderArgs(p)...).
-				Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
-			if errors.Is(err, sql.ErrNoRows) {
+			var exists bool
+			if err := tx.QueryRowContext(ctx, instanceAuthProviderAny).Scan(&exists); err != nil {
+				return false, fmt.Errorf("failed to check for stored instance auth providers: %w", err)
+			}
+			if exists {
 				return false, nil
 			}
-			if err != nil {
-				return false, mapInstanceAuthProviderWriteError("import", err)
+			for _, p := range providers {
+				if err := insertImportedInstanceAuthProvider(ctx, tx, p); err != nil {
+					return false, err
+				}
 			}
 			inserted = true
-			return true, appendInstanceAuthProviderAudit(ctx, tx, models.InstanceSettingsAuditActionImport,
-				nil, nil, p)
+			return true, nil
 		})
 	if err != nil {
 		return false, err
 	}
 	return inserted, nil
+}
+
+// insertImportedInstanceAuthProvider inserts one imported provider (no editor)
+// and appends its import audit entry, inside tx.
+func insertImportedInstanceAuthProvider(ctx context.Context, tx *sql.Tx, p *models.InstanceAuthProvider) error {
+	p.UpdatedBy = nil
+	err := tx.QueryRowContext(ctx, instanceAuthProviderInsert, instanceAuthProviderArgs(p)...).
+		Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return mapInstanceAuthProviderWriteError("import", err)
+	}
+	return appendInstanceAuthProviderAudit(ctx, tx, models.InstanceSettingsAuditActionImport, nil, nil, p)
 }
 
 // inTx runs one audited provider write under the shared version lock. id names

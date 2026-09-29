@@ -60,6 +60,7 @@ func Execute() {
 func runServer(cmd *cobra.Command, args []string) {
 	cfg := loadConfiguration()
 	logger := configureLogger(cfg)
+	logDeprecationWarnings(cfg, logger)
 	db := initializeDatabase(cfg, logger)
 	defer closeDatabase(db, logger)
 
@@ -98,6 +99,14 @@ func loadConfiguration() *config.Config {
 	resolveReleaseMetadata(cfg)
 
 	return cfg
+}
+
+// logDeprecationWarnings logs, on every boot, each deprecated key the loaded
+// config.yaml still sets (#1232). The loader collects them but has no logger.
+func logDeprecationWarnings(cfg *config.Config, logger *slog.Logger) {
+	for _, warning := range cfg.DeprecationWarnings {
+		logger.Warn(warning)
+	}
 }
 
 // resolveReleaseMetadata fills in server.release_sha / server.release_date from

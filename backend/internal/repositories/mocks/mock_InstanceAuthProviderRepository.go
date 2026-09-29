@@ -238,27 +238,27 @@ func (_c *MockInstanceAuthProviderRepository_GetBySlug_Call) RunAndReturn(run fu
 	return _c
 }
 
-// InsertIfAbsent provides a mock function with given fields: ctx, provider
-func (_m *MockInstanceAuthProviderRepository) InsertIfAbsent(ctx context.Context, provider *models.InstanceAuthProvider) (bool, error) {
-	ret := _m.Called(ctx, provider)
+// InsertIfEmpty provides a mock function with given fields: ctx, providers
+func (_m *MockInstanceAuthProviderRepository) InsertIfEmpty(ctx context.Context, providers []*models.InstanceAuthProvider) (bool, error) {
+	ret := _m.Called(ctx, providers)
 
 	if len(ret) == 0 {
-		panic("no return value specified for InsertIfAbsent")
+		panic("no return value specified for InsertIfEmpty")
 	}
 
 	var r0 bool
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *models.InstanceAuthProvider) (bool, error)); ok {
-		return rf(ctx, provider)
+	if rf, ok := ret.Get(0).(func(context.Context, []*models.InstanceAuthProvider) (bool, error)); ok {
+		return rf(ctx, providers)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *models.InstanceAuthProvider) bool); ok {
-		r0 = rf(ctx, provider)
+	if rf, ok := ret.Get(0).(func(context.Context, []*models.InstanceAuthProvider) bool); ok {
+		r0 = rf(ctx, providers)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *models.InstanceAuthProvider) error); ok {
-		r1 = rf(ctx, provider)
+	if rf, ok := ret.Get(1).(func(context.Context, []*models.InstanceAuthProvider) error); ok {
+		r1 = rf(ctx, providers)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -266,31 +266,31 @@ func (_m *MockInstanceAuthProviderRepository) InsertIfAbsent(ctx context.Context
 	return r0, r1
 }
 
-// MockInstanceAuthProviderRepository_InsertIfAbsent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InsertIfAbsent'
-type MockInstanceAuthProviderRepository_InsertIfAbsent_Call struct {
+// MockInstanceAuthProviderRepository_InsertIfEmpty_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InsertIfEmpty'
+type MockInstanceAuthProviderRepository_InsertIfEmpty_Call struct {
 	*mock.Call
 }
 
-// InsertIfAbsent is a helper method to define mock.On call
+// InsertIfEmpty is a helper method to define mock.On call
 //   - ctx context.Context
-//   - provider *models.InstanceAuthProvider
-func (_e *MockInstanceAuthProviderRepository_Expecter) InsertIfAbsent(ctx interface{}, provider interface{}) *MockInstanceAuthProviderRepository_InsertIfAbsent_Call {
-	return &MockInstanceAuthProviderRepository_InsertIfAbsent_Call{Call: _e.mock.On("InsertIfAbsent", ctx, provider)}
+//   - providers []*models.InstanceAuthProvider
+func (_e *MockInstanceAuthProviderRepository_Expecter) InsertIfEmpty(ctx interface{}, providers interface{}) *MockInstanceAuthProviderRepository_InsertIfEmpty_Call {
+	return &MockInstanceAuthProviderRepository_InsertIfEmpty_Call{Call: _e.mock.On("InsertIfEmpty", ctx, providers)}
 }
 
-func (_c *MockInstanceAuthProviderRepository_InsertIfAbsent_Call) Run(run func(ctx context.Context, provider *models.InstanceAuthProvider)) *MockInstanceAuthProviderRepository_InsertIfAbsent_Call {
+func (_c *MockInstanceAuthProviderRepository_InsertIfEmpty_Call) Run(run func(ctx context.Context, providers []*models.InstanceAuthProvider)) *MockInstanceAuthProviderRepository_InsertIfEmpty_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*models.InstanceAuthProvider))
+		run(args[0].(context.Context), args[1].([]*models.InstanceAuthProvider))
 	})
 	return _c
 }
 
-func (_c *MockInstanceAuthProviderRepository_InsertIfAbsent_Call) Return(inserted bool, err error) *MockInstanceAuthProviderRepository_InsertIfAbsent_Call {
+func (_c *MockInstanceAuthProviderRepository_InsertIfEmpty_Call) Return(inserted bool, err error) *MockInstanceAuthProviderRepository_InsertIfEmpty_Call {
 	_c.Call.Return(inserted, err)
 	return _c
 }
 
-func (_c *MockInstanceAuthProviderRepository_InsertIfAbsent_Call) RunAndReturn(run func(context.Context, *models.InstanceAuthProvider) (bool, error)) *MockInstanceAuthProviderRepository_InsertIfAbsent_Call {
+func (_c *MockInstanceAuthProviderRepository_InsertIfEmpty_Call) RunAndReturn(run func(context.Context, []*models.InstanceAuthProvider) (bool, error)) *MockInstanceAuthProviderRepository_InsertIfEmpty_Call {
 	_c.Call.Return(run)
 	return _c
 }

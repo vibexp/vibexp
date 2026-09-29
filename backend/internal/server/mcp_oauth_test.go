@@ -350,7 +350,7 @@ func TestNewConsentAccessChecker(t *testing.T) {
 
 	newPolicy := func(repo repositories.UserRepository, allowlist config.AccessAllowlistConfig) oauthserver.ConsentAccessChecker {
 		cfg := &config.Config{}
-		cfg.Auth.AccessAllowlist = allowlist
+		cfg.Auth.LegacyAccessAllowlist = allowlist
 		return newConsentAccessChecker(
 			cfg,
 			containerWithUsers{BaseMockContainer: &BaseMockContainer{}, users: repo},

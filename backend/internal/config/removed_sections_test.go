@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -65,10 +67,10 @@ auth:
 
 	require.NoError(t, err, "auth.github is not the removed section and must still load")
 	require.NotNil(t, cfg)
-	assert.Equal(t, "gh-web-login-id", cfg.Auth.GitHub.ClientID)
-	assert.Equal(t, "gh-web-login-secret", cfg.Auth.GitHub.ClientSecret)
-	assert.Equal(t, "https://app.example.com/cb/github", cfg.Auth.GitHub.RedirectURI)
-	assert.Equal(t, []string{"github"}, cfg.Auth.Providers)
+	assert.Equal(t, "gh-web-login-id", cfg.Auth.LegacyGitHub.ClientID)
+	assert.Equal(t, "gh-web-login-secret", cfg.Auth.LegacyGitHub.ClientSecret)
+	assert.Equal(t, "https://app.example.com/cb/github", cfg.Auth.LegacyGitHub.RedirectURI)
+	assert.Equal(t, []string{"github"}, cfg.Auth.LegacyProviders)
 }
 
 // TestCheckRemovedSections covers the helper directly, including that an
@@ -88,7 +90,7 @@ func TestCheckRemovedSections(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := checkRemovedSections("config.yaml", tt.parsed)
+			warnings, err := checkRemovedSections("config.yaml", tt.parsed)
 
 			if tt.wantError {
 				require.Error(t, err)
@@ -96,6 +98,7 @@ func TestCheckRemovedSections(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
+			assert.Empty(t, warnings)
 		})
 	}
 }
@@ -103,16 +106,14 @@ func TestCheckRemovedSections(t *testing.T) {
 // TestCheckRemovedSections_ReportsAllDeterministically guards the two properties
 // that make this check usable during a multi-section migration: every offending
 // section is named in one go (no restart-per-section discovery loop), and the
-// order is fixed rather than inherited from Go's randomized map iteration.
+// order is fixed whatever order the entries are declared in.
 func TestCheckRemovedSections_ReportsAllDeterministically(t *testing.T) {
-	// Stand-in entries: the real map has one member today, so the guarantee has
-	// to be exercised against a map that actually has several.
-	original := removedConfigSections
-	t.Cleanup(func() { removedConfigSections = original })
-	removedConfigSections = map[string]string{
-		"zeta":  "zeta guidance",
-		"alpha": "alpha guidance",
-		"mid":   "mid guidance",
+	original := removedConfigKeys
+	t.Cleanup(func() { removedConfigKeys = original })
+	removedConfigKeys = []removedConfigKey{
+		{path: "zeta", mode: removalFatal, guidance: "zeta guidance"},
+		{path: "alpha", mode: removalFatal, guidance: "alpha guidance"},
+		{path: "mid", mode: removalFatal, guidance: "mid guidance"},
 	}
 
 	parsed := map[string]interface{}{
@@ -122,7 +123,7 @@ func TestCheckRemovedSections_ReportsAllDeterministically(t *testing.T) {
 		"server": map[string]interface{}{},
 	}
 
-	first := checkRemovedSections("config.yaml", parsed)
+	_, first := checkRemovedSections("config.yaml", parsed)
 	require.Error(t, first)
 
 	msg := first.Error()
@@ -133,9 +134,175 @@ func TestCheckRemovedSections_ReportsAllDeterministically(t *testing.T) {
 	assert.Less(t, strings.Index(msg, "alpha"), strings.Index(msg, "mid"), "sections must be sorted")
 	assert.Less(t, strings.Index(msg, "mid"), strings.Index(msg, "zeta"), "sections must be sorted")
 
-	// Repeated calls must produce a byte-identical message; a randomized map
-	// range would eventually disagree with itself here.
 	for i := 0; i < 20; i++ {
-		assert.Equal(t, msg, checkRemovedSections("config.yaml", parsed).Error())
+		_, again := checkRemovedSections("config.yaml", parsed)
+		assert.Equal(t, msg, again.Error())
+	}
+}
+
+// legacyAuthKeys are the nested auth keys deprecated by #1232 (warn mode).
+var legacyAuthKeys = []string{
+	"auth.access_allowlist", "auth.github", "auth.google", "auth.oidc", "auth.provider", "auth.providers",
+}
+
+// TestCheckRemovedSections_NestedWarnMode pins the warn-mode half of the check
+// (#1232): each deprecated auth key warns only when POPULATED — the baked
+// config.docker.yaml declares every one of them on every install, with empty
+// values and a localhost redirect_uri — and a warning never fails the load.
+func TestCheckRemovedSections_NestedWarnMode(t *testing.T) {
+	auth := func(key string, value interface{}) map[string]interface{} {
+		return map[string]interface{}{"auth": map[string]interface{}{key: value}}
+	}
+	provider := func(fields map[string]interface{}) map[string]interface{} { return fields }
+
+	tests := []struct {
+		name     string
+		parsed   map[string]interface{}
+		wantPath string // "" = no warning
+	}{
+		{"providers list", auth("providers", []interface{}{"google"}), "auth.providers"},
+		{"providers comma string", auth("providers", "google,github"), "auth.providers"},
+		{"providers empty list", auth("providers", []interface{}{}), ""},
+		{"providers blank entries", auth("providers", []interface{}{"", "  "}), ""},
+		{"provider set", auth("provider", "oidc"), "auth.provider"},
+		{"provider blank", auth("provider", "  "), ""},
+		{"provider null", auth("provider", nil), ""},
+		{"allowlist domains", auth("access_allowlist",
+			map[string]interface{}{"domains": "example.com", "emails": ""}), "auth.access_allowlist"},
+		{"allowlist emails list", auth("access_allowlist",
+			map[string]interface{}{"emails": []interface{}{"a@example.com"}}), "auth.access_allowlist"},
+		{"allowlist empty", auth("access_allowlist",
+			map[string]interface{}{"domains": "", "emails": ""}), ""},
+		{"google client id", auth("google", provider(map[string]interface{}{"client_id": "id"})), "auth.google"},
+		{"github secret", auth("github", provider(map[string]interface{}{"client_secret": "s"})), "auth.github"},
+		{"oidc issuer", auth("oidc", provider(map[string]interface{}{"issuer_url": "https://sso"})), "auth.oidc"},
+		{"redirect_uri alone is not populated", auth("google", provider(map[string]interface{}{
+			"client_id": "", "client_secret": "", "redirect_uri": "http://localhost:8080/api/v1/auth/callback",
+		})), ""},
+		{"empty provider block", auth("oidc", map[string]interface{}{}), ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			warnings, err := checkRemovedSections("config.yaml", tt.parsed)
+			require.NoError(t, err, "a deprecated auth key only warns")
+			if tt.wantPath == "" {
+				assert.Empty(t, warnings)
+				return
+			}
+			require.Len(t, warnings, 1)
+			assert.Contains(t, warnings[0], `"`+tt.wantPath+`"`, "the warning names the key")
+			assert.Contains(t, warnings[0], "Admin → Settings → Authentication", "the warning says where it went")
+			assert.Contains(t, warnings[0], "second minor release", "the warning says when it becomes fatal")
+			assert.Contains(t, warnings[0], "https://vibexp.io/docs/", "the warning points at the docs")
+		})
+	}
+}
+
+// TestCheckRemovedSections_NestedAllKeys asserts every deprecated auth key is
+// registered, reported once, and in sorted order.
+func TestCheckRemovedSections_NestedAllKeys(t *testing.T) {
+	parsed := map[string]interface{}{"auth": map[string]interface{}{
+		"providers":        []interface{}{"google", "oidc"},
+		"provider":         "github",
+		"access_allowlist": map[string]interface{}{"domains": []interface{}{"example.com"}},
+		"google":           map[string]interface{}{"client_id": "g"},
+		"github":           map[string]interface{}{"client_id": "gh"},
+		"oidc":             map[string]interface{}{"client_secret": "o"},
+	}}
+
+	warnings, err := checkRemovedSections("config.yaml", parsed)
+	require.NoError(t, err)
+	require.Len(t, warnings, len(legacyAuthKeys))
+	for i, key := range legacyAuthKeys {
+		assert.Contains(t, warnings[i], `"`+key+`"`, "warnings are sorted by key")
+	}
+}
+
+// TestCheckRemovedSections_SiblingAuthKeysUnaffected guards the exact-path
+// match: the auth keys that stay in config.yaml never warn, however populated.
+func TestCheckRemovedSections_SiblingAuthKeysUnaffected(t *testing.T) {
+	parsed := map[string]interface{}{"auth": map[string]interface{}{
+		"instance_admins":        "admin@example.com",
+		"session_encryption_key": "0123",
+		"dev_login_enabled":      true,
+		"oauth_as":               map[string]interface{}{"issuer_url": "https://as.example.com"},
+		"api_oauth":              map[string]interface{}{"issuer": "https://idp.example.com"},
+	}}
+
+	warnings, err := checkRemovedSections("config.yaml", parsed)
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+}
+
+// TestCheckRemovedSections_TopLevelGitHubStaysFatal pins that the top-level
+// `github` entry keeps failing boot next to warn-mode auth keys, and that the
+// warn-mode `auth.github` entry does not make it fatal.
+func TestCheckRemovedSections_TopLevelGitHubStaysFatal(t *testing.T) {
+	_, err := checkRemovedSections("config.yaml", map[string]interface{}{
+		"github": map[string]interface{}{"app_id": "1"},
+		"auth":   map[string]interface{}{"github": map[string]interface{}{"client_id": "gh"}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"github"`)
+	assert.NotContains(t, err.Error(), `"auth.github"`, "auth.github only warns")
+
+	warnings, err := checkRemovedSections("config.yaml", map[string]interface{}{
+		"auth": map[string]interface{}{"github": map[string]interface{}{"client_id": "gh"}},
+	})
+	require.NoError(t, err, "auth.github alone must not fail boot")
+	require.Len(t, warnings, 1)
+}
+
+// TestLoad_LegacyAuthKeys_DeprecationWarnings is the end-to-end half: Load
+// carries the warnings on the Config (the server logs them) and still loads the
+// legacy values for the bridge.
+func TestLoad_LegacyAuthKeys_DeprecationWarnings(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+`
+auth:
+  provider: google
+  google:
+    client_id: gid
+    client_secret: gsecret
+`)
+	require.NoError(t, err)
+	require.Len(t, cfg.DeprecationWarnings, 2)
+	assert.Contains(t, cfg.DeprecationWarnings[0], `"auth.google"`)
+	assert.Contains(t, cfg.DeprecationWarnings[1], `"auth.provider"`)
+	assert.Equal(t, "google", cfg.Auth.LegacyProvider)
+	assert.Equal(t, "gid", cfg.Auth.LegacyGoogle.ClientID)
+
+	plain, err := loadYAML(t, baseValidYAML)
+	require.NoError(t, err)
+	assert.Empty(t, plain.DeprecationWarnings)
+}
+
+// TestConfigSchema_LegacyAuthKeysDeprecated pins that the generated schema
+// flags each deprecated auth key (and only those) so editors strike it
+// through (#1232). The schema is generated and drift-gated; this asserts its
+// content, not its freshness.
+func TestConfigSchema_LegacyAuthKeysDeprecated(t *testing.T) {
+	raw, err := os.ReadFile("../../config.schema.json")
+	require.NoError(t, err)
+	var schema struct {
+		Defs map[string]struct {
+			Properties map[string]struct {
+				Deprecated  bool   `json:"deprecated"`
+				Description string `json:"description"`
+			} `json:"properties"`
+		} `json:"$defs"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &schema))
+
+	auth := schema.Defs["AuthConfig"].Properties
+	for _, key := range legacyAuthKeys {
+		name := strings.TrimPrefix(key, "auth.")
+		prop, ok := auth[name]
+		require.True(t, ok, "AuthConfig has %s", name)
+		assert.True(t, prop.Deprecated, "%s is deprecated", key)
+		assert.Contains(t, prop.Description, "Admin → Settings → Authentication")
+	}
+	for _, name := range []string{"instance_admins", "session_encryption_key", "dev_login_enabled", "oauth_as", "api_oauth"} {
+		assert.False(t, auth[name].Deprecated, "auth.%s stays in config.yaml", name)
 	}
 }

@@ -339,7 +339,7 @@ func TestUserSignInAllowlistFlag_EmptyAllowlist(t *testing.T) {
 }
 
 // TestUserSignInAllowlistFlag_NilAllowlist verifies that nil slices (the zero
-// value of config.Auth.AccessAllowlist.Domains / .Emails when the env vars are
+// value of config.Auth.LegacyAccessAllowlist.Domains / .Emails when the env vars are
 // unset) also yield open registration.
 func TestUserSignInAllowlistFlag_NilAllowlist(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)

@@ -94,6 +94,15 @@ security:
 
 # Web-login identity providers and the embedded OAuth 2.1 Authorization Server.
 auth:
+  # DEPRECATED (#1232): sign-in providers (providers, provider, google, github,
+  # oidc) and the access_allowlist below are now stored in the database and
+  # managed under Admin -> Settings -> Authentication. They are read only once,
+  # at boot: when the database holds no provider / no allowlist and these keys
+  # are populated, they are imported (secrets encrypted, audited) and ignored
+  # from then on. A warning is logged on every boot while they are set, and they
+  # become a boot failure no earlier than the second minor release after this
+  # one, so migrate and then delete them.
+  #
   # Web-login providers to enable simultaneously (case-insensitive): google,
   # github, oidc. Example: ["google", "github"]. Empty disables web login (dev
   # login below still works). Takes precedence over `provider`.
