@@ -451,6 +451,40 @@ func TestIntegrationInstanceAuthAllowlist_Lifecycle(t *testing.T) {
 	assert.Equal(t, actor, *entries[2].ActorUserID)
 }
 
+// An allowlist row with both lists empty is storable (it is open access, see
+// models.InstanceAuthAllowlist.IsOpenAccess), and reads back as open access.
+func TestIntegrationInstanceAuthAllowlist_EmptyRowIsOpenAccess(t *testing.T) {
+	resetInstanceAuthSettings(t)
+	repo := NewInstanceAuthAllowlistRepository(integrationDB)
+	ctx := context.Background()
+
+	require.NoError(t, repo.UpsertAudited(ctx, &models.InstanceAuthAllowlist{}, nil, nil))
+	got, err := repo.Get(ctx)
+	require.NoError(t, err)
+	assert.True(t, got.IsOpenAccess())
+}
+
+// An actor naming no user is ErrUserNotFound on every auth settings write, and
+// the write rolls back.
+func TestIntegrationInstanceAuthSettings_UnknownActor(t *testing.T) {
+	resetInstanceAuthSettings(t)
+	ctx := context.Background()
+	ghost := uuid.New().String()
+	start := authSettingsVersion(t)
+
+	providers := NewInstanceAuthProviderRepository(integrationDB)
+	assert.ErrorIs(t, providers.Create(ctx, oidcProviderFixture("corp", 0), &ghost, nil),
+		repositories.ErrUserNotFound)
+	stored := oidcProviderFixture("corp", 0)
+	require.NoError(t, providers.Create(ctx, stored, nil, nil))
+	assert.ErrorIs(t, providers.Update(ctx, stored, &ghost, nil), repositories.ErrUserNotFound)
+
+	assert.ErrorIs(t, NewInstanceAuthAllowlistRepository(integrationDB).UpsertAudited(ctx,
+		&models.InstanceAuthAllowlist{Domains: []string{"example.com"}}, &ghost, nil), repositories.ErrUserNotFound)
+
+	assert.Equal(t, start+1, authSettingsVersion(t), "only the valid create bumped the version")
+}
+
 func TestIntegrationInstanceAuthAllowlist_InsertIfAbsent(t *testing.T) {
 	resetInstanceAuthSettings(t)
 	repo := NewInstanceAuthAllowlistRepository(integrationDB)

@@ -228,8 +228,9 @@ func (r *InstanceAuthProviderRepository) inTx(
 }
 
 // mapInstanceAuthProviderWriteError maps a unique violation (slug taken, or a
-// second google/github provider) to ErrInstanceAuthProviderConflict and a CHECK
-// violation to ErrInstanceAuthProviderInvalid.
+// second google/github provider) to ErrInstanceAuthProviderConflict, a CHECK
+// violation to ErrInstanceAuthProviderInvalid, and an updated_by naming no user
+// to ErrUserNotFound (as InstanceAdminRepository does).
 func mapInstanceAuthProviderWriteError(op string, err error) error {
 	if uniqueViolation(err) != nil {
 		return fmt.Errorf("failed to %s instance auth provider: %w: %w",
@@ -238,6 +239,9 @@ func mapInstanceAuthProviderWriteError(op string, err error) error {
 	if isCheckViolation(err) {
 		return fmt.Errorf("failed to %s instance auth provider: %w: %w",
 			op, repositories.ErrInstanceAuthProviderInvalid, err)
+	}
+	if isFKViolation(err) {
+		return fmt.Errorf("failed to %s instance auth provider: %w: %w", op, repositories.ErrUserNotFound, err)
 	}
 	return fmt.Errorf("failed to %s instance auth provider: %w", op, err)
 }

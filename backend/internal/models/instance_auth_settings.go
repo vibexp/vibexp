@@ -60,7 +60,10 @@ func (p *InstanceAuthProvider) HasClientSecret() bool {
 
 // InstanceAuthAllowlist is the instance's sign-in access allowlist: a user may
 // sign in when their email's domain is in Domains or the address is in Emails.
-// The table is a singleton, and no row stored means open access.
+// The table is a singleton. Access is OPEN — every user may sign in — both when
+// no row is stored and when a stored row has both lists empty (IsOpenAccess),
+// the same rule config.yaml's access allowlist has always had. An empty row
+// never means "nobody may sign in".
 //
 // Both lists are stored normalized (see services.ValidateInstanceAuthAllowlist).
 type InstanceAuthAllowlist struct {
@@ -73,6 +76,12 @@ type InstanceAuthAllowlist struct {
 	// Version is the row's own compare-and-set counter. Every write to the
 	// allowlist also bumps the shared auth settings version.
 	Version int64 `json:"version" db:"version"`
+}
+
+// IsOpenAccess reports whether the allowlist admits every user: both lists
+// empty. A nil allowlist (none stored) is open access too.
+func (a *InstanceAuthAllowlist) IsOpenAccess() bool {
+	return a == nil || (len(a.Domains) == 0 && len(a.Emails) == 0)
 }
 
 // InstanceAdminGrant is one instance admin granted in the database, in addition

@@ -1709,7 +1709,8 @@ type InstanceAuthProviderRepository interface {
 	GetBySlug(ctx context.Context, slug string) (*models.InstanceAuthProvider, error)
 	// Create stores a new provider and populates ID/CreatedAt/UpdatedAt on the
 	// passed struct. A taken slug or a second google/github provider returns
-	// ErrInstanceAuthProviderConflict.
+	// ErrInstanceAuthProviderConflict. On every write, an actorUserID naming no
+	// user returns ErrUserNotFound.
 	Create(ctx context.Context, provider *models.InstanceAuthProvider, actorUserID *string, expectedVersion *int64) error
 	// Update replaces the mutable fields (display name, enabled, sort order,
 	// client id, client secret ciphertext, issuer URL) of the provider with
@@ -1728,7 +1729,8 @@ type InstanceAuthProviderRepository interface {
 
 // InstanceAuthAllowlistRepository defines the data access operations for the
 // instance's sign-in access allowlist (#1231). The table is a
-// database-enforced singleton, and no row stored means open access.
+// database-enforced singleton. No row stored, and a stored row with both lists
+// empty, both mean open access (models.InstanceAuthAllowlist.IsOpenAccess).
 //
 // Every write appends one instance_settings_audit entry
 // (models.InstanceSettingAuthAllowlist) and bumps the shared auth settings
@@ -1737,7 +1739,8 @@ type InstanceAuthAllowlistRepository interface {
 	// Get returns the stored allowlist, or ErrInstanceAuthAllowlistNotFound
 	// when none is stored.
 	Get(ctx context.Context) (*models.InstanceAuthAllowlist, error)
-	// UpsertAudited creates or replaces the allowlist, refreshing
+	// UpsertAudited creates or replaces the allowlist (an actorUserID naming no
+	// user returns ErrUserNotFound), refreshing
 	// CreatedAt/UpdatedAt/Version on the passed struct. A non-nil
 	// expectedVersion is compared with the allowlist row's own version under
 	// the lock; a mismatch (or no row stored) returns
