@@ -1,12 +1,16 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
+
+	"github.com/vibexp/vibexp/internal/database"
 )
 
 // Query construction rule for this package:
@@ -26,11 +30,12 @@ var psql = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 
 // Postgres error codes detected by the repositories in this package. The
 // SQLSTATE string literals live only here; call sites go through
-// uniqueViolation / isFKViolation. Untyped so they compare against
-// pq.ErrorCode without naming that deprecated type.
+// uniqueViolation / isFKViolation / isCheckViolation. Untyped so they compare
+// against pq.ErrorCode without naming that deprecated type.
 const (
 	uniqueViolationCode = "23505"
 	fkViolationCode     = "23503"
+	checkViolationCode  = "23514"
 )
 
 // uniqueViolation returns the underlying *pq.Error when err is a Postgres
@@ -43,6 +48,13 @@ func uniqueViolation(err error) *pq.Error {
 		return pqErr
 	}
 	return nil
+}
+
+// isCheckViolation reports whether err is a Postgres CHECK-constraint
+// violation (SQLSTATE 23514).
+func isCheckViolation(err error) bool {
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && pqErr.Code == checkViolationCode
 }
 
 // isFKViolation reports whether err is a Postgres foreign-key-constraint
@@ -105,4 +117,40 @@ func mapNoRows(err, noRows error) error {
 		return noRows
 	}
 	return err
+}
+
+// closeAdminRows closes a result set, logging (never returning) a close failure
+// — the same contract the rest of this repository uses.
+func closeAdminRows(rows interface{ Close() error }, what string) {
+	if err := rows.Close(); err != nil {
+		slog.Error("Failed to close admin rows", "rows", what, "error", err)
+	}
+}
+
+// queryAdminRows runs one read-only list query and scans every row with scan.
+// Shared by the admin analytics and the instance auth settings repositories.
+// The result is never nil, and each failure is wrapped with what the query
+// reads (e.g. "growth series").
+func queryAdminRows[T any](
+	ctx context.Context, db *database.DB, what string, scan func(*sql.Rows) (T, error),
+	query string, args ...any,
+) ([]T, error) {
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query %s: %w", what, err)
+	}
+	defer closeAdminRows(rows, what)
+
+	out := make([]T, 0)
+	for rows.Next() {
+		item, scanErr := scan(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("failed to scan %s row: %w", what, scanErr)
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate %s: %w", what, err)
+	}
+	return out, nil
 }

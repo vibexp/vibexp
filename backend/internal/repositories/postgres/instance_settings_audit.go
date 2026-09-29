@@ -45,7 +45,9 @@ const instanceSettingsAuditKeyset = `
 
 // instanceSettingsAuditSecretKeys are the snapshot keys that name a credential.
 // Compared case-insensitively, so a differently-cased key cannot slip past.
-var instanceSettingsAuditSecretKeys = []string{"secret", "secret_encrypted"}
+var instanceSettingsAuditSecretKeys = []string{
+	"secret", "secret_encrypted", "client_secret", "client_secret_encrypted",
+}
 
 // InstanceSettingsAuditRepository implements
 // repositories.InstanceSettingsAuditRepository for PostgreSQL. The table is
