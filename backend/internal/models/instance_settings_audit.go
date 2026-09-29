@@ -19,6 +19,18 @@ const (
 	// InstanceSettingAISummary is the instance's AI summary defaults and
 	// budgets (table instance_ai_summary_settings, #1197).
 	InstanceSettingAISummary = "ai_summary"
+	// InstanceSettingAuthProviders is the instance's DB-managed sign-in
+	// identity providers (table instance_auth_providers, #1231).
+	InstanceSettingAuthProviders = "auth_providers"
+	// InstanceSettingAuthAllowlist is the instance's sign-in access allowlist
+	// (table instance_auth_allowlist, #1231).
+	InstanceSettingAuthAllowlist = "auth_allowlist"
+	// InstanceSettingInstanceAdmins is the set of DB-granted instance admins
+	// (table instance_admins, #1231).
+	InstanceSettingInstanceAdmins = "instance_admins"
+	// InstanceSettingAuthSetup is the first-run authentication setup (epic
+	// #1230). Declared with the other auth settings; written by #1236.
+	InstanceSettingAuthSetup = "auth_setup"
 )
 
 // Actions an instance settings audit entry records. Unlike the setting, the

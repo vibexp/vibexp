@@ -237,6 +237,32 @@ var (
 	// log must never hold a plaintext secret (#1187).
 	ErrInstanceSettingsAuditUnredacted = errors.New("instance settings audit snapshot is not redacted")
 
+	// ErrInstanceAuthProviderNotFound is returned by
+	// InstanceAuthProviderRepository.Get, GetBySlug, Update and Delete when no
+	// provider matches.
+	ErrInstanceAuthProviderNotFound = errors.New("instance auth provider not found")
+
+	// ErrInstanceAuthProviderConflict is returned by
+	// InstanceAuthProviderRepository.Create when the slug is taken, or when a
+	// google or github provider is already stored (at most one of each).
+	ErrInstanceAuthProviderConflict = errors.New("instance auth provider conflicts with a stored provider")
+
+	// ErrInstanceAuthProviderInvalid is returned by
+	// InstanceAuthProviderRepository writes when the database rejects the row
+	// on a CHECK (unknown type, malformed slug, issuer URL on a non-OIDC
+	// provider or missing on an OIDC one). The validator runs first; this is
+	// the storage backstop.
+	ErrInstanceAuthProviderInvalid = errors.New("instance auth provider is invalid")
+
+	// ErrInstanceAuthAllowlistNotFound is returned by
+	// InstanceAuthAllowlistRepository.Get when no allowlist is stored. This is
+	// an expected state (open access), not a failure.
+	ErrInstanceAuthAllowlistNotFound = errors.New("instance auth allowlist not found")
+
+	// ErrInstanceAdminNotFound is returned by InstanceAdminRepository.Revoke
+	// when the user holds no DB grant.
+	ErrInstanceAdminNotFound = errors.New("instance admin grant not found")
+
 	// ErrFeedNotFound is returned by FeedRepository lookups/updates/deletes when no
 	// feed row matches the given identifier for the team.
 	ErrFeedNotFound = errors.New("feed not found")
@@ -1658,6 +1684,102 @@ type InstanceAISummarySettingsRepository interface {
 type InstanceAISummarySettingsAuditFunc func(
 	before, after *models.InstanceAISummarySettings,
 ) (*models.InstanceSettingsAuditEntry, error)
+
+// InstanceAuthProviderRepository defines the data access operations for the
+// instance's DB-managed sign-in identity providers (#1231, epic #1230).
+//
+// The scope is the instance, so there are no team or role predicates. The
+// repository stores whatever client-secret ciphertext it is handed and never
+// encrypts, decrypts or returns plaintext.
+//
+// Every write runs in one transaction that serializes on the shared auth
+// settings version row, appends one instance_settings_audit entry
+// (models.InstanceSettingAuthProviders, client secret rendered only as
+// changed/unchanged), and bumps the shared version: the change, its audit
+// entry and the bump land together or not at all. A non-nil expectedVersion
+// makes a write a compare-and-set against the shared version
+// (ErrInstanceSettingsVersionConflict on a mismatch); nil is last-write-wins.
+// actorUserID is recorded as the provider's updated_by and the audit actor.
+type InstanceAuthProviderRepository interface {
+	// List returns every provider ordered by sort_order, then slug.
+	List(ctx context.Context) ([]*models.InstanceAuthProvider, error)
+	// Get returns one provider by id, or ErrInstanceAuthProviderNotFound.
+	Get(ctx context.Context, id string) (*models.InstanceAuthProvider, error)
+	// GetBySlug returns one provider by slug, or ErrInstanceAuthProviderNotFound.
+	GetBySlug(ctx context.Context, slug string) (*models.InstanceAuthProvider, error)
+	// Create stores a new provider and populates ID/CreatedAt/UpdatedAt on the
+	// passed struct. A taken slug or a second google/github provider returns
+	// ErrInstanceAuthProviderConflict.
+	Create(ctx context.Context, provider *models.InstanceAuthProvider, actorUserID *string, expectedVersion *int64) error
+	// Update replaces the mutable fields (display name, enabled, sort order,
+	// client id, client secret ciphertext, issuer URL) of the provider with
+	// provider.ID. Slug and type are immutable and never written. Returns
+	// ErrInstanceAuthProviderNotFound when no such provider exists.
+	Update(ctx context.Context, provider *models.InstanceAuthProvider, actorUserID *string, expectedVersion *int64) error
+	// Delete removes the provider with id. Returns
+	// ErrInstanceAuthProviderNotFound when no such provider exists.
+	Delete(ctx context.Context, id string, actorUserID *string, expectedVersion *int64) error
+	// InsertIfAbsent stores provider for the boot-time config.yaml import
+	// (audited as an import with no actor) only when neither its slug nor, for
+	// google/github, its type is already stored, and reports whether it did.
+	// It bumps the shared version only when it inserts.
+	InsertIfAbsent(ctx context.Context, provider *models.InstanceAuthProvider) (inserted bool, err error)
+}
+
+// InstanceAuthAllowlistRepository defines the data access operations for the
+// instance's sign-in access allowlist (#1231). The table is a
+// database-enforced singleton, and no row stored means open access.
+//
+// Every write appends one instance_settings_audit entry
+// (models.InstanceSettingAuthAllowlist) and bumps the shared auth settings
+// version in the same transaction.
+type InstanceAuthAllowlistRepository interface {
+	// Get returns the stored allowlist, or ErrInstanceAuthAllowlistNotFound
+	// when none is stored.
+	Get(ctx context.Context) (*models.InstanceAuthAllowlist, error)
+	// UpsertAudited creates or replaces the allowlist, refreshing
+	// CreatedAt/UpdatedAt/Version on the passed struct. A non-nil
+	// expectedVersion is compared with the allowlist row's own version under
+	// the lock; a mismatch (or no row stored) returns
+	// ErrInstanceSettingsVersionConflict and writes nothing.
+	UpsertAudited(
+		ctx context.Context, allowlist *models.InstanceAuthAllowlist, actorUserID *string, expectedVersion *int64,
+	) error
+	// DeleteAudited removes the allowlist, reverting to open access, and
+	// reports whether a row was deleted. With none stored it writes nothing.
+	DeleteAudited(ctx context.Context, actorUserID *string) (deleted bool, err error)
+	// InsertIfAbsent stores the allowlist for the boot-time config.yaml import
+	// (audited as an import with no actor) only when none is stored, and
+	// reports whether it did.
+	InsertIfAbsent(ctx context.Context, allowlist *models.InstanceAuthAllowlist) (inserted bool, err error)
+}
+
+// InstanceAuthSettingsVersionRepository reads the shared change counter every
+// provider and allowlist write bumps (#1231). It is the cheap cache key of the
+// provider and allowlist resolvers.
+type InstanceAuthSettingsVersionRepository interface {
+	// Get returns the current version.
+	Get(ctx context.Context) (int64, error)
+}
+
+// InstanceAdminRepository defines the data access operations for DB-granted
+// instance admins (#1231). Grants and revokes are audited
+// (models.InstanceSettingInstanceAdmins) in the same transaction; they do not
+// bump the auth settings version, because admins are resolved per request by
+// user id and no provider or allowlist cache depends on them.
+type InstanceAdminRepository interface {
+	// List returns every grant, oldest first.
+	List(ctx context.Context) ([]*models.InstanceAdminGrant, error)
+	// IsGranted reports whether userID holds a DB grant.
+	IsGranted(ctx context.Context, userID string) (bool, error)
+	// Grant makes userID an instance admin and reports whether it was newly
+	// granted. Granting an existing admin is a no-op that writes no audit entry.
+	// Returns ErrUserNotFound when userID (or grantedBy) names no user.
+	Grant(ctx context.Context, userID string, grantedBy *string) (granted bool, err error)
+	// Revoke removes userID's grant. Returns ErrInstanceAdminNotFound when the
+	// user holds none.
+	Revoke(ctx context.Context, userID string, actorUserID *string) error
+}
 
 // FeedRepository defines the interface for feed data access operations
 type FeedRepository interface {

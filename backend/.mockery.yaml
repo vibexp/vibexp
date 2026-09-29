@@ -122,6 +122,10 @@ packages:
       GitHubAppConfigRepository:
       GitHubInstallationRepository:
       InstanceAISummarySettingsRepository:
+      InstanceAdminRepository:
+      InstanceAuthAllowlistRepository:
+      InstanceAuthProviderRepository:
+      InstanceAuthSettingsVersionRepository:
       InstanceEmailProviderRepository:
       InstanceSearchSettingsRepository:
       InstanceSettingsAuditRepository:

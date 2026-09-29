@@ -26,11 +26,12 @@ var psql = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 
 // Postgres error codes detected by the repositories in this package. The
 // SQLSTATE string literals live only here; call sites go through
-// uniqueViolation / isFKViolation. Untyped so they compare against
+// uniqueViolation / isFKViolation / isCheckViolation. Untyped so they compare against
 // pq.ErrorCode without naming that deprecated type.
 const (
 	uniqueViolationCode = "23505"
 	fkViolationCode     = "23503"
+	checkViolationCode  = "23514"
 )
 
 // uniqueViolation returns the underlying *pq.Error when err is a Postgres
@@ -43,6 +44,13 @@ func uniqueViolation(err error) *pq.Error {
 		return pqErr
 	}
 	return nil
+}
+
+// isCheckViolation reports whether err is a Postgres CHECK-constraint
+// violation (SQLSTATE 23514).
+func isCheckViolation(err error) bool {
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && pqErr.Code == checkViolationCode
 }
 
 // isFKViolation reports whether err is a Postgres foreign-key-constraint

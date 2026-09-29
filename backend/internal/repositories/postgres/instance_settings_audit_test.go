@@ -131,6 +131,10 @@ func TestInstanceSettingsAuditRepository_Append_RejectsUnredactedSecret(t *testi
 		"plaintext secret":           map[string]interface{}{"secret": instanceSettingsAuditLeakSentinel},
 		"plaintext secret_encrypted": map[string]interface{}{"secret_encrypted": instanceSettingsAuditLeakSentinel},
 		"differently cased key":      map[string]interface{}{"Secret": instanceSettingsAuditLeakSentinel},
+		"plaintext client_secret":    map[string]interface{}{"client_secret": instanceSettingsAuditLeakSentinel},
+		"plaintext client_secret_encrypted": map[string]interface{}{
+			"client_secret_encrypted": instanceSettingsAuditLeakSentinel,
+		},
 		"nested under settings": map[string]interface{}{
 			"settings": map[string]interface{}{"secret": instanceSettingsAuditLeakSentinel},
 		},

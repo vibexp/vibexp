@@ -314,7 +314,8 @@ func closeAdminRows(rows interface{ Close() error }, what string) {
 	}
 }
 
-// queryAdminRows runs one admin analytics query and scans every row with scan.
+// queryAdminRows runs one read-only list query (admin analytics, instance auth
+// settings) and scans every row with scan.
 // The result is never nil, and each failure is wrapped with what the query
 // reads (e.g. "growth series").
 func queryAdminRows[T any](
