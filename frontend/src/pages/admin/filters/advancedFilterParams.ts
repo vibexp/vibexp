@@ -113,6 +113,69 @@ export function serializeTriState(value: boolean | undefined): string {
   return value === undefined ? '' : String(value)
 }
 
+type AdvancedParams = Record<string, AdvancedParamValue>
+
+/**
+ * Writes each present bound of a pair into `params`; returns 1 when either is
+ * present, so a pair counts once however many of its bounds are set.
+ */
+function applyPair(
+  params: AdvancedParams,
+  [lowKey, highKey]: readonly [string, string],
+  low: AdvancedParamValue | undefined,
+  high: AdvancedParamValue | undefined
+): number {
+  if (low !== undefined) params[lowKey] = low
+  if (high !== undefined) params[highKey] = high
+  return low !== undefined || high !== undefined ? 1 : 0
+}
+
+function applyRanges(
+  names: readonly string[],
+  filters: Readonly<Record<string, string | undefined>>,
+  params: AdvancedParams
+): number {
+  let active = 0
+  for (const name of names) {
+    const keys = rangeKeys(name)
+    const { min, max } = parseRange(filters[keys[0]], filters[keys[1]])
+    active += applyPair(params, keys, min, max)
+  }
+  return active
+}
+
+function applyDateRanges(
+  names: readonly string[],
+  filters: Readonly<Record<string, string | undefined>>,
+  params: AdvancedParams
+): number {
+  let active = 0
+  for (const name of names) {
+    const keys = dateRangeKeys(name)
+    const { from, to } = rangeToInstants(
+      parseDateRange(filters[keys[0]], filters[keys[1]])
+    )
+    active += applyPair(params, keys, from, to)
+  }
+  return active
+}
+
+function applyTriStates(
+  names: readonly string[],
+  filters: Readonly<Record<string, string | undefined>>,
+  params: AdvancedParams
+): number {
+  let active = 0
+  for (const name of names) {
+    const value = parseTriState(filters[name])
+    if (value !== undefined) {
+      params[name] = value
+      active += 1
+    }
+  }
+  return active
+}
+
 /**
  * The cleaned, typed request fragment for every declared advanced filter, and
  * how many filters are active (a range pair counts once, however many of its
@@ -121,36 +184,14 @@ export function serializeTriState(value: boolean | undefined): string {
 export function sanitizeAdvanced(
   spec: AdvancedFilterSpec | undefined,
   filters: Readonly<Record<string, string | undefined>>
-): { params: Record<string, AdvancedParamValue>; activeCount: number } {
-  const params: Record<string, AdvancedParamValue> = {}
-  let activeCount = 0
-  if (!spec) return { params, activeCount }
+): { params: AdvancedParams; activeCount: number } {
+  const params: AdvancedParams = {}
+  if (!spec) return { params, activeCount: 0 }
 
-  for (const name of spec.ranges ?? []) {
-    const [minKey, maxKey] = rangeKeys(name)
-    const { min, max } = parseRange(filters[minKey], filters[maxKey])
-    if (min !== undefined) params[minKey] = min
-    if (max !== undefined) params[maxKey] = max
-    if (min !== undefined || max !== undefined) activeCount += 1
-  }
-
-  for (const name of spec.dateRanges ?? []) {
-    const [fromKey, toKey] = dateRangeKeys(name)
-    const { from, to } = rangeToInstants(
-      parseDateRange(filters[fromKey], filters[toKey])
-    )
-    if (from !== undefined) params[fromKey] = from
-    if (to !== undefined) params[toKey] = to
-    if (from !== undefined || to !== undefined) activeCount += 1
-  }
-
-  for (const name of spec.triStates ?? []) {
-    const value = parseTriState(filters[name])
-    if (value !== undefined) {
-      params[name] = value
-      activeCount += 1
-    }
-  }
+  const activeCount =
+    applyRanges(spec.ranges ?? [], filters, params) +
+    applyDateRanges(spec.dateRanges ?? [], filters, params) +
+    applyTriStates(spec.triStates ?? [], filters, params)
 
   return { params, activeCount }
 }
