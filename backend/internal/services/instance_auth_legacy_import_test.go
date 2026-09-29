@@ -113,6 +113,8 @@ func (f *legacyAuthFixture) assertNoSecretLogged(t *testing.T) {
 	}
 }
 
+// TestLegacyAuthPopulated pins the bridge's "populated" rule: only a value an
+// operator set counts, never a redirect_uri or blank entries alone.
 func TestLegacyAuthPopulated(t *testing.T) {
 	tests := []struct {
 		name string
@@ -139,7 +141,8 @@ func TestLegacyAuthPopulated(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, LegacyAuthPopulated(tt.auth))
+			populated := legacyAuthProvidersPopulated(tt.auth) || legacyAuthAllowlistPopulated(tt.auth)
+			assert.Equal(t, tt.want, populated)
 		})
 	}
 }
@@ -456,7 +459,7 @@ func TestImportLegacyAuthConfig_FailuresNeverFailBoot(t *testing.T) {
 		assert.Equal(t, []string{legacyAllowlistImportFailedMsg}, f.messagesAt(slog.LevelError))
 	})
 
-	t.Run("invalid allowlist is not imported", func(t *testing.T) {
+	t.Run("an allowlist with no valid entry is not imported", func(t *testing.T) {
 		f := newLegacyAuthFixture(t)
 		f.noAllowlist()
 
@@ -466,7 +469,36 @@ func TestImportLegacyAuthConfig_FailuresNeverFailBoot(t *testing.T) {
 		assert.False(t, result.AllowlistImported)
 		errs := f.messagesAt(slog.LevelError)
 		require.Len(t, errs, 1)
-		assert.Contains(t, errs[0], "invalid")
+		assert.Contains(t, errs[0], "no valid entry")
+		assert.Contains(t, errs[0], "open to everyone", "the consequence is spelled out")
 		f.allowlist.AssertNotCalled(t, "InsertIfAbsent", mock.Anything, mock.Anything)
 	})
+}
+
+// TestImportLegacyAuthConfig_InvalidAllowlistEntriesAreDropped: an invalid
+// entry never matches a user today, so it is dropped and logged while the
+// valid entries are imported. Rejecting the whole list would store nothing,
+// which is open access once the stored allowlist is enforced (#1235).
+func TestImportLegacyAuthConfig_InvalidAllowlistEntriesAreDropped(t *testing.T) {
+	f := newLegacyAuthFixture(t)
+	f.noAllowlist()
+	stored := f.captureAllowlist(true, nil)
+
+	result := f.run(config.AuthConfig{LegacyAccessAllowlist: config.AccessAllowlistConfig{
+		Domains: config.EnvStringSlice{"acme.com", "@acme.com", "ACME.com", "localhost"},
+		Emails:  config.EnvStringSlice{"Bob <bob@acme.com>", "carol@partner.io"},
+	}})
+
+	assert.True(t, result.AllowlistImported)
+	assert.Equal(t, []string{"acme.com"}, stored.Domains)
+	assert.Equal(t, []string{"carol@partner.io"}, stored.Emails)
+
+	var dropped []any
+	for _, entry := range f.logs.AllEntries() {
+		if entry.Level == slog.LevelWarn {
+			dropped = append(dropped, entry.Data["entry"])
+		}
+	}
+	assert.Equal(t, []any{"@acme.com", "localhost", "Bob <bob@acme.com>"}, dropped, "each dropped entry is logged")
+	assert.Empty(t, f.messagesAt(slog.LevelError))
 }

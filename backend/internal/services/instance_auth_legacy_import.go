@@ -81,13 +81,6 @@ type legacyAuthCandidate struct {
 	secret   string
 }
 
-// LegacyAuthPopulated reports whether any deprecated auth provider or
-// allowlist key carries a value (a redirect_uri alone does not count: the
-// baked config.docker.yaml defaults it on every install).
-func LegacyAuthPopulated(auth config.AuthConfig) bool {
-	return legacyAuthProvidersPopulated(auth) || legacyAuthAllowlistPopulated(auth)
-}
-
 // legacyAuthProvidersPopulated reports whether a provider is enabled or any
 // provider credential is set.
 func legacyAuthProvidersPopulated(auth config.AuthConfig) bool {
@@ -312,7 +305,10 @@ func encryptLegacyAuthCandidates(
 }
 
 // importLegacyAuthAllowlist imports the legacy allowlist, normalized and
-// validated like an admin save, when none is stored.
+// validated like an admin save, when none is stored. An invalid entry is
+// dropped (and logged) rather than failing the whole list: it can never match
+// a user today, and rejecting the list would leave nothing stored — which is
+// open access once the stored allowlist is enforced (#1235).
 func importLegacyAuthAllowlist(
 	ctx context.Context, deps LegacyAuthImportDeps, logger *slog.Logger, auth config.AuthConfig,
 	result *LegacyAuthImportResult,
@@ -334,10 +330,21 @@ func importLegacyAuthAllowlist(
 		return
 	}
 
-	domains, emails, err := ValidateInstanceAuthAllowlist(
-		auth.LegacyAccessAllowlist.Domains, auth.LegacyAccessAllowlist.Emails)
+	legacy := auth.LegacyAccessAllowlist
+	domains := keepValidLegacyAllowlistEntries(logger, "domains", legacy.Domains, isInstanceAuthDomain)
+	emails := keepValidLegacyAllowlistEntries(logger, "emails", legacy.Emails, isInstanceAuthEmail)
+	if len(domains) == 0 && len(emails) == 0 {
+		// Importing nothing is not neutral: once the stored allowlist is enforced
+		// (#1235), none stored means open access.
+		logger.Error("The config.yaml auth.access_allowlist has no valid entry; nothing was imported, and sign-in " +
+			"becomes open to everyone once the database allowlist is enforced. Set the allowlist under " +
+			"Admin → Settings → Authentication")
+		return
+	}
+	// The kept entries are valid, so this only normalizes and de-duplicates.
+	domains, emails, err = ValidateInstanceAuthAllowlist(domains, emails)
 	if err != nil {
-		logger.Error("The config.yaml auth.access_allowlist is invalid; it was not imported", "reason", err)
+		logger.Error(legacyAllowlistImportFailedMsg, "error", err)
 		return
 	}
 
@@ -356,6 +363,28 @@ func importLegacyAuthAllowlist(
 	result.AllowlistImported = true
 	logger.Info("Imported the config.yaml auth.access_allowlist into the database",
 		"domains", len(domains), "emails", len(emails))
+}
+
+// keepValidLegacyAllowlistEntries returns the entries of one legacy allowlist
+// list that the admin API would accept, logging each one it drops. Blank
+// entries are skipped silently, as the sign-in check skips them.
+func keepValidLegacyAllowlistEntries(
+	logger *slog.Logger, field string, entries []string, valid func(string) bool,
+) []string {
+	kept := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		value := strings.ToLower(strings.TrimSpace(entry))
+		if value == "" {
+			continue
+		}
+		if !valid(value) {
+			logger.Warn("An invalid config.yaml auth.access_allowlist entry was not imported",
+				"list", field, "entry", entry)
+			continue
+		}
+		kept = append(kept, value)
+	}
+	return kept
 }
 
 func sortedKeys(m map[string]string) []string {
