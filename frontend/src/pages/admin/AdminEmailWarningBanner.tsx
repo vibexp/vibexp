@@ -40,6 +40,9 @@ export function AdminEmailWarningBanner() {
   }
 
   const failedAt = settings?.last_error_at
+  const failedAtText = failedAt
+    ? `It failed at ${formatDateTime(failedAt)}. `
+    : ''
   return (
     <Alert
       variant="destructive"
@@ -67,7 +70,7 @@ export function AdminEmailWarningBanner() {
         <p>
           {state === 'unconfigured'
             ? 'Invitations, notifications and digests from teams without their own mail provider are being discarded.'
-            : `${failedAt ? `It failed at ${formatDateTime(failedAt)}. ` : ''}Invitations, notifications and digests from teams without their own mail provider may not be delivered.`}
+            : `${failedAtText}Invitations, notifications and digests from teams without their own mail provider may not be delivered.`}
         </p>
         <Link
           to={INSTANCE_EMAIL_SETTINGS_PATH}
