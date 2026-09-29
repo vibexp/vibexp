@@ -139,8 +139,7 @@ func (r *InstanceAuthAllowlistRepository) InsertIfAbsent(
 	return inserted, nil
 }
 
-// write runs the upsert inside tx and refreshes a from the stored row. An
-// updated_by naming no user is ErrUserNotFound.
+// write runs the upsert inside tx and refreshes a from the stored row.
 func (r *InstanceAuthAllowlistRepository) write(
 	ctx context.Context, tx *sql.Tx, a *models.InstanceAuthAllowlist,
 ) error {
@@ -148,9 +147,6 @@ func (r *InstanceAuthAllowlistRepository) write(
 	err := tx.QueryRowContext(ctx, instanceAuthAllowlistUpsert,
 		pq.StringArray(a.Domains), pq.StringArray(a.Emails), a.UpdatedBy,
 	).Scan(&a.CreatedAt, &a.UpdatedAt, &a.Version)
-	if isFKViolation(err) {
-		return fmt.Errorf("failed to write instance auth allowlist: %w: %w", repositories.ErrUserNotFound, err)
-	}
 	if err != nil {
 		return fmt.Errorf("failed to write instance auth allowlist: %w", err)
 	}

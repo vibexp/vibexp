@@ -66,13 +66,14 @@ func bumpAuthSettingsVersion(ctx context.Context, tx *sql.Tx) (int64, error) {
 // current row with read (nil when none), hands change the row and the shared
 // version as locked, and, when change reports it wrote, bumps the shared version
 // before committing. The write, its audit entry and the bump land together or
-// not at all.
+// not at all. An actor naming no user — whether it fails on the row's
+// updated_by or on the audit entry's actor_user_id — is ErrUserNotFound.
 func runAuthSettingsTx[T any](
 	ctx context.Context, db *database.DB, subject, op string,
 	read func(tx *sql.Tx) (*T, error),
 	change func(tx *sql.Tx, before *T, sharedVersion int64) (bool, error),
 ) error {
-	return runAuditedSingletonTx(ctx, db, subject, op, instanceAuthSettingsVersionLock, read,
+	err := runAuditedSingletonTx(ctx, db, subject, op, instanceAuthSettingsVersionLock, read,
 		func(tx *sql.Tx, before *T) (bool, error) {
 			var sharedVersion int64
 			if err := tx.QueryRowContext(ctx, instanceAuthSettingsVersionSelect).Scan(&sharedVersion); err != nil {
@@ -87,6 +88,10 @@ func runAuthSettingsTx[T any](
 			}
 			return true, nil
 		})
+	if isFKViolation(err) {
+		return fmt.Errorf("%w: %w", repositories.ErrUserNotFound, err)
+	}
+	return err
 }
 
 // appendAuthSettingsAudit appends one audit entry for an auth settings change

@@ -1699,7 +1699,8 @@ type InstanceAISummarySettingsAuditFunc func(
 // entry and the bump land together or not at all. A non-nil expectedVersion
 // makes a write a compare-and-set against the shared version
 // (ErrInstanceSettingsVersionConflict on a mismatch); nil is last-write-wins.
-// actorUserID is recorded as the provider's updated_by and the audit actor.
+// actorUserID is recorded as the provider's updated_by and the audit actor; on
+// every write, one naming no user returns ErrUserNotFound and writes nothing.
 type InstanceAuthProviderRepository interface {
 	// List returns every provider ordered by sort_order, then slug.
 	List(ctx context.Context) ([]*models.InstanceAuthProvider, error)
@@ -1709,8 +1710,7 @@ type InstanceAuthProviderRepository interface {
 	GetBySlug(ctx context.Context, slug string) (*models.InstanceAuthProvider, error)
 	// Create stores a new provider and populates ID/CreatedAt/UpdatedAt on the
 	// passed struct. A taken slug or a second google/github provider returns
-	// ErrInstanceAuthProviderConflict. On every write, an actorUserID naming no
-	// user returns ErrUserNotFound.
+	// ErrInstanceAuthProviderConflict.
 	Create(ctx context.Context, provider *models.InstanceAuthProvider, actorUserID *string, expectedVersion *int64) error
 	// Update replaces the mutable fields (display name, enabled, sort order,
 	// client id, client secret ciphertext, issuer URL) of the provider with
@@ -1750,6 +1750,7 @@ type InstanceAuthAllowlistRepository interface {
 	) error
 	// DeleteAudited removes the allowlist, reverting to open access, and
 	// reports whether a row was deleted. With none stored it writes nothing.
+	// An actorUserID naming no user returns ErrUserNotFound.
 	DeleteAudited(ctx context.Context, actorUserID *string) (deleted bool, err error)
 	// InsertIfAbsent stores the allowlist for the boot-time config.yaml import
 	// (audited as an import with no actor) only when none is stored, and
@@ -1780,7 +1781,7 @@ type InstanceAdminRepository interface {
 	// Returns ErrUserNotFound when userID (or grantedBy) names no user.
 	Grant(ctx context.Context, userID string, grantedBy *string) (granted bool, err error)
 	// Revoke removes userID's grant. Returns ErrInstanceAdminNotFound when the
-	// user holds none.
+	// user holds none, and ErrUserNotFound when actorUserID names no user.
 	Revoke(ctx context.Context, userID string, actorUserID *string) error
 }
 

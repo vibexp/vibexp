@@ -478,11 +478,22 @@ func TestIntegrationInstanceAuthSettings_UnknownActor(t *testing.T) {
 	stored := oidcProviderFixture("corp", 0)
 	require.NoError(t, providers.Create(ctx, stored, nil, nil))
 	assert.ErrorIs(t, providers.Update(ctx, stored, &ghost, nil), repositories.ErrUserNotFound)
+	// Delete writes no updated_by: the unknown actor fails on the audit entry.
+	assert.ErrorIs(t, providers.Delete(ctx, stored.ID, &ghost, nil), repositories.ErrUserNotFound)
+	_, err := providers.Get(ctx, stored.ID)
+	require.NoError(t, err, "the failed delete rolled back")
 
-	assert.ErrorIs(t, NewInstanceAuthAllowlistRepository(integrationDB).UpsertAudited(ctx,
+	allowlist := NewInstanceAuthAllowlistRepository(integrationDB)
+	assert.ErrorIs(t, allowlist.UpsertAudited(ctx,
 		&models.InstanceAuthAllowlist{Domains: []string{"example.com"}}, &ghost, nil), repositories.ErrUserNotFound)
+	require.NoError(t, allowlist.UpsertAudited(ctx,
+		&models.InstanceAuthAllowlist{Domains: []string{"example.com"}}, nil, nil))
+	_, err = allowlist.DeleteAudited(ctx, &ghost)
+	assert.ErrorIs(t, err, repositories.ErrUserNotFound)
+	_, err = allowlist.Get(ctx)
+	require.NoError(t, err, "the failed delete rolled back")
 
-	assert.Equal(t, start+1, authSettingsVersion(t), "only the valid create bumped the version")
+	assert.Equal(t, start+2, authSettingsVersion(t), "only the two valid writes bumped the version")
 }
 
 func TestIntegrationInstanceAuthAllowlist_InsertIfAbsent(t *testing.T) {
