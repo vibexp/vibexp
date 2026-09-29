@@ -26,6 +26,9 @@ import (
 // legacyEmailSection names the config.yaml section in every log line.
 const legacyEmailSection = "email"
 
+// legacyEmailImportFailedMsg is logged by every branch that aborts the import.
+const legacyEmailImportFailedMsg = "Failed to import the config.yaml email: section"
+
 // LegacyEmailImportDeps are the collaborators of ImportLegacyEmailConfig.
 type LegacyEmailImportDeps struct {
 	Repo   repositories.InstanceEmailProviderRepository
@@ -147,21 +150,21 @@ func importLegacyEmail(
 
 	secretEncrypted, err := encryptLegacySecret(deps.Enc, req.Secret)
 	if err != nil {
-		logger.Error("Failed to import the config.yaml email: section",
+		logger.Error(legacyEmailImportFailedMsg,
 			"section", legacyEmailSection, "error", err)
 		return false, false
 	}
 
 	row, err := instanceRowFromRequest(req, secretEncrypted, "")
 	if err != nil {
-		logger.Error("Failed to import the config.yaml email: section",
+		logger.Error(legacyEmailImportFailedMsg,
 			"section", legacyEmailSection, "error", err)
 		return false, false
 	}
 
 	inserted, err = deps.Repo.InsertIfAbsent(ctx, row)
 	if err != nil {
-		logger.Error("Failed to import the config.yaml email: section",
+		logger.Error(legacyEmailImportFailedMsg,
 			"section", legacyEmailSection, "error", err)
 		return false, false
 	}
