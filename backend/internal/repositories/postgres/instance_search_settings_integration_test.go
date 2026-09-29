@@ -23,12 +23,12 @@ import (
 // when the test ends.
 func resetInstanceSettingsTable(t *testing.T, table string) {
 	t.Helper()
-	clear := func() {
+	wipe := func() {
 		_, err := integrationDB.ExecContext(context.Background(), "DELETE FROM "+table) // #nosec G202 -- test-only, fixed identifier
 		require.NoError(t, err)
 	}
-	clear()
-	t.Cleanup(clear)
+	wipe()
+	t.Cleanup(wipe)
 }
 
 func TestIntegrationInstanceSearchSettings_Get_NoRow(t *testing.T) {

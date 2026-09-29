@@ -24,12 +24,12 @@ import (
 
 func resetInstanceEmailProvider(t *testing.T) {
 	t.Helper()
-	clear := func() {
+	wipe := func() {
 		_, err := integrationDB.ExecContext(context.Background(), "DELETE FROM instance_email_provider")
 		require.NoError(t, err)
 	}
-	clear()
-	t.Cleanup(clear)
+	wipe()
+	t.Cleanup(wipe)
 }
 
 func integrationInstanceEmailProvider(t *testing.T) *models.InstanceEmailProvider {
