@@ -321,7 +321,7 @@ func decodeAdminTimelineCursor(cursor string) (models.AdminTimelineCursor, error
 		return models.AdminTimelineCursor{}, invalid
 	}
 	var wire adminTimelineCursorWire
-	if jsonErr := json.Unmarshal(raw, &wire); jsonErr != nil {
+	if json.Unmarshal(raw, &wire) != nil {
 		return models.AdminTimelineCursor{}, invalid
 	}
 	occurredAt, err := time.Parse(time.RFC3339Nano, wire.OccurredAt)

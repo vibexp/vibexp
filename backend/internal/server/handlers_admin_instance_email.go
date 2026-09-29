@@ -489,7 +489,7 @@ func decodeAdminInstanceAuditCursor(cursor string) (models.InstanceSettingsAudit
 		return models.InstanceSettingsAuditCursor{}, errAdminInstanceAuditCursor
 	}
 	var wire adminInstanceAuditCursorWire
-	if jsonErr := json.Unmarshal(raw, &wire); jsonErr != nil {
+	if json.Unmarshal(raw, &wire) != nil {
 		return models.InstanceSettingsAuditCursor{}, errAdminInstanceAuditCursor
 	}
 	createdAt, err := time.Parse(time.RFC3339Nano, wire.CreatedAt)
