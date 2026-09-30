@@ -22,7 +22,6 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideMetrics,
 
 	// External dependencies
-	providers.ProvideIdentityProviderRegistry,
 	providers.ProvideEmailSender,
 
 	// Event system
@@ -80,6 +79,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideInstanceAISummarySettingsRepository,
 	providers.ProvideInstanceAuthProviderRepository,
 	providers.ProvideInstanceAuthAllowlistRepository,
+	providers.ProvideInstanceAuthSettingsVersionRepository,
 	providers.ProvideInstanceAdminRepository,
 	providers.ProvideTeamAISummarySettingsRepository,
 	providers.ProvideMetadataCatalogRepository,
@@ -155,6 +155,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideEmailSenderResolver,
 	providers.ProvideInstanceEmailProviderService,
 	providers.ProvideInstanceAdminResolver,
+	providers.ProvideIdentityProviderResolver,
 	providers.ProvideTeamSearchSettingsService,
 	providers.ProvideInstanceAISummarySettingsService,
 	wire.Bind(new(services.InstanceAISummarySettingsResolver),

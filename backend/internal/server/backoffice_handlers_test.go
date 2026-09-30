@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/container"
 	"github.com/vibexp/vibexp/internal/external"
@@ -139,7 +138,9 @@ func (m *MockContainerForBackoffice) EmbeddingService() services.EmbeddingServic
 func (m *MockContainerForBackoffice) SearchService() services.Searcher                 { return nil }
 func (m *MockContainerForBackoffice) EnvironmentService() *services.EnvironmentService { return nil }
 func (m *MockContainerForBackoffice) EmailService() services.EmailServiceInterface     { return nil }
-func (m *MockContainerForBackoffice) IdentityProviderRegistry() *idp.Registry          { return nil }
+func (m *MockContainerForBackoffice) IdentityProviderResolver() services.IdentityProviderResolver {
+	return nil
+}
 func (m *MockContainerForBackoffice) BlueprintService() services.BlueprintServiceInterface {
 	return nil
 }

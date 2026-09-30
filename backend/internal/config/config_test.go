@@ -1385,3 +1385,24 @@ embedding:
 	assert.Equal(t, 5*time.Second, cfg.Embedding.Queue.PollInterval)
 	assert.Equal(t, time.Minute, cfg.Embedding.Queue.RetryBackoff)
 }
+
+// TestLegacyEnabledProviderNames pins the AUTH_PROVIDERS → AUTH_PROVIDER
+// precedence the boot-time import (#1232) reads. It used to be covered through
+// the removed boot-time identity provider registry (#1234).
+func TestLegacyEnabledProviderNames(t *testing.T) {
+	cases := []struct {
+		name string
+		auth AuthConfig
+		want []string
+	}{
+		{"none configured", AuthConfig{}, []string{}},
+		{"single provider is trimmed and lower-cased", AuthConfig{LegacyProvider: "  OIDC  "}, []string{"oidc"}},
+		{"providers list wins over the single shim", AuthConfig{LegacyProviders: []string{"github"}, LegacyProvider: "oidc"}, []string{"github"}},
+		{"order kept, duplicates and none dropped", AuthConfig{LegacyProviders: []string{"github", "none", "OIDC", "github", " "}}, []string{"github", "oidc"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.auth.LegacyEnabledProviderNames())
+		})
+	}
+}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/container"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/external"
@@ -430,7 +429,7 @@ func (b *BaseMockContainer) EventManager() events.EventPublisher {
 }
 
 // External dependencies
-func (b *BaseMockContainer) IdentityProviderRegistry() *idp.Registry {
+func (b *BaseMockContainer) IdentityProviderResolver() services.IdentityProviderResolver {
 	return nil
 }
 

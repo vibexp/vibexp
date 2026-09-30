@@ -3,7 +3,6 @@ package container
 import (
 	"context"
 
-	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -139,7 +138,9 @@ type Container interface {
 	EventManager() events.EventPublisher
 
 	// External dependencies
-	IdentityProviderRegistry() *idp.Registry
+	// IdentityProviderResolver resolves the sign-in providers from the
+	// database at runtime (#1234).
+	IdentityProviderResolver() services.IdentityProviderResolver
 	EmailSender() external.EmailSender
 
 	// Legacy method for database access (TODO: Remove once all handlers use repositories)

@@ -27,6 +27,10 @@ func TestName(t *testing.T) {
 	p, err := New(Config{ClientID: "id", ClientSecret: "secret"})
 	require.NoError(t, err)
 	assert.Equal(t, idp.ProviderGitHub, p.Name())
+
+	named, err := New(Config{Name: "github-enterprise", ClientID: "id", ClientSecret: "secret"})
+	require.NoError(t, err)
+	assert.Equal(t, idp.ProviderName("github-enterprise"), named.Name(), "a DB-managed provider reports its slug")
 }
 
 func TestAuthorizeURL(t *testing.T) {

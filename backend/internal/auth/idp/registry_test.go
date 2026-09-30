@@ -38,15 +38,46 @@ func TestRegistry_GetAndLen(t *testing.T) {
 	assert.False(t, ok, "unregistered provider must not be found")
 }
 
-func TestRegistry_EnabledIsSorted(t *testing.T) {
-	// Insertion order deliberately not alphabetical.
+func TestRegistry_EnabledPreservesInsertionOrder(t *testing.T) {
+	// Insertion order deliberately not alphabetical: it is the admin-defined
+	// sort order, which the login picker must keep.
 	reg := NewRegistry(
 		fakeProvider{name: ProviderOIDC},
 		fakeProvider{name: ProviderGitHub},
 		fakeProvider{name: ProviderGoogle},
 	)
 
-	assert.Equal(t, []ProviderName{ProviderGitHub, ProviderGoogle, ProviderOIDC}, reg.Enabled())
+	assert.Equal(t, []ProviderName{ProviderOIDC, ProviderGitHub, ProviderGoogle}, reg.Enabled())
+}
+
+func TestRegistry_KeyedBySlugWithTypeAndDisplayName(t *testing.T) {
+	// Two OIDC providers with different slugs live side by side.
+	reg := NewRegistryFromEntries(
+		Entry{Provider: fakeProvider{name: "corp-sso"}, Type: ProviderOIDC, DisplayName: "Corp"},
+		Entry{Provider: fakeProvider{name: "partner-sso"}, Type: ProviderOIDC, DisplayName: "Partner"},
+		Entry{Provider: nil, Type: ProviderGoogle},
+	)
+
+	assert.Equal(t, 2, reg.Len())
+	assert.Equal(t, []ProviderName{"corp-sso", "partner-sso"}, reg.Enabled())
+	e, ok := reg.Entry("partner-sso")
+	assert.True(t, ok)
+	assert.Equal(t, ProviderOIDC, e.Type)
+	assert.Equal(t, "Partner", e.DisplayName)
+	entries := reg.Entries()
+	assert.Len(t, entries, 2)
+	assert.Equal(t, "Corp", entries[0].DisplayName)
+
+	_, ok = reg.Entry(ProviderOIDC)
+	assert.False(t, ok, "the registry is keyed by slug, not by type")
+}
+
+func TestNewRegistry_DefaultsTypeAndDisplayName(t *testing.T) {
+	reg := NewRegistry(fakeProvider{name: ProviderGitHub})
+	e, ok := reg.Entry(ProviderGitHub)
+	assert.True(t, ok)
+	assert.Equal(t, ProviderGitHub, e.Type)
+	assert.Equal(t, "GitHub", e.DisplayName)
 }
 
 func TestRegistry_Empty(t *testing.T) {
@@ -64,6 +95,7 @@ func TestRegistry_LastDuplicateWins(t *testing.T) {
 	reg := NewRegistry(first, second)
 
 	assert.Equal(t, 1, reg.Len())
+	assert.Equal(t, []ProviderName{ProviderGoogle}, reg.Enabled())
 	got, ok := reg.Get(ProviderGoogle)
 	assert.True(t, ok)
 	assert.Equal(t, second, got)

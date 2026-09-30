@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/services"
 )
 
 func TestIsAPIKey_ValidPrefixes(t *testing.T) {
@@ -235,6 +237,9 @@ func TestIsTransientRefreshError(t *testing.T) {
 		{"connection refused", errors.New("dial tcp: connection refused"), true},
 		{"unexpected EOF", errors.New("read tcp: EOF"), true},
 		{"plain unknown error", errors.New("something else"), false},
+		{"providers unreadable", fmt.Errorf("%w: pq: the database system is starting up", services.ErrIdentityProvidersUnresolvable), true},
+		{"provider unhealthy", fmt.Errorf("%w: %q", services.ErrIdentityProviderTemporarilyUnavailable, "corp-sso"), true},
+		{"provider not enabled", fmt.Errorf("%w: %q", services.ErrIdentityProviderUnavailable, "corp-sso"), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

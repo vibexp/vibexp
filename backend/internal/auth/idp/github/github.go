@@ -39,6 +39,9 @@ const httpTimeout = 15 * time.Second
 
 // Config holds the credentials required to construct the GitHub provider.
 type Config struct {
+	// Name is the provider's identity (its slug); empty defaults to
+	// idp.ProviderGitHub.
+	Name idp.ProviderName
 	// ClientID is the GitHub OAuth App client ID (GITHUB_CLIENT_ID).
 	ClientID string
 	// ClientSecret is the GitHub OAuth App client secret (GITHUB_CLIENT_SECRET).
@@ -52,6 +55,7 @@ type Config struct {
 
 // provider implements idp.IdentityProvider against GitHub's OAuth2 + REST API.
 type provider struct {
+	name         idp.ProviderName
 	clientID     string
 	clientSecret string
 	redirectURL  string
@@ -73,7 +77,12 @@ func New(cfg Config) (idp.IdentityProvider, error) {
 	if len(scopes) == 0 {
 		scopes = defaultScopes
 	}
+	name := cfg.Name
+	if name == "" {
+		name = idp.ProviderGitHub
+	}
 	return &provider{
+		name:         name,
 		clientID:     cfg.ClientID,
 		clientSecret: cfg.ClientSecret,
 		redirectURL:  cfg.RedirectURL,
@@ -83,7 +92,7 @@ func New(cfg Config) (idp.IdentityProvider, error) {
 }
 
 // Name returns the canonical provider identifier.
-func (p *provider) Name() idp.ProviderName { return idp.ProviderGitHub }
+func (p *provider) Name() idp.ProviderName { return p.name }
 
 // AuthorizeURL builds the GitHub authorization-code URL. If redirectURI is
 // non-empty it overrides the configured RedirectURL. The provider hint is

@@ -1059,6 +1059,26 @@ func (c *Config) IsLocalDevelopment() bool {
 	return strings.Contains(u, "localhost") || strings.Contains(u, "127.0.0.1")
 }
 
+// authCallbackPath is the fixed API path every identity provider redirects back
+// to after sign-in. The provider is recovered from the signed state cookie, not
+// from the path.
+const authCallbackPath = "/api/v1/auth/callback"
+
+// AuthCallbackURL returns the OAuth redirect URI every sign-in identity provider
+// is registered with (#1234): it is derived, not stored per provider.
+//
+// The combined image serves the SPA and the API from one origin, so in
+// production it is <frontend.base_url>/api/v1/auth/callback. In local
+// development (IsLocalDevelopment) frontend.base_url is the Vite dev server,
+// which does not proxy /api, so the callback goes to the backend itself on
+// http://localhost:<server.port>, as applyDevOAuthASDefaults does for the AS.
+func (c *Config) AuthCallbackURL() string {
+	if c.IsLocalDevelopment() {
+		return "http://localhost:" + c.Server.Port + authCallbackPath
+	}
+	return strings.TrimRight(c.Frontend.BaseURL, "/") + authCallbackPath
+}
+
 // applyDevOAuthASDefaults auto-enables the embedded Authorization Server for local
 // development by deriving sane defaults when they are left unset, so a fresh
 // checkout boots a connectable MCP endpoint with zero auth configuration. It runs
@@ -1277,6 +1297,13 @@ const configFileDefaultPath = "./config.yaml"
 // defaultAuthRedirectURI is the local-development OAuth callback used as the
 // default redirect_uri for every identity provider.
 const defaultAuthRedirectURI = "http://localhost:8080/api/v1/auth/callback"
+
+// IsDefaultAuthRedirectURI reports whether uri is the built-in default
+// redirect_uri (also baked into config.docker.yaml), i.e. one the operator most
+// likely never set.
+func IsDefaultAuthRedirectURI(uri string) bool {
+	return strings.TrimSpace(uri) == defaultAuthRedirectURI
+}
 
 // Code defaults of the deprecated `email:` section (#1190). Exported so the
 // boot-time import can tell an inherited default from a value an operator

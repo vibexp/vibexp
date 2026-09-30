@@ -176,7 +176,7 @@ func TestInitializeContainer_AllExternalDependenciesNonNil(t *testing.T) {
 	}()
 
 	// Assert - Verify all external dependencies are non-nil
-	assert.NotNil(t, c.IdentityProviderRegistry(), "IdentityProviderRegistry should not be nil")
+	assert.NotNil(t, c.IdentityProviderResolver(), "IdentityProviderResolver should not be nil")
 	assert.NotNil(t, c.EmailSender(), "EmailSender should not be nil")
 }
 
@@ -413,7 +413,7 @@ func TestInitializeContainer_NoCircularDependencies(t *testing.T) {
 	assert.NotNil(t, c.UserRepository(), "Repository layer initialized")
 	assert.NotNil(t, c.AuthService(), "Service layer initialized")
 	assert.NotNil(t, c.EventManager(), "Event system initialized")
-	assert.NotNil(t, c.IdentityProviderRegistry(), "External dependencies initialized")
+	assert.NotNil(t, c.IdentityProviderResolver(), "External dependencies initialized")
 }
 
 // TestInitializeContainer_EventPublishing_SmokeTest verifies event manager can publish events

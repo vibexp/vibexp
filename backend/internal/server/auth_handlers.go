@@ -27,6 +27,14 @@ const (
 	// the CSRF state value between the login redirect and the callback.
 	stateCookieName = "vx_state"
 
+	// msgIdentityProvidersUnavailable is the 503 message when the enabled
+	// identity providers could not be read.
+	msgIdentityProvidersUnavailable = "Sign-in providers are temporarily unavailable"
+
+	// callbackErrorProviderUnavailable is the SPA callback error code for a
+	// provider disabled (or removed) between login and callback.
+	callbackErrorProviderUnavailable = "provider_unavailable"
+
 	// stateCookieMaxAge is 10 minutes — enough for a human to complete the
 	// identity-provider login flow and be redirected back to the callback.
 	stateCookieMaxAge = 10 * 60 // 10 minutes in seconds
@@ -46,7 +54,7 @@ type LogoutResponse struct {
 // state, stores the (state, provider) pair in a signed cookie, and returns
 // the provider's authorization URL.
 //
-// GET /api/v1/auth/login[?provider=<name>]
+// GET /api/v1/auth/login[?provider=<slug>]
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.logger.With(
 		"service", serverLogServiceName,
@@ -56,7 +64,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	).Info("Login request received")
 
 	requested := r.URL.Query().Get("provider")
-	provider, apiErr := s.resolveLoginProvider(requested)
+	provider, apiErr := s.resolveLoginProvider(r, requested)
 	if apiErr != nil {
 		s.logger.With(
 			"service", serverLogServiceName,
@@ -80,18 +88,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authURL := s.container.AuthService().GetLoginURL(state, provider)
-	if authURL == "" {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleLogin",
-			"provider", provider,
-		).
-			Warn("Identity provider not configured; login unavailable")
-		apiErr := errors.NewServiceUnavailableError(
-			"Authentication provider not configured. Use /auth/dev/login in local development.",
-		)
-		errors.WriteJSONError(w, r, apiErr)
+	authURL, urlErr := s.loginURL(r, state, provider)
+	if urlErr != nil {
+		errors.WriteJSONError(w, r, urlErr)
 		return
 	}
 
@@ -108,6 +107,29 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	).Info("Generated login URL")
 
 	writeOK(w, LoginResponse{URL: authURL}, s.logger)
+}
+
+// loginURL returns the authorization URL of provider for state, or the APIError
+// to answer with: 503 when the providers cannot be read or the provider is
+// (no longer) enabled.
+func (s *Server) loginURL(r *http.Request, state, provider string) (string, *errors.APIError) {
+	authURL, err := s.container.AuthService().GetLoginURL(r.Context(), state, provider)
+	if err != nil {
+		s.logAuthError("handleLogin", "Failed to resolve identity providers", err)
+		return "", errors.NewServiceUnavailableError(msgIdentityProvidersUnavailable)
+	}
+	if authURL == "" {
+		s.logger.With(
+			"service", serverLogServiceName,
+			"handler", "handleLogin",
+			"provider", provider,
+		).
+			Warn("Identity provider not configured; login unavailable")
+		return "", errors.NewServiceUnavailableError(
+			"Authentication provider not configured. Use /auth/dev/login in local development.",
+		)
+	}
+	return authURL, nil
 }
 
 // setStateCookie is the single writer for the CSRF state cookie. Both the set
@@ -149,8 +171,13 @@ func (s *Server) clearStateCookie(w http.ResponseWriter) {
 //   - Empty request, multiple enabled providers → 400 (must choose; no
 //     silent default).
 //   - Unknown/disabled provider → 400 (rejected, not silently defaulted).
-func (s *Server) resolveLoginProvider(requested string) (string, *errors.APIError) {
-	enabled := s.container.AuthService().EnabledProviders()
+//   - The providers could not be read → 503.
+func (s *Server) resolveLoginProvider(r *http.Request, requested string) (string, *errors.APIError) {
+	enabled, err := s.container.AuthService().EnabledProviders(r.Context())
+	if err != nil {
+		s.logAuthError("handleLogin", "Failed to resolve identity providers", err)
+		return "", errors.NewServiceUnavailableError(msgIdentityProvidersUnavailable)
+	}
 	if len(enabled) == 0 {
 		return "", errors.NewServiceUnavailableError(
 			"Authentication provider not configured. Use /auth/dev/login in local development.",
@@ -158,12 +185,12 @@ func (s *Server) resolveLoginProvider(requested string) (string, *errors.APIErro
 	}
 	if requested == "" {
 		if len(enabled) == 1 {
-			return enabled[0], nil
+			return enabled[0].Slug, nil
 		}
 		return "", errors.NewBadRequestError("provider query parameter is required")
 	}
 	for _, p := range enabled {
-		if p == requested {
+		if p.Slug == requested {
 			return requested, nil
 		}
 	}
@@ -216,10 +243,19 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 	// user-hostile: redirect to the SPA with a stable error code it can render.
 	// The service already logged the denial at INFO with the email + provider.
 	if stderrors.Is(err, services.ErrAccessRestricted) {
-		if s.metrics != nil {
-			s.metrics.RecordUserLoginFailed(r.Context(), "access_restricted")
-		}
-		http.Redirect(w, r, s.config.Frontend.BaseURL+"/auth/callback?error=access_restricted", http.StatusFound)
+		s.redirectCallbackError(w, r, "access_restricted")
+		return
+	}
+	// The provider the flow started with was disabled or removed before the
+	// callback: also a clean redirect, never a JSON 500.
+	if stderrors.Is(err, services.ErrIdentityProviderUnavailable) {
+		s.logAuthError("handleCallback", "Identity provider no longer enabled", err)
+		s.redirectCallbackError(w, r, callbackErrorProviderUnavailable)
+		return
+	}
+	if stderrors.Is(err, services.ErrIdentityProvidersUnresolvable) {
+		s.logAuthError("handleCallback", "Failed to resolve identity providers", err)
+		errors.WriteJSONError(w, r, errors.NewServiceUnavailableError(msgIdentityProvidersUnavailable))
 		return
 	}
 
@@ -236,6 +272,15 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 
 	apiErr := errors.NewIDPAuthError("Identity provider authentication failed")
 	errors.WriteJSONError(w, r, apiErr)
+}
+
+// redirectCallbackError records a failed login under code and sends the browser
+// to the SPA's callback page with ?error=<code>.
+func (s *Server) redirectCallbackError(w http.ResponseWriter, r *http.Request, code string) {
+	if s.metrics != nil {
+		s.metrics.RecordUserLoginFailed(r.Context(), code)
+	}
+	http.Redirect(w, r, s.config.Frontend.BaseURL+"/auth/callback?error="+code, http.StatusFound)
 }
 
 func (s *Server) handleCallbackSuccess(

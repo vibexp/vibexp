@@ -120,3 +120,29 @@ frontend:
 	assert.Empty(t, cfg.MCP.ResourceURI)
 	assert.Empty(t, cfg.MCP.OAuthIssuer)
 }
+
+func TestAuthCallbackURL(t *testing.T) {
+	cases := []struct {
+		name        string
+		frontendURL string
+		port        string
+		want        string
+	}{
+		{"local development uses the backend port", "http://localhost:5173", "8080", "http://localhost:8080/api/v1/auth/callback"},
+		{"loopback ip is local development", "http://127.0.0.1:5173", "9090", "http://localhost:9090/api/v1/auth/callback"},
+		{"production uses the public base url", "https://vibexp.example.com", "8080", "https://vibexp.example.com/api/v1/auth/callback"},
+		{"production trims trailing slashes", "https://vibexp.example.com//", "8080", "https://vibexp.example.com/api/v1/auth/callback"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{Frontend: FrontendConfig{BaseURL: tc.frontendURL}, Server: ServerConfig{Port: tc.port}}
+			assert.Equal(t, tc.want, cfg.AuthCallbackURL())
+		})
+	}
+}
+
+func TestIsDefaultAuthRedirectURI(t *testing.T) {
+	assert.True(t, IsDefaultAuthRedirectURI(" http://localhost:8080/api/v1/auth/callback "))
+	assert.False(t, IsDefaultAuthRedirectURI("https://vibexp.example.com/api/v1/auth/callback"))
+	assert.False(t, IsDefaultAuthRedirectURI(""))
+}

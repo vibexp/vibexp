@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
@@ -241,7 +240,9 @@ func (c *GitHubTestContainer) FeedItemReplyService() services.FeedItemReplyServi
 }
 
 // External and infrastructure stubs
-func (c *GitHubTestContainer) IdentityProviderRegistry() *idp.Registry { return nil }
+func (c *GitHubTestContainer) IdentityProviderResolver() services.IdentityProviderResolver {
+	return nil
+}
 func (c *GitHubTestContainer) NotificationDeliveryRepository() repositories.NotificationDeliveryRepository {
 	return nil
 }
