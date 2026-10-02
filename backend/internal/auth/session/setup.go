@@ -78,18 +78,25 @@ func (m *Manager) SetupCookie(s *SetupSession) (*http.Cookie, error) {
 		return nil, fmt.Errorf("session: encrypt setup session: %w", err)
 	}
 
+	return m.setupCookie(ciphertext, int(SetupSessionLifetime/time.Second)), nil
+}
+
+// setupCookie is the one place the setup cookie's attributes are written, so
+// the cookie that sets the session and the one that expires it can never drift
+// apart: a browser only drops a cookie whose attributes match the original.
+func (m *Manager) setupCookie(value string, maxAge int) *http.Cookie {
 	// #nosec G124 -- same as Manager.Write: Secure comes from m.secure, which is
 	// false only for local HTTP development and which G124 cannot evaluate. The
 	// attributes are asserted in setup_test.go for both cases.
 	return &http.Cookie{
 		Name:     SetupCookieName,
-		Value:    ciphertext,
+		Value:    value,
 		Path:     cookiePath,
-		MaxAge:   int(SetupSessionLifetime / time.Second),
+		MaxAge:   maxAge,
 		HttpOnly: true,
 		Secure:   m.secure,
 		SameSite: http.SameSiteStrictMode,
-	}, nil
+	}
 }
 
 // WriteSetup encrypts s and sets the setup cookie on the response.
@@ -104,16 +111,5 @@ func (m *Manager) WriteSetup(w http.ResponseWriter, s *SetupSession) error {
 
 // ClearSetup expires the setup cookie immediately.
 func (m *Manager) ClearSetup(w http.ResponseWriter) {
-	// #nosec G124 -- same as SetupCookie: Secure comes from m.secure. This is the
-	// expiry write and carries the identical attribute set so the browser
-	// matches and drops the original cookie.
-	http.SetCookie(w, &http.Cookie{
-		Name:     SetupCookieName,
-		Value:    "",
-		Path:     cookiePath,
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   m.secure,
-		SameSite: http.SameSiteStrictMode,
-	})
+	http.SetCookie(w, m.setupCookie("", -1))
 }

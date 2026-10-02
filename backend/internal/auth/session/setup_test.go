@@ -75,17 +75,27 @@ func TestSetupCookie_Attributes(t *testing.T) {
 }
 
 func TestClearSetup_ExpiresTheCookieWithTheSameAttributes(t *testing.T) {
-	mgr := setupTestManager(t, false)
-	w := httptest.NewRecorder()
-	mgr.ClearSetup(w)
+	for name, tc := range map[string]struct {
+		isLocal    bool
+		wantSecure bool
+	}{
+		"production":        {isLocal: false, wantSecure: true},
+		"local development": {isLocal: true, wantSecure: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			mgr := setupTestManager(t, tc.isLocal)
+			w := httptest.NewRecorder()
+			mgr.ClearSetup(w)
 
-	cookie := writtenCookie(t, w, SetupCookieName)
-	assert.Empty(t, cookie.Value)
-	assert.Equal(t, -1, cookie.MaxAge)
-	assert.Equal(t, "/", cookie.Path)
-	assert.True(t, cookie.HttpOnly)
-	assert.True(t, cookie.Secure)
-	assert.Equal(t, http.SameSiteStrictMode, cookie.SameSite)
+			cookie := writtenCookie(t, w, SetupCookieName)
+			assert.Empty(t, cookie.Value)
+			assert.Equal(t, -1, cookie.MaxAge)
+			assert.Equal(t, "/", cookie.Path)
+			assert.True(t, cookie.HttpOnly)
+			assert.Equal(t, tc.wantSecure, cookie.Secure)
+			assert.Equal(t, http.SameSiteStrictMode, cookie.SameSite)
+		})
+	}
 }
 
 func TestReadSetup_Rejections(t *testing.T) {
