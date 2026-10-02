@@ -141,6 +141,9 @@ type WireContainer struct {
 	// First-run authentication setup mode (#1236)
 	setupModeService services.SetupModeService
 
+	// Instance authentication settings admin API (#1238)
+	instanceAuthSettingsService services.InstanceAuthSettingsServiceInterface
+
 	// External dependencies
 	identityProviderResolver services.IdentityProviderResolver
 	smtpClient               external.EmailSender
@@ -412,6 +415,11 @@ func (c *WireContainer) EmbeddingService() services.EmbeddingServiceInterface {
 // InstanceEmailProviderService returns the instance email provider service.
 func (c *WireContainer) InstanceEmailProviderService() services.InstanceEmailProviderServiceInterface {
 	return c.instanceEmailProviderService
+}
+
+// InstanceAuthSettingsService returns the instance authentication settings service.
+func (c *WireContainer) InstanceAuthSettingsService() services.InstanceAuthSettingsServiceInterface {
+	return c.instanceAuthSettingsService
 }
 
 // InstanceSearchSettingsService returns the instance search settings service.

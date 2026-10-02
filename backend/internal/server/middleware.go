@@ -313,9 +313,9 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 
 	// Set user context from session. A suspended account is rejected HERE rather
 	// than at sign-in, which is what makes an already-issued cookie stop working.
-	ctx, err := s.authenticateUser(r.Context(), sess.UserID, "cookie", nil)
+	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil)
 	if err != nil {
-		s.logSuspendedRejection(r.Context(), "authenticateWithSession", "cookie", sess.UserID, err)
+		s.logSuspendedRejection(r.Context(), "authenticateWithSession", authTypeCookie, sess.UserID, err)
 		s.writeSuspensionAuthError(w, r, err)
 		return
 	}
@@ -462,9 +462,9 @@ func (s *Server) optionalSessionContext(r *http.Request) (context.Context, bool)
 	if err != nil || sess.IsExpired() {
 		return nil, false
 	}
-	ctx, err := s.authenticateUser(r.Context(), sess.UserID, "cookie", nil)
+	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil)
 	if err != nil {
-		s.logSuspendedRejection(r.Context(), "optionalAuthMiddleware", "cookie", sess.UserID, err)
+		s.logSuspendedRejection(r.Context(), "optionalAuthMiddleware", authTypeCookie, sess.UserID, err)
 		return nil, false
 	}
 	return ctx, true
@@ -575,7 +575,8 @@ func (s *Server) backofficeAuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// instanceAdminMiddleware guards the /api/v1/admin surface. It runs after an
+// instanceAdminMiddleware guards the instance-admin-only routes of the
+// /api/v1/admin surface (adminRouteGuard mounts it). It runs after an
 // auth middleware that only OPTIONALLY populates the user (optionalAuthMiddleware),
 // resolves that user, and requires InstanceAdminResolver.IsInstanceAdmin (a
 // root admin from auth.instance_admins, or a non-suspended DB-granted admin,

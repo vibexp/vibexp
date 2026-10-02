@@ -1062,6 +1062,42 @@ components:
       $ref: "./schemas/admin.yaml#/AdminInstanceAISummarySettings"
     AdminInstanceAISummarySettingsUpdate:
       $ref: "./schemas/admin.yaml#/AdminInstanceAISummarySettingsUpdate"
+    AdminAuthProviderType:
+      $ref: "./schemas/admin.yaml#/AdminAuthProviderType"
+    AdminAuthProviderHealthStatus:
+      $ref: "./schemas/admin.yaml#/AdminAuthProviderHealthStatus"
+    AdminAuthProviderHealth:
+      $ref: "./schemas/admin.yaml#/AdminAuthProviderHealth"
+    AdminAuthProvider:
+      $ref: "./schemas/admin.yaml#/AdminAuthProvider"
+    AdminAuthProviderList:
+      $ref: "./schemas/admin.yaml#/AdminAuthProviderList"
+    AdminAuthProviderSaved:
+      $ref: "./schemas/admin.yaml#/AdminAuthProviderSaved"
+    AdminAuthProviderCreate:
+      $ref: "./schemas/admin.yaml#/AdminAuthProviderCreate"
+    AdminAuthProviderUpdate:
+      $ref: "./schemas/admin.yaml#/AdminAuthProviderUpdate"
+    AdminAuthProviderTestRequest:
+      $ref: "./schemas/admin.yaml#/AdminAuthProviderTestRequest"
+    AdminAuthProviderTestResult:
+      $ref: "./schemas/admin.yaml#/AdminAuthProviderTestResult"
+    AdminAuthAllowlist:
+      $ref: "./schemas/admin.yaml#/AdminAuthAllowlist"
+    AdminAuthAllowlistUpdate:
+      $ref: "./schemas/admin.yaml#/AdminAuthAllowlistUpdate"
+    AdminAuthAllowlistPreviewRequest:
+      $ref: "./schemas/admin.yaml#/AdminAuthAllowlistPreviewRequest"
+    AdminAuthAllowlistImpact:
+      $ref: "./schemas/admin.yaml#/AdminAuthAllowlistImpact"
+    AdminInstanceAdmin:
+      $ref: "./schemas/admin.yaml#/AdminInstanceAdmin"
+    AdminInstanceAdminList:
+      $ref: "./schemas/admin.yaml#/AdminInstanceAdminList"
+    AdminInstanceAdminGrant:
+      $ref: "./schemas/admin.yaml#/AdminInstanceAdminGrant"
+    AdminAuthSettingsAuditSetting:
+      $ref: "./schemas/admin.yaml#/AdminAuthSettingsAuditSetting"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
@@ -1426,6 +1462,22 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-ai-summary"
   /api/v1/admin/settings/ai-summary/audit:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-ai-summary-audit"
+  /api/v1/admin/settings/auth/providers:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-auth-providers"
+  /api/v1/admin/settings/auth/providers/test:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-auth-providers-test"
+  /api/v1/admin/settings/auth/providers/{id}:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-auth-providers-id"
+  /api/v1/admin/settings/auth/allowlist:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-auth-allowlist"
+  /api/v1/admin/settings/auth/allowlist/preview:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-auth-allowlist-preview"
+  /api/v1/admin/settings/auth/admins:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-auth-admins"
+  /api/v1/admin/settings/auth/admins/{user_id}:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-auth-admins-user_id"
+  /api/v1/admin/settings/auth/audit:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-auth-audit"
   /api/v1/{team_id}/comments:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
   /api/v1/{team_id}/comments/recent:

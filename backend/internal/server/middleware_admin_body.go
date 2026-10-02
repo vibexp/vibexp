@@ -103,6 +103,41 @@ var adminGuardedBodies = []adminGuardedBody{
 		path:     regexp.MustCompile(`^/api/v1/admin/settings/email/test$`),
 		bodyType: admingen.AdminInstanceEmailTestRequest{},
 	},
+	// Instance authentication settings (#1238).
+	{
+		method:   http.MethodPost,
+		path:     regexp.MustCompile(`^/api/v1/admin/settings/auth/providers$`),
+		bodyType: admingen.AdminAuthProviderCreate{},
+	},
+	{
+		// type and slug are immutable, so they are not fields of this body.
+		method:     http.MethodPut,
+		path:       regexp.MustCompile(`^/api/v1/admin/settings/auth/providers/[^/]+$`),
+		bodyType:   admingen.AdminAuthProviderUpdate{},
+		requireAll: true,
+	},
+	{
+		method:   http.MethodPost,
+		path:     regexp.MustCompile(`^/api/v1/admin/settings/auth/providers/test$`),
+		bodyType: admingen.AdminAuthProviderTestRequest{},
+	},
+	{
+		method:     http.MethodPut,
+		path:       regexp.MustCompile(`^/api/v1/admin/settings/auth/allowlist$`),
+		bodyType:   admingen.AdminAuthAllowlistUpdate{},
+		requireAll: true,
+	},
+	{
+		method:     http.MethodPost,
+		path:       regexp.MustCompile(`^/api/v1/admin/settings/auth/allowlist/preview$`),
+		bodyType:   admingen.AdminAuthAllowlistPreviewRequest{},
+		requireAll: true,
+	},
+	{
+		method:   http.MethodPost,
+		path:     regexp.MustCompile(`^/api/v1/admin/settings/auth/admins$`),
+		bodyType: admingen.AdminInstanceAdminGrant{},
+	},
 }
 
 // guardedBodyFor returns the guarded-operation entry matching this request.

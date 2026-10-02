@@ -435,8 +435,9 @@ func TestSetupSession_IsAnonymousEverywhereElse(t *testing.T) {
 
 // guardedRouter mounts a stand-in for an authentication-settings route behind
 // the setup guard alone, the way the admin API will mount it: the guard
-// authenticates the request itself. The real routes arrive with #1238; this
-// pins the guard they will sit behind.
+// authenticates the request itself. This pins the guard on its own; the real
+// routes and adminRouteGuard, which picks it per route, are covered in
+// handlers_admin_instance_auth_test.go.
 func guardedRouter(h *setupHarness, reached *context.Context) http.Handler {
 	r := chi.NewRouter()
 	r.Use(h.srv.setupSessionOrInstanceAdmin)

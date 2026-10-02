@@ -183,6 +183,53 @@ func (_c *MockInstanceAdminResolver_IsRootAdmin_Call) RunAndReturn(run func(stri
 	return _c
 }
 
+// RequireRootAdmin provides a mock function with given fields: ctx, userID
+func (_m *MockInstanceAdminResolver) RequireRootAdmin(ctx context.Context, userID string) error {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RequireRootAdmin")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockInstanceAdminResolver_RequireRootAdmin_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RequireRootAdmin'
+type MockInstanceAdminResolver_RequireRootAdmin_Call struct {
+	*mock.Call
+}
+
+// RequireRootAdmin is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+func (_e *MockInstanceAdminResolver_Expecter) RequireRootAdmin(ctx interface{}, userID interface{}) *MockInstanceAdminResolver_RequireRootAdmin_Call {
+	return &MockInstanceAdminResolver_RequireRootAdmin_Call{Call: _e.mock.On("RequireRootAdmin", ctx, userID)}
+}
+
+func (_c *MockInstanceAdminResolver_RequireRootAdmin_Call) Run(run func(ctx context.Context, userID string)) *MockInstanceAdminResolver_RequireRootAdmin_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockInstanceAdminResolver_RequireRootAdmin_Call) Return(_a0 error) *MockInstanceAdminResolver_RequireRootAdmin_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockInstanceAdminResolver_RequireRootAdmin_Call) RunAndReturn(run func(context.Context, string) error) *MockInstanceAdminResolver_RequireRootAdmin_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RevokeInstanceAdmin provides a mock function with given fields: ctx, actingUserID, targetUserID
 func (_m *MockInstanceAdminResolver) RevokeInstanceAdmin(ctx context.Context, actingUserID string, targetUserID string) error {
 	ret := _m.Called(ctx, actingUserID, targetUserID)

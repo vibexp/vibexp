@@ -62,10 +62,12 @@ func (a *adminStrictServer) ReactivateAdminUser(
 	return admingen.ReactivateAdminUser200JSONResponse(genDetail), nil
 }
 
-// actingAdminID returns the authenticated caller's user id. The admin surface
-// sits behind instanceAdminMiddleware, so this is always populated here; the
-// empty fallback simply means the self-suspension guard cannot match, which
-// fails safe (the config-admin guard still applies).
+// actingAdminID returns the authenticated caller's user id. It is populated on
+// every instance-admin-only route; it is empty only on a setup session, which
+// has no user and reaches nothing but the authentication settings' provider
+// and allowlist operations, where an empty actor is audited as none. For the
+// suspension guards an empty id simply means the self-suspension guard cannot
+// match, which fails safe (the config-admin guard still applies).
 func (a *adminStrictServer) actingAdminID(ctx context.Context) string {
 	if userID, ok := ctx.Value(contextKeyUserID).(string); ok {
 		return userID

@@ -2748,7 +2748,13 @@ AdminInstanceSettingsAuditEntry:
     only `has_credential` and, on an upsert's `after`, a `secret` marker
     saying whether the credential was `changed` or `unchanged`; the `search`
     and `ai_summary` snapshots are the settings' values, which hold no
-    credential.
+    credential. For `auth_providers` each entry is one provider, reporting
+    only `has_client_secret` and, on an upsert's `after`, a `client_secret`
+    marker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`
+    and `auth_setup` snapshots hold no credential (the setup token and its
+    hash are never recorded). A snapshot of any of these four settings
+    carries `source: cli` when the change was made by the `vibexp admin auth`
+    commands rather than through this API.
   additionalProperties: false
   required:
     - id
@@ -2771,12 +2777,20 @@ AdminInstanceSettingsAuditEntry:
         - email_provider
         - search
         - ai_summary
+        - auth_providers
+        - auth_allowlist
+        - instance_admins
+        - auth_setup
       # Explicit constant names: generated clients emit every schema into one
       # package, so bare names risk colliding with another enum's values.
       x-enum-varnames:
         - AdminInstanceSettingsAuditEntrySettingEmailProvider
         - AdminInstanceSettingsAuditEntrySettingSearch
         - AdminInstanceSettingsAuditEntrySettingAiSummary
+        - AdminInstanceSettingsAuditEntrySettingAuthProviders
+        - AdminInstanceSettingsAuditEntrySettingAuthAllowlist
+        - AdminInstanceSettingsAuditEntrySettingInstanceAdmins
+        - AdminInstanceSettingsAuditEntrySettingAuthSetup
       example: "email_provider"
     action:
       type: string
@@ -3240,3 +3254,558 @@ AdminInstanceAISummarySettingsUpdate:
       format: int64
       nullable: true
       description: The `version` the caller last read; omit or null for last-write-wins.
+
+# --- Instance authentication settings (#1238, epic #1230) ---------------------
+
+AdminAuthProviderType:
+  type: string
+  description: |
+    The kind of sign-in identity provider. At most one `google` and one
+    `github` provider can be stored; any number of `oidc` providers.
+  enum:
+    - google
+    - github
+    - oidc
+  # Explicit constant names: generated clients emit every schema into one
+  # package, so bare names risk colliding with another enum's values.
+  x-enum-varnames:
+    - AdminAuthProviderTypeGoogle
+    - AdminAuthProviderTypeGithub
+    - AdminAuthProviderTypeOidc
+  example: oidc
+
+AdminAuthProviderHealthStatus:
+  type: string
+  description: |
+    The provider's build outcome on the replica that served the request:
+    `healthy` (built and offered for sign-in), `unhealthy` (enabled but it
+    failed to build, so it is excluded from sign-in), `disabled` (not enabled,
+    so never built) or `unknown` (enabled, but this replica could not resolve
+    it for this request).
+  enum:
+    - healthy
+    - unhealthy
+    - disabled
+    - unknown
+  # Explicit constant names, for the same reason as AdminAuthProviderType.
+  x-enum-varnames:
+    - AdminAuthProviderHealthStatusHealthy
+    - AdminAuthProviderHealthStatusUnhealthy
+    - AdminAuthProviderHealthStatusDisabled
+    - AdminAuthProviderHealthStatusUnknown
+  example: healthy
+
+AdminAuthProviderHealth:
+  type: object
+  description: |
+    The provider's health as seen by the replica that served the request.
+    Health is held in memory per replica and is not persisted.
+  additionalProperties: false
+  required:
+    - status
+    - last_error
+    - checked_at
+  properties:
+    status:
+      $ref: '#/AdminAuthProviderHealthStatus'
+    last_error:
+      type: string
+      nullable: true
+      description: Why an `unhealthy` provider failed to build; null otherwise.
+      example: null
+    checked_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the provider was last built (or tried); null for `disabled` and `unknown`.
+
+AdminAuthProvider:
+  type: object
+  description: |
+    One sign-in identity provider. The client secret is write-only: it is never
+    returned, and `has_client_secret` reports only whether one is stored.
+  additionalProperties: false
+  required:
+    - id
+    - type
+    - slug
+    - display_name
+    - enabled
+    - sort_order
+    - client_id
+    - has_client_secret
+    - issuer_url
+    - redirect_uri
+    - health
+    - created_at
+    - updated_at
+    - updated_by_user_id
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Provider id.
+    type:
+      $ref: '#/AdminAuthProviderType'
+    slug:
+      type: string
+      description: The provider's url-safe name, used in the sign-in URL. Immutable.
+      example: "okta"
+    display_name:
+      type: string
+      description: The name shown on the sign-in button.
+      example: "Okta"
+    enabled:
+      type: boolean
+      description: Whether the provider is offered for sign-in.
+    sort_order:
+      type: integer
+      description: Position on the sign-in page, ascending.
+      example: 0
+    client_id:
+      type: string
+      description: The OAuth client id.
+      example: "0oa1b2c3d4"
+    has_client_secret:
+      type: boolean
+      description: Whether a client secret is stored.
+    issuer_url:
+      type: string
+      nullable: true
+      description: The OIDC issuer URL; null for `google` and `github`.
+      example: "https://example.okta.com"
+    redirect_uri:
+      type: string
+      description: |
+        The redirect URI to register in the identity provider's console. It is
+        derived from the instance's own URL, is the same for every provider and
+        cannot be changed here.
+      example: "https://vibexp.example.com/api/v1/auth/callback"
+    health:
+      $ref: '#/AdminAuthProviderHealth'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+    updated_by_user_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: |
+        Who last saved the provider. Null for the boot-time config import, a
+        save made on a setup session, or once that user has been deleted.
+
+AdminAuthProviderList:
+  type: object
+  description: |
+    Every stored sign-in identity provider, in sign-in page order, with the
+    `version` of the instance authentication settings. Send that `version` back
+    as `expected_version` when changing a provider.
+  additionalProperties: false
+  required:
+    - providers
+    - version
+  properties:
+    providers:
+      type: array
+      items:
+        $ref: '#/AdminAuthProvider'
+    version:
+      type: integer
+      format: int64
+      description: |
+        The shared version of the authentication settings. Every provider and
+        allowlist change increments it.
+      example: 7
+
+AdminAuthProviderSaved:
+  type: object
+  description: |
+    A provider as stored by a create or an update, with the settings `version`
+    after the change. `provider.health` is resolved after the change, so the
+    response waits for the provider to be built (for `oidc` and `google`, one
+    bounded discovery request) and reports whether sign-in can use it.
+  additionalProperties: false
+  required:
+    - provider
+    - version
+  properties:
+    provider:
+      $ref: '#/AdminAuthProvider'
+    version:
+      type: integer
+      format: int64
+      description: The shared authentication settings version after the change.
+      example: 8
+
+AdminAuthProviderCreate:
+  type: object
+  description: |
+    A new sign-in identity provider. `type` and `slug` cannot be changed later.
+    `expected_version` is optional: when present, the create is rejected with
+    409 unless it equals the current authentication settings `version`.
+  additionalProperties: false
+  required:
+    - type
+    - slug
+    - display_name
+    - client_id
+    - client_secret
+  properties:
+    type:
+      $ref: '#/AdminAuthProviderType'
+    slug:
+      type: string
+      pattern: '^[a-z0-9][a-z0-9-]{0,62}$'
+      description: 1-63 lower-case letters, digits or hyphens, not starting with a hyphen.
+      example: "okta"
+    display_name:
+      type: string
+      minLength: 1
+      example: "Okta"
+    enabled:
+      type: boolean
+      default: true
+      description: Whether the provider is offered for sign-in. Defaults to true.
+    sort_order:
+      type: integer
+      default: 0
+      description: Position on the sign-in page, ascending. Defaults to 0.
+    client_id:
+      type: string
+      minLength: 1
+      example: "0oa1b2c3d4"
+    client_secret:
+      type: string
+      minLength: 1
+      description: The OAuth client secret. Stored encrypted and never returned.
+      example: "s3cr3t-value"
+    issuer_url:
+      type: string
+      description: |
+        Required for `oidc` and rejected for `google` and `github`. An absolute
+        `https://` URL (`http://` only for localhost) with no query or fragment.
+      example: "https://example.okta.com"
+    expected_version:
+      type: integer
+      format: int64
+      nullable: true
+      description: The `version` the caller last read; omit or null to apply to the current version.
+
+AdminAuthProviderUpdate:
+  type: object
+  description: |
+    A whole replacement of a provider's editable fields; `type` and `slug` are
+    immutable and are rejected as unknown fields. `display_name`, `enabled`,
+    `sort_order`, `client_id` and `expected_version` are required.
+
+    `client_secret` is write-only. Omit it to keep the stored secret; an empty
+    string is rejected. It cannot be omitted when `issuer_url` changes: the
+    stored secret is only ever kept for the issuer it was saved with.
+
+    A change that disables the last enabled provider, or the provider the
+    calling admin signed in with, is rejected with 409 `lockout_risk` unless
+    `confirm_lockout_risk` is true.
+  additionalProperties: false
+  required:
+    - display_name
+    - enabled
+    - sort_order
+    - client_id
+    - expected_version
+  properties:
+    display_name:
+      type: string
+      minLength: 1
+      example: "Okta"
+    enabled:
+      type: boolean
+    sort_order:
+      type: integer
+      example: 0
+    client_id:
+      type: string
+      minLength: 1
+      example: "0oa1b2c3d4"
+    client_secret:
+      type: string
+      minLength: 1
+      description: A new client secret. Omit to keep the stored one. Never returned.
+      example: "s3cr3t-value"
+    issuer_url:
+      type: string
+      description: Required for `oidc`, rejected for `google` and `github`.
+      example: "https://example.okta.com"
+    expected_version:
+      type: integer
+      format: int64
+      description: The authentication settings `version` the caller last read.
+      example: 7
+    confirm_lockout_risk:
+      type: boolean
+      default: false
+      description: Set to true to apply a change that was rejected with `lockout_risk`.
+
+AdminAuthProviderTestRequest:
+  type: object
+  description: |
+    What to test. Nothing is stored and nothing is audited.
+
+    - `id` alone tests the STORED provider with its stored secret.
+    - Without `id`, the body is an unsaved candidate: `type`, `client_id` and
+      `client_secret` are required (and `issuer_url` for `oidc`).
+    - `id` with other fields tests the stored provider with those fields
+      replaced, as an edit form does before saving. `type` cannot differ from
+      the stored one. When `client_secret` is omitted the stored secret is
+      used: it is never sent to a candidate-chosen endpoint (OIDC discovery
+      sends no secret, and the GitHub credential check goes only to GitHub).
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: A stored provider's id.
+    type:
+      $ref: '#/AdminAuthProviderType'
+    client_id:
+      type: string
+      example: "0oa1b2c3d4"
+    client_secret:
+      type: string
+      description: The candidate client secret. Never returned.
+      example: "s3cr3t-value"
+    issuer_url:
+      type: string
+      example: "https://example.okta.com"
+
+AdminAuthProviderTestResult:
+  type: object
+  description: |
+    The outcome of a provider test: OIDC discovery for `oidc` and `google`, a
+    credential check against GitHub for `github`.
+  additionalProperties: false
+  required:
+    - is_valid
+    - message
+  properties:
+    is_valid:
+      type: boolean
+      description: Whether the provider could be built with the tested configuration.
+    message:
+      type: string
+      nullable: true
+      description: Why the test failed; null when it passed.
+      example: null
+
+AdminAuthAllowlist:
+  type: object
+  description: |
+    The instance's sign-in access allowlist. A user may sign in when their
+    email's domain is in `domains` or the address is in `emails`. With both
+    lists empty, or nothing stored, access is open: every user may sign in
+    (`active` is false). Root instance admins are always exempt.
+  additionalProperties: false
+  required:
+    - domains
+    - emails
+    - active
+    - version
+    - updated_at
+    - updated_by_user_id
+  properties:
+    domains:
+      type: array
+      items:
+        type: string
+      example: ["example.com"]
+    emails:
+      type: array
+      items:
+        type: string
+      example: ["contractor@partner.example"]
+    active:
+      type: boolean
+      description: Whether the allowlist restricts sign-in (at least one domain or email).
+    version:
+      type: integer
+      format: int64
+      nullable: true
+      description: The stored allowlist's own version; null when nothing is stored.
+      example: 3
+    updated_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the allowlist was last saved; null when nothing is stored.
+    updated_by_user_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: |
+        Who last saved the allowlist. Null when nothing is stored, for the
+        boot-time config import, a save made on a setup session, or once that
+        user has been deleted.
+
+AdminAuthAllowlistUpdate:
+  type: object
+  description: |
+    A whole replacement of the access allowlist. Both lists are required (send
+    `[]` for none). Entries are trimmed, lower-cased and de-duplicated; a domain
+    is a DNS name of at least two labels with no leading `@`. Storing two empty
+    lists means open access.
+
+    `expected_version` is optional: when present, the save is rejected with
+    409 unless it equals the stored allowlist's `version` (and when nothing is
+    stored, any `expected_version` other than null is a conflict). Omit it for
+    last-write-wins.
+  additionalProperties: false
+  required:
+    - domains
+    - emails
+  properties:
+    domains:
+      type: array
+      items:
+        type: string
+      example: ["example.com"]
+    emails:
+      type: array
+      items:
+        type: string
+      example: ["contractor@partner.example"]
+    expected_version:
+      type: integer
+      format: int64
+      nullable: true
+      description: The `version` the caller last read; omit or null for last-write-wins.
+
+AdminAuthAllowlistPreviewRequest:
+  type: object
+  description: A candidate allowlist to preview. Both lists are required (send `[]` for none).
+  additionalProperties: false
+  required:
+    - domains
+    - emails
+  properties:
+    domains:
+      type: array
+      items:
+        type: string
+      example: ["example.com"]
+    emails:
+      type: array
+      items:
+        type: string
+      example: []
+
+AdminAuthAllowlistImpact:
+  type: object
+  description: |
+    What replacing the allowlist with a candidate would do: the active
+    (non-suspended) users who would stop matching it. Root instance admins are
+    exempt and never counted. An open-access candidate affects nobody.
+  additionalProperties: false
+  required:
+    - count
+    - sample
+    - sample_truncated
+  properties:
+    count:
+      type: integer
+      description: How many active users match neither list of the candidate.
+      example: 2
+    sample:
+      type: array
+      description: Up to 20 of their emails, in alphabetical order.
+      items:
+        type: string
+      example: ["ada@other.example", "bob@other.example"]
+    sample_truncated:
+      type: boolean
+      description: Whether `count` exceeds the number of emails in `sample`.
+
+AdminInstanceAdmin:
+  type: object
+  description: One instance admin granted in the database.
+  additionalProperties: false
+  required:
+    - user_id
+    - email
+    - name
+    - granted_by_user_id
+    - granted_at
+  properties:
+    user_id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      example: "ada@example.com"
+    name:
+      type: string
+      nullable: true
+      description: The admin's display name, when set.
+      example: "Ada Admin"
+    granted_by_user_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: The root admin who granted it; null once that user has been deleted.
+    granted_at:
+      type: string
+      format: date-time
+
+AdminInstanceAdminList:
+  type: object
+  description: |
+    The instance's admins. `root_admins` are the emails named in config.yaml's
+    `auth.instance_admins`: read-only here, they cannot be granted or revoked.
+    `admins` are the users granted in the database, oldest first.
+  additionalProperties: false
+  required:
+    - root_admins
+    - admins
+  properties:
+    root_admins:
+      type: array
+      description: The root admins' normalized emails, sorted.
+      items:
+        type: string
+      example: ["root@example.com"]
+    admins:
+      type: array
+      items:
+        $ref: '#/AdminInstanceAdmin'
+
+AdminInstanceAdminGrant:
+  type: object
+  description: |
+    The existing user to make an instance admin, named by exactly one of
+    `user_id` or `email`.
+  additionalProperties: false
+  properties:
+    user_id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+      example: "ada@example.com"
+
+AdminAuthSettingsAuditSetting:
+  type: string
+  description: Which authentication setting's audit log to read.
+  enum:
+    - auth_providers
+    - auth_allowlist
+    - instance_admins
+    - auth_setup
+  # Explicit constant names, for the same reason as AdminAuthProviderType.
+  x-enum-varnames:
+    - AdminAuthSettingsAuditSettingAuthProviders
+    - AdminAuthSettingsAuditSettingAuthAllowlist
+    - AdminAuthSettingsAuditSettingInstanceAdmins
+    - AdminAuthSettingsAuditSettingAuthSetup
+  example: auth_providers
