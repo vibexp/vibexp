@@ -126,7 +126,7 @@ func newAllowlistHarness(rootAdmins ...string) *allowlistHarness {
 	resolver := newAccessAllowlistResolver(AccessAllowlistResolverDeps{
 		Allowlists: store,
 		Versions:   fakeAllowlistVersions{store},
-		RootAdmins: rootAdmins,
+		RootAdmins: NewInstanceAdminService(rootAdmins, nil, nil, logger),
 		Logger:     logger,
 	})
 	resolver.now = clock.Now
@@ -157,9 +157,12 @@ func newStaticAllowlistResolver(logger *slog.Logger, emails []string) AccessAllo
 	return NewAccessAllowlistResolver(AccessAllowlistResolverDeps{
 		Allowlists: store,
 		Versions:   fakeAllowlistVersions{store},
+		RootAdmins: NewInstanceAdminService(nil, nil, nil, logger),
 		Logger:     logger,
 	})
 }
+
+const allowlistReadFailedOpenLog = "Access allowlist could not be read; no allowlist is known to be active, allowing access"
 
 func mustAllow(t *testing.T, r AccessAllowlistResolver, email string) (allowed, active bool) {
 	t.Helper()
@@ -357,10 +360,31 @@ func TestAccessAllowlistResolver_ReadFailure(t *testing.T) {
 			allowed, active := mustAllow(t, h.resolver, "anyone@anywhere.test")
 			assert.True(t, allowed)
 			assert.False(t, active)
-			assert.Positive(t, h.logged(
-				"Access allowlist could not be read; no allowlist is known to be active, allowing access"))
+			assert.Equal(t, 1, h.logged(allowlistReadFailedOpenLog))
+
+			// An outage logs one line per interval, not one per request.
+			for range 5 {
+				h.expire()
+				mustAllow(t, h.resolver, "anyone@anywhere.test")
+			}
+			assert.Equal(t, 1, h.logged(allowlistReadFailedOpenLog))
+			h.clock.Advance(allowlistReadFailureLogInterval)
+			mustAllow(t, h.resolver, "anyone@anywhere.test")
+			assert.Equal(t, 2, h.logged(allowlistReadFailedOpenLog))
 		})
 	}
+
+	t.Run("a caller that cancelled its own request is not logged as a read failure", func(t *testing.T) {
+		h := newAllowlistHarness()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		// The refresh itself may win the race and succeed; either way nothing
+		// failed to read.
+		allowed, _, err := h.resolver.IsEmailAllowed(ctx, "anyone@anywhere.test")
+		require.NoError(t, err)
+		assert.True(t, allowed)
+		assert.Zero(t, h.logged(allowlistReadFailedOpenLog))
+	})
 
 	t.Run("fails open when no list was ever compiled", func(t *testing.T) {
 		h := newAllowlistHarness()
@@ -433,9 +457,14 @@ func TestAccessAllowlistResolver_RootAdminExemption(t *testing.T) {
 		h.store.fail(errors.New("db down"), nil)
 		h.expire()
 
-		allowed, active := mustAllow(t, h.resolver, root)
-		assert.True(t, allowed)
-		assert.True(t, active)
+		for range 3 {
+			allowed, active := mustAllow(t, h.resolver, root)
+			assert.True(t, allowed)
+			assert.True(t, active)
+		}
+		assert.Equal(t, 1, h.logged(
+			"Root instance admin is exempt from the access allowlist, which could not be read"),
+			"logged once per admin per compiled list, not once per request")
 		_, _, err := h.resolver.IsEmailAllowed(context.Background(), "dev@example.com")
 		require.Error(t, err, "everyone else still fails closed")
 	})
@@ -445,7 +474,7 @@ func TestAccessAllowlistResolver_PreviewAllowlistImpact(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("normalizes the candidate and passes the root admins as exempt", func(t *testing.T) {
-		h := newAllowlistHarness("Root@Corp.example")
+		h := newAllowlistHarness("Root@Corp.example", " Admin@corp.example ", "")
 		h.store.previewCount = 2
 		h.store.previewEmail = []string{"a@other.com", "b@other.com"}
 
@@ -456,7 +485,8 @@ func TestAccessAllowlistResolver_PreviewAllowlistImpact(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, &AllowlistImpact{Count: 2, Sample: []string{"a@other.com", "b@other.com"}}, impact)
 		assert.Equal(t, []any{
-			[]string{"example.com"}, []string{"guest@other.com"}, []string{"root@corp.example"},
+			[]string{"example.com"}, []string{"guest@other.com"},
+			[]string{"admin@corp.example", "root@corp.example"},
 			AllowlistImpactSampleLimit,
 		}, h.store.previewArgs)
 	})

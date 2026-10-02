@@ -11,7 +11,6 @@ import (
 	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
-	"github.com/vibexp/vibexp/internal/services/feature_flags"
 	"github.com/vibexp/vibexp/internal/services/freshness"
 	notificationsvc "github.com/vibexp/vibexp/internal/services/notifications"
 	notifchannels "github.com/vibexp/vibexp/internal/services/notifications/channels"
@@ -692,27 +691,20 @@ func ProvideEnvironmentService(cfg *config.Config) *services.EnvironmentService 
 	return services.NewEnvironmentService(cfg)
 }
 
-// ProvideFeatureFlagService creates a new FeatureFlagService. No flag is
-// registered: the sign-in allowlist, formerly a flag built from config at boot,
-// is now resolved from the database by ProvideAccessAllowlistResolver (#1235).
-func ProvideFeatureFlagService(logger *slog.Logger) *feature_flags.FeatureFlagService {
-	return feature_flags.NewFeatureFlagService(logger)
-}
-
 // ProvideAccessAllowlistResolver creates the runtime access allowlist resolver
 // (#1235): the allowlist is read from instance_auth_allowlist, cached by the
 // auth settings version, and enforced at sign-in, at MCP consent and on every
-// authenticated request. Root admins (auth.instance_admins) are exempt.
+// authenticated request. Root admins, as answered by admins, are exempt.
 func ProvideAccessAllowlistResolver(
-	cfg *config.Config,
 	allowlists repositories.InstanceAuthAllowlistRepository,
 	versions repositories.InstanceAuthSettingsVersionRepository,
+	admins services.InstanceAdminResolver,
 	logger *slog.Logger,
 ) services.AccessAllowlistResolver {
 	return services.NewAccessAllowlistResolver(services.AccessAllowlistResolverDeps{
 		Allowlists: allowlists,
 		Versions:   versions,
-		RootAdmins: cfg.Auth.InstanceAdmins,
+		RootAdmins: admins,
 		Logger:     logger,
 	})
 }

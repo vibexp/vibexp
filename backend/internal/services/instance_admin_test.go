@@ -352,3 +352,17 @@ func TestInstanceAdminErrors_Messages(t *testing.T) {
 	assert.Contains(t, (&ErrInstanceAdminTargetInvalid{UserID: "u", Reason: "r"}).Error(), "u")
 	assert.Contains(t, (&ErrInstanceAdminNotGranted{UserID: "u"}).Error(), "u")
 }
+
+func TestInstanceAdminService_RootAdminEmails(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+
+	svc := NewInstanceAdminService([]string{" Root@Example.com ", "", "admin@example.com", "ROOT@example.com"},
+		nil, nil, logger)
+	assert.Equal(t, []string{"admin@example.com", "root@example.com"}, svc.RootAdminEmails(),
+		"normalized, de-duplicated, sorted, blanks dropped")
+	for _, email := range svc.RootAdminEmails() {
+		assert.True(t, svc.IsRootAdmin(email))
+	}
+
+	assert.Equal(t, []string{}, NewInstanceAdminService(nil, nil, nil, logger).RootAdminEmails())
+}

@@ -352,7 +352,7 @@ func newMemAllowlistResolver(
 	return services.NewAccessAllowlistResolver(services.AccessAllowlistResolverDeps{
 		Allowlists:    store,
 		Versions:      memAccessAllowlistVersions{store},
-		RootAdmins:    rootAdmins,
+		RootAdmins:    services.NewInstanceAdminService(rootAdmins, nil, nil, logger),
 		Logger:        logger,
 		ProbeInterval: time.Nanosecond,
 	})

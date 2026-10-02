@@ -13,7 +13,6 @@ import (
 	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
-	"github.com/vibexp/vibexp/internal/services/feature_flags"
 	"github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -92,7 +91,6 @@ type WireContainer struct {
 	freshnessService             services.FreshnessServiceInterface
 	metadataCatalogService       services.MetadataCatalogServiceInterface
 	environmentService           *services.EnvironmentService
-	featureFlagService           *feature_flags.FeatureFlagService
 	backofficeService            services.UsageAndGrowthGetter
 	adminService                 services.AdminServiceInterface
 	embeddingBackfillService     services.EmbeddingBackfiller

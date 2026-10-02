@@ -29,6 +29,10 @@ const (
 	// bounds how long a replica keeps enforcing a list that was just changed:
 	// a removal takes effect within this interval, on every replica.
 	allowlistVersionProbeInterval = 2 * time.Second
+	// allowlistReadFailureLogInterval is the least time between two WARNs
+	// about an allowlist read that failed open, so an outage logs a line a
+	// minute instead of one per request.
+	allowlistReadFailureLogInterval = time.Minute
 	// allowlistRefreshTimeout bounds one refresh (the version read plus, when
 	// the version changed, the allowlist read).
 	allowlistRefreshTimeout = 5 * time.Second
@@ -72,10 +76,10 @@ type AllowlistImpact struct {
 //
 // # Root instance admins
 //
-// A root admin (auth.instance_admins) is exempt: they are allowed even when
-// their email matches no entry, and even when the allowlist cannot be read, so
-// an allowlist mistake can never lock out the trust root. DB-granted admins are
-// not exempt.
+// A root admin (InstanceAdminResolver.IsRootAdmin, i.e. auth.instance_admins)
+// is exempt: they are allowed even when their email matches no entry, and even
+// when the allowlist cannot be read, so an allowlist mistake can never lock out
+// the trust root. DB-granted admins are not exempt.
 type AccessAllowlistResolver interface {
 	// IsEmailAllowed reports whether email may use the instance, and whether an
 	// allowlist is active (at least one domain or email stored). With no active
@@ -96,8 +100,10 @@ type AccessAllowlistResolver interface {
 type AccessAllowlistResolverDeps struct {
 	Allowlists repositories.InstanceAuthAllowlistRepository
 	Versions   repositories.InstanceAuthSettingsVersionRepository
-	// RootAdmins is auth.instance_admins, the emails exempt from the allowlist.
-	RootAdmins []string
+	// RootAdmins answers who is a root instance admin, and so exempt from the
+	// allowlist. It is the same resolver that gates the admin surfaces, so the
+	// two can never disagree on who the trust root is.
+	RootAdmins InstanceAdminResolver
 	Logger     *slog.Logger
 	// ProbeInterval overrides how long a compiled allowlist is served before
 	// the auth settings version is read again. Zero means
@@ -172,7 +178,7 @@ func (c *compiledAllowlist) match(email string) bool {
 type accessAllowlistResolver struct {
 	allowlists repositories.InstanceAuthAllowlistRepository
 	versions   repositories.InstanceAuthSettingsVersionRepository
-	rootAdmins map[string]struct{}
+	rootAdmins InstanceAdminResolver
 	logger     *slog.Logger
 
 	// Injectable for tests.
@@ -181,6 +187,9 @@ type accessAllowlistResolver struct {
 
 	snap  atomic.Pointer[compiledAllowlist]
 	group singleflight.Group
+	// lastReadFailureLog is when a fail-open read failure was last logged, in
+	// Unix nanoseconds.
+	lastReadFailureLog atomic.Int64
 }
 
 var _ AccessAllowlistResolver = (*accessAllowlistResolver)(nil)
@@ -198,16 +207,11 @@ func newAccessAllowlistResolver(deps AccessAllowlistResolverDeps) *accessAllowli
 	return &accessAllowlistResolver{
 		allowlists:    deps.Allowlists,
 		versions:      deps.Versions,
-		rootAdmins:    normalizedSet(deps.RootAdmins),
+		rootAdmins:    deps.RootAdmins,
 		logger:        deps.Logger,
 		now:           time.Now,
 		probeInterval: probeInterval,
 	}
-}
-
-func (r *accessAllowlistResolver) isRootAdmin(email string) bool {
-	_, ok := r.rootAdmins[normalizeAllowlistEntry(email)]
-	return ok
 }
 
 // IsEmailAllowed implements AccessAllowlistResolver.
@@ -215,9 +219,9 @@ func (r *accessAllowlistResolver) IsEmailAllowed(ctx context.Context, email stri
 	list, err := r.current(ctx)
 	if err != nil {
 		// current returns an error only while the last known list is active.
-		if r.isRootAdmin(email) {
-			r.logger.With("email", normalizeAllowlistEntry(email), "error", err.Error()).
-				Info("Root instance admin is exempt from the access allowlist, which could not be read")
+		if r.rootAdmins.IsRootAdmin(email) {
+			r.logExemption(r.snap.Load(), "unreadable:", email,
+				"Root instance admin is exempt from the access allowlist, which could not be read")
 			return true, true, nil
 		}
 		return false, true, err
@@ -228,15 +232,25 @@ func (r *accessAllowlistResolver) IsEmailAllowed(ctx context.Context, email stri
 	if list.match(email) {
 		return true, true, nil
 	}
-	if r.isRootAdmin(email) {
-		normalized := normalizeAllowlistEntry(email)
-		if _, logged := list.exempted.LoadOrStore(normalized, struct{}{}); !logged {
-			r.logger.With("email", normalized).
-				Info("Root instance admin is exempt from the access allowlist their email does not match")
-		}
+	if r.rootAdmins.IsRootAdmin(email) {
+		r.logExemption(list, "", email,
+			"Root instance admin is exempt from the access allowlist their email does not match")
 		return true, true, nil
 	}
 	return false, true, nil
+}
+
+// logExemption logs message at Info once per root admin per compiled list
+// (kind tells apart the two reasons an admin can be exempt), not once per
+// request.
+func (r *accessAllowlistResolver) logExemption(list *compiledAllowlist, kind, email, message string) {
+	normalized := normalizeAllowlistEntry(email)
+	if list != nil {
+		if _, logged := list.exempted.LoadOrStore(kind+normalized, struct{}{}); logged {
+			return
+		}
+	}
+	r.logger.With("email", normalized).Info(message)
 }
 
 // current returns the compiled allowlist to decide with. It serves the cached
@@ -316,9 +330,23 @@ func (r *accessAllowlistResolver) afterFailedRefresh(err error) (*compiledAllowl
 	if s := r.snap.Load(); s != nil && s.active() {
 		return nil, fmt.Errorf("access allowlist is active and could not be re-read: %w", err)
 	}
-	r.logger.With("error", err.Error()).
-		Warn("Access allowlist could not be read; no allowlist is known to be active, allowing access")
+	// A caller that gave up on its own request did not observe a read failure.
+	if !errors.Is(err, context.Canceled) && r.readFailureLogDue() {
+		r.logger.With("error", err.Error()).
+			Warn("Access allowlist could not be read; no allowlist is known to be active, allowing access")
+	}
 	return compileAllowlist(0, nil, nil), nil
+}
+
+// readFailureLogDue reports whether a fail-open read failure should be logged
+// now, and claims the slot when it is.
+func (r *accessAllowlistResolver) readFailureLogDue() bool {
+	now := r.now().UnixNano()
+	last := r.lastReadFailureLog.Load()
+	if last != 0 && now-last < int64(allowlistReadFailureLogInterval) {
+		return false
+	}
+	return r.lastReadFailureLog.CompareAndSwap(last, now)
 }
 
 // PreviewAllowlistImpact implements AccessAllowlistResolver.
@@ -333,11 +361,8 @@ func (r *accessAllowlistResolver) PreviewAllowlistImpact(
 		// Open access admits everyone.
 		return &AllowlistImpact{Sample: []string{}}, nil
 	}
-	exempt := make([]string, 0, len(r.rootAdmins))
-	for email := range r.rootAdmins {
-		exempt = append(exempt, email)
-	}
-	count, sample, err := r.allowlists.CountUsersOutside(ctx, domains, emails, exempt, AllowlistImpactSampleLimit)
+	count, sample, err := r.allowlists.CountUsersOutside(
+		ctx, domains, emails, r.rootAdmins.RootAdminEmails(), AllowlistImpactSampleLimit)
 	if err != nil {
 		return nil, fmt.Errorf("preview access allowlist impact: %w", err)
 	}
