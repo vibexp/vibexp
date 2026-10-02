@@ -124,14 +124,30 @@ func (r *InstanceAuthSetupRepository) MintIfAbsentOrExpired(
 func (r *InstanceAuthSetupRepository) ForceMint(
 	ctx context.Context, tokenHash []byte, expiresAt time.Time,
 ) (*models.InstanceAuthSetup, error) {
+	return r.mintUnconditionally(ctx, "rearm", tokenHash, expiresAt, true, instanceAuthSetupEventRearmed)
+}
+
+// MintReplacing replaces any outstanding token without re-arming setup; see the
+// interface.
+func (r *InstanceAuthSetupRepository) MintReplacing(
+	ctx context.Context, tokenHash []byte, expiresAt time.Time,
+) (*models.InstanceAuthSetup, error) {
+	return r.mintUnconditionally(ctx, "mint", tokenHash, expiresAt, false, instanceAuthSetupEventMinted)
+}
+
+// mintUnconditionally stores tokenHash whatever the row holds and audits it as
+// event.
+func (r *InstanceAuthSetupRepository) mintUnconditionally(
+	ctx context.Context, op string, tokenHash []byte, expiresAt time.Time, rearm bool, event string,
+) (*models.InstanceAuthSetup, error) {
 	var stored *models.InstanceAuthSetup
-	err := r.inTx(ctx, "rearm", func(tx *sql.Tx, before *models.InstanceAuthSetup) (bool, error) {
-		after, err := r.mint(ctx, tx, tokenHash, expiresAt, true)
+	err := r.inTx(ctx, op, func(tx *sql.Tx, before *models.InstanceAuthSetup) (bool, error) {
+		after, err := r.mint(ctx, tx, tokenHash, expiresAt, rearm)
 		if err != nil {
 			return false, err
 		}
 		stored = after
-		return true, appendInstanceAuthSetupAudit(ctx, tx, instanceAuthSetupEventRearmed, nil, before, after)
+		return true, appendInstanceAuthSetupAudit(ctx, tx, event, nil, before, after)
 	})
 	if err != nil {
 		return nil, err

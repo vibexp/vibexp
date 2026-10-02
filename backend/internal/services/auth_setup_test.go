@@ -81,6 +81,17 @@ func (m *memSetupRepo) ForceMint(
 	return m.mint(hash, expiresAt, true), nil
 }
 
+func (m *memSetupRepo) MintReplacing(
+	_ context.Context, hash []byte, expiresAt time.Time,
+) (*models.InstanceAuthSetup, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.writeErr != nil {
+		return nil, m.writeErr
+	}
+	return m.mint(hash, expiresAt, false), nil
+}
+
 func (m *memSetupRepo) Consume(_ context.Context, userID string) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -299,6 +310,105 @@ func TestSetupMode_EnsureTokenAtBoot(t *testing.T) {
 		assert.False(t, minted)
 		assert.NotContains(t, f.logs.String(), "SETUP URL:")
 	})
+}
+
+// TestSetupMode_EnsureTokenAtBoot_RecoveryMode covers the recovery flag
+// (#1237) against providers present and absent.
+func TestSetupMode_EnsureTokenAtBoot_RecoveryMode(t *testing.T) {
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		name            string
+		recovery        bool
+		providerEnabled bool
+		wantURL         bool
+		wantReason      string
+	}{
+		{"flag on, provider enabled: a URL is logged", true, true, true, "AUTH_SETTINGS_RECOVERY_MODE"},
+		{"flag on, no provider: a URL is logged", true, false, true, "AUTH_SETTINGS_RECOVERY_MODE"},
+		{"flag off, provider enabled: nothing is logged", false, true, false, ""},
+		{"flag off, no provider: first-run URL", false, false, true, "no identity provider is enabled"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newSetupFixture(t, tc.recovery)
+			if tc.providerEnabled {
+				f.enableProvider()
+			}
+			setupURL, minted, err := f.svc.EnsureTokenAtBoot(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantURL, minted)
+			if !tc.wantURL {
+				assert.Empty(t, setupURL)
+				assert.Empty(t, f.logs.String())
+				return
+			}
+			logs := f.logs.String()
+			assert.Equal(t, 1, strings.Count(logs, "SETUP URL: "+setupURL))
+			assert.Contains(t, logs, "level=WARN")
+			assert.Contains(t, logs, tc.wantReason)
+		})
+	}
+
+	t.Run("every boot replaces the token, so each one logs a usable URL", func(t *testing.T) {
+		f := newSetupFixture(t, true)
+		f.enableProvider()
+		first := f.bootToken(t)
+		stale, err := f.svc.ExchangeToken(ctx, first)
+		require.NoError(t, err)
+
+		f.now = f.now.Add(time.Minute) // well inside the first token's lifetime
+		second := f.bootToken(t)
+		assert.NotEqual(t, first, second)
+
+		_, err = f.svc.ExchangeToken(ctx, first)
+		require.ErrorIs(t, err, ErrSetupTokenInvalid, "the previous boot's token is replaced")
+		require.ErrorIs(t, f.svc.ValidateSession(ctx, stale), ErrSetupSessionInvalid)
+		_, err = f.svc.ExchangeToken(ctx, second)
+		require.NoError(t, err)
+	})
+
+	t.Run("removing the flag exits setup mode: the recovery mint does not re-arm", func(t *testing.T) {
+		f := newSetupFixture(t, true)
+		f.enableProvider()
+		token := f.bootToken(t)
+		assert.False(t, f.repo.row.Rearmed)
+
+		f.svc.recoveryMode = false // the next boot, without the flag
+		active, err := f.svc.IsActive(ctx)
+		require.NoError(t, err)
+		assert.False(t, active)
+		_, err = f.svc.ExchangeToken(ctx, token)
+		require.ErrorIs(t, err, ErrSetupNotActive)
+	})
+
+	t.Run("a failed mint logs no URL and returns the error", func(t *testing.T) {
+		f := newSetupFixture(t, true)
+		f.repo.writeErr = errors.New("db down")
+		_, minted, err := f.svc.EnsureTokenAtBoot(ctx)
+		require.ErrorContains(t, err, "recovery setup token")
+		assert.False(t, minted)
+		assert.NotContains(t, f.logs.String(), "SETUP URL:")
+	})
+}
+
+// TestSetupMode_EnsureTokenAtBoot_RearmedReason pins the logged reason when a
+// boot re-mints for a re-armed setup whose token expired.
+func TestSetupMode_EnsureTokenAtBoot_RearmedReason(t *testing.T) {
+	f := newSetupFixture(t, false)
+	f.enableProvider()
+	_, err := f.svc.ForceRearm(context.Background())
+	require.NoError(t, err)
+
+	f.now = f.now.Add(SetupTokenLifetime + time.Second)
+	f.bootToken(t)
+	assert.Contains(t, f.logs.String(), "vibexp admin auth setup rearm")
+	assert.NotContains(t, f.logs.String(), "no identity provider is enabled")
+}
+
+func TestSetupURL(t *testing.T) {
+	assert.Equal(t, "https://vibexp.example.com/setup?token=abc", SetupURL("https://vibexp.example.com", "abc"))
+	assert.Equal(t, "https://vibexp.example.com/setup?token=abc", SetupURL("https://vibexp.example.com/", "abc"),
+		"a trailing slash on frontend.base_url does not double up")
 }
 
 func TestSetupMode_ExchangeToken(t *testing.T) {

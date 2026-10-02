@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
 )
@@ -62,4 +64,30 @@ func TestProvideContentVersionService_ZeroCapKeepsAll(t *testing.T) {
 	})
 
 	require.NoError(t, err)
+}
+
+// TestProvideSetupModeService_RecoveryModeFromConfig verifies auth.recovery_mode
+// reaches the setup-mode service (#1237): with the flag on, setup mode is active
+// while a provider is enabled; with it off, the enabled provider ends it.
+func TestProvideSetupModeService_RecoveryModeFromConfig(t *testing.T) {
+	for _, recovery := range []bool{true, false} {
+		setup := repomocks.NewMockInstanceAuthSetupRepository(t)
+		providerRepo := repomocks.NewMockInstanceAuthProviderRepository(t)
+		if !recovery {
+			// Only without the flag does the stored state decide.
+			setup.EXPECT().Get(mock.Anything).Return(nil, repositories.ErrInstanceAuthSetupNotFound).Once()
+			providerRepo.EXPECT().List(mock.Anything).
+				Return([]*models.InstanceAuthProvider{{Slug: "sso", Enabled: true}}, nil).Once()
+		}
+		cfg := &config.Config{}
+		cfg.Auth.RecoveryMode = config.EnvBool(recovery)
+
+		svc := ProvideSetupModeService(setup, providerRepo,
+			services.NewInstanceAdminService(nil, nil, nil, slog.New(slog.DiscardHandler)),
+			cfg, slog.New(slog.DiscardHandler))
+
+		active, err := svc.IsActive(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, recovery, active)
+	}
 }

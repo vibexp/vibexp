@@ -99,6 +99,10 @@ func runAuthSettingsTx[T any](
 func appendAuthSettingsAudit(
 	ctx context.Context, tx *sql.Tx, setting, action string, actorUserID *string, before, after json.RawMessage,
 ) error {
+	before, after, err := stampAuditSource(ctx, before, after)
+	if err != nil {
+		return fmt.Errorf("failed to record the audit source: %w", err)
+	}
 	return appendInstanceSettingsAudit(ctx, tx, &models.InstanceSettingsAuditEntry{
 		Setting:     setting,
 		Action:      action,
@@ -106,6 +110,31 @@ func appendAuthSettingsAudit(
 		Before:      before,
 		After:       after,
 	})
+}
+
+// instanceSettingsAuditSourceKey is the snapshot key naming where a write came
+// from when it was not the API (repositories.WithAuditSource).
+const instanceSettingsAuditSourceKey = "source"
+
+// stampAuditSource adds the context's audit source, when there is one, to the
+// snapshot that describes the write: after, or before when the write is a
+// delete and so has no after. A delete's after stays nil, which is what marks
+// the entry as a removal.
+func stampAuditSource(ctx context.Context, before, after json.RawMessage) (json.RawMessage, json.RawMessage, error) {
+	source := repositories.AuditSourceFromContext(ctx)
+	if source == "" {
+		return before, after, nil
+	}
+	extra := map[string]any{instanceSettingsAuditSourceKey: source}
+	if after != nil {
+		stamped, err := auditSnapshot(after, extra)
+		return before, stamped, err
+	}
+	if before != nil {
+		stamped, err := auditSnapshot(before, extra)
+		return stamped, after, err
+	}
+	return before, after, nil
 }
 
 // auditSnapshot marshals v (a model whose credential fields are json:"-") and

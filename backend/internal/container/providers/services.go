@@ -490,8 +490,8 @@ func ProvideInstanceAdminResolver(
 }
 
 // ProvideSetupModeService creates the authentication setup-mode service
-// (#1236). Setup mode follows the stored provider rows; the recovery input stays
-// off until the recovery flag lands (#1237).
+// (#1236). Setup mode follows the stored provider rows unless auth.recovery_mode
+// forces it on (#1237).
 func ProvideSetupModeService(
 	setup repositories.InstanceAuthSetupRepository,
 	providerRepo repositories.InstanceAuthProviderRepository,
@@ -500,11 +500,12 @@ func ProvideSetupModeService(
 	logger *slog.Logger,
 ) services.SetupModeService {
 	return services.NewSetupModeService(services.SetupModeDeps{
-		Setup:       setup,
-		Providers:   providerRepo,
-		IsRootAdmin: admins.IsRootAdmin,
-		BaseURL:     cfg.Frontend.BaseURL,
-		Logger:      logger,
+		Setup:        setup,
+		Providers:    providerRepo,
+		IsRootAdmin:  admins.IsRootAdmin,
+		BaseURL:      cfg.Frontend.BaseURL,
+		RecoveryMode: bool(cfg.Auth.RecoveryMode),
+		Logger:       logger,
 	})
 }
 

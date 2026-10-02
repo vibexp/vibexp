@@ -113,6 +113,14 @@ services:
       # OIDC_CLIENT_ID: "client_..."
       # OIDC_CLIENT_SECRET: "secret_..."
       #
+      # Locked out of sign-in (a bad provider or allowlist save)? Recover without
+      # touching the database by hand. Either run, with no restart:
+      #   docker compose exec app ./main admin auth providers list
+      #   docker compose exec app ./main admin auth setup rearm
+      # or set the flag below and restart: every boot then logs a one-time SETUP
+      # URL at WARN. Existing providers keep working; remove it once fixed.
+      # AUTH_SETTINGS_RECOVERY_MODE: "true"
+      #
       # Enable the embedded MCP OAuth server in production. Set BOTH the HTTPS
       # issuer URL and the public MCP resource URI (the token audience, RFC 8707):
       # OAUTH_AS_ISSUER_URL: "https://vibexp.example.com"

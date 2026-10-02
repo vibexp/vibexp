@@ -117,6 +117,12 @@ auth:
   # detected as development (frontend.base_url points at localhost). Keep false in
   # production.
   dev_login_enabled: true
+  # Break-glass after an authentication lockout (#1237). When true, every boot
+  # forces setup mode on and logs a fresh one-time SETUP URL at WARN, even though
+  # identity providers are configured; those providers keep signing users in.
+  # Set it back to false once sign-in works again. The no-restart alternative is
+  # the CLI: `vibexp admin auth setup rearm`.
+  recovery_mode: false
   # Restrict who may sign in, by email domain and/or exact email address.
   # `domains` matches the part after the last "@" of a user's email exactly
   # (case-insensitively, e.g. "example.com"); `emails` matches the full address.

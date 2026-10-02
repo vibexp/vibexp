@@ -267,6 +267,66 @@ func (_c *MockInstanceAuthSetupRepository_MintIfAbsentOrExpired_Call) RunAndRetu
 	return _c
 }
 
+// MintReplacing provides a mock function with given fields: ctx, tokenHash, expiresAt
+func (_m *MockInstanceAuthSetupRepository) MintReplacing(ctx context.Context, tokenHash []byte, expiresAt time.Time) (*models.InstanceAuthSetup, error) {
+	ret := _m.Called(ctx, tokenHash, expiresAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MintReplacing")
+	}
+
+	var r0 *models.InstanceAuthSetup
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []byte, time.Time) (*models.InstanceAuthSetup, error)); ok {
+		return rf(ctx, tokenHash, expiresAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []byte, time.Time) *models.InstanceAuthSetup); ok {
+		r0 = rf(ctx, tokenHash, expiresAt)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.InstanceAuthSetup)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []byte, time.Time) error); ok {
+		r1 = rf(ctx, tokenHash, expiresAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInstanceAuthSetupRepository_MintReplacing_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MintReplacing'
+type MockInstanceAuthSetupRepository_MintReplacing_Call struct {
+	*mock.Call
+}
+
+// MintReplacing is a helper method to define mock.On call
+//   - ctx context.Context
+//   - tokenHash []byte
+//   - expiresAt time.Time
+func (_e *MockInstanceAuthSetupRepository_Expecter) MintReplacing(ctx interface{}, tokenHash interface{}, expiresAt interface{}) *MockInstanceAuthSetupRepository_MintReplacing_Call {
+	return &MockInstanceAuthSetupRepository_MintReplacing_Call{Call: _e.mock.On("MintReplacing", ctx, tokenHash, expiresAt)}
+}
+
+func (_c *MockInstanceAuthSetupRepository_MintReplacing_Call) Run(run func(ctx context.Context, tokenHash []byte, expiresAt time.Time)) *MockInstanceAuthSetupRepository_MintReplacing_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]byte), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockInstanceAuthSetupRepository_MintReplacing_Call) Return(_a0 *models.InstanceAuthSetup, _a1 error) *MockInstanceAuthSetupRepository_MintReplacing_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInstanceAuthSetupRepository_MintReplacing_Call) RunAndReturn(run func(context.Context, []byte, time.Time) (*models.InstanceAuthSetup, error)) *MockInstanceAuthSetupRepository_MintReplacing_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockInstanceAuthSetupRepository creates a new instance of MockInstanceAuthSetupRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockInstanceAuthSetupRepository(t interface {

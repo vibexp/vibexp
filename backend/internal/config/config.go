@@ -301,6 +301,14 @@ type AuthConfig struct {
 	// (frontend.base_url points at localhost) for the endpoint to respond.
 	DevLoginEnabled bool `koanf:"dev_login_enabled"`
 
+	// RecoveryMode forces authentication setup mode on at boot regardless of the
+	// stored identity providers (#1237): every boot logs a fresh setup URL and a
+	// WARN naming the flag. Providers that are configured keep signing users in;
+	// the flag only guarantees a way back into the sign-in settings after a
+	// lockout. Remove it once sign-in works again. It is EnvBool so the combined
+	// image can set it with AUTH_SETTINGS_RECOVERY_MODE alone.
+	RecoveryMode EnvBool `koanf:"recovery_mode"`
+
 	// LegacyAccessAllowlist is the config.yaml access allowlist: email domains
 	// and/or exact addresses. It is no longer enforced from here. It is imported
 	// once at boot into the instance_auth_allowlist table (#1232), and the

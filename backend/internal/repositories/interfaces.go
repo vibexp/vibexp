@@ -1807,6 +1807,12 @@ type InstanceAuthSetupRepository interface {
 	// token, marks the setup re-armed and clears a previous consumption. Every
 	// setup session issued before it stops validating.
 	ForceMint(ctx context.Context, tokenHash []byte, expiresAt time.Time) (*models.InstanceAuthSetup, error)
+	// MintReplacing stores tokenHash unconditionally, like ForceMint, but does
+	// not re-arm: the setup state keeps whatever re-armed flag it had. It is the
+	// recovery-mode boot mint (#1237), where setup mode must end when the flag
+	// is removed rather than outlive it. Every setup session issued before it
+	// stops validating.
+	MintReplacing(ctx context.Context, tokenHash []byte, expiresAt time.Time) (*models.InstanceAuthSetup, error)
 	// Consume ends setup on behalf of userID: it drops the token hash, records
 	// the consumption, clears the re-armed flag and invalidates every
 	// outstanding setup session. It reports false, writing nothing, when there
