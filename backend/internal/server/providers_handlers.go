@@ -31,7 +31,7 @@ type ProvidersResponse struct {
 func (s *Server) handleListProviders(w http.ResponseWriter, r *http.Request) {
 	enabled, err := s.container.AuthService().EnabledProviders(r.Context())
 	if err != nil {
-		s.logAuthError("handleListProviders", "Failed to resolve identity providers", err)
+		s.logAuthError("handleListProviders", logIdentityProvidersResolveFailed, err)
 		errors.WriteJSONError(w, r, errors.NewServiceUnavailableError(msgIdentityProvidersUnavailable))
 		return
 	}
