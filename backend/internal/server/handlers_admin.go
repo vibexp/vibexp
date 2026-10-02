@@ -20,8 +20,11 @@ import (
 const adminMsgInternalError = "Internal server error"
 
 // adminStrictServer implements the generated Admin StrictServerInterface. The
-// /api/v1/admin surface is guarded by instanceAdminMiddleware, so every request
-// reaching these methods is already an authenticated instance admin.
+// /api/v1/admin surface is guarded by adminRouteGuard, so every request
+// reaching these methods is already an authenticated instance admin — except on
+// the authentication settings' provider and allowlist operations
+// (handlers_admin_instance_auth.go), which a userless setup session also
+// reaches.
 type adminStrictServer struct {
 	s *Server
 }

@@ -33,6 +33,11 @@ const (
 	// (#1236) rather than on a user's credentials. Such a request has no user:
 	// UserID is empty.
 	SetupSession ContextKey = "setup_session"
+	// SessionProvider holds the slug of the identity provider that issued the
+	// caller's cookie session (#1238). It is set only on the instance
+	// authentication settings routes, for the lockout guard, and is absent for
+	// API keys, setup sessions and dev-login sessions.
+	SessionProvider ContextKey = "session_provider"
 
 	// AccessedResourceID holds the resolved UUID of a resource read on the
 	// current request, set by a detail handler and read back by the

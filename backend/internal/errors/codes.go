@@ -76,6 +76,13 @@ const (
 	CodeInstanceSettingsValidationFailed = "INSTANCE_SETTINGS_VALIDATION_FAILED"
 	CodeInstanceSettingsVersionConflict  = "INSTANCE_SETTINGS_VERSION_CONFLICT"
 
+	// Instance authentication settings errors (#1238)
+	CodeInstanceAuthProviderConflict = "INSTANCE_AUTH_PROVIDER_CONFLICT"
+	// CodeLockoutRisk signals an authentication settings change refused because
+	// it could lock sign-in out. Its lowercase value is a stable contract with
+	// the frontend, which re-sends the change with confirm_lockout_risk.
+	CodeLockoutRisk = "lockout_risk"
+
 	// Model provider errors
 	CodeModelProviderNotFound          = "MODEL_PROVIDER_NOT_FOUND"
 	CodeModelProviderAlreadyExists     = "MODEL_PROVIDER_ALREADY_EXISTS"
@@ -164,6 +171,10 @@ var errorTitles = map[string]string{
 	// Instance search + AI summary settings errors (#1200)
 	CodeInstanceSettingsValidationFailed: "Instance Settings Validation Failed",
 	CodeInstanceSettingsVersionConflict:  "Instance Settings Version Conflict",
+
+	// Instance authentication settings errors (#1238)
+	CodeInstanceAuthProviderConflict: "Instance Auth Provider Conflict",
+	CodeLockoutRisk:                  "Lockout Risk",
 }
 
 // GetErrorTitle returns the title for a given error code

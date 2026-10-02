@@ -483,6 +483,30 @@ func NewInstanceSettingsVersionConflictError() *APIError {
 	)
 }
 
+// Instance authentication settings errors (#1238)
+
+// NewInstanceAuthProviderConflictError reports a sign-in provider that cannot
+// be created because it collides with a stored one: its slug is taken, or a
+// second google or github provider was sent.
+func NewInstanceAuthProviderConflictError() *APIError {
+	return NewAPIError(
+		CodeInstanceAuthProviderConflict,
+		GetErrorTitle(CodeInstanceAuthProviderConflict),
+		"A provider with this slug already exists, or a second google or github provider was sent",
+		http.StatusConflict,
+	)
+}
+
+// NewLockoutRiskError reports an authentication settings change refused
+// because it could lock sign-in out. reason is machine-readable and carried in
+// the problem's metadata, so a client can explain the risk before re-sending
+// the change with confirm_lockout_risk.
+func NewLockoutRiskError(reason, detail string) *APIError {
+	err := NewAPIError(CodeLockoutRisk, GetErrorTitle(CodeLockoutRisk), detail, http.StatusConflict)
+	err.Metadata = map[string]any{"reason": reason}
+	return err
+}
+
 // Search summary errors (#1073)
 
 // NewAISummaryError builds one of the classified search summary errors. The

@@ -711,6 +711,38 @@ func ProvideEnvironmentService(cfg *config.Config) *services.EnvironmentService 
 	return services.NewEnvironmentService(cfg)
 }
 
+// ProvideInstanceAuthSettingsService creates the service behind the instance
+// authentication settings admin API (#1238). It shares the identity provider
+// and allowlist resolvers with sign-in, so a provider's reported health is the
+// one sign-in acts on.
+func ProvideInstanceAuthSettingsService(
+	providerRepo repositories.InstanceAuthProviderRepository,
+	allowlists repositories.InstanceAuthAllowlistRepository,
+	versions repositories.InstanceAuthSettingsVersionRepository,
+	grants repositories.InstanceAdminRepository,
+	userRepo repositories.UserRepository,
+	resolver services.IdentityProviderResolver,
+	allowlistResolver services.AccessAllowlistResolver,
+	admins services.InstanceAdminResolver,
+	enc services.EncryptionServiceInterface,
+	cfg *config.Config,
+	logger *slog.Logger,
+) services.InstanceAuthSettingsServiceInterface {
+	return services.NewInstanceAuthSettingsService(services.InstanceAuthSettingsDeps{
+		Providers:         providerRepo,
+		Allowlists:        allowlists,
+		Versions:          versions,
+		Grants:            grants,
+		Users:             userRepo,
+		Resolver:          resolver,
+		AllowlistResolver: allowlistResolver,
+		Admins:            admins,
+		Enc:               enc,
+		CallbackURL:       cfg.AuthCallbackURL(),
+		Logger:            logger,
+	})
+}
+
 // ProvideAccessAllowlistResolver creates the runtime access allowlist resolver
 // (#1235): the allowlist is read from instance_auth_allowlist, cached by the
 // auth settings version, and enforced at sign-in, at MCP consent and on every

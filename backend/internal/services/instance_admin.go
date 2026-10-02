@@ -61,6 +61,12 @@ func (e *ErrInstanceAdminNotGranted) Error() string {
 	return fmt.Sprintf("user %s is not a granted instance admin", e.UserID)
 }
 
+// IsUnknownUser reports whether the grant was refused because the target user
+// does not exist (as opposed to existing but being suspended).
+func (e *ErrInstanceAdminTargetInvalid) IsUnknownUser() bool {
+	return e.Reason == instanceAdminTargetUnknown
+}
+
 const (
 	instanceAdminTargetUnknown   = "user not found"
 	instanceAdminTargetSuspended = "user is suspended"
@@ -79,6 +85,10 @@ type InstanceAdminResolver interface {
 	// database error never locks them out; for anyone else the error is
 	// returned and the caller must fail closed.
 	IsInstanceAdmin(ctx context.Context, user *models.User) (bool, error)
+	// RequireRootAdmin returns ErrInstanceAdminNotRoot unless userID names an
+	// active root admin. Grant and revoke apply it themselves; a caller uses it
+	// to refuse a non-root actor before doing anything on their behalf.
+	RequireRootAdmin(ctx context.Context, userID string) error
 	// GrantInstanceAdmin makes targetUserID a DB-granted admin and reports
 	// whether it was newly granted: granting an existing admin is a no-op that
 	// writes no audit entry. actingUserID must be a root admin.
@@ -162,7 +172,7 @@ func (s *InstanceAdminService) IsInstanceAdmin(ctx context.Context, user *models
 func (s *InstanceAdminService) GrantInstanceAdmin(
 	ctx context.Context, actingUserID, targetUserID string,
 ) (bool, error) {
-	if err := s.requireRootActor(ctx, actingUserID); err != nil {
+	if err := s.RequireRootAdmin(ctx, actingUserID); err != nil {
 		return false, err
 	}
 	target, err := s.lookupUser(ctx, targetUserID)
@@ -198,7 +208,7 @@ func (s *InstanceAdminService) GrantInstanceAdmin(
 func (s *InstanceAdminService) RevokeInstanceAdmin(
 	ctx context.Context, actingUserID, targetUserID string,
 ) error {
-	if err := s.requireRootActor(ctx, actingUserID); err != nil {
+	if err := s.RequireRootAdmin(ctx, actingUserID); err != nil {
 		return err
 	}
 	target, err := s.lookupUser(ctx, targetUserID)
@@ -223,9 +233,10 @@ func (s *InstanceAdminService) RevokeInstanceAdmin(
 	return nil
 }
 
-// requireRootActor re-resolves the actor from the database by id, so the
-// root-only rule never rests on anything the caller supplied beyond its id.
-func (s *InstanceAdminService) requireRootActor(ctx context.Context, actingUserID string) error {
+// RequireRootAdmin implements InstanceAdminResolver. It re-resolves the actor
+// from the database by id, so the root-only rule never rests on anything the
+// caller supplied beyond its id.
+func (s *InstanceAdminService) RequireRootAdmin(ctx context.Context, actingUserID string) error {
 	actor, err := s.lookupUser(ctx, actingUserID)
 	if err != nil {
 		return err

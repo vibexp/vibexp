@@ -62,6 +62,8 @@ type adminMockContainer struct {
 	// installs them.
 	instanceSearchService    services.InstanceSearchSettingsServiceInterface
 	instanceAISummaryService services.InstanceAISummarySettingsServiceInterface
+	// Instance authentication settings (#1238). Nil unless a suite installs it.
+	instanceAuthSettingsService services.InstanceAuthSettingsServiceInterface
 	// apiKeyService lets a full-router test authenticate a caller by API key.
 	apiKeyService services.APIKeyServiceInterface
 	// instanceAdminResolver gates the admin surface (#1233). newAdminTestServer
@@ -128,6 +130,9 @@ func (c *adminMockContainer) InstanceSearchSettingsService() services.InstanceSe
 }
 func (c *adminMockContainer) InstanceAISummarySettingsService() services.InstanceAISummarySettingsServiceInterface {
 	return c.instanceAISummaryService
+}
+func (c *adminMockContainer) InstanceAuthSettingsService() services.InstanceAuthSettingsServiceInterface {
+	return c.instanceAuthSettingsService
 }
 func (c *adminMockContainer) APIKeyService() services.APIKeyServiceInterface { return c.apiKeyService }
 

@@ -22,7 +22,7 @@ import (
 // InstanceAISummarySettingsService (#1199).
 //
 // Authorization is instanceAdminMiddleware, which 404s every non-admin and
-// anonymous caller for the whole /api/v1/admin surface; the team-scoped authz
+// anonymous caller on these routes; the team-scoped authz
 // matrix does not apply to the instance's own settings. The acting admin's id
 // always comes from the auth context, never from a request body.
 

@@ -23,7 +23,7 @@ import (
 // adapters over InstanceEmailProviderService (#1188).
 //
 // Authorization is instanceAdminMiddleware, which 404s every non-admin and
-// anonymous caller for the whole /api/v1/admin surface (epic decision 6); the
+// anonymous caller on these routes (epic decision 6); the
 // team-scoped authz matrix does not apply to the instance's own settings.
 //
 // Secret safety holds by construction: no response schema has a field able to
@@ -429,13 +429,23 @@ func toGenAdminInstanceSettingsAuditEntry(
 // allowlisted keys. The `secret` key is kept only when it holds one of the two
 // redaction markers.
 func filterInstanceEmailAuditSnapshot(raw json.RawMessage) *map[string]interface{} {
-	filtered := filterInstanceAuditSnapshot(raw, instanceEmailAuditSnapshotKeys)
+	return filterInstanceAuditSnapshotWithSecretMarker(raw, instanceEmailAuditSnapshotKeys, "secret")
+}
+
+// filterInstanceAuditSnapshotWithSecretMarker keeps only the allowlisted keys
+// of a snapshot whose secretKey may hold a redaction marker: the key survives
+// only when its value is one of the two markers (changed, unchanged), so
+// anything else stored under a credential's name never reaches a response.
+func filterInstanceAuditSnapshotWithSecretMarker(
+	raw json.RawMessage, keys []string, secretKey string,
+) *map[string]interface{} {
+	filtered := filterInstanceAuditSnapshot(raw, keys)
 	if filtered == nil {
 		return nil
 	}
-	if marker, _ := (*filtered)["secret"].(string); marker != models.InstanceSettingsAuditSecretChanged &&
+	if marker, _ := (*filtered)[secretKey].(string); marker != models.InstanceSettingsAuditSecretChanged &&
 		marker != models.InstanceSettingsAuditSecretUnchanged {
-		delete(*filtered, "secret")
+		delete(*filtered, secretKey)
 	}
 	return filtered
 }

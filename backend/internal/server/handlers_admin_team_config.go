@@ -25,7 +25,7 @@ import (
 //
 // The getters these handlers call take only a team id and carry no authz of
 // their own; that is safe here because instanceAdminMiddleware is the boundary
-// for the whole /api/v1/admin surface. The settings audit log is the exception
+// for these routes (adminRouteGuard). The settings audit log is the exception
 // in the service layer — TeamSettingsAuditService.ListAudit role-checks — so
 // the audit op reads the repository directly and shares the extracted name
 // resolver instead of bypassing or weakening that check.

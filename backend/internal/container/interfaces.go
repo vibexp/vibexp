@@ -110,6 +110,9 @@ type Container interface {
 	// SetupModeService owns first-run authentication setup: the one-time setup
 	// token and the scoped setup session (#1236).
 	SetupModeService() services.SetupModeService
+	// InstanceAuthSettingsService serves the instance-admin authentication
+	// settings API (#1238): providers, the access allowlist and admin grants.
+	InstanceAuthSettingsService() services.InstanceAuthSettingsServiceInterface
 	// InstanceSearchSettingsService and InstanceAISummarySettingsService serve
 	// the instance-admin search and AI summary settings API (#1200).
 	InstanceSearchSettingsService() services.InstanceSearchSettingsServiceInterface

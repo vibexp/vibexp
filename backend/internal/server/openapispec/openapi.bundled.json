@@ -19428,6 +19428,943 @@
         }
       }
     },
+    "/api/v1/admin/settings/auth/providers": {
+      "get": {
+        "summary": "List the sign-in identity providers",
+        "description": "Returns every stored sign-in identity provider in sign-in page order, each\nwith its health on the replica serving the request, whether a client secret\nis stored (`has_client_secret`; the secret itself is never returned) and the\nderived `redirect_uri` to register with the identity provider, together with\nthe authentication settings `version`. Reading the list resolves the enabled\nproviders first, so `health` reflects their current configuration.\nInstance admin or a first-run setup session; every other request receives 404.\n",
+        "operationId": "listAdminAuthProviders",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The stored providers and the settings version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthProviderList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is neither an instance admin nor on a setup session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a sign-in identity provider",
+        "description": "Validates and stores a new provider, taking effect on the next sign-in with\nno restart, and appends one entry (`action: upsert`) to the `auth_providers`\naudit log in the same transaction. The client secret is stored encrypted and\nnever returned. A body carrying an unknown field is rejected with 400.\nInstance admin or a first-run setup session; every other request receives 404.\n",
+        "operationId": "createAdminAuthProvider",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminAuthProviderCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The stored provider and the settings version after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthProviderSaved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — a field is invalid (`INSTANCE_SETTINGS_VALIDATION_FAILED`, with\n`validation_errors` naming it), or the body is malformed or carries an\nunknown field\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is neither an instance admin nor on a setup session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — `expected_version` does not match the current version\n(`INSTANCE_SETTINGS_VERSION_CONFLICT`), or the slug is taken or a second\n`google`/`github` provider was sent (`INSTANCE_AUTH_PROVIDER_CONFLICT`);\nnothing was changed\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settings/auth/providers/test": {
+      "post": {
+        "summary": "Test a sign-in identity provider",
+        "description": "Checks a stored provider (`id`), an unsaved candidate, or a stored provider\nwith some fields replaced (see `AdminAuthProviderTestRequest`): OIDC\ndiscovery for `oidc` and `google`, a credential check against GitHub for\n`github`. Nothing is stored and nothing is audited. A failed test is still a\n200, reported with `is_valid: false`.\nInstance admin or a first-run setup session; every other request receives 404.\n",
+        "operationId": "testAdminAuthProvider",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminAuthProviderTestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The outcome of the test",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthProviderTestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — the candidate is invalid (`INSTANCE_SETTINGS_VALIDATION_FAILED`),\nor the body is malformed or carries an unknown field\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — no provider has that `id`, or the caller is neither an instance admin nor on a setup session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settings/auth/providers/{id}": {
+      "put": {
+        "summary": "Replace a sign-in identity provider",
+        "description": "Validates and stores a whole replacement of the provider's editable fields\n(`type` and `slug` are immutable), taking effect on the next sign-in, and\nappends one entry (`action: upsert`) to the `auth_providers` audit log in the\nsame transaction. Omitting `client_secret` keeps the stored one.\n\nLockout guard: a change that disables the last enabled provider, or the\nprovider the calling admin's session was issued by, is rejected with 409\n`lockout_risk` (the problem's `metadata.reason` is `no_enabled_provider` or\n`own_provider`) unless the body sets `confirm_lockout_risk: true`.\nInstance admin or a first-run setup session; every other request receives 404.\n",
+        "operationId": "updateAdminAuthProvider",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Provider id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminAuthProviderUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored provider and the settings version after the change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthProviderSaved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — a field is invalid (`INSTANCE_SETTINGS_VALIDATION_FAILED`, with\n`validation_errors` naming it), the provider id is malformed, or the body is\nmalformed, omits or nulls a required field, or carries an unknown field\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — no provider has that id, or the caller is neither an instance admin nor on a setup session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — `expected_version` does not match the current version\n(`INSTANCE_SETTINGS_VERSION_CONFLICT`), or the change risks locking sign-in\nout (`lockout_risk`); nothing was changed\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a sign-in identity provider",
+        "description": "Removes the provider, taking effect on the next sign-in, and appends one\nentry (`action: delete`) to the `auth_providers` audit log in the same\ntransaction.\n\nLockout guard: deleting the last enabled provider, or the provider the\ncalling admin's session was issued by, is rejected with 409 `lockout_risk`\nunless `confirm_lockout_risk=true` is passed.\nInstance admin or a first-run setup session; every other request receives 404.\n",
+        "operationId": "deleteAdminAuthProvider",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Provider id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "expected_version",
+            "in": "query",
+            "required": false,
+            "description": "The authentication settings `version` the caller last read; omit to apply to the current version.",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "confirm_lockout_risk",
+            "in": "query",
+            "required": false,
+            "description": "Set to true to apply a delete that was rejected with `lockout_risk`.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The provider was deleted"
+          },
+          "400": {
+            "description": "Bad request — malformed provider id or query parameter",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — no provider has that id, or the caller is neither an instance admin nor on a setup session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — `expected_version` does not match the current version\n(`INSTANCE_SETTINGS_VERSION_CONFLICT`), or the delete risks locking sign-in\nout (`lockout_risk`); nothing was changed\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settings/auth/allowlist": {
+      "get": {
+        "summary": "Get the sign-in access allowlist",
+        "description": "Returns the stored access allowlist. Always 200: with nothing stored both\nlists are empty, `active` is false and `version` is null.\nInstance admin or a first-run setup session; every other request receives 404.\n",
+        "operationId": "getAdminAuthAllowlist",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The access allowlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthAllowlist"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is neither an instance admin nor on a setup session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace the sign-in access allowlist",
+        "description": "Validates, normalizes and stores a whole replacement of the access\nallowlist, enforced on signed-in users within seconds with no restart, and\nappends one entry (`action: upsert`) to the `auth_allowlist` audit log in the\nsame transaction. Use the preview operation first to see who would be\naffected. A body that omits a list, sends one as null, or carries an unknown\nfield is rejected with 400.\nInstance admin or a first-run setup session; every other request receives 404.\n",
+        "operationId": "updateAdminAuthAllowlist",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminAuthAllowlistUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored allowlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthAllowlist"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — an entry is invalid (`INSTANCE_SETTINGS_VALIDATION_FAILED`, with\n`validation_errors` naming the list), or the body is malformed, omits or\nnulls a list, or carries an unknown field\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is neither an instance admin nor on a setup session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — `expected_version` does not match the stored version (`INSTANCE_SETTINGS_VERSION_CONFLICT`); nothing was changed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Reset the sign-in access allowlist to open access",
+        "description": "Removes the stored allowlist, so every user may sign in, and appends one\nentry (`action: delete`) to the `auth_allowlist` audit log. Idempotent and\nunconditional: with nothing stored it is still a 204 and writes no audit\nentry.\nInstance admin or a first-run setup session; every other request receives 404.\n",
+        "operationId": "resetAdminAuthAllowlist",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Access is now open"
+          },
+          "404": {
+            "description": "Not found — the caller is neither an instance admin nor on a setup session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settings/auth/allowlist/preview": {
+      "post": {
+        "summary": "Preview the impact of a candidate access allowlist",
+        "description": "Reports the active users who would stop matching if the candidate replaced\nthe stored allowlist: their count and a capped sample of their emails.\nNothing is stored and nothing is audited.\nInstance admin or a first-run setup session; every other request receives 404.\n",
+        "operationId": "previewAdminAuthAllowlist",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminAuthAllowlistPreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The impact of the candidate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthAllowlistImpact"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — an entry is invalid (`INSTANCE_SETTINGS_VALIDATION_FAILED`), or\nthe body is malformed, omits or nulls a list, or carries an unknown field\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is neither an instance admin nor on a setup session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settings/auth/admins": {
+      "get": {
+        "summary": "List the instance admins",
+        "description": "Returns the root admins (the emails named in config.yaml's\n`auth.instance_admins`, read-only) and the admins granted in the database.\nInstance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "listAdminInstanceAdmins",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The instance admins",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInstanceAdminList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Grant instance admin to an existing user",
+        "description": "Makes an existing, active user an instance admin, named by `user_id` or\n`email`, and appends one entry to the `instance_admins` audit log.\nIdempotent: granting a user who already holds a grant returns it unchanged\nand audits nothing. Only a ROOT admin may grant: a database-granted admin\nreceives 403.\nInstance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "grantAdminInstanceAdmin",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminInstanceAdminGrant"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The grant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInstanceAdmin"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — the body names neither or both of `user_id` and `email`, the\nuser is suspended, or the body is malformed or carries an unknown field\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — the caller is an instance admin but not a root admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — no such user, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — the user is a root admin, whose access comes from config.yaml",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settings/auth/admins/{user_id}": {
+      "delete": {
+        "summary": "Revoke a database-granted instance admin",
+        "description": "Removes the user's instance admin grant and appends one entry to the\n`instance_admins` audit log. Only a ROOT admin may revoke: a database-granted\nadmin receives 403.\nInstance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "revokeAdminInstanceAdmin",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "description": "The granted admin's user id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The grant was revoked"
+          },
+          "400": {
+            "description": "Bad request — malformed user id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — the caller is an instance admin but not a root admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the user holds no grant, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — the user is a root admin, whose access comes from config.yaml",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settings/auth/audit": {
+      "get": {
+        "summary": "List an authentication setting's audit log",
+        "description": "Returns one page of the audit log of one authentication setting\n(`auth_providers`, `auth_allowlist`, `instance_admins` or `auth_setup`),\nnewest first, with each actor's display name resolved. Snapshots never\ncontain a credential. Pass the previous page's `next_cursor` to continue.\nInstance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "listAdminAuthSettingsAudit",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "setting",
+            "in": "query",
+            "description": "Which authentication setting's audit log to read.",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AdminAuthSettingsAuditSetting"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from a previous page's `next_cursor`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of audit entries, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInstanceSettingsAuditPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — missing or unknown `setting`, malformed cursor, or `limit` out of range",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/{team_id}/comments": {
       "get": {
         "summary": "List a resource's comments",
@@ -40961,7 +41898,7 @@
       },
       "AdminInstanceSettingsAuditEntry": {
         "type": "object",
-        "description": "One append-only change to an instance setting. `before` and `after` are\nsnapshots of the setting's values, filtered to that setting's allowlisted\nkeys, and never contain a credential. For `email_provider` they report\nonly `has_credential` and, on an upsert's `after`, a `secret` marker\nsaying whether the credential was `changed` or `unchanged`; the `search`\nand `ai_summary` snapshots are the settings' values, which hold no\ncredential.\n",
+        "description": "One append-only change to an instance setting. `before` and `after` are\nsnapshots of the setting's values, filtered to that setting's allowlisted\nkeys, and never contain a credential. For `email_provider` they report\nonly `has_credential` and, on an upsert's `after`, a `secret` marker\nsaying whether the credential was `changed` or `unchanged`; the `search`\nand `ai_summary` snapshots are the settings' values, which hold no\ncredential. For `auth_providers` each entry is one provider, reporting\nonly `has_client_secret` and, on an upsert's `after`, a `client_secret`\nmarker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`\nand `auth_setup` snapshots hold no credential (the setup token and its\nhash are never recorded). A snapshot of any of these four settings\ncarries `source: cli` when the change was made by the `vibexp admin auth`\ncommands rather than through this API.\n",
         "additionalProperties": false,
         "required": [
           "id",
@@ -40985,12 +41922,20 @@
             "enum": [
               "email_provider",
               "search",
-              "ai_summary"
+              "ai_summary",
+              "auth_providers",
+              "auth_allowlist",
+              "instance_admins",
+              "auth_setup"
             ],
             "x-enum-varnames": [
               "AdminInstanceSettingsAuditEntrySettingEmailProvider",
               "AdminInstanceSettingsAuditEntrySettingSearch",
-              "AdminInstanceSettingsAuditEntrySettingAiSummary"
+              "AdminInstanceSettingsAuditEntrySettingAiSummary",
+              "AdminInstanceSettingsAuditEntrySettingAuthProviders",
+              "AdminInstanceSettingsAuditEntrySettingAuthAllowlist",
+              "AdminInstanceSettingsAuditEntrySettingInstanceAdmins",
+              "AdminInstanceSettingsAuditEntrySettingAuthSetup"
             ],
             "example": "email_provider"
           },
@@ -41503,6 +42448,605 @@
             "description": "The `version` the caller last read; omit or null for last-write-wins."
           }
         }
+      },
+      "AdminAuthProviderType": {
+        "type": "string",
+        "description": "The kind of sign-in identity provider. At most one `google` and one\n`github` provider can be stored; any number of `oidc` providers.\n",
+        "enum": [
+          "google",
+          "github",
+          "oidc"
+        ],
+        "x-enum-varnames": [
+          "AdminAuthProviderTypeGoogle",
+          "AdminAuthProviderTypeGithub",
+          "AdminAuthProviderTypeOidc"
+        ],
+        "example": "oidc"
+      },
+      "AdminAuthProviderHealthStatus": {
+        "type": "string",
+        "description": "The provider's build outcome on the replica that served the request:\n`healthy` (built and offered for sign-in), `unhealthy` (enabled but it\nfailed to build, so it is excluded from sign-in), `disabled` (not enabled,\nso never built) or `unknown` (enabled, but this replica could not resolve\nit for this request).\n",
+        "enum": [
+          "healthy",
+          "unhealthy",
+          "disabled",
+          "unknown"
+        ],
+        "x-enum-varnames": [
+          "AdminAuthProviderHealthStatusHealthy",
+          "AdminAuthProviderHealthStatusUnhealthy",
+          "AdminAuthProviderHealthStatusDisabled",
+          "AdminAuthProviderHealthStatusUnknown"
+        ],
+        "example": "healthy"
+      },
+      "AdminAuthProviderHealth": {
+        "type": "object",
+        "description": "The provider's health as seen by the replica that served the request.\nHealth is held in memory per replica and is not persisted.\n",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "last_error",
+          "checked_at"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/AdminAuthProviderHealthStatus"
+          },
+          "last_error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why an `unhealthy` provider failed to build; null otherwise.",
+            "example": null
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the provider was last built (or tried); null for `disabled` and `unknown`."
+          }
+        }
+      },
+      "AdminAuthProvider": {
+        "type": "object",
+        "description": "One sign-in identity provider. The client secret is write-only: it is never\nreturned, and `has_client_secret` reports only whether one is stored.\n",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type",
+          "slug",
+          "display_name",
+          "enabled",
+          "sort_order",
+          "client_id",
+          "has_client_secret",
+          "issuer_url",
+          "redirect_uri",
+          "health",
+          "created_at",
+          "updated_at",
+          "updated_by_user_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Provider id."
+          },
+          "type": {
+            "$ref": "#/components/schemas/AdminAuthProviderType"
+          },
+          "slug": {
+            "type": "string",
+            "description": "The provider's url-safe name, used in the sign-in URL. Immutable.",
+            "example": "okta"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "The name shown on the sign-in button.",
+            "example": "Okta"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the provider is offered for sign-in."
+          },
+          "sort_order": {
+            "type": "integer",
+            "description": "Position on the sign-in page, ascending.",
+            "example": 0
+          },
+          "client_id": {
+            "type": "string",
+            "description": "The OAuth client id.",
+            "example": "0oa1b2c3d4"
+          },
+          "has_client_secret": {
+            "type": "boolean",
+            "description": "Whether a client secret is stored."
+          },
+          "issuer_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "The OIDC issuer URL; null for `google` and `github`.",
+            "example": "https://example.okta.com"
+          },
+          "redirect_uri": {
+            "type": "string",
+            "description": "The redirect URI to register in the identity provider's console. It is\nderived from the instance's own URL, is the same for every provider and\ncannot be changed here.\n",
+            "example": "https://vibexp.example.com/api/v1/auth/callback"
+          },
+          "health": {
+            "$ref": "#/components/schemas/AdminAuthProviderHealth"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Who last saved the provider. Null for the boot-time config import, a\nsave made on a setup session, or once that user has been deleted.\n"
+          }
+        }
+      },
+      "AdminAuthProviderList": {
+        "type": "object",
+        "description": "Every stored sign-in identity provider, in sign-in page order, with the\n`version` of the instance authentication settings. Send that `version` back\nas `expected_version` when changing a provider.\n",
+        "additionalProperties": false,
+        "required": [
+          "providers",
+          "version"
+        ],
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAuthProvider"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The shared version of the authentication settings. Every provider and\nallowlist change increments it.\n",
+            "example": 7
+          }
+        }
+      },
+      "AdminAuthProviderSaved": {
+        "type": "object",
+        "description": "A provider as stored by a create or an update, with the settings `version`\nafter the change. `provider.health` is resolved after the change, so the\nresponse waits for the provider to be built (for `oidc` and `google`, one\nbounded discovery request) and reports whether sign-in can use it.\n",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "version"
+        ],
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/AdminAuthProvider"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The shared authentication settings version after the change.",
+            "example": 8
+          }
+        }
+      },
+      "AdminAuthProviderCreate": {
+        "type": "object",
+        "description": "A new sign-in identity provider. `type` and `slug` cannot be changed later.\n`expected_version` is optional: when present, the create is rejected with\n409 unless it equals the current authentication settings `version`.\n",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "slug",
+          "display_name",
+          "client_id",
+          "client_secret"
+        ],
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/AdminAuthProviderType"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+            "description": "1-63 lower-case letters, digits or hyphens, not starting with a hyphen.",
+            "example": "okta"
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Okta"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether the provider is offered for sign-in. Defaults to true."
+          },
+          "sort_order": {
+            "type": "integer",
+            "default": 0,
+            "description": "Position on the sign-in page, ascending. Defaults to 0."
+          },
+          "client_id": {
+            "type": "string",
+            "minLength": 1,
+            "example": "0oa1b2c3d4"
+          },
+          "client_secret": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The OAuth client secret. Stored encrypted and never returned.",
+            "example": "s3cr3t-value"
+          },
+          "issuer_url": {
+            "type": "string",
+            "description": "Required for `oidc` and rejected for `google` and `github`. An absolute\n`https://` URL (`http://` only for localhost) with no query or fragment.\n",
+            "example": "https://example.okta.com"
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "The `version` the caller last read; omit or null to apply to the current version."
+          }
+        }
+      },
+      "AdminAuthProviderUpdate": {
+        "type": "object",
+        "description": "A whole replacement of a provider's editable fields; `type` and `slug` are\nimmutable and are rejected as unknown fields. `display_name`, `enabled`,\n`sort_order`, `client_id` and `expected_version` are required.\n\n`client_secret` is write-only. Omit it to keep the stored secret; an empty\nstring is rejected. It cannot be omitted when `issuer_url` changes: the\nstored secret is only ever kept for the issuer it was saved with.\n\nA change that disables the last enabled provider, or the provider the\ncalling admin signed in with, is rejected with 409 `lockout_risk` unless\n`confirm_lockout_risk` is true.\n",
+        "additionalProperties": false,
+        "required": [
+          "display_name",
+          "enabled",
+          "sort_order",
+          "client_id",
+          "expected_version"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Okta"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "sort_order": {
+            "type": "integer",
+            "example": 0
+          },
+          "client_id": {
+            "type": "string",
+            "minLength": 1,
+            "example": "0oa1b2c3d4"
+          },
+          "client_secret": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A new client secret. Omit to keep the stored one. Never returned.",
+            "example": "s3cr3t-value"
+          },
+          "issuer_url": {
+            "type": "string",
+            "description": "Required for `oidc`, rejected for `google` and `github`.",
+            "example": "https://example.okta.com"
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The authentication settings `version` the caller last read.",
+            "example": 7
+          },
+          "confirm_lockout_risk": {
+            "type": "boolean",
+            "default": false,
+            "description": "Set to true to apply a change that was rejected with `lockout_risk`."
+          }
+        }
+      },
+      "AdminAuthProviderTestRequest": {
+        "type": "object",
+        "description": "What to test. Nothing is stored and nothing is audited.\n\n- `id` alone tests the STORED provider with its stored secret.\n- Without `id`, the body is an unsaved candidate: `type`, `client_id` and\n  `client_secret` are required (and `issuer_url` for `oidc`).\n- `id` with other fields tests the stored provider with those fields\n  replaced, as an edit form does before saving. `type` cannot differ from\n  the stored one. When `client_secret` is omitted the stored secret is\n  used: it is never sent to a candidate-chosen endpoint (OIDC discovery\n  sends no secret, and the GitHub credential check goes only to GitHub).\n",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A stored provider's id."
+          },
+          "type": {
+            "$ref": "#/components/schemas/AdminAuthProviderType"
+          },
+          "client_id": {
+            "type": "string",
+            "example": "0oa1b2c3d4"
+          },
+          "client_secret": {
+            "type": "string",
+            "description": "The candidate client secret. Never returned.",
+            "example": "s3cr3t-value"
+          },
+          "issuer_url": {
+            "type": "string",
+            "example": "https://example.okta.com"
+          }
+        }
+      },
+      "AdminAuthProviderTestResult": {
+        "type": "object",
+        "description": "The outcome of a provider test: OIDC discovery for `oidc` and `google`, a\ncredential check against GitHub for `github`.\n",
+        "additionalProperties": false,
+        "required": [
+          "is_valid",
+          "message"
+        ],
+        "properties": {
+          "is_valid": {
+            "type": "boolean",
+            "description": "Whether the provider could be built with the tested configuration."
+          },
+          "message": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why the test failed; null when it passed.",
+            "example": null
+          }
+        }
+      },
+      "AdminAuthAllowlist": {
+        "type": "object",
+        "description": "The instance's sign-in access allowlist. A user may sign in when their\nemail's domain is in `domains` or the address is in `emails`. With both\nlists empty, or nothing stored, access is open: every user may sign in\n(`active` is false). Root instance admins are always exempt.\n",
+        "additionalProperties": false,
+        "required": [
+          "domains",
+          "emails",
+          "active",
+          "version",
+          "updated_at",
+          "updated_by_user_id"
+        ],
+        "properties": {
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "example.com"
+            ]
+          },
+          "emails": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "contractor@partner.example"
+            ]
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Whether the allowlist restricts sign-in (at least one domain or email)."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "The stored allowlist's own version; null when nothing is stored.",
+            "example": 3
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the allowlist was last saved; null when nothing is stored."
+          },
+          "updated_by_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Who last saved the allowlist. Null when nothing is stored, for the\nboot-time config import, a save made on a setup session, or once that\nuser has been deleted.\n"
+          }
+        }
+      },
+      "AdminAuthAllowlistUpdate": {
+        "type": "object",
+        "description": "A whole replacement of the access allowlist. Both lists are required (send\n`[]` for none). Entries are trimmed, lower-cased and de-duplicated; a domain\nis a DNS name of at least two labels with no leading `@`. Storing two empty\nlists means open access.\n\n`expected_version` is optional: when present, the save is rejected with\n409 unless it equals the stored allowlist's `version` (and when nothing is\nstored, any `expected_version` other than null is a conflict). Omit it for\nlast-write-wins.\n",
+        "additionalProperties": false,
+        "required": [
+          "domains",
+          "emails"
+        ],
+        "properties": {
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "example.com"
+            ]
+          },
+          "emails": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "contractor@partner.example"
+            ]
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "The `version` the caller last read; omit or null for last-write-wins."
+          }
+        }
+      },
+      "AdminAuthAllowlistPreviewRequest": {
+        "type": "object",
+        "description": "A candidate allowlist to preview. Both lists are required (send `[]` for none).",
+        "additionalProperties": false,
+        "required": [
+          "domains",
+          "emails"
+        ],
+        "properties": {
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "example.com"
+            ]
+          },
+          "emails": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": []
+          }
+        }
+      },
+      "AdminAuthAllowlistImpact": {
+        "type": "object",
+        "description": "What replacing the allowlist with a candidate would do: the active\n(non-suspended) users who would stop matching it. Root instance admins are\nexempt and never counted. An open-access candidate affects nobody.\n",
+        "additionalProperties": false,
+        "required": [
+          "count",
+          "sample",
+          "sample_truncated"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "How many active users match neither list of the candidate.",
+            "example": 2
+          },
+          "sample": {
+            "type": "array",
+            "description": "Up to 20 of their emails, in alphabetical order.",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "ada@other.example",
+              "bob@other.example"
+            ]
+          },
+          "sample_truncated": {
+            "type": "boolean",
+            "description": "Whether `count` exceeds the number of emails in `sample`."
+          }
+        }
+      },
+      "AdminInstanceAdmin": {
+        "type": "object",
+        "description": "One instance admin granted in the database.",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "email",
+          "name",
+          "granted_by_user_id",
+          "granted_at"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "example": "ada@example.com"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "The admin's display name, when set.",
+            "example": "Ada Admin"
+          },
+          "granted_by_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The root admin who granted it; null once that user has been deleted."
+          },
+          "granted_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminInstanceAdminList": {
+        "type": "object",
+        "description": "The instance's admins. `root_admins` are the emails named in config.yaml's\n`auth.instance_admins`: read-only here, they cannot be granted or revoked.\n`admins` are the users granted in the database, oldest first.\n",
+        "additionalProperties": false,
+        "required": [
+          "root_admins",
+          "admins"
+        ],
+        "properties": {
+          "root_admins": {
+            "type": "array",
+            "description": "The root admins' normalized emails, sorted.",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "root@example.com"
+            ]
+          },
+          "admins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminInstanceAdmin"
+            }
+          }
+        }
+      },
+      "AdminInstanceAdminGrant": {
+        "type": "object",
+        "description": "The existing user to make an instance admin, named by exactly one of\n`user_id` or `email`.\n",
+        "additionalProperties": false,
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "ada@example.com"
+          }
+        }
+      },
+      "AdminAuthSettingsAuditSetting": {
+        "type": "string",
+        "description": "Which authentication setting's audit log to read.",
+        "enum": [
+          "auth_providers",
+          "auth_allowlist",
+          "instance_admins",
+          "auth_setup"
+        ],
+        "x-enum-varnames": [
+          "AdminAuthSettingsAuditSettingAuthProviders",
+          "AdminAuthSettingsAuditSettingAuthAllowlist",
+          "AdminAuthSettingsAuditSettingInstanceAdmins",
+          "AdminAuthSettingsAuditSettingAuthSetup"
+        ],
+        "example": "auth_providers"
       },
       "ProjectResponse": {
         "allOf": [

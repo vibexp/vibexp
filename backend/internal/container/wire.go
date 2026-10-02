@@ -158,6 +158,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideAccessAllowlistResolver,
 	providers.ProvideSetupModeService,
 	providers.ProvideIdentityProviderResolver,
+	providers.ProvideInstanceAuthSettingsService,
 	providers.ProvideTeamSearchSettingsService,
 	providers.ProvideInstanceAISummarySettingsService,
 	wire.Bind(new(services.InstanceAISummarySettingsResolver),

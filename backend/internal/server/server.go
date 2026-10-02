@@ -670,11 +670,14 @@ func (s *Server) setupAuthRoutes() {
 	})
 }
 
-// setupAdminRoutes mounts the instance-admin surface at /api/v1/admin. It chains
-// optionalAuthMiddleware (populates the user when authenticated, but does NOT
-// 401 when credentials are absent) with instanceAdminMiddleware, so that
-// non-admin AND unauthenticated callers alike receive 404 — the surface is not
-// advertised. The generated router carries the full /api/v1/admin/... paths.
+// setupAdminRoutes mounts the instance-admin surface at /api/v1/admin behind
+// adminRouteGuard. It chains optionalAuthMiddleware (populates the user when
+// authenticated, but does NOT 401 when credentials are absent) with
+// instanceAdminMiddleware, so that non-admin AND unauthenticated callers alike
+// receive 404 — the surface is not advertised. The one exception is the
+// authentication settings' provider and allowlist routes, which also admit a
+// first-run setup session (#1238). The generated router carries the full
+// /api/v1/admin/... paths.
 func (s *Server) setupAdminRoutes() {
 	strict := admingen.NewStrictHandlerWithOptions(
 		&adminStrictServer{s: s},
@@ -686,8 +689,7 @@ func (s *Server) setupAdminRoutes() {
 	)
 	s.router.Group(func(r chi.Router) {
 		rateLimitByIP(r, s.config.RateLimit.APIPerMinute, s.config.IsLocalDevelopment())
-		r.Use(s.optionalAuthMiddleware)
-		r.Use(s.instanceAdminMiddleware)
+		r.Use(s.adminRouteGuard)
 		// Rejects request bodies carrying fields the operation's schema does not
 		// declare — oapi-codegen ignores additionalProperties:false, so without
 		// this an admin editing a user would silently drop the fields they

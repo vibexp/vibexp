@@ -44,6 +44,75 @@ func (e AdminAISummaryValuesStyle) Valid() bool {
 	}
 }
 
+// Defines values for AdminAuthProviderHealthStatus.
+const (
+	AdminAuthProviderHealthStatusDisabled  AdminAuthProviderHealthStatus = "disabled"
+	AdminAuthProviderHealthStatusHealthy   AdminAuthProviderHealthStatus = "healthy"
+	AdminAuthProviderHealthStatusUnhealthy AdminAuthProviderHealthStatus = "unhealthy"
+	AdminAuthProviderHealthStatusUnknown   AdminAuthProviderHealthStatus = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the AdminAuthProviderHealthStatus enum.
+func (e AdminAuthProviderHealthStatus) Valid() bool {
+	switch e {
+	case AdminAuthProviderHealthStatusDisabled:
+		return true
+	case AdminAuthProviderHealthStatusHealthy:
+		return true
+	case AdminAuthProviderHealthStatusUnhealthy:
+		return true
+	case AdminAuthProviderHealthStatusUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAuthProviderType.
+const (
+	AdminAuthProviderTypeGithub AdminAuthProviderType = "github"
+	AdminAuthProviderTypeGoogle AdminAuthProviderType = "google"
+	AdminAuthProviderTypeOidc   AdminAuthProviderType = "oidc"
+)
+
+// Valid indicates whether the value is a known member of the AdminAuthProviderType enum.
+func (e AdminAuthProviderType) Valid() bool {
+	switch e {
+	case AdminAuthProviderTypeGithub:
+		return true
+	case AdminAuthProviderTypeGoogle:
+		return true
+	case AdminAuthProviderTypeOidc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAuthSettingsAuditSetting.
+const (
+	AdminAuthSettingsAuditSettingAuthAllowlist  AdminAuthSettingsAuditSetting = "auth_allowlist"
+	AdminAuthSettingsAuditSettingAuthProviders  AdminAuthSettingsAuditSetting = "auth_providers"
+	AdminAuthSettingsAuditSettingAuthSetup      AdminAuthSettingsAuditSetting = "auth_setup"
+	AdminAuthSettingsAuditSettingInstanceAdmins AdminAuthSettingsAuditSetting = "instance_admins"
+)
+
+// Valid indicates whether the value is a known member of the AdminAuthSettingsAuditSetting enum.
+func (e AdminAuthSettingsAuditSetting) Valid() bool {
+	switch e {
+	case AdminAuthSettingsAuditSettingAuthAllowlist:
+		return true
+	case AdminAuthSettingsAuditSettingAuthProviders:
+		return true
+	case AdminAuthSettingsAuditSettingAuthSetup:
+		return true
+	case AdminAuthSettingsAuditSettingInstanceAdmins:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminInstanceAISummaryStyle.
 const (
 	AdminInstanceAISummaryStyleBalanced AdminInstanceAISummaryStyle = "balanced"
@@ -139,9 +208,13 @@ func (e AdminInstanceSettingsAuditEntryAction) Valid() bool {
 
 // Defines values for AdminInstanceSettingsAuditEntrySetting.
 const (
-	AdminInstanceSettingsAuditEntrySettingAiSummary     AdminInstanceSettingsAuditEntrySetting = "ai_summary"
-	AdminInstanceSettingsAuditEntrySettingEmailProvider AdminInstanceSettingsAuditEntrySetting = "email_provider"
-	AdminInstanceSettingsAuditEntrySettingSearch        AdminInstanceSettingsAuditEntrySetting = "search"
+	AdminInstanceSettingsAuditEntrySettingAiSummary      AdminInstanceSettingsAuditEntrySetting = "ai_summary"
+	AdminInstanceSettingsAuditEntrySettingAuthAllowlist  AdminInstanceSettingsAuditEntrySetting = "auth_allowlist"
+	AdminInstanceSettingsAuditEntrySettingAuthProviders  AdminInstanceSettingsAuditEntrySetting = "auth_providers"
+	AdminInstanceSettingsAuditEntrySettingAuthSetup      AdminInstanceSettingsAuditEntrySetting = "auth_setup"
+	AdminInstanceSettingsAuditEntrySettingEmailProvider  AdminInstanceSettingsAuditEntrySetting = "email_provider"
+	AdminInstanceSettingsAuditEntrySettingInstanceAdmins AdminInstanceSettingsAuditEntrySetting = "instance_admins"
+	AdminInstanceSettingsAuditEntrySettingSearch         AdminInstanceSettingsAuditEntrySetting = "search"
 )
 
 // Valid indicates whether the value is a known member of the AdminInstanceSettingsAuditEntrySetting enum.
@@ -149,7 +222,15 @@ func (e AdminInstanceSettingsAuditEntrySetting) Valid() bool {
 	switch e {
 	case AdminInstanceSettingsAuditEntrySettingAiSummary:
 		return true
+	case AdminInstanceSettingsAuditEntrySettingAuthAllowlist:
+		return true
+	case AdminInstanceSettingsAuditEntrySettingAuthProviders:
+		return true
+	case AdminInstanceSettingsAuditEntrySettingAuthSetup:
+		return true
 	case AdminInstanceSettingsAuditEntrySettingEmailProvider:
+		return true
+	case AdminInstanceSettingsAuditEntrySettingInstanceAdmins:
 		return true
 	case AdminInstanceSettingsAuditEntrySettingSearch:
 		return true
@@ -1117,6 +1198,263 @@ type AdminArtifactType struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// AdminAuthAllowlist The instance's sign-in access allowlist. A user may sign in when their
+// email's domain is in `domains` or the address is in `emails`. With both
+// lists empty, or nothing stored, access is open: every user may sign in
+// (`active` is false). Root instance admins are always exempt.
+type AdminAuthAllowlist struct {
+	// Active Whether the allowlist restricts sign-in (at least one domain or email).
+	Active  bool     `json:"active"`
+	Domains []string `json:"domains"`
+	Emails  []string `json:"emails"`
+
+	// UpdatedAt When the allowlist was last saved; null when nothing is stored.
+	UpdatedAt *time.Time `json:"updated_at"`
+
+	// UpdatedByUserId Who last saved the allowlist. Null when nothing is stored, for the
+	// boot-time config import, a save made on a setup session, or once that
+	// user has been deleted.
+	UpdatedByUserId *openapi_types.UUID `json:"updated_by_user_id"`
+
+	// Version The stored allowlist's own version; null when nothing is stored.
+	Version *int64 `json:"version"`
+}
+
+// AdminAuthAllowlistImpact What replacing the allowlist with a candidate would do: the active
+// (non-suspended) users who would stop matching it. Root instance admins are
+// exempt and never counted. An open-access candidate affects nobody.
+type AdminAuthAllowlistImpact struct {
+	// Count How many active users match neither list of the candidate.
+	Count int `json:"count"`
+
+	// Sample Up to 20 of their emails, in alphabetical order.
+	Sample []string `json:"sample"`
+
+	// SampleTruncated Whether `count` exceeds the number of emails in `sample`.
+	SampleTruncated bool `json:"sample_truncated"`
+}
+
+// AdminAuthAllowlistPreviewRequest A candidate allowlist to preview. Both lists are required (send `[]` for none).
+type AdminAuthAllowlistPreviewRequest struct {
+	Domains []string `json:"domains"`
+	Emails  []string `json:"emails"`
+}
+
+// AdminAuthAllowlistUpdate A whole replacement of the access allowlist. Both lists are required (send
+// `[]` for none). Entries are trimmed, lower-cased and de-duplicated; a domain
+// is a DNS name of at least two labels with no leading `@`. Storing two empty
+// lists means open access.
+//
+// `expected_version` is optional: when present, the save is rejected with
+// 409 unless it equals the stored allowlist's `version` (and when nothing is
+// stored, any `expected_version` other than null is a conflict). Omit it for
+// last-write-wins.
+type AdminAuthAllowlistUpdate struct {
+	Domains []string `json:"domains"`
+	Emails  []string `json:"emails"`
+
+	// ExpectedVersion The `version` the caller last read; omit or null for last-write-wins.
+	ExpectedVersion *int64 `json:"expected_version,omitempty"`
+}
+
+// AdminAuthProvider One sign-in identity provider. The client secret is write-only: it is never
+// returned, and `has_client_secret` reports only whether one is stored.
+type AdminAuthProvider struct {
+	// ClientId The OAuth client id.
+	ClientId  string    `json:"client_id"`
+	CreatedAt time.Time `json:"created_at"`
+
+	// DisplayName The name shown on the sign-in button.
+	DisplayName string `json:"display_name"`
+
+	// Enabled Whether the provider is offered for sign-in.
+	Enabled bool `json:"enabled"`
+
+	// HasClientSecret Whether a client secret is stored.
+	HasClientSecret bool `json:"has_client_secret"`
+
+	// Health The provider's health as seen by the replica that served the request.
+	// Health is held in memory per replica and is not persisted.
+	Health AdminAuthProviderHealth `json:"health"`
+
+	// Id Provider id.
+	Id openapi_types.UUID `json:"id"`
+
+	// IssuerUrl The OIDC issuer URL; null for `google` and `github`.
+	IssuerUrl *string `json:"issuer_url"`
+
+	// RedirectUri The redirect URI to register in the identity provider's console. It is
+	// derived from the instance's own URL, is the same for every provider and
+	// cannot be changed here.
+	RedirectUri string `json:"redirect_uri"`
+
+	// Slug The provider's url-safe name, used in the sign-in URL. Immutable.
+	Slug string `json:"slug"`
+
+	// SortOrder Position on the sign-in page, ascending.
+	SortOrder int `json:"sort_order"`
+
+	// Type The kind of sign-in identity provider. At most one `google` and one
+	// `github` provider can be stored; any number of `oidc` providers.
+	Type      AdminAuthProviderType `json:"type"`
+	UpdatedAt time.Time             `json:"updated_at"`
+
+	// UpdatedByUserId Who last saved the provider. Null for the boot-time config import, a
+	// save made on a setup session, or once that user has been deleted.
+	UpdatedByUserId *openapi_types.UUID `json:"updated_by_user_id"`
+}
+
+// AdminAuthProviderCreate A new sign-in identity provider. `type` and `slug` cannot be changed later.
+// `expected_version` is optional: when present, the create is rejected with
+// 409 unless it equals the current authentication settings `version`.
+type AdminAuthProviderCreate struct {
+	ClientId string `json:"client_id"`
+
+	// ClientSecret The OAuth client secret. Stored encrypted and never returned.
+	ClientSecret string `json:"client_secret"`
+	DisplayName  string `json:"display_name"`
+
+	// Enabled Whether the provider is offered for sign-in. Defaults to true.
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// ExpectedVersion The `version` the caller last read; omit or null to apply to the current version.
+	ExpectedVersion *int64 `json:"expected_version,omitempty"`
+
+	// IssuerUrl Required for `oidc` and rejected for `google` and `github`. An absolute
+	// `https://` URL (`http://` only for localhost) with no query or fragment.
+	IssuerUrl *string `json:"issuer_url,omitempty"`
+
+	// Slug 1-63 lower-case letters, digits or hyphens, not starting with a hyphen.
+	Slug string `json:"slug"`
+
+	// SortOrder Position on the sign-in page, ascending. Defaults to 0.
+	SortOrder *int `json:"sort_order,omitempty"`
+
+	// Type The kind of sign-in identity provider. At most one `google` and one
+	// `github` provider can be stored; any number of `oidc` providers.
+	Type AdminAuthProviderType `json:"type"`
+}
+
+// AdminAuthProviderHealth The provider's health as seen by the replica that served the request.
+// Health is held in memory per replica and is not persisted.
+type AdminAuthProviderHealth struct {
+	// CheckedAt When the provider was last built (or tried); null for `disabled` and `unknown`.
+	CheckedAt *time.Time `json:"checked_at"`
+
+	// LastError Why an `unhealthy` provider failed to build; null otherwise.
+	LastError *string `json:"last_error"`
+
+	// Status The provider's build outcome on the replica that served the request:
+	// `healthy` (built and offered for sign-in), `unhealthy` (enabled but it
+	// failed to build, so it is excluded from sign-in), `disabled` (not enabled,
+	// so never built) or `unknown` (enabled, but this replica could not resolve
+	// it for this request).
+	Status AdminAuthProviderHealthStatus `json:"status"`
+}
+
+// AdminAuthProviderHealthStatus The provider's build outcome on the replica that served the request:
+// `healthy` (built and offered for sign-in), `unhealthy` (enabled but it
+// failed to build, so it is excluded from sign-in), `disabled` (not enabled,
+// so never built) or `unknown` (enabled, but this replica could not resolve
+// it for this request).
+type AdminAuthProviderHealthStatus string
+
+// AdminAuthProviderList Every stored sign-in identity provider, in sign-in page order, with the
+// `version` of the instance authentication settings. Send that `version` back
+// as `expected_version` when changing a provider.
+type AdminAuthProviderList struct {
+	Providers []AdminAuthProvider `json:"providers"`
+
+	// Version The shared version of the authentication settings. Every provider and
+	// allowlist change increments it.
+	Version int64 `json:"version"`
+}
+
+// AdminAuthProviderSaved A provider as stored by a create or an update, with the settings `version`
+// after the change. `provider.health` is resolved after the change, so the
+// response waits for the provider to be built (for `oidc` and `google`, one
+// bounded discovery request) and reports whether sign-in can use it.
+type AdminAuthProviderSaved struct {
+	// Provider One sign-in identity provider. The client secret is write-only: it is never
+	// returned, and `has_client_secret` reports only whether one is stored.
+	Provider AdminAuthProvider `json:"provider"`
+
+	// Version The shared authentication settings version after the change.
+	Version int64 `json:"version"`
+}
+
+// AdminAuthProviderTestRequest What to test. Nothing is stored and nothing is audited.
+//
+//   - `id` alone tests the STORED provider with its stored secret.
+//   - Without `id`, the body is an unsaved candidate: `type`, `client_id` and
+//     `client_secret` are required (and `issuer_url` for `oidc`).
+//   - `id` with other fields tests the stored provider with those fields
+//     replaced, as an edit form does before saving. `type` cannot differ from
+//     the stored one. When `client_secret` is omitted the stored secret is
+//     used: it is never sent to a candidate-chosen endpoint (OIDC discovery
+//     sends no secret, and the GitHub credential check goes only to GitHub).
+type AdminAuthProviderTestRequest struct {
+	ClientId *string `json:"client_id,omitempty"`
+
+	// ClientSecret The candidate client secret. Never returned.
+	ClientSecret *string `json:"client_secret,omitempty"`
+
+	// Id A stored provider's id.
+	Id        *openapi_types.UUID `json:"id,omitempty"`
+	IssuerUrl *string             `json:"issuer_url,omitempty"`
+
+	// Type The kind of sign-in identity provider. At most one `google` and one
+	// `github` provider can be stored; any number of `oidc` providers.
+	Type *AdminAuthProviderType `json:"type,omitempty"`
+}
+
+// AdminAuthProviderTestResult The outcome of a provider test: OIDC discovery for `oidc` and `google`, a
+// credential check against GitHub for `github`.
+type AdminAuthProviderTestResult struct {
+	// IsValid Whether the provider could be built with the tested configuration.
+	IsValid bool `json:"is_valid"`
+
+	// Message Why the test failed; null when it passed.
+	Message *string `json:"message"`
+}
+
+// AdminAuthProviderType The kind of sign-in identity provider. At most one `google` and one
+// `github` provider can be stored; any number of `oidc` providers.
+type AdminAuthProviderType string
+
+// AdminAuthProviderUpdate A whole replacement of a provider's editable fields; `type` and `slug` are
+// immutable and are rejected as unknown fields. `display_name`, `enabled`,
+// `sort_order`, `client_id` and `expected_version` are required.
+//
+// `client_secret` is write-only. Omit it to keep the stored secret; an empty
+// string is rejected. It cannot be omitted when `issuer_url` changes: the
+// stored secret is only ever kept for the issuer it was saved with.
+//
+// A change that disables the last enabled provider, or the provider the
+// calling admin signed in with, is rejected with 409 `lockout_risk` unless
+// `confirm_lockout_risk` is true.
+type AdminAuthProviderUpdate struct {
+	ClientId string `json:"client_id"`
+
+	// ClientSecret A new client secret. Omit to keep the stored one. Never returned.
+	ClientSecret *string `json:"client_secret,omitempty"`
+
+	// ConfirmLockoutRisk Set to true to apply a change that was rejected with `lockout_risk`.
+	ConfirmLockoutRisk *bool  `json:"confirm_lockout_risk,omitempty"`
+	DisplayName        string `json:"display_name"`
+	Enabled            bool   `json:"enabled"`
+
+	// ExpectedVersion The authentication settings `version` the caller last read.
+	ExpectedVersion int64 `json:"expected_version"`
+
+	// IssuerUrl Required for `oidc`, rejected for `google` and `github`.
+	IssuerUrl *string `json:"issuer_url,omitempty"`
+	SortOrder int     `json:"sort_order"`
+}
+
+// AdminAuthSettingsAuditSetting Which authentication setting's audit log to read.
+type AdminAuthSettingsAuditSetting string
+
 // AdminBreakdownBucket One value of a grouped column plus how many rows carry it.
 type AdminBreakdownBucket struct {
 	Count int64 `json:"count"`
@@ -1427,6 +1765,36 @@ type AdminInstanceAISummaryValues struct {
 	TotalContextChars int `json:"total_context_chars"`
 }
 
+// AdminInstanceAdmin One instance admin granted in the database.
+type AdminInstanceAdmin struct {
+	Email     string    `json:"email"`
+	GrantedAt time.Time `json:"granted_at"`
+
+	// GrantedByUserId The root admin who granted it; null once that user has been deleted.
+	GrantedByUserId *openapi_types.UUID `json:"granted_by_user_id"`
+
+	// Name The admin's display name, when set.
+	Name   *string            `json:"name"`
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// AdminInstanceAdminGrant The existing user to make an instance admin, named by exactly one of
+// `user_id` or `email`.
+type AdminInstanceAdminGrant struct {
+	Email  *openapi_types.Email `json:"email,omitempty"`
+	UserId *openapi_types.UUID  `json:"user_id,omitempty"`
+}
+
+// AdminInstanceAdminList The instance's admins. `root_admins` are the emails named in config.yaml's
+// `auth.instance_admins`: read-only here, they cannot be granted or revoked.
+// `admins` are the users granted in the database, oldest first.
+type AdminInstanceAdminList struct {
+	Admins []AdminInstanceAdmin `json:"admins"`
+
+	// RootAdmins The root admins' normalized emails, sorted.
+	RootAdmins []string `json:"root_admins"`
+}
+
 // AdminInstanceCounts Instance-wide totals for the top-level entities (unscoped counts).
 type AdminInstanceCounts struct {
 	// Artifacts Total number of artifacts.
@@ -1685,7 +2053,13 @@ type AdminInstanceSearchValues struct {
 // only `has_credential` and, on an upsert's `after`, a `secret` marker
 // saying whether the credential was `changed` or `unchanged`; the `search`
 // and `ai_summary` snapshots are the settings' values, which hold no
-// credential.
+// credential. For `auth_providers` each entry is one provider, reporting
+// only `has_client_secret` and, on an upsert's `after`, a `client_secret`
+// marker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`
+// and `auth_setup` snapshots hold no credential (the setup token and its
+// hash are never recorded). A snapshot of any of these four settings
+// carries `source: cli` when the change was made by the `vibexp admin auth`
+// commands rather than through this API.
 type AdminInstanceSettingsAuditEntry struct {
 	// Action `upsert` (created or replaced by an admin), `delete` (removed by an
 	// admin) or `import` (the boot-time import from config.yaml, which has no
@@ -3158,6 +3532,27 @@ type ListAdminAISummarySettingsAuditParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListAdminAuthSettingsAuditParams defines parameters for ListAdminAuthSettingsAudit.
+type ListAdminAuthSettingsAuditParams struct {
+	// Setting Which authentication setting's audit log to read.
+	Setting AdminAuthSettingsAuditSetting `form:"setting" json:"setting"`
+
+	// Cursor Opaque cursor from a previous page's `next_cursor`.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// DeleteAdminAuthProviderParams defines parameters for DeleteAdminAuthProvider.
+type DeleteAdminAuthProviderParams struct {
+	// ExpectedVersion The authentication settings `version` the caller last read; omit to apply to the current version.
+	ExpectedVersion *int64 `form:"expected_version,omitempty" json:"expected_version,omitempty"`
+
+	// ConfirmLockoutRisk Set to true to apply a delete that was rejected with `lockout_risk`.
+	ConfirmLockoutRisk *bool `form:"confirm_lockout_risk,omitempty" json:"confirm_lockout_risk,omitempty"`
+}
+
 // ListAdminInstanceEmailSettingsAuditParams defines parameters for ListAdminInstanceEmailSettingsAudit.
 type ListAdminInstanceEmailSettingsAuditParams struct {
 	// Cursor Opaque cursor from a previous page's `next_cursor`.
@@ -3754,6 +4149,24 @@ type ReplaceAdminSavedFiltersJSONRequestBody = AdminSavedFiltersReplaceRequest
 // UpdateAdminAISummarySettingsJSONRequestBody defines body for UpdateAdminAISummarySettings for application/json ContentType.
 type UpdateAdminAISummarySettingsJSONRequestBody = AdminInstanceAISummarySettingsUpdate
 
+// GrantAdminInstanceAdminJSONRequestBody defines body for GrantAdminInstanceAdmin for application/json ContentType.
+type GrantAdminInstanceAdminJSONRequestBody = AdminInstanceAdminGrant
+
+// UpdateAdminAuthAllowlistJSONRequestBody defines body for UpdateAdminAuthAllowlist for application/json ContentType.
+type UpdateAdminAuthAllowlistJSONRequestBody = AdminAuthAllowlistUpdate
+
+// PreviewAdminAuthAllowlistJSONRequestBody defines body for PreviewAdminAuthAllowlist for application/json ContentType.
+type PreviewAdminAuthAllowlistJSONRequestBody = AdminAuthAllowlistPreviewRequest
+
+// CreateAdminAuthProviderJSONRequestBody defines body for CreateAdminAuthProvider for application/json ContentType.
+type CreateAdminAuthProviderJSONRequestBody = AdminAuthProviderCreate
+
+// TestAdminAuthProviderJSONRequestBody defines body for TestAdminAuthProvider for application/json ContentType.
+type TestAdminAuthProviderJSONRequestBody = AdminAuthProviderTestRequest
+
+// UpdateAdminAuthProviderJSONRequestBody defines body for UpdateAdminAuthProvider for application/json ContentType.
+type UpdateAdminAuthProviderJSONRequestBody = AdminAuthProviderUpdate
+
 // UpsertAdminInstanceEmailSettingsJSONRequestBody defines body for UpsertAdminInstanceEmailSettings for application/json ContentType.
 type UpsertAdminInstanceEmailSettingsJSONRequestBody = AdminInstanceEmailSettingsRequest
 
@@ -3816,6 +4229,45 @@ type ServerInterface interface {
 	// List the instance AI summary settings audit log
 	// (GET /api/v1/admin/settings/ai-summary/audit)
 	ListAdminAISummarySettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAISummarySettingsAuditParams)
+	// List the instance admins
+	// (GET /api/v1/admin/settings/auth/admins)
+	ListAdminInstanceAdmins(w http.ResponseWriter, r *http.Request)
+	// Grant instance admin to an existing user
+	// (POST /api/v1/admin/settings/auth/admins)
+	GrantAdminInstanceAdmin(w http.ResponseWriter, r *http.Request)
+	// Revoke a database-granted instance admin
+	// (DELETE /api/v1/admin/settings/auth/admins/{user_id})
+	RevokeAdminInstanceAdmin(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID)
+	// Reset the sign-in access allowlist to open access
+	// (DELETE /api/v1/admin/settings/auth/allowlist)
+	ResetAdminAuthAllowlist(w http.ResponseWriter, r *http.Request)
+	// Get the sign-in access allowlist
+	// (GET /api/v1/admin/settings/auth/allowlist)
+	GetAdminAuthAllowlist(w http.ResponseWriter, r *http.Request)
+	// Replace the sign-in access allowlist
+	// (PUT /api/v1/admin/settings/auth/allowlist)
+	UpdateAdminAuthAllowlist(w http.ResponseWriter, r *http.Request)
+	// Preview the impact of a candidate access allowlist
+	// (POST /api/v1/admin/settings/auth/allowlist/preview)
+	PreviewAdminAuthAllowlist(w http.ResponseWriter, r *http.Request)
+	// List an authentication setting's audit log
+	// (GET /api/v1/admin/settings/auth/audit)
+	ListAdminAuthSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAuthSettingsAuditParams)
+	// List the sign-in identity providers
+	// (GET /api/v1/admin/settings/auth/providers)
+	ListAdminAuthProviders(w http.ResponseWriter, r *http.Request)
+	// Create a sign-in identity provider
+	// (POST /api/v1/admin/settings/auth/providers)
+	CreateAdminAuthProvider(w http.ResponseWriter, r *http.Request)
+	// Test a sign-in identity provider
+	// (POST /api/v1/admin/settings/auth/providers/test)
+	TestAdminAuthProvider(w http.ResponseWriter, r *http.Request)
+	// Delete a sign-in identity provider
+	// (DELETE /api/v1/admin/settings/auth/providers/{id})
+	DeleteAdminAuthProvider(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteAdminAuthProviderParams)
+	// Replace a sign-in identity provider
+	// (PUT /api/v1/admin/settings/auth/providers/{id})
+	UpdateAdminAuthProvider(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Remove the instance email provider settings
 	// (DELETE /api/v1/admin/settings/email)
 	DeleteAdminInstanceEmailSettings(w http.ResponseWriter, r *http.Request)
@@ -4017,6 +4469,84 @@ func (_ Unimplemented) UpdateAdminAISummarySettings(w http.ResponseWriter, r *ht
 // List the instance AI summary settings audit log
 // (GET /api/v1/admin/settings/ai-summary/audit)
 func (_ Unimplemented) ListAdminAISummarySettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAISummarySettingsAuditParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the instance admins
+// (GET /api/v1/admin/settings/auth/admins)
+func (_ Unimplemented) ListAdminInstanceAdmins(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Grant instance admin to an existing user
+// (POST /api/v1/admin/settings/auth/admins)
+func (_ Unimplemented) GrantAdminInstanceAdmin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Revoke a database-granted instance admin
+// (DELETE /api/v1/admin/settings/auth/admins/{user_id})
+func (_ Unimplemented) RevokeAdminInstanceAdmin(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Reset the sign-in access allowlist to open access
+// (DELETE /api/v1/admin/settings/auth/allowlist)
+func (_ Unimplemented) ResetAdminAuthAllowlist(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the sign-in access allowlist
+// (GET /api/v1/admin/settings/auth/allowlist)
+func (_ Unimplemented) GetAdminAuthAllowlist(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace the sign-in access allowlist
+// (PUT /api/v1/admin/settings/auth/allowlist)
+func (_ Unimplemented) UpdateAdminAuthAllowlist(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Preview the impact of a candidate access allowlist
+// (POST /api/v1/admin/settings/auth/allowlist/preview)
+func (_ Unimplemented) PreviewAdminAuthAllowlist(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List an authentication setting's audit log
+// (GET /api/v1/admin/settings/auth/audit)
+func (_ Unimplemented) ListAdminAuthSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAuthSettingsAuditParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the sign-in identity providers
+// (GET /api/v1/admin/settings/auth/providers)
+func (_ Unimplemented) ListAdminAuthProviders(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a sign-in identity provider
+// (POST /api/v1/admin/settings/auth/providers)
+func (_ Unimplemented) CreateAdminAuthProvider(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Test a sign-in identity provider
+// (POST /api/v1/admin/settings/auth/providers/test)
+func (_ Unimplemented) TestAdminAuthProvider(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete a sign-in identity provider
+// (DELETE /api/v1/admin/settings/auth/providers/{id})
+func (_ Unimplemented) DeleteAdminAuthProvider(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteAdminAuthProviderParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace a sign-in identity provider
+// (PUT /api/v1/admin/settings/auth/providers/{id})
+func (_ Unimplemented) UpdateAdminAuthProvider(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -5437,6 +5967,402 @@ func (siw *ServerInterfaceWrapper) ListAdminAISummarySettingsAudit(w http.Respon
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListAdminAISummarySettingsAudit(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminInstanceAdmins operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminInstanceAdmins(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminInstanceAdmins(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GrantAdminInstanceAdmin operation middleware
+func (siw *ServerInterfaceWrapper) GrantAdminInstanceAdmin(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GrantAdminInstanceAdmin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokeAdminInstanceAdmin operation middleware
+func (siw *ServerInterfaceWrapper) RevokeAdminInstanceAdmin(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "user_id" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_id", chi.URLParam(r, "user_id"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeAdminInstanceAdmin(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResetAdminAuthAllowlist operation middleware
+func (siw *ServerInterfaceWrapper) ResetAdminAuthAllowlist(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResetAdminAuthAllowlist(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminAuthAllowlist operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminAuthAllowlist(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminAuthAllowlist(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAdminAuthAllowlist operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminAuthAllowlist(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAdminAuthAllowlist(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewAdminAuthAllowlist operation middleware
+func (siw *ServerInterfaceWrapper) PreviewAdminAuthAllowlist(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewAdminAuthAllowlist(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminAuthSettingsAudit operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminAuthSettingsAudit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminAuthSettingsAuditParams
+
+	// ------------- Required query parameter "setting" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "setting", r.URL.Query(), &params.Setting, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "setting"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "setting", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminAuthSettingsAudit(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminAuthProviders operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminAuthProviders(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminAuthProviders(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAdminAuthProvider operation middleware
+func (siw *ServerInterfaceWrapper) CreateAdminAuthProvider(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAdminAuthProvider(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TestAdminAuthProvider operation middleware
+func (siw *ServerInterfaceWrapper) TestAdminAuthProvider(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TestAdminAuthProvider(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminAuthProvider operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminAuthProvider(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteAdminAuthProviderParams
+
+	// ------------- Optional query parameter "expected_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "expected_version", r.URL.Query(), &params.ExpectedVersion, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "expected_version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "expected_version", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "confirm_lockout_risk" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "confirm_lockout_risk", r.URL.Query(), &params.ConfirmLockoutRisk, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "confirm_lockout_risk"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "confirm_lockout_risk", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminAuthProvider(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAdminAuthProvider operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminAuthProvider(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAdminAuthProvider(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -8923,6 +9849,45 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/admin/settings/ai-summary/audit", wrapper.ListAdminAISummarySettingsAudit)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/auth/admins", wrapper.ListAdminInstanceAdmins)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/admin/settings/auth/admins", wrapper.GrantAdminInstanceAdmin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/admin/settings/auth/admins/{user_id}", wrapper.RevokeAdminInstanceAdmin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/admin/settings/auth/allowlist", wrapper.ResetAdminAuthAllowlist)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/auth/allowlist", wrapper.GetAdminAuthAllowlist)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/admin/settings/auth/allowlist", wrapper.UpdateAdminAuthAllowlist)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/admin/settings/auth/allowlist/preview", wrapper.PreviewAdminAuthAllowlist)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/auth/audit", wrapper.ListAdminAuthSettingsAudit)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/auth/providers", wrapper.ListAdminAuthProviders)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/admin/settings/auth/providers", wrapper.CreateAdminAuthProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/admin/settings/auth/providers/test", wrapper.TestAdminAuthProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/admin/settings/auth/providers/{id}", wrapper.DeleteAdminAuthProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/admin/settings/auth/providers/{id}", wrapper.UpdateAdminAuthProvider)
+	})
+	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/admin/settings/email", wrapper.DeleteAdminInstanceEmailSettings)
 	})
 	r.Group(func(r chi.Router) {
@@ -9980,6 +10945,874 @@ func (response ListAdminAISummarySettingsAudit404ApplicationProblemPlusJSONRespo
 type ListAdminAISummarySettingsAudit500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response ListAdminAISummarySettingsAudit500ApplicationProblemPlusJSONResponse) VisitListAdminAISummarySettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminInstanceAdminsRequestObject struct {
+}
+
+type ListAdminInstanceAdminsResponseObject interface {
+	VisitListAdminInstanceAdminsResponse(w http.ResponseWriter) error
+}
+
+type ListAdminInstanceAdmins200JSONResponse AdminInstanceAdminList
+
+func (response ListAdminInstanceAdmins200JSONResponse) VisitListAdminInstanceAdminsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminInstanceAdmins404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminInstanceAdmins404ApplicationProblemPlusJSONResponse) VisitListAdminInstanceAdminsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminInstanceAdmins500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminInstanceAdmins500ApplicationProblemPlusJSONResponse) VisitListAdminInstanceAdminsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GrantAdminInstanceAdminRequestObject struct {
+	Body *GrantAdminInstanceAdminJSONRequestBody
+}
+
+type GrantAdminInstanceAdminResponseObject interface {
+	VisitGrantAdminInstanceAdminResponse(w http.ResponseWriter) error
+}
+
+type GrantAdminInstanceAdmin200JSONResponse AdminInstanceAdmin
+
+func (response GrantAdminInstanceAdmin200JSONResponse) VisitGrantAdminInstanceAdminResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GrantAdminInstanceAdmin400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GrantAdminInstanceAdmin400ApplicationProblemPlusJSONResponse) VisitGrantAdminInstanceAdminResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GrantAdminInstanceAdmin403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GrantAdminInstanceAdmin403ApplicationProblemPlusJSONResponse) VisitGrantAdminInstanceAdminResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GrantAdminInstanceAdmin404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GrantAdminInstanceAdmin404ApplicationProblemPlusJSONResponse) VisitGrantAdminInstanceAdminResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GrantAdminInstanceAdmin409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GrantAdminInstanceAdmin409ApplicationProblemPlusJSONResponse) VisitGrantAdminInstanceAdminResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GrantAdminInstanceAdmin500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GrantAdminInstanceAdmin500ApplicationProblemPlusJSONResponse) VisitGrantAdminInstanceAdminResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeAdminInstanceAdminRequestObject struct {
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+type RevokeAdminInstanceAdminResponseObject interface {
+	VisitRevokeAdminInstanceAdminResponse(w http.ResponseWriter) error
+}
+
+type RevokeAdminInstanceAdmin204Response struct {
+}
+
+func (response RevokeAdminInstanceAdmin204Response) VisitRevokeAdminInstanceAdminResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RevokeAdminInstanceAdmin400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response RevokeAdminInstanceAdmin400ApplicationProblemPlusJSONResponse) VisitRevokeAdminInstanceAdminResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeAdminInstanceAdmin403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response RevokeAdminInstanceAdmin403ApplicationProblemPlusJSONResponse) VisitRevokeAdminInstanceAdminResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeAdminInstanceAdmin404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response RevokeAdminInstanceAdmin404ApplicationProblemPlusJSONResponse) VisitRevokeAdminInstanceAdminResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeAdminInstanceAdmin409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response RevokeAdminInstanceAdmin409ApplicationProblemPlusJSONResponse) VisitRevokeAdminInstanceAdminResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeAdminInstanceAdmin500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response RevokeAdminInstanceAdmin500ApplicationProblemPlusJSONResponse) VisitRevokeAdminInstanceAdminResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetAdminAuthAllowlistRequestObject struct {
+}
+
+type ResetAdminAuthAllowlistResponseObject interface {
+	VisitResetAdminAuthAllowlistResponse(w http.ResponseWriter) error
+}
+
+type ResetAdminAuthAllowlist204Response struct {
+}
+
+func (response ResetAdminAuthAllowlist204Response) VisitResetAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ResetAdminAuthAllowlist404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetAdminAuthAllowlist404ApplicationProblemPlusJSONResponse) VisitResetAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetAdminAuthAllowlist500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetAdminAuthAllowlist500ApplicationProblemPlusJSONResponse) VisitResetAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAuthAllowlistRequestObject struct {
+}
+
+type GetAdminAuthAllowlistResponseObject interface {
+	VisitGetAdminAuthAllowlistResponse(w http.ResponseWriter) error
+}
+
+type GetAdminAuthAllowlist200JSONResponse AdminAuthAllowlist
+
+func (response GetAdminAuthAllowlist200JSONResponse) VisitGetAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAuthAllowlist404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminAuthAllowlist404ApplicationProblemPlusJSONResponse) VisitGetAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAuthAllowlist500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminAuthAllowlist500ApplicationProblemPlusJSONResponse) VisitGetAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthAllowlistRequestObject struct {
+	Body *UpdateAdminAuthAllowlistJSONRequestBody
+}
+
+type UpdateAdminAuthAllowlistResponseObject interface {
+	VisitUpdateAdminAuthAllowlistResponse(w http.ResponseWriter) error
+}
+
+type UpdateAdminAuthAllowlist200JSONResponse AdminAuthAllowlist
+
+func (response UpdateAdminAuthAllowlist200JSONResponse) VisitUpdateAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthAllowlist400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuthAllowlist400ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthAllowlist404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuthAllowlist404ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthAllowlist409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuthAllowlist409ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthAllowlist500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuthAllowlist500ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAdminAuthAllowlistRequestObject struct {
+	Body *PreviewAdminAuthAllowlistJSONRequestBody
+}
+
+type PreviewAdminAuthAllowlistResponseObject interface {
+	VisitPreviewAdminAuthAllowlistResponse(w http.ResponseWriter) error
+}
+
+type PreviewAdminAuthAllowlist200JSONResponse AdminAuthAllowlistImpact
+
+func (response PreviewAdminAuthAllowlist200JSONResponse) VisitPreviewAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAdminAuthAllowlist400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response PreviewAdminAuthAllowlist400ApplicationProblemPlusJSONResponse) VisitPreviewAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAdminAuthAllowlist404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response PreviewAdminAuthAllowlist404ApplicationProblemPlusJSONResponse) VisitPreviewAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAdminAuthAllowlist500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response PreviewAdminAuthAllowlist500ApplicationProblemPlusJSONResponse) VisitPreviewAdminAuthAllowlistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuthSettingsAuditRequestObject struct {
+	Params ListAdminAuthSettingsAuditParams
+}
+
+type ListAdminAuthSettingsAuditResponseObject interface {
+	VisitListAdminAuthSettingsAuditResponse(w http.ResponseWriter) error
+}
+
+type ListAdminAuthSettingsAudit200JSONResponse AdminInstanceSettingsAuditPage
+
+func (response ListAdminAuthSettingsAudit200JSONResponse) VisitListAdminAuthSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuthSettingsAudit400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAuthSettingsAudit400ApplicationProblemPlusJSONResponse) VisitListAdminAuthSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuthSettingsAudit404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAuthSettingsAudit404ApplicationProblemPlusJSONResponse) VisitListAdminAuthSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuthSettingsAudit500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAuthSettingsAudit500ApplicationProblemPlusJSONResponse) VisitListAdminAuthSettingsAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuthProvidersRequestObject struct {
+}
+
+type ListAdminAuthProvidersResponseObject interface {
+	VisitListAdminAuthProvidersResponse(w http.ResponseWriter) error
+}
+
+type ListAdminAuthProviders200JSONResponse AdminAuthProviderList
+
+func (response ListAdminAuthProviders200JSONResponse) VisitListAdminAuthProvidersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuthProviders404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAuthProviders404ApplicationProblemPlusJSONResponse) VisitListAdminAuthProvidersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminAuthProviders500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminAuthProviders500ApplicationProblemPlusJSONResponse) VisitListAdminAuthProvidersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdminAuthProviderRequestObject struct {
+	Body *CreateAdminAuthProviderJSONRequestBody
+}
+
+type CreateAdminAuthProviderResponseObject interface {
+	VisitCreateAdminAuthProviderResponse(w http.ResponseWriter) error
+}
+
+type CreateAdminAuthProvider201JSONResponse AdminAuthProviderSaved
+
+func (response CreateAdminAuthProvider201JSONResponse) VisitCreateAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdminAuthProvider400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateAdminAuthProvider400ApplicationProblemPlusJSONResponse) VisitCreateAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdminAuthProvider404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateAdminAuthProvider404ApplicationProblemPlusJSONResponse) VisitCreateAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdminAuthProvider409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateAdminAuthProvider409ApplicationProblemPlusJSONResponse) VisitCreateAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdminAuthProvider500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateAdminAuthProvider500ApplicationProblemPlusJSONResponse) VisitCreateAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestAdminAuthProviderRequestObject struct {
+	Body *TestAdminAuthProviderJSONRequestBody
+}
+
+type TestAdminAuthProviderResponseObject interface {
+	VisitTestAdminAuthProviderResponse(w http.ResponseWriter) error
+}
+
+type TestAdminAuthProvider200JSONResponse AdminAuthProviderTestResult
+
+func (response TestAdminAuthProvider200JSONResponse) VisitTestAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestAdminAuthProvider400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response TestAdminAuthProvider400ApplicationProblemPlusJSONResponse) VisitTestAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestAdminAuthProvider404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response TestAdminAuthProvider404ApplicationProblemPlusJSONResponse) VisitTestAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestAdminAuthProvider500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response TestAdminAuthProvider500ApplicationProblemPlusJSONResponse) VisitTestAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminAuthProviderRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params DeleteAdminAuthProviderParams
+}
+
+type DeleteAdminAuthProviderResponseObject interface {
+	VisitDeleteAdminAuthProviderResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminAuthProvider204Response struct {
+}
+
+func (response DeleteAdminAuthProvider204Response) VisitDeleteAdminAuthProviderResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminAuthProvider400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminAuthProvider400ApplicationProblemPlusJSONResponse) VisitDeleteAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminAuthProvider404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminAuthProvider404ApplicationProblemPlusJSONResponse) VisitDeleteAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminAuthProvider409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminAuthProvider409ApplicationProblemPlusJSONResponse) VisitDeleteAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminAuthProvider500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminAuthProvider500ApplicationProblemPlusJSONResponse) VisitDeleteAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthProviderRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *UpdateAdminAuthProviderJSONRequestBody
+}
+
+type UpdateAdminAuthProviderResponseObject interface {
+	VisitUpdateAdminAuthProviderResponse(w http.ResponseWriter) error
+}
+
+type UpdateAdminAuthProvider200JSONResponse AdminAuthProviderSaved
+
+func (response UpdateAdminAuthProvider200JSONResponse) VisitUpdateAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthProvider400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuthProvider400ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthProvider404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuthProvider404ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthProvider409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuthProvider409ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuthProviderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminAuthProvider500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminAuthProvider500ApplicationProblemPlusJSONResponse) VisitUpdateAdminAuthProviderResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -12329,6 +14162,45 @@ type StrictServerInterface interface {
 	// List the instance AI summary settings audit log
 	// (GET /api/v1/admin/settings/ai-summary/audit)
 	ListAdminAISummarySettingsAudit(ctx context.Context, request ListAdminAISummarySettingsAuditRequestObject) (ListAdminAISummarySettingsAuditResponseObject, error)
+	// List the instance admins
+	// (GET /api/v1/admin/settings/auth/admins)
+	ListAdminInstanceAdmins(ctx context.Context, request ListAdminInstanceAdminsRequestObject) (ListAdminInstanceAdminsResponseObject, error)
+	// Grant instance admin to an existing user
+	// (POST /api/v1/admin/settings/auth/admins)
+	GrantAdminInstanceAdmin(ctx context.Context, request GrantAdminInstanceAdminRequestObject) (GrantAdminInstanceAdminResponseObject, error)
+	// Revoke a database-granted instance admin
+	// (DELETE /api/v1/admin/settings/auth/admins/{user_id})
+	RevokeAdminInstanceAdmin(ctx context.Context, request RevokeAdminInstanceAdminRequestObject) (RevokeAdminInstanceAdminResponseObject, error)
+	// Reset the sign-in access allowlist to open access
+	// (DELETE /api/v1/admin/settings/auth/allowlist)
+	ResetAdminAuthAllowlist(ctx context.Context, request ResetAdminAuthAllowlistRequestObject) (ResetAdminAuthAllowlistResponseObject, error)
+	// Get the sign-in access allowlist
+	// (GET /api/v1/admin/settings/auth/allowlist)
+	GetAdminAuthAllowlist(ctx context.Context, request GetAdminAuthAllowlistRequestObject) (GetAdminAuthAllowlistResponseObject, error)
+	// Replace the sign-in access allowlist
+	// (PUT /api/v1/admin/settings/auth/allowlist)
+	UpdateAdminAuthAllowlist(ctx context.Context, request UpdateAdminAuthAllowlistRequestObject) (UpdateAdminAuthAllowlistResponseObject, error)
+	// Preview the impact of a candidate access allowlist
+	// (POST /api/v1/admin/settings/auth/allowlist/preview)
+	PreviewAdminAuthAllowlist(ctx context.Context, request PreviewAdminAuthAllowlistRequestObject) (PreviewAdminAuthAllowlistResponseObject, error)
+	// List an authentication setting's audit log
+	// (GET /api/v1/admin/settings/auth/audit)
+	ListAdminAuthSettingsAudit(ctx context.Context, request ListAdminAuthSettingsAuditRequestObject) (ListAdminAuthSettingsAuditResponseObject, error)
+	// List the sign-in identity providers
+	// (GET /api/v1/admin/settings/auth/providers)
+	ListAdminAuthProviders(ctx context.Context, request ListAdminAuthProvidersRequestObject) (ListAdminAuthProvidersResponseObject, error)
+	// Create a sign-in identity provider
+	// (POST /api/v1/admin/settings/auth/providers)
+	CreateAdminAuthProvider(ctx context.Context, request CreateAdminAuthProviderRequestObject) (CreateAdminAuthProviderResponseObject, error)
+	// Test a sign-in identity provider
+	// (POST /api/v1/admin/settings/auth/providers/test)
+	TestAdminAuthProvider(ctx context.Context, request TestAdminAuthProviderRequestObject) (TestAdminAuthProviderResponseObject, error)
+	// Delete a sign-in identity provider
+	// (DELETE /api/v1/admin/settings/auth/providers/{id})
+	DeleteAdminAuthProvider(ctx context.Context, request DeleteAdminAuthProviderRequestObject) (DeleteAdminAuthProviderResponseObject, error)
+	// Replace a sign-in identity provider
+	// (PUT /api/v1/admin/settings/auth/providers/{id})
+	UpdateAdminAuthProvider(ctx context.Context, request UpdateAdminAuthProviderRequestObject) (UpdateAdminAuthProviderResponseObject, error)
 	// Remove the instance email provider settings
 	// (DELETE /api/v1/admin/settings/email)
 	DeleteAdminInstanceEmailSettings(ctx context.Context, request DeleteAdminInstanceEmailSettingsRequestObject) (DeleteAdminInstanceEmailSettingsResponseObject, error)
@@ -12860,6 +14732,369 @@ func (sh *strictHandler) ListAdminAISummarySettingsAudit(w http.ResponseWriter, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAdminAISummarySettingsAuditResponseObject); ok {
 		if err := validResponse.VisitListAdminAISummarySettingsAuditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminInstanceAdmins operation middleware
+func (sh *strictHandler) ListAdminInstanceAdmins(w http.ResponseWriter, r *http.Request) {
+	var request ListAdminInstanceAdminsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminInstanceAdmins(ctx, request.(ListAdminInstanceAdminsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminInstanceAdmins")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminInstanceAdminsResponseObject); ok {
+		if err := validResponse.VisitListAdminInstanceAdminsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GrantAdminInstanceAdmin operation middleware
+func (sh *strictHandler) GrantAdminInstanceAdmin(w http.ResponseWriter, r *http.Request) {
+	var request GrantAdminInstanceAdminRequestObject
+
+	var body GrantAdminInstanceAdminJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GrantAdminInstanceAdmin(ctx, request.(GrantAdminInstanceAdminRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GrantAdminInstanceAdmin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GrantAdminInstanceAdminResponseObject); ok {
+		if err := validResponse.VisitGrantAdminInstanceAdminResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RevokeAdminInstanceAdmin operation middleware
+func (sh *strictHandler) RevokeAdminInstanceAdmin(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+	var request RevokeAdminInstanceAdminRequestObject
+
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokeAdminInstanceAdmin(ctx, request.(RevokeAdminInstanceAdminRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokeAdminInstanceAdmin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokeAdminInstanceAdminResponseObject); ok {
+		if err := validResponse.VisitRevokeAdminInstanceAdminResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResetAdminAuthAllowlist operation middleware
+func (sh *strictHandler) ResetAdminAuthAllowlist(w http.ResponseWriter, r *http.Request) {
+	var request ResetAdminAuthAllowlistRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResetAdminAuthAllowlist(ctx, request.(ResetAdminAuthAllowlistRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResetAdminAuthAllowlist")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResetAdminAuthAllowlistResponseObject); ok {
+		if err := validResponse.VisitResetAdminAuthAllowlistResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminAuthAllowlist operation middleware
+func (sh *strictHandler) GetAdminAuthAllowlist(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminAuthAllowlistRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminAuthAllowlist(ctx, request.(GetAdminAuthAllowlistRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminAuthAllowlist")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminAuthAllowlistResponseObject); ok {
+		if err := validResponse.VisitGetAdminAuthAllowlistResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAdminAuthAllowlist operation middleware
+func (sh *strictHandler) UpdateAdminAuthAllowlist(w http.ResponseWriter, r *http.Request) {
+	var request UpdateAdminAuthAllowlistRequestObject
+
+	var body UpdateAdminAuthAllowlistJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAdminAuthAllowlist(ctx, request.(UpdateAdminAuthAllowlistRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAdminAuthAllowlist")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAdminAuthAllowlistResponseObject); ok {
+		if err := validResponse.VisitUpdateAdminAuthAllowlistResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewAdminAuthAllowlist operation middleware
+func (sh *strictHandler) PreviewAdminAuthAllowlist(w http.ResponseWriter, r *http.Request) {
+	var request PreviewAdminAuthAllowlistRequestObject
+
+	var body PreviewAdminAuthAllowlistJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewAdminAuthAllowlist(ctx, request.(PreviewAdminAuthAllowlistRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewAdminAuthAllowlist")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewAdminAuthAllowlistResponseObject); ok {
+		if err := validResponse.VisitPreviewAdminAuthAllowlistResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminAuthSettingsAudit operation middleware
+func (sh *strictHandler) ListAdminAuthSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminAuthSettingsAuditParams) {
+	var request ListAdminAuthSettingsAuditRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminAuthSettingsAudit(ctx, request.(ListAdminAuthSettingsAuditRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminAuthSettingsAudit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminAuthSettingsAuditResponseObject); ok {
+		if err := validResponse.VisitListAdminAuthSettingsAuditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminAuthProviders operation middleware
+func (sh *strictHandler) ListAdminAuthProviders(w http.ResponseWriter, r *http.Request) {
+	var request ListAdminAuthProvidersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminAuthProviders(ctx, request.(ListAdminAuthProvidersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminAuthProviders")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminAuthProvidersResponseObject); ok {
+		if err := validResponse.VisitListAdminAuthProvidersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateAdminAuthProvider operation middleware
+func (sh *strictHandler) CreateAdminAuthProvider(w http.ResponseWriter, r *http.Request) {
+	var request CreateAdminAuthProviderRequestObject
+
+	var body CreateAdminAuthProviderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateAdminAuthProvider(ctx, request.(CreateAdminAuthProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateAdminAuthProvider")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateAdminAuthProviderResponseObject); ok {
+		if err := validResponse.VisitCreateAdminAuthProviderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// TestAdminAuthProvider operation middleware
+func (sh *strictHandler) TestAdminAuthProvider(w http.ResponseWriter, r *http.Request) {
+	var request TestAdminAuthProviderRequestObject
+
+	var body TestAdminAuthProviderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TestAdminAuthProvider(ctx, request.(TestAdminAuthProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TestAdminAuthProvider")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TestAdminAuthProviderResponseObject); ok {
+		if err := validResponse.VisitTestAdminAuthProviderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAdminAuthProvider operation middleware
+func (sh *strictHandler) DeleteAdminAuthProvider(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteAdminAuthProviderParams) {
+	var request DeleteAdminAuthProviderRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminAuthProvider(ctx, request.(DeleteAdminAuthProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminAuthProvider")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminAuthProviderResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminAuthProviderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAdminAuthProvider operation middleware
+func (sh *strictHandler) UpdateAdminAuthProvider(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request UpdateAdminAuthProviderRequestObject
+
+	request.Id = id
+
+	var body UpdateAdminAuthProviderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAdminAuthProvider(ctx, request.(UpdateAdminAuthProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAdminAuthProvider")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAdminAuthProviderResponseObject); ok {
+		if err := validResponse.VisitUpdateAdminAuthProviderResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
