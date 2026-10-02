@@ -1759,6 +1759,14 @@ type InstanceAuthAllowlistRepository interface {
 	// (audited as an import with no actor) only when none is stored, and
 	// reports whether it did.
 	InsertIfAbsent(ctx context.Context, allowlist *models.InstanceAuthAllowlist) (inserted bool, err error)
+	// CountUsersOutside counts the active (non-suspended) users a candidate
+	// allowlist of normalized domains and emails would not admit, and returns
+	// up to sampleLimit of their emails in alphabetical order. Users whose
+	// email is in exemptEmails (normalized) are never counted. It reads the
+	// users table only and stores nothing.
+	CountUsersOutside(
+		ctx context.Context, domains, emails, exemptEmails []string, sampleLimit int,
+	) (count int, sample []string, err error)
 }
 
 // InstanceAuthSettingsVersionRepository reads the shared change counter every

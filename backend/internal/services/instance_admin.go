@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/vibexp/vibexp/internal/models"
@@ -71,6 +72,8 @@ type InstanceAdminResolver interface {
 	// IsRootAdmin reports whether email is in auth.instance_admins. Matching is
 	// case-insensitive and whitespace-trimmed; a blank email is never root.
 	IsRootAdmin(email string) bool
+	// RootAdminEmails returns the root admins' normalized emails, sorted.
+	RootAdminEmails() []string
 	// IsInstanceAdmin reports whether user is a root admin or a non-suspended
 	// user holding a DB grant. Root admins are answered from config alone, so a
 	// database error never locks them out; for anyone else the error is
@@ -125,6 +128,16 @@ func (s *InstanceAdminService) IsRootAdmin(email string) bool {
 	}
 	_, ok := s.rootAdmins[normalized]
 	return ok
+}
+
+// RootAdminEmails implements InstanceAdminResolver.
+func (s *InstanceAdminService) RootAdminEmails() []string {
+	emails := make([]string, 0, len(s.rootAdmins))
+	for email := range s.rootAdmins {
+		emails = append(emails, email)
+	}
+	slices.Sort(emails)
+	return emails
 }
 
 // IsInstanceAdmin implements InstanceAdminResolver.

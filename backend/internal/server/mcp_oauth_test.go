@@ -23,7 +23,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
-	"github.com/vibexp/vibexp/internal/services/feature_flags"
+	"github.com/vibexp/vibexp/internal/services"
 )
 
 func newMCPOAuthTestServer(t *testing.T, issuer string) *Server {
@@ -340,22 +340,30 @@ type containerWithUsers struct {
 
 func (c containerWithUsers) UserRepository() repositories.UserRepository { return c.users }
 
-// TestNewConsentAccessChecker pins the config-to-policy wiring (#217): which
-// allowlist fields reach the evaluator. Without this, transposing Domains/Emails
-// would leave every other test green while the MCP gate silently allows (or
-// denies) the wrong people.
+// containerWithAllowlist adds the access allowlist resolver the consent policy
+// reads off the container.
+type containerWithAllowlist struct {
+	containerWithUsers
+	allowlist services.AccessAllowlistResolver
+}
+
+func (c containerWithAllowlist) AccessAllowlistResolver() services.AccessAllowlistResolver {
+	return c.allowlist
+}
+
+// TestNewConsentAccessChecker pins the container-to-policy wiring (#217, #1235):
+// the consent re-check decides with the container's allowlist resolver, the one
+// sign-in and the per-request check use. Without this, transposing
+// domains/emails or wiring a different resolver would leave every other test
+// green while the MCP gate silently allows (or denies) the wrong people.
 func TestNewConsentAccessChecker(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.DiscardHandler)
 
 	newPolicy := func(repo repositories.UserRepository, allowlist config.AccessAllowlistConfig) oauthserver.ConsentAccessChecker {
-		cfg := &config.Config{}
-		cfg.Auth.LegacyAccessAllowlist = allowlist
-		return newConsentAccessChecker(
-			cfg,
-			containerWithUsers{BaseMockContainer: &BaseMockContainer{}, users: repo},
-			logger,
-		)
+		return newConsentAccessChecker(containerWithAllowlist{
+			containerWithUsers: containerWithUsers{BaseMockContainer: &BaseMockContainer{}, users: repo},
+			allowlist:          staticAllowlistResolver(allowlist.Domains, allowlist.Emails),
+		})
 	}
 
 	userWithEmail := func(t *testing.T, id, email string) repositories.UserRepository {
@@ -417,13 +425,9 @@ func TestNewConsentAccessChecker(t *testing.T) {
 // the login path uses, and fails closed on anything it cannot vouch for.
 func TestConsentAccessCheckerAdapter(t *testing.T) {
 	ctx := context.Background()
-	logger := slog.New(slog.DiscardHandler)
 
 	newAdapter := func(repo repositories.UserRepository, domains, emails []string) consentAccessPolicyAdapter {
-		return consentAccessPolicyAdapter{
-			users:     repo,
-			allowlist: feature_flags.NewUserSignInAllowlistFlag(logger, domains, emails),
-		}
+		return consentAccessPolicyAdapter{users: repo, allowlist: staticAllowlistResolver(domains, emails)}
 	}
 
 	t.Run("allows an email on the allowlist", func(t *testing.T) {
@@ -472,6 +476,44 @@ func TestConsentAccessCheckerAdapter(t *testing.T) {
 
 		allowed, err := newAdapter(repo, []string{"example.com"}, nil).AllowUser(ctx, "user-4")
 		require.Error(t, err, "an undecidable policy must surface, so the caller fails closed")
+		assert.False(t, allowed)
+	})
+
+	t.Run("an allowlist change applies to the next consent, with no restart", func(t *testing.T) {
+		repo := repomocks.NewMockUserRepository(t)
+		repo.EXPECT().GetByID(ctx, "user-5").
+			Return(&models.User{ID: "user-5", Email: "guest@other.com"}, nil)
+		store := &memAccessAllowlist{}
+		adapter := consentAccessPolicyAdapter{
+			users: repo, allowlist: newMemAllowlistResolver(slog.New(slog.DiscardHandler), store),
+		}
+
+		allowed, err := adapter.AllowUser(ctx, "user-5")
+		require.NoError(t, err)
+		assert.True(t, allowed, "no allowlist stored is open access")
+
+		store.set([]string{"example.com"}, nil)
+		allowed, err = adapter.AllowUser(ctx, "user-5")
+		require.NoError(t, err)
+		assert.False(t, allowed)
+	})
+
+	t.Run("an active allowlist that cannot be read surfaces as an error", func(t *testing.T) {
+		repo := repomocks.NewMockUserRepository(t)
+		repo.EXPECT().GetByID(ctx, "user-6").
+			Return(&models.User{ID: "user-6", Email: "dev@example.com"}, nil)
+		store := &memAccessAllowlist{}
+		store.set([]string{"example.com"}, nil)
+		adapter := consentAccessPolicyAdapter{
+			users: repo, allowlist: newMemAllowlistResolver(slog.New(slog.DiscardHandler), store),
+		}
+		allowed, err := adapter.AllowUser(ctx, "user-6")
+		require.NoError(t, err)
+		require.True(t, allowed)
+
+		store.fail(assert.AnError)
+		allowed, err = adapter.AllowUser(ctx, "user-6")
+		require.ErrorIs(t, err, assert.AnError)
 		assert.False(t, allowed)
 	})
 }

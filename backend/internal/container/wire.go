@@ -111,7 +111,6 @@ var ProviderSet = wire.NewSet(
 	wire.Struct(new(providers.DigestRunnerDeps), "*"),
 
 	// Services
-	providers.ProvideFeatureFlagService,
 	providers.ProvideAuthService,
 	providers.ProvideAPIKeyService,
 	providers.ProvidePromptService,
@@ -155,6 +154,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideEmailSenderResolver,
 	providers.ProvideInstanceEmailProviderService,
 	providers.ProvideInstanceAdminResolver,
+	providers.ProvideAccessAllowlistResolver,
 	providers.ProvideIdentityProviderResolver,
 	providers.ProvideTeamSearchSettingsService,
 	providers.ProvideInstanceAISummarySettingsService,

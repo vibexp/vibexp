@@ -10,7 +10,6 @@ import (
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
-	"github.com/vibexp/vibexp/internal/services/feature_flags"
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
@@ -21,11 +20,11 @@ import (
 // delivered via AES-GCM encrypted httpOnly cookies managed by the session
 // package — HS256 JWT signing is removed in this release.
 type AuthService struct {
-	userRepo       repositories.UserRepository
-	resolver       IdentityProviderResolver
-	featureFlagSvc feature_flags.FeatureFlagServiceInterface
-	eventManager   events.EventPublisher
-	logger         *slog.Logger
+	userRepo     repositories.UserRepository
+	resolver     IdentityProviderResolver
+	allowlist    AccessAllowlistResolver
+	eventManager events.EventPublisher
+	logger       *slog.Logger
 }
 
 // Ensure AuthService implements AuthServiceInterface
@@ -64,28 +63,36 @@ type ProviderInfo struct {
 }
 
 // ensureAccessAllowed denies sign-in when email is not permitted by the access
-// allowlist, returning ErrAccessRestricted. An unconfigured allowlist (both
-// lists empty) is open access and always allowed. The decision is evaluated
-// through the user_signin_allowlist feature flag (which reads the email and its
-// verification status from context); provider is included in the audit log for
-// operator traceability.
+// allowlist, returning ErrAccessRestricted. With no active allowlist the
+// instance is open and every email is allowed. The decision comes from the
+// AccessAllowlistResolver, which reads the allowlist stored in the database
+// (#1235) and exempts root instance admins; provider is included in the audit
+// log for operator traceability.
 //
 // emailVerified reports whether the identity provider VERIFIED the address. An
-// active allowlist rejects an unverified one (#218): the allowlist grants access
-// by address, so an address the user merely claimed must not satisfy it. Callers
-// with no verification concept (dev login) pass true, keeping their behavior.
+// active allowlist rejects an unverified one (#218), root admins included: the
+// allowlist and the root-admin exemption both grant access by address, so an
+// address the user merely claimed must satisfy neither. Callers with no
+// verification concept (dev login) pass true, keeping their behavior.
+//
+// An allowlist that is active but cannot be read fails closed: the resolver's
+// error is returned and nobody but a root admin signs in.
 func (as *AuthService) ensureAccessAllowed(
 	ctx context.Context, email, provider string, emailVerified bool,
 ) error {
-	ctx = context.WithValue(ctx, feature_flags.EmailContextKey, email)
-	ctx = context.WithValue(ctx, feature_flags.EmailVerifiedContextKey, emailVerified)
-	if as.featureFlagSvc.IsEnabled(ctx, feature_flags.FlagUserSignInAllowlist) {
+	allowed, active, err := as.allowlist.IsEmailAllowed(ctx, email)
+	if err != nil {
+		as.logger.With("email", email, "provider", provider, "error", err.Error()).
+			Error("Sign-in refused: the access allowlist could not be evaluated")
+		return fmt.Errorf("evaluate access allowlist: %w", err)
+	}
+	if !active || (allowed && emailVerified) {
 		return nil
 	}
-	// Reaching here means the allowlist is ACTIVE and refused this identity — an
-	// inactive one is open access and returns true above. Report which rule
-	// refused it: from the user's side both denials are identical
-	// (?error=access_restricted), so only this log tells the operator why.
+	// Reaching here means the allowlist is ACTIVE and refused this identity.
+	// Report which rule refused it: from the user's side both denials are
+	// identical (?error=access_restricted), so only this log tells the operator
+	// why.
 	reason := "not_on_allowlist"
 	if !emailVerified {
 		reason = "unverified_email"
@@ -101,14 +108,14 @@ func (as *AuthService) ensureAccessAllowed(
 func NewAuthService(
 	userRepo repositories.UserRepository, resolver IdentityProviderResolver,
 	eventManager events.EventPublisher, logger *slog.Logger,
-	featureFlagSvc feature_flags.FeatureFlagServiceInterface,
+	allowlist AccessAllowlistResolver,
 ) *AuthService {
 	return &AuthService{
-		userRepo:       userRepo,
-		resolver:       resolver,
-		featureFlagSvc: featureFlagSvc,
-		eventManager:   eventManager,
-		logger:         logger,
+		userRepo:     userRepo,
+		resolver:     resolver,
+		allowlist:    allowlist,
+		eventManager: eventManager,
+		logger:       logger,
 	}
 }
 

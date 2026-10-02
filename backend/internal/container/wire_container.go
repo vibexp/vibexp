@@ -13,7 +13,6 @@ import (
 	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
-	"github.com/vibexp/vibexp/internal/services/feature_flags"
 	"github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -92,7 +91,6 @@ type WireContainer struct {
 	freshnessService             services.FreshnessServiceInterface
 	metadataCatalogService       services.MetadataCatalogServiceInterface
 	environmentService           *services.EnvironmentService
-	featureFlagService           *feature_flags.FeatureFlagService
 	backofficeService            services.UsageAndGrowthGetter
 	adminService                 services.AdminServiceInterface
 	embeddingBackfillService     services.EmbeddingBackfiller
@@ -137,6 +135,9 @@ type WireContainer struct {
 
 	// Instance admins: root (config) + DB-granted (#1233)
 	instanceAdminResolver services.InstanceAdminResolver
+
+	// Access allowlist resolved from the database at runtime (#1235)
+	accessAllowlistResolver services.AccessAllowlistResolver
 
 	// External dependencies
 	identityProviderResolver services.IdentityProviderResolver
@@ -280,6 +281,11 @@ func (c *WireContainer) InstanceSettingsAuditRepository() repositories.InstanceS
 // InstanceAdminResolver returns the instance admin resolver (#1233).
 func (c *WireContainer) InstanceAdminResolver() services.InstanceAdminResolver {
 	return c.instanceAdminResolver
+}
+
+// AccessAllowlistResolver returns the access allowlist resolver (#1235).
+func (c *WireContainer) AccessAllowlistResolver() services.AccessAllowlistResolver {
+	return c.accessAllowlistResolver
 }
 
 // TeamSettingsAuditRepository returns the team settings audit log repository.

@@ -11,7 +11,6 @@ import (
 	"github.com/vibexp/vibexp/internal/scheduler"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
-	"github.com/vibexp/vibexp/internal/services/feature_flags"
 	"github.com/vibexp/vibexp/internal/services/freshness"
 	notificationsvc "github.com/vibexp/vibexp/internal/services/notifications"
 	notifchannels "github.com/vibexp/vibexp/internal/services/notifications/channels"
@@ -27,9 +26,9 @@ func ProvideAuthService(
 	resolver services.IdentityProviderResolver,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
-	featureFlagSvc *feature_flags.FeatureFlagService,
+	allowlist services.AccessAllowlistResolver,
 ) services.AuthServiceInterface {
-	return services.NewAuthService(userRepo, resolver, eventManager, logger, featureFlagSvc)
+	return services.NewAuthService(userRepo, resolver, eventManager, logger, allowlist)
 }
 
 // ProvideAPIKeyService creates a new APIKeyService
@@ -692,19 +691,22 @@ func ProvideEnvironmentService(cfg *config.Config) *services.EnvironmentService 
 	return services.NewEnvironmentService(cfg)
 }
 
-// ProvideFeatureFlagService creates a new FeatureFlagService and registers all feature flags.
-//
-// The sign-in allowlist is configured from cfg.Auth.LegacyAccessAllowlist
-// (AUTH_ALLOWED_DOMAINS / AUTH_ALLOWED_EMAILS). Both lists empty means open
-// registration; otherwise a user may sign in by exact email or by email domain.
-func ProvideFeatureFlagService(cfg *config.Config, logger *slog.Logger) *feature_flags.FeatureFlagService {
-	service := feature_flags.NewFeatureFlagService(logger)
-
-	service.RegisterFlag(feature_flags.NewUserSignInAllowlistFlag(
-		logger, cfg.Auth.LegacyAccessAllowlist.Domains, cfg.Auth.LegacyAccessAllowlist.Emails,
-	))
-
-	return service
+// ProvideAccessAllowlistResolver creates the runtime access allowlist resolver
+// (#1235): the allowlist is read from instance_auth_allowlist, cached by the
+// auth settings version, and enforced at sign-in, at MCP consent and on every
+// authenticated request. Root admins, as answered by admins, are exempt.
+func ProvideAccessAllowlistResolver(
+	allowlists repositories.InstanceAuthAllowlistRepository,
+	versions repositories.InstanceAuthSettingsVersionRepository,
+	admins services.InstanceAdminResolver,
+	logger *slog.Logger,
+) services.AccessAllowlistResolver {
+	return services.NewAccessAllowlistResolver(services.AccessAllowlistResolverDeps{
+		Allowlists: allowlists,
+		Versions:   versions,
+		RootAdmins: admins,
+		Logger:     logger,
+	})
 }
 
 // ProvideBackofficeService creates a new BackofficeService
