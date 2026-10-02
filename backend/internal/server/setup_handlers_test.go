@@ -85,6 +85,14 @@ func (m *memSetupState) ForceMint(
 	return m.store(hash, expiresAt, true), nil
 }
 
+func (m *memSetupState) MintReplacing(
+	_ context.Context, hash []byte, expiresAt time.Time,
+) (*models.InstanceAuthSetup, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.store(hash, expiresAt, false), nil
+}
+
 func (m *memSetupState) Consume(_ context.Context, userID string) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

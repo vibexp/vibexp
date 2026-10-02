@@ -137,6 +137,17 @@
         "dev_login_enabled": {
           "type": "boolean"
         },
+        "recovery_mode": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
+        },
         "access_allowlist": {
           "$ref": "#/$defs/AccessAllowlistConfig",
           "description": "Deprecated: sign-in providers and the access allowlist are stored in the database and managed under Admin → Settings → Authentication. Imported into the database once at boot when it holds none, ignored afterwards, and a boot failure no earlier than the second minor release after the one that deprecated it.",

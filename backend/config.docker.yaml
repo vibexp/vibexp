@@ -86,6 +86,12 @@ auth:
   # this is automatically inert — but if you leave FRONTEND_BASE_URL at the
   # localhost default while exposing the app, dev login stays OPEN. See README.
   dev_login_enabled: true
+  # Break-glass after an authentication lockout (#1237). AUTH_SETTINGS_RECOVERY_MODE=true
+  # forces setup mode on at every boot and logs a fresh one-time SETUP URL at
+  # WARN, even though identity providers are configured; those providers keep
+  # signing users in. Unset it once sign-in works again. The no-restart
+  # alternative: `docker exec <container> ./main admin auth setup rearm`.
+  recovery_mode: "${AUTH_SETTINGS_RECOVERY_MODE:-false}"
 
   # Restrict sign-in by email domain and/or exact address (comma-separated).
   # A user is allowed if EITHER list matches. Both empty (the default) = open

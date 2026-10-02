@@ -382,6 +382,37 @@ func TestConfigDockerYAML_AISummaryInvalidEnvFailsFast(t *testing.T) {
 	require.ErrorContains(t, err, "ai_summary.top_n")
 }
 
+// TestConfigDockerYAML_AuthRecoveryMode is #1237's "one env var + restart"
+// recovery path: the flag is off in a bare `docker run`, AUTH_SETTINGS_RECOVERY_MODE
+// alone turns it on, and a value that is not a bool fails startup rather than
+// silently leaving a locked-out operator without a setup URL.
+func TestConfigDockerYAML_AuthRecoveryMode(t *testing.T) {
+	t.Run("off by default", func(t *testing.T) {
+		setDockerRequiredEnv(t)
+		t.Setenv("AUTH_SETTINGS_RECOVERY_MODE", "")
+		cfg, err := Load(dockerConfigPath)
+		require.NoError(t, err)
+		require.Equal(t, EnvBool(false), cfg.Auth.RecoveryMode)
+	})
+
+	t.Run("the env var turns it on", func(t *testing.T) {
+		setDockerRequiredEnv(t)
+		t.Setenv("AUTH_SETTINGS_RECOVERY_MODE", "true")
+		cfg, err := Load(dockerConfigPath)
+		require.NoError(t, err)
+		require.Equal(t, EnvBool(true), cfg.Auth.RecoveryMode)
+	})
+
+	t.Run("an undecodable value fails fast", func(t *testing.T) {
+		setDockerRequiredEnv(t)
+		t.Setenv("AUTH_SETTINGS_RECOVERY_MODE", "yes-please")
+		cfg, err := Load(dockerConfigPath)
+		require.Error(t, err)
+		require.Nil(t, cfg)
+		require.ErrorContains(t, err, "auth.recovery_mode")
+	})
+}
+
 // TestConfigSchema_EnvPlaceholderTypesAreOptIn guards the decision that
 // EnvBool/EnvInt loosen the schema for exactly the fields that opt in. A blanket
 // mapper over every bool/int would make the schema accept a typo'd "tru" on any
@@ -409,6 +440,8 @@ func TestConfigSchema_EnvPlaceholderTypesAreOptIn(t *testing.T) {
 		"storage.s3_path_style is EnvBool, so its schema must also accept a ${VAR} placeholder")
 	require.Len(t, doc.Defs["AISummaryConfig"].Properties["enabled"].OneOf, 2,
 		"ai_summary.enabled is EnvBool, so its schema must also accept a ${VAR} placeholder")
+	require.Len(t, doc.Defs["AuthConfig"].Properties["recovery_mode"].OneOf, 2,
+		"auth.recovery_mode is EnvBool, so its schema must also accept a ${VAR} placeholder")
 	require.Len(t, doc.Defs["AISummaryConfig"].Properties["top_n"].OneOf, 2,
 		"ai_summary.top_n is EnvInt, so its schema must also accept a ${VAR} placeholder")
 

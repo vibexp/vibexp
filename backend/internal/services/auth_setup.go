@@ -70,7 +70,8 @@ type SetupModeService interface {
 	// with minted = true. When another boot's token is still valid it mints
 	// nothing — the token cannot be re-logged, only its hash is stored — and
 	// logs when it was issued instead. When setup mode is not active it does
-	// nothing.
+	// nothing. With the recovery input set it always mints, replacing any
+	// outstanding token, so every boot logs a usable URL.
 	EnsureTokenAtBoot(ctx context.Context) (setupURL string, minted bool, err error)
 	// ExchangeToken trades the setup token for a setup session. It returns
 	// ErrSetupNotActive outside setup mode and ErrSetupTokenInvalid for any
@@ -139,23 +140,41 @@ func newSetupModeService(deps SetupModeDeps) *setupModeService {
 	}
 }
 
+// Why setup mode is active. Each is the "reason" logged beside the setup URL.
+const (
+	setupReasonNoProvider = "no identity provider is enabled; open this URL to configure sign-in"
+	setupReasonRearmed    = "authentication setup was re-armed with `vibexp admin auth setup rearm`; " +
+		"open this URL to configure sign-in"
+	setupReasonRecovery = "auth.recovery_mode (AUTH_SETTINGS_RECOVERY_MODE) is set; open this URL to " +
+		"repair sign-in, then remove the flag and restart"
+)
+
 // IsActive implements SetupModeService.
 func (s *setupModeService) IsActive(ctx context.Context) (bool, error) {
+	reason, err := s.activeReason(ctx)
+	return reason != "", err
+}
+
+// activeReason returns why setup mode is active, or "" when it is not.
+func (s *setupModeService) activeReason(ctx context.Context) (string, error) {
 	if s.recoveryMode {
-		return true, nil
+		return setupReasonRecovery, nil
 	}
 	row, err := s.stored(ctx)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	if row != nil && row.Rearmed && !row.IsConsumed() {
-		return true, nil
+		return setupReasonRearmed, nil
 	}
 	enabled, err := s.hasEnabledProvider(ctx)
 	if err != nil {
-		return false, err
+		return "", err
 	}
-	return !enabled, nil
+	if enabled {
+		return "", nil
+	}
+	return setupReasonNoProvider, nil
 }
 
 // hasEnabledProvider reads the provider ROWS rather than the resolver's built
@@ -189,11 +208,11 @@ func (s *setupModeService) stored(ctx context.Context) (*models.InstanceAuthSetu
 
 // EnsureTokenAtBoot implements SetupModeService.
 func (s *setupModeService) EnsureTokenAtBoot(ctx context.Context) (string, bool, error) {
-	active, err := s.IsActive(ctx)
+	reason, err := s.activeReason(ctx)
 	if err != nil {
 		return "", false, err
 	}
-	if !active {
+	if reason == "" {
 		return "", false, nil
 	}
 
@@ -202,7 +221,21 @@ func (s *setupModeService) EnsureTokenAtBoot(ctx context.Context) (string, bool,
 		return "", false, err
 	}
 	now := s.now()
-	row, minted, err := s.setup.MintIfAbsentOrExpired(ctx, hash, now.Add(SetupTokenLifetime), now)
+	expiresAt := now.Add(SetupTokenLifetime)
+
+	// Recovery mode exists to hand a locked-out operator a setup URL, and only
+	// the hash of an earlier token is stored, so every boot replaces the token
+	// rather than keeping one whose URL may be lost. It does not re-arm: setup
+	// mode must end when the flag is removed.
+	if s.recoveryMode {
+		replaced, mintErr := s.setup.MintReplacing(ctx, hash, expiresAt)
+		if mintErr != nil {
+			return "", false, fmt.Errorf("failed to mint the recovery setup token: %w", mintErr)
+		}
+		return s.logSetupURL(token, reason, replaced), true, nil
+	}
+
+	row, minted, err := s.setup.MintIfAbsentOrExpired(ctx, hash, expiresAt, now)
 	if err != nil {
 		return "", false, fmt.Errorf("failed to mint the setup token: %w", err)
 	}
@@ -213,18 +246,20 @@ func (s *setupModeService) EnsureTokenAtBoot(ctx context.Context) (string, bool,
 			"issued_at", row.UpdatedAt, "valid_until", row.ExpiresAt)
 		return "", false, nil
 	}
-
-	setupURL := s.setupURL(token)
-	s.logger.Warn("SETUP URL: "+setupURL,
-		"reason", "no identity provider is enabled; open this URL to configure sign-in",
-		"valid_until", row.ExpiresAt)
-	return setupURL, true, nil
+	return s.logSetupURL(token, reason, row), true, nil
 }
 
-// setupURL is the SPA setup page carrying token. The token is unpadded
-// URL-safe base64, so it needs no escaping.
-func (s *setupModeService) setupURL(token string) string {
-	return s.baseURL + setupPagePath + "?token=" + token
+// logSetupURL logs the setup URL for a freshly minted token and returns it.
+func (s *setupModeService) logSetupURL(token, reason string, row *models.InstanceAuthSetup) string {
+	setupURL := SetupURL(s.baseURL, token)
+	s.logger.Warn("SETUP URL: "+setupURL, "reason", reason, "valid_until", row.ExpiresAt)
+	return setupURL
+}
+
+// SetupURL is the SPA setup page on baseURL (frontend.base_url) carrying token.
+// The token is unpadded URL-safe base64, so it needs no escaping.
+func SetupURL(baseURL, token string) string {
+	return strings.TrimRight(baseURL, "/") + setupPagePath + "?token=" + token
 }
 
 // ExchangeToken implements SetupModeService.
@@ -303,11 +338,20 @@ func (s *setupModeService) ConsumeOnRootLogin(ctx context.Context, user *models.
 
 // ForceRearm implements SetupModeService.
 func (s *setupModeService) ForceRearm(ctx context.Context) (string, error) {
+	return forceRearmSetup(ctx, s.setup, s.now())
+}
+
+// forceRearmSetup mints a re-arming setup token at now and returns it. It is a
+// function rather than only a method so the break-glass CLI (#1237), which has
+// no server and so no full setup-mode service, mints through the same code.
+func forceRearmSetup(
+	ctx context.Context, setup repositories.InstanceAuthSetupRepository, now time.Time,
+) (string, error) {
 	token, hash, err := newSetupToken()
 	if err != nil {
 		return "", err
 	}
-	if _, err := s.setup.ForceMint(ctx, hash, s.now().Add(SetupTokenLifetime)); err != nil {
+	if _, err := setup.ForceMint(ctx, hash, now.Add(SetupTokenLifetime)); err != nil {
 		return "", fmt.Errorf("failed to re-arm authentication setup: %w", err)
 	}
 	return token, nil

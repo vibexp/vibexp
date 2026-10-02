@@ -75,8 +75,10 @@ func runServer(cmd *cobra.Command, args []string) {
 	// anything can send mail (#1190).
 	runStartupImports(ctx, srv.Container())
 
-	// Mint and log the setup URL when no identity provider is enabled (#1236).
-	// It runs after the imports so providers imported from config.yaml count.
+	// Mint and log the setup URL when no identity provider is enabled (#1236),
+	// or on every boot under auth.recovery_mode (#1237). It runs after the
+	// imports so providers imported from config.yaml count.
+	warnRecoveryMode(cfg, logger)
 	ensureSetupToken(ctx, srv.Container().SetupModeService(), logger)
 
 	// Start the in-process scheduler after the DB is migrated and ready. It is
@@ -243,6 +245,17 @@ func runStartupImports(ctx context.Context, c startupImporter) {
 	importCtx, cancel := context.WithTimeout(ctx, startupImportTimeout)
 	defer cancel()
 	c.RunStartupImports(importCtx)
+}
+
+// warnRecoveryMode logs, on every boot, that auth.recovery_mode is forcing
+// setup mode on (#1237), so the flag is never left set unnoticed.
+func warnRecoveryMode(cfg *config.Config, logger *slog.Logger) {
+	if !cfg.Auth.RecoveryMode {
+		return
+	}
+	logger.Warn("Authentication recovery mode is ON (auth.recovery_mode / AUTH_SETTINGS_RECOVERY_MODE): " +
+		"setup mode is forced on and a new setup URL is issued on every boot. The configured identity " +
+		"providers keep working. Remove the flag and restart once sign-in works again")
 }
 
 // setupTokenBooter is the slice of services.SetupModeService ensureSetupToken
