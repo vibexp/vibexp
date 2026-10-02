@@ -35,18 +35,22 @@ const (
 	adminMsgLockoutConfirm       = "; send confirm_lockout_risk to apply it anyway"
 
 	authProviderResource = "auth provider"
-
-	// authTypeCookie is the contextkeys.AuthType of a request authenticated by
-	// the session cookie.
-	authTypeCookie = "cookie"
 )
 
-// adminSetupSessionRoutes matches the instance authentication settings a setup
-// session may reach: the providers (with their test) and the access allowlist
-// (with its preview), under every method. Nothing else on the admin surface
-// matches, so the admin list, the audit log and every other admin route stay
-// instance-admin only.
-var adminSetupSessionRoutes = regexp.MustCompile(`^/api/v1/admin/settings/auth/(providers|allowlist)(/[^/]+)?$`)
+// adminSetupSessionRoutes matches exactly the instance authentication settings
+// paths a setup session may reach: /providers, /providers/test,
+// /providers/{uuid}, /allowlist and /allowlist/preview. Each sub-path is spelled
+// out, so nothing else on the admin surface matches — not the admin list, not
+// the audit log, and not a route added later under either prefix.
+// TestAdminSetupSessionRoutes_MatchExactlyTheMountedSetupRoutes pins the
+// pattern against the mounted route table.
+var adminSetupSessionRoutes = regexp.MustCompile(`^/api/v1/admin/settings/auth/(` +
+	`providers(/test|/` + uuidPattern + `)?|` +
+	`allowlist(/preview)?` +
+	`)$`)
+
+// uuidPattern matches one UUID in its canonical textual form.
+const uuidPattern = `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`
 
 // adminRouteGuard authenticates the whole /api/v1/admin surface. Every route is
 // instance-admin only (optionalAuthMiddleware + instanceAdminMiddleware, so

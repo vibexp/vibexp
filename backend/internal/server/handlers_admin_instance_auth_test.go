@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -1234,10 +1235,44 @@ func TestAdminSetupSessionRoutesPattern(t *testing.T) {
 		authAdminsPath, authAdminsPath + "/" + authTestMemberID, authAuditPath, authSettingsPath,
 		authProvidersPath + "/a/b", authProvidersPath + "/", "/api/v1/admin/settings/email",
 		"/x" + authProvidersPath, authProvidersPath + "x",
+		// A route a later change might add under either prefix.
+		authProvidersPath + "/reorder", authAllowlistPath + "/audit", authAllowlistPath + "/" + authTestMemberID,
 	}
 	for _, path := range refused {
 		assert.False(t, adminSetupSessionRoutes.MatchString(path), path)
 	}
+}
+
+// TestAdminSetupSessionRoutes_MatchExactlyTheMountedSetupRoutes walks the
+// mounted route table: of every admin route, exactly the provider and allowlist
+// operations match adminSetupSessionRoutes. A route added under either prefix
+// fails here until it is deliberately admitted (or left admin-only).
+func TestAdminSetupSessionRoutes_MatchExactlyTheMountedSetupRoutes(t *testing.T) {
+	srv := New("8080", nil, "test-api-key", &config.Config{}, slog.New(slog.DiscardHandler))
+
+	var admitted []string
+	walked := 0
+	require.NoError(t, chi.Walk(srv.router,
+		func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+			if !strings.HasPrefix(route, "/api/v1/admin/") {
+				return nil
+			}
+			walked++
+			// Every path parameter of these routes is a UUID.
+			path := strings.NewReplacer("{id}", authTestUnknownUserID, "{user_id}", authTestUnknownUserID).Replace(route)
+			if adminSetupSessionRoutes.MatchString(path) {
+				admitted = append(admitted, method+" "+route)
+			}
+			return nil
+		}))
+	require.Greater(t, walked, 50, "the walk found the admin surface")
+
+	assert.ElementsMatch(t, []string{
+		"GET " + authProvidersPath, "POST " + authProvidersPath, "POST " + authProvidersPath + "/test",
+		"PUT " + authProvidersPath + "/{id}", "DELETE " + authProvidersPath + "/{id}",
+		"GET " + authAllowlistPath, "PUT " + authAllowlistPath, "DELETE " + authAllowlistPath,
+		"POST " + authAllowlistPath + "/preview",
+	}, admitted)
 }
 
 // --- failures -----------------------------------------------------------------

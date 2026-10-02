@@ -59,6 +59,10 @@ func isTransientRefreshError(err error) bool {
 	return false
 }
 
+// authTypeCookie is the contextkeys.AuthType of a request authenticated by the
+// session cookie.
+const authTypeCookie = "cookie"
+
 // authenticatedContext returns ctx carrying the authenticated user's context
 // keys (UserID, AuthType) and a logger enriched with the auth metadata plus
 // any extra fields. Every auth path sets up its success context through this
@@ -259,7 +263,7 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 	logger := contextkeys.GetLoggerFromContext(r.Context())
 	logger.With(
 		"middleware", "authenticateWithSession",
-		"auth_type", "cookie",
+		"auth_type", authTypeCookie,
 	).Debug("Attempting cookie session authentication")
 
 	sess, err := s.sessionManager.Read(r)

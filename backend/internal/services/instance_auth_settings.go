@@ -590,9 +590,10 @@ func (s *InstanceAuthSettingsService) GrantAdmin(
 	return nil, &ErrInstanceAdminNotGranted{UserID: user.ID}
 }
 
-// grantTargetUser resolves the user a grant names. An email is matched as
-// given and then lower-cased, since an identity provider may have supplied
-// either form. An unknown user is ErrInstanceAdminTargetInvalid.
+// grantTargetUser resolves the user a grant names. An email is looked up
+// exactly as given (trimmed) and, failing that, lower-cased; the lookup is
+// exact, so a user stored in any other casing is only found by user id. An
+// unknown user is ErrInstanceAdminTargetInvalid.
 func (s *InstanceAuthSettingsService) grantTargetUser(
 	ctx context.Context, target models.InstanceAdminGrantTarget,
 ) (*models.User, error) {
