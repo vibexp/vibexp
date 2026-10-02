@@ -489,6 +489,25 @@ func ProvideInstanceAdminResolver(
 	return services.NewInstanceAdminService(cfg.Auth.InstanceAdmins, grants, userRepo, logger)
 }
 
+// ProvideSetupModeService creates the authentication setup-mode service
+// (#1236). Setup mode follows the stored provider rows; the recovery input stays
+// off until the recovery flag lands (#1237).
+func ProvideSetupModeService(
+	setup repositories.InstanceAuthSetupRepository,
+	providerRepo repositories.InstanceAuthProviderRepository,
+	admins services.InstanceAdminResolver,
+	cfg *config.Config,
+	logger *slog.Logger,
+) services.SetupModeService {
+	return services.NewSetupModeService(services.SetupModeDeps{
+		Setup:       setup,
+		Providers:   providerRepo,
+		IsRootAdmin: admins.IsRootAdmin,
+		BaseURL:     cfg.Frontend.BaseURL,
+		Logger:      logger,
+	})
+}
+
 // ProvideIdentityProviderResolver creates the runtime sign-in provider resolver
 // (#1234): providers are read from instance_auth_providers per sign-in, cached
 // by the auth settings version, and built with the derived callback URL.

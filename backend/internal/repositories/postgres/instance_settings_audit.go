@@ -47,6 +47,9 @@ const instanceSettingsAuditKeyset = `
 // Compared case-insensitively, so a differently-cased key cannot slip past.
 var instanceSettingsAuditSecretKeys = []string{
 	"secret", "secret_encrypted", "client_secret", "client_secret_encrypted",
+	// The setup token's hash (#1236): not a secret by itself, but nothing that
+	// authenticates a request belongs in an audit snapshot.
+	"token_hash",
 }
 
 // InstanceSettingsAuditRepository implements

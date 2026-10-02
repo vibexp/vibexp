@@ -1,0 +1,91 @@
+# First-run authentication setup path items (#1236, epic #1230) — referenced
+# from ../openapi.yaml.
+
+api-v1-setup-status:
+  get:
+    summary: Report whether the instance needs authentication setup
+    description: |
+      Returns whether this instance is in authentication setup mode, so the web
+      app can route to the setup page instead of a login screen that has no
+      provider to offer. Public, and deliberately a single boolean: it reveals
+      nothing else about the instance's configuration.
+    operationId: getSetupStatus
+    security: []  # No authentication required
+    responses:
+      '200':
+        description: Setup status retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/SetupStatusResponse'
+      '500':
+        description: The setup status could not be determined
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Setup
+
+api-v1-setup-session:
+  post:
+    summary: Exchange the setup token for a setup session
+    description: |
+      Exchanges the one-time setup token (from the `SETUP URL` the server logs
+      at boot while no sign-in provider is enabled) for a short-lived setup
+      session, delivered as the `vibexp_setup` cookie.
+
+      The setup session is **userless**: it is not a user session and signs
+      nobody in. It authorizes only the instance authentication settings; every
+      other endpoint treats the caller as anonymous. It ends after one hour,
+      or as soon as a root instance admin signs in through a provider.
+
+      Every rejected token — unknown, expired or already consumed — returns the
+      same 401. Outside setup mode the endpoint returns 404. Rate-limited per
+      client IP.
+    operationId: createSetupSession
+    security: []  # Authenticated by the setup token in the body
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateSetupSessionRequest'
+    responses:
+      '200':
+        description: Setup session started
+        headers:
+          Set-Cookie:
+            description: Encrypted, HttpOnly, SameSite=Strict setup-session cookie (`vibexp_setup`)
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/SetupSessionResponse'
+      '400':
+        description: Malformed request body
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: The setup token is unknown, expired or already consumed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: The instance is not in setup mode
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: The setup session could not be started
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Setup

@@ -259,6 +259,10 @@ var (
 	// an expected state (open access), not a failure.
 	ErrInstanceAuthAllowlistNotFound = errors.New("instance auth allowlist not found")
 
+	// ErrInstanceAuthSetupNotFound is returned by InstanceAuthSetupRepository.Get
+	// when no setup token was ever issued.
+	ErrInstanceAuthSetupNotFound = errors.New("instance auth setup not found")
+
 	// ErrInstanceAdminNotFound is returned by InstanceAdminRepository.Revoke
 	// when the user holds no DB grant.
 	ErrInstanceAdminNotFound = errors.New("instance admin grant not found")
@@ -1775,6 +1779,40 @@ type InstanceAuthAllowlistRepository interface {
 type InstanceAuthSettingsVersionRepository interface {
 	// Get returns the current version.
 	Get(ctx context.Context) (int64, error)
+}
+
+// InstanceAuthSetupRepository defines the data access operations for the
+// first-run authentication setup state (#1236). The table is a
+// database-enforced singleton holding the setup token's hash, never the token.
+//
+// Every write appends one instance_settings_audit entry
+// (models.InstanceSettingAuthSetup) in the same transaction, and writers are
+// serialized on a table lock, so concurrent replicas agree on one token. Setup
+// state is not part of the provider or allowlist caches, so no write bumps the
+// shared auth settings version.
+type InstanceAuthSetupRepository interface {
+	// Get returns the stored setup state, or ErrInstanceAuthSetupNotFound when
+	// no token was ever issued.
+	Get(ctx context.Context) (*models.InstanceAuthSetup, error)
+	// MintIfAbsentOrExpired stores tokenHash, expiring at expiresAt, unless the
+	// row already holds a token that is still exchangeable at now (stored, not
+	// consumed, not expired). It returns the row as stored after the call and
+	// whether tokenHash was the one stored. Of several concurrent callers
+	// exactly one mints; the rest see its row with minted = false, which is
+	// what keeps a second replica from invalidating the first one's token.
+	MintIfAbsentOrExpired(
+		ctx context.Context, tokenHash []byte, expiresAt, now time.Time,
+	) (setup *models.InstanceAuthSetup, minted bool, err error)
+	// ForceMint stores tokenHash unconditionally, replacing any outstanding
+	// token, marks the setup re-armed and clears a previous consumption. Every
+	// setup session issued before it stops validating.
+	ForceMint(ctx context.Context, tokenHash []byte, expiresAt time.Time) (*models.InstanceAuthSetup, error)
+	// Consume ends setup on behalf of userID: it drops the token hash, records
+	// the consumption, clears the re-armed flag and invalidates every
+	// outstanding setup session. It reports false, writing nothing, when there
+	// is no row or it is already consumed. An unknown userID returns
+	// ErrUserNotFound.
+	Consume(ctx context.Context, userID string) (bool, error)
 }
 
 // InstanceAdminRepository defines the data access operations for DB-granted

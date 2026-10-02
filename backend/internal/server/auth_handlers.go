@@ -338,6 +338,10 @@ func (s *Server) handleCallbackSuccess(
 		}
 	}
 
+	// A root admin signing in through a provider proves sign-in works: it ends
+	// first-run setup (#1236). Dev login never reaches this path.
+	s.consumeSetupOnRootLogin(r.Context(), user)
+
 	ar := NewActivityRecorder(s.container.ActivityService())
 	sessionID := state
 	metadata := map[string]interface{}{

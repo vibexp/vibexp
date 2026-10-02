@@ -131,7 +131,7 @@ func (m *Manager) Read(r *http.Request) (*Session, error) {
 		return nil, fmt.Errorf("session: read cookie: %w", err)
 	}
 
-	plaintext, err := m.decrypt(cookie.Value)
+	plaintext, err := m.decrypt(cookie.Value, nil)
 	if err != nil {
 		return nil, ErrInvalidSession
 	}
@@ -153,7 +153,7 @@ func (m *Manager) Write(w http.ResponseWriter, s *Session) error {
 		return fmt.Errorf("session: marshal session: %w", err)
 	}
 
-	ciphertext, err := m.encrypt(payload)
+	ciphertext, err := m.encrypt(payload, nil)
 	if err != nil {
 		return fmt.Errorf("session: encrypt session: %w", err)
 	}
@@ -201,8 +201,11 @@ func (m *Manager) Clear(w http.ResponseWriter) {
 //
 //	hex(nonce) + "." + hex(ciphertext)
 //
-// The nonce is randomly generated on every call.
-func (m *Manager) encrypt(plaintext []byte) (string, error) {
+// The nonce is randomly generated on every call. aad is authenticated but not
+// encrypted: a value sealed under one aad does not open under another, which is
+// what keeps one cookie kind from being replayed as a different one. The user
+// session passes nil.
+func (m *Manager) encrypt(plaintext, aad []byte) (string, error) {
 	block, err := aes.NewCipher(m.key)
 	if err != nil {
 		return "", fmt.Errorf("session: create cipher: %w", err)
@@ -218,13 +221,14 @@ func (m *Manager) encrypt(plaintext []byte) (string, error) {
 		return "", fmt.Errorf("session: generate nonce: %w", err)
 	}
 
-	ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
+	ciphertext := gcm.Seal(nil, nonce, plaintext, aad)
 
 	return hex.EncodeToString(nonce) + "." + hex.EncodeToString(ciphertext), nil
 }
 
-// decrypt reverses encrypt. It expects the format: hex(nonce) + "." + hex(ciphertext).
-func (m *Manager) decrypt(encoded string) ([]byte, error) {
+// decrypt reverses encrypt. It expects the format: hex(nonce) + "." + hex(ciphertext),
+// sealed under the same aad.
+func (m *Manager) decrypt(encoded string, aad []byte) ([]byte, error) {
 	dotIdx := strings.IndexByte(encoded, '.')
 	if dotIdx < 0 {
 		return nil, fmt.Errorf("session: invalid encoded format")
@@ -254,7 +258,7 @@ func (m *Manager) decrypt(encoded string) ([]byte, error) {
 		return nil, fmt.Errorf("session: nonce size mismatch: got %d, want %d", len(nonce), gcm.NonceSize())
 	}
 
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, aad)
 	if err != nil {
 		return nil, fmt.Errorf("session: decrypt: %w", err)
 	}

@@ -165,6 +165,12 @@ components:
       $ref: "./schemas/auth.yaml#/AuthProvider"
     ProvidersResponse:
       $ref: "./schemas/auth.yaml#/ProvidersResponse"
+    SetupStatusResponse:
+      $ref: "./schemas/setup.yaml#/SetupStatusResponse"
+    CreateSetupSessionRequest:
+      $ref: "./schemas/setup.yaml#/CreateSetupSessionRequest"
+    SetupSessionResponse:
+      $ref: "./schemas/setup.yaml#/SetupSessionResponse"
     DevLoginRequest:
       $ref: "./schemas/auth.yaml#/DevLoginRequest"
 
@@ -1130,6 +1136,10 @@ paths:
     $ref: "./paths/auth.yaml#/api-v1-auth-dev-login"
   /api/v1/auth/me:
     $ref: "./paths/auth.yaml#/api-v1-auth-me"
+  /api/v1/setup/status:
+    $ref: "./paths/setup.yaml#/api-v1-setup-status"
+  /api/v1/setup/session:
+    $ref: "./paths/setup.yaml#/api-v1-setup-session"
   /api/v1/api-keys:
     $ref: "./paths/api-keys.yaml#/api-v1-api-keys"
   /api/v1/api-keys/{id}:
@@ -1616,6 +1626,8 @@ tags:
     description: Team-level configuration, starting with per-team search ranking settings
   - name: Freshness
     description: Per-team resource freshness rules, evaluation settings, analytics and audit log (epic #726)
+  - name: Setup
+    description: First-run authentication setup — the public setup status and the setup-token exchange. REST-only, no MCP.
   - name: Admin
     description: Instance-level administration (instance-admin only; non-admins get 404). REST-only, no MCP.
   - name: User

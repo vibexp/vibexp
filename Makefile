@@ -280,6 +280,8 @@ backend-generate-openapi-server: backend-bundle-openapi
 	@cd backend && mkdir -p internal/server/gen/metadata && go tool oapi-codegen -config oapi-codegen-metadata.yaml dist/openapi.bundled.yaml
 	@echo "🧬 Generating OpenAPI strict-server code (Admin)..."
 	@cd backend && mkdir -p internal/server/gen/admin && go tool oapi-codegen -config oapi-codegen-admin.yaml dist/openapi.bundled.yaml
+	@echo "🧬 Generating OpenAPI strict-server code (Setup)..."
+	@cd backend && mkdir -p internal/server/gen/setup && go tool oapi-codegen -config oapi-codegen-setup.yaml dist/openapi.bundled.yaml
 	@echo "🧬 Generating OpenAPI strict-server code (Embedding Providers)..."
 	@cd backend && mkdir -p internal/server/gen/embeddingproviders && go tool oapi-codegen -config oapi-codegen-embedding-providers.yaml dist/openapi.bundled.yaml
 	@echo "🧬 Generating OpenAPI strict-server code (Model Providers)..."

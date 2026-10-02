@@ -29,6 +29,11 @@ const (
 	AuthType ContextKey = "auth_type"
 	APIKeyID ContextKey = "api_key_id"
 
+	// SetupSession marks a request admitted on a first-run setup session
+	// (#1236) rather than on a user's credentials. Such a request has no user:
+	// UserID is empty.
+	SetupSession ContextKey = "setup_session"
+
 	// AccessedResourceID holds the resolved UUID of a resource read on the
 	// current request, set by a detail handler and read back by the
 	// resource-access recording middleware. See accessedResourceIDHolder.

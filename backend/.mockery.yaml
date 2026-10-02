@@ -128,6 +128,7 @@ packages:
       InstanceAdminRepository:
       InstanceAuthAllowlistRepository:
       InstanceAuthProviderRepository:
+      InstanceAuthSetupRepository:
       InstanceAuthSettingsVersionRepository:
       InstanceEmailProviderRepository:
       InstanceSearchSettingsRepository:

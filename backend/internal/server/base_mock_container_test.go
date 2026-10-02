@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/container"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/external"
@@ -371,6 +372,30 @@ func staticAllowlistResolver(domains, emails []string) services.AccessAllowlistR
 // own.
 func (b *BaseMockContainer) AccessAllowlistResolver() services.AccessAllowlistResolver {
 	return staticAllowlistResolver(nil, nil)
+}
+
+// noSetupMode is a SetupModeService for an instance that is not, and never
+// was, in authentication setup mode.
+type noSetupMode struct{}
+
+func (noSetupMode) IsActive(context.Context) (bool, error) { return false, nil }
+func (noSetupMode) EnsureTokenAtBoot(context.Context) (string, bool, error) {
+	return "", false, nil
+}
+func (noSetupMode) ExchangeToken(context.Context, string) (*sesslib.SetupSession, error) {
+	return nil, services.ErrSetupNotActive
+}
+func (noSetupMode) ValidateSession(context.Context, *sesslib.SetupSession) error {
+	return services.ErrSetupSessionInvalid
+}
+func (noSetupMode) ConsumeOnRootLogin(context.Context, *models.User) error { return nil }
+func (noSetupMode) ForceRearm(context.Context) (string, error)             { return "", nil }
+
+// SetupModeService returns a service for an instance outside setup mode, so
+// the sign-in callback's consume hook is a no-op. Setup suites install the real
+// service (see setup_handlers_test.go).
+func (b *BaseMockContainer) SetupModeService() services.SetupModeService {
+	return noSetupMode{}
 }
 
 // InstanceSettingsAuditRepository returns nil; suites that exercise it install their own.
