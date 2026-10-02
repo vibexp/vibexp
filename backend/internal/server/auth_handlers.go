@@ -31,6 +31,10 @@ const (
 	// identity providers could not be read.
 	msgIdentityProvidersUnavailable = "Sign-in providers are temporarily unavailable"
 
+	// logIdentityProvidersResolveFailed is the operator-facing log message for
+	// a provider-resolver failure, shared by every handler that resolves them.
+	logIdentityProvidersResolveFailed = "Failed to resolve identity providers"
+
 	// callbackErrorProviderUnavailable is the SPA callback error code for a
 	// provider disabled (or removed) between login and callback.
 	callbackErrorProviderUnavailable = "provider_unavailable"
@@ -115,7 +119,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 func (s *Server) loginURL(r *http.Request, state, provider string) (string, *errors.APIError) {
 	authURL, err := s.container.AuthService().GetLoginURL(r.Context(), state, provider)
 	if err != nil {
-		s.logAuthError("handleLogin", "Failed to resolve identity providers", err)
+		s.logAuthError("handleLogin", logIdentityProvidersResolveFailed, err)
 		return "", errors.NewServiceUnavailableError(msgIdentityProvidersUnavailable)
 	}
 	if authURL == "" {
@@ -175,7 +179,7 @@ func (s *Server) clearStateCookie(w http.ResponseWriter) {
 func (s *Server) resolveLoginProvider(r *http.Request, requested string) (string, *errors.APIError) {
 	enabled, err := s.container.AuthService().EnabledProviders(r.Context())
 	if err != nil {
-		s.logAuthError("handleLogin", "Failed to resolve identity providers", err)
+		s.logAuthError("handleLogin", logIdentityProvidersResolveFailed, err)
 		return "", errors.NewServiceUnavailableError(msgIdentityProvidersUnavailable)
 	}
 	if len(enabled) == 0 {
@@ -254,7 +258,7 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 	if stderrors.Is(err, services.ErrIdentityProvidersUnresolvable) {
-		s.logAuthError("handleCallback", "Failed to resolve identity providers", err)
+		s.logAuthError("handleCallback", logIdentityProvidersResolveFailed, err)
 		errors.WriteJSONError(w, r, errors.NewServiceUnavailableError(msgIdentityProvidersUnavailable))
 		return
 	}
