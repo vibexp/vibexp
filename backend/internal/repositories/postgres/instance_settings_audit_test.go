@@ -135,6 +135,7 @@ func TestInstanceSettingsAuditRepository_Append_RejectsUnredactedSecret(t *testi
 		"plaintext client_secret_encrypted": map[string]interface{}{
 			"client_secret_encrypted": instanceSettingsAuditLeakSentinel,
 		},
+		"setup token_hash": map[string]interface{}{"token_hash": instanceSettingsAuditLeakSentinel},
 		"nested under settings": map[string]interface{}{
 			"settings": map[string]interface{}{"secret": instanceSettingsAuditLeakSentinel},
 		},

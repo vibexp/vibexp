@@ -1,0 +1,47 @@
+# First-run authentication setup schemas (#1236, epic #1230).
+
+SetupStatusResponse:
+  type: object
+  description: >
+    Whether this instance is in authentication setup mode. Deliberately a single
+    boolean: the endpoint is public, so it says nothing about which providers
+    exist, why setup is required or whether a setup token is outstanding.
+  additionalProperties: false
+  required:
+    - setup_required
+  properties:
+    setup_required:
+      type: boolean
+      description: >
+        True while the instance has no enabled sign-in provider (or setup was
+        deliberately re-armed) and so must be configured through the setup page.
+      example: false
+
+CreateSetupSessionRequest:
+  type: object
+  description: The one-time setup token from the setup URL the server logged at boot.
+  additionalProperties: false
+  required:
+    - token
+  properties:
+    token:
+      type: string
+      minLength: 1
+      maxLength: 256
+      description: The `token` query parameter of the setup URL.
+      example: "q4f1ZbX0m3c8QmYwU2dK7nL5pR9sT1vA6yB3eH8jC0g"
+
+SetupSessionResponse:
+  type: object
+  description: >
+    The setup session that was started. The session itself is the `vibexp_setup`
+    cookie; this body only says when it ends.
+  additionalProperties: false
+  required:
+    - expires_at
+  properties:
+    expires_at:
+      type: string
+      format: date-time
+      description: When the setup session stops being valid.
+      example: "2026-10-02T13:00:00Z"

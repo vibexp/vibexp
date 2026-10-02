@@ -107,6 +107,9 @@ type Container interface {
 	// database-stored access allowlist; it is enforced at sign-in, at MCP
 	// consent and on every authenticated request (#1235).
 	AccessAllowlistResolver() services.AccessAllowlistResolver
+	// SetupModeService owns first-run authentication setup: the one-time setup
+	// token and the scoped setup session (#1236).
+	SetupModeService() services.SetupModeService
 	// InstanceSearchSettingsService and InstanceAISummarySettingsService serve
 	// the instance-admin search and AI summary settings API (#1200).
 	InstanceSearchSettingsService() services.InstanceSearchSettingsServiceInterface

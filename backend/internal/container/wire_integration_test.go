@@ -177,6 +177,7 @@ func TestInitializeContainer_AllExternalDependenciesNonNil(t *testing.T) {
 
 	// Assert - Verify all external dependencies are non-nil
 	assert.NotNil(t, c.IdentityProviderResolver(), "IdentityProviderResolver should not be nil")
+	assert.NotNil(t, c.SetupModeService(), "SetupModeService should not be nil")
 	assert.NotNil(t, c.EmailSender(), "EmailSender should not be nil")
 }
 

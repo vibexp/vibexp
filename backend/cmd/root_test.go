@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -289,4 +290,42 @@ func TestLogDeprecationWarnings(t *testing.T) {
 	buf.Reset()
 	logDeprecationWarnings(&config.Config{}, logger)
 	assert.Empty(t, buf.String(), "nothing is logged when no deprecated key is set")
+}
+
+// recordingSetupBooter records how ensureSetupToken called it.
+type recordingSetupBooter struct {
+	calls    int
+	hasLimit bool
+	err      error
+}
+
+func (r *recordingSetupBooter) EnsureTokenAtBoot(ctx context.Context) (string, bool, error) {
+	r.calls++
+	_, r.hasLimit = ctx.Deadline()
+	return "", r.err == nil, r.err
+}
+
+func TestEnsureSetupToken_RunsOnceUnderABoundedContext(t *testing.T) {
+	var buf bytes.Buffer
+	booter := &recordingSetupBooter{}
+
+	ensureSetupToken(context.Background(), booter, slog.New(slog.NewTextHandler(&buf, nil)))
+
+	assert.Equal(t, 1, booter.calls)
+	assert.True(t, booter.hasLimit, "the mint must run under a bounded context")
+	assert.Empty(t, buf.String(), "the service logs the setup URL; the hook adds nothing on success")
+}
+
+// A failure to read the setup state must never fail boot: it is logged and the
+// next boot tries again.
+func TestEnsureSetupToken_FailureIsLoggedNotFatal(t *testing.T) {
+	var buf bytes.Buffer
+	booter := &recordingSetupBooter{err: errors.New("db unavailable")}
+
+	ensureSetupToken(context.Background(), booter, slog.New(slog.NewTextHandler(&buf, nil)))
+
+	assert.Equal(t, 1, booter.calls)
+	assert.Contains(t, buf.String(), "level=ERROR")
+	assert.Contains(t, buf.String(), "no setup token was minted")
+	assert.Contains(t, buf.String(), "db unavailable")
 }

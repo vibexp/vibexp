@@ -75,6 +75,10 @@ func runServer(cmd *cobra.Command, args []string) {
 	// anything can send mail (#1190).
 	runStartupImports(ctx, srv.Container())
 
+	// Mint and log the setup URL when no identity provider is enabled (#1236).
+	// It runs after the imports so providers imported from config.yaml count.
+	ensureSetupToken(ctx, srv.Container().SetupModeService(), logger)
+
 	// Start the in-process scheduler after the DB is migrated and ready. It is
 	// stopped (draining any in-flight job) by closeContainer on shutdown.
 	startScheduler(ctx, srv.Container().Scheduler(), cfg, logger)
@@ -239,6 +243,25 @@ func runStartupImports(ctx context.Context, c startupImporter) {
 	importCtx, cancel := context.WithTimeout(ctx, startupImportTimeout)
 	defer cancel()
 	c.RunStartupImports(importCtx)
+}
+
+// setupTokenBooter is the slice of services.SetupModeService ensureSetupToken
+// needs.
+type setupTokenBooter interface {
+	EnsureTokenAtBoot(ctx context.Context) (setupURL string, minted bool, err error)
+}
+
+// ensureSetupToken mints the first-run setup token when the instance is in
+// authentication setup mode; the service logs the setup URL. It never fails
+// boot: when the state cannot be read (the database is briefly unavailable, say)
+// nothing is minted and the next boot tries again.
+func ensureSetupToken(ctx context.Context, setup setupTokenBooter, logger *slog.Logger) {
+	setupCtx, cancel := context.WithTimeout(ctx, startupImportTimeout)
+	defer cancel()
+	if _, _, err := setup.EnsureTokenAtBoot(setupCtx); err != nil {
+		logger.Error("Could not determine whether authentication setup is required; no setup token was minted",
+			"error", err)
+	}
 }
 
 // startScheduler launches the in-process scheduler loop unless it is disabled

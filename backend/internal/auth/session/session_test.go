@@ -176,11 +176,11 @@ func TestEncryptDecrypt_Idempotent(t *testing.T) {
 	mgr := newTestManager(t)
 	plaintext := []byte(`{"user_id":"test","access_token":"tok","expires_at":"2099-01-01T00:00:00Z"}`)
 
-	ciphertext, err := mgr.encrypt(plaintext)
+	ciphertext, err := mgr.encrypt(plaintext, nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, ciphertext)
 
-	decrypted, err := mgr.decrypt(ciphertext)
+	decrypted, err := mgr.decrypt(ciphertext, nil)
 	require.NoError(t, err)
 	assert.Equal(t, plaintext, decrypted)
 }
@@ -189,10 +189,10 @@ func TestEncrypt_ProducesUniqueValues(t *testing.T) {
 	mgr := newTestManager(t)
 	plaintext := []byte("same plaintext")
 
-	c1, err := mgr.encrypt(plaintext)
+	c1, err := mgr.encrypt(plaintext, nil)
 	require.NoError(t, err)
 
-	c2, err := mgr.encrypt(plaintext)
+	c2, err := mgr.encrypt(plaintext, nil)
 	require.NoError(t, err)
 
 	// Each encryption uses a fresh random nonce → different ciphertext
@@ -201,19 +201,19 @@ func TestEncrypt_ProducesUniqueValues(t *testing.T) {
 
 func TestDecrypt_MissingDotSeparator(t *testing.T) {
 	mgr := newTestManager(t)
-	_, err := mgr.decrypt("nodotinvalue")
+	_, err := mgr.decrypt("nodotinvalue", nil)
 	assert.Error(t, err)
 }
 
 func TestDecrypt_InvalidNonceHex(t *testing.T) {
 	mgr := newTestManager(t)
-	_, err := mgr.decrypt("notvalidhex.body")
+	_, err := mgr.decrypt("notvalidhex.body", nil)
 	assert.Error(t, err)
 }
 
 func TestDecrypt_InvalidCiphertextHex(t *testing.T) {
 	mgr := newTestManager(t)
-	_, err := mgr.decrypt("0102030405060708090a0b0c.notvalidhex")
+	_, err := mgr.decrypt("0102030405060708090a0b0c.notvalidhex", nil)
 	assert.Error(t, err)
 }
 

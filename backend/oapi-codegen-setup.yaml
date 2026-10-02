@@ -1,0 +1,18 @@
+# oapi-codegen configuration for the Setup domain (#1236): the public setup
+# status and the setup-token exchange of first-run authentication setup.
+#
+# Its own package under internal/server/gen/setup, like every other spec-first
+# domain (see oapi-codegen-types.yaml for the rationale), so it mounts
+# independently and carries a single, self-contained StrictServerInterface.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: setupgen
+output: internal/server/gen/setup/setup.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-tags:
+    - Setup

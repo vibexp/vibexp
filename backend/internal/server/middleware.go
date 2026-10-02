@@ -587,37 +587,42 @@ func (s *Server) backofficeAuthMiddleware(next http.Handler) http.Handler {
 // OUTSIDE internal/authz, which is team-scoped by that package's contract.
 func (s *Server) instanceAdminMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		notFound := func() {
-			apierrors.WriteJSONError(w, r, apierrors.NewResourceNotFoundError("endpoint", "Endpoint not found"))
-		}
-
-		userID := s.getUserIDFromContext(r)
-		if userID == "" {
-			notFound()
+		if !s.isInstanceAdminRequest(r) {
+			apierrors.WriteJSONError(w, r, apierrors.NewResourceNotFoundError(endpointResource, endpointNotFoundMsg))
 			return
 		}
-
-		user, err := s.container.AuthService().GetUserByID(r.Context(), userID)
-		if err != nil || user == nil {
-			notFound()
-			return
-		}
-
-		isAdmin, err := s.container.InstanceAdminResolver().IsInstanceAdmin(r.Context(), user)
-		if err != nil {
-			s.logger.With(
-				"middleware", "instanceAdminMiddleware",
-				"user_id", userID,
-				"error", err,
-			).Error("Failed to resolve instance admin; denying")
-			notFound()
-			return
-		}
-		if !isAdmin {
-			notFound()
-			return
-		}
-
 		next.ServeHTTP(w, r)
 	})
+}
+
+// The 404 every instance-admin-only route answers a caller it does not admit.
+const (
+	endpointResource    = "endpoint"
+	endpointNotFoundMsg = "Endpoint not found"
+)
+
+// isInstanceAdminRequest reports whether the request's authenticated user is an
+// instance admin. No authenticated user, a lookup error and a grant lookup
+// error (fail closed) are all false.
+func (s *Server) isInstanceAdminRequest(r *http.Request) bool {
+	userID := s.getUserIDFromContext(r)
+	if userID == "" {
+		return false
+	}
+
+	user, err := s.container.AuthService().GetUserByID(r.Context(), userID)
+	if err != nil || user == nil {
+		return false
+	}
+
+	isAdmin, err := s.container.InstanceAdminResolver().IsInstanceAdmin(r.Context(), user)
+	if err != nil {
+		s.logger.With(
+			"middleware", "instanceAdminMiddleware",
+			"user_id", userID,
+			"error", err,
+		).Error("Failed to resolve instance admin; denying")
+		return false
+	}
+	return isAdmin
 }

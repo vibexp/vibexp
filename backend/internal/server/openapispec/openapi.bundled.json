@@ -167,6 +167,10 @@
       "description": "Per-team resource freshness rules, evaluation settings, analytics and audit log (epic"
     },
     {
+      "name": "Setup",
+      "description": "First-run authentication setup — the public setup status and the setup-token exchange. REST-only, no MCP."
+    },
+    {
       "name": "Admin",
       "description": "Instance-level administration (instance-admin only; non-admins get 404). REST-only, no MCP."
     },
@@ -573,6 +577,120 @@
         },
         "tags": [
           "Authentication"
+        ]
+      }
+    },
+    "/api/v1/setup/status": {
+      "get": {
+        "summary": "Report whether the instance needs authentication setup",
+        "description": "Returns whether this instance is in authentication setup mode, so the web\napp can route to the setup page instead of a login screen that has no\nprovider to offer. Public, and deliberately a single boolean: it reveals\nnothing else about the instance's configuration.\n",
+        "operationId": "getSetupStatus",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Setup status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStatusResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The setup status could not be determined",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Setup"
+        ]
+      }
+    },
+    "/api/v1/setup/session": {
+      "post": {
+        "summary": "Exchange the setup token for a setup session",
+        "description": "Exchanges the one-time setup token (from the `SETUP URL` the server logs\nat boot while no sign-in provider is enabled) for a short-lived setup\nsession, delivered as the `vibexp_setup` cookie.\n\nThe setup session is **userless**: it is not a user session and signs\nnobody in. It authorizes only the instance authentication settings; every\nother endpoint treats the caller as anonymous. It ends after one hour,\nor as soon as a root instance admin signs in through a provider.\n\nEvery rejected token — unknown, expired or already consumed — returns the\nsame 401. Outside setup mode the endpoint returns 404. Rate-limited per\nclient IP.\n",
+        "operationId": "createSetupSession",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSetupSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Setup session started",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Encrypted, HttpOnly, SameSite=Strict setup-session cookie (`vibexp_setup`)",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request body",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The setup token is unknown, expired or already consumed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The instance is not in setup mode",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The setup session could not be started",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Setup"
         ]
       }
     },
@@ -28405,6 +28523,54 @@
         "required": [
           "providers"
         ]
+      },
+      "SetupStatusResponse": {
+        "type": "object",
+        "description": "Whether this instance is in authentication setup mode. Deliberately a single boolean: the endpoint is public, so it says nothing about which providers exist, why setup is required or whether a setup token is outstanding.\n",
+        "additionalProperties": false,
+        "required": [
+          "setup_required"
+        ],
+        "properties": {
+          "setup_required": {
+            "type": "boolean",
+            "description": "True while the instance has no enabled sign-in provider (or setup was deliberately re-armed) and so must be configured through the setup page.\n",
+            "example": false
+          }
+        }
+      },
+      "CreateSetupSessionRequest": {
+        "type": "object",
+        "description": "The one-time setup token from the setup URL the server logged at boot.",
+        "additionalProperties": false,
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "The `token` query parameter of the setup URL.",
+            "example": "q4f1ZbX0m3c8QmYwU2dK7nL5pR9sT1vA6yB3eH8jC0g"
+          }
+        }
+      },
+      "SetupSessionResponse": {
+        "type": "object",
+        "description": "The setup session that was started. The session itself is the `vibexp_setup` cookie; this body only says when it ends.\n",
+        "additionalProperties": false,
+        "required": [
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the setup session stops being valid.",
+            "example": "2026-10-02T13:00:00Z"
+          }
+        }
       },
       "DevLoginRequest": {
         "type": "object",

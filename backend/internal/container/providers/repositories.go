@@ -235,6 +235,12 @@ func ProvideInstanceAdminRepository(db *database.DB) repositories.InstanceAdminR
 	return postgres.NewInstanceAdminRepository(db)
 }
 
+// ProvideInstanceAuthSetupRepository creates a new InstanceAuthSetupRepository
+// (#1236): the first-run authentication setup state.
+func ProvideInstanceAuthSetupRepository(db *database.DB) repositories.InstanceAuthSetupRepository {
+	return postgres.NewInstanceAuthSetupRepository(db)
+}
+
 // ProvideInstanceAuthAllowlistRepository creates a new InstanceAuthAllowlistRepository
 func ProvideInstanceAuthAllowlistRepository(db *database.DB) repositories.InstanceAuthAllowlistRepository {
 	return postgres.NewInstanceAuthAllowlistRepository(db)
