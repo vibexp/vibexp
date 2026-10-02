@@ -301,17 +301,21 @@ type AuthConfig struct {
 	// (frontend.base_url points at localhost) for the endpoint to respond.
 	DevLoginEnabled bool `koanf:"dev_login_enabled"`
 
-	// LegacyAccessAllowlist restricts which users may sign in, by email domain
-	// and/or exact email address. Both lists empty (the zero value) means open
-	// access: anyone may sign in. See AccessAllowlistConfig. DEPRECATED, see
-	// LegacyProviders.
+	// LegacyAccessAllowlist is the config.yaml access allowlist: email domains
+	// and/or exact addresses. It is no longer enforced from here. It is imported
+	// once at boot into the instance_auth_allowlist table (#1232), and the
+	// database-stored allowlist is what sign-in and every authenticated request
+	// are checked against (#1235, services.AccessAllowlistResolver). See
+	// AccessAllowlistConfig. DEPRECATED, see LegacyProviders.
 	LegacyAccessAllowlist AccessAllowlistConfig `koanf:"access_allowlist"`
 
 	// InstanceAdmins is the set of ROOT instance-admin email addresses (authored
 	// as a comma-separated ${VAR} in the combined image, or a YAML list). Root
 	// admins may access instance-level admin surfaces, are the only ones who may
 	// grant or revoke DB-granted instance admins (#1233), and cannot be
-	// suspended, deleted or revoked. Resolved at request time by
+	// suspended, deleted or revoked. They are also exempt from the access
+	// allowlist (#1235), so an allowlist mistake cannot lock out the trust
+	// root. Resolved at request time by
 	// services.InstanceAdminResolver (case-insensitive, whitespace-trimmed,
 	// blank entries ignored). Empty (the zero value) means no root admin, so no
 	// one can grant a DB admin either. Follows the same EnvStringSlice pattern
@@ -404,7 +408,9 @@ func stringToEnvStringSliceHookFunc(sep string) mapstructure.DecodeHookFunc {
 	}
 }
 
-// AccessAllowlistConfig gates sign-in access. Domains matches the part after the
+// AccessAllowlistConfig is the shape of the legacy config.yaml access allowlist
+// (see AuthConfig.LegacyAccessAllowlist; it is imported into the database, not
+// enforced from config). Domains matches the part after the
 // last "@" of a user's email exactly (case-insensitively); Emails matches the
 // full address exactly. A user is allowed if either list matches. When BOTH
 // lists are empty (the zero value) access is open — every user may sign in.

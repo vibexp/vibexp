@@ -139,6 +139,60 @@ func (r *InstanceAuthAllowlistRepository) InsertIfAbsent(
 	return inserted, nil
 }
 
+// instanceAuthAllowlistUsersOutside lists the active users a candidate
+// allowlist would not admit, with the total in every row. It mirrors the
+// matching of services.AccessAllowlistResolver: the trimmed, lower-cased email
+// is compared with the listed emails ($1), and its domain, the part after the
+// LAST "@", with the listed domains ($2). An email with no "@" has no domain
+// and matches none. $3 holds the exempt (root admin) emails. Suspended users
+// cannot authenticate, so they are not counted.
+const instanceAuthAllowlistUsersOutside = `SELECT u.email, COUNT(*) OVER () AS total
+	FROM (
+		SELECT email, lower(btrim(email)) AS normalized
+		FROM users
+		WHERE status IS DISTINCT FROM 'suspended'
+	) u
+	WHERE NOT (u.normalized = ANY($1))
+		AND NOT COALESCE(substring(u.normalized from '@([^@]*)$') = ANY($2), false)
+		AND NOT (u.normalized = ANY($3))
+	ORDER BY u.normalized
+	LIMIT $4`
+
+// usersOutsideAllowlistRow is one row of instanceAuthAllowlistUsersOutside.
+type usersOutsideAllowlistRow struct {
+	email string
+	total int
+}
+
+func scanUsersOutsideAllowlistRow(rows *sql.Rows) (usersOutsideAllowlistRow, error) {
+	var row usersOutsideAllowlistRow
+	err := rows.Scan(&row.email, &row.total)
+	return row, err
+}
+
+// CountUsersOutside counts the active users a candidate allowlist would not
+// admit; see the interface.
+func (r *InstanceAuthAllowlistRepository) CountUsersOutside(
+	ctx context.Context, domains, emails, exemptEmails []string, sampleLimit int,
+) (int, []string, error) {
+	rows, err := queryAdminRows(ctx, r.db, "users outside the instance auth allowlist",
+		scanUsersOutsideAllowlistRow, instanceAuthAllowlistUsersOutside,
+		nonNilStringArray(emails), nonNilStringArray(domains), nonNilStringArray(exemptEmails),
+		max(sampleLimit, 1),
+	)
+	if err != nil {
+		return 0, nil, err
+	}
+	if len(rows) == 0 {
+		return 0, []string{}, nil
+	}
+	sample := make([]string, 0, len(rows))
+	for _, row := range rows {
+		sample = append(sample, row.email)
+	}
+	return rows[0].total, sample, nil
+}
+
 // write runs the upsert inside tx and refreshes a from the stored row.
 func (r *InstanceAuthAllowlistRepository) write(
 	ctx context.Context, tx *sql.Tx, a *models.InstanceAuthAllowlist,

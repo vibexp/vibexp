@@ -18,7 +18,6 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	repo_mocks "github.com/vibexp/vibexp/internal/repositories/mocks"
-	"github.com/vibexp/vibexp/internal/services/feature_flags"
 	"github.com/vibexp/vibexp/pkg/events"
 	event_mocks "github.com/vibexp/vibexp/pkg/events/mocks"
 )
@@ -45,12 +44,9 @@ func createTestAuthServiceWithRecorder(
 ) (*AuthService, *logtest.Recorder) {
 	logger, recorder := logtest.New()
 
-	featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
+	allowlist := newStaticAllowlistResolver(logger, allowedEmails)
 
-	userSignInAllowlist := feature_flags.NewUserSignInAllowlistFlag(logger, nil, allowedEmails)
-	featureFlagSvc.RegisterFlag(userSignInAllowlist)
-
-	service := NewAuthService(userRepo, newTestRegistry(identityProvider), nil, logger, featureFlagSvc)
+	service := NewAuthService(userRepo, newTestRegistry(identityProvider), nil, logger, allowlist)
 	return service, recorder
 }
 
@@ -881,12 +877,9 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 
 			logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
 
-			featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
-			userSignInAllowlist := feature_flags.NewUserSignInAllowlistFlag(
-				logger, nil, []string{"test@example.com", "dev@example.com"})
-			featureFlagSvc.RegisterFlag(userSignInAllowlist)
+			allowlist := newStaticAllowlistResolver(logger, []string{"test@example.com", "dev@example.com"})
 
-			service := NewAuthService(mockRepo, staticIDPResolver{reg: idp.NewRegistry(mockIDP)}, mockEventManager, logger, featureFlagSvc)
+			service := NewAuthService(mockRepo, staticIDPResolver{reg: idp.NewRegistry(mockIDP)}, mockEventManager, logger, allowlist)
 
 			tt.setupMocks(mockRepo, mockEventManager)
 
@@ -942,9 +935,8 @@ func TestAuthService_GoogleLegacyFallback(t *testing.T) {
 	})).Return(nil)
 
 	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
-	featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
-
-	service := NewAuthService(mockRepo, staticIDPResolver{reg: idp.NewRegistry(mockIDP)}, nil, logger, featureFlagSvc)
+	service := NewAuthService(mockRepo, staticIDPResolver{reg: idp.NewRegistry(mockIDP)}, nil, logger,
+		newStaticAllowlistResolver(logger, nil))
 
 	user, _, err := service.createOrUpdateUserFromClaims(context.Background(), googleProvider, idp.ProviderGoogle, testClaims)
 	assert.NoError(t, err)
@@ -963,9 +955,7 @@ func slugProvider(slug string) *idpmocks.MockIdentityProvider {
 // newResolverAuthService builds an AuthService with open access over resolver.
 func newResolverAuthService(userRepo *repo_mocks.MockUserRepository, resolver IdentityProviderResolver) *AuthService {
 	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
-	flags := feature_flags.NewFeatureFlagService(logger)
-	flags.RegisterFlag(feature_flags.NewUserSignInAllowlistFlag(logger, nil, nil))
-	return NewAuthService(userRepo, resolver, nil, logger, flags)
+	return NewAuthService(userRepo, resolver, nil, logger, newStaticAllowlistResolver(logger, nil))
 }
 
 func TestAuthService_ResolverFailureIsUnresolvable(t *testing.T) {

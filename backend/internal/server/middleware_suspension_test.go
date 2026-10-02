@@ -140,6 +140,7 @@ func TestWriteSuspensionAuthError_StatusCodes(t *testing.T) {
 		wantBody string
 	}{
 		{"suspended", errUserSuspended, http.StatusUnauthorized, suspendedAuthDetail},
+		{"not on the allowlist", errUserNotOnAllowlist, http.StatusUnauthorized, notOnAllowlistAuthDetail},
 		{"infrastructure", errors.New("db down"), http.StatusInternalServerError, ""},
 	}
 

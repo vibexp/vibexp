@@ -24,7 +24,6 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
-	"github.com/vibexp/vibexp/internal/services/feature_flags"
 	"github.com/vibexp/vibexp/internal/specconformance"
 	"github.com/vibexp/vibexp/internal/testutils/fakeoidc"
 )
@@ -128,9 +127,7 @@ func newResolverAuthHarness(t *testing.T) *resolverAuthHarness {
 		CallbackURL: "http://localhost:8080/api/v1/auth/callback",
 		Logger:      logger,
 	})
-	flags := feature_flags.NewFeatureFlagService(logger)
-	flags.RegisterFlag(feature_flags.NewUserSignInAllowlistFlag(logger, nil, nil)) // open access
-	auth := services.NewAuthService(h.users, resolver, nil, logger, flags)
+	auth := services.NewAuthService(h.users, resolver, nil, logger, staticAllowlistResolver(nil, nil)) // open access
 
 	mc := newMockAuthContainer(t)
 	mc.activityService.On("RecordAuthActivity",

@@ -103,6 +103,10 @@ type Container interface {
 	// InstanceAdminResolver answers who is an instance admin (root from
 	// auth.instance_admins, or DB-granted) and grants/revokes DB admins (#1233).
 	InstanceAdminResolver() services.InstanceAdminResolver
+	// AccessAllowlistResolver decides who may use the instance from the
+	// database-stored access allowlist; it is enforced at sign-in, at MCP
+	// consent and on every authenticated request (#1235).
+	AccessAllowlistResolver() services.AccessAllowlistResolver
 	// InstanceSearchSettingsService and InstanceAISummarySettingsService serve
 	// the instance-admin search and AI summary settings API (#1200).
 	InstanceSearchSettingsService() services.InstanceSearchSettingsServiceInterface

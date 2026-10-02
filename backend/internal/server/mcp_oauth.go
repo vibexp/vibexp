@@ -19,7 +19,7 @@ import (
 	"github.com/vibexp/vibexp/internal/auth/oauthserver"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/repositories"
-	"github.com/vibexp/vibexp/internal/services/feature_flags"
+	"github.com/vibexp/vibexp/internal/services"
 )
 
 const (
@@ -74,12 +74,13 @@ func (a userResolverAdapter) ResolveUserID(ctx context.Context, provider, subjec
 }
 
 // consentAccessPolicyAdapter implements oauthserver.ConsentAccessChecker: it
-// resolves the consenting user's email and applies the SAME access-allowlist
-// evaluator the login path enforces (#214/#215), so the MCP consent surface and
-// web login can never drift apart on who is allowed.
+// resolves the consenting user's email and applies the SAME access allowlist
+// resolver the login path and the per-request check enforce (#214/#215, #1235),
+// so the MCP consent surface and web login can never drift apart on who is
+// allowed.
 type consentAccessPolicyAdapter struct {
 	users     repositories.UserRepository
-	allowlist *feature_flags.UserSignInAllowlistFlag
+	allowlist services.AccessAllowlistResolver
 }
 
 // AllowUser reports whether the user behind a live session may still be bound to
@@ -96,7 +97,13 @@ func (a consentAccessPolicyAdapter) AllowUser(ctx context.Context, userID string
 	if user == nil {
 		return false, nil
 	}
-	return a.allowlist.IsEmailAllowed(user.Email), nil
+	// An allowlist that is active but unreadable returns an error here, which
+	// the consent flow reports as a failure rather than as an allowed user.
+	allowed, _, err := a.allowlist.IsEmailAllowed(ctx, user.Email)
+	if err != nil {
+		return false, err
+	}
+	return allowed, nil
 }
 
 // mcpUserResolverAdapter resolves the subject of an MCP access token to an

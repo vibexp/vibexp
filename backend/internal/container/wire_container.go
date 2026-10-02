@@ -138,6 +138,9 @@ type WireContainer struct {
 	// Instance admins: root (config) + DB-granted (#1233)
 	instanceAdminResolver services.InstanceAdminResolver
 
+	// Access allowlist resolved from the database at runtime (#1235)
+	accessAllowlistResolver services.AccessAllowlistResolver
+
 	// External dependencies
 	identityProviderResolver services.IdentityProviderResolver
 	smtpClient               external.EmailSender
@@ -280,6 +283,11 @@ func (c *WireContainer) InstanceSettingsAuditRepository() repositories.InstanceS
 // InstanceAdminResolver returns the instance admin resolver (#1233).
 func (c *WireContainer) InstanceAdminResolver() services.InstanceAdminResolver {
 	return c.instanceAdminResolver
+}
+
+// AccessAllowlistResolver returns the access allowlist resolver (#1235).
+func (c *WireContainer) AccessAllowlistResolver() services.AccessAllowlistResolver {
+	return c.accessAllowlistResolver
 }
 
 // TeamSettingsAuditRepository returns the team settings audit log repository.

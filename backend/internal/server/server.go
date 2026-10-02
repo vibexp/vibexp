@@ -45,7 +45,6 @@ import (
 	typesgen "github.com/vibexp/vibexp/internal/server/gen/types"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
-	"github.com/vibexp/vibexp/internal/services/feature_flags"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
@@ -387,12 +386,8 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 // stashes the authorize request as a user-less login session and the SPA binds the
 // logged-in app user via the authenticated /api/v1/oauth/consent/attach endpoint
 // (issue #54). That attach step re-checks the access allowlist (issue #217), which
-// is why the AS needs the user repository and the allowlist evaluator.
-//
-// The evaluator is built here from config rather than taken off the container: it
-// is a stateless, config-derived value (like every other optional subsystem
-// assembled in New), so this avoids widening the Container interface — and its
-// matching rules live in one place, feature_flags.IsEmailAllowed.
+// is why the AS needs the user repository and the container's access allowlist
+// resolver, the one sign-in and the per-request check also use (#1235).
 func newOAuthAuthorizationServer(
 	cfg *config.Config, db *database.DB, c container.Container, logger *slog.Logger,
 ) *oauthserver.Service {
@@ -419,7 +414,7 @@ func newOAuthAuthorizationServer(
 			PKCE:          postgres.NewOAuthPKCERepository(db),
 			SigningKeys:   postgres.NewOAuthSigningKeyRepository(db),
 			LoginSessions: postgres.NewOAuthLoginSessionRepository(db),
-			AccessPolicy:  newConsentAccessChecker(cfg, c, logger),
+			AccessPolicy:  newConsentAccessChecker(c),
 			Logger:        logger,
 		},
 	)
@@ -427,18 +422,13 @@ func newOAuthAuthorizationServer(
 	return svc
 }
 
-// newConsentAccessChecker builds the attach-time access-allowlist re-check (#217)
-// from configuration. Kept separate from newOAuthAuthorizationServer so the
-// config-to-policy wiring — which allowlist fields feed the evaluator — is
-// directly testable without a database.
-func newConsentAccessChecker(
-	cfg *config.Config, c container.Container, logger *slog.Logger,
-) oauthserver.ConsentAccessChecker {
+// newConsentAccessChecker builds the attach-time access-allowlist re-check
+// (#217) over the container's allowlist resolver, the same one sign-in and the
+// per-request check use (#1235).
+func newConsentAccessChecker(c container.Container) oauthserver.ConsentAccessChecker {
 	return consentAccessPolicyAdapter{
-		users: c.UserRepository(),
-		allowlist: feature_flags.NewUserSignInAllowlistFlag(
-			logger, cfg.Auth.LegacyAccessAllowlist.Domains, cfg.Auth.LegacyAccessAllowlist.Emails,
-		),
+		users:     c.UserRepository(),
+		allowlist: c.AccessAllowlistResolver(),
 	}
 }
 

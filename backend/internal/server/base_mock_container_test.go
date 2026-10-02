@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"log/slog"
+	"sync"
+	"time"
 
 	"github.com/vibexp/vibexp/internal/container"
 	"github.com/vibexp/vibexp/internal/database"
@@ -287,6 +289,88 @@ func (noInstanceAdminGrants) IsGranted(context.Context, string) (bool, error) { 
 func (b *BaseMockContainer) InstanceAdminResolver() services.InstanceAdminResolver {
 	return services.NewInstanceAdminService(nil, noInstanceAdminGrants{}, alwaysActiveUserRepository{},
 		slog.New(slog.DiscardHandler))
+}
+
+// memAccessAllowlist is an in-memory instance_auth_allowlist plus the shared
+// auth settings version, so the real allowlist resolver can be driven end to
+// end without a database. The zero value stores no allowlist: open access.
+type memAccessAllowlist struct {
+	repositories.InstanceAuthAllowlistRepository
+
+	mu      sync.Mutex
+	row     *models.InstanceAuthAllowlist
+	version int64
+	err     error
+}
+
+// set replaces the stored allowlist and bumps the version, as every audited
+// write does. Both lists empty removes the row.
+func (m *memAccessAllowlist) set(domains, emails []string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.version++
+	m.row = nil
+	if len(domains) > 0 || len(emails) > 0 {
+		m.row = &models.InstanceAuthAllowlist{Domains: domains, Emails: emails}
+	}
+}
+
+// fail makes every read return err until it is cleared with nil.
+func (m *memAccessAllowlist) fail(err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.err = err
+}
+
+func (m *memAccessAllowlist) Get(context.Context) (*models.InstanceAuthAllowlist, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.row == nil {
+		return nil, repositories.ErrInstanceAuthAllowlistNotFound
+	}
+	return m.row, nil
+}
+
+// memAccessAllowlistVersions reads the store's version.
+type memAccessAllowlistVersions struct{ store *memAccessAllowlist }
+
+func (v memAccessAllowlistVersions) Get(context.Context) (int64, error) {
+	v.store.mu.Lock()
+	defer v.store.mu.Unlock()
+	return v.store.version, v.store.err
+}
+
+// newMemAllowlistResolver is the real allowlist resolver over store. It probes
+// the version on every decision, so a change to store is enforced by the very
+// next call instead of after the production probe interval.
+func newMemAllowlistResolver(
+	logger *slog.Logger, store *memAccessAllowlist, rootAdmins ...string,
+) services.AccessAllowlistResolver {
+	return services.NewAccessAllowlistResolver(services.AccessAllowlistResolverDeps{
+		Allowlists:    store,
+		Versions:      memAccessAllowlistVersions{store},
+		RootAdmins:    rootAdmins,
+		Logger:        logger,
+		ProbeInterval: time.Nanosecond,
+	})
+}
+
+// staticAllowlistResolver is the real resolver over a fixed allowlist.
+func staticAllowlistResolver(domains, emails []string) services.AccessAllowlistResolver {
+	store := &memAccessAllowlist{}
+	store.set(domains, emails)
+	return newMemAllowlistResolver(slog.New(slog.DiscardHandler), store)
+}
+
+// AccessAllowlistResolver returns the real resolver with no allowlist stored,
+// so everyone is allowed. Since #1235 EVERY authenticated request consults it
+// and a nil one fails closed; suites that exercise the allowlist install their
+// own.
+func (b *BaseMockContainer) AccessAllowlistResolver() services.AccessAllowlistResolver {
+	return staticAllowlistResolver(nil, nil)
 }
 
 // InstanceSettingsAuditRepository returns nil; suites that exercise it install their own.

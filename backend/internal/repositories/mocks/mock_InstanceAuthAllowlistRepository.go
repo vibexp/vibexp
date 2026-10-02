@@ -22,6 +22,75 @@ func (_m *MockInstanceAuthAllowlistRepository) EXPECT() *MockInstanceAuthAllowli
 	return &MockInstanceAuthAllowlistRepository_Expecter{mock: &_m.Mock}
 }
 
+// CountUsersOutside provides a mock function with given fields: ctx, domains, emails, exemptEmails, sampleLimit
+func (_m *MockInstanceAuthAllowlistRepository) CountUsersOutside(ctx context.Context, domains []string, emails []string, exemptEmails []string, sampleLimit int) (int, []string, error) {
+	ret := _m.Called(ctx, domains, emails, exemptEmails, sampleLimit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountUsersOutside")
+	}
+
+	var r0 int
+	var r1 []string
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string, []string, []string, int) (int, []string, error)); ok {
+		return rf(ctx, domains, emails, exemptEmails, sampleLimit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string, []string, []string, int) int); ok {
+		r0 = rf(ctx, domains, emails, exemptEmails, sampleLimit)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string, []string, []string, int) []string); ok {
+		r1 = rf(ctx, domains, emails, exemptEmails, sampleLimit)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).([]string)
+		}
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, []string, []string, []string, int) error); ok {
+		r2 = rf(ctx, domains, emails, exemptEmails, sampleLimit)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockInstanceAuthAllowlistRepository_CountUsersOutside_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountUsersOutside'
+type MockInstanceAuthAllowlistRepository_CountUsersOutside_Call struct {
+	*mock.Call
+}
+
+// CountUsersOutside is a helper method to define mock.On call
+//   - ctx context.Context
+//   - domains []string
+//   - emails []string
+//   - exemptEmails []string
+//   - sampleLimit int
+func (_e *MockInstanceAuthAllowlistRepository_Expecter) CountUsersOutside(ctx interface{}, domains interface{}, emails interface{}, exemptEmails interface{}, sampleLimit interface{}) *MockInstanceAuthAllowlistRepository_CountUsersOutside_Call {
+	return &MockInstanceAuthAllowlistRepository_CountUsersOutside_Call{Call: _e.mock.On("CountUsersOutside", ctx, domains, emails, exemptEmails, sampleLimit)}
+}
+
+func (_c *MockInstanceAuthAllowlistRepository_CountUsersOutside_Call) Run(run func(ctx context.Context, domains []string, emails []string, exemptEmails []string, sampleLimit int)) *MockInstanceAuthAllowlistRepository_CountUsersOutside_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string), args[2].([]string), args[3].([]string), args[4].(int))
+	})
+	return _c
+}
+
+func (_c *MockInstanceAuthAllowlistRepository_CountUsersOutside_Call) Return(count int, sample []string, err error) *MockInstanceAuthAllowlistRepository_CountUsersOutside_Call {
+	_c.Call.Return(count, sample, err)
+	return _c
+}
+
+func (_c *MockInstanceAuthAllowlistRepository_CountUsersOutside_Call) RunAndReturn(run func(context.Context, []string, []string, []string, int) (int, []string, error)) *MockInstanceAuthAllowlistRepository_CountUsersOutside_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteAudited provides a mock function with given fields: ctx, actorUserID
 func (_m *MockInstanceAuthAllowlistRepository) DeleteAudited(ctx context.Context, actorUserID *string) (bool, error) {
 	ret := _m.Called(ctx, actorUserID)

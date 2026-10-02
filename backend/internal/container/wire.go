@@ -155,6 +155,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideEmailSenderResolver,
 	providers.ProvideInstanceEmailProviderService,
 	providers.ProvideInstanceAdminResolver,
+	providers.ProvideAccessAllowlistResolver,
 	providers.ProvideIdentityProviderResolver,
 	providers.ProvideTeamSearchSettingsService,
 	providers.ProvideInstanceAISummarySettingsService,

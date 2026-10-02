@@ -18,6 +18,7 @@ packages:
   github.com/vibexp/vibexp/internal/services:
     interfaces:
       A2AHTTPClientInterface:
+      AccessAllowlistResolver:
       ActiveEmbeddingProviderResolver:
       AdminServiceInterface:
       AgentInvocationServiceInterface:

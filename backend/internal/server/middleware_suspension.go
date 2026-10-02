@@ -8,6 +8,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
+	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
@@ -35,10 +36,27 @@ import (
 // at token issuance, so a suspended user holding an unexpired session cookie,
 // API key or MCP/OAuth bearer token is cut off on their very next call.
 
+// # Access allowlist (#1235)
+//
+// The same chokepoint enforces the access allowlist, for the same reason:
+// removing someone from the allowlist is an access revocation, and it has to
+// reach a session cookie, an API key and an MCP/OAuth token that were issued
+// while the user still matched. The check reuses the user row the suspension
+// check already loaded, and the allowlist resolver answers from a compiled list
+// held in memory (it re-reads the auth settings version at most once every few
+// seconds), so it adds no database round trip of its own. Root instance admins
+// are exempt inside the resolver.
+
 // errUserSuspended is returned by authenticateUser when the resolved account is
 // suspended. Required-auth paths translate it into their normal
 // "not authenticated" response; optional-auth paths treat it as anonymous.
 var errUserSuspended = errors.New("user account is suspended")
+
+// errUserNotOnAllowlist is returned by authenticateUser when an access
+// allowlist is active and the resolved account's email no longer matches it.
+// It is handled exactly like errUserSuspended: required-auth paths reject with
+// 401, optional-auth paths proceed anonymously.
+var errUserNotOnAllowlist = errors.New("user is not on the access allowlist")
 
 // suspendedAuthDetail is the client-facing message for a rejected suspended
 // account. It is deliberately explicit rather than a generic auth failure: the
@@ -46,15 +64,27 @@ var errUserSuspended = errors.New("user account is suspended")
 // leaks nothing and lets a client render something better than "invalid token".
 const suspendedAuthDetail = "Account suspended"
 
+// notOnAllowlistAuthDetail is the client-facing message for an account the
+// access allowlist no longer admits. Like suspendedAuthDetail it names the
+// cause: the caller holds a valid credential for the account.
+const notOnAllowlistAuthDetail = "Access restricted by the access allowlist"
+
+// rejectReasonNotOnAllowlist is the logged reason of an allowlist rejection,
+// the same value sign-in logs for the same denial.
+const rejectReasonNotOnAllowlist = "not_on_allowlist"
+
 // authenticateUser is the ONLY way to build an authenticated request context.
-// It rejects suspended accounts before delegating to authenticatedContext.
+// It rejects suspended accounts, and accounts the access allowlist no longer
+// admits, before delegating to authenticatedContext.
 //
 // Errors are of two kinds and callers must distinguish them:
-//   - errUserSuspended — the account is off. Required-auth paths reject; the
-//     optional-auth paths proceed anonymously.
-//   - anything else — an infrastructure failure looking the account up. This
-//     must NOT be treated as "not suspended": failing open here would make
-//     suspension bypassable by inducing database errors. Required-auth paths
+//   - errUserSuspended / errUserNotOnAllowlist — the account may not
+//     authenticate. Required-auth paths reject; the optional-auth paths proceed
+//     anonymously.
+//   - anything else — an infrastructure failure looking the account up, or
+//     evaluating an allowlist that is known to be active. This must NOT be
+//     treated as "allowed": failing open here would make suspension and the
+//     allowlist bypassable by inducing database errors. Required-auth paths
 //     return 500; optional-auth paths proceed anonymously (they already do that
 //     for every other failure, and they grant no access on their own).
 func (s *Server) authenticateUser(
@@ -97,6 +127,28 @@ func (s *Server) rejectIfSuspended(ctx context.Context, userID string) error {
 	if user.IsSuspended() {
 		return errUserSuspended
 	}
+	return s.rejectIfNotOnAllowlist(ctx, user)
+}
+
+// rejectIfNotOnAllowlist returns errUserNotOnAllowlist when an access allowlist
+// is active and user's email does not match it, a wrapped error when an active
+// allowlist could not be evaluated, and nil when the account may authenticate.
+//
+// The fail-closed/fail-open split on a read failure belongs to the resolver
+// (services.AccessAllowlistResolver): it returns an error only while the last
+// allowlist it compiled is active, and allows access when none is known to be.
+func (s *Server) rejectIfNotOnAllowlist(ctx context.Context, user *models.User) error {
+	resolver := s.container.AccessAllowlistResolver()
+	if resolver == nil {
+		return fmt.Errorf("access allowlist resolver unavailable for check of %q", user.ID)
+	}
+	allowed, _, err := resolver.IsEmailAllowed(ctx, user.Email)
+	if err != nil {
+		return fmt.Errorf("failed to evaluate the access allowlist for user %q: %w", user.ID, err)
+	}
+	if !allowed {
+		return errUserNotOnAllowlist
+	}
 	return nil
 }
 
@@ -112,8 +164,13 @@ func (s *Server) logSuspendedRejection(ctx context.Context, middleware, authType
 		logger.Info("Rejected request from suspended account")
 		return
 	}
+	if errors.Is(err, errUserNotOnAllowlist) {
+		logger.With("reason", rejectReasonNotOnAllowlist).
+			Info("Rejected request from account no longer on the access allowlist")
+		return
+	}
 	logger.With("error", fmt.Sprintf("%+v", err)).
-		Error("Suspension check failed; refusing to authenticate")
+		Error("Account status check failed; refusing to authenticate")
 }
 
 // writeSuspensionAuthError renders the response for a required-auth path whose
@@ -124,6 +181,10 @@ func (s *Server) logSuspendedRejection(ctx context.Context, middleware, authType
 func (s *Server) writeSuspensionAuthError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, errUserSuspended) {
 		apierrors.WriteJSONError(w, r, apierrors.NewAuthInvalidError(suspendedAuthDetail))
+		return
+	}
+	if errors.Is(err, errUserNotOnAllowlist) {
+		apierrors.WriteJSONError(w, r, apierrors.NewAuthInvalidError(notOnAllowlistAuthDetail))
 		return
 	}
 	apierrors.WriteJSONError(w, r, apierrors.NewInternalError(""))
