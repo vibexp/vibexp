@@ -617,6 +617,26 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "PprofConfig": {
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
+        },
+        "listen_addr": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "RateLimitConfig": {
       "properties": {
         "auth_per_minute": {
@@ -805,6 +825,9 @@
               "pattern": "^\\$\\{[^}]+\\}$"
             }
           ]
+        },
+        "pprof": {
+          "$ref": "#/$defs/PprofConfig"
         }
       },
       "additionalProperties": false,

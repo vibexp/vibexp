@@ -91,6 +91,11 @@ func runServer(cmd *cobra.Command, args []string) {
 	// not run until the DB is migrated. closeContainer drains it on shutdown.
 	srv.Container().StartEventListeners()
 
+	// The opt-in profiling listener (#1277) lives on its own port and stops
+	// once the main server has returned.
+	pprofSrv := startPprof(ctx, cfg, logger)
+	defer stopPprof(pprofSrv, logger)
+
 	startServer(ctx, srv, logger)
 }
 
@@ -299,6 +304,42 @@ func startScheduler(
 		"due_limit", cfg.Scheduler.DueLimit,
 	)
 	return true
+}
+
+// pprofShutdownTimeout bounds how long shutdown waits for an in-flight profile
+// request (a CPU profile runs for its requested number of seconds).
+const pprofShutdownTimeout = 5 * time.Second
+
+// startPprof starts the opt-in profiling listener when server.pprof.enabled is
+// set, and returns nil otherwise — with the default config nothing listens. A
+// bind failure is logged and never fails boot: profiling is a diagnostic aid,
+// and an address already in use must not take the API down with it.
+func startPprof(ctx context.Context, cfg *config.Config, logger *slog.Logger) *server.PprofServer {
+	if !cfg.Server.Pprof.Enabled {
+		return nil
+	}
+	pprofSrv, err := server.StartPprofServer(ctx, cfg.Server.Pprof, logger)
+	if err != nil {
+		logger.Error("pprof listener did not start; continuing without profiling", "error", err)
+		return nil
+	}
+	return pprofSrv
+}
+
+// stopPprof shuts the profiling listener down. It is a no-op when profiling
+// never started.
+func stopPprof(pprofSrv *server.PprofServer, logger *slog.Logger) {
+	if pprofSrv == nil {
+		return
+	}
+	// #nosec G118 -- runs after the shutdown context is already cancelled
+	ctx, cancel := context.WithTimeout(context.Background(), pprofShutdownTimeout)
+	defer cancel()
+	if err := pprofSrv.Shutdown(ctx); err != nil {
+		logger.Error("pprof listener shutdown error", "error", err)
+		return
+	}
+	logger.Info("pprof listener stopped")
 }
 
 func startServer(ctx context.Context, srv *server.Server, logger *slog.Logger) {

@@ -963,6 +963,11 @@ func collectInstrumentDescriptors(t *testing.T, rm *metricdata.ResourceMetrics) 
 	t.Helper()
 	var got []instrumentDescriptor
 	for _, sm := range rm.ScopeMetrics {
+		// Only the application's own scope: the Go runtime instruments (#1277)
+		// are upstream's contract and are pinned by name in runtime_test.go.
+		if sm.Scope.Name != meterScopeName {
+			continue
+		}
 		for _, mtr := range sm.Metrics {
 			got = append(got, instrumentDescriptor{
 				name:        mtr.Name,

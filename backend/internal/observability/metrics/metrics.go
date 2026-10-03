@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	otelruntime "go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/metric"
@@ -16,6 +17,10 @@ import (
 
 	"github.com/vibexp/vibexp/internal/config"
 )
+
+// meterScopeName is the instrumentation scope of the application's own
+// instruments. The Go runtime instruments live in the contrib scope instead.
+const meterScopeName = "github.com/vibexp/vibexp"
 
 // Metrics holds all application metrics and the meter provider
 type Metrics struct {
@@ -270,23 +275,45 @@ func New(serviceVersion string, opts ...Option) (*Metrics, error) {
 		return nil, err
 	}
 
-	meter := meterProvider.Meter("github.com/vibexp/vibexp")
+	meter := meterProvider.Meter(meterScopeName)
 	m := &Metrics{
 		meterProvider: meterProvider,
 	}
 	m.logger = cfg.appLogger
 
 	if err := m.initializeMetrics(meter); err != nil {
-		if shutdownErr := meterProvider.Shutdown(ctx); shutdownErr != nil {
-			return nil, fmt.Errorf(
-				"failed to initialize metrics: %w, and failed to shutdown meter provider: %v",
-				err, shutdownErr,
-			)
-		}
-		return nil, err
+		return nil, shutdownAfterInitFailure(ctx, meterProvider, err)
+	}
+
+	if err := startRuntimeMetrics(meterProvider); err != nil {
+		return nil, shutdownAfterInitFailure(ctx, meterProvider, err)
 	}
 
 	return m, nil
+}
+
+// startRuntimeMetrics registers the Go runtime instruments (go.goroutine.count,
+// go.memory.*, go.config.gogc, go.processor.limit) on the provider (#1277), so
+// they travel the same export pipeline as the business metrics. They are
+// observable instruments: the runtime is read once per collection, and the
+// callback is released when the provider shuts down.
+func startRuntimeMetrics(provider metric.MeterProvider) error {
+	if err := otelruntime.Start(otelruntime.WithMeterProvider(provider)); err != nil {
+		return fmt.Errorf("failed to start Go runtime metrics: %w", err)
+	}
+	return nil
+}
+
+// shutdownAfterInitFailure releases the meter provider when New fails after
+// creating it, and returns initErr (joined with the shutdown error, if any).
+func shutdownAfterInitFailure(ctx context.Context, provider *sdkmetric.MeterProvider, initErr error) error {
+	if shutdownErr := provider.Shutdown(ctx); shutdownErr != nil {
+		return fmt.Errorf(
+			"failed to initialize metrics: %w, and failed to shutdown meter provider: %v",
+			initErr, shutdownErr,
+		)
+	}
+	return initErr
 }
 
 func createResource(ctx context.Context, serviceVersion string, cfg *config.Config) (*resource.Resource, error) {

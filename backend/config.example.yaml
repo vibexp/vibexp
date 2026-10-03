@@ -54,6 +54,15 @@ server:
   # otherwise every request keys on the proxy and per-client limits collapse into
   # one bucket. Example: ["10.0.0.0/8", "192.168.1.5/32"]
   trusted_proxies: []
+  # Opt-in profiling listener (net/http/pprof). OFF by default. When enabled it
+  # serves /debug/pprof/* on its OWN port, never on the API port, and it has no
+  # authentication: profiles expose heap contents and can load the process, so
+  # it is protected only by where it binds. Keep it on loopback and reach it
+  # through an SSH tunnel; a non-loopback bind logs a warning at boot.
+  #   go tool pprof http://127.0.0.1:6060/debug/pprof/heap
+  pprof:
+    enabled: false
+    listen_addr: "127.0.0.1:6060"
 
 # PostgreSQL connection. Host may be a Unix socket path (Cloud SQL) when it
 # starts with '/'. Defaults match the dev Postgres in backend/docker-compose.yml.

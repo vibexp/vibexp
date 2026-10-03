@@ -259,6 +259,9 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "json", cfg.Server.LogFormat)
 	assert.Equal(t, int64(10<<20), cfg.Server.MaxBodySizeBytes)
 	assert.Equal(t, "about:blank", cfg.Server.ErrorTypeBaseURI)
+	// The profiling listener is opt-in and loopback-bound (#1277).
+	assert.Equal(t, EnvBool(false), cfg.Server.Pprof.Enabled)
+	assert.Equal(t, DefaultPprofListenAddr, cfg.Server.Pprof.ListenAddr)
 
 	// Database defaults.
 	assert.Equal(t, "localhost", cfg.Database.Host)
@@ -1405,4 +1408,37 @@ func TestLegacyEnabledProviderNames(t *testing.T) {
 			assert.Equal(t, tc.want, tc.auth.LegacyEnabledProviderNames())
 		})
 	}
+}
+
+// TestLoad_PprofConfig covers server.pprof (#1277): the listener is opt-in, and
+// a malformed listen_addr fails at load only when it would actually be used.
+func TestLoad_PprofConfig(t *testing.T) {
+	t.Run("enabled with a custom address", func(t *testing.T) {
+		cfg, err := loadYAML(t, baseValidYAML+
+			"server:\n  pprof:\n    enabled: true\n    listen_addr: \"0.0.0.0:6061\"\n")
+		require.NoError(t, err)
+		assert.Equal(t, EnvBool(true), cfg.Server.Pprof.Enabled)
+		assert.Equal(t, "0.0.0.0:6061", cfg.Server.Pprof.ListenAddr)
+	})
+
+	t.Run("enabled keeps the loopback default address", func(t *testing.T) {
+		cfg, err := loadYAML(t, baseValidYAML+"server:\n  pprof:\n    enabled: true\n")
+		require.NoError(t, err)
+		assert.Equal(t, DefaultPprofListenAddr, cfg.Server.Pprof.ListenAddr)
+	})
+
+	t.Run("enabled with a malformed address fails fast", func(t *testing.T) {
+		cfg, err := loadYAML(t, baseValidYAML+
+			"server:\n  pprof:\n    enabled: true\n    listen_addr: \"localhost\"\n")
+		require.Error(t, err, "an address without a port must not be silently accepted")
+		assert.Nil(t, cfg)
+		assert.Contains(t, err.Error(), "server.pprof.listen_addr")
+	})
+
+	t.Run("disabled does not validate the address", func(t *testing.T) {
+		cfg, err := loadYAML(t, baseValidYAML+
+			"server:\n  pprof:\n    enabled: false\n    listen_addr: \"localhost\"\n")
+		require.NoError(t, err)
+		assert.Equal(t, EnvBool(false), cfg.Server.Pprof.Enabled)
+	})
 }
