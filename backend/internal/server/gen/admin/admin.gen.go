@@ -1216,7 +1216,9 @@ type AdminAuthAllowlist struct {
 	// user has been deleted.
 	UpdatedByUserId *openapi_types.UUID `json:"updated_by_user_id"`
 
-	// Version The stored allowlist's own version; null when nothing is stored.
+	// Version The stored allowlist's own version; null when nothing is stored. Send
+	// it back as `expected_version` (`0` when it is null) to reject a save
+	// that would overwrite someone else's change.
 	Version *int64 `json:"version"`
 }
 
@@ -1258,7 +1260,7 @@ type AdminAuthAllowlistUpdate struct {
 
 	// ExpectedVersion The `version` the caller last read. Send `0` when that `version` was
 	// null, to save only while nothing is stored. Omit it or send null for
-	// last-write-wins.
+	// last-write-wins. A negative value matches nothing and is a 409.
 	ExpectedVersion *int64 `json:"expected_version,omitempty"`
 }
 
@@ -1737,7 +1739,7 @@ type AdminInstanceAISummarySettingsUpdate struct {
 
 	// ExpectedVersion The `version` the caller last read. Send `0` when that `version` was
 	// null, to save only while nothing is stored. Omit it or send null for
-	// last-write-wins.
+	// last-write-wins. A negative value matches nothing and is a 409.
 	ExpectedVersion  *int64 `json:"expected_version,omitempty"`
 	MaxOutputTokens  int    `json:"max_output_tokens"`
 	PerDocumentChars int    `json:"per_document_chars"`
@@ -2031,7 +2033,7 @@ type AdminInstanceSearchSettings struct {
 type AdminInstanceSearchSettingsUpdate struct {
 	// ExpectedVersion The `version` the caller last read. Send `0` when that `version` was
 	// null, to save only while nothing is stored. Omit it or send null for
-	// last-write-wins.
+	// last-write-wins. A negative value matches nothing and is a 409.
 	ExpectedVersion       *int64  `json:"expected_version,omitempty"`
 	RankCandidateCap      int     `json:"rank_candidate_cap"`
 	RankHalfLifeDays      float64 `json:"rank_half_life_days"`

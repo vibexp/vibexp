@@ -323,19 +323,6 @@ func (r allowlistRepo) Get(context.Context) (*models.InstanceAuthAllowlist, erro
 	return &c, nil
 }
 
-// allowlistVersionConflict mirrors the repository's compare-and-set on the
-// allowlist row: nil is last-write-wins, InstanceSettingsNoStoredVersion
-// expects no row, and any other value must equal the stored version.
-func allowlistVersionConflict(expected *int64, stored *models.InstanceAuthAllowlist) bool {
-	if expected == nil {
-		return false
-	}
-	if *expected == repositories.InstanceSettingsNoStoredVersion {
-		return stored != nil
-	}
-	return stored == nil || stored.Version != *expected
-}
-
 func (r allowlistRepo) UpsertAudited(
 	_ context.Context, allowlist *models.InstanceAuthAllowlist, actor *string, expected *int64,
 ) error {
@@ -345,7 +332,11 @@ func (r allowlistRepo) UpsertAudited(
 		return r.s.Err
 	}
 	before := r.s.allowlist
-	if allowlistVersionConflict(expected, before) {
+	var storedVersion *int64
+	if before != nil {
+		storedVersion = &before.Version
+	}
+	if repositories.InstanceSettingsVersionConflicts(expected, storedVersion) {
 		return repositories.ErrInstanceSettingsVersionConflict
 	}
 	allowlist.UpdatedAt = r.s.tick()

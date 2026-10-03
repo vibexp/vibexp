@@ -115,19 +115,6 @@ func (f *fakeSingleton[T]) get() (*T, error) {
 	return &c, nil
 }
 
-// fakeSingletonVersionConflict mirrors the repository's compare-and-set: nil
-// is last-write-wins, InstanceSettingsNoStoredVersion expects no row, and any
-// other value must equal the stored version.
-func fakeSingletonVersionConflict(expected, stored *int64) bool {
-	if expected == nil {
-		return false
-	}
-	if *expected == repositories.InstanceSettingsNoStoredVersion {
-		return stored != nil
-	}
-	return stored == nil || *stored != *expected
-}
-
 func (f *fakeSingleton[T]) upsertAudited(
 	s *T, expected *int64, audit func(before, after *T) (*models.InstanceSettingsAuditEntry, error),
 ) error {
@@ -141,7 +128,7 @@ func (f *fakeSingleton[T]) upsertAudited(
 		before = &c
 		stored, _, _ = f.meta(before)
 	}
-	if fakeSingletonVersionConflict(expected, stored) {
+	if repositories.InstanceSettingsVersionConflicts(expected, stored) {
 		return repositories.ErrInstanceSettingsVersionConflict
 	}
 	version, createdAt, updatedAt := f.meta(s)

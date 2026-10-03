@@ -3049,7 +3049,7 @@ AdminInstanceSearchSettingsUpdate:
       description: |
         The `version` the caller last read. Send `0` when that `version` was
         null, to save only while nothing is stored. Omit it or send null for
-        last-write-wins.
+        last-write-wins. A negative value matches nothing and is a 409.
 
 AdminInstanceAISummaryStyle:
   type: string
@@ -3269,7 +3269,7 @@ AdminInstanceAISummarySettingsUpdate:
       description: |
         The `version` the caller last read. Send `0` when that `version` was
         null, to save only while nothing is stored. Omit it or send null for
-        last-write-wins.
+        last-write-wins. A negative value matches nothing and is a 409.
 
 # --- Instance authentication settings (#1238, epic #1230) ---------------------
 
@@ -3648,7 +3648,10 @@ AdminAuthAllowlist:
       type: integer
       format: int64
       nullable: true
-      description: The stored allowlist's own version; null when nothing is stored.
+      description: |
+        The stored allowlist's own version; null when nothing is stored. Send
+        it back as `expected_version` (`0` when it is null) to reject a save
+        that would overwrite someone else's change.
       example: 3
     updated_at:
       type: string
@@ -3702,7 +3705,7 @@ AdminAuthAllowlistUpdate:
       description: |
         The `version` the caller last read. Send `0` when that `version` was
         null, to save only while nothing is stored. Omit it or send null for
-        last-write-wins.
+        last-write-wins. A negative value matches nothing and is a 409.
 
 AdminAuthAllowlistPreviewRequest:
   type: object

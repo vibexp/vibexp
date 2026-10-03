@@ -29953,7 +29953,7 @@ components:
           description: |
             The `version` the caller last read. Send `0` when that `version` was
             null, to save only while nothing is stored. Omit it or send null for
-            last-write-wins.
+            last-write-wins. A negative value matches nothing and is a 409.
     AdminInstanceAISummaryStyle:
       type: string
       description: How detailed a summary is.
@@ -30165,7 +30165,7 @@ components:
           description: |
             The `version` the caller last read. Send `0` when that `version` was
             null, to save only while nothing is stored. Omit it or send null for
-            last-write-wins.
+            last-write-wins. A negative value matches nothing and is a 409.
     AdminAuthProviderType:
       type: string
       description: |
@@ -30530,7 +30530,10 @@ components:
           type: integer
           format: int64
           nullable: true
-          description: The stored allowlist's own version; null when nothing is stored.
+          description: |
+            The stored allowlist's own version; null when nothing is stored. Send
+            it back as `expected_version` (`0` when it is null) to reject a save
+            that would overwrite someone else's change.
           example: 3
         updated_at:
           type: string
@@ -30585,7 +30588,7 @@ components:
           description: |
             The `version` the caller last read. Send `0` when that `version` was
             null, to save only while nothing is stored. Omit it or send null for
-            last-write-wins.
+            last-write-wins. A negative value matches nothing and is a 409.
     AdminAuthAllowlistPreviewRequest:
       type: object
       description: A candidate allowlist to preview. Both lists are required (send `[]` for none).

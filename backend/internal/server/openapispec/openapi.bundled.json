@@ -42212,7 +42212,7 @@
             "format": "int64",
             "minimum": 0,
             "nullable": true,
-            "description": "The `version` the caller last read. Send `0` when that `version` was\nnull, to save only while nothing is stored. Omit it or send null for\nlast-write-wins.\n"
+            "description": "The `version` the caller last read. Send `0` when that `version` was\nnull, to save only while nothing is stored. Omit it or send null for\nlast-write-wins. A negative value matches nothing and is a 409.\n"
           }
         }
       },
@@ -42447,7 +42447,7 @@
             "format": "int64",
             "minimum": 0,
             "nullable": true,
-            "description": "The `version` the caller last read. Send `0` when that `version` was\nnull, to save only while nothing is stored. Omit it or send null for\nlast-write-wins.\n"
+            "description": "The `version` the caller last read. Send `0` when that `version` was\nnull, to save only while nothing is stored. Omit it or send null for\nlast-write-wins. A negative value matches nothing and is a 409.\n"
           }
         }
       },
@@ -42841,7 +42841,7 @@
             "type": "integer",
             "format": "int64",
             "nullable": true,
-            "description": "The stored allowlist's own version; null when nothing is stored.",
+            "description": "The stored allowlist's own version; null when nothing is stored. Send\nit back as `expected_version` (`0` when it is null) to reject a save\nthat would overwrite someone else's change.\n",
             "example": 3
           },
           "updated_at": {
@@ -42890,7 +42890,7 @@
             "format": "int64",
             "minimum": 0,
             "nullable": true,
-            "description": "The `version` the caller last read. Send `0` when that `version` was\nnull, to save only while nothing is stored. Omit it or send null for\nlast-write-wins.\n"
+            "description": "The `version` the caller last read. Send `0` when that `version` was\nnull, to save only while nothing is stored. Omit it or send null for\nlast-write-wins. A negative value matches nothing and is a 409.\n"
           }
         }
       },

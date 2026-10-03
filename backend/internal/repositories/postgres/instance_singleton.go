@@ -102,28 +102,13 @@ func appendBuiltSingletonAudit[T any](
 	return appendInstanceSettingsAudit(ctx, tx, entry)
 }
 
-// checkSingletonVersion implements the optional compare-and-set of an audited
-// singleton upsert. expected is the caller's version; stored is the row's
-// version as read under the lock (nil: no row). The three cases:
-//
-//   - nil: last-write-wins, never a conflict.
-//   - repositories.InstanceSettingsNoStoredVersion (0): the caller expects no
-//     row, so a stored one is a conflict. Stored versions start at 1, so 0
-//     can never name a row.
-//   - positive: must equal the stored version; no row stored is a conflict.
-//
-// A negative value names no state at all and always conflicts.
+// checkSingletonVersion applies the optional compare-and-set of an audited
+// singleton upsert: expected is the caller's version and stored the row's
+// version as read under the lock (nil: no row). The rule itself, including the
+// "nothing stored yet" expected version, is
+// repositories.InstanceSettingsVersionConflicts.
 func checkSingletonVersion(expected, stored *int64) error {
-	if expected == nil {
-		return nil
-	}
-	if *expected == repositories.InstanceSettingsNoStoredVersion {
-		if stored != nil {
-			return repositories.ErrInstanceSettingsVersionConflict
-		}
-		return nil
-	}
-	if stored == nil || *stored != *expected {
+	if repositories.InstanceSettingsVersionConflicts(expected, stored) {
 		return repositories.ErrInstanceSettingsVersionConflict
 	}
 	return nil

@@ -1585,6 +1585,27 @@ type InstanceEmailProviderRepository interface {
 // never name a row.
 const InstanceSettingsNoStoredVersion int64 = 0
 
+// InstanceSettingsVersionConflicts is the compare-and-set rule every instance
+// settings UpsertAudited applies. expected is the caller's version; stored is
+// the row's version as read under the lock (nil: no row). The three cases:
+//
+//   - nil: last-write-wins, never a conflict.
+//   - InstanceSettingsNoStoredVersion: the caller expects no row, so a stored
+//     one is a conflict.
+//   - positive: must equal the stored version; no row stored is a conflict.
+//
+// A negative value names no state at all and always conflicts. In-memory test
+// repositories call this too, so they cannot drift from the real rule.
+func InstanceSettingsVersionConflicts(expected, stored *int64) bool {
+	if expected == nil {
+		return false
+	}
+	if *expected == InstanceSettingsNoStoredVersion {
+		return stored != nil
+	}
+	return stored == nil || *stored != *expected
+}
+
 // InstanceSearchSettingsRepository defines the data access operations for the
 // instance's search ranking defaults (#1197, epic #1196).
 //
