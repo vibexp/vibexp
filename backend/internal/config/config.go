@@ -532,6 +532,11 @@ type APIOAuthConfig struct {
 type MCPConfig struct {
 	OAuthIssuer string `koanf:"oauth_issuer"`
 	ResourceURI string `koanf:"resource_uri"`
+	// SessionTimeout is how long an MCP session may sit idle before the server
+	// closes it and frees its memory. A client that exits without sending DELETE
+	// never ends its session itself, so without this every abandoned session is
+	// held for the life of the process (#1275).
+	SessionTimeout time.Duration `koanf:"session_timeout"`
 }
 
 // LegacyEmailConfig is the deprecated `email:` section: the selected provider,
@@ -1268,6 +1273,17 @@ func validateSchedulerConfig(cfg *Config) error {
 	return nil
 }
 
+// validateMCPConfig enforces that mcp.session_timeout is positive. The MCP SDK
+// reads a zero timeout as "never close an idle session", which is the unbounded
+// memory growth of #1275, so a mounted config with `session_timeout: "0s"` must
+// fail at startup rather than silently turn eviction off.
+func validateMCPConfig(cfg *Config) error {
+	if cfg.MCP.SessionTimeout <= 0 {
+		return fmt.Errorf("mcp.session_timeout must be positive, got %v", cfg.MCP.SessionTimeout)
+	}
+	return nil
+}
+
 // validateEmbeddingQueueConfig enforces that the durable embedding queue's
 // drain knobs are usable. poll_interval is the load-bearing one for the same
 // reason scheduler.tick_interval is: it feeds time.NewTicker, which panics on a
@@ -1336,6 +1352,7 @@ func validateAll(cfg *Config) error {
 		validateInstanceAdmins,
 		validateOAuthASConfig,
 		validateSchedulerConfig,
+		validateMCPConfig,
 		validateEmbeddingQueueConfig,
 		func(c *Config) error { return validateTrustedProxies(c.Server.TrustedProxies) },
 		validatePprofConfig,
@@ -1409,6 +1426,7 @@ func defaults() map[string]any {
 		"retention.activity_days":             90,
 		"retention.access_event_days":         90,
 		"retention.content_version_limit":     20,
+		"mcp.session_timeout":                 "30m",
 		"scheduler.enabled":                   true,
 		"scheduler.tick_interval":             "1m",
 		"scheduler.job_timeout":               "10m",

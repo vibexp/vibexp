@@ -152,6 +152,8 @@ auth:
 mcp:
   oauth_issuer: "${MCP_OAUTH_ISSUER:-}"
   resource_uri: "${MCP_RESOURCE_URI:-}"
+  # Idle time after which an abandoned MCP session is closed and freed.
+  session_timeout: "${MCP_SESSION_TIMEOUT:-30m}"
 
 # DEPRECATED (#1190): the instance email provider is now stored in the database
 # and configured under Admin -> Settings -> Email. This email: section is read

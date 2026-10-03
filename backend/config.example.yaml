@@ -204,6 +204,13 @@ auth:
 mcp:
   oauth_issuer: ""
   resource_uri: ""
+  # How long an MCP session may sit idle before the server closes it and frees
+  # its memory. A client that exits without ending its session would otherwise
+  # be held until the next restart. A client idle for longer gets a 404 on its
+  # next request and starts a new session. Only requests count as activity: an
+  # open event stream with no requests does not keep a session alive. Must be
+  # positive.
+  session_timeout: "30m"
 
 # DEPRECATED (#1190): the instance email provider is now stored in the database
 # and configured under Admin -> Settings -> Email. This email: section is read
