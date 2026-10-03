@@ -1245,15 +1245,20 @@ type AdminAuthAllowlistPreviewRequest struct {
 // is a DNS name of at least two labels with no leading `@`. Storing two empty
 // lists means open access.
 //
-// `expected_version` is optional: when present, the save is rejected with
-// 409 unless it equals the stored allowlist's `version` (and when nothing is
-// stored, any `expected_version` other than null is a conflict). Omit it for
-// last-write-wins.
+// `expected_version` is optional and makes the save a compare-and-set:
+//
+//   - omitted or null: last-write-wins, never a conflict.
+//   - `0`: no allowlist may be stored yet; the save is rejected with 409 when
+//     one is. Send it when the `version` last read was null.
+//   - a positive value: the save is rejected with 409 unless it equals the
+//     stored allowlist's `version`, and also when nothing is stored.
 type AdminAuthAllowlistUpdate struct {
 	Domains []string `json:"domains"`
 	Emails  []string `json:"emails"`
 
-	// ExpectedVersion The `version` the caller last read; omit or null for last-write-wins.
+	// ExpectedVersion The `version` the caller last read. Send `0` when that `version` was
+	// null, to save only while nothing is stored. Omit it or send null for
+	// last-write-wins.
 	ExpectedVersion *int64 `json:"expected_version,omitempty"`
 }
 
@@ -1713,20 +1718,26 @@ type AdminInstanceAISummarySettings struct {
 	Values AdminInstanceAISummaryValues `json:"values"`
 
 	// Version The stored row's optimistic-lock version; null when nothing is stored.
-	// Send it back as `expected_version` to reject a save that would
-	// overwrite someone else's change.
+	// Send it back as `expected_version` (`0` when it is null) to reject a
+	// save that would overwrite someone else's change.
 	Version *int64 `json:"version"`
 }
 
 // AdminInstanceAISummarySettingsUpdate A whole replacement of the instance AI summary settings. Every value is
-// required. `expected_version` is optional: when present, the save is
-// rejected with 409 unless it equals the stored version (and when nothing is
-// stored, any `expected_version` other than null is a conflict). Omit it for
-// last-write-wins.
+// required. `expected_version` is optional and makes the save a
+// compare-and-set:
+//
+//   - omitted or null: last-write-wins, never a conflict.
+//   - `0`: nothing may be stored yet; the save is rejected with 409 when a row
+//     is stored. Send it when the `version` last read was null.
+//   - a positive value: the save is rejected with 409 unless it equals the
+//     stored `version`, and also when nothing is stored.
 type AdminInstanceAISummarySettingsUpdate struct {
 	Enabled bool `json:"enabled"`
 
-	// ExpectedVersion The `version` the caller last read; omit or null for last-write-wins.
+	// ExpectedVersion The `version` the caller last read. Send `0` when that `version` was
+	// null, to save only while nothing is stored. Omit it or send null for
+	// last-write-wins.
 	ExpectedVersion  *int64 `json:"expected_version,omitempty"`
 	MaxOutputTokens  int    `json:"max_output_tokens"`
 	PerDocumentChars int    `json:"per_document_chars"`
@@ -2003,18 +2014,24 @@ type AdminInstanceSearchSettings struct {
 	Values AdminInstanceSearchValues `json:"values"`
 
 	// Version The stored row's optimistic-lock version; null when nothing is stored.
-	// Send it back as `expected_version` to reject a save that would
-	// overwrite someone else's change.
+	// Send it back as `expected_version` (`0` when it is null) to reject a
+	// save that would overwrite someone else's change.
 	Version *int64 `json:"version"`
 }
 
 // AdminInstanceSearchSettingsUpdate A whole replacement of the instance search ranking defaults. Every value is
-// required. `expected_version` is optional: when present, the save is
-// rejected with 409 unless it equals the stored version (and when nothing is
-// stored, any `expected_version` other than null is a conflict). Omit it for
-// last-write-wins.
+// required. `expected_version` is optional and makes the save a
+// compare-and-set:
+//
+//   - omitted or null: last-write-wins, never a conflict.
+//   - `0`: nothing may be stored yet; the save is rejected with 409 when a row
+//     is stored. Send it when the `version` last read was null.
+//   - a positive value: the save is rejected with 409 unless it equals the
+//     stored `version`, and also when nothing is stored.
 type AdminInstanceSearchSettingsUpdate struct {
-	// ExpectedVersion The `version` the caller last read; omit or null for last-write-wins.
+	// ExpectedVersion The `version` the caller last read. Send `0` when that `version` was
+	// null, to save only while nothing is stored. Omit it or send null for
+	// last-write-wins.
 	ExpectedVersion       *int64  `json:"expected_version,omitempty"`
 	RankCandidateCap      int     `json:"rank_candidate_cap"`
 	RankHalfLifeDays      float64 `json:"rank_half_life_days"`

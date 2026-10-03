@@ -57,8 +57,9 @@ type InstanceSearchSettingsServiceInterface interface {
 	// Update validates and stores a complete replacement set of defaults,
 	// auditing the change in the same transaction. Invalid input returns an
 	// ErrInvalidSearchSettings-wrapped error (carrying a *SettingsFieldError)
-	// and writes nothing. A non-nil expectedVersion makes it a compare-and-set:
-	// a mismatch returns repositories.ErrInstanceSettingsVersionConflict and
+	// and writes nothing. A non-nil expectedVersion makes it a compare-and-set
+	// (repositories.InstanceSettingsNoStoredVersion expects nothing stored): a
+	// mismatch returns repositories.ErrInstanceSettingsVersionConflict and
 	// writes nothing.
 	Update(
 		ctx context.Context, actorUserID string, values models.InstanceSearchSettingsValues, expectedVersion *int64,

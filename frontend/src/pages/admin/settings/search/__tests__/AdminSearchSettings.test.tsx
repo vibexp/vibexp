@@ -180,7 +180,7 @@ describe('AdminSearchSettings — saving', () => {
     expect(saveButton()).toBeDisabled()
   })
 
-  it('sends a null version when nothing is stored yet', async () => {
+  it('sends version 0 when nothing is stored yet', async () => {
     const user = userEvent.setup()
     service.updateSearchSettings.mockResolvedValue(customized)
     render(<AdminSearchSettings />)
@@ -191,9 +191,28 @@ describe('AdminSearchSettings — saving', () => {
     expect(service.updateSearchSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         recency_ranking_enabled: true,
-        expected_version: null,
+        expected_version: 0,
       })
     )
+  })
+
+  it('offers a reload when someone else saved first over the defaults', async () => {
+    const user = userEvent.setup()
+    service.updateSearchSettings.mockRejectedValue(
+      apiError(409, 'INSTANCE_SETTINGS_VERSION_CONFLICT')
+    )
+    render(<AdminSearchSettings />)
+
+    await user.click(await screen.findByLabelText('Recency ranking'))
+    await user.click(saveButton())
+
+    expect(
+      await screen.findByTestId('instance-settings-conflict')
+    ).toHaveTextContent(/someone else changed these settings/i)
+    expect(service.updateSearchSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ expected_version: 0 })
+    )
+    expect(saveButton()).toBeDisabled()
   })
 
   it('blocks saving while a field is invalid and says why under it', async () => {

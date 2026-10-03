@@ -42159,14 +42159,14 @@
             "type": "integer",
             "format": "int64",
             "nullable": true,
-            "description": "The stored row's optimistic-lock version; null when nothing is stored.\nSend it back as `expected_version` to reject a save that would\noverwrite someone else's change.\n",
+            "description": "The stored row's optimistic-lock version; null when nothing is stored.\nSend it back as `expected_version` (`0` when it is null) to reject a\nsave that would overwrite someone else's change.\n",
             "example": 4
           }
         }
       },
       "AdminInstanceSearchSettingsUpdate": {
         "type": "object",
-        "description": "A whole replacement of the instance search ranking defaults. Every value is\nrequired. `expected_version` is optional: when present, the save is\nrejected with 409 unless it equals the stored version (and when nothing is\nstored, any `expected_version` other than null is a conflict). Omit it for\nlast-write-wins.\n",
+        "description": "A whole replacement of the instance search ranking defaults. Every value is\nrequired. `expected_version` is optional and makes the save a\ncompare-and-set:\n\n- omitted or null: last-write-wins, never a conflict.\n- `0`: nothing may be stored yet; the save is rejected with 409 when a row\n  is stored. Send it when the `version` last read was null.\n- a positive value: the save is rejected with 409 unless it equals the\n  stored `version`, and also when nothing is stored.\n",
         "additionalProperties": false,
         "required": [
           "recency_ranking_enabled",
@@ -42210,8 +42210,9 @@
           "expected_version": {
             "type": "integer",
             "format": "int64",
+            "minimum": 0,
             "nullable": true,
-            "description": "The `version` the caller last read; omit or null for last-write-wins."
+            "description": "The `version` the caller last read. Send `0` when that `version` was\nnull, to save only while nothing is stored. Omit it or send null for\nlast-write-wins.\n"
           }
         }
       },
@@ -42391,14 +42392,14 @@
             "type": "integer",
             "format": "int64",
             "nullable": true,
-            "description": "The stored row's optimistic-lock version; null when nothing is stored.\nSend it back as `expected_version` to reject a save that would\noverwrite someone else's change.\n",
+            "description": "The stored row's optimistic-lock version; null when nothing is stored.\nSend it back as `expected_version` (`0` when it is null) to reject a\nsave that would overwrite someone else's change.\n",
             "example": 4
           }
         }
       },
       "AdminInstanceAISummarySettingsUpdate": {
         "type": "object",
-        "description": "A whole replacement of the instance AI summary settings. Every value is\nrequired. `expected_version` is optional: when present, the save is\nrejected with 409 unless it equals the stored version (and when nothing is\nstored, any `expected_version` other than null is a conflict). Omit it for\nlast-write-wins.\n",
+        "description": "A whole replacement of the instance AI summary settings. Every value is\nrequired. `expected_version` is optional and makes the save a\ncompare-and-set:\n\n- omitted or null: last-write-wins, never a conflict.\n- `0`: nothing may be stored yet; the save is rejected with 409 when a row\n  is stored. Send it when the `version` last read was null.\n- a positive value: the save is rejected with 409 unless it equals the\n  stored `version`, and also when nothing is stored.\n",
         "additionalProperties": false,
         "required": [
           "enabled",
@@ -42444,8 +42445,9 @@
           "expected_version": {
             "type": "integer",
             "format": "int64",
+            "minimum": 0,
             "nullable": true,
-            "description": "The `version` the caller last read; omit or null for last-write-wins."
+            "description": "The `version` the caller last read. Send `0` when that `version` was\nnull, to save only while nothing is stored. Omit it or send null for\nlast-write-wins.\n"
           }
         }
       },
@@ -42858,7 +42860,7 @@
       },
       "AdminAuthAllowlistUpdate": {
         "type": "object",
-        "description": "A whole replacement of the access allowlist. Both lists are required (send\n`[]` for none). Entries are trimmed, lower-cased and de-duplicated; a domain\nis a DNS name of at least two labels with no leading `@`. Storing two empty\nlists means open access.\n\n`expected_version` is optional: when present, the save is rejected with\n409 unless it equals the stored allowlist's `version` (and when nothing is\nstored, any `expected_version` other than null is a conflict). Omit it for\nlast-write-wins.\n",
+        "description": "A whole replacement of the access allowlist. Both lists are required (send\n`[]` for none). Entries are trimmed, lower-cased and de-duplicated; a domain\nis a DNS name of at least two labels with no leading `@`. Storing two empty\nlists means open access.\n\n`expected_version` is optional and makes the save a compare-and-set:\n\n- omitted or null: last-write-wins, never a conflict.\n- `0`: no allowlist may be stored yet; the save is rejected with 409 when\n  one is. Send it when the `version` last read was null.\n- a positive value: the save is rejected with 409 unless it equals the\n  stored allowlist's `version`, and also when nothing is stored.\n",
         "additionalProperties": false,
         "required": [
           "domains",
@@ -42886,8 +42888,9 @@
           "expected_version": {
             "type": "integer",
             "format": "int64",
+            "minimum": 0,
             "nullable": true,
-            "description": "The `version` the caller last read; omit or null for last-write-wins."
+            "description": "The `version` the caller last read. Send `0` when that `version` was\nnull, to save only while nothing is stored. Omit it or send null for\nlast-write-wins.\n"
           }
         }
       },

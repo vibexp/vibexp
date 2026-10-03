@@ -115,6 +115,19 @@ func (f *fakeSingleton[T]) get() (*T, error) {
 	return &c, nil
 }
 
+// fakeSingletonVersionConflict mirrors the repository's compare-and-set: nil
+// is last-write-wins, InstanceSettingsNoStoredVersion expects no row, and any
+// other value must equal the stored version.
+func fakeSingletonVersionConflict(expected, stored *int64) bool {
+	if expected == nil {
+		return false
+	}
+	if *expected == repositories.InstanceSettingsNoStoredVersion {
+		return stored != nil
+	}
+	return stored == nil || *stored != *expected
+}
+
 func (f *fakeSingleton[T]) upsertAudited(
 	s *T, expected *int64, audit func(before, after *T) (*models.InstanceSettingsAuditEntry, error),
 ) error {
@@ -128,7 +141,7 @@ func (f *fakeSingleton[T]) upsertAudited(
 		before = &c
 		stored, _, _ = f.meta(before)
 	}
-	if expected != nil && (stored == nil || *stored != *expected) {
+	if fakeSingletonVersionConflict(expected, stored) {
 		return repositories.ErrInstanceSettingsVersionConflict
 	}
 	version, createdAt, updatedAt := f.meta(s)
@@ -545,16 +558,53 @@ func TestAdminInstanceSettings_ExpectedVersionWithNothingStoredIs409(t *testing.
 	}
 }
 
+// TestAdminInstanceSettings_ExpectedVersionZeroExpectsNothingStored (#1220):
+// expected_version 0 saves only while nothing is stored. Against a stored row
+// it is a 409 that changes and audits nothing, and it works again after a
+// reset.
+func TestAdminInstanceSettings_ExpectedVersionZeroExpectsNothingStored(t *testing.T) {
+	for _, sec := range instanceSettingsSections {
+		t.Run(sec.name, func(t *testing.T) {
+			f := newInstanceSettingsFixture(t)
+			put := func(n int) *httptest.ResponseRecorder {
+				body := sec.body(n)
+				body["expected_version"] = 0
+				return f.serve(t, http.MethodPut, sec.path, body)
+			}
+
+			rr := put(1)
+			require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+			assert.Equal(t, float64(1), decodeJSONMap(t, rr)["version"])
+
+			rr = put(2)
+			require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+			assert.Contains(t, rr.Body.String(), "INSTANCE_SETTINGS_VERSION_CONFLICT")
+			got := decodeJSONMap(t, f.serve(t, http.MethodGet, sec.path, nil))
+			assert.Equal(t, asJSONNumbers(t, sec.body(1)), got["values"], "the conflicting PUT changes nothing")
+			assert.Equal(t, float64(1), got["version"])
+			require.Len(t, f.audit.entries, 1, "the conflicting PUT audits nothing")
+
+			require.Equal(t, http.StatusNoContent, f.serve(t, http.MethodDelete, sec.path, nil).Code)
+			rr = put(3)
+			require.Equal(t, http.StatusOK, rr.Code, "a reset leaves nothing stored again: "+rr.Body.String())
+			assert.Equal(t, float64(1), decodeJSONMap(t, rr)["version"])
+		})
+	}
+}
+
 // TestAdminInstanceSettings_NullExpectedVersionIsLastWriteWins: an explicit
-// null behaves like an omitted expected_version.
+// null behaves like an omitted expected_version, with or without a stored row.
 func TestAdminInstanceSettings_NullExpectedVersionIsLastWriteWins(t *testing.T) {
 	f := newInstanceSettingsFixture(t)
 	body := instanceSettingsSections[0].body(1)
 	body["expected_version"] = nil
 
 	rr := f.serve(t, http.MethodPut, instanceSearchSettingsPath, body)
-
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	rr = f.serve(t, http.MethodPut, instanceSearchSettingsPath, body)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, float64(2), decodeJSONMap(t, rr)["version"])
 }
 
 // --- validation ---------------------------------------------------------------

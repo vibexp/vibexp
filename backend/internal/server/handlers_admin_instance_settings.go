@@ -183,8 +183,8 @@ func (a *adminStrictServer) ListAdminAISummarySettingsAudit(
 // --- errors -------------------------------------------------------------------
 
 // mapInstanceSettingsError turns an Update error into its HTTP shape: invalid
-// values are a 400 naming the offending fields, a stale expected_version is a
-// 409, and anything else is a logged 500 (the error, never the request body).
+// values are a 400 naming the offending fields, an expected_version that does not
+// match what is stored is a 409, and anything else is a logged 500 (the error, never the request body).
 func (a *adminStrictServer) mapInstanceSettingsError(handler, invalidMsg string, err error) error {
 	switch {
 	case errors.Is(err, services.ErrInvalidSearchSettings),

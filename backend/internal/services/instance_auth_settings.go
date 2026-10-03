@@ -76,7 +76,8 @@ type InstanceAuthSettingsServiceInterface interface {
 	// (open access).
 	GetAllowlist(ctx context.Context) (*models.InstanceAuthAllowlist, error)
 	// UpdateAllowlist validates, normalizes and stores the allowlist. A non-nil
-	// expectedVersion is compared with the stored allowlist's own version.
+	// expectedVersion is compared with the stored allowlist's own version;
+	// repositories.InstanceSettingsNoStoredVersion expects none stored.
 	UpdateAllowlist(ctx context.Context, actorUserID string, domains, emails []string,
 		expectedVersion *int64) (*models.InstanceAuthAllowlist, error)
 	// ResetAllowlist removes the stored allowlist, reverting to open access.

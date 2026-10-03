@@ -26,8 +26,11 @@ export interface InstanceSettingsEditorOptions<
   B,
 > {
   get: () => Promise<S>
-  /** The PUT; the editor adds `expected_version` to the body. */
-  update: (body: B & { expected_version: number | null }) => Promise<S>
+  /**
+   * The PUT; the editor adds `expected_version` to the body: the loaded
+   * `version`, or 0 when nothing is stored yet.
+   */
+  update: (body: B & { expected_version: number }) => Promise<S>
   reset: () => Promise<void>
   toForm: (values: S['values']) => F
   toUpdate: (form: F) => B
@@ -142,7 +145,8 @@ export function useInstanceSettingsEditor<
       apply(
         await update({
           ...toUpdate(form),
-          expected_version: settings.version,
+          // 0 means "nothing stored yet", so a first save is checked too.
+          expected_version: settings.version ?? 0,
         })
       )
       setAuditKey(key => key + 1)
