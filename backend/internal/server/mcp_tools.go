@@ -326,25 +326,82 @@ func (s *Server) setupMCPServerCommon(mcpServer *mcp.Server, toolsManager *MCPTo
 	s.addUserPromptsToMCP(req.Context(), mcpServer, userID)
 }
 
+// mcpSessionIDHeader is the header a streamable-HTTP MCP client sends on every
+// request that targets an existing session.
+const mcpSessionIDHeader = "Mcp-Session-Id"
+
+// mcpSchemaCache caches the reflected tool schemas across server constructions.
+// Every tool's input type is a fixed Go type, so the cache holds one entry per
+// tool for the life of the process.
+var mcpSchemaCache = mcp.NewSchemaCache()
+
+// mcpServerHolderKey is the context key for the per-request mcpServerHolder.
+type mcpServerHolderKey struct{}
+
+// mcpServerHolder memoizes the populated server built for one HTTP request, so
+// the several getServer calls the SDK makes while creating a session share it.
+type mcpServerHolder struct {
+	server *mcp.Server
+}
+
+// newMCPServer builds an MCP server with VibeXP's implementation info and
+// options, without any tools or prompts registered.
+func newMCPServer() *mcp.Server {
+	return mcp.NewServer(&mcp.Implementation{
+		Name:    "vibexp-mcp-server",
+		Version: "1.0.0",
+	}, &mcp.ServerOptions{
+		HasPrompts:   true,
+		PageSize:     100,
+		Instructions: mcpServerInstructions,
+		SchemaCache:  mcpSchemaCache,
+	})
+}
+
+// createsMCPSession reports whether the SDK can create a session from req: only
+// a POST without a session id does. Every other request is either routed to an
+// existing session by its id or rejected before a server is used.
+func createsMCPSession(req *http.Request) bool {
+	return req.Method == http.MethodPost && req.Header.Get(mcpSessionIDHeader) == ""
+}
+
 // createMCPHandlerCommon creates the user-scoped MCP handler served at
 // /mcp/v1/common. There is no team in the URL; team-scoped tools take a
 // required team_id parameter validated per call.
+//
+// The SDK calls getServer on every request to read the server's supported
+// protocol versions, and again when it creates a session (#1276). Only the
+// session-creating request needs the populated server, so every other request
+// gets one shared bare server, which is never connected or mutated. The
+// populated server is built once per session-creating request and reused
+// across the SDK's calls through a holder in the request context.
 func (s *Server) createMCPHandlerCommon() http.Handler {
 	toolsManager := NewMCPToolsManager(s)
+	bareServer := newMCPServer()
 
 	handler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
-		mcpServer := mcp.NewServer(&mcp.Implementation{
-			Name:    "vibexp-mcp-server",
-			Version: "1.0.0",
-		}, &mcp.ServerOptions{
-			HasPrompts:   true,
-			PageSize:     100,
-			Instructions: mcpServerInstructions,
-		})
+		if !createsMCPSession(req) {
+			return bareServer
+		}
 
+		holder, _ := req.Context().Value(mcpServerHolderKey{}).(*mcpServerHolder)
+		if holder != nil && holder.server != nil {
+			return holder.server
+		}
+
+		mcpServer := newMCPServer()
 		s.setupMCPServerCommon(mcpServer, toolsManager, req)
+		if holder != nil {
+			holder.server = mcpServer
+		}
 		return mcpServer
 	}, nil)
 
-	return handler
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if createsMCPSession(req) {
+			ctx := context.WithValue(req.Context(), mcpServerHolderKey{}, &mcpServerHolder{})
+			req = req.WithContext(ctx)
+		}
+		handler.ServeHTTP(w, req)
+	})
 }
