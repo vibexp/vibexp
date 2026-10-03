@@ -32,16 +32,17 @@ Report privately instead:
    do not delay a report to build one.
 
 This opens a private advisory visible only to you and the maintainers. It is the
-only reporting channel; there is no security mailing address to publish.
+preferred channel, because it keeps the report attached to the repository.
 
-If the button is not visible to you, open a normal issue saying **only** that you
-have a security report and would like a private channel — no details — and a
-maintainer will open the advisory.
+If the button is not visible to you, or you cannot use GitHub for the report,
+email [hello@vibexp.io](mailto:hello@vibexp.io) with the subject prefixed
+`[SECURITY]`. Do not fall back to a public issue.
 
 ## What to expect
 
-- **Acknowledgement.** A maintainer replies in the advisory thread confirming the
-  report was received and whether it is reproducible.
+- **Acknowledgement.** A maintainer replies in the advisory thread (or by email,
+  if that is how you reported) confirming the report was received and whether it
+  is reproducible.
 - **A fix developed in private.** Work happens in the advisory's private fork,
   not on a public branch, so nothing is readable while the fix is being built
   and reviewed.
