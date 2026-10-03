@@ -29,6 +29,15 @@ MOCKERY_VERSION := v2.53.6
 # that disagrees with CI is worse than no hook at all.
 ACTIONLINT_VERSION := v1.7.7
 
+# Per-package timeout shared by the untagged Go test targets (#1280) — the local
+# `backend-test` / `backend-test-coverage` and CI's `backend-test-unit-coverage`.
+# `go test -timeout` applies to each package binary, and internal/server runs
+# ~70s under `-race`, so the old local 60s limit timed out on untouched code
+# while CI (120s) stayed green. One definition keeps the two from drifting
+# apart again. The integration-tagged targets keep their own longer limits,
+# which are sized for the migration bootstrap.
+BACKEND_UNIT_TEST_TIMEOUT := 120s
+
 # ============================================
 # GitHub Actions Workflows
 # ============================================
@@ -89,11 +98,11 @@ DETECT_COMPOSE = \
 
 # Run all tests
 backend-test:
-	cd backend && go test -race -v ./... -timeout=60s
+	cd backend && go test -race -v ./... -timeout=$(BACKEND_UNIT_TEST_TIMEOUT)
 
 # Run tests with coverage
 backend-test-coverage:
-	cd backend && go test -race -coverprofile=coverage.out ./... -timeout=60s
+	cd backend && go test -race -coverprofile=coverage.out ./... -timeout=$(BACKEND_UNIT_TEST_TIMEOUT)
 	cd backend && go tool cover -html=coverage.out -o coverage.html
 
 # Single-execution full suite (unit + integration-tagged) with coverage. CI no
@@ -116,7 +125,7 @@ backend-test-coverage-integration:
 # NAME does not imply the tag; all 20 such files under internal/server/ are
 # untagged handler tests and run here.
 backend-test-unit-coverage:
-	cd backend && go test -race -coverprofile=coverage-unit.out ./... -timeout=120s
+	cd backend && go test -race -coverprofile=coverage-unit.out ./... -timeout=$(BACKEND_UNIT_TEST_TIMEOUT)
 
 # The packages that carry `//go:build integration` files — the SINGLE source of
 # truth for both the target below and the guard after it, so the two can never
