@@ -41,6 +41,7 @@ import {
   instanceEmailSchema,
   instanceSecretError,
   storedCredentialApplies,
+  testSkipsStoredCredential,
   toInstanceFormValues,
   toInstanceRequest,
 } from './instanceEmailForm'
@@ -51,6 +52,17 @@ const INSTANCE_PROVIDER_DESCRIPTION =
 
 const INSTANCE_STORED_CREDENTIAL_HINT =
   'A credential is stored. Leave this blank to keep it — for saving, and for a test send to the same destination.'
+
+/**
+ * Shown instead of the stored-credential hint when a test send would run without
+ * the stored SMTP password that a save keeps (`testSkipsStoredCredential`, #1222).
+ */
+const TEST_SKIPS_STORED_CREDENTIAL_HINT =
+  'A test to this server runs without a password. Saving keeps the stored one. Enter the password to test with it.'
+
+/** The same statement on the result of a test that ran that way. */
+const TEST_SKIPPED_STORED_CREDENTIAL_NOTE =
+  'This test ran without a password. Saving keeps the stored one. Enter the password to test with it.'
 
 /** An instance SMTP credential is optional: blank is an unauthenticated relay (#1208). */
 const INSTANCE_SECRET_HINTS = {
@@ -81,8 +93,15 @@ export function AdminEmailSettings() {
   const [testing, setTesting] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
-  const [testResult, setTestResult] =
-    useState<AdminInstanceEmailTestResponse | null>(null)
+  /**
+   * The outcome of the last test send, with whether that send skipped the
+   * stored credential: the form may be edited after the test, so the fact is
+   * kept with the result rather than recomputed from the current values.
+   */
+  const [testResult, setTestResult] = useState<{
+    response: AdminInstanceEmailTestResponse
+    skippedStoredCredential: boolean
+  } | null>(null)
   const [auditKey, setAuditKey] = useState(0)
 
   const form = useForm<InstanceEmailFormValues>({
@@ -176,15 +195,20 @@ export function AdminEmailSettings() {
    */
   const handleTest = async (stored: AdminInstanceEmailSettings) => {
     let body: ReturnType<typeof toInstanceRequest> | undefined
+    let skippedStoredCredential = false
     if (!stored.configured || !formMatchesStored(stored, form.getValues())) {
       const values = await validateFor('test', stored)
       if (!values) return
       body = toInstanceRequest(values)
+      skippedStoredCredential = testSkipsStoredCredential(stored, values)
     }
     try {
       setTesting(true)
       setTestResult(null)
-      setTestResult(await adminService.testInstanceEmailSettings(body))
+      setTestResult({
+        response: await adminService.testInstanceEmailSettings(body),
+        skippedStoredCredential,
+      })
     } catch (err) {
       reportError(err, 'Failed to send the test email')
     } finally {
@@ -238,6 +262,7 @@ export function AdminEmailSettings() {
   }
 
   const busy = saving || testing || removing
+  const testSkipsCredential = testSkipsStoredCredential(settings, form.watch())
 
   return (
     <div className="space-y-6">
@@ -260,7 +285,11 @@ export function AdminEmailSettings() {
               form.watch('provider_type')
             )}
             description={INSTANCE_PROVIDER_DESCRIPTION}
-            storedCredentialHint={INSTANCE_STORED_CREDENTIAL_HINT}
+            storedCredentialHint={
+              testSkipsCredential
+                ? TEST_SKIPS_STORED_CREDENTIAL_HINT
+                : INSTANCE_STORED_CREDENTIAL_HINT
+            }
             secretHints={INSTANCE_SECRET_HINTS}
           />
           <SenderIdentityCard form={form} busy={busy}>
@@ -269,8 +298,13 @@ export function AdminEmailSettings() {
 
           {testResult && (
             <TestResultAlert
-              result={testResult}
+              result={testResult.response}
               testId="instance-email-test-result"
+              note={
+                testResult.skippedStoredCredential
+                  ? TEST_SKIPPED_STORED_CREDENTIAL_NOTE
+                  : undefined
+              }
             />
           )}
 
