@@ -9,6 +9,7 @@ import {
   instanceSecretError,
   sameStoredDestination,
   storedCredentialApplies,
+  testSkipsStoredCredential,
   toInstanceFormValues,
   toInstanceRequest,
 } from '../instanceEmailForm'
@@ -226,6 +227,56 @@ describe('storedCredentialApplies', () => {
       storedCredentialApplies(storedSMTP({ has_credential: false }), 'smtp')
     ).toBe(false)
     expect(storedCredentialApplies(unconfigured, 'smtp')).toBe(false)
+  })
+})
+
+describe('testSkipsStoredCredential', () => {
+  // The three fields the server's sameSMTPDestination compares.
+  it.each([
+    ['host', { smtp_host: 'mailpit' }],
+    ['port', { smtp_port: '1025' }],
+    ['username', { smtp_username: 'other' }],
+  ] as const)(
+    'is true when the %s differs and the credential is blank',
+    (_field, change) => {
+      expect(testSkipsStoredCredential(storedSMTP(), values(change))).toBe(true)
+    }
+  )
+
+  it('treats a whitespace-only credential as blank', () => {
+    expect(
+      testSkipsStoredCredential(
+        storedSMTP(),
+        values({ smtp_host: 'mailpit', secret: '  ' })
+      )
+    ).toBe(true)
+  })
+
+  it.each([
+    ['the destination is unchanged', storedSMTP(), values()],
+    [
+      'a credential is typed',
+      storedSMTP(),
+      values({ smtp_host: 'mailpit', secret: 'pw' }),
+    ],
+    ['nothing is stored', unconfigured, values({ smtp_host: 'mailpit' })],
+    [
+      'the stored configuration has no credential',
+      storedSMTP({ has_credential: false }),
+      values({ smtp_host: 'mailpit' }),
+    ],
+    [
+      'the stored provider is not SMTP',
+      storedMailgun,
+      values({ smtp_host: 'mailpit' }),
+    ],
+    [
+      'a non-SMTP provider is selected',
+      storedSMTP(),
+      values({ provider_type: 'mailgun', smtp_host: 'mailpit' }),
+    ],
+  ])('is false when %s', (_case, stored, form) => {
+    expect(testSkipsStoredCredential(stored, form)).toBe(false)
   })
 })
 

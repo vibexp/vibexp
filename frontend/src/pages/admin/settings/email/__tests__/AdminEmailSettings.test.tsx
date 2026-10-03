@@ -442,6 +442,105 @@ describe('AdminEmailSettings — test send', () => {
     expect(body).not.toHaveProperty('secret')
   })
 
+  it('says a test to a changed SMTP server runs without the stored password (#1222)', async () => {
+    const user = userEvent.setup()
+    service.getInstanceEmailSettings.mockResolvedValue(configured())
+    service.testInstanceEmailSettings.mockResolvedValue(sent)
+    renderPage()
+
+    const host = await screen.findByLabelText(/^host$/i)
+    expect(
+      screen.getByText(/a credential is stored\. leave this blank/i)
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/runs without a password/i)).toBeNull()
+
+    await user.clear(host)
+    await user.type(host, 'mailpit')
+
+    // Before Test is pressed: the hint replaces "leave this blank to keep it".
+    expect(
+      screen.getByText(
+        /a test to this server runs without a password\. saving keeps the stored one\. enter the password to test with it\./i
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/a credential is stored\. leave this blank/i)
+    ).toBeNull()
+
+    await user.click(testButton())
+    const result = await screen.findByTestId('instance-email-test-result')
+    expect(result).toHaveTextContent('Test email sent')
+    expect(result).toHaveTextContent(
+      'This test ran without a password. Saving keeps the stored one.'
+    )
+
+    // The result keeps its statement after the form is edited back.
+    await user.clear(host)
+    await user.type(host, 'smtp.acme.test')
+    expect(screen.queryByText(/a test to this server runs/i)).toBeNull()
+    expect(result).toHaveTextContent('This test ran without a password.')
+  })
+
+  it('carries the statement on a failed test to a changed SMTP server', async () => {
+    const user = userEvent.setup()
+    service.getInstanceEmailSettings.mockResolvedValue(configured())
+    service.testInstanceEmailSettings.mockResolvedValue({
+      is_valid: false,
+      message: 'Sending failed',
+      recipient: 'admin@acme.test',
+      details: { error_details: 'send_failed' },
+    })
+    renderPage()
+
+    const port = await screen.findByLabelText(/^port$/i)
+    await user.clear(port)
+    await user.type(port, '2525')
+    await user.click(testButton())
+
+    const result = await screen.findByTestId('instance-email-test-result')
+    expect(result).toHaveTextContent('Test email failed')
+    expect(result).toHaveTextContent('This test ran without a password.')
+  })
+
+  it('says nothing of the kind when the password is typed', async () => {
+    const user = userEvent.setup()
+    service.getInstanceEmailSettings.mockResolvedValue(configured())
+    service.testInstanceEmailSettings.mockResolvedValue(sent)
+    renderPage()
+
+    const host = await screen.findByLabelText(/^host$/i)
+    await user.clear(host)
+    await user.type(host, 'mailpit')
+    await user.type(screen.getByLabelText(/^smtp password$/i), 'pw')
+
+    expect(screen.queryByText(/runs without a password/i)).toBeNull()
+
+    await user.click(testButton())
+    const result = await screen.findByTestId('instance-email-test-result')
+    expect(result).not.toHaveTextContent('ran without a password')
+    expect(service.testInstanceEmailSettings.mock.calls[0][0]).toMatchObject({
+      secret: 'pw',
+    })
+  })
+
+  it('says nothing of the kind when the stored relay has no password', async () => {
+    const user = userEvent.setup()
+    service.getInstanceEmailSettings.mockResolvedValue(
+      configured({ has_credential: false })
+    )
+    service.testInstanceEmailSettings.mockResolvedValue(sent)
+    renderPage()
+
+    const host = await screen.findByLabelText(/^host$/i)
+    await user.clear(host)
+    await user.type(host, 'mailpit')
+    expect(screen.queryByText(/runs without a password/i)).toBeNull()
+
+    await user.click(testButton())
+    const result = await screen.findByTestId('instance-email-test-result')
+    expect(result).not.toHaveTextContent('ran without a password')
+  })
+
   it('reports a failed send inline, not as an error', async () => {
     const user = userEvent.setup()
     service.getInstanceEmailSettings.mockResolvedValue(configured())

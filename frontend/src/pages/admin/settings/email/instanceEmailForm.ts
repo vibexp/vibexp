@@ -182,6 +182,28 @@ export function storedCredentialApplies(
 }
 
 /**
+ * Whether a test send of this form runs WITHOUT a credential although saving
+ * the same form keeps the stored one (#1222): SMTP, a blank credential field, a
+ * stored SMTP credential, and a host, port or username that differs from the
+ * stored one. The server does not borrow the stored secret for a changed
+ * destination (a test is unaudited), while a save keeps it for the same
+ * provider type whatever the host — so a relay without AUTH can test "sent" and
+ * then fail real sends, and a host that needs AUTH can fail the test but work
+ * once saved. The page says so instead of letting the test mislead.
+ */
+export function testSkipsStoredCredential(
+  stored: AdminInstanceEmailSettings,
+  values: InstanceEmailFormValues
+): boolean {
+  return (
+    values.provider_type === 'smtp' &&
+    !values.secret?.trim() &&
+    storedCredentialApplies(stored, 'smtp') &&
+    !sameStoredDestination(stored, values)
+  )
+}
+
+/**
  * Whether an action is blocked for want of a credential, and why. Mirrors the
  * server's rules so the admin gets an inline error instead of a 400:
  *
