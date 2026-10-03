@@ -36,14 +36,16 @@ type TeamSearchSettingsServiceInterface interface {
 
 // TeamSearchSettingsService implements TeamSearchSettingsServiceInterface.
 //
-// instance resolves the instance ranking defaults per call. They are both the
+// instance reads the instance ranking defaults per call. They are both the
 // fallback for a team with no stored profile and the `instance_defaults`
 // reported on every read, so a client can preview a reset without a second
-// request.
+// request. Get and Update read them through the fail-closed
+// InstanceSearchSettingsReader.Get: an unreadable instance row is returned as
+// an error rather than reported as the built-in defaults.
 type TeamSearchSettingsService struct {
 	repo     repositories.TeamSearchSettingsRepository
 	authz    AuthorizationServiceInterface
-	instance InstanceSearchSettingsResolver
+	instance InstanceSearchSettingsReader
 	logger   *slog.Logger
 }
 
@@ -53,7 +55,7 @@ var _ TeamSearchSettingsServiceInterface = (*TeamSearchSettingsService)(nil)
 func NewTeamSearchSettingsService(
 	repo repositories.TeamSearchSettingsRepository,
 	authzService AuthorizationServiceInterface,
-	instance InstanceSearchSettingsResolver,
+	instance InstanceSearchSettingsReader,
 	logger *slog.Logger,
 ) *TeamSearchSettingsService {
 	return &TeamSearchSettingsService{
@@ -65,7 +67,7 @@ func NewTeamSearchSettingsService(
 }
 
 // teamSearchSettingsView assembles the response shape from the effective
-// values, their source and the instance defaults. The caller resolves the
+// values, their source and the instance defaults. The caller reads the
 // instance defaults once per request, so every field of one response comes from
 // the same snapshot.
 func teamSearchSettingsView(
@@ -89,11 +91,15 @@ func (s *TeamSearchSettingsService) Get(
 	if err != nil {
 		return nil, fmt.Errorf("TeamSearchSettingsService.Get: %w", err)
 	}
-	instance := s.instance.Resolve(ctx)
-	if stored == nil {
-		return teamSearchSettingsView(models.TeamSearchSettingsSourceInstance, instance.TeamValues(), instance), nil
+	instance, err := s.instance.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("TeamSearchSettingsService.Get: reading instance defaults: %w", err)
 	}
-	return teamSearchSettingsView(models.TeamSearchSettingsSourceTeam, valuesFromStored(stored), instance), nil
+	if stored == nil {
+		return teamSearchSettingsView(
+			models.TeamSearchSettingsSourceInstance, instance.Values.TeamValues(), instance.Values), nil
+	}
+	return teamSearchSettingsView(models.TeamSearchSettingsSourceTeam, valuesFromStored(stored), instance.Values), nil
 }
 
 // Update implements TeamSearchSettingsServiceInterface.
@@ -119,8 +125,14 @@ func (s *TeamSearchSettingsService) Update(
 		return nil, fmt.Errorf("TeamSearchSettingsService.Update: %w", err)
 	}
 
-	return teamSearchSettingsView(
-		models.TeamSearchSettingsSourceTeam, valuesFromStored(stored), s.instance.Resolve(ctx)), nil
+	// Read after the write, and fail closed: the profile is stored, but a
+	// response reporting guessed instance defaults would be wrong. The PUT is a
+	// full replacement, so a caller can retry it safely.
+	instance, err := s.instance.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("TeamSearchSettingsService.Update: reading instance defaults: %w", err)
+	}
+	return teamSearchSettingsView(models.TeamSearchSettingsSourceTeam, valuesFromStored(stored), instance.Values), nil
 }
 
 // Reset implements TeamSearchSettingsServiceInterface.

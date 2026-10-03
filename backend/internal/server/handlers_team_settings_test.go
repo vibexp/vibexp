@@ -299,3 +299,21 @@ func TestGetTeamSearchSettings_ServiceErrorReturns500(t *testing.T) {
 	assert.NotContains(t, w.Body.String(), "database unavailable",
 		"internal error details must not leak to the client")
 }
+
+// A PUT whose service call fails after the write (the fail-closed instance
+// defaults read, #1213) is a 500 like any other outage, not a 200 with guessed
+// defaults.
+func TestUpdateTeamSearchSettings_ServiceErrorReturns500(t *testing.T) {
+	svc := servicesmocks.NewMockTeamSearchSettingsServiceInterface(t)
+	svc.EXPECT().Update(mock.Anything, testTeamSettingsUserID, testTeamSettingsTeamID, mock.Anything).
+		Return(nil, fmt.Errorf("reading instance defaults: database unavailable"))
+
+	srv := createTestTeamSettingsServer(svc)
+	req := makeTeamSettingsRequest(http.MethodPut, teamSettingsPath, validUpdateBody)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NotContains(t, w.Body.String(), "database unavailable",
+		"internal error details must not leak to the client")
+}
