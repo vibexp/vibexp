@@ -48,7 +48,8 @@ type InstanceAISummarySettingsServiceInterface interface {
 	// auditing the change in the same transaction. Invalid input returns an
 	// ErrInvalidInstanceAISummarySettings-wrapped error (carrying a
 	// *SettingsFieldError) and writes nothing. A non-nil expectedVersion makes
-	// it a compare-and-set: a mismatch returns
+	// it a compare-and-set (repositories.InstanceSettingsNoStoredVersion
+	// expects nothing stored): a mismatch returns
 	// repositories.ErrInstanceSettingsVersionConflict and writes nothing.
 	Update(
 		ctx context.Context, actorUserID string, values models.InstanceAISummarySettingsValues, expectedVersion *int64,

@@ -227,7 +227,9 @@ var (
 
 	// ErrInstanceSettingsVersionConflict is returned by an instance settings
 	// repository's UpsertAudited when the caller's expected version does not
-	// match the stored row (or no row is stored). Nothing is written.
+	// match the stored state: a positive version that is not the stored row's
+	// (or with no row stored), or InstanceSettingsNoStoredVersion while a row
+	// is stored. Nothing is written.
 	ErrInstanceSettingsVersionConflict = errors.New("instance settings version conflict")
 
 	// ErrInstanceSettingsAuditUnredacted is returned by
@@ -1576,6 +1578,34 @@ type InstanceEmailProviderRepository interface {
 	RecordError(ctx context.Context, sendErr error, at time.Time) error
 }
 
+// InstanceSettingsNoStoredVersion is the expectedVersion an instance settings
+// UpsertAudited takes to mean "nothing is stored yet" (#1220): the write
+// succeeds only while no row exists, which makes the first save a
+// compare-and-set like every later one. Stored versions start at 1, so it can
+// never name a row.
+const InstanceSettingsNoStoredVersion int64 = 0
+
+// InstanceSettingsVersionConflicts is the compare-and-set rule every instance
+// settings UpsertAudited applies. expected is the caller's version; stored is
+// the row's version as read under the lock (nil: no row). The three cases:
+//
+//   - nil: last-write-wins, never a conflict.
+//   - InstanceSettingsNoStoredVersion: the caller expects no row, so a stored
+//     one is a conflict.
+//   - positive: must equal the stored version; no row stored is a conflict.
+//
+// A negative value names no state at all and always conflicts. In-memory test
+// repositories call this too, so they cannot drift from the real rule.
+func InstanceSettingsVersionConflicts(expected, stored *int64) bool {
+	if expected == nil {
+		return false
+	}
+	if *expected == InstanceSettingsNoStoredVersion {
+		return stored != nil
+	}
+	return stored == nil || *stored != *expected
+}
+
 // InstanceSearchSettingsRepository defines the data access operations for the
 // instance's search ranking defaults (#1197, epic #1196).
 //
@@ -1606,10 +1636,12 @@ type InstanceSearchSettingsRepository interface {
 	// stored); after is settings as written. An audit error rolls the upsert
 	// back.
 	//
-	// A non-nil expectedVersion makes the write a compare-and-set: it is
-	// compared with the row read under the lock, and a mismatch (or no row
-	// stored) returns ErrInstanceSettingsVersionConflict and writes nothing.
-	// nil is last-write-wins.
+	// A non-nil expectedVersion makes the write a compare-and-set against the
+	// row read under the lock: a positive value must equal the stored version
+	// (no row stored is a mismatch), and InstanceSettingsNoStoredVersion
+	// requires that no row is stored. Otherwise it returns
+	// ErrInstanceSettingsVersionConflict and writes nothing. nil is
+	// last-write-wins.
 	UpsertAudited(
 		ctx context.Context, settings *models.InstanceSearchSettings, expectedVersion *int64,
 		audit InstanceSearchSettingsAuditFunc,
@@ -1663,8 +1695,8 @@ type InstanceAISummarySettingsRepository interface {
 	// InstanceSearchSettingsRepository.UpsertAudited: a table-level write lock
 	// serializes audited writers, before is the row read under it (nil when
 	// none was stored), an audit error rolls the upsert back, and a non-nil
-	// expectedVersion is compared under the lock
-	// (ErrInstanceSettingsVersionConflict on a mismatch).
+	// expectedVersion is compared under the lock, InstanceSettingsNoStoredVersion
+	// included (ErrInstanceSettingsVersionConflict on a mismatch).
 	UpsertAudited(
 		ctx context.Context, settings *models.InstanceAISummarySettings, expectedVersion *int64,
 		audit InstanceAISummarySettingsAuditFunc,
@@ -1750,8 +1782,10 @@ type InstanceAuthAllowlistRepository interface {
 	// user returns ErrUserNotFound), refreshing
 	// CreatedAt/UpdatedAt/Version on the passed struct. A non-nil
 	// expectedVersion is compared with the allowlist row's own version under
-	// the lock; a mismatch (or no row stored) returns
-	// ErrInstanceSettingsVersionConflict and writes nothing.
+	// the lock: a positive value must equal it (no row stored is a mismatch),
+	// and InstanceSettingsNoStoredVersion requires that no row is stored.
+	// Otherwise it returns ErrInstanceSettingsVersionConflict and writes
+	// nothing.
 	UpsertAudited(
 		ctx context.Context, allowlist *models.InstanceAuthAllowlist, actorUserID *string, expectedVersion *int64,
 	) error

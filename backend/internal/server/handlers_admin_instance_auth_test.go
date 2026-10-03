@@ -769,6 +769,33 @@ func TestAdminAuthAllowlist_RoundTrip(t *testing.T) {
 	assert.Nil(t, stored.Version)
 }
 
+// Expected version 0 means "no allowlist stored yet" (#1220): it saves only
+// while nothing is stored, and is a 409 that changes nothing once one is.
+func TestAdminAuthAllowlist_ExpectedVersionZeroExpectsNothingStored(t *testing.T) {
+	f := newAuthSettingsFixture(t)
+	put := func(domain string) *httptest.ResponseRecorder {
+		return f.serve(t, asRoot, http.MethodPut, authAllowlistPath,
+			map[string]any{"domains": []string{domain}, "emails": []string{}, "expected_version": 0})
+	}
+
+	rr := put("example.com")
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	rr = put("corp.example.org")
+	require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+	code, _ := problemCodeAndReason(t, rr)
+	assert.Equal(t, "INSTANCE_SETTINGS_VERSION_CONFLICT", code)
+	var stored admingen.AdminAuthAllowlist
+	rr = f.serve(t, asRoot, http.MethodGet, authAllowlistPath, nil)
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &stored))
+	assert.Equal(t, []string{"example.com"}, stored.Domains, "the conflicting PUT changes nothing")
+	assert.Len(t, f.store.AuditEntries(models.InstanceSettingAuthAllowlist), 1)
+
+	require.Equal(t, http.StatusNoContent, f.serve(t, asRoot, http.MethodDelete, authAllowlistPath, nil).Code)
+	rr = put("corp.example.org")
+	require.Equal(t, http.StatusOK, rr.Code, "a reset leaves nothing stored again: "+rr.Body.String())
+}
+
 func TestAdminAuthAllowlist_BadBodiesAre400(t *testing.T) {
 	cases := map[string]map[string]any{
 		"invalid domain": {"domains": []string{"not a domain"}, "emails": []string{}},

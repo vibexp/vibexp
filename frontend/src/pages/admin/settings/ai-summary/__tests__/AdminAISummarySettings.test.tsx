@@ -120,6 +120,28 @@ it('saves every value with the last-read version', async () => {
   })
 })
 
+it('sends version 0 when nothing is stored yet', async () => {
+  const user = userEvent.setup()
+  service.getAISummarySettings.mockResolvedValue({
+    ...customized,
+    source: 'default',
+    values: builtIn,
+    updated_at: null,
+    version: null,
+  })
+  service.updateAISummarySettings.mockResolvedValue(customized)
+  render(<AdminAISummarySettings />)
+
+  await user.selectOptions(await screen.findByLabelText('Style'), 'concise')
+  await user.click(saveButton())
+
+  expect(service.updateAISummarySettings).toHaveBeenCalledWith({
+    ...builtIn,
+    style: 'concise',
+    expected_version: 0,
+  })
+})
+
 it('requires the total context to hold one document', async () => {
   const user = userEvent.setup()
   render(<AdminAISummarySettings />)

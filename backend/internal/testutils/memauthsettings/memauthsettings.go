@@ -332,7 +332,11 @@ func (r allowlistRepo) UpsertAudited(
 		return r.s.Err
 	}
 	before := r.s.allowlist
-	if expected != nil && (before == nil || before.Version != *expected) {
+	var storedVersion *int64
+	if before != nil {
+		storedVersion = &before.Version
+	}
+	if repositories.InstanceSettingsVersionConflicts(expected, storedVersion) {
 		return repositories.ErrInstanceSettingsVersionConflict
 	}
 	allowlist.UpdatedAt = r.s.tick()

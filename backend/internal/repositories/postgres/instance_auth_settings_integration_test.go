@@ -478,6 +478,40 @@ func TestIntegrationInstanceAuthAllowlist_Lifecycle(t *testing.T) {
 	assert.Equal(t, actor, *entries[2].ActorUserID)
 }
 
+// Expected version 0 means "no allowlist stored yet" (#1220): it saves only
+// while no row exists, conflicts once one does without bumping the shared
+// version, and works again after a reset.
+func TestIntegrationInstanceAuthAllowlist_ExpectNothingStored(t *testing.T) {
+	resetInstanceAuthSettings(t)
+	repo := NewInstanceAuthAllowlistRepository(integrationDB)
+	ctx := context.Background()
+	actor := insertTestUser(t)
+	start := authSettingsVersion(t)
+	nothing := repositories.InstanceSettingsNoStoredVersion
+	fixture := func(domain string) *models.InstanceAuthAllowlist {
+		return &models.InstanceAuthAllowlist{Domains: []string{domain}}
+	}
+
+	first := fixture("example.com")
+	require.NoError(t, repo.UpsertAudited(ctx, first, &actor, &nothing))
+	assert.Equal(t, int64(1), first.Version)
+
+	assert.ErrorIs(t, repo.UpsertAudited(ctx, fixture("corp.example.org"), &actor, &nothing),
+		repositories.ErrInstanceSettingsVersionConflict, "an allowlist is stored now")
+	assert.Equal(t, start+1, authSettingsVersion(t), "a conflict does not bump the version")
+	got, err := repo.Get(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"example.com"}, got.Domains, "the conflicting save never landed")
+	assert.Len(t, authAuditEntries(t, models.InstanceSettingAuthAllowlist), 1)
+
+	deleted, err := repo.DeleteAudited(ctx, &actor)
+	require.NoError(t, err)
+	require.True(t, deleted)
+	again := fixture("corp.example.org")
+	require.NoError(t, repo.UpsertAudited(ctx, again, &actor, &nothing), "a reset leaves nothing stored again")
+	assert.Equal(t, int64(1), again.Version)
+}
+
 // An allowlist row with both lists empty is storable (it is open access, see
 // models.InstanceAuthAllowlist.IsOpenAccess), and reads back as open access.
 func TestIntegrationInstanceAuthAllowlist_EmptyRowIsOpenAccess(t *testing.T) {
