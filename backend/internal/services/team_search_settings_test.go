@@ -62,11 +62,31 @@ func newSettingsService(t *testing.T, authzSvc services.AuthorizationServiceInte
 ) {
 	t.Helper()
 	repo := repomocks.NewMockTeamSearchSettingsRepository(t)
-	instance := servicemocks.NewMockInstanceSearchSettingsResolver(t)
+	// The service-interface mock satisfies InstanceSearchSettingsReader. Only
+	// Get is expected: the settings API must never take the fail-open Resolve.
+	instance := servicemocks.NewMockInstanceSearchSettingsServiceInterface(t)
 	// Maybe: denied and rejected writes never reach the instance defaults.
-	instance.EXPECT().Resolve(mock.Anything).Return(settingsInstanceValues()).Maybe()
+	instance.EXPECT().Get(mock.Anything).Return(&models.InstanceSearchSettingsView{
+		Source: models.InstanceSearchSettingsSourceInstance,
+		Values: settingsInstanceValues(),
+	}, nil).Maybe()
 	return services.NewTeamSearchSettingsService(
 		repo, authzSvc, instance, slog.New(slog.DiscardHandler)), repo
+}
+
+// newSettingsServiceWithUnreadableInstance builds the service over a REAL
+// InstanceSearchSettingsService whose repository read fails, so the tests
+// exercise the same error path production takes.
+func newSettingsServiceWithUnreadableInstance(t *testing.T) (
+	*services.TeamSearchSettingsService, *repomocks.MockTeamSearchSettingsRepository,
+) {
+	t.Helper()
+	repo := repomocks.NewMockTeamSearchSettingsRepository(t)
+	instanceRepo := repomocks.NewMockInstanceSearchSettingsRepository(t)
+	instanceRepo.EXPECT().Get(mock.Anything).Return(nil, errors.New("instance row unreadable"))
+	return services.NewTeamSearchSettingsService(repo, allowAllAuthz{},
+		services.NewInstanceSearchSettingsService(instanceRepo, slog.New(slog.DiscardHandler)),
+		slog.New(slog.DiscardHandler)), repo
 }
 
 // Team settings reads report instance_defaults and rank_candidate_cap from the
@@ -200,6 +220,55 @@ func TestTeamSearchSettingsService_Get_RepositoryErrorPropagates(t *testing.T) {
 
 	assert.Error(t, err, "unlike the search resolver, a read here must NOT fail open — "+
 		"the caller is asking what the settings are and deserves the truth")
+}
+
+// Get and the Update response are the settings API's reads and fail CLOSED on
+// the instance defaults too: reporting the built-in defaults as instance_defaults
+// (or as a no-profile team's values) while the instance row is unreadable would
+// present a guess as fact.
+func TestTeamSearchSettingsService_Get_InstanceReadErrorPropagates(t *testing.T) {
+	stored := &models.TeamSearchSettings{TeamID: testTeamID, RankWeightRelevance: 1, RankHalfLifeDays: 7}
+	for name, row := range map[string]*models.TeamSearchSettings{"no team profile": nil, "team profile": stored} {
+		t.Run(name, func(t *testing.T) {
+			svc, repo := newSettingsServiceWithUnreadableInstance(t)
+			repo.EXPECT().Get(mock.Anything, testTeamID).Return(row, nil)
+
+			view, err := svc.Get(context.Background(), testTeamID)
+
+			assert.ErrorContains(t, err, "instance row unreadable")
+			assert.Nil(t, view)
+		})
+	}
+}
+
+func TestTeamSearchSettingsService_Update_InstanceReadErrorPropagates(t *testing.T) {
+	svc, repo := newSettingsServiceWithUnreadableInstance(t)
+	repo.EXPECT().Upsert(mock.Anything, mock.Anything).Return(nil)
+
+	view, err := svc.Update(context.Background(), testSettingsUserID, testTeamID, teamProfile())
+
+	assert.ErrorContains(t, err, "instance row unreadable")
+	assert.Nil(t, view)
+}
+
+// A missing instance row is real state, not a failed read: the built-in
+// defaults are what is in effect, so they are reported with no error.
+func TestTeamSearchSettingsService_Get_MissingInstanceRowReportsBuiltInDefaults(t *testing.T) {
+	teamRepo := repomocks.NewMockTeamSearchSettingsRepository(t)
+	instanceRepo := repomocks.NewMockInstanceSearchSettingsRepository(t)
+	svc := services.NewTeamSearchSettingsService(teamRepo, allowAllAuthz{},
+		services.NewInstanceSearchSettingsService(instanceRepo, slog.New(slog.DiscardHandler)),
+		slog.New(slog.DiscardHandler))
+	teamRepo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
+	instanceRepo.EXPECT().Get(mock.Anything).Return(nil, repositories.ErrInstanceSearchSettingsNotFound)
+
+	view, err := svc.Get(context.Background(), testTeamID)
+
+	require.NoError(t, err)
+	assert.Equal(t, models.TeamSearchSettingsSourceInstance, view.Source)
+	assert.Equal(t, services.BuiltInSearchDefaults().TeamValues(), view.InstanceDefaults)
+	assert.Equal(t, services.BuiltInSearchDefaults().TeamValues(), view.Values)
+	assert.Equal(t, services.BuiltInSearchDefaults().RankCandidateCap, view.RankCandidateCap)
 }
 
 // degenerateValues covers one violation per validation bound; each mirrors a

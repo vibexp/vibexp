@@ -586,10 +586,11 @@ func ProvideFreshnessEvaluator(
 // (instance_search_settings row, else the built-in defaults) and the surface an
 // instance admin edits them through.
 //
-// It returns the CONCRETE type because the service satisfies two interfaces —
-// InstanceSearchSettingsResolver (the fail-open read the team resolver and team
-// settings service build on) and InstanceSearchSettingsServiceInterface (the
-// admin read + writes). wire.Bind in wire.go maps it to both.
+// It returns the CONCRETE type because the service satisfies three interfaces —
+// InstanceSearchSettingsResolver (the fail-open read the team resolver builds
+// on), InstanceSearchSettingsReader (both reads, for the team settings service)
+// and InstanceSearchSettingsServiceInterface (the admin read + writes).
+// wire.Bind in wire.go maps it to all three.
 func ProvideInstanceSearchSettingsService(
 	repo repositories.InstanceSearchSettingsRepository,
 	logger *slog.Logger,
@@ -598,12 +599,13 @@ func ProvideInstanceSearchSettingsService(
 }
 
 // ProvideTeamSearchSettingsService creates the team search settings service.
-// The instance resolver supplies, per request, both the fallback for a team
-// with no stored profile and the instance_defaults reported on every read.
+// The instance reader supplies, per request, both the fallback for a team with
+// no stored profile and the instance_defaults reported on every read; the
+// service reads them fail-closed, so an unreadable instance row is an error.
 func ProvideTeamSearchSettingsService(
 	repo repositories.TeamSearchSettingsRepository,
 	authzService services.AuthorizationServiceInterface,
-	instance services.InstanceSearchSettingsResolver,
+	instance services.InstanceSearchSettingsReader,
 	logger *slog.Logger,
 ) services.TeamSearchSettingsServiceInterface {
 	return services.NewTeamSearchSettingsService(repo, authzService, instance, logger)

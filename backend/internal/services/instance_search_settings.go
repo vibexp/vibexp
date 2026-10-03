@@ -38,14 +38,22 @@ type InstanceSearchSettingsResolver interface {
 	Resolve(ctx context.Context) models.InstanceSearchSettingsValues
 }
 
+// InstanceSearchSettingsReader is the read half of the instance settings: the
+// fail-open Resolve plus the fail-closed Get. The team settings service holds
+// it, so its own fail-closed reads (the settings API) can report a failed
+// instance read instead of a guess.
+type InstanceSearchSettingsReader interface {
+	InstanceSearchSettingsResolver
+	// Get returns the defaults in effect and where they come from. Unlike
+	// Resolve it returns a repository error, so a caller sees real state.
+	Get(ctx context.Context) (*models.InstanceSearchSettingsView, error)
+}
+
 // InstanceSearchSettingsServiceInterface is the instance-level search settings
 // surface an instance admin edits (#1200). Instance-admin authorization is the
 // route middleware's job, so no method takes a permission check of its own.
 type InstanceSearchSettingsServiceInterface interface {
-	InstanceSearchSettingsResolver
-	// Get returns the defaults in effect and where they come from. Unlike
-	// Resolve it returns a repository error, so an admin sees real state.
-	Get(ctx context.Context) (*models.InstanceSearchSettingsView, error)
+	InstanceSearchSettingsReader
 	// Update validates and stores a complete replacement set of defaults,
 	// auditing the change in the same transaction. Invalid input returns an
 	// ErrInvalidSearchSettings-wrapped error (carrying a *SettingsFieldError)
@@ -100,7 +108,7 @@ func (s *InstanceSearchSettingsService) Resolve(ctx context.Context) models.Inst
 	return instanceSearchValuesFromStored(stored)
 }
 
-// Get implements InstanceSearchSettingsServiceInterface.
+// Get implements InstanceSearchSettingsReader.
 func (s *InstanceSearchSettingsService) Get(ctx context.Context) (*models.InstanceSearchSettingsView, error) {
 	stored, err := s.repo.Get(ctx)
 	if errors.Is(err, repositories.ErrInstanceSearchSettingsNotFound) {

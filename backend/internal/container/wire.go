@@ -148,6 +148,8 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideInstanceSearchSettingsService,
 	wire.Bind(new(services.InstanceSearchSettingsResolver),
 		new(*services.InstanceSearchSettingsService)),
+	wire.Bind(new(services.InstanceSearchSettingsReader),
+		new(*services.InstanceSearchSettingsService)),
 	wire.Bind(new(services.InstanceSearchSettingsServiceInterface),
 		new(*services.InstanceSearchSettingsService)),
 	providers.ProvideSearchSettingsResolver,
