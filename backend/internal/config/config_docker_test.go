@@ -271,6 +271,21 @@ func TestConfigDockerYAML_PprofEnvOverrides(t *testing.T) {
 	require.Equal(t, "0.0.0.0:6060", cfg.Server.Pprof.ListenAddr)
 }
 
+// `docker run` evicts idle MCP sessions after 30 minutes with no configuration,
+// and MCP_SESSION_TIMEOUT retunes it with env alone (#1275).
+func TestConfigDockerYAML_MCPSessionTimeout(t *testing.T) {
+	setDockerRequiredEnv(t)
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+	require.Equal(t, 30*time.Minute, cfg.MCP.SessionTimeout)
+
+	t.Setenv("MCP_SESSION_TIMEOUT", "2h")
+	cfg, err = Load(dockerConfigPath)
+	require.NoError(t, err)
+	require.Equal(t, 2*time.Hour, cfg.MCP.SessionTimeout)
+}
+
 // TestConfigDockerYAML_SchedulerEnvOverrides is the headline acceptance
 // criterion: every scheduler knob is settable with `docker run -e` alone, no
 // mounted config file. The bool and int cases are the ones that needed

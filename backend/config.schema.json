@@ -519,6 +519,10 @@
         },
         "resource_uri": {
           "type": "string"
+        },
+        "session_timeout": {
+          "type": "string",
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
         }
       },
       "additionalProperties": false,

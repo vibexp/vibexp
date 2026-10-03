@@ -999,6 +999,60 @@ scheduler:
 	assert.Contains(t, err.Error(), "scheduler.tick_interval")
 }
 
+// --- MCP session timeout ---------------------------------------------------
+
+func TestLoad_MCPSessionTimeoutDefault(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML)
+
+	require.NoError(t, err)
+	assert.Equal(t, 30*time.Minute, cfg.MCP.SessionTimeout,
+		"an omitted mcp.session_timeout must default to 30m, never to the SDK's zero (no eviction)")
+}
+
+func TestValidateMCPConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		timeout time.Duration
+		wantErr bool
+	}{
+		{"default is valid", 30 * time.Minute, false},
+		{"short timeout is valid", time.Second, false},
+		// The load-bearing case: the SDK reads zero as "never close an idle
+		// session", which is the unbounded growth of #1275.
+		{"zero disables eviction", 0, true},
+		{"negative", -time.Minute, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateMCPConfig(&Config{MCP: MCPConfig{SessionTimeout: tt.timeout}})
+			if !tt.wantErr {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "mcp.session_timeout", "error must name the offending config key")
+		})
+	}
+}
+
+// TestLoad_InvalidMCPSessionTimeout proves validateMCPConfig is wired into
+// validateAll: a real config.yaml with session_timeout: "0s" must fail at load.
+func TestLoad_InvalidMCPSessionTimeout(t *testing.T) {
+	for _, value := range []string{"0s", "-5m"} {
+		t.Run(value, func(t *testing.T) {
+			cfg, err := loadYAML(t, baseValidYAML+`
+mcp:
+  session_timeout: "`+value+`"
+`)
+
+			require.Error(t, err)
+			assert.Nil(t, cfg)
+			assert.Contains(t, err.Error(), "mcp.session_timeout")
+		})
+	}
+}
+
 // --- MCP issuer defaulting / OAuth AS agreement --------------------------
 
 // asYAML returns a config.yaml enabling the embedded AS with the given explicit

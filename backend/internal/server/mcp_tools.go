@@ -375,6 +375,11 @@ func createsMCPSession(req *http.Request) bool {
 // gets one shared bare server, which is never connected or mutated. The
 // populated server is built once per session-creating request and reused
 // across the SDK's calls through a holder in the request context.
+//
+// The handler is stateful, and a session ends on its own only when the client
+// sends DELETE. SessionTimeout closes the ones a client abandoned (it exited,
+// crashed or was killed); without it each one keeps its MCP server and a
+// goroutine for the life of the process (#1275).
 func (s *Server) createMCPHandlerCommon() http.Handler {
 	toolsManager := NewMCPToolsManager(s)
 	bareServer := newMCPServer()
@@ -395,7 +400,7 @@ func (s *Server) createMCPHandlerCommon() http.Handler {
 			holder.server = mcpServer
 		}
 		return mcpServer
-	}, nil)
+	}, &mcp.StreamableHTTPOptions{SessionTimeout: s.config.MCP.SessionTimeout})
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if createsMCPSession(req) {
