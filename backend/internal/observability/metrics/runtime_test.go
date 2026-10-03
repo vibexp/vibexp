@@ -41,7 +41,11 @@ func runtimeMetricPoints(t *testing.T, rm *metricdata.ResourceMetrics) map[strin
 // metrics export configured, the exported series include the goroutine count,
 // the memory the runtime holds, and the GC's view of the heap.
 func TestNew_ExportsGoRuntimeMetrics(t *testing.T) {
-	_, reader := newTestMetricsWithReader(t)
+	reader := sdkmetric.NewManualReader()
+	m, err := New("test-version", WithRuntimeMetrics(),
+		WithReaderProvider(func(context.Context) (sdkmetric.Reader, error) { return reader, nil }))
+	require.NoError(t, err)
+	require.True(t, m.RuntimeMetricsEnabled())
 
 	points := runtimeMetricPoints(t, scrapeMetrics(t, reader))
 
@@ -73,6 +77,21 @@ func TestNew_ExportsGoRuntimeMetrics(t *testing.T) {
 
 	require.Len(t, points["go.memory.gc.goal"], 1)
 	assert.Positive(t, points["go.memory.gc.goal"][0].Value)
+}
+
+// TestNew_RuntimeMetricsAreOptIn pins that an instance built without
+// WithRuntimeMetrics exports no go.* series. The process builds two Metrics
+// (server + container); if both exported them, every series would have two
+// writers.
+func TestNew_RuntimeMetricsAreOptIn(t *testing.T) {
+	m, reader := newTestMetricsWithReader(t)
+
+	assert.False(t, m.RuntimeMetricsEnabled())
+	assert.Empty(t, runtimeMetricPoints(t, scrapeMetrics(t, reader)),
+		"runtime metrics must not be exported unless WithRuntimeMetrics is passed")
+
+	var nilMetrics *Metrics
+	assert.False(t, nilMetrics.RuntimeMetricsEnabled())
 }
 
 // failingMeterProvider hands out meters whose every observable up-down counter

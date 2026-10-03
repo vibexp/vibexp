@@ -110,6 +110,10 @@ type Metrics struct {
 	// It must be shut down gracefully to flush buffered metrics
 	meterProvider *sdkmetric.MeterProvider
 
+	// runtimeMetrics records that the Go runtime instruments were started on
+	// meterProvider (WithRuntimeMetrics).
+	runtimeMetrics bool
+
 	// logger emits a durable structured log line for every business event,
 	// alongside the OTel counter, so business metrics survive Cloud Run
 	// scale-to-zero (OTel cumulative counters are lost on cold start).
@@ -125,6 +129,21 @@ type metricsConfig struct {
 	exportInterval time.Duration
 	appConfig      *config.Config
 	appLogger      *slog.Logger
+	runtimeMetrics bool
+}
+
+// WithRuntimeMetrics also exports the Go runtime metrics (goroutine count,
+// runtime memory, GC heap goal; #1277) through this instance's meter provider.
+//
+// It is opt-in because the process builds more than one Metrics (the server's
+// and the DI container's), each with its own provider and exporter but the same
+// resource. Runtime instruments are observable, so every provider that starts
+// them emits every go.* series: two would be two writers for one stream. Pass
+// this option at exactly ONE construction site.
+func WithRuntimeMetrics() Option {
+	return func(c *metricsConfig) {
+		c.runtimeMetrics = true
+	}
 }
 
 // WithReaderProvider allows customizing the reader provider (used in tests)
@@ -257,6 +276,7 @@ func newMeterProvider(
 // - WithExportInterval(interval): Set export interval (default: 60s)
 // - WithReaderProvider(provider): Use custom reader (for tests)
 // - WithConfig(cfg): Use application config for deployment environment
+// - WithRuntimeMetrics(): Also export the Go runtime metrics (one instance only)
 func New(serviceVersion string, opts ...Option) (*Metrics, error) {
 	ctx := context.Background()
 
@@ -285,18 +305,30 @@ func New(serviceVersion string, opts ...Option) (*Metrics, error) {
 		return nil, shutdownAfterInitFailure(ctx, meterProvider, err)
 	}
 
-	if err := startRuntimeMetrics(meterProvider); err != nil {
-		return nil, shutdownAfterInitFailure(ctx, meterProvider, err)
+	if cfg.runtimeMetrics {
+		if err := startRuntimeMetrics(meterProvider); err != nil {
+			return nil, shutdownAfterInitFailure(ctx, meterProvider, err)
+		}
+		m.runtimeMetrics = true
 	}
 
 	return m, nil
 }
 
+// RuntimeMetricsEnabled reports whether this instance exports the Go runtime
+// metrics (see WithRuntimeMetrics). It is false on a nil instance.
+func (m *Metrics) RuntimeMetricsEnabled() bool {
+	return m != nil && m.runtimeMetrics
+}
+
 // startRuntimeMetrics registers the Go runtime instruments (go.goroutine.count,
 // go.memory.*, go.config.gogc, go.processor.limit) on the provider (#1277), so
 // they travel the same export pipeline as the business metrics. They are
-// observable instruments: the runtime is read once per collection, and the
-// callback is released when the provider shuts down.
+// observable instruments, collected on every export; the contrib package
+// re-reads the runtime at most every 15s
+// (runtime.DefaultMinimumReadMemStatsInterval), so an export interval shorter
+// than that repeats the previous sample. The callback is released when the
+// provider shuts down.
 func startRuntimeMetrics(provider metric.MeterProvider) error {
 	if err := otelruntime.Start(otelruntime.WithMeterProvider(provider)); err != nil {
 		return fmt.Errorf("failed to start Go runtime metrics: %w", err)

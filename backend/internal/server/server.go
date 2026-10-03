@@ -199,6 +199,11 @@ func initializeMetrics(cfg *config.Config, logger *slog.Logger) *metrics.Metrics
 		metrics.WithOTelEndpoint(cfg.OTel.Endpoint),
 		metrics.WithExportInterval(cfg.OTel.ExportInterval),
 		metrics.WithLogger(logger),
+		// The Go runtime metrics (#1277) are exported by THIS instance only: it
+		// is the one Start flushes on shutdown. The container builds a second
+		// Metrics (providers.ProvideMetrics) that must not start them too, or
+		// every go.* series would have two writers.
+		metrics.WithRuntimeMetrics(),
 	)
 	if err != nil {
 		logger.With(

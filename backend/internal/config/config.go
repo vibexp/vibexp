@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -123,15 +124,22 @@ type PprofConfig struct {
 	ListenAddr string `koanf:"listen_addr"`
 }
 
-// validatePprofConfig rejects a server.pprof.listen_addr that is not host:port
-// when the listener is enabled, so a typo fails at load rather than leaving an
-// operator with a profiling endpoint that silently never came up.
+// validatePprofConfig rejects, when the listener is enabled, a
+// server.pprof.listen_addr that is not host:port with a numeric port (0-65535),
+// so a malformed address fails at load rather than leaving an operator with a
+// profiling endpoint that silently never came up. The host is not resolved
+// here; an address that is well-formed but cannot be bound is reported at boot.
 func validatePprofConfig(cfg *Config) error {
 	if !cfg.Server.Pprof.Enabled {
 		return nil
 	}
-	if _, _, err := net.SplitHostPort(cfg.Server.Pprof.ListenAddr); err != nil {
-		return fmt.Errorf("server.pprof.listen_addr %q must be host:port: %w", cfg.Server.Pprof.ListenAddr, err)
+	addr := cfg.Server.Pprof.ListenAddr
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("server.pprof.listen_addr %q must be host:port: %w", addr, err)
+	}
+	if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+		return fmt.Errorf("server.pprof.listen_addr %q must end in a numeric port (0-65535): %w", addr, err)
 	}
 	return nil
 }

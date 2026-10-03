@@ -1435,6 +1435,16 @@ func TestLoad_PprofConfig(t *testing.T) {
 		assert.Contains(t, err.Error(), "server.pprof.listen_addr")
 	})
 
+	t.Run("enabled with a non-numeric or missing port fails fast", func(t *testing.T) {
+		for _, addr := range []string{"127.0.0.1:abc", "127.0.0.1:", "127.0.0.1:70000"} {
+			cfg, err := loadYAML(t, baseValidYAML+
+				"server:\n  pprof:\n    enabled: true\n    listen_addr: \""+addr+"\"\n")
+			require.Error(t, err, addr)
+			assert.Nil(t, cfg, addr)
+			assert.Contains(t, err.Error(), "numeric port", addr)
+		}
+	})
+
 	t.Run("disabled does not validate the address", func(t *testing.T) {
 		cfg, err := loadYAML(t, baseValidYAML+
 			"server:\n  pprof:\n    enabled: false\n    listen_addr: \"localhost\"\n")

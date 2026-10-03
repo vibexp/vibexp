@@ -14,12 +14,21 @@ The VibeXP backend API uses OpenTelemetry for metrics collection. Metrics are ex
 
 ### Go Runtime Metrics
 
-`New` also starts the OpenTelemetry Go runtime instrumentation
-(`go.opentelemetry.io/contrib/instrumentation/runtime`) on the same meter
-provider, so these series travel the same export pipeline as the business
-metrics (#1277). They are observable instruments in the
-`go.opentelemetry.io/contrib/instrumentation/runtime` scope, read from the
-runtime once per collection, with no high-cardinality attributes:
+With the `WithRuntimeMetrics()` option, `New` also starts the OpenTelemetry Go
+runtime instrumentation (`go.opentelemetry.io/contrib/instrumentation/runtime`)
+on the same meter provider, so these series travel the same export pipeline as
+the business metrics (#1277). They are observable instruments in the
+`go.opentelemetry.io/contrib/instrumentation/runtime` scope, with no
+high-cardinality attributes. They are collected on every export; the contrib
+package re-reads the runtime at most every 15 seconds, so an
+`otel.export_interval` shorter than that repeats the previous sample.
+
+The option is passed at exactly **one** construction site, the server's
+(`initializeMetrics` in `internal/server/server.go`). The process builds a
+second `Metrics` in the DI container (`providers.ProvideMetrics`) with the same
+resource and its own exporter; if both started the runtime instruments, every
+`go.*` series would be exported twice. `TestInitializeMetrics_ExportsRuntimeMetrics`
+and `TestProvideMetrics_DoesNotExportRuntimeMetrics` pin the two sites.
 
 | Metric Name | Type | Unit | Description | Attributes |
 |-------------|------|------|-------------|------------|
