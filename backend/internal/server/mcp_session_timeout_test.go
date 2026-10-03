@@ -28,11 +28,13 @@ const (
 )
 
 // mcpSessionTestClient talks to the real /mcp/v1/common handler over HTTP the way
-// an MCP client does, minus the part under test: it never sends DELETE.
+// an MCP client does, minus the part under test: it never sends DELETE while
+// the test runs.
 type mcpSessionTestClient struct {
-	t      *testing.T
-	url    string
-	client *http.Client
+	t          *testing.T
+	url        string
+	client     *http.Client
+	sessionIDs []string
 }
 
 // newMCPSessionTestClient serves createMCPHandlerCommon (the production
@@ -58,10 +60,33 @@ func newMCPSessionTestClient(t *testing.T, sessionTimeout time.Duration) *mcpSes
 	transport := &http.Transport{}
 	c := &mcpSessionTestClient{t: t, url: ts.URL, client: &http.Client{Transport: transport}}
 	t.Cleanup(func() {
+		c.deleteSessions()
 		transport.CloseIdleConnections()
 		ts.Close()
 	})
 	return c
+}
+
+// deleteSessions ends every session the test opened, so none outlives it and
+// shows up in the next test's goroutine baseline. A session the timeout already
+// evicted answers 404, which is fine here.
+func (c *mcpSessionTestClient) deleteSessions() {
+	for _, id := range c.sessionIDs {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodDelete, c.url, http.NoBody)
+		if err != nil {
+			c.t.Logf("build DELETE for session %s: %v", id, err)
+			continue
+		}
+		req.Header.Set("Mcp-Session-Id", id)
+		resp, err := c.client.Do(req)
+		if err != nil {
+			c.t.Logf("DELETE session %s: %v", id, err)
+			continue
+		}
+		if err := resp.Body.Close(); err != nil {
+			c.t.Logf("close DELETE response for session %s: %v", id, err)
+		}
+	}
 }
 
 // post sends one JSON-RPC message and returns the status code and the session
@@ -92,6 +117,7 @@ func (c *mcpSessionTestClient) openSession() string {
 	status, sessionID := c.post("", mcpInitializeBody)
 	require.Equal(c.t, http.StatusOK, status, "initialize must succeed")
 	require.NotEmpty(c.t, sessionID, "initialize must hand back an Mcp-Session-Id")
+	c.sessionIDs = append(c.sessionIDs, sessionID)
 
 	status, _ = c.post(sessionID, mcpInitializedBody)
 	require.Equal(c.t, http.StatusAccepted, status, "notifications/initialized must be accepted")
