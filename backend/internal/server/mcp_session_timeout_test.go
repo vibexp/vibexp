@@ -98,53 +98,86 @@ func (c *mcpSessionTestClient) openSession() string {
 	return sessionID
 }
 
+// mcpSDKGoroutines counts the goroutines currently running MCP SDK code, which
+// is what an open session parks. The process-wide runtime.NumGoroutine() cannot
+// be compared against a baseline in this package: every server.New leaves
+// telemetry exporters running, and their goroutines come and go on their own
+// schedule.
+func mcpSDKGoroutines() int {
+	buf := make([]byte, 1<<20)
+	for {
+		n := runtime.Stack(buf, true)
+		if n < len(buf) {
+			buf = buf[:n]
+			break
+		}
+		buf = make([]byte, 2*len(buf))
+	}
+
+	count := 0
+	for stack := range strings.SplitSeq(string(buf), "\n\n") {
+		if strings.Contains(stack, "github.com/modelcontextprotocol/go-sdk") {
+			count++
+		}
+	}
+	return count
+}
+
+// waitFor polls cond on the calling goroutine until it holds or the deadline
+// passes, and reports whether it held. It stands in for require.Eventually,
+// which runs its condition on a goroutine of its own, where a failing require
+// inside post could not stop the test.
+func waitFor(deadline, interval time.Duration, cond func() bool) bool {
+	end := time.Now().Add(deadline)
+	for {
+		if cond() {
+			return true
+		}
+		if time.Now().After(end) {
+			return false
+		}
+		time.Sleep(interval)
+	}
+}
+
 // TestMCPSessionTimeout_EvictsAbandonedSessions is the regression guard for
 // #1275: sessions a client opens and never deletes must be closed once they
 // have been idle for mcp.session_timeout, giving back both the session (404 on
 // its old ID) and the goroutine each one parks.
 func TestMCPSessionTimeout_EvictsAbandonedSessions(t *testing.T) {
 	const (
-		sessions = 20
-		// Long enough that every session is still open when the goroutine
-		// count is sampled below: building a session's MCP server is slow
-		// under -race, and a shorter timeout evicts the first sessions while
-		// the last are still being opened.
+		sessions = 5
+		// Several times what opening the sessions takes (about 170ms each
+		// under -race), so all of them are still open when the goroutines are
+		// counted below.
 		sessionTimeout = 3 * time.Second
 	)
 
 	c := newMCPSessionTestClient(t, sessionTimeout)
-	// Sampled after the server is up, so its own background goroutines and the
-	// httptest accept loop are in the baseline and only sessions move it.
-	baseline := runtime.NumGoroutine()
+	baseline := mcpSDKGoroutines()
 
 	ids := make([]string, 0, sessions)
 	for range sessions {
 		ids = append(ids, c.openSession())
 	}
-	require.GreaterOrEqual(t, runtime.NumGoroutine(), baseline+sessions,
-		"each open session should hold at least one goroutine, or the baseline check below proves nothing")
+	require.GreaterOrEqual(t, mcpSDKGoroutines(), baseline+sessions,
+		"each open session should park at least one SDK goroutine, or the baseline check below proves nothing")
 
 	// Probing a live session would count as activity and re-arm its timer, so
 	// sleep past the timeout first and only then look.
-	time.Sleep(sessionTimeout + 500*time.Millisecond)
+	time.Sleep(sessionTimeout + time.Second)
 	for _, id := range ids {
-		require.Eventually(t, func() bool {
-			status, _ := c.post(id, mcpToolsListBody)
-			return status == http.StatusNotFound
-		}, 3*sessionTimeout, sessionTimeout+500*time.Millisecond, "abandoned session %s must be evicted and answer 404", id)
+		status, _ := c.post(id, mcpToolsListBody)
+		require.Equal(t, http.StatusNotFound, status, "abandoned session %s must be evicted and answer 404", id)
 	}
 
-	// Drop the client's keep-alive connections so only leaked session
-	// goroutines could keep the count above the baseline.
-	c.client.CloseIdleConnections()
-	// Polled inline rather than with assert.Eventually, which runs its
-	// condition on a goroutine of its own and so moves the number it reads.
-	deadline := time.Now().Add(5 * time.Second)
-	for runtime.NumGoroutine() > baseline && time.Now().Before(deadline) {
-		time.Sleep(20 * time.Millisecond)
-	}
-	assert.LessOrEqual(t, runtime.NumGoroutine(), baseline,
-		"goroutines must return to the pre-test baseline once the sessions are evicted")
+	// Closing a session is what ends its goroutine, and that finishes just
+	// after the session leaves the handler's map, so give it a moment.
+	evicted := waitFor(5*time.Second, 20*time.Millisecond, func() bool {
+		return mcpSDKGoroutines() <= baseline
+	})
+	assert.True(t, evicted, "SDK goroutines must return to the pre-test baseline (%d) once the sessions are evicted, got %d",
+		baseline, mcpSDKGoroutines())
 }
 
 // TestMCPSessionTimeout_KeepsActiveSession proves the timeout is an idle
