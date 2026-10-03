@@ -12,6 +12,53 @@ The VibeXP backend API uses OpenTelemetry for metrics collection. Metrics are ex
 |-------------|------|-------------|------------|
 | `vx_api_calls_total` | Counter | Total number of API calls | `http.method`, `http.path`, `http.status_code` |
 
+### Go Runtime Metrics
+
+With the `WithRuntimeMetrics()` option, `New` also starts the OpenTelemetry Go
+runtime instrumentation (`go.opentelemetry.io/contrib/instrumentation/runtime`)
+on the same meter provider, so these series travel the same export pipeline as
+the business metrics (#1277). They are observable instruments in the
+`go.opentelemetry.io/contrib/instrumentation/runtime` scope, with no
+high-cardinality attributes. They are collected on every export; the contrib
+package re-reads the runtime at most every 15 seconds, so an
+`otel.export_interval` shorter than that repeats the previous sample.
+
+The option is passed at exactly **one** construction site, the server's
+(`initializeMetrics` in `internal/server/server.go`). The process builds a
+second `Metrics` in the DI container (`providers.ProvideMetrics`) with the same
+resource and its own exporter; if both started the runtime instruments, every
+`go.*` series would be exported twice. `TestInitializeMetrics_ExportsRuntimeMetrics`
+and `TestProvideMetrics_DoesNotExportRuntimeMetrics` pin the two sites.
+
+| Metric Name | Type | Unit | Description | Attributes |
+|-------------|------|------|-------------|------------|
+| `go.goroutine.count` | UpDownCounter | `{goroutine}` | Count of live goroutines | - |
+| `go.memory.used` | UpDownCounter | `By` | Memory used by the Go runtime | `go.memory.type` (`stack`, `other`) |
+| `go.memory.limit` | UpDownCounter | `By` | Runtime memory limit (`GOMEMLIMIT`); only reported when one is set | - |
+| `go.memory.allocated` | Counter | `By` | Cumulative memory allocated to the heap | - |
+| `go.memory.allocations` | Counter | `{allocation}` | Cumulative count of heap allocations | - |
+| `go.memory.gc.goal` | UpDownCounter | `By` | Heap size target for the end of the GC cycle | - |
+| `go.config.gogc` | UpDownCounter | `%` | Configured `GOGC` heap target percentage | - |
+| `go.processor.limit` | UpDownCounter | `{thread}` | `GOMAXPROCS` | - |
+
+Reading them:
+
+- **A goroutine leak** is a `go.goroutine.count` that climbs and never comes
+  back down (the shape of #1275: one goroutine per abandoned MCP session).
+- **Heap growth** is `go.memory.used{go.memory.type="other"}` (everything the
+  runtime holds except goroutine stacks, which is dominated by the heap) rising
+  together with `go.memory.gc.goal`. `go.memory.gc.goal` tracks the live heap:
+  the collector sets it to the live heap after the last cycle scaled by `GOGC`.
+- **Allocation rate** is the rate of `go.memory.allocated`.
+
+Names are OpenTelemetry semantic conventions; a Prometheus backend rewrites the
+dots and appends the unit (`go_goroutine_count`, `go_memory_used_bytes`). The
+set is upstream's: `runtime_test.go` pins the names this guide relies on, so a
+contrib bump that renames one fails the build rather than a dashboard.
+
+To find *where* the memory or the goroutines come from, take a profile from the
+opt-in pprof listener (`server.pprof` in `config.example.yaml`).
+
 ## Architecture
 
 ```

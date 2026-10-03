@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -98,6 +99,49 @@ type ServerConfig struct {
 	// Declared EnvStringSlice (not []string) so the combined image can supply it
 	// as a comma-separated ${TRUSTED_PROXIES} placeholder, like instance_admins.
 	TrustedProxies EnvStringSlice `koanf:"trusted_proxies"`
+
+	// Pprof configures the opt-in profiling listener (#1277).
+	Pprof PprofConfig `koanf:"pprof"`
+}
+
+// DefaultPprofListenAddr is the loopback address the profiling listener binds
+// when server.pprof.listen_addr is not set.
+const DefaultPprofListenAddr = "127.0.0.1:6060"
+
+// PprofConfig holds the opt-in net/http/pprof listener (#1277). Profiles expose
+// heap contents and can be used to load the process, and the listener has no
+// authentication: it is protected by where it binds. So it is off by default,
+// served on its own port (never the API port), and bound to loopback unless an
+// operator says otherwise.
+type PprofConfig struct {
+	// Enabled starts the profiling listener. EnvBool so the combined image can
+	// expose it as ${PPROF_ENABLED}.
+	Enabled EnvBool `koanf:"enabled"`
+	// ListenAddr is the host:port the listener binds. Defaults to
+	// 127.0.0.1:6060. Inside a container, loopback is only reachable with
+	// `docker exec`; bind 0.0.0.0:6060 there and publish the port to the HOST's
+	// loopback only (-p 127.0.0.1:6060:6060).
+	ListenAddr string `koanf:"listen_addr"`
+}
+
+// validatePprofConfig rejects, when the listener is enabled, a
+// server.pprof.listen_addr that is not host:port with a numeric port (0-65535),
+// so a malformed address fails at load rather than leaving an operator with a
+// profiling endpoint that silently never came up. The host is not resolved
+// here; an address that is well-formed but cannot be bound is reported at boot.
+func validatePprofConfig(cfg *Config) error {
+	if !cfg.Server.Pprof.Enabled {
+		return nil
+	}
+	addr := cfg.Server.Pprof.ListenAddr
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("server.pprof.listen_addr %q must be host:port: %w", addr, err)
+	}
+	if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+		return fmt.Errorf("server.pprof.listen_addr %q must end in a numeric port (0-65535): %w", addr, err)
+	}
+	return nil
 }
 
 // ParsedTrustedProxies returns Server.TrustedProxies as parsed CIDRs. Entries
@@ -1294,6 +1338,7 @@ func validateAll(cfg *Config) error {
 		validateSchedulerConfig,
 		validateEmbeddingQueueConfig,
 		func(c *Config) error { return validateTrustedProxies(c.Server.TrustedProxies) },
+		validatePprofConfig,
 		func(c *Config) error { return validateOutboundAllowedCIDRs(c.Security.OutboundAllowedCIDRs) },
 	}
 	for _, check := range checks {
@@ -1335,14 +1380,6 @@ const (
 // the time.Duration hook, matching how the YAML file expresses them.
 func defaults() map[string]any {
 	d := map[string]any{
-		"server.port":                         "8080",
-		"server.log_level":                    "info",
-		"server.log_format":                   "json",
-		"server.service_version":              "dev",
-		"server.release_sha":                  "dev",
-		"server.release_date":                 "unknown",
-		"server.max_body_size_bytes":          int64(10 << 20),
-		"server.error_type_base_uri":          "about:blank",
 		"database.host":                       "localhost",
 		"database.port":                       "5432",
 		"database.user":                       "postgres",
@@ -1392,8 +1429,26 @@ func defaults() map[string]any {
 		"otel.export_interval":                "60s",
 		"otel.trace_sample_ratio":             0.1,
 	}
+	maps.Copy(d, serverDefaults())
 	maps.Copy(d, aiSummaryDefaults())
 	return d
+}
+
+// serverDefaults holds the `server:` defaults. Like aiSummaryDefaults they live
+// in their own map so adding a knob (server.pprof.listen_addr, #1277) does not
+// push defaults() over golangci's function-length ceiling.
+func serverDefaults() map[string]any {
+	return map[string]any{
+		"server.port":                "8080",
+		"server.log_level":           "info",
+		"server.log_format":          "json",
+		"server.service_version":     "dev",
+		"server.release_sha":         "dev",
+		"server.release_date":        "unknown",
+		"server.max_body_size_bytes": int64(10 << 20),
+		"server.error_type_base_uri": "about:blank",
+		"server.pprof.listen_addr":   DefaultPprofListenAddr,
+	}
 }
 
 // aiSummaryDefaults holds the `ai_summary:` defaults (#1071). They live in their

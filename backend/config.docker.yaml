@@ -37,6 +37,15 @@ server:
   # container. Behind a reverse proxy set this to its CIDR(s), e.g.
   # TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12
   trusted_proxies: "${TRUSTED_PROXIES:-}"
+  # Opt-in profiling listener (net/http/pprof), OFF by default. PPROF_ENABLED=true
+  # serves /debug/pprof/* on its own port, never on the API port, with no
+  # authentication: it is protected only by where it binds. Inside a container
+  # the loopback default is reachable only via `docker exec`; to profile from
+  # the host set PPROF_LISTEN_ADDR=0.0.0.0:6060 and publish the port to the
+  # HOST's loopback only: -p 127.0.0.1:6060:6060
+  pprof:
+    enabled: "${PPROF_ENABLED:-false}"
+    listen_addr: "${PPROF_LISTEN_ADDR:-127.0.0.1:6060}"
 
 # PostgreSQL connection. The defaults match docker-compose.yml's bundled
 # Postgres; for `docker run` point DB_HOST at your database.

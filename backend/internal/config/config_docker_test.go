@@ -242,6 +242,35 @@ func TestConfigDockerYAML_SchedulerDefaults(t *testing.T) {
 	require.Equal(t, EnvInt(100), cfg.Scheduler.DueLimit)
 }
 
+// TestConfigDockerYAML_PprofDefaultsOff pins that a bare `docker run` starts no
+// profiling listener (#1277): the baked default is disabled, on loopback.
+func TestConfigDockerYAML_PprofDefaultsOff(t *testing.T) {
+	setDockerRequiredEnv(t)
+	t.Setenv("PPROF_ENABLED", "")
+	t.Setenv("PPROF_LISTEN_ADDR", "")
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
+	require.Equal(t, EnvBool(false), cfg.Server.Pprof.Enabled)
+	require.Equal(t, DefaultPprofListenAddr, cfg.Server.Pprof.ListenAddr)
+}
+
+// TestConfigDockerYAML_PprofEnvOverrides pins that the profiling listener is
+// configurable with `docker run -e` alone, including the 0.0.0.0 bind a
+// container needs before the port can be published to the host's loopback.
+func TestConfigDockerYAML_PprofEnvOverrides(t *testing.T) {
+	setDockerRequiredEnv(t)
+	t.Setenv("PPROF_ENABLED", "true")
+	t.Setenv("PPROF_LISTEN_ADDR", "0.0.0.0:6060")
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
+	require.Equal(t, EnvBool(true), cfg.Server.Pprof.Enabled)
+	require.Equal(t, "0.0.0.0:6060", cfg.Server.Pprof.ListenAddr)
+}
+
 // TestConfigDockerYAML_SchedulerEnvOverrides is the headline acceptance
 // criterion: every scheduler knob is settable with `docker run -e` alone, no
 // mounted config file. The bool and int cases are the ones that needed
@@ -442,6 +471,8 @@ func TestConfigSchema_EnvPlaceholderTypesAreOptIn(t *testing.T) {
 		"ai_summary.enabled is EnvBool, so its schema must also accept a ${VAR} placeholder")
 	require.Len(t, doc.Defs["AuthConfig"].Properties["recovery_mode"].OneOf, 2,
 		"auth.recovery_mode is EnvBool, so its schema must also accept a ${VAR} placeholder")
+	require.Len(t, doc.Defs["PprofConfig"].Properties["enabled"].OneOf, 2,
+		"server.pprof.enabled is EnvBool, so its schema must also accept a ${VAR} placeholder")
 	require.Len(t, doc.Defs["AISummaryConfig"].Properties["top_n"].OneOf, 2,
 		"ai_summary.top_n is EnvInt, so its schema must also accept a ${VAR} placeholder")
 
