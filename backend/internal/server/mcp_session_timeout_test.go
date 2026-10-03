@@ -110,7 +110,8 @@ func (c *mcpSessionTestClient) post(sessionID, body string) (status int, gotSess
 	return resp.StatusCode, resp.Header.Get("Mcp-Session-Id")
 }
 
-// openSession initializes a session and returns its ID. It is never deleted.
+// openSession initializes a session and returns its ID. It is not deleted
+// while the test runs; cleanup ends it.
 func (c *mcpSessionTestClient) openSession() string {
 	c.t.Helper()
 
