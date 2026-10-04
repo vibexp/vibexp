@@ -147,6 +147,15 @@ func TestCompactCallToolKeepsFieldLevelErrors(t *testing.T) {
 		t.Logf("%s -> %s", name, resultText(t, result))
 	}
 
+	// A short name reaches the same tool: the error is the schema's, not "unknown tool".
+	shortName, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      callToolToolName,
+		Arguments: map[string]any{"name": "create_memory", "arguments": map[string]any{"team_id": "t"}},
+	})
+	require.NoError(t, err)
+	require.True(t, shortName.IsError)
+	assert.Contains(t, resultText(t, shortName), "missing properties")
+
 	unknownTool, err := session.CallTool(ctx, &mcp.CallToolParams{
 		Name:      callToolToolName,
 		Arguments: map[string]any{"name": "vibexp_io_nope"},

@@ -328,7 +328,8 @@ func searchCompactCatalog(catalog []*mcp.Tool, params *SearchToolsParams) (*mcp.
 func callCompactTool(
 	ctx context.Context, inner *mcp.ClientSession, catalog []*mcp.Tool, params *CallToolParams,
 ) (*mcp.CallToolResult, any, error) {
-	if findCompactTool(catalog, params.Name) == nil {
+	tool := findCompactTool(catalog, params.Name)
+	if tool == nil {
 		return mcpTextError(fmt.Sprintf("unknown tool %q. Valid names: %s",
 			params.Name, strings.Join(compactToolNames(catalog), ", "))), nil, nil
 	}
@@ -338,9 +339,10 @@ func callCompactTool(
 		arguments = map[string]any{}
 	}
 
-	result, err := inner.CallTool(ctx, &mcp.CallToolParams{Name: params.Name, Arguments: arguments})
+	// tool.Name, not params.Name: the caller may have used the short name.
+	result, err := inner.CallTool(ctx, &mcp.CallToolParams{Name: tool.Name, Arguments: arguments})
 	if err != nil {
-		return mcpTextError(fmt.Sprintf("%s: %v", params.Name, err)), nil, nil
+		return mcpTextError(fmt.Sprintf("%s: %v", tool.Name, err)), nil, nil
 	}
 	return result, nil, nil
 }
