@@ -109,6 +109,14 @@ func TestCompactSearchToolsReturnsDefinitions(t *testing.T) {
 	assert.Contains(t, resultText(t, byQuery), `"vibexp_io_create_memory"`)
 	t.Logf("query lookup bytes=%d", len(resultText(t, byQuery)))
 
+	shortName, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      searchToolsToolName,
+		Arguments: map[string]any{"names": []string{"create_memory"}},
+	})
+	require.NoError(t, err)
+	require.False(t, shortName.IsError)
+	assert.Contains(t, resultText(t, shortName), `"vibexp_io_create_memory"`)
+
 	unknown, err := session.CallTool(ctx, &mcp.CallToolParams{
 		Name:      searchToolsToolName,
 		Arguments: map[string]any{"names": []string{"vibexp_io_nope"}},

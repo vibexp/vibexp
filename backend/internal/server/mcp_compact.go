@@ -31,6 +31,10 @@ const (
 	callWriteToolToolName  = "vibexp_io_call_write_tool"
 	callDeleteToolToolName = "vibexp_io_call_delete_tool"
 
+	// compactToolPrefix is the prefix every catalog tool name carries; the
+	// index lists names without it.
+	compactToolPrefix = "vibexp_io_"
+
 	// searchToolsMaxResults bounds how many full definitions one query returns.
 	searchToolsMaxResults = 3
 )
@@ -61,7 +65,7 @@ const (
 // is a write, so a new tool is never reachable through the read-only executor
 // by accident.
 func compactRiskOf(name string) compactRiskClass {
-	verb := strings.TrimPrefix(name, "vibexp_io_")
+	verb := strings.TrimPrefix(name, compactToolPrefix)
 	switch {
 	case strings.HasPrefix(verb, "delete_"):
 		return compactRiskDelete
@@ -71,6 +75,37 @@ func compactRiskOf(name string) compactRiskClass {
 	default:
 		return compactRiskWrite
 	}
+}
+
+// compactPurposes is the order the name index lists its groups in.
+var compactPurposes = []string{"discovery", "read", "write", "feed", "delete"}
+
+// compactPurposeOf groups a tool by what an agent uses it for.
+func compactPurposeOf(name string) string {
+	verb := strings.TrimPrefix(name, compactToolPrefix)
+	switch {
+	case strings.Contains(verb, "feed"):
+		return "feed"
+	case verb == "get_user", strings.HasPrefix(verb, "list_teams"), verb == "list_projects":
+		return "discovery"
+	}
+	return string(compactRiskOf(name))
+}
+
+// compactNameIndex lists every catalog tool by short name, grouped by purpose.
+func compactNameIndex(catalog []*mcp.Tool) string {
+	byPurpose := map[string][]string{}
+	for _, tool := range catalog {
+		purpose := compactPurposeOf(tool.Name)
+		byPurpose[purpose] = append(byPurpose[purpose], strings.TrimPrefix(tool.Name, compactToolPrefix))
+	}
+	groups := make([]string, 0, len(compactPurposes))
+	for _, purpose := range compactPurposes {
+		if len(byPurpose[purpose]) > 0 {
+			groups = append(groups, purpose+": "+strings.Join(byPurpose[purpose], ", "))
+		}
+	}
+	return strings.Join(groups, "; ")
 }
 
 // SearchToolsParams defines the parameters for vibexp_io_search_tools.
@@ -140,7 +175,7 @@ func addCompactSplitTools(mcpServer *mcp.Server, inner *mcp.ClientSession, catal
 	byClass := map[compactRiskClass][]string{}
 	for _, tool := range catalog {
 		class := compactRiskOf(tool.Name)
-		byClass[class] = append(byClass[class], strings.TrimPrefix(tool.Name, "vibexp_io_"))
+		byClass[class] = append(byClass[class], strings.TrimPrefix(tool.Name, compactToolPrefix))
 	}
 	executors := "vibexp_io_call_read_tool (" + strings.Join(byClass[compactRiskRead], ", ") + "), " +
 		"vibexp_io_call_write_tool (" + strings.Join(byClass[compactRiskWrite], ", ") + ") or " +
@@ -220,16 +255,11 @@ func connectInnerCatalog(toolsManager *MCPToolsManager, userID string) (*mcp.Cli
 
 // addCompactTools registers vibexp_io_search_tools and vibexp_io_call_tool.
 func addCompactTools(mcpServer *mcp.Server, inner *mcp.ClientSession, catalog []*mcp.Tool) {
-	names := make([]string, 0, len(catalog))
-	for _, tool := range catalog {
-		names = append(names, tool.Name)
-	}
-
 	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name: searchToolsToolName,
 		Description: "Get the definitions (description and input_schema) of VibeXP tools before calling them with " +
 			callToolToolName + ". Pass `names` for exact tools or `query` to find tools by what they do. " +
-			"Available tools: " + strings.Join(names, ", ") + ".",
+			"Tool names are " + compactToolPrefix + "<name>. Available, by purpose: " + compactNameIndex(catalog) + ".",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, params *SearchToolsParams) (*mcp.CallToolResult, any, error) {
 		return searchCompactCatalog(catalog, params)
 	})
@@ -308,7 +338,12 @@ func callCompactTool(
 	return result, nil, nil
 }
 
+// findCompactTool finds a catalog tool by its full name or by the short name
+// the index lists (without the vibexp_io_ prefix).
 func findCompactTool(catalog []*mcp.Tool, name string) *mcp.Tool {
+	if !strings.HasPrefix(name, compactToolPrefix) {
+		name = compactToolPrefix + name
+	}
 	for _, tool := range catalog {
 		if tool.Name == name {
 			return tool
