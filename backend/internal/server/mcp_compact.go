@@ -50,7 +50,8 @@ const compactInstructionsPreamble = "This endpoint exposes VibeXP's tools throug
 // compactLoopGuidance is the read-then-write-back nudge carried by the search
 // tool's own description, because a client is not required to show server
 // instructions to the model.
-const compactLoopGuidance = " Search the team's knowledge before a task, and when it ends save what you " +
+const compactLoopGuidance = " Fetch every tool you expect to need in one call." +
+	" Search the team's knowledge before a task, and when it ends save what you " +
 	"learned (create_memory, create_artifact, post_to_feed) without being asked."
 
 // newCompactMCPServer builds the outer server of a compact endpoint.
