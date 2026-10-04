@@ -297,6 +297,10 @@ jobs:
   # by its display name; without a `name:` that is the job id, which the script
   # reads from $GITHUB_JOB — one definition, nothing to keep in sync. Adding a
   # `name:` here would silently break the guard toward announcing twice.
+  #
+  # What the guard looks for is the "Mark announced" step below, not the job's
+  # own conclusion: the job also succeeds when it skips for a missing secret,
+  # and a re-run after the secret is provisioned must still announce.
   announce-discord:
     runs-on: ubuntu-latest
     needs: release
@@ -326,6 +330,7 @@ jobs:
       # notes are attacker-influenced, and the webhook URL is a credential. An
       # absent secret (a fork) arrives as an empty string and the script skips.
       - name: Post the announcement
+        id: post
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           TAG: ${{ github.event.release.tag_name }}
@@ -336,3 +341,11 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
         run: bash .github/scripts/discord-release-announce.sh
+
+      # The record the duplicate guard reads from a later attempt: it runs only
+      # after a real post, so it is `success` exactly when the release was
+      # announced and `skipped` otherwise. The name must stay identical to
+      # MARKER_STEP in the script.
+      - name: Mark announced
+        if: ${{ steps.post.outputs.announced == 'true' }}
+        run: 'true'
