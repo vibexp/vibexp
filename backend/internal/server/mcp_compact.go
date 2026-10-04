@@ -47,6 +47,12 @@ const compactInstructionsPreamble = "This endpoint exposes VibeXP's tools throug
 	"before a task (vibexp_io_search) and write back what you learned when it ends (vibexp_io_create_memory, " +
 	"vibexp_io_create_artifact, vibexp_io_post_to_feed) without waiting to be asked. "
 
+// compactLoopGuidance is the read-then-write-back nudge carried by the search
+// tool's own description, because a client is not required to show server
+// instructions to the model.
+const compactLoopGuidance = " Search the team's knowledge before a task, and when it ends save what you " +
+	"learned (create_memory, create_artifact, post_to_feed) without being asked."
+
 // newCompactMCPServer builds the outer server of a compact endpoint.
 func newCompactMCPServer() *mcp.Server {
 	return newMCPServerWithInstructions(compactInstructionsPreamble + mcpServerInstructions)
@@ -185,7 +191,7 @@ func addCompactSplitTools(mcpServer *mcp.Server, inner *mcp.ClientSession, catal
 		Name: searchToolsToolName,
 		Description: "Get the definitions (description and input_schema) of VibeXP tools before calling them. " +
 			"Pass `names` for exact tools or `query` to find tools by what they do. Tool names are vibexp_io_<name>; " +
-			"run each with " + executors + ".",
+			"run each with " + executors + "." + compactLoopGuidance,
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 	}, func(_ context.Context, _ *mcp.CallToolRequest, params *SearchToolsParams) (*mcp.CallToolResult, any, error) {
 		return searchCompactCatalog(catalog, params)
@@ -259,7 +265,8 @@ func addCompactTools(mcpServer *mcp.Server, inner *mcp.ClientSession, catalog []
 		Name: searchToolsToolName,
 		Description: "Get the definitions (description and input_schema) of VibeXP tools before calling them with " +
 			callToolToolName + ". Pass `names` for exact tools or `query` to find tools by what they do. " +
-			"Tool names are " + compactToolPrefix + "<name>. Available, by purpose: " + compactNameIndex(catalog) + ".",
+			"Tool names are " + compactToolPrefix + "<name>. Available, by purpose: " + compactNameIndex(catalog) + "." +
+			compactLoopGuidance,
 	}, func(_ context.Context, _ *mcp.CallToolRequest, params *SearchToolsParams) (*mcp.CallToolResult, any, error) {
 		return searchCompactCatalog(catalog, params)
 	})
