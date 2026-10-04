@@ -164,12 +164,14 @@ func (s *Server) setupMCPRoutes() {
 		r.Use(s.mcpTokenContextMiddleware)
 		r.Mount("/mcp/v1/common", s.createMCPHandlerCommon())
 		// PoC (variant D): two always-on tools over the same typed catalog.
-		r.Mount("/mcp/v1/compact", s.createMCPHandler(newCompactMCPServer, s.setupMCPServerCompact))
+		r.Mount("/mcp/v1/compact", s.createMCPHandler(newCompactMCPServer, s.compactSetup(addCompactTools)))
 		// PoC (variant D'): the same, with the executor split by risk class so
 		// a client's per-tool permission rules keep working.
-		r.Mount("/mcp/v1/compact-split", s.createMCPHandler(newCompactMCPServer, s.setupMCPServerCompactSplit))
+		r.Mount("/mcp/v1/compact-split", s.createMCPHandler(newCompactMCPServer, s.compactSetup(addCompactSplitTools)))
 		// PoC (hybrid): the loop tools typed and always on, the rest behind the pair.
-		r.Mount("/mcp/v1/compact-core", s.createMCPHandler(newCompactMCPServer, s.setupMCPServerCompactCore))
+		r.Mount("/mcp/v1/compact-core", s.createMCPHandler(newCompactMCPServer, s.compactSetup(addCompactCoreTools)))
+		r.Mount("/mcp/v1/compact-core-split",
+			s.createMCPHandler(newCompactMCPServer, s.compactSetup(addCompactCoreSplitTools)))
 	})
 }
 

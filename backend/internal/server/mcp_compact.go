@@ -135,44 +135,33 @@ type compactToolDefinition struct {
 
 type searchToolsResponse struct {
 	Tools []compactToolDefinition `json:"tools"`
+	// DirectlyAvailable names requested tools that are registered on the
+	// endpoint itself, so they need no lookup and no executor.
+	DirectlyAvailable []string `json:"directly_available,omitempty"`
 }
 
-// setupMCPServerCompact registers the two compact tools on mcpServer, backed by
-// an inner server holding the full catalog for the authenticated user.
-func (s *Server) setupMCPServerCompact(mcpServer *mcp.Server, toolsManager *MCPToolsManager, req *http.Request) {
-	userID, ok := getUserFromContext(req)
-	if !ok {
-		slog.Warn("Missing user ID in MCP handler despite auth middleware")
-		return
+// compactSetup returns the per-session setup of a compact endpoint: it builds
+// the inner server holding the full catalog for the authenticated user and
+// hands it to add, which registers that endpoint's always-on tools.
+func (s *Server) compactSetup(
+	add func(mcpServer *mcp.Server, inner *mcp.ClientSession, catalog []*mcp.Tool),
+) func(*mcp.Server, *MCPToolsManager, *http.Request) {
+	return func(mcpServer *mcp.Server, toolsManager *MCPToolsManager, req *http.Request) {
+		userID, ok := getUserFromContext(req)
+		if !ok {
+			slog.Warn("Missing user ID in MCP handler despite auth middleware")
+			return
+		}
+
+		inner, catalog, err := connectInnerCatalog(toolsManager, userID)
+		if err != nil {
+			slog.With("user_id", userID, "error", err).Error("Failed to build the compact MCP catalog")
+			return
+		}
+
+		add(mcpServer, inner, catalog)
+		s.addUserPromptsToMCP(req.Context(), mcpServer, userID)
 	}
-
-	inner, catalog, err := connectInnerCatalog(toolsManager, userID)
-	if err != nil {
-		slog.With("user_id", userID, "error", err).Error("Failed to build the compact MCP catalog")
-		return
-	}
-
-	addCompactTools(mcpServer, inner, catalog)
-	s.addUserPromptsToMCP(req.Context(), mcpServer, userID)
-}
-
-// setupMCPServerCompactSplit is setupMCPServerCompact with one executor per
-// risk class instead of a single vibexp_io_call_tool.
-func (s *Server) setupMCPServerCompactSplit(mcpServer *mcp.Server, toolsManager *MCPToolsManager, req *http.Request) {
-	userID, ok := getUserFromContext(req)
-	if !ok {
-		slog.Warn("Missing user ID in MCP handler despite auth middleware")
-		return
-	}
-
-	inner, catalog, err := connectInnerCatalog(toolsManager, userID)
-	if err != nil {
-		slog.With("user_id", userID, "error", err).Error("Failed to build the compact MCP catalog")
-		return
-	}
-
-	addCompactSplitTools(mcpServer, inner, catalog)
-	s.addUserPromptsToMCP(req.Context(), mcpServer, userID)
 }
 
 // addCompactSplitTools registers vibexp_io_search_tools and the three
@@ -284,13 +273,17 @@ func addCompactTools(mcpServer *mcp.Server, inner *mcp.ClientSession, catalog []
 // best matches for query.
 func searchCompactCatalog(catalog []*mcp.Tool, params *SearchToolsParams) (*mcp.CallToolResult, any, error) {
 	var selected []*mcp.Tool
+	var direct []string
 	switch {
 	case len(params.Names) > 0:
 		var unknown []string
 		for _, name := range params.Names {
-			if tool := findCompactTool(catalog, name); tool != nil {
+			switch tool := findCompactTool(catalog, name); {
+			case tool != nil:
 				selected = append(selected, tool)
-			} else {
+			case compactCoreTools[compactFullName(name)]:
+				direct = append(direct, compactFullName(name))
+			default:
 				unknown = append(unknown, name)
 			}
 		}
@@ -304,7 +297,10 @@ func searchCompactCatalog(catalog []*mcp.Tool, params *SearchToolsParams) (*mcp.
 		return mcpTextError("pass `names` (exact tool names) or `query` (what you want to do)"), nil, nil
 	}
 
-	response := searchToolsResponse{Tools: make([]compactToolDefinition, 0, len(selected))}
+	response := searchToolsResponse{
+		Tools:             make([]compactToolDefinition, 0, len(selected)),
+		DirectlyAvailable: direct,
+	}
 	for _, tool := range selected {
 		response.Tools = append(response.Tools, compactToolDefinition{
 			Name:        tool.Name,
@@ -329,6 +325,10 @@ func callCompactTool(
 	ctx context.Context, inner *mcp.ClientSession, catalog []*mcp.Tool, params *CallToolParams,
 ) (*mcp.CallToolResult, any, error) {
 	tool := findCompactTool(catalog, params.Name)
+	if tool == nil && compactCoreTools[compactFullName(params.Name)] {
+		return mcpTextError(compactFullName(params.Name) +
+			" is directly available as a tool on this endpoint; call it by its own name."), nil, nil
+	}
 	if tool == nil {
 		return mcpTextError(fmt.Sprintf("unknown tool %q. Valid names: %s",
 			params.Name, strings.Join(compactToolNames(catalog), ", "))), nil, nil
@@ -347,12 +347,18 @@ func callCompactTool(
 	return result, nil, nil
 }
 
+// compactFullName adds the vibexp_io_ prefix to a short tool name.
+func compactFullName(name string) string {
+	if strings.HasPrefix(name, compactToolPrefix) {
+		return name
+	}
+	return compactToolPrefix + name
+}
+
 // findCompactTool finds a catalog tool by its full name or by the short name
 // the index lists (without the vibexp_io_ prefix).
 func findCompactTool(catalog []*mcp.Tool, name string) *mcp.Tool {
-	if !strings.HasPrefix(name, compactToolPrefix) {
-		name = compactToolPrefix + name
-	}
+	name = compactFullName(name)
 	for _, tool := range catalog {
 		if tool.Name == name {
 			return tool
@@ -419,28 +425,21 @@ var compactCoreTools = map[string]bool{
 	"vibexp_io_post_to_feed":            true,
 }
 
-// setupMCPServerCompactCore registers the loop tools directly, with their
-// unchanged definitions, and the catalog pair for the rest.
-func (s *Server) setupMCPServerCompactCore(mcpServer *mcp.Server, toolsManager *MCPToolsManager, req *http.Request) {
-	userID, ok := getUserFromContext(req)
-	if !ok {
-		slog.Warn("Missing user ID in MCP handler despite auth middleware")
-		return
-	}
-
-	inner, catalog, err := connectInnerCatalog(toolsManager, userID)
-	if err != nil {
-		slog.With("user_id", userID, "error", err).Error("Failed to build the compact MCP catalog")
-		return
-	}
-
-	addCompactCoreTools(mcpServer, inner, catalog)
-	s.addUserPromptsToMCP(req.Context(), mcpServer, userID)
-}
-
 // addCompactCoreTools registers each core tool as a pass-through to the inner
 // server (which validates the arguments), then the pair over the remainder.
 func addCompactCoreTools(mcpServer *mcp.Server, inner *mcp.ClientSession, catalog []*mcp.Tool) {
+	addCompactTools(mcpServer, inner, registerCompactCore(mcpServer, inner, catalog))
+}
+
+// addCompactCoreSplitTools is addCompactCoreTools with the executor split by
+// risk class.
+func addCompactCoreSplitTools(mcpServer *mcp.Server, inner *mcp.ClientSession, catalog []*mcp.Tool) {
+	addCompactSplitTools(mcpServer, inner, registerCompactCore(mcpServer, inner, catalog))
+}
+
+// registerCompactCore registers the core tools on mcpServer and returns the
+// rest of the catalog.
+func registerCompactCore(mcpServer *mcp.Server, inner *mcp.ClientSession, catalog []*mcp.Tool) []*mcp.Tool {
 	var rest []*mcp.Tool
 	for _, tool := range catalog {
 		if !compactCoreTools[tool.Name] {
@@ -466,5 +465,5 @@ func addCompactCoreTools(mcpServer *mcp.Server, inner *mcp.ClientSession, catalo
 			return result, nil
 		})
 	}
-	addCompactTools(mcpServer, inner, rest)
+	return rest
 }

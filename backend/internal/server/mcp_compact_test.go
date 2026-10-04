@@ -246,11 +246,37 @@ func TestCompactCoreKeepsLoopToolsTyped(t *testing.T) {
 	require.True(t, direct.IsError)
 	assert.Contains(t, resultText(t, direct), "missing properties")
 
+	// Asking the catalog for a core tool is answered, not rejected.
 	viaPair, err := session.CallTool(ctx, &mcp.CallToolParams{
 		Name:      searchToolsToolName,
-		Arguments: map[string]any{"names": []string{"link_resources"}},
+		Arguments: map[string]any{"names": []string{"link_resources", "get_resource"}},
 	})
 	require.NoError(t, err)
 	require.False(t, viaPair.IsError)
 	assert.Contains(t, resultText(t, viaPair), `"vibexp_io_link_resources"`)
+	assert.Contains(t, resultText(t, viaPair), `"directly_available":["vibexp_io_get_resource"]`)
+
+	coreViaExecutor, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      callToolToolName,
+		Arguments: map[string]any{"name": "get_resource"},
+	})
+	require.NoError(t, err)
+	require.True(t, coreViaExecutor.IsError)
+	assert.Contains(t, resultText(t, coreViaExecutor), "directly available")
+
+	splitOuter := newCompactMCPServer()
+	addCompactCoreSplitTools(splitOuter, inner, catalog)
+	splitServerTransport, splitClientTransport := mcp.NewInMemoryTransports()
+	_, err = splitOuter.Connect(ctx, splitServerTransport, nil)
+	require.NoError(t, err)
+	splitSession, err := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil).
+		Connect(ctx, splitClientTransport, nil)
+	require.NoError(t, err)
+	closeOnCleanup(t, splitSession)
+	splitList, err := splitSession.ListTools(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, splitList.Tools, len(compactCoreTools)+4)
+	splitBytes, err := json.Marshal(splitList.Tools)
+	require.NoError(t, err)
+	t.Logf("core-split tools/list bytes=%d (%d tools)", len(splitBytes), len(splitList.Tools))
 }
