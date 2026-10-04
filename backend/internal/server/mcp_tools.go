@@ -347,13 +347,18 @@ type mcpServerHolder struct {
 // newMCPServer builds an MCP server with VibeXP's implementation info and
 // options, without any tools or prompts registered.
 func newMCPServer() *mcp.Server {
+	return newMCPServerWithInstructions(mcpServerInstructions)
+}
+
+// newMCPServerWithInstructions is newMCPServer with caller-chosen instructions.
+func newMCPServerWithInstructions(instructions string) *mcp.Server {
 	return mcp.NewServer(&mcp.Implementation{
 		Name:    "vibexp-mcp-server",
 		Version: "1.0.0",
 	}, &mcp.ServerOptions{
 		HasPrompts:   true,
 		PageSize:     100,
-		Instructions: mcpServerInstructions,
+		Instructions: instructions,
 		SchemaCache:  mcpSchemaCache,
 	})
 }
@@ -381,8 +386,17 @@ func createsMCPSession(req *http.Request) bool {
 // crashed or was killed); without it each one keeps its MCP server and a
 // goroutine for the life of the process (#1275).
 func (s *Server) createMCPHandlerCommon() http.Handler {
+	return s.createMCPHandler(newMCPServer, s.setupMCPServerCommon)
+}
+
+// createMCPHandler builds the stateful MCP handler shared by every MCP
+// endpoint; setup populates the per-session server.
+func (s *Server) createMCPHandler(
+	newServer func() *mcp.Server,
+	setup func(mcpServer *mcp.Server, toolsManager *MCPToolsManager, req *http.Request),
+) http.Handler {
 	toolsManager := NewMCPToolsManager(s)
-	bareServer := newMCPServer()
+	bareServer := newServer()
 
 	handler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
 		if !createsMCPSession(req) {
@@ -394,8 +408,8 @@ func (s *Server) createMCPHandlerCommon() http.Handler {
 			return holder.server
 		}
 
-		mcpServer := newMCPServer()
-		s.setupMCPServerCommon(mcpServer, toolsManager, req)
+		mcpServer := newServer()
+		setup(mcpServer, toolsManager, req)
 		if holder != nil {
 			holder.server = mcpServer
 		}
