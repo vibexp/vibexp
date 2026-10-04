@@ -54,6 +54,18 @@ const compactLoopGuidance = " Fetch every tool you expect to need in one call." 
 	" Search the team's knowledge before a task, and when it ends save what you " +
 	"learned (create_memory, create_artifact, post_to_feed) without being asked."
 
+// commonLoopGuidance is the read-then-write-back guidance /mcp/v1/common lacks
+// today, tried on /mcp/v1/common-guided with the tool list left unchanged.
+const commonLoopGuidance = " Before a task, search the team's knowledge with vibexp_io_search. When it ends, " +
+	"save what you learned without being asked: update the existing memory or artifact when one already " +
+	"covers it, otherwise create one, and post a short update with vibexp_io_post_to_feed."
+
+// newGuidedMCPServer builds a full-catalog server whose instructions carry the
+// loop guidance.
+func newGuidedMCPServer() *mcp.Server {
+	return newMCPServerWithInstructions(mcpServerInstructions + commonLoopGuidance)
+}
+
 // newCompactMCPServer builds the outer server of a compact endpoint.
 func newCompactMCPServer() *mcp.Server {
 	return newMCPServerWithInstructions(compactInstructionsPreamble + mcpServerInstructions)

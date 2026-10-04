@@ -163,6 +163,8 @@ func (s *Server) setupMCPRoutes() {
 		r.Use(requireToken)
 		r.Use(s.mcpTokenContextMiddleware)
 		r.Mount("/mcp/v1/common", s.createMCPHandlerCommon())
+		// PoC: the unchanged tool list with loop guidance added to the instructions.
+		r.Mount("/mcp/v1/common-guided", s.createMCPHandler(newGuidedMCPServer, s.setupMCPServerCommon))
 		// PoC (variant D): two always-on tools over the same typed catalog.
 		r.Mount("/mcp/v1/compact", s.createMCPHandler(newCompactMCPServer, s.compactSetup(addCompactTools)))
 		// PoC (variant D'): the same, with the executor split by risk class so
