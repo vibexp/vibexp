@@ -277,3 +277,75 @@ jobs:
         if: failure()
         run: |
           echo "::error::Could not dispatch the vibexp/cli e2e. Install the 'VibeXP Bot' GitHub App on vibexp/cli with Repository -> Actions: read & write (secrets VIBEXP_BOT_APP_CLIENT_ID / VIBEXP_BOT_APP_PRIVATE_KEY already exist on this repo). The platform image for this release is already published — this job runs after the build and never affects it."
+
+  # Announce the release in the Shaharia Lab Discord release channel (issue
+  # #1298), like the other Shaharia Lab open-source projects do.
+  #
+  # A job HERE rather than a standalone `release: published` workflow for the
+  # same reason as dispatch-cli-e2e: `needs: release` means the announcement
+  # goes out only once ghcr.io/vibexp/vibexp:<version> is really pushed, so it
+  # never points people at an image that does not exist yet — and a failed
+  # build announces nothing.
+  #
+  # Non-blocking by construction: it runs after the push, and
+  # `continue-on-error` keeps the workflow run green through a Discord outage or
+  # a rejected webhook while this job itself still shows red (with the HTTP
+  # status in its summary). It can never fail or roll back a release.
+  #
+  # Deliberately NO `name:`. The duplicate guard in the script looks this job up
+  # in earlier attempts of the run through the Actions API, which reports a job
+  # by its display name; without a `name:` that is the job id, which the script
+  # reads from $GITHUB_JOB — one definition, nothing to keep in sync. Adding a
+  # `name:` here would silently break the guard toward announcing twice.
+  #
+  # What the guard looks for is the "Mark announced" step below, not the job's
+  # own conclusion: the job also succeeds when it skips for a missing secret,
+  # and a re-run after the secret is provisioned must still announce.
+  announce-discord:
+    runs-on: ubuntu-latest
+    needs: release
+    continue-on-error: true
+    timeout-minutes: 5
+    # Narrower than the workflow-level default: nothing here pushes to GHCR.
+    # `actions: read` is for the prior-attempt lookup of the duplicate guard.
+    permissions:
+      contents: read
+      actions: read
+    # Real published v* releases only:
+    #   - a manual workflow_dispatch rebuilds an existing release and must not
+    #     announce it a second time;
+    #   - prereleases are skipped — the channel is a community release feed and
+    #     an RC is not a release to install. (A prerelease later promoted to
+    #     stable fires `released`, not `published`, so it is not announced
+    #     either; drafts and edits never reach this workflow at all.)
+    # Backport/patch releases ARE announced like any stable release, even when
+    # `:latest` does not move (#747).
+    if: ${{ github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v') && !github.event.release.prerelease }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # Everything goes through `env`, never into the script text: the release
+      # notes are attacker-influenced, and the webhook URL is a credential. An
+      # absent secret (a fork) arrives as an empty string and the script skips.
+      - name: Post the announcement
+        id: post
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          TAG: ${{ github.event.release.tag_name }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+          RELEASE_NAME: ${{ github.event.release.name }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: bash .github/scripts/discord-release-announce.sh
+
+      # The record the duplicate guard reads from a later attempt: it runs only
+      # after a real post, so it is `success` exactly when the release was
+      # announced and `skipped` otherwise. The name must stay identical to
+      # MARKER_STEP in the script.
+      - name: Mark announced
+        if: ${{ steps.post.outputs.announced == 'true' }}
+        run: 'true'
