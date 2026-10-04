@@ -404,3 +404,65 @@ func rankCompactTools(catalog []*mcp.Tool, query string) []*mcp.Tool {
 	}
 	return selected
 }
+
+// compactCoreTools are the read/write-back loop tools the core variant keeps
+// typed and always on; every other tool is reached through the catalog pair.
+var compactCoreTools = map[string]bool{
+	"vibexp_io_list_teams_and_projects": true,
+	"vibexp_io_search":                  true,
+	"vibexp_io_get_resource":            true,
+	"vibexp_io_create_memory":           true,
+	"vibexp_io_update_memory":           true,
+	"vibexp_io_create_artifact":         true,
+	"vibexp_io_post_to_feed":            true,
+}
+
+// setupMCPServerCompactCore registers the loop tools directly, with their
+// unchanged definitions, and the catalog pair for the rest.
+func (s *Server) setupMCPServerCompactCore(mcpServer *mcp.Server, toolsManager *MCPToolsManager, req *http.Request) {
+	userID, ok := getUserFromContext(req)
+	if !ok {
+		slog.Warn("Missing user ID in MCP handler despite auth middleware")
+		return
+	}
+
+	inner, catalog, err := connectInnerCatalog(toolsManager, userID)
+	if err != nil {
+		slog.With("user_id", userID, "error", err).Error("Failed to build the compact MCP catalog")
+		return
+	}
+
+	addCompactCoreTools(mcpServer, inner, catalog)
+	s.addUserPromptsToMCP(req.Context(), mcpServer, userID)
+}
+
+// addCompactCoreTools registers each core tool as a pass-through to the inner
+// server (which validates the arguments), then the pair over the remainder.
+func addCompactCoreTools(mcpServer *mcp.Server, inner *mcp.ClientSession, catalog []*mcp.Tool) {
+	var rest []*mcp.Tool
+	for _, tool := range catalog {
+		if !compactCoreTools[tool.Name] {
+			rest = append(rest, tool)
+			continue
+		}
+		mcpServer.AddTool(&mcp.Tool{
+			Name:        tool.Name,
+			Description: tool.Description,
+			InputSchema: tool.InputSchema,
+			Annotations: tool.Annotations,
+		}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			arguments := map[string]any{}
+			if len(req.Params.Arguments) > 0 {
+				if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
+					return mcpTextError(fmt.Sprintf("%s: arguments must be a JSON object: %v", tool.Name, err)), nil
+				}
+			}
+			result, err := inner.CallTool(ctx, &mcp.CallToolParams{Name: tool.Name, Arguments: arguments})
+			if err != nil {
+				return mcpTextError(fmt.Sprintf("%s: %v", tool.Name, err)), nil
+			}
+			return result, nil
+		})
+	}
+	addCompactTools(mcpServer, inner, rest)
+}

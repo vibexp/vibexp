@@ -168,6 +168,8 @@ func (s *Server) setupMCPRoutes() {
 		// PoC (variant D'): the same, with the executor split by risk class so
 		// a client's per-tool permission rules keep working.
 		r.Mount("/mcp/v1/compact-split", s.createMCPHandler(newCompactMCPServer, s.setupMCPServerCompactSplit))
+		// PoC (hybrid): the loop tools typed and always on, the rest behind the pair.
+		r.Mount("/mcp/v1/compact-core", s.createMCPHandler(newCompactMCPServer, s.setupMCPServerCompactCore))
 	})
 }
 

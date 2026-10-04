@@ -203,3 +203,45 @@ func TestCompactSplitExecutorsEnforceRiskClass(t *testing.T) {
 	require.True(t, rightClass.IsError)
 	assert.Contains(t, resultText(t, rightClass), "missing properties")
 }
+
+func TestCompactCoreKeepsLoopToolsTyped(t *testing.T) {
+	srv := New("8080", nil, "test-api-key", &config.Config{}, slog.New(slog.DiscardHandler))
+	inner, catalog, err := connectInnerCatalog(NewMCPToolsManager(srv), "test-user")
+	require.NoError(t, err)
+	closeOnCleanup(t, inner)
+
+	outer := newCompactMCPServer()
+	addCompactCoreTools(outer, inner, catalog)
+
+	ctx := context.Background()
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	_, err = outer.Connect(ctx, serverTransport, nil)
+	require.NoError(t, err)
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil).
+		Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	closeOnCleanup(t, session)
+
+	list, err := session.ListTools(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, list.Tools, len(compactCoreTools)+2)
+	listBytes, err := json.Marshal(list.Tools)
+	require.NoError(t, err)
+	t.Logf("core tools/list bytes=%d (%d tools)", len(listBytes), len(list.Tools))
+
+	direct, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "vibexp_io_create_memory",
+		Arguments: map[string]any{"team_id": "t"},
+	})
+	require.NoError(t, err)
+	require.True(t, direct.IsError)
+	assert.Contains(t, resultText(t, direct), "missing properties")
+
+	viaPair, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      searchToolsToolName,
+		Arguments: map[string]any{"names": []string{"link_resources"}},
+	})
+	require.NoError(t, err)
+	require.False(t, viaPair.IsError)
+	assert.Contains(t, resultText(t, viaPair), `"vibexp_io_link_resources"`)
+}
