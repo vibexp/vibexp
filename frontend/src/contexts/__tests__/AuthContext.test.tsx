@@ -36,6 +36,7 @@ describe('AuthContext (cookie-based auth)', () => {
     onboarding_completed: true,
     version: 1,
     is_instance_admin: false,
+    is_root_instance_admin: false,
   }
 
   // A first-time user (created_at within the last few seconds)
