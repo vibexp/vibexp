@@ -40,8 +40,8 @@ require (
 	github.com/oapi-codegen/runtime v1.7.0
 	github.com/ory/fosite v0.49.0
 	github.com/panjf2000/ants/v2 v2.12.1
-	github.com/pb33f/libopenapi v0.41.2 // held at 0.38.x: libopenapi-validator v0.14.0 is built against it; >=0.39 fails response-schema compile ("schema node was not found in its root document", pb33f/libopenapi-validator#314)
-	github.com/pb33f/libopenapi-validator v0.15.0
+	github.com/pb33f/libopenapi v0.38.7 // held at 0.38.x: libopenapi-validator v0.14.0 is built against it; >=0.39 fails response-schema compile ("schema node was not found in its root document", pb33f/libopenapi-validator#314)
+	github.com/pb33f/libopenapi-validator v0.14.0 // held with libopenapi: v0.15.0 (needs libopenapi >=0.41.1) still fails the same compile for getAgentExecutionEvents (#1316); bump the pair together once that passes
 	github.com/pgvector/pgvector-go v0.4.1
 	github.com/samber/lo v1.53.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
@@ -162,9 +162,8 @@ require (
 	github.com/ory/go-acc v0.2.9-0.20230103102148-6b1c9a70dbbe // indirect
 	github.com/ory/go-convenience v0.1.0 // indirect
 	github.com/ory/x v0.0.665 // indirect
-	github.com/pb33f/go-yaml v0.1.1 // indirect
-	github.com/pb33f/jsonpath v0.8.4 // indirect
-	github.com/pb33f/ordered-map/v2 v2.3.2 // indirect
+	github.com/pb33f/jsonpath v0.8.3 // indirect
+	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -202,6 +201,7 @@ require (
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
