@@ -88,8 +88,8 @@ const STORAGE_KEY = 'vx_login_method'
 const RETURN_TO_KEY = 'vx_return_to'
 
 const PROVIDERS: AuthProvider[] = [
-  { name: 'google', display_name: 'Google' },
-  { name: 'github', display_name: 'GitHub' },
+  { name: 'google', display_name: 'Google', type: 'google' },
+  { name: 'github', display_name: 'GitHub', type: 'github' },
 ]
 
 // ---------------------------------------------------------------------------
