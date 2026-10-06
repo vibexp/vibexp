@@ -713,35 +713,42 @@ func ProvideEnvironmentService(cfg *config.Config) *services.EnvironmentService 
 	return services.NewEnvironmentService(cfg)
 }
 
+// InstanceAuthSettingsServiceDeps groups the dependencies of
+// ProvideInstanceAuthSettingsService. Wire fills it via wire.Struct (see the
+// container ProviderSet).
+type InstanceAuthSettingsServiceDeps struct {
+	ProviderRepo      repositories.InstanceAuthProviderRepository
+	Allowlists        repositories.InstanceAuthAllowlistRepository
+	Versions          repositories.InstanceAuthSettingsVersionRepository
+	Grants            repositories.InstanceAdminRepository
+	UserRepo          repositories.UserRepository
+	Resolver          services.IdentityProviderResolver
+	AllowlistResolver services.AccessAllowlistResolver
+	Admins            services.InstanceAdminResolver
+	Enc               services.EncryptionServiceInterface
+	Cfg               *config.Config
+	Logger            *slog.Logger
+}
+
 // ProvideInstanceAuthSettingsService creates the service behind the instance
 // authentication settings admin API (#1238). It shares the identity provider
 // and allowlist resolvers with sign-in, so a provider's reported health is the
 // one sign-in acts on.
 func ProvideInstanceAuthSettingsService(
-	providerRepo repositories.InstanceAuthProviderRepository,
-	allowlists repositories.InstanceAuthAllowlistRepository,
-	versions repositories.InstanceAuthSettingsVersionRepository,
-	grants repositories.InstanceAdminRepository,
-	userRepo repositories.UserRepository,
-	resolver services.IdentityProviderResolver,
-	allowlistResolver services.AccessAllowlistResolver,
-	admins services.InstanceAdminResolver,
-	enc services.EncryptionServiceInterface,
-	cfg *config.Config,
-	logger *slog.Logger,
+	deps InstanceAuthSettingsServiceDeps,
 ) services.InstanceAuthSettingsServiceInterface {
 	return services.NewInstanceAuthSettingsService(services.InstanceAuthSettingsDeps{
-		Providers:         providerRepo,
-		Allowlists:        allowlists,
-		Versions:          versions,
-		Grants:            grants,
-		Users:             userRepo,
-		Resolver:          resolver,
-		AllowlistResolver: allowlistResolver,
-		Admins:            admins,
-		Enc:               enc,
-		CallbackURL:       cfg.AuthCallbackURL(),
-		Logger:            logger,
+		Providers:         deps.ProviderRepo,
+		Allowlists:        deps.Allowlists,
+		Versions:          deps.Versions,
+		Grants:            deps.Grants,
+		Users:             deps.UserRepo,
+		Resolver:          deps.Resolver,
+		AllowlistResolver: deps.AllowlistResolver,
+		Admins:            deps.Admins,
+		Enc:               deps.Enc,
+		CallbackURL:       deps.Cfg.AuthCallbackURL(),
+		Logger:            deps.Logger,
 	})
 }
 
