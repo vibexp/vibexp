@@ -103,10 +103,8 @@ export function refEnum(fromFile: string, ref: string): string[] {
  */
 export function queryEnum(file: string, param: string): Set<string> {
   const path = resolve(SPEC_DIR, file)
-  const yaml = readFileSync(path, 'utf8')
   const values = new Set<string>()
-  for (const chunk of yaml.split(/^\s*- name: /m)) {
-    if (!chunk.startsWith(`${param}\n`)) continue
+  for (const chunk of paramChunks(readFileSync(path, 'utf8'), param)) {
     const inline = /enum: \[([^\]]+)\]/.exec(chunk)
     if (inline) {
       for (const value of enumValues(inline[1])) values.add(value)
@@ -116,6 +114,27 @@ export function queryEnum(file: string, param: string): Set<string> {
     if (ref) for (const value of refEnum(path, ref[1])) values.add(value)
   }
   return values
+}
+
+/**
+ * The chunk of every parameter called `param` in a path file: the lines
+ * between its `- name:` and the next parameter's. A file declares the same
+ * parameter once per operation, so there can be several.
+ */
+export function paramChunks(yaml: string, param: string): string[] {
+  const chunks: string[] = []
+  let current: string[] | null = null
+  for (const line of yaml.split('\n')) {
+    const entry = line.trimStart()
+    if (entry.startsWith('- name: ')) {
+      if (current) chunks.push(current.join('\n'))
+      current = entry.trimEnd() === `- name: ${param}` ? [] : null
+      continue
+    }
+    current?.push(line)
+  }
+  if (current) chunks.push(current.join('\n'))
+  return chunks
 }
 
 /**
@@ -130,40 +149,49 @@ export function queryEnum(file: string, param: string): Set<string> {
  * `TestStatusSchemasAreOpenAndNameSystemValues`. So the system statuses are
  * the `ResourceStatus` values that description names.
  *
- * Throws, rather than returning nothing, when the parameter is missing, when
- * its schema is an enum again, or when it names no system status at all.
+ * Throws, rather than returning nothing, when the file has no `status`
+ * parameter behind a `$ref`, and for the reasons {@link namedStatuses} does.
  */
 export function systemStatuses(file: string): Set<string> {
   const path = resolve(SPEC_DIR, file)
-  const yaml = readFileSync(path, 'utf8')
   const vocabulary = refEnum(
     path,
     '../openapi.yaml#/components/schemas/ResourceStatus'
   )
   const values = new Set<string>()
-  let found = false
-  for (const chunk of yaml.split(/^\s*- name: /m)) {
-    if (!chunk.startsWith('status\n')) continue
+  for (const chunk of paramChunks(readFileSync(path, 'utf8'), 'status')) {
     const ref = REF.exec(chunk)
-    if (!ref) {
-      throw new Error(`the status parameter in ${file} has no schema $ref`)
-    }
-    found = true
-    const { file: target, block } = refComponent(path, ref[1])
-    if (/^\s*enum:/m.test(block)) {
-      throw new Error(
-        `the status schema of ${file} is an enum again (${target}); read it with queryEnum`
-      )
-    }
-    for (const status of vocabulary) {
-      if (block.includes('`' + status + '`')) values.add(status)
-    }
+    if (!ref) continue
+    const { block } = refComponent(path, ref[1])
+    for (const status of namedStatuses(block, vocabulary)) values.add(status)
   }
-  if (!found) throw new Error(`${file} declares no status query parameter`)
   if (values.size === 0) {
-    throw new Error(`the status schema of ${file} names no system status`)
+    throw new Error(`${file} declares no status parameter behind a $ref`)
   }
   return values
+}
+
+/**
+ * The members of `vocabulary` that an open status schema's block names in
+ * backticks.
+ *
+ * Throws when the block declares an `enum` (the schema is closed again, and
+ * {@link queryEnum} is the reader for that) and when it names no member at
+ * all — an empty answer would make the assertion built on it vacuous.
+ */
+export function namedStatuses(
+  block: string,
+  vocabulary: readonly string[]
+): string[] {
+  const lines = block.split('\n').map(line => line.trimStart())
+  if (lines.some(line => line.startsWith('enum:'))) {
+    throw new Error('the status schema declares an enum; it is not open')
+  }
+  const named = vocabulary.filter(status => block.includes('`' + status + '`'))
+  if (named.length === 0) {
+    throw new Error('the status schema names no system status')
+  }
+  return named
 }
 
 /** A property's declared bounds in a request schema. */
