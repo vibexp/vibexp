@@ -52,13 +52,14 @@ export function blockOf(yaml: string, name: string): string {
 }
 
 /**
- * The `enum` behind a `$ref`, following it through however many files it hops:
- * a `paths/*.yaml` parameter points at `openapi.yaml`, whose component is
- * itself a `$ref` into `schemas/common.yaml` (#912).
- *
- * Throws rather than returning nothing when a component cannot be resolved.
+ * The schema component a `$ref` names, following it through however many files
+ * it hops, as its file and its block. Throws when it cannot be resolved.
  */
-export function refEnum(fromFile: string, ref: string, hops = 4): string[] {
+function refComponent(
+  fromFile: string,
+  ref: string,
+  hops = 4
+): { file: string; block: string } {
   const [file, pointer] = ref.split('#')
   const target = resolve(dirname(fromFile), file)
   const name = pointer.split('/').findLast(Boolean) ?? ''
@@ -66,13 +67,26 @@ export function refEnum(fromFile: string, ref: string, hops = 4): string[] {
   if (block === '') {
     throw new Error(`schema component '${name}' not found in ${target}`)
   }
-  const inline = /enum: \[([^\]]+)\]/.exec(block)
-  if (inline) return enumValues(inline[1])
   const next = REF.exec(block)
-  if (!next || hops === 0) {
-    throw new Error(`schema component '${name}' declares no enum (${target})`)
+  if (next && hops > 0) return refComponent(target, next[1], hops - 1)
+  return { file: target, block }
+}
+
+/**
+ * The `enum` behind a `$ref`, following it through however many files it hops:
+ * a `paths/*.yaml` parameter points at `openapi.yaml`, whose component is
+ * itself a `$ref` into `schemas/common.yaml` (#912).
+ *
+ * Throws rather than returning nothing when a component cannot be resolved.
+ */
+export function refEnum(fromFile: string, ref: string): string[] {
+  const { file, block } = refComponent(fromFile, ref)
+  const inline = /enum: \[([^\]]+)\]/.exec(block)
+  if (!inline) {
+    const name = ref.split('/').findLast(Boolean) ?? ''
+    throw new Error(`schema component '${name}' declares no enum (${file})`)
   }
-  return refEnum(target, next[1], hops - 1)
+  return enumValues(inline[1])
 }
 
 /**
@@ -89,10 +103,8 @@ export function refEnum(fromFile: string, ref: string, hops = 4): string[] {
  */
 export function queryEnum(file: string, param: string): Set<string> {
   const path = resolve(SPEC_DIR, file)
-  const yaml = readFileSync(path, 'utf8')
   const values = new Set<string>()
-  for (const chunk of yaml.split(/^\s*- name: /m)) {
-    if (!chunk.startsWith(`${param}\n`)) continue
+  for (const chunk of paramChunks(readFileSync(path, 'utf8'), param)) {
     const inline = /enum: \[([^\]]+)\]/.exec(chunk)
     if (inline) {
       for (const value of enumValues(inline[1])) values.add(value)
@@ -102,6 +114,96 @@ export function queryEnum(file: string, param: string): Set<string> {
     if (ref) for (const value of refEnum(path, ref[1])) values.add(value)
   }
   return values
+}
+
+/**
+ * The chunk of every parameter called `param` in a path file: the lines
+ * between its `- name:` and the next parameter's. A file declares the same
+ * parameter once per operation, so there can be several.
+ */
+export function paramChunks(yaml: string, param: string): string[] {
+  const chunks: string[] = []
+  let current: string[] | null = null
+  for (const line of yaml.split('\n')) {
+    const entry = line.trimStart()
+    if (entry.startsWith('- name: ')) {
+      if (current) chunks.push(current.join('\n'))
+      current = entry.trimEnd() === `- name: ${param}` ? [] : null
+      continue
+    }
+    current?.push(line)
+  }
+  if (current) chunks.push(current.join('\n'))
+  return chunks
+}
+
+/**
+ * The SYSTEM statuses of the resource type whose list a path file describes.
+ *
+ * Since #1266 a list's `status` parameter is an open string, not an enum: a
+ * team's custom statuses are legal values too, and those live in the database,
+ * not in the spec. What the spec still fixes is which statuses every team has.
+ * Each per-type schema (`ArtifactStatus`, ...) names exactly its system
+ * statuses in backticks in its description, out of the closed `ResourceStatus`
+ * vocabulary — a contract the backend pins in
+ * `TestStatusSchemasAreOpenAndNameSystemValues`. So the system statuses are
+ * the `ResourceStatus` values that description names.
+ *
+ * Throws, rather than returning nothing, when the file has no `status`
+ * parameter, and for the reasons {@link schemaRef} and {@link namedStatuses}
+ * do.
+ */
+export function systemStatuses(file: string): Set<string> {
+  const path = resolve(SPEC_DIR, file)
+  const vocabulary = refEnum(
+    path,
+    '../openapi.yaml#/components/schemas/ResourceStatus'
+  )
+  const values = new Set<string>()
+  for (const chunk of paramChunks(readFileSync(path, 'utf8'), 'status')) {
+    const { block } = refComponent(path, schemaRef(chunk))
+    for (const status of namedStatuses(block, vocabulary)) values.add(status)
+  }
+  if (values.size === 0) {
+    throw new Error(`${file} declares no status parameter`)
+  }
+  return values
+}
+
+/**
+ * The `$ref` a parameter's chunk points its schema at.
+ *
+ * Throws when there is none. A path file declares the same parameter once per
+ * operation, so skipping a declaration that was inlined would answer from the
+ * other operations alone and hide that the reader no longer understands one.
+ */
+export function schemaRef(chunk: string): string {
+  const ref = REF.exec(chunk)
+  if (!ref) throw new Error('the parameter has no schema $ref')
+  return ref[1]
+}
+
+/**
+ * The members of `vocabulary` that an open status schema's block names in
+ * backticks.
+ *
+ * Throws when the block declares an `enum` (the schema is closed again, and
+ * {@link queryEnum} is the reader for that) and when it names no member at
+ * all — an empty answer would make the assertion built on it vacuous.
+ */
+export function namedStatuses(
+  block: string,
+  vocabulary: readonly string[]
+): string[] {
+  const lines = block.split('\n').map(line => line.trimStart())
+  if (lines.some(line => line.startsWith('enum:'))) {
+    throw new Error('the status schema declares an enum; it is not open')
+  }
+  const named = vocabulary.filter(status => block.includes('`' + status + '`'))
+  if (named.length === 0) {
+    throw new Error('the status schema names no system status')
+  }
+  return named
 }
 
 /** A property's declared bounds in a request schema. */
