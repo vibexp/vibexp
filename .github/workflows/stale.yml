@@ -1,6 +1,6 @@
 name: Stale issue & PR lifecycle
 
-# Daily inactivity automation for BOTH issues and pull requests (issue #416).
+# Inactivity automation for BOTH issues and pull requests (issue #416).
 # Each track has its own thresholds (defaults shown; all tunable in `env`
 # below), measured in days of inactivity and driven off the stale-label event:
 #
@@ -10,9 +10,39 @@ name: Stale issue & PR lifecycle
 # PRs get longer windows on purpose: a contributor has real work at stake and a
 # quiet PR is often waiting on maintainer review, not abandoned.
 #
-# Any genuine (non-bot) activity removes the label and resets the clock. For a
-# PR that includes pushes, reviews and review-thread comments, not just issue
-# comments (see ACTIVITY_EVENTS / eventTime below).
+# TWO PATHS, one file, selected by the triggering event (issue #1321):
+#
+#   sweep    (schedule / workflow_dispatch) -- the daily marker, reminder and
+#            closer. It also un-stales from the timeline, as the safety net for
+#            activity the event path cannot see (below).
+#   unstale  (every other trigger) -- removes the label in the run started by
+#            the activity itself, so nothing waits for 03:00 UTC. It scans no
+#            timeline: the triggering event IS the activity.
+#
+# What counts as activity is the same on both paths: an event by ANY actor that
+# is not listed in IGNORED_ACTORS -- humans, our own agent App and every other
+# App alike. Refinement, triage and implementation here are done by an App, so
+# a blanket "bots do not count" rule left refined, Ready work labelled stale
+# (and, 14 days on, closed as abandoned). The only other thing that never
+# counts is a labeled/unlabeled event for the stale label itself: that is the
+# lifecycle moving, not somebody touching the item, and it is what lets a
+# maintainer add the label by hand without it being stripped at once.
+#
+# The event path covers, for issues: comments, body/title edits, label changes,
+# (un)assignment, milestone changes and reopening. For PRs: conversation
+# comments, pushes, body/title edits, ready-for-review / convert-to-draft,
+# review requests, reopening and submitted reviews.
+#
+# Left to the daily sweep:
+#   - a review submitted on a FORK pull request. `pull_request_review` has no
+#     `_target` variant, so that run gets a read-only token and could only fail
+#     with a 403; the unstale job skips it instead.
+#   - activity this file declares no trigger for: label changes and
+#     (un)assignment on a PULL REQUEST (the `issues` trigger does not fire for
+#     PRs), cross-references, a review request being removed.
+# Board moves are seen by neither path -- `projects_v2_item` is an org-level
+# webhook with no repo workflow trigger, and the timeline scan does not count
+# it. The label and edit events that accompany a refinement cover them.
 #
 # WHY the split between actions/stale and the github-script step:
 # `actions/stale` decides both closing AND un-staling from `updated_at`, and
@@ -22,7 +52,9 @@ name: Stale issue & PR lifecycle
 # So `actions/stale` owns ONLY the marking (`days-before-close: -1`,
 # `remove-stale-when-updated: false`), and the github-script step owns the
 # reminder, the close, and un-staling -- all keyed off the label event, which no
-# comment can move.
+# comment can move. The event path changes neither invariant: `actions/stale`
+# still owns only the marking, and the close window is still keyed off the
+# label event.
 #
 # Nothing here is repo-specific: the owner/repo come from the workflow context
 # and every threshold, label and exemption is an `env` knob below.
@@ -32,19 +64,43 @@ on:
     - cron: '0 3 * * *' # daily at 03:00 UTC
   workflow_dispatch:
 
+  # Everything below feeds the `unstale` job only.
+  issues:
+    # `edited` is the one a timeline scan can never see: a body edit produces
+    # no timeline event at all.
+    types: [edited, labeled, unlabeled, assigned, unassigned, reopened, milestoned, demilestoned]
+  issue_comment:
+    types: [created] # conversation comments on issues AND pull requests
+  # `pull_request_target`, not `pull_request`: a `pull_request` run from a fork
+  # gets a read-only token and could not remove the label. This is safe ONLY
+  # because the workflow checks out no code and passes no PR-controlled input
+  # to a `run:` step -- it reads the event payload and calls the labels API.
+  # Keep it that way: never add a checkout of the PR head to this file.
+  pull_request_target:
+    types: [edited, synchronize, ready_for_review, converted_to_draft, review_requested, reopened]
+  pull_request_review:
+    types: [submitted]
+
 permissions:
   contents: read
   issues: write
   pull-requests: write
 
-concurrency:
-  group: stale
-  cancel-in-progress: false
-
 env:
   # One label for both tracks -- filter with `is:pr label:Stale` in the UI.
   # Created automatically on first use.
   STALE_LABEL: Stale
+
+  # Actors whose events are NOT activity, on both paths (comma-separated
+  # logins, compared case-insensitively). Everyone else counts.
+  #   github-actions[bot] -- this workflow itself (the stale warning, the
+  #     reminder, the label) and the repo's other workflows commenting with the
+  #     default token. Counting it would let the lifecycle un-stale itself.
+  #     The `unstale` job's `if` repeats this one login as a literal, because
+  #     the `env` context is not available there; keep the two in step.
+  #   dependabot[bot] -- its automatic rebases. If they counted, a Dependabot
+  #     PR could never go stale.
+  IGNORED_ACTORS: 'github-actions[bot],dependabot[bot]'
 
   # --- Issues -------------------------------------------------------------
   ISSUE_EXEMPT_LABELS: pinned,epic,security
@@ -62,8 +118,21 @@ env:
   EXEMPT_DRAFT_PRS: 'false'
 
 jobs:
-  stale:
+  sweep:
     name: Mark, remind & close stale issues and PRs
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Job-level, so it serialises sweeps against each other and nothing else.
+    # Event runs deliberately share NO group, not even one per item: a group
+    # holds at most one PENDING run and a newer run replaces it, and not every
+    # event run removes the label (one for the stale label itself, or by an
+    # ignored actor, exits without touching it). Queued behind another run for
+    # the same item, the one run that carried real activity could be the one
+    # replaced -- and a body edit is invisible to the sweep, so nothing would
+    # ever recover it. Running them in parallel is safe: removing the label is
+    # idempotent and an already-removed label (404) is ignored.
+    concurrency:
+      group: stale-sweep
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       # Actions expressions have NO arithmetic operators: the supported set is
@@ -142,6 +211,8 @@ jobs:
               [MARK, ...LEGACY_MARKS].some((m) => (c.body || '').includes(m));
             const DAY = 24 * 60 * 60 * 1000;
             const LABEL = process.env.STALE_LABEL;
+            const IGNORED_ACTORS = new Set((process.env.IGNORED_ACTORS || '')
+              .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
             const { owner, repo } = context.repo;
 
             const track = (prefix, noun) => {
@@ -157,10 +228,11 @@ jobs:
             const ISSUE = track('ISSUE', 'issue');
             const PR = track('PR', 'pull request');
 
-            // Events that represent a human touching the item (used to reset the
-            // clock). The PR-only entries matter: a contributor pushing commits
-            // or a maintainer reviewing must count as activity even though
-            // neither produces an issue comment.
+            // Events that represent somebody touching the item (used to reset
+            // the clock) -- a human or an App, see isIgnoredActor. The PR-only
+            // entries matter: a contributor pushing commits or a maintainer
+            // reviewing must count as activity even though neither produces an
+            // issue comment.
             const ACTIVITY_EVENTS = new Set([
               // shared
               'commented', 'reopened', 'renamed', 'assigned', 'unassigned',
@@ -189,16 +261,19 @@ jobs:
             };
 
             // Likewise the actor: `committed` has no actor object, just a commit
-            // author name/email. Treat a push as human unless the commit author
-            // is itself a bot (dependabot et al).
-            const isBotEvent = (ev) => {
+            // author name/email, so a push is matched on that name instead (a
+            // bot's commits carry its login as the name, e.g. dependabot[bot]).
+            // The rule is the one the `unstale` job applies: every actor counts
+            // except those in IGNORED_ACTORS.
+            const isIgnored = (login) => IGNORED_ACTORS.has((login || '').trim().toLowerCase());
+            const isIgnoredActor = (ev) => {
               const actor = ev.actor
                 || ev.user
                 || (ev.comments && ev.comments[0] && ev.comments[0].user);
-              if (actor) return actor.type === 'Bot' || /\[bot\]$/.test(actor.login || '');
+              if (actor) return isIgnored(actor.login);
               const name = (ev.author && ev.author.name) || (ev.committer && ev.committer.name);
-              if (name) return /\[bot\]\s*$/.test(name);
-              return true; // unattributable event -- do not treat as human activity
+              if (name) return isIgnored(name);
+              return true; // unattributable event -- do not treat as activity
             };
 
             // One call returns both issues and PRs carrying the label.
@@ -230,15 +305,15 @@ jobs:
               }
 
               // Genuine activity after the label -> un-stale and reset the clock.
-              const hasUserActivity = timeline.some((ev) => {
+              const hasActivity = timeline.some((ev) => {
                 if (!ACTIVITY_EVENTS.has(ev.event)) return false;
                 const t = eventTime(ev);
                 if (t === null || t <= staleSince) return false;
                 if ((ev.event === 'labeled' || ev.event === 'unlabeled')
                     && ev.label && ev.label.name === LABEL) return false;
-                return !isBotEvent(ev);
+                return !isIgnoredActor(ev);
               });
-              if (hasUserActivity) {
+              if (hasActivity) {
                 core.info(`${tag}: activity since stale -> removing the ${LABEL} label`);
                 await github.rest.issues.removeLabel({
                   owner, repo, issue_number: item.number, name: LABEL,
@@ -294,3 +369,63 @@ jobs:
                 core.info(`${tag}: posted the ${cfg.remindTotal}-day reminder`);
               }
             }
+
+  # Event path -- the triggering event is the activity, so there is no timeline
+  # scan, no marking and no reminder/close logic here: carry the label, be
+  # genuine activity, lose the label.
+  unstale:
+    name: Un-stale on activity
+    # - Never on the sweep's own triggers.
+    # - Never for the workflow's own actor. Events authored with the default
+    #   GITHUB_TOKEN do not start workflows in the first place, but that is a
+    #   side effect of how Actions works; this guard is the invariant. (The full
+    #   IGNORED_ACTORS list is applied in the script -- `env` is unavailable in
+    #   a job-level `if`, and a list cannot be split in an expression.)
+    # - Never for a review on a fork PR: read-only token, see the header.
+    #   Compared by name rather than `head.repo.fork` so that a PR whose fork
+    #   has since been deleted (`head.repo` is null) is skipped as well.
+    if: >-
+      github.event_name != 'schedule'
+      && github.event_name != 'workflow_dispatch'
+      && github.actor != 'github-actions[bot]'
+      && !(github.event_name == 'pull_request_review'
+           && github.event.pull_request.head.repo.full_name != github.repository)
+    runs-on: ubuntu-latest
+    steps:
+      # Step-level, not job-level, because only here is `env` available: the
+      # label name stays a single knob instead of a second hardcoded literal.
+      # An item that is not stale -- nearly every event -- ends here.
+      - name: Remove the stale label
+        if: >-
+          contains(github.event.issue.labels.*.name, env.STALE_LABEL)
+          || contains(github.event.pull_request.labels.*.name, env.STALE_LABEL)
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const LABEL = process.env.STALE_LABEL;
+            const IGNORED_ACTORS = new Set((process.env.IGNORED_ACTORS || '')
+              .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+            const { owner, repo } = context.repo;
+            const { payload } = context;
+            const item = payload.issue || payload.pull_request;
+            const tag = `#${item.number}`;
+            const what = `${context.eventName}.${payload.action}`;
+
+            // The stale label being added or removed is the lifecycle itself,
+            // not activity. Without this, labelling an item by hand would strip
+            // the label in the very run that labelling started.
+            if ((payload.action === 'labeled' || payload.action === 'unlabeled')
+                && payload.label && payload.label.name === LABEL) {
+              core.info(`${tag}: ${what} is the ${LABEL} label itself; not activity`);
+              return;
+            }
+
+            if (IGNORED_ACTORS.has((context.actor || '').toLowerCase())) {
+              core.info(`${tag}: ${what} by ${context.actor} (ignored actor); not activity`);
+              return;
+            }
+
+            core.info(`${tag}: ${what} by ${context.actor} -> removing the ${LABEL} label`);
+            await github.rest.issues.removeLabel({
+              owner, repo, issue_number: item.number, name: LABEL,
+            }).catch((e) => { if (e.status !== 404) throw e; });
