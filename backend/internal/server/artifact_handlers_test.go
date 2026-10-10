@@ -882,40 +882,6 @@ func TestHandleListArtifacts_ServiceError(t *testing.T) {
 	mockArtifactService.AssertExpectations(t)
 }
 
-// TestValidateArtifactStatus pins the artifact lifecycle enum: active, draft and
-// archived are accepted (and an empty/omitted status is allowed), while the
-// retired "expired" value and any unknown value are rejected with a 400.
-func TestValidateArtifactStatus(t *testing.T) {
-	cfg := &config.Config{}
-	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
-
-	tests := []struct {
-		name      string
-		status    *string
-		wantValid bool
-	}{
-		{name: "nil status allowed", status: nil, wantValid: true},
-		{name: "empty status allowed", status: stringPtr(""), wantValid: true},
-		{name: "active accepted", status: stringPtr("active"), wantValid: true},
-		{name: "draft accepted", status: stringPtr("draft"), wantValid: true},
-		{name: "archived accepted", status: stringPtr("archived"), wantValid: true},
-		{name: "retired expired rejected", status: stringPtr("expired"), wantValid: false},
-		{name: "unknown rejected", status: stringPtr("bogus"), wantValid: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rr := httptest.NewRecorder()
-			ok := srv.validateArtifactStatus(rr, tt.status)
-			assert.Equal(t, tt.wantValid, ok)
-			if !tt.wantValid {
-				assert.Equal(t, http.StatusBadRequest, rr.Code)
-			}
-		})
-	}
-}
-
 // artifactValidationServer builds an authenticated artifact server whose type
 // service accepts every type, so a case reaches the validator it is aimed at.
 func artifactValidationServer(t *testing.T) *Server {

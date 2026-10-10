@@ -579,6 +579,11 @@ func (bs *blueprintsStrictServer) blueprintsError(op string, err error) error {
 	if op == "GetBlueprint" && strings.Contains(err.Error(), errNotFoundFragment) {
 		return apierrors.NewResourceNotFoundError("blueprint", "Blueprint not found")
 	}
+	// An unknown status filter; the service's message lists the allowed
+	// values (#1266).
+	if errors.Is(err, services.ErrInvalidStatus) {
+		return apierrors.NewBadRequestError(err.Error())
+	}
 
 	bs.s.logger.With("error", err, "operation", op).Error("Blueprints request failed")
 	// The 500 body keeps the per-operation wording the chi handlers used, rather

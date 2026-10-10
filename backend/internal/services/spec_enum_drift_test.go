@@ -2,11 +2,15 @@ package services
 
 import (
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/specconformance"
@@ -76,33 +80,13 @@ func TestSpecEnumsMatchServiceAllowlists(t *testing.T) {
 			goName:  "models.SettingsAuditSurfaces (internal/models/team_settings_audit.go)",
 			goValue: models.SettingsAuditSurfaces,
 		},
-		// The resource status vocabulary and its four per-type subsets (#912).
-		// These mirror request-body AND query-parameter enums, so the binder
-		// validates neither -- models/status.go is the sole enforcement point.
+		// The SYSTEM status vocabulary (#912). It is the one status schema that
+		// is still an enum: the per-type schemas are open strings since #1266
+		// and are pinned by TestStatusSchemasAreOpenAndNameSystemValues below.
 		{
 			schema:  "ResourceStatus",
 			goName:  "models.ResourceStatuses (internal/models/status.go)",
 			goValue: models.ResourceStatuses,
-		},
-		{
-			schema:  "PromptStatus",
-			goName:  "models.PromptStatuses (internal/models/status.go)",
-			goValue: models.PromptStatuses,
-		},
-		{
-			schema:  "ArtifactStatus",
-			goName:  "models.ArtifactStatuses (internal/models/status.go)",
-			goValue: models.ArtifactStatuses,
-		},
-		{
-			schema:  "BlueprintStatus",
-			goName:  "models.BlueprintStatuses (internal/models/status.go)",
-			goValue: models.BlueprintStatuses,
-		},
-		{
-			schema:  "MemoryStatus",
-			goName:  "models.MemoryStatuses (internal/models/status.go)",
-			goValue: models.MemoryStatuses,
 		},
 	}
 
@@ -119,6 +103,69 @@ func TestSpecEnumsMatchServiceAllowlists(t *testing.T) {
 					"Nothing else enforces this pairing — oapi-codegen binds the raw value "+
 					"without validating its enum, and no spec-driven request validator runs "+
 					"in front of the handlers — so update both together (#774).", tc.schema, tc.goName)
+		})
+	}
+}
+
+// TestStatusSchemasAreOpenAndNameSystemValues pins what the four per-type
+// status schemas became in #1266: open strings of at most 50 characters whose
+// description names every system status of the type.
+//
+// Each half guards a different regression. An `enum:` creeping back makes a
+// team's custom status a value neither generated client can represent, on a
+// green build. A missing or wrong maxLength disagrees with the `varchar(50)`
+// status columns and the slug limit on `team_statuses`. And the description is
+// the only place the spec still says what the system statuses are, so it has
+// to keep naming exactly the ones models/status.go enforces -- including none
+// from another type's subset, which would document a value that always 400s.
+func TestStatusSchemasAreOpenAndNameSystemValues(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(repoBackendDir(t), "schemas", "common.yaml"))
+	require.NoError(t, err)
+
+	var schemas map[string]struct {
+		Type        string   `yaml:"type"`
+		MaxLength   int      `yaml:"maxLength"`
+		Description string   `yaml:"description"`
+		Enum        []string `yaml:"enum"`
+		Example     string   `yaml:"example"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &schemas))
+
+	cases := []struct {
+		schema       string
+		resourceType string
+	}{
+		{"PromptStatus", models.StatusResourceTypePrompt},
+		{"ArtifactStatus", models.StatusResourceTypeArtifact},
+		{"BlueprintStatus", models.StatusResourceTypeBlueprint},
+		{"MemoryStatus", models.StatusResourceTypeMemory},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.schema, func(t *testing.T) {
+			schema, ok := schemas[tc.schema]
+			require.True(t, ok, "%s is missing from schemas/common.yaml", tc.schema)
+
+			assert.Equal(t, "string", schema.Type)
+			assert.Empty(t, schema.Enum,
+				"%s must stay an open string: a team's custom status is a legal value (#1266)", tc.schema)
+			assert.Equal(t, 50, schema.MaxLength,
+				"%s.maxLength must match the status column and the custom-status slug limit", tc.schema)
+
+			_, enumErr := specconformance.ComponentEnum(tc.schema)
+			require.Error(t, enumErr,
+				"%s resolves to an enum in the parsed spec; it must be open there too", tc.schema)
+
+			system := models.SystemStatusesFor(tc.resourceType)
+			require.NotEmpty(t, system)
+			assert.Contains(t, system, schema.Example,
+				"the example must be a system status, the only kind every team has")
+			for _, status := range models.ResourceStatuses {
+				named := strings.Contains(schema.Description, "`"+status+"`")
+				assert.Equal(t, slices.Contains(system, status), named,
+					"%s's description must name `%s` if and only if it is a system "+
+						"status of a %s", tc.schema, status, tc.resourceType)
+			}
 		})
 	}
 }

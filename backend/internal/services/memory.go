@@ -70,6 +70,7 @@ type MemoryService struct {
 	relationRepo      repositories.RelationRepository
 	freshnessClearer  FreshnessClearer
 	freshnessRepo     repositories.ResourceFreshnessRepository
+	statuses          statusValidator
 	logger            *slog.Logger
 }
 
@@ -89,6 +90,9 @@ type MemoryServiceDeps struct {
 	FreshnessClearer  FreshnessClearer
 	FreshnessRepo     repositories.ResourceFreshnessRepository
 	Logger            *slog.Logger
+	// StatusCatalog resolves the team's custom statuses (#1266). Without one
+	// the service accepts the system statuses only.
+	StatusCatalog StatusCatalogServiceInterface
 }
 
 // NewMemoryService creates a new MemoryService.
@@ -104,6 +108,7 @@ func NewMemoryService(deps MemoryServiceDeps) *MemoryService {
 		freshnessClearer:  deps.FreshnessClearer,
 		freshnessRepo:     deps.FreshnessRepo,
 		logger:            deps.Logger,
+		statuses:          statusValidator{catalog: deps.StatusCatalog},
 	}
 }
 
@@ -144,8 +149,11 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 	if err := validateMemoryTitle(req.Title); err != nil {
 		return nil, err
 	}
-	// Status is checked here so the MCP tools get the REST answer (#912).
-	if err := validateOptionalStatus(models.MemoryStatuses, req.Status); err != nil {
+	// Status is checked here so the MCP tools get the REST answer (#912),
+	// against the team's own catalog (#1266).
+	if err := s.statuses.ValidateOptional(
+		ctx, teamID, models.StatusResourceTypeMemory, req.Status,
+	); err != nil {
 		return nil, err
 	}
 
@@ -210,6 +218,14 @@ func (s *MemoryService) ListMemories(userID string, filters MemoryFilters) (*mod
 	}
 	if filters.Limit == 0 {
 		filters.Limit = 50
+	}
+
+	// An unknown status filter is rejected rather than answered with an empty
+	// page: a typo and "nothing has that status" must not look alike (#1266).
+	if err := s.statuses.ValidateOptional(
+		ctx, filters.TeamID, models.StatusResourceTypeMemory, filters.Status,
+	); err != nil {
+		return nil, err
 	}
 
 	repoFilters := repositories.MemoryFilters{
@@ -324,8 +340,11 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 	if err := validateMemoryTitle(req.Title.Value); err != nil {
 		return nil, err
 	}
-	// Status is checked here so the MCP tools get the REST answer (#912).
-	if err := validateOptionalStatus(models.MemoryStatuses, req.Status); err != nil {
+	// Status is checked here so the MCP tools get the REST answer (#912),
+	// against the catalog of the memory's own team (#1266).
+	if err := s.statuses.ValidateOptional(
+		ctx, memory.TeamID, models.StatusResourceTypeMemory, req.Status,
+	); err != nil {
 		return nil, err
 	}
 

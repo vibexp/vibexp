@@ -63,7 +63,7 @@ type CreateArtifactRequest struct {
 	// Type is validated against the team's types (system defaults + custom) by
 	// the handler via TypeService, not by a static oneof here (#1846).
 	Type     string                 `json:"type" validate:"omitempty"`
-	Status   string                 `json:"status" validate:"omitempty,oneof=active draft archived"`
+	Status   string                 `json:"status"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 	Labels   []string               `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
 }
@@ -77,7 +77,7 @@ type UpdateArtifactRequest struct {
 	// Type is validated against the team's types (system defaults + custom) by
 	// the handler via TypeService, not by a static oneof here (#1846).
 	Type     *string                `json:"type,omitempty" validate:"omitempty"`
-	Status   *string                `json:"status,omitempty" validate:"omitempty,oneof=active draft archived"`
+	Status   *string                `json:"status,omitempty"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 	Labels   []string               `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
 	// ChangeSummary is an optional human-readable description of this edit, recorded on

@@ -21,24 +21,6 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "BearerAuth.Scopes"
 )
 
-// Defines values for PromptStatus.
-const (
-	Draft     PromptStatus = "draft"
-	Published PromptStatus = "published"
-)
-
-// Valid indicates whether the value is a known member of the PromptStatus enum.
-func (e PromptStatus) Valid() bool {
-	switch e {
-	case Draft:
-		return true
-	case Published:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for RelatedResourceDirection.
 const (
 	Incoming RelatedResourceDirection = "incoming"
@@ -285,7 +267,7 @@ type Prompt struct {
 	Similar *[]SimilarResource `json:"similar,omitempty"`
 	Slug    string             `json:"slug"`
 
-	// Status Publication status of a prompt. A prompt is only exposed over MCP once it is `published`.
+	// Status Status of a prompt. The system values are `draft` and `published`; a prompt is only exposed over MCP once it is `published`. A team may define further statuses of its own for prompts, so this is an open string: any other value must be one of the team's custom prompt statuses, or the request is rejected with 400.
 	Status PromptStatus `json:"status"`
 
 	// TeamId Team identifier that owns this prompt
@@ -313,8 +295,8 @@ type PromptListResponse struct {
 	TotalPages int      `json:"total_pages"`
 }
 
-// PromptStatus Publication status of a prompt. A prompt is only exposed over MCP once it is `published`.
-type PromptStatus string
+// PromptStatus Status of a prompt. The system values are `draft` and `published`; a prompt is only exposed over MCP once it is `published`. A team may define further statuses of its own for prompts, so this is an open string: any other value must be one of the team's custom prompt statuses, or the request is rejected with 400.
+type PromptStatus = string
 
 // RelatedResource One endpoint of a relation as seen from the other endpoint, enriched with the related resource's resolved title and link fields. project_id is present for every type; slug is present for artifact/blueprint/prompt and absent for memory.
 type RelatedResource struct {
@@ -448,7 +430,7 @@ type ListPromptsParams struct {
 	// Search Search term to filter prompts by name or description
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
 
-	// Status Filter by prompt status
+	// Status Filter by status: one of the system statuses or one of the team's custom statuses for this resource type. Returns 400 for unknown values.
 	Status *PromptStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// Labels Comma-separated list of labels to filter by. A resource matches when it carries at least one of the listed labels. At most 25 labels, each at most 50 characters; beyond that the request is rejected with 400.

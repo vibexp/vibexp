@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -401,10 +402,23 @@ func TestListMemoriesByProject_InvalidProjectID(t *testing.T) {
 	}
 }
 
-// TestStoreMemory_InvalidStatus rejects an out-of-enum status before the service
-// is ever called.
+// errMCPInvalidStatus is what a resource service answers for a status the
+// team does not have: the sentinel wrapped with the allowed values, system
+// statuses first and then the team's custom ones (#1266).
+var errMCPInvalidStatus = fmt.Errorf(
+	"%w: must be one of: active, draft, archived, in-review", services.ErrInvalidStatus)
+
+// TestStoreMemory_InvalidStatus hands the service's rejection back to the MCP
+// client with the allowed values in it. The tool no longer judges the status
+// itself: only the service knows the team's custom statuses.
 func TestStoreMemory_InvalidStatus(t *testing.T) {
 	srv, mockMemoryService := newMemoryTestServer(t)
+	mockMemoryService.On(
+		"CreateMemory", testMemberUserID, testTeamUUID,
+		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool {
+			return req.Status != nil && *req.Status == "bogus"
+		}),
+	).Return(nil, errMCPInvalidStatus)
 
 	params := &StoreMemoryParams{
 		TeamID: testTeamUUID, ProjectID: testProjectID, Text: "hello", Status: "bogus",
@@ -416,8 +430,30 @@ func TestStoreMemory_InvalidStatus(t *testing.T) {
 	if structured != nil {
 		t.Error("expected nil structured result on rejection")
 	}
-	assertValidationFailure(t, result, []string{"active", "draft", "archived"})
-	mockMemoryService.AssertNotCalled(t, "CreateMemory")
+	assertValidationFailure(t, result, []string{"active", "draft", "archived", "in-review"})
+}
+
+// TestStoreMemory_CustomStatusThreaded passes a team's custom status through to
+// the create request untouched.
+func TestStoreMemory_CustomStatusThreaded(t *testing.T) {
+	srv, mockMemoryService := newMemoryTestServer(t)
+	mockMemoryService.On(
+		"CreateMemory", testMemberUserID, testTeamUUID,
+		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool {
+			return req.Status != nil && *req.Status == "in-review"
+		}),
+	).Return(buildTestMemory(), nil)
+
+	params := &StoreMemoryParams{
+		TeamID: testTeamUUID, ProjectID: testProjectID, Text: "hello", Status: "in-review",
+	}
+	result, _, err := srv.storeMemory(context.Background(), nil, params, testMemberUserID)
+	if err != nil {
+		t.Fatalf("unexpected function error: %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Fatalf("expected a successful result, got %+v", result)
+	}
 }
 
 // TestStoreMemory_StatusThreaded passes a valid status through to the create request.
@@ -445,10 +481,16 @@ func TestStoreMemory_StatusThreaded(t *testing.T) {
 	mockMemoryService.AssertExpectations(t)
 }
 
-// TestUpdateMemory_InvalidStatus rejects an out-of-enum status before the service
-// is ever called.
+// TestUpdateMemory_InvalidStatus hands the service's rejection back with the
+// allowed values in it.
 func TestUpdateMemory_InvalidStatus(t *testing.T) {
 	srv, mockMemoryService := newMemoryTestServer(t)
+	mockMemoryService.On(
+		"UpdateMemory", testMemberUserID, testTeamUUID, "mem-1",
+		mock.MatchedBy(func(req *models.UpdateMemoryRequest) bool {
+			return req.Status != nil && *req.Status == "bogus"
+		}),
+	).Return(nil, errMCPInvalidStatus)
 
 	params := &UpdateMemoryParams{
 		TeamID: testTeamUUID, MemoryID: "mem-1", Status: "bogus",
@@ -460,27 +502,77 @@ func TestUpdateMemory_InvalidStatus(t *testing.T) {
 	if structured != nil {
 		t.Error("expected nil structured result on rejection")
 	}
-	assertValidationFailure(t, result, []string{"active", "draft", "archived"})
-	mockMemoryService.AssertNotCalled(t, "UpdateMemory")
+	assertValidationFailure(t, result, []string{"active", "draft", "archived", "in-review"})
 }
 
-// TestListMemoriesByProject_InvalidStatus rejects an out-of-enum status filter
-// before the service is ever called.
-func TestListMemoriesByProject_InvalidStatus(t *testing.T) {
-	srv, mockMemoryService := newMemoryTestServer(t)
+// TestListResources_InvalidStatusFilter covers the status filter of the MCP
+// list tool on all three resource types it serves: the service rejects an
+// unknown status, and the tool answers with the service's message -- the
+// allowed values -- instead of a generic read failure or an empty page.
+func TestListResources_InvalidStatusFilter(t *testing.T) {
+	t.Run(resourceTypeMemory, func(t *testing.T) {
+		srv, mockMemoryService := newMemoryTestServer(t)
+		mockMemoryService.On(
+			"ListMemories", testMemberUserID,
+			mock.MatchedBy(func(f services.MemoryFilters) bool {
+				return f.TeamID == testTeamUUID && f.Status != nil && *f.Status == "bogus"
+			}),
+		).Return(nil, errMCPInvalidStatus)
 
-	params := &ListResourcesParams{ResourceType: resourceTypeMemory,
-		TeamID: testTeamUUID, ProjectID: testProjectID, Status: "bogus",
-	}
-	result, structured, err := srv.listResources(context.Background(), nil, params, testMemberUserID)
-	if err != nil {
-		t.Errorf("unexpected function error: %v", err)
-	}
-	if structured != nil {
-		t.Error("expected nil structured result on rejection")
-	}
-	assertValidationFailure(t, result, []string{"active", "draft", "archived"})
-	mockMemoryService.AssertNotCalled(t, "ListMemories")
+		params := &ListResourcesParams{ResourceType: resourceTypeMemory,
+			TeamID: testTeamUUID, ProjectID: testProjectID, Status: "bogus",
+		}
+		result, structured, err := srv.listResources(context.Background(), nil, params, testMemberUserID)
+		if err != nil {
+			t.Errorf("unexpected function error: %v", err)
+		}
+		if structured != nil {
+			t.Error("expected nil structured result on rejection")
+		}
+		assertValidationFailure(t, result,
+			[]string{"invalid status: must be one of: active, draft, archived, in-review"})
+		if text := extractText(t, result); strings.Contains(text, "Failed to list") {
+			t.Errorf("an unknown status filter is not a failed read; got %q", text)
+		}
+	})
+
+	t.Run(resourceTypeArtifact, func(t *testing.T) {
+		srv := newServerWithNullLogger(t)
+		artSvc := mocks.NewMockArtifactServiceInterface(t)
+		srv.container = &TestContainer{
+			ArtifactServiceMock: artSvc,
+			TeamRepositoryMock:  stubTeamResolution(t, []models.Team{memberTeam()}),
+		}
+		artSvc.EXPECT().ListArtifactsByProject(testMemberUserID, testProjectID, mock.MatchedBy(
+			func(f services.ArtifactFilters) bool { return f.TeamID == testTeamUUID && f.Status == "bogus" },
+		)).Return(nil, errMCPInvalidStatus)
+
+		result, _, err := srv.listResources(context.Background(), nil, &ListResourcesParams{
+			TeamID: testTeamUUID, ResourceType: resourceTypeArtifact,
+			ProjectID: testProjectID, Status: "bogus",
+		}, testMemberUserID)
+		require.NoError(t, err)
+		assertValidationFailure(t, result, []string{"invalid status: must be one of:", "in-review"})
+	})
+
+	t.Run(resourceTypeBlueprint, func(t *testing.T) {
+		srv := newServerWithNullLogger(t)
+		bpSvc := mocks.NewMockBlueprintServiceInterface(t)
+		srv.container = &TestContainer{
+			BlueprintServiceMock: bpSvc,
+			TeamRepositoryMock:   stubTeamResolution(t, []models.Team{memberTeam()}),
+		}
+		bpSvc.EXPECT().ListBlueprintsByProject(testMemberUserID, testProjectID, mock.MatchedBy(
+			func(f services.BlueprintFilters) bool { return f.TeamID == testTeamUUID && f.Status == "bogus" },
+		)).Return(nil, errMCPInvalidStatus)
+
+		result, _, err := srv.listResources(context.Background(), nil, &ListResourcesParams{
+			TeamID: testTeamUUID, ResourceType: resourceTypeBlueprint,
+			ProjectID: testProjectID, Status: "bogus",
+		}, testMemberUserID)
+		require.NoError(t, err)
+		assertValidationFailure(t, result, []string{"invalid status: must be one of:", "in-review"})
+	})
 }
 
 // The optional memory title over MCP (issue #911). The MCP wire format has no

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -87,7 +88,7 @@ func TestIsLiveStatus(t *testing.T) {
 
 	for _, resourceType := range StatusResourceTypes {
 		for _, status := range candidates {
-			want := !IsAllowedStatus(nonLiveStatuses[resourceType], status)
+			want := !slices.Contains(nonLiveStatuses[resourceType], status)
 			assert.Equal(t, want, IsLiveStatus(resourceType, status), "%s/%q", resourceType, status)
 		}
 	}

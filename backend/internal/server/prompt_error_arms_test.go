@@ -62,7 +62,9 @@ func TestValidateCreatePromptRequest_Arms(t *testing.T) {
 		{"description too long", func(r *models.CreatePromptRequest) { r.Description = strings.Repeat("d", 201) }, false},
 		{"name too long", func(r *models.CreatePromptRequest) { r.Name = strings.Repeat("n", 51) }, false},
 		{"slug too long", func(r *models.CreatePromptRequest) { r.Slug = strings.Repeat("s", 256) }, false},
-		{"invalid status", func(r *models.CreatePromptRequest) { r.Status = "archived" }, false},
+		// Status is the service's to judge, against the team's catalog (#1266):
+		// the handler-side validator must let any value through.
+		{"status is not checked here", func(r *models.CreatePromptRequest) { r.Status = "in-review" }, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -91,7 +93,8 @@ func TestValidateUpdatePromptRequest_Arms(t *testing.T) {
 		{"name too long", &models.UpdatePromptRequest{Name: strp(strings.Repeat("n", 51))}, false},
 		{"slug too long", &models.UpdatePromptRequest{Slug: strp(strings.Repeat("s", 256))}, false},
 		{"description too long", &models.UpdatePromptRequest{Description: strp(strings.Repeat("d", 201))}, false},
-		{"invalid status", &models.UpdatePromptRequest{Status: strp("archived")}, false},
+		// Status is the service's to judge, against the team's catalog (#1266).
+		{"status is not checked here", &models.UpdatePromptRequest{Status: strp("in-review")}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

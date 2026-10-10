@@ -69,6 +69,11 @@ func (ps *promptsStrictServer) ListPrompts(
 
 	response, err := ps.s.container.PromptService().ListPrompts(userID, filters)
 	if err != nil {
+		// An unknown status filter is the caller's mistake; the service's
+		// message lists the allowed values (#1266).
+		if errors.Is(err, services.ErrInvalidStatus) {
+			return nil, apierrors.NewBadRequestError(err.Error())
+		}
 		ps.s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "ListPrompts",
@@ -173,8 +178,9 @@ func promptsUserID(ctx context.Context) (string, error) {
 // The two hand-rolled value checks are KEPT: oapi-codegen binds an enum as a
 // string-typed named type without validating its value, so dropping them would
 // silently widen the API — an ignored `freshness` returns the full list and an
-// unchecked `sort_by` reaches the repository. `status` and `sort_order` were
-// never validated here and still are not.
+// unchecked `sort_by` reaches the repository. `status` is validated by the
+// service, against the team's status catalog (#1266); `sort_order` was never
+// validated here and still is not.
 func promptFiltersFromParams(
 	userID, teamID string, params promptsgen.ListPromptsParams,
 ) (services.PromptFilters, error) {

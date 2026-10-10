@@ -428,7 +428,7 @@ func (s *Server) validateCreateArtifactRequest(
 	}
 	return s.validateArtifactFieldLengths(ctx, w, teamID, artifactFieldValues{
 		slug: req.Slug, title: req.Title, description: req.Description,
-		artifactType: &req.Type, status: &req.Status,
+		artifactType: &req.Type,
 	})
 }
 
@@ -456,7 +456,7 @@ func (s *Server) validateUpdateArtifactRequest(
 
 	return s.validateArtifactFieldLengths(ctx, w, teamID, artifactFieldValues{
 		slug: slug, title: title, description: description,
-		artifactType: req.Type, status: req.Status,
+		artifactType: req.Type,
 	})
 }
 
@@ -467,7 +467,6 @@ type artifactFieldValues struct {
 	title        string
 	description  string
 	artifactType *string
-	status       *string
 }
 
 // validateArtifactFieldLengths validates field lengths for artifacts
@@ -483,13 +482,9 @@ func (s *Server) validateArtifactFieldLengths(
 	if !s.validateArtifactStringLength(w, f.description, 500, "Description") {
 		return false
 	}
-	if !s.validateArtifactType(ctx, w, teamID, f.artifactType) {
-		return false
-	}
-	if !s.validateArtifactStatus(w, f.status) {
-		return false
-	}
-	return true
+	// Status is not checked here: the service validates it against the team's
+	// status catalog and its error maps to the same 400 (#1266).
+	return s.validateArtifactType(ctx, w, teamID, f.artifactType)
 }
 
 // validateArtifactStringLength validates string length
@@ -528,21 +523,6 @@ func (s *Server) validateArtifactType(
 		return false
 	}
 	return true
-}
-
-// validateArtifactStatus validates artifact status
-func (s *Server) validateArtifactStatus(w http.ResponseWriter, status *string) bool {
-	if status == nil || *status == "" {
-		return true
-	}
-	if models.IsAllowedStatus(models.ArtifactStatuses, *status) {
-		return true
-	}
-	// Message built from the allowlist, not restated: the two must never
-	// disagree about what is accepted (#912).
-	writeErrorResponse(w, nil, "validation_error",
-		"Status must be one of: "+strings.Join(models.ArtifactStatuses, ", "), http.StatusBadRequest)
-	return false
 }
 
 // handleCreateArtifactError handles errors from artifact creation

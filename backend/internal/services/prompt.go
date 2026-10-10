@@ -41,6 +41,7 @@ type PromptService struct {
 	relationRepo      repositories.RelationRepository
 	freshnessClearer  FreshnessClearer
 	freshnessRepo     repositories.ResourceFreshnessRepository
+	statuses          statusValidator
 	logger            *slog.Logger
 }
 
@@ -62,6 +63,9 @@ type PromptServiceDeps struct {
 	RelationRepo      repositories.RelationRepository
 	FreshnessClearer  FreshnessClearer
 	FreshnessRepo     repositories.ResourceFreshnessRepository
+	// StatusCatalog resolves the team's custom statuses (#1266). Without one
+	// the service accepts the system statuses only.
+	StatusCatalog StatusCatalogServiceInterface
 }
 
 func NewPromptService(deps PromptServiceDeps) *PromptService {
@@ -79,6 +83,7 @@ func NewPromptService(deps PromptServiceDeps) *PromptService {
 		freshnessClearer:  deps.FreshnessClearer,
 		freshnessRepo:     deps.FreshnessRepo,
 		logger:            deps.Logger,
+		statuses:          statusValidator{catalog: deps.StatusCatalog},
 	}
 }
 
@@ -144,12 +149,12 @@ func (s *PromptService) publishPromptCreatedEvent(ctx context.Context, prompt *m
 	}
 }
 
-// resolvePromptStatus validates a create request's status against PromptStatus
-// and applies the documented default. It runs in the SERVICE so the MCP tools
-// get the same rejection the REST handlers give, and before the project lookup
-// because it needs nothing loaded (#912).
-func resolvePromptStatus(status string) (string, error) {
-	if err := validateStatus(models.PromptStatuses, status); err != nil {
+// resolvePromptStatus validates a create request's status against the team's
+// prompt statuses and applies the documented default. It runs in the SERVICE
+// so the MCP tools get the same rejection the REST handlers give (#912), and
+// before the project lookup because it needs nothing but the team.
+func (s *PromptService) resolvePromptStatus(ctx context.Context, teamID, status string) (string, error) {
+	if err := s.statuses.Validate(ctx, teamID, models.StatusResourceTypePrompt, status); err != nil {
 		return "", err
 	}
 	if status == "" {
@@ -172,7 +177,7 @@ func (s *PromptService) CreatePrompt(userID, teamID string, req *models.CreatePr
 		return nil, authzErr
 	}
 
-	status, err := resolvePromptStatus(req.Status)
+	status, err := s.resolvePromptStatus(ctx, finalTeamID, req.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -284,6 +289,14 @@ func (s *PromptService) ListPrompts(userID string, filters PromptFilters) (*mode
 		filters.Limit = 20
 	}
 
+	// An unknown status filter is rejected rather than answered with an empty
+	// page: a typo and "nothing has that status" must not look alike (#1266).
+	if err := s.statuses.Validate(
+		ctx, filters.TeamID, models.StatusResourceTypePrompt, filters.Status,
+	); err != nil {
+		return nil, err
+	}
+
 	// Convert service filters to repository filters
 	repoFilters := repositories.PromptFilters{
 		Freshness: freshnessFilter(filters.Freshness),
@@ -362,7 +375,11 @@ func (s *PromptService) updatePromptInternal(
 		return nil, authzErr
 	}
 
-	if statusErr := validateOptionalStatus(models.PromptStatuses, req.Status); statusErr != nil {
+	// The catalog is the PROMPT's team's, read off the loaded row rather than
+	// the caller-supplied id (#1266).
+	if statusErr := s.statuses.ValidateOptional(
+		ctx, existingPrompt.TeamID, models.StatusResourceTypePrompt, req.Status,
+	); statusErr != nil {
 		return nil, statusErr
 	}
 

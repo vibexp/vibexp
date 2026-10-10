@@ -159,24 +159,6 @@ func (e BlueprintDetailType) Valid() bool {
 	}
 }
 
-// Defines values for BlueprintStatus.
-const (
-	Active  BlueprintStatus = "active"
-	Expired BlueprintStatus = "expired"
-)
-
-// Valid indicates whether the value is a known member of the BlueprintStatus enum.
-func (e BlueprintStatus) Valid() bool {
-	switch e {
-	case Active:
-		return true
-	case Expired:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for RelatedResourceDirection.
 const (
 	Incoming RelatedResourceDirection = "incoming"
@@ -584,7 +566,7 @@ type Blueprint struct {
 	// Source Read-only import provenance; present only for imported blueprints.
 	Source *BlueprintSource `json:"source,omitempty"`
 
-	// Status Lifecycle status of a blueprint. `expired` marks a blueprint whose rules no longer apply but whose content is kept for reference.
+	// Status Status of a blueprint. The system values are `active` and `expired`; `expired` marks a blueprint whose rules no longer apply but whose content is kept for reference. A team may define further statuses of its own for blueprints, so this is an open string: any other value must be one of the team's custom blueprint statuses, or the request is rejected with 400.
 	Status BlueprintStatus `json:"status"`
 
 	// Subtype Subtype category for specific type spec libraries
@@ -659,7 +641,7 @@ type BlueprintDetail struct {
 	// Source Read-only import provenance; present only for imported blueprints.
 	Source *BlueprintSource `json:"source,omitempty"`
 
-	// Status Lifecycle status of a blueprint. `expired` marks a blueprint whose rules no longer apply but whose content is kept for reference.
+	// Status Status of a blueprint. The system values are `active` and `expired`; `expired` marks a blueprint whose rules no longer apply but whose content is kept for reference. A team may define further statuses of its own for blueprints, so this is an open string: any other value must be one of the team's custom blueprint statuses, or the request is rejected with 400.
 	Status BlueprintStatus `json:"status"`
 
 	// Subtype Subtype category for specific type spec libraries
@@ -717,8 +699,8 @@ type BlueprintSource struct {
 	Repo *string `json:"repo,omitempty"`
 }
 
-// BlueprintStatus Lifecycle status of a blueprint. `expired` marks a blueprint whose rules no longer apply but whose content is kept for reference.
-type BlueprintStatus string
+// BlueprintStatus Status of a blueprint. The system values are `active` and `expired`; `expired` marks a blueprint whose rules no longer apply but whose content is kept for reference. A team may define further statuses of its own for blueprints, so this is an open string: any other value must be one of the team's custom blueprint statuses, or the request is rejected with 400.
+type BlueprintStatus = string
 
 // ErrorResponse RFC 9457 Problem Details for HTTP APIs
 type ErrorResponse struct {
@@ -884,7 +866,7 @@ type ListSpecLibrariesParams struct {
 	// ProjectId Filter by project ID. On this team-scoped variant the backend reads it only when a project is not already selected via a path parameter (i.e. not on listSpecLibrariesByProject).
 	ProjectId *openapi_types.UUID `form:"project_id,omitempty" json:"project_id,omitempty"`
 
-	// Status Filter by status
+	// Status Filter by status: one of the system statuses or one of the team's custom statuses for this resource type. Returns 400 for unknown values.
 	Status *BlueprintStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// Type Filter by type
@@ -935,7 +917,7 @@ type ListSpecLibrariesByProjectParams struct {
 	// Freshness Filter to resources currently flagged stale by the team's freshness rules (epic #726). Omit for no freshness filtering. Returns 400 for any other value — a silently ignored filter would return the full list, which looks like a legitimate answer.
 	Freshness *ListSpecLibrariesByProjectParamsFreshness `form:"freshness,omitempty" json:"freshness,omitempty"`
 
-	// Status Filter by status
+	// Status Filter by status: one of the system statuses or one of the team's custom statuses for this resource type. Returns 400 for unknown values.
 	Status *BlueprintStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// Type Filter by type

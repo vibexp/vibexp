@@ -23,6 +23,7 @@ type ArtifactService struct {
 	relationRepo      repositories.RelationRepository
 	freshnessClearer  FreshnessClearer
 	freshnessRepo     repositories.ResourceFreshnessRepository
+	statuses          statusValidator
 	logger            *slog.Logger
 }
 
@@ -41,6 +42,9 @@ type ArtifactServiceDeps struct {
 	RelationRepo      repositories.RelationRepository
 	FreshnessClearer  FreshnessClearer
 	FreshnessRepo     repositories.ResourceFreshnessRepository
+	// StatusCatalog resolves the team's custom statuses (#1266). Without one
+	// the service accepts the system statuses only.
+	StatusCatalog StatusCatalogServiceInterface
 }
 
 func NewArtifactService(deps ArtifactServiceDeps) *ArtifactService {
@@ -55,6 +59,7 @@ func NewArtifactService(deps ArtifactServiceDeps) *ArtifactService {
 		freshnessClearer:  deps.FreshnessClearer,
 		freshnessRepo:     deps.FreshnessRepo,
 		logger:            deps.Logger,
+		statuses:          statusValidator{catalog: deps.StatusCatalog},
 	}
 }
 
@@ -162,11 +167,6 @@ func (s *ArtifactService) CreateArtifact(
 		return nil, err
 	}
 
-	// Status is checked here so the MCP tools get the REST answer (#912).
-	if err := validateStatus(models.ArtifactStatuses, req.Status); err != nil {
-		return nil, err
-	}
-
 	// Validate and resolve team ID
 	finalTeamID, err := s.validateAndResolveTeamID(ctx, userID, teamID, nil)
 	if err != nil {
@@ -177,6 +177,15 @@ func (s *ArtifactService) CreateArtifact(
 	// RESOLVED team — that is where the artifact actually lands.
 	if authzErr := s.authz.Can(ctx, userID, finalTeamID, authz.ResourceCreate); authzErr != nil {
 		return nil, authzErr
+	}
+
+	// Status is checked here so the MCP tools get the REST answer (#912), and
+	// against the RESOLVED team's catalog, after the authorization above: the
+	// rejection lists that team's custom statuses (#1266).
+	if statusErr := s.statuses.Validate(
+		ctx, finalTeamID, models.StatusResourceTypeArtifact, req.Status,
+	); statusErr != nil {
+		return nil, statusErr
 	}
 
 	artifact := buildArtifactFromRequest(userID, finalTeamID, req)
@@ -274,6 +283,14 @@ func (s *ArtifactService) GetArtifactByIDInTeam(
 }
 
 func (s *ArtifactService) ListArtifacts(userID string, filters ArtifactFilters) (*models.ArtifactListResponse, error) {
+	// An unknown status filter is rejected rather than answered with an empty
+	// page: a typo and "nothing has that status" must not look alike (#1266).
+	if err := s.statuses.Validate(
+		context.Background(), filters.TeamID, models.StatusResourceTypeArtifact, filters.Status,
+	); err != nil {
+		return nil, err
+	}
+
 	// Convert service filters to repository filters
 	var projectID *string
 	if filters.ProjectID != "" {
@@ -481,12 +498,15 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 		return nil, err
 	}
 
-	// Status is checked here so the MCP tools get the REST answer (#912).
-	if err := validateOptionalStatus(models.ArtifactStatuses, req.Status); err != nil {
+	ctx := context.Background()
+
+	// Status is checked here so the MCP tools get the REST answer (#912),
+	// against the catalog of the artifact's own team (#1266).
+	if err := s.statuses.ValidateOptional(
+		ctx, artifact.TeamID, models.StatusResourceTypeArtifact, req.Status,
+	); err != nil {
 		return nil, err
 	}
-
-	ctx := context.Background()
 
 	// Note: team_id cannot be changed via update (removed from UpdateArtifactRequest)
 	// Team reassignment is forbidden to prevent cross-team resource moves

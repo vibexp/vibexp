@@ -140,7 +140,9 @@ api-v1-team_id-blueprints:
           format: uuid
       - name: status
         in: query
-        description: Filter by status
+        description: >-
+          Filter by status: one of the system statuses or one of the team's
+          custom statuses for this resource type. Returns 400 for unknown values.
         schema:
           $ref: '../openapi.yaml#/components/schemas/BlueprintStatus'
       - name: type
@@ -318,7 +320,9 @@ api-v1-team_id-blueprints-project_id:
           example: "my-api-project"
       - name: status
         in: query
-        description: Filter by status
+        description: >-
+          Filter by status: one of the system statuses or one of the team's
+          custom statuses for this resource type. Returns 400 for unknown values.
         schema:
           $ref: '../openapi.yaml#/components/schemas/BlueprintStatus'
       - name: type

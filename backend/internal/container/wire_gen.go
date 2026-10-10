@@ -84,6 +84,8 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	freshnessAuditRepository := providers.ProvideFreshnessAuditRepository(db)
 	freshnessRuleRepository := providers.ProvideFreshnessRuleRepository(db)
 	clearer := providers.ProvideFreshnessClearer(teamFreshnessSettingsRepository, resourceFreshnessRepository, freshnessAuditRepository, freshnessRuleRepository, logger)
+	teamStatusRepository := providers.ProvideTeamStatusRepository(db)
+	statusCatalogServiceInterface := providers.ProvideStatusCatalogService(teamStatusRepository)
 	promptServiceDeps := services.PromptServiceDeps{
 		Repo:              promptRepository,
 		RefRepo:           promptReferenceRepository,
@@ -98,6 +100,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		RelationRepo:      relationRepository,
 		FreshnessClearer:  clearer,
 		FreshnessRepo:     resourceFreshnessRepository,
+		StatusCatalog:     statusCatalogServiceInterface,
 	}
 	promptServiceInterface := providers.ProvidePromptService(promptServiceDeps)
 	promptGalleryServiceInterface := providers.ProvidePromptGalleryService(promptGalleryRepository, eventManager, logger)
@@ -113,6 +116,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		RelationRepo:      relationRepository,
 		FreshnessClearer:  clearer,
 		FreshnessRepo:     resourceFreshnessRepository,
+		StatusCatalog:     statusCatalogServiceInterface,
 	}
 	artifactServiceInterface := providers.ProvideArtifactService(artifactServiceDeps)
 	attachmentRepository := providers.ProvideAttachmentRepository(db)
@@ -121,8 +125,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	typeRepository := providers.ProvideTypeRepository(db)
 	teamSettingsAuditServiceInterface := providers.ProvideTeamSettingsAuditService(teamSettingsAuditRepository, authorizationServiceInterface, userRepository, teamRepository, logger)
 	typeServiceInterface := providers.ProvideTypeService(typeRepository, authorizationServiceInterface, teamSettingsAuditServiceInterface, logger)
-	teamStatusRepository := providers.ProvideTeamStatusRepository(db)
-	statusCatalogServiceInterface := providers.ProvideStatusCatalogService(teamStatusRepository)
 	blueprintServiceDeps := services.BlueprintServiceDeps{
 		Repo:              blueprintRepository,
 		TeamService:       teamServiceInterface,
@@ -134,6 +136,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		RelationRepo:      relationRepository,
 		FreshnessClearer:  clearer,
 		FreshnessRepo:     resourceFreshnessRepository,
+		StatusCatalog:     statusCatalogServiceInterface,
 	}
 	blueprintServiceInterface := providers.ProvideBlueprintService(blueprintServiceDeps)
 	embeddingBackfillRepository := providers.ProvideEmbeddingBackfillRepository(db)
@@ -178,6 +181,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		FreshnessClearer:  clearer,
 		FreshnessRepo:     resourceFreshnessRepository,
 		Logger:            logger,
+		StatusCatalog:     statusCatalogServiceInterface,
 	}
 	memoryServiceInterface := providers.ProvideMemoryService(memoryServiceDeps)
 	embeddingServiceDeps := providers.EmbeddingServiceDeps{

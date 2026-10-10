@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -268,18 +269,13 @@ func (s *Server) listResources(
 func (s *Server) listMemoryResources(
 	params *ListResourcesParams, userID, teamID string,
 ) (*mcp.CallToolResult, any, error) {
-	statusPtr, statusErr := validateMCPMemoryStatus(params.Status)
-	if statusErr != nil {
-		return statusErr, nil, nil
-	}
-
 	page, limit := normalizeMCPListPagination(params.Page, params.Limit)
 	projectID := params.ProjectID
 	filters := services.MemoryFilters{
 		TeamID:         teamID,
 		ProjectID:      &projectID,
 		Search:         params.Search,
-		Status:         statusPtr,
+		Status:         optionalString(params.Status),
 		MetadataFilter: repositories.MetadataFilter(params.Metadata),
 		Page:           page,
 		Limit:          limit,
@@ -395,6 +391,11 @@ func buildBlueprintListItems(blueprints []models.Blueprint) []blueprintListItem 
 
 // mcpReadError logs a read failure and returns the IsError result to hand back.
 func (s *Server) mcpReadError(resourceType, op, userID, teamID string, err error) *mcp.CallToolResult {
+	// An unknown status filter is the caller's mistake, not a failed read: hand
+	// back the service's message, which lists the allowed values (#1266).
+	if errors.Is(err, services.ErrInvalidStatus) {
+		return mcpTextError(err.Error())
+	}
 	slog.Error(
 		"Failed to read resource via MCP",
 		"tool", getResourceToolName,

@@ -298,12 +298,6 @@ func TestHandleCreateBlueprint_ValidationError(t *testing.T) {
 				`"slug": "test", "title": "Test", "content": "Content", "type": "invalid"}`,
 			expectedStatus: http.StatusBadRequest,
 		},
-		{
-			name: "Invalid status",
-			body: `{"project_id": "550e8400-e29b-41d4-a716-446655440000", ` +
-				`"slug": "test", "title": "Test", "content": "Content", "status": "invalid"}`,
-			expectedStatus: http.StatusBadRequest,
-		},
 	}
 
 	for _, tc := range testCases {
@@ -1130,11 +1124,6 @@ func TestHandleUpdateBlueprint_ValidationError(t *testing.T) {
 		{
 			name:           "Invalid type",
 			body:           `{"type": "invalid"}`,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "Invalid status",
-			body:           `{"status": "invalid"}`,
 			expectedStatus: http.StatusBadRequest,
 		},
 	}
