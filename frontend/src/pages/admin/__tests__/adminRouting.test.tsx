@@ -75,6 +75,17 @@ vi.mock('@/services/adminSettingsService', () => ({
   },
 }))
 
+// Settings → Authentication (#1239) loads its providers, allowlist, admins and
+// history on mount; left pending for the same reason.
+vi.mock('@/services/authSettingsService', () => ({
+  authSettingsService: {
+    listProviders: vi.fn(() => new Promise(() => {})),
+    getAllowlist: vi.fn(() => new Promise(() => {})),
+    listAdmins: vi.fn(() => new Promise(() => {})),
+    listAudit: vi.fn(() => new Promise(() => {})),
+  },
+}))
+
 vi.mock('@/services/teamService', () => ({
   teamService: { getTeams: vi.fn() },
 }))
@@ -265,6 +276,7 @@ it.each([
   ['/admin/settings/email', 'Email'],
   ['/admin/settings/search', 'Search'],
   ['/admin/settings/ai-summary', 'AI Summary'],
+  ['/admin/settings/auth', 'Authentication'],
 ])('renders %s inside the admin shell', async (path, heading) => {
   asAdmin()
   renderAt(path)

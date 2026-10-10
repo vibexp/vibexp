@@ -17,6 +17,7 @@ e2e/journeys/
 ├── admin-panel-v3.journey.spec.ts           # Admin filters, presets, CSV export, detail pages
 ├── admin-email-settings.journey.spec.ts     # Admin → Settings → Email against the stack's Mailpit
 ├── instance-settings.journey.spec.ts        # Admin → Settings → Search defaults reach a team; reset
+├── admin-auth-settings.journey.spec.ts      # Admin → Settings → Authentication + first-run /setup
 └── README.md                                # This file
 ```
 
@@ -49,6 +50,56 @@ Names that a locator matches on are scoped per **attempt**, not per file:
 `describe.serial` re-runs `beforeAll` on a retry, and a file-scoped team name
 would leave the source-team picker offering two identical options on the second
 attempt — a red ship gate caused by the harness rather than the feature.
+
+## Authentication settings and first-run setup (`admin-auth-settings.journey.spec.ts`)
+
+The ship gate for issue #1239 (epic #1230): the sign-in providers, the access
+allowlist and the setup page, driven from the browser against the real admin
+API. Three tests, run serially as the root admin (`ADMIN_EMAIL`):
+
+- **Providers, with no restart.** Add a provider in the dialog, see it on the
+  **public** `GET /api/v1/auth/providers` list and on the sign-in page of a
+  visitor with no session, edit it (read-only redirect URI, client secret left
+  blank and kept), add a second one whose issuer nothing listens on (stored,
+  `Unhealthy`, **not** offered), test that one from its row, reorder (and
+  reload), delete, then disable the last enabled provider through the
+  lockout-risk confirmation. The change history shows it, by this admin.
+- **An allowlist tightening signs a second user out.** A second browser context
+  is dev-logged in under a domain made up for the attempt; the admin saves an
+  allowlist that leaves it out, confirms the dialog naming that user, and the
+  second session's `/api/v1/auth/me` stops answering 200 while the root admin's
+  keeps working. Then "Reset to open access".
+- **First-run setup.** Setup is re-armed the way an operator would
+  (`vibexp admin auth setup rearm` in the app container, through
+  `e2e/helpers/e2eApp.ts`), and a context with **no session at all** sees the
+  sign-in page's setup hint, a wrong token's terminal state, then the setup
+  shell for the real token: token gone from the address bar, providers and
+  allowlist only, the admins API a 404 and `/auth/me` a 401 on that session. A
+  provider configured there brings up the "Sign in with … as a root admin to
+  finish setup" prompt.
+
+**What it cannot cover.** The stack has no identity provider, so nobody signs in
+_through_ a provider: the journey stops at the prompt, and the root-admin
+provider login that ends setup is covered by the backend's tests (#1236). Dev
+login sessions carry no provider either, so the `own_provider` lockout reason
+cannot be produced here; Vitest covers its copy. The stored GitHub provider is
+never "tested" from the UI, because that check would send its made-up
+credentials to github.com.
+
+**It changes instance-wide settings beside other specs**, so it is written to be
+unnoticeable:
+
+- every provider it creates carries the `e2e-auth-` slug prefix and is deleted
+  before and after each test, including one left by a failed attempt;
+- the allowlist it saves admits **every email domain the suite signs in with**
+  (`SUITE_DOMAINS` in the spec) and shuts out only the made-up one. **A spec
+  that dev-logs in under a new domain must add it there**, or its users are
+  signed out while this journey's allowlist is stored;
+- the allowlist found at the start is restored afterwards.
+
+The setup test **requires the docker e2e stack** (the setup URL exists nowhere
+else) and skips with a reason without it. A stack started under another compose
+project name is found through `E2E_COMPOSE_PROJECT`.
 
 ## Admin panel v3 (`admin-panel-v3.journey.spec.ts`)
 

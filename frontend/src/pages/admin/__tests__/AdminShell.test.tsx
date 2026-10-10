@@ -97,6 +97,7 @@ it('includes a Projects entry even before #461 adds the pages', () => {
     '/admin/settings/email',
     '/admin/settings/search',
     '/admin/settings/ai-summary',
+    '/admin/settings/auth',
   ])
 })
 
@@ -119,6 +120,10 @@ it('lists Email under a "Settings" group after the Administration items (#1191)'
   expect(
     within(settingsGroup).getAllByRole('link', { name: 'AI Summary' })[0]
   ).toHaveAttribute('href', '/admin/settings/ai-summary')
+  // Authentication (#1239) too.
+  expect(
+    within(settingsGroup).getAllByRole('link', { name: 'Authentication' })[0]
+  ).toHaveAttribute('href', '/admin/settings/auth')
   expect(
     within(settingsGroup).queryByRole('link', { name: 'Users' })
   ).not.toBeInTheDocument()
@@ -128,6 +133,7 @@ it.each([
   ['/admin/settings/email', 'Email'],
   ['/admin/settings/search', 'Search'],
   ['/admin/settings/ai-summary', 'AI Summary'],
+  ['/admin/settings/auth', 'Authentication'],
 ])('titles the Settings page at %s in the shell', (path, heading) => {
   renderShell(path)
 
