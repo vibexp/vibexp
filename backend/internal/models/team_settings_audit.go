@@ -2,10 +2,13 @@ package models
 
 import (
 	"encoding/json"
+	"slices"
 	"time"
 )
 
-// Settings surfaces a cross-team copy can target (epic #827). The value is
+// Settings surfaces the team settings audit log records: the three a
+// cross-team copy can target (epic #827) and the team's custom statuses, which
+// are changed in place (epic #1263). The value is
 // stored in team_settings_audit.surface and validated in the service layer,
 // mirroring how resource_freshness_audit validates action/reason there rather
 // than with a CHECK constraint — a constraint would make adding a surface a
@@ -21,22 +24,43 @@ const (
 	// types. One action copies the whole set, so CreatedResourceID is nil and
 	// the individual ids live in Detail.
 	SettingsAuditSurfaceCustomTypes = "custom_types"
+	// SettingsAuditSurfaceCustomStatuses is a custom status being created,
+	// renamed or deleted in the team itself (epic #1263). It is not a copy:
+	// there is no source team, and Detail's `action` says which of the three
+	// happened.
+	SettingsAuditSurfaceCustomStatuses = "custom_statuses"
 )
 
-// SettingsAuditSurfaces is the closed set of valid surface values, in the order
-// the epic lists them.
+// SettingsAuditSurfaces is the closed set of valid surface values: the copy
+// surfaces in the order epic #827 lists them, then the in-place ones.
 var SettingsAuditSurfaces = []string{
+	SettingsAuditSurfaceEmbeddingProvider,
+	SettingsAuditSurfaceModelProvider,
+	SettingsAuditSurfaceCustomTypes,
+	SettingsAuditSurfaceCustomStatuses,
+}
+
+// SettingsAuditCopySurfaces is the subset of SettingsAuditSurfaces whose
+// entries record a cross-team copy, and therefore must name a source team.
+var SettingsAuditCopySurfaces = []string{
 	SettingsAuditSurfaceEmbeddingProvider,
 	SettingsAuditSurfaceModelProvider,
 	SettingsAuditSurfaceCustomTypes,
 }
 
-// TeamSettingsAudit is one append-only entry in a team's settings-copy log.
+// IsSettingsAuditCopySurface reports whether surface is one of
+// SettingsAuditCopySurfaces.
+func IsSettingsAuditCopySurface(surface string) bool {
+	return slices.Contains(SettingsAuditCopySurfaces, surface)
+}
+
+// TeamSettingsAudit is one append-only entry in a team's settings audit log.
 //
-// TeamID is the DESTINATION team — the one that now owns the configuration and
-// whose owners the entry is written for. SourceTeamID is where it came from and
-// carries no foreign key, so the entry survives the source team being deleted;
-// it is nil only when the source is genuinely unknown.
+// TeamID is the team whose settings changed — for a copy, the DESTINATION team,
+// the one that now owns the configuration and whose owners the entry is written
+// for. SourceTeamID is where a copy came from and carries no foreign key, so
+// the entry survives the source team being deleted; it is nil for a surface
+// that is not a copy (IsSettingsAuditCopySurface).
 //
 // Both resource ids are polymorphic across the provider and type tables and so
 // carry no foreign key either. CreatedResourceID is nil when one action created

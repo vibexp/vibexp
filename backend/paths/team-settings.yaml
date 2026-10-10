@@ -341,8 +341,9 @@ api-v1-team_id-settings-audit:
   get:
     summary: List the team's settings audit log
     description: >
-      Every configuration copied into this team from another team, newest first
-      and paginated, with the actor and source-team names resolved server-side.
+      Every configuration copied into this team from another team, and every
+      custom status created, renamed or deleted in it, newest first and
+      paginated, with the actor and source-team names resolved server-side.
       Requires the team.settings.update permission (owner or admin). The list is
       empty, never null, past the last page.
     operationId: listTeamSettingsAudit

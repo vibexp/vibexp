@@ -4,6 +4,7 @@ package postgres
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -211,4 +212,165 @@ func TestIntegrationTeamStatusRepository_ForeignKeyDeleteRules(t *testing.T) {
 	_, err = db.Exec("DELETE FROM teams WHERE id = $1", teamID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, countRows(t, db, "SELECT count(*) FROM team_statuses WHERE team_id = $1", teamID))
+}
+
+// statusResourceTables maps each status resource type to its table, for the
+// tests that must show a method reaches the right one.
+var statusResourceTables = map[string]string{
+	models.StatusResourceTypePrompt:    "prompts",
+	models.StatusResourceTypeArtifact:  "artifacts",
+	models.StatusResourceTypeBlueprint: "blueprints",
+	models.StatusResourceTypeMemory:    "memories",
+}
+
+func TestIntegrationTeamStatusRepository_UsageCounts(t *testing.T) {
+	ctx := context.Background()
+	repo := NewTeamStatusRepository(integrationDB)
+
+	for resourceType, table := range statusResourceTables {
+		t.Run(resourceType, func(t *testing.T) {
+			mine := newMigration025Fixture(t, integrationDB.DB)
+			other := newMigration025Fixture(t, integrationDB.DB)
+			defaultStatus := models.DefaultStatusFor(resourceType)
+
+			mine.insert(t, table, defaultStatus)
+			mine.insert(t, table, "in-review")
+			mine.insert(t, table, "in-review")
+			other.insert(t, table, "in-review")
+
+			got, err := repo.UsageCounts(ctx, mine.teamID, resourceType)
+			require.NoError(t, err)
+			assert.Equal(t, map[string]int{defaultStatus: 1, "in-review": 2}, got,
+				"another team's resources are never counted")
+		})
+	}
+
+	t.Run("a team with no resources gets an empty map", func(t *testing.T) {
+		f := newTeamStatusFixture(t)
+		got, err := repo.UsageCounts(ctx, f.teamA, models.StatusResourceTypeArtifact)
+		require.NoError(t, err)
+		assert.NotNil(t, got)
+		assert.Empty(t, got)
+	})
+}
+
+func TestIntegrationTeamStatusRepository_DeleteAndReassign(t *testing.T) {
+	ctx := context.Background()
+	repo := NewTeamStatusRepository(integrationDB)
+
+	create := func(t *testing.T, f migration025Fixture, resourceType, slug string) *models.TeamStatus {
+		t.Helper()
+		status := &models.TeamStatus{
+			TeamID: f.teamID, ResourceType: resourceType, Slug: slug, Name: "In review",
+		}
+		require.NoError(t, repo.Create(ctx, status))
+		return status
+	}
+
+	for resourceType, table := range statusResourceTables {
+		t.Run(resourceType+" resources move to the default and keep updated_at", func(t *testing.T) {
+			mine := newMigration025Fixture(t, integrationDB.DB)
+			other := newMigration025Fixture(t, integrationDB.DB)
+			defaultStatus := models.DefaultStatusFor(resourceType)
+
+			status := create(t, mine, resourceType, "in-review")
+			otherStatus := create(t, other, resourceType, "in-review")
+			// The same slug on a different resource type of the same team is a
+			// different status and must survive.
+			siblingType := models.StatusResourceTypeArtifact
+			if resourceType == siblingType {
+				siblingType = models.StatusResourceTypeMemory
+			}
+			sibling := create(t, mine, siblingType, "in-review")
+			siblingRow := mine.insert(t, statusResourceTables[siblingType], "in-review")
+
+			carrying := []string{mine.insert(t, table, "in-review"), mine.insert(t, table, "in-review")}
+			untouched := mine.insert(t, table, "shipped")
+			foreign := other.insert(t, table, "in-review")
+
+			before := make(map[string]migration025Snapshot)
+			for _, id := range append(carrying, untouched) {
+				before[id] = mine.snapshot(t, table, id)
+			}
+			foreignBefore := other.snapshot(t, table, foreign)
+			siblingBefore := mine.snapshot(t, statusResourceTables[siblingType], siblingRow)
+
+			deleted, reassigned, err := repo.DeleteAndReassign(ctx, mine.teamID, status.ID, defaultStatus)
+			require.NoError(t, err)
+			assert.Equal(t, 2, reassigned)
+			assert.Equal(t, status.ID, deleted.ID)
+			assert.Equal(t, "in-review", deleted.Slug)
+			assert.Equal(t, resourceType, deleted.ResourceType)
+
+			for _, id := range carrying {
+				after := mine.snapshot(t, table, id)
+				assert.Equal(t, defaultStatus, after.status)
+				assert.Equal(t, before[id].updatedAt, after.updatedAt,
+					"a reassigned %s must not look edited", resourceType)
+			}
+			assert.Equal(t, before[untouched], mine.snapshot(t, table, untouched))
+			assert.Equal(t, foreignBefore, other.snapshot(t, table, foreign),
+				"another team's resources with the same slug are untouched")
+			assert.Equal(t, siblingBefore, mine.snapshot(t, statusResourceTables[siblingType], siblingRow),
+				"the same slug on another resource type is untouched")
+
+			_, err = repo.GetByID(ctx, mine.teamID, status.ID)
+			require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
+			_, err = repo.GetByID(ctx, other.teamID, otherStatus.ID)
+			require.NoError(t, err, "another team's status row survives")
+			_, err = repo.GetByID(ctx, mine.teamID, sibling.ID)
+			require.NoError(t, err, "the sibling resource type's status row survives")
+		})
+	}
+
+	t.Run("a failed reassignment rolls the delete back", func(t *testing.T) {
+		f := newMigration025Fixture(t, integrationDB.DB)
+		status := create(t, f, models.StatusResourceTypeArtifact, "in-review")
+		row := f.insert(t, "artifacts", "in-review")
+		before := f.snapshot(t, "artifacts", row)
+
+		// 51 characters cannot be stored in the varchar(50) status column, so
+		// the UPDATE fails after the status row has already been deleted.
+		_, reassigned, err := repo.DeleteAndReassign(ctx, f.teamID, status.ID, strings.Repeat("x", 51))
+		require.Error(t, err)
+		assert.Zero(t, reassigned)
+
+		got, err := repo.GetByID(ctx, f.teamID, status.ID)
+		require.NoError(t, err, "the status row must still exist")
+		assert.Equal(t, "in-review", got.Slug)
+		assert.Equal(t, before, f.snapshot(t, "artifacts", row))
+	})
+
+	t.Run("another team's id is not found and changes nothing", func(t *testing.T) {
+		mine := newMigration025Fixture(t, integrationDB.DB)
+		other := newMigration025Fixture(t, integrationDB.DB)
+		status := create(t, other, models.StatusResourceTypeMemory, "in-review")
+		row := other.insert(t, "memories", "in-review")
+		before := other.snapshot(t, "memories", row)
+
+		_, _, err := repo.DeleteAndReassign(ctx, mine.teamID, status.ID, models.StatusActive)
+		require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
+
+		_, err = repo.GetByID(ctx, other.teamID, status.ID)
+		require.NoError(t, err)
+		assert.Equal(t, before, other.snapshot(t, "memories", row))
+	})
+
+	t.Run("an ordinary memory edit after a delete is still stamped", func(t *testing.T) {
+		f := newMigration025Fixture(t, integrationDB.DB)
+		status := create(t, f, models.StatusResourceTypeMemory, "in-review")
+		row := f.insert(t, "memories", "in-review")
+
+		_, _, err := repo.DeleteAndReassign(ctx, f.teamID, status.ID, models.StatusActive)
+		require.NoError(t, err)
+		reassignedAt := f.snapshot(t, "memories", row).updatedAt
+
+		// The setting was transaction-local, so on any pooled connection the
+		// trigger fires again.
+		for range 5 {
+			_, err = integrationDB.Exec("UPDATE memories SET text = text || '.' WHERE id = $1", row)
+			require.NoError(t, err)
+		}
+		assert.True(t, f.snapshot(t, "memories", row).updatedAt.After(reassignedAt))
+	})
 }

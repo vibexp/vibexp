@@ -147,6 +147,10 @@
       "description": "Team-customizable resource categories (artifact types, etc.)"
     },
     {
+      "name": "Statuses",
+      "description": "Team-customizable resource statuses (epic"
+    },
+    {
       "name": "Comments",
       "description": "Team-visible comments on artifacts, memories, prompts, and blueprints (REST-only, no MCP)"
     },
@@ -13386,6 +13390,409 @@
         ]
       }
     },
+    "/api/v1/{team_id}/statuses": {
+      "get": {
+        "summary": "List the statuses of a resource type",
+        "description": "Returns every status the team may give a resource of `resource_type`: the built-in system statuses first, then the team's custom statuses. Each carries `usage_count`, the number of the team's resources currently using it. Any team member may call this.\n",
+        "operationId": "listStatuses",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Team identifier"
+          },
+          {
+            "name": "resource_type",
+            "in": "query",
+            "required": true,
+            "description": "Resource type whose statuses to list",
+            "schema": {
+              "$ref": "#/components/schemas/StatusResourceType"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Statuses retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or unsupported resource_type, or malformed team id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to list statuses",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Statuses"
+        ]
+      },
+      "post": {
+        "summary": "Create a custom status",
+        "description": "Creates a status the team can give its resources of `resource_type`. Requires the `team.settings.update` permission (team owners and admins). A team may have at most 20 custom statuses per resource type.\n",
+        "operationId": "createStatus",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Team identifier"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Status created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusDefinition"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown body field, unsupported resource_type, invalid slug or name, or the team already has 20 custom statuses for this resource type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team, or is a member whose role may not change team settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The slug is a built-in status, or the team already has a status with this slug for this resource type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to create status",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Statuses"
+        ]
+      }
+    },
+    "/api/v1/{team_id}/statuses/{id}": {
+      "patch": {
+        "summary": "Rename a custom status",
+        "description": "Changes the display name of a custom status. The slug never changes: resources store it. Requires the `team.settings.update` permission (team owners and admins).\n",
+        "operationId": "updateStatus",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Team identifier"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Custom status identifier"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status renamed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusDefinition"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown body field (including slug), invalid name, or malformed id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team, or is a member whose role may not change team settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No custom status with this id exists in the team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to rename status",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Statuses"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a custom status",
+        "description": "Deletes a custom status. Every resource of the team that carries it is moved to the resource type's default system status (`draft` for prompts, `active` otherwise) in the same transaction, and the response reports how many were moved. Moving a resource this way does not change its `updated_at`. Requires the `team.settings.update` permission (team owners and admins).\n",
+        "operationId": "deleteStatus",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Team identifier"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Custom status identifier"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status deleted and its resources reassigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Status id or team id is not a valid UUID",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not a member of the team, or is a member whose role may not change team settings",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No custom status with this id exists in the team",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to delete status",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Statuses"
+        ]
+      }
+    },
     "/api/v1/admin/stats": {
       "get": {
         "summary": "Get instance statistics",
@@ -15090,7 +15497,7 @@
     "/api/v1/admin/teams/{id}/config/settings-audit": {
       "get": {
         "summary": "List a team's settings audit log",
-        "description": "Returns one page of the team's settings-copy audit log, newest first, with\nactor and source-team names resolved. Each entry's `detail` is filtered to\na per-surface key allowlist, so no credential can surface here.\nRead-only. Instance-admin only; non-admin and unauthenticated requests\nreceive 404, as does an unknown team id.\n",
+        "description": "Returns one page of the team's settings audit log (cross-team copies and\ncustom status changes), newest first, with\nactor and source-team names resolved. Each entry's `detail` is filtered to\na per-surface key allowlist, so no credential can surface here.\nRead-only. Instance-admin only; non-admin and unauthenticated requests\nreceive 404, as does an unknown team id.\n",
         "operationId": "listAdminTeamSettingsAudit",
         "tags": [
           "Admin"
@@ -22768,7 +23175,7 @@
       ],
       "get": {
         "summary": "List the team's settings audit log",
-        "description": "Every configuration copied into this team from another team, newest first and paginated, with the actor and source-team names resolved server-side. Requires the team.settings.update permission (owner or admin). The list is empty, never null, past the last page.\n",
+        "description": "Every configuration copied into this team from another team, and every custom status created, renamed or deleted in it, newest first and paginated, with the actor and source-team names resolved server-side. Requires the team.settings.update permission (owner or admin). The list is empty, never null, past the last page.\n",
         "operationId": "listTeamSettingsAudit",
         "security": [
           {
@@ -37010,6 +37417,163 @@
           "skipped_count"
         ]
       },
+      "StatusResourceType": {
+        "type": "string",
+        "description": "A resource type that carries a status. Singular, as in the comment and relation APIs.\n",
+        "enum": [
+          "prompt",
+          "artifact",
+          "blueprint",
+          "memory"
+        ],
+        "x-enum-varnames": [
+          "StatusResourceTypePrompt",
+          "StatusResourceTypeArtifact",
+          "StatusResourceTypeBlueprint",
+          "StatusResourceTypeMemory"
+        ],
+        "example": "artifact"
+      },
+      "StatusDefinition": {
+        "type": "object",
+        "description": "One status a team may give a resource of `resource_type`. A system status (`is_system: true`) is built in, identical for every team and cannot be renamed or deleted; it has no `id` and no timestamps. A custom status belongs to the team.\n",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of a custom status. Absent for a system status.",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "resource_type": {
+            "$ref": "#/components/schemas/StatusResourceType"
+          },
+          "slug": {
+            "type": "string",
+            "description": "The value stored on the resource. Unique per team and resource type, and immutable once created.\n",
+            "example": "in-review"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable display name",
+            "example": "In review"
+          },
+          "is_system": {
+            "type": "boolean",
+            "description": "True for a built-in status, which cannot be renamed or deleted",
+            "example": false
+          },
+          "is_live": {
+            "type": "boolean",
+            "description": "Whether a resource carrying this status counts as live, usable content. False only for the built-in work-in-progress and retired statuses (`draft`, `archived`, `expired`); always true for a custom status.\n",
+            "example": true
+          },
+          "usage_count": {
+            "type": "integer",
+            "description": "How many of the team's resources of this type currently carry the status. For a custom status this is the number of resources a delete would move to the default status.\n",
+            "example": 12
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the custom status was created. Absent for a system status.",
+            "example": "2026-06-15T09:00:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the custom status was last renamed. Absent for a system status.",
+            "example": "2026-06-15T09:00:00Z"
+          }
+        },
+        "required": [
+          "resource_type",
+          "slug",
+          "name",
+          "is_system",
+          "is_live",
+          "usage_count"
+        ]
+      },
+      "StatusListResponse": {
+        "type": "object",
+        "description": "The system statuses of a resource type followed by the team's custom ones",
+        "properties": {
+          "statuses": {
+            "type": "array",
+            "description": "System statuses first, in their built-in order, then custom statuses by name",
+            "items": {
+              "$ref": "#/components/schemas/StatusDefinition"
+            }
+          }
+        },
+        "required": [
+          "statuses"
+        ]
+      },
+      "CreateStatusRequest": {
+        "type": "object",
+        "description": "Request body for creating a custom status",
+        "additionalProperties": false,
+        "properties": {
+          "resource_type": {
+            "$ref": "#/components/schemas/StatusResourceType"
+          },
+          "slug": {
+            "type": "string",
+            "description": "Lowercase letters and numbers in hyphen-separated groups, at most 50 characters. It cannot be one of the built-in statuses (`active`, `draft`, `archived`, `published`, `expired`), whichever resource type the status is for, and it cannot be changed later.\n",
+            "maxLength": 50,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "example": "in-review"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name, at most 50 characters after trimming surrounding whitespace",
+            "maxLength": 50,
+            "example": "In review"
+          }
+        },
+        "required": [
+          "resource_type",
+          "slug",
+          "name"
+        ]
+      },
+      "UpdateStatusRequest": {
+        "type": "object",
+        "description": "Request body for renaming a custom status. Only the display name can change; any other field, including `slug`, is rejected.\n",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "New display name, at most 50 characters after trimming surrounding whitespace",
+            "maxLength": 50,
+            "example": "Under review"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "DeleteStatusResponse": {
+        "type": "object",
+        "description": "The outcome of deleting a custom status",
+        "properties": {
+          "reassigned_count": {
+            "type": "integer",
+            "description": "How many resources carried the status and were moved to `reassigned_to`",
+            "example": 12
+          },
+          "reassigned_to": {
+            "type": "string",
+            "description": "The system status those resources now carry: `draft` for prompts, `active` for every other resource type.\n",
+            "example": "active"
+          }
+        },
+        "required": [
+          "reassigned_count",
+          "reassigned_to"
+        ]
+      },
       "Comment": {
         "type": "object",
         "description": "A team-visible comment on a resource.",
@@ -38669,17 +39233,18 @@
       },
       "TeamSettingsAuditSurface": {
         "type": "string",
-        "description": "Which settings surface was copied between teams.",
+        "description": "Which settings surface the entry is about. `embedding_provider`, `model_provider` and `custom_types` record a copy from another team; `custom_statuses` records a custom status being created, renamed or deleted in this team.\n",
         "enum": [
           "embedding_provider",
           "model_provider",
-          "custom_types"
+          "custom_types",
+          "custom_statuses"
         ],
         "example": "model_provider"
       },
       "TeamSettingsAuditEntry": {
         "type": "object",
-        "description": "One recorded settings copy into this team: which surface arrived, who brought it, and where it came from.\n",
+        "description": "One recorded change to this team's settings: a configuration copied in from another team (which surface arrived, who brought it, and where it came from), or a custom status created, renamed or deleted here.\n",
         "required": [
           "id",
           "surface",
@@ -38705,7 +39270,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Who performed the copy. `null` once that account is deleted — the entry outlives the actor on purpose, so that deletion cannot erase the record of what the account did.\n"
+            "description": "Who made the change. `null` once that account is deleted — the entry outlives the actor on purpose, so that deletion cannot erase the record of what the account did.\n"
           },
           "actor_name": {
             "type": "string",
@@ -38717,30 +39282,30 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "The team the configuration was copied FROM."
+            "description": "The team the configuration was copied FROM. `null` for a `custom_statuses` entry, which has no source team.\n"
           },
           "source_team_name": {
             "type": "string",
             "nullable": true,
-            "description": "The source team's name, resolved server-side. `null` when that team has since been deleted — the id above is then the only remaining handle on it, and is deliberately still present rather than blanked.\n",
+            "description": "The source team's name, resolved server-side. `null` when that team has since been deleted — the id above is then the only remaining handle on it, and is deliberately still present rather than blanked. Also `null` for a `custom_statuses` entry.\n",
             "example": "Platform Team"
           },
           "source_resource_id": {
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "The resource that was copied. `null` for a `custom_types` copy, where one action copies a whole set and the individual ids live in `detail`.\n"
+            "description": "The resource that was copied. `null` for a `custom_types` copy, where one action copies a whole set and the individual ids live in `detail`, and for a `custom_statuses` entry, which copies nothing.\n"
           },
           "created_resource_id": {
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "The resource created in this team. `null` for a `custom_types` copy, for the same reason as `source_resource_id`.\n"
+            "description": "The resource created in this team. `null` for a `custom_types` copy, for the same reason as `source_resource_id`. For a `custom_statuses` entry it is the id of a newly created status, and `null` for a rename or a delete.\n"
           },
           "detail": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Surface-specific facts snapshotted at write time — resource names, and for a provider copy whether it carried a credential and whether it became the team's active provider. Always an object, never null.\n",
+            "description": "Surface-specific facts snapshotted at write time — resource names, and for a provider copy whether it carried a credential and whether it became the team's active provider. A `custom_statuses` entry carries `action` (`created`, `renamed` or `deleted`), `resource_type`, `slug` and `name`, plus `previous_name` for a rename and `reassigned_count` and `reassigned_to` for a delete. Always an object, never null.\n",
             "example": {
               "source_name": "OpenAI (Platform)",
               "created_name": "OpenAI (Platform)",
@@ -38750,7 +39315,7 @@
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "description": "When the copy was recorded."
+            "description": "When the change was recorded."
           }
         }
       },
@@ -40788,7 +41353,7 @@
       },
       "AdminTeamSettingsAuditEntry": {
         "type": "object",
-        "description": "One recorded settings copy into the team.",
+        "description": "One recorded change to the team's settings: a configuration copied in from another team, or (`custom_statuses`) a custom status created, renamed or deleted.\n",
         "additionalProperties": false,
         "required": [
           "id",
@@ -40812,7 +41377,8 @@
             "enum": [
               "embedding_provider",
               "model_provider",
-              "custom_types"
+              "custom_types",
+              "custom_statuses"
             ]
           },
           "actor_user_id": {
@@ -40846,7 +41412,7 @@
           "detail": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Surface-specific facts, filtered to a per-surface key allowlist\n(model_provider: source_name, created_name, provider_type, model,\nhas_api_key; embedding_provider: the same plus becomes_active,\ndisplaced_model, displaced_embedded_resources; custom_types: added_ids,\nadded_slugs, skipped_slugs). Any other stored key is dropped. Always an\nobject, never null.\n"
+            "description": "Surface-specific facts, filtered to a per-surface key allowlist\n(model_provider: source_name, created_name, provider_type, model,\nhas_api_key; embedding_provider: the same plus becomes_active,\ndisplaced_model, displaced_embedded_resources; custom_types: added_ids,\nadded_slugs, skipped_slugs; custom_statuses: action, resource_type,\nslug, name, previous_name, reassigned_count, reassigned_to). Any other\nstored key is dropped. Always an object, never null.\n"
           },
           "created_at": {
             "type": "string",

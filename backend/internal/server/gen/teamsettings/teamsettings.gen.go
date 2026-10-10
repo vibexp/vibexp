@@ -81,6 +81,7 @@ func (e TeamSearchSettingsSource) Valid() bool {
 
 // Defines values for TeamSettingsAuditSurface.
 const (
+	CustomStatuses    TeamSettingsAuditSurface = "custom_statuses"
 	CustomTypes       TeamSettingsAuditSurface = "custom_types"
 	EmbeddingProvider TeamSettingsAuditSurface = "embedding_provider"
 	ModelProvider     TeamSettingsAuditSurface = "model_provider"
@@ -89,6 +90,8 @@ const (
 // Valid indicates whether the value is a known member of the TeamSettingsAuditSurface enum.
 func (e TeamSettingsAuditSurface) Valid() bool {
 	switch e {
+	case CustomStatuses:
+		return true
 	case CustomTypes:
 		return true
 	case EmbeddingProvider:
@@ -247,36 +250,36 @@ type TeamSearchSettingsValues struct {
 	RecencyRankingEnabled bool `json:"recency_ranking_enabled"`
 }
 
-// TeamSettingsAuditEntry One recorded settings copy into this team: which surface arrived, who brought it, and where it came from.
+// TeamSettingsAuditEntry One recorded change to this team's settings: a configuration copied in from another team (which surface arrived, who brought it, and where it came from), or a custom status created, renamed or deleted here.
 type TeamSettingsAuditEntry struct {
 	// ActorName The actor's display name (their email when the name is blank), resolved server-side so a client need not fan out per row. `null` when `actor_user_id` is null or no longer resolves to a user.
 	ActorName *string `json:"actor_name"`
 
-	// ActorUserId Who performed the copy. `null` once that account is deleted — the entry outlives the actor on purpose, so that deletion cannot erase the record of what the account did.
+	// ActorUserId Who made the change. `null` once that account is deleted — the entry outlives the actor on purpose, so that deletion cannot erase the record of what the account did.
 	ActorUserId *openapi_types.UUID `json:"actor_user_id"`
 
-	// CreatedAt When the copy was recorded.
+	// CreatedAt When the change was recorded.
 	CreatedAt time.Time `json:"created_at"`
 
-	// CreatedResourceId The resource created in this team. `null` for a `custom_types` copy, for the same reason as `source_resource_id`.
+	// CreatedResourceId The resource created in this team. `null` for a `custom_types` copy, for the same reason as `source_resource_id`. For a `custom_statuses` entry it is the id of a newly created status, and `null` for a rename or a delete.
 	CreatedResourceId *openapi_types.UUID `json:"created_resource_id"`
 
-	// Detail Surface-specific facts snapshotted at write time — resource names, and for a provider copy whether it carried a credential and whether it became the team's active provider. Always an object, never null.
+	// Detail Surface-specific facts snapshotted at write time — resource names, and for a provider copy whether it carried a credential and whether it became the team's active provider. A `custom_statuses` entry carries `action` (`created`, `renamed` or `deleted`), `resource_type`, `slug` and `name`, plus `previous_name` for a rename and `reassigned_count` and `reassigned_to` for a delete. Always an object, never null.
 	Detail map[string]interface{} `json:"detail"`
 
 	// Id Identifier of the audit entry.
 	Id openapi_types.UUID `json:"id"`
 
-	// SourceResourceId The resource that was copied. `null` for a `custom_types` copy, where one action copies a whole set and the individual ids live in `detail`.
+	// SourceResourceId The resource that was copied. `null` for a `custom_types` copy, where one action copies a whole set and the individual ids live in `detail`, and for a `custom_statuses` entry, which copies nothing.
 	SourceResourceId *openapi_types.UUID `json:"source_resource_id"`
 
-	// SourceTeamId The team the configuration was copied FROM.
+	// SourceTeamId The team the configuration was copied FROM. `null` for a `custom_statuses` entry, which has no source team.
 	SourceTeamId *openapi_types.UUID `json:"source_team_id"`
 
-	// SourceTeamName The source team's name, resolved server-side. `null` when that team has since been deleted — the id above is then the only remaining handle on it, and is deliberately still present rather than blanked.
+	// SourceTeamName The source team's name, resolved server-side. `null` when that team has since been deleted — the id above is then the only remaining handle on it, and is deliberately still present rather than blanked. Also `null` for a `custom_statuses` entry.
 	SourceTeamName *string `json:"source_team_name"`
 
-	// Surface Which settings surface was copied between teams.
+	// Surface Which settings surface the entry is about. `embedding_provider`, `model_provider` and `custom_types` record a copy from another team; `custom_statuses` records a custom status being created, renamed or deleted in this team.
 	Surface TeamSettingsAuditSurface `json:"surface"`
 }
 
@@ -298,7 +301,7 @@ type TeamSettingsAuditListResponse struct {
 	TotalPages int `json:"total_pages"`
 }
 
-// TeamSettingsAuditSurface Which settings surface was copied between teams.
+// TeamSettingsAuditSurface Which settings surface the entry is about. `embedding_provider`, `model_provider` and `custom_types` record a copy from another team; `custom_statuses` records a custom status being created, renamed or deleted in this team.
 type TeamSettingsAuditSurface string
 
 // UpdateTeamAISummarySettingsRequest A complete replacement AI summary profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `top_n` is at most 10 and `max_output_tokens` at most 32768 (the hard limits; a larger value is rejected with 400). `max_top_n`, `max_output_tokens_ceiling` and `available` are deliberately absent — all are computed, not settable.

@@ -87,23 +87,30 @@ func TestTeamSettingsAuditService_Record_RejectsIncompleteEntries(t *testing.T) 
 			record: TeamSettingsAuditRecord{
 				Surface: models.SettingsAuditSurfaceModelProvider, SourceTeamID: "team-2",
 			},
-			reason: "destination team is required",
+			reason: "team is required",
 		},
 		"no source team": {
 			record: TeamSettingsAuditRecord{
 				TeamID: "team-1", Surface: models.SettingsAuditSurfaceModelProvider,
 			},
-			reason: "source team is required",
+			reason: "source team is required for a model_provider copy",
+		},
+		"a source team on a surface that is not a copy": {
+			record: TeamSettingsAuditRecord{
+				TeamID: "team-1", SourceTeamID: "team-2",
+				Surface: models.SettingsAuditSurfaceCustomStatuses,
+			},
+			reason: "is not a copy and takes no source team",
 		},
 		"unknown surface": {
 			record: TeamSettingsAuditRecord{
 				TeamID: "team-1", SourceTeamID: "team-2", Surface: "email_provider",
 			},
-			reason: "not a copyable settings surface",
+			reason: "not an audited settings surface",
 		},
 		"empty surface": {
 			record: TeamSettingsAuditRecord{TeamID: "team-1", SourceTeamID: "team-2"},
-			reason: "not a copyable settings surface",
+			reason: "not an audited settings surface",
 		},
 	}
 
@@ -131,14 +138,62 @@ func TestTeamSettingsAuditService_Record_AcceptsEverySurface(t *testing.T) {
 			svc, repo := newTeamSettingsAuditService(t)
 			repo.EXPECT().Append(mock.Anything, mock.Anything).Return(nil)
 
-			entry, err := svc.Record(context.Background(), TeamSettingsAuditRecord{
-				TeamID: "team-1", SourceTeamID: "team-2", Surface: surface,
-			})
+			record := TeamSettingsAuditRecord{TeamID: "team-1", Surface: surface}
+			if models.IsSettingsAuditCopySurface(surface) {
+				record.SourceTeamID = "team-2"
+			}
+			entry, err := svc.Record(context.Background(), record)
 
 			require.NoError(t, err)
 			assert.Equal(t, surface, entry.Surface)
 		})
 	}
+}
+
+// The source-team rule is per surface: every copy surface still requires one
+// (generalizing the log for custom statuses must not loosen that), and
+// custom_statuses, which is changed in place, is stored with none.
+func TestTeamSettingsAuditService_Record_SourceTeamIsRequiredOnlyForCopies(t *testing.T) {
+	for _, surface := range models.SettingsAuditCopySurfaces {
+		t.Run(surface+" without a source team is rejected", func(t *testing.T) {
+			svc, _ := newTeamSettingsAuditService(t)
+
+			entry, err := svc.Record(context.Background(), TeamSettingsAuditRecord{
+				TeamID: "team-1", Surface: surface,
+			})
+
+			require.ErrorIs(t, err, ErrInvalidSettingsAudit)
+			assert.Nil(t, entry)
+		})
+	}
+
+	t.Run("custom_statuses is stored with no source team", func(t *testing.T) {
+		svc, repo := newTeamSettingsAuditService(t)
+		repo.EXPECT().Append(mock.Anything, mock.Anything).Return(nil)
+
+		entry, err := svc.Record(context.Background(), TeamSettingsAuditRecord{
+			TeamID:            "team-1",
+			ActorUserID:       "user-1",
+			Surface:           models.SettingsAuditSurfaceCustomStatuses,
+			CreatedResourceID: "status-1",
+			Detail:            map[string]interface{}{"action": "created", "slug": "in-review"},
+		})
+
+		require.NoError(t, err)
+		assert.Nil(t, entry.SourceTeamID)
+		assert.Nil(t, entry.SourceResourceID)
+		require.NotNil(t, entry.CreatedResourceID)
+		assert.Equal(t, "status-1", *entry.CreatedResourceID)
+		assert.JSONEq(t, `{"action":"created","slug":"in-review"}`, string(entry.Detail))
+	})
+
+	t.Run("the copy surfaces are a strict subset of the surfaces", func(t *testing.T) {
+		for _, surface := range models.SettingsAuditCopySurfaces {
+			assert.Contains(t, models.SettingsAuditSurfaces, surface)
+		}
+		assert.False(t, models.IsSettingsAuditCopySurface(models.SettingsAuditSurfaceCustomStatuses))
+		assert.Len(t, models.SettingsAuditSurfaces, len(models.SettingsAuditCopySurfaces)+1)
+	})
 }
 
 func TestTeamSettingsAuditService_Record_UnserializableDetail(t *testing.T) {

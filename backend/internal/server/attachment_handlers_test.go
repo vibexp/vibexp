@@ -47,6 +47,10 @@ func (m *MockAttachmentContainer) StatusCatalogService() services.StatusCatalogS
 	return nil
 }
 
+func (m *MockAttachmentContainer) StatusManagementService() services.StatusManagementServiceInterface {
+	return nil
+}
+
 func (m *MockAttachmentContainer) AttachmentService() services.AttachmentServiceInterface {
 	return m.AttachmentServiceMock
 }

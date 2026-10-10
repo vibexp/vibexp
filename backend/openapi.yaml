@@ -756,6 +756,20 @@ components:
     CopyTypesResponse:
       $ref: "./schemas/types.yaml#/CopyTypesResponse"
 
+    # Import team-customizable resource status schemas (epic #1263)
+    StatusResourceType:
+      $ref: "./schemas/statuses.yaml#/StatusResourceType"
+    StatusDefinition:
+      $ref: "./schemas/statuses.yaml#/StatusDefinition"
+    StatusListResponse:
+      $ref: "./schemas/statuses.yaml#/StatusListResponse"
+    CreateStatusRequest:
+      $ref: "./schemas/statuses.yaml#/CreateStatusRequest"
+    UpdateStatusRequest:
+      $ref: "./schemas/statuses.yaml#/UpdateStatusRequest"
+    DeleteStatusResponse:
+      $ref: "./schemas/statuses.yaml#/DeleteStatusResponse"
+
     # Import resource comment schemas
     Comment:
       $ref: "./schemas/comments.yaml#/Comment"
@@ -1380,6 +1394,10 @@ paths:
     $ref: "./paths/types.yaml#/api-v1-team_id-types-id"
   /api/v1/{team_id}/settings/types/copy:
     $ref: "./paths/types.yaml#/api-v1-team_id-settings-types-copy"
+  /api/v1/{team_id}/statuses:
+    $ref: "./paths/statuses.yaml#/api-v1-team_id-statuses"
+  /api/v1/{team_id}/statuses/{id}:
+    $ref: "./paths/statuses.yaml#/api-v1-team_id-statuses-id"
   /api/v1/admin/stats:
     $ref: "./paths/admin.yaml#/api-v1-admin-stats"
   /api/v1/admin/users:
@@ -1668,6 +1686,8 @@ tags:
     description: In-app notification endpoints for the authenticated user
   - name: Types
     description: Team-customizable resource categories (artifact types, etc.)
+  - name: Statuses
+    description: Team-customizable resource statuses (epic #1263)
   - name: Comments
     description: Team-visible comments on artifacts, memories, prompts, and blueprints (REST-only, no MCP)
   - name: Relations

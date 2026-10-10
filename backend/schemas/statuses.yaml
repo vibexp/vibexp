@@ -1,0 +1,162 @@
+# Team-customizable resource status schemas (epic #1263).
+#
+# StatusResourceType is a STANDALONE component so
+# TestSpecEnumsMatchServiceAllowlists can pin it to models.StatusResourceTypes:
+# it is a request enum (a query parameter and a body field) that oapi-codegen
+# binds without validating, so the service allowlist is the only enforcement.
+
+StatusResourceType:
+  type: string
+  description: >
+    A resource type that carries a status. Singular, as in the comment and
+    relation APIs.
+  enum:
+    - prompt
+    - artifact
+    - blueprint
+    - memory
+  # Explicit constant names: the bare values collide with other resource-type
+  # enums in the single-package Go client, where oapi-codegen would otherwise
+  # rename existing constants to disambiguate.
+  x-enum-varnames:
+    - StatusResourceTypePrompt
+    - StatusResourceTypeArtifact
+    - StatusResourceTypeBlueprint
+    - StatusResourceTypeMemory
+  example: artifact
+
+# Named StatusDefinition, not Status: a component called `Status` collides with
+# the `Status` constant of an existing sort enum in the single-package Go
+# client, where oapi-codegen would rename that enum's constants.
+StatusDefinition:
+  type: object
+  description: >
+    One status a team may give a resource of `resource_type`. A system status
+    (`is_system: true`) is built in, identical for every team and cannot be
+    renamed or deleted; it has no `id` and no timestamps. A custom status
+    belongs to the team.
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Identifier of a custom status. Absent for a system status.
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    resource_type:
+      $ref: '../openapi.yaml#/components/schemas/StatusResourceType'
+    slug:
+      type: string
+      description: >
+        The value stored on the resource. Unique per team and resource type,
+        and immutable once created.
+      example: "in-review"
+    name:
+      type: string
+      description: Human-readable display name
+      example: "In review"
+    is_system:
+      type: boolean
+      description: True for a built-in status, which cannot be renamed or deleted
+      example: false
+    is_live:
+      type: boolean
+      description: >
+        Whether a resource carrying this status counts as live, usable content.
+        False only for the built-in work-in-progress and retired statuses
+        (`draft`, `archived`, `expired`); always true for a custom status.
+      example: true
+    usage_count:
+      type: integer
+      description: >
+        How many of the team's resources of this type currently carry the
+        status. For a custom status this is the number of resources a delete
+        would move to the default status.
+      example: 12
+    created_at:
+      type: string
+      format: date-time
+      description: When the custom status was created. Absent for a system status.
+      example: "2026-06-15T09:00:00Z"
+    updated_at:
+      type: string
+      format: date-time
+      description: When the custom status was last renamed. Absent for a system status.
+      example: "2026-06-15T09:00:00Z"
+  required:
+    - resource_type
+    - slug
+    - name
+    - is_system
+    - is_live
+    - usage_count
+
+StatusListResponse:
+  type: object
+  description: The system statuses of a resource type followed by the team's custom ones
+  properties:
+    statuses:
+      type: array
+      description: System statuses first, in their built-in order, then custom statuses by name
+      items:
+        $ref: '#/StatusDefinition'
+  required:
+    - statuses
+
+CreateStatusRequest:
+  type: object
+  description: Request body for creating a custom status
+  additionalProperties: false
+  properties:
+    resource_type:
+      $ref: '../openapi.yaml#/components/schemas/StatusResourceType'
+    slug:
+      type: string
+      description: >
+        Lowercase letters and numbers in hyphen-separated groups, at most 50
+        characters. It cannot be one of the built-in statuses (`active`,
+        `draft`, `archived`, `published`, `expired`), whichever resource type
+        the status is for, and it cannot be changed later.
+      maxLength: 50
+      pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+      example: "in-review"
+    name:
+      type: string
+      description: Display name, at most 50 characters after trimming surrounding whitespace
+      maxLength: 50
+      example: "In review"
+  required:
+    - resource_type
+    - slug
+    - name
+
+UpdateStatusRequest:
+  type: object
+  description: >
+    Request body for renaming a custom status. Only the display name can
+    change; any other field, including `slug`, is rejected.
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: New display name, at most 50 characters after trimming surrounding whitespace
+      maxLength: 50
+      example: "Under review"
+  required:
+    - name
+
+DeleteStatusResponse:
+  type: object
+  description: The outcome of deleting a custom status
+  properties:
+    reassigned_count:
+      type: integer
+      description: How many resources carried the status and were moved to `reassigned_to`
+      example: 12
+    reassigned_to:
+      type: string
+      description: >
+        The system status those resources now carry: `draft` for prompts,
+        `active` for every other resource type.
+      example: "active"
+  required:
+    - reassigned_count
+    - reassigned_to

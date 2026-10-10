@@ -547,4 +547,8 @@ func (m *MockContainerForSupport) StatusCatalogService() services.StatusCatalogS
 	return nil
 }
 
+func (m *MockContainerForSupport) StatusManagementService() services.StatusManagementServiceInterface {
+	return nil
+}
+
 func (m *MockContainerForSupport) AttachmentService() services.AttachmentServiceInterface { return nil }

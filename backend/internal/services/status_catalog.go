@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -29,6 +30,10 @@ type CatalogStatus struct {
 	// IsLive is models.IsLiveStatus for this slug; always true for a custom
 	// status.
 	IsLive bool
+	// CreatedAt and UpdatedAt are the custom row's timestamps, and nil for a
+	// system status.
+	CreatedAt *time.Time
+	UpdatedAt *time.Time
 }
 
 // StatusCatalogService is the concrete StatusCatalogServiceInterface. It holds
@@ -75,10 +80,12 @@ func (s *StatusCatalogService) List(
 			continue
 		}
 		catalog = append(catalog, CatalogStatus{
-			ID:     &row.ID,
-			Slug:   row.Slug,
-			Name:   row.Name,
-			IsLive: models.IsLiveStatus(resourceType, row.Slug),
+			ID:        &row.ID,
+			Slug:      row.Slug,
+			Name:      row.Name,
+			IsLive:    models.IsLiveStatus(resourceType, row.Slug),
+			CreatedAt: &row.CreatedAt,
+			UpdatedAt: &row.UpdatedAt,
 		})
 	}
 	return catalog, nil

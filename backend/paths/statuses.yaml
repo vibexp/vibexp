@@ -1,0 +1,267 @@
+# Team-customizable resource status path items (epic #1263) — referenced from
+# ../openapi.yaml. Team-scoped under /api/v1/{team_id}/statuses; the resource a
+# status applies to is the resource_type parameter, as on the types endpoints.
+
+api-v1-team_id-statuses:
+  get:
+    summary: List the statuses of a resource type
+    description: >
+      Returns every status the team may give a resource of `resource_type`: the
+      built-in system statuses first, then the team's custom statuses. Each
+      carries `usage_count`, the number of the team's resources currently using
+      it. Any team member may call this.
+    operationId: listStatuses
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: resource_type
+        in: query
+        required: true
+        description: Resource type whose statuses to list
+        schema:
+          $ref: '../openapi.yaml#/components/schemas/StatusResourceType'
+    responses:
+      '200':
+        description: Statuses retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/StatusListResponse'
+      '400':
+        description: Missing or unsupported resource_type, or malformed team id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to list statuses
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Statuses
+
+  post:
+    summary: Create a custom status
+    description: >
+      Creates a status the team can give its resources of `resource_type`.
+      Requires the `team.settings.update` permission (team owners and admins).
+      A team may have at most 20 custom statuses per resource type.
+    operationId: createStatus
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateStatusRequest'
+    responses:
+      '201':
+        description: Status created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/StatusDefinition'
+      '400':
+        description: Unknown body field, unsupported resource_type, invalid slug or name, or the team already has 20 custom statuses for this resource type
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team, or is a member whose role may not change team settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: The slug is a built-in status, or the team already has a status with this slug for this resource type
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to create status
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Statuses
+
+api-v1-team_id-statuses-id:
+  patch:
+    summary: Rename a custom status
+    description: >
+      Changes the display name of a custom status. The slug never changes:
+      resources store it. Requires the `team.settings.update` permission (team
+      owners and admins).
+    operationId: updateStatus
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Custom status identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateStatusRequest'
+    responses:
+      '200':
+        description: Status renamed successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/StatusDefinition'
+      '400':
+        description: Unknown body field (including slug), invalid name, or malformed id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team, or is a member whose role may not change team settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: No custom status with this id exists in the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to rename status
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Statuses
+
+  delete:
+    summary: Delete a custom status
+    description: >
+      Deletes a custom status. Every resource of the team that carries it is
+      moved to the resource type's default system status (`draft` for prompts,
+      `active` otherwise) in the same transaction, and the response reports how
+      many were moved. Moving a resource this way does not change its
+      `updated_at`. Requires the `team.settings.update` permission (team owners
+      and admins).
+    operationId: deleteStatus
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Custom status identifier
+    responses:
+      '200':
+        description: Status deleted and its resources reassigned
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/DeleteStatusResponse'
+      '400':
+        description: Status id or team id is not a valid UUID
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team, or is a member whose role may not change team settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: No custom status with this id exists in the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to delete status
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Statuses

@@ -78,6 +78,7 @@ type Container interface {
 	RelationSeedService() services.RelationSeedServiceInterface
 	TypeService() services.TypeServiceInterface
 	StatusCatalogService() services.StatusCatalogServiceInterface
+	StatusManagementService() services.StatusManagementServiceInterface
 	BlueprintService() services.BlueprintServiceInterface
 	EmbeddingProviderService() services.EmbeddingProviderServiceInterface
 	ModelProviderService() services.ModelProviderServiceInterface
@@ -123,7 +124,7 @@ type Container interface {
 	// TeamAISummarySettingsService serves the team AI summary settings API
 	// (get/update/reset, #1072) — the authoritative, non-fail-open surface.
 	TeamAISummarySettingsService() services.TeamAISummarySettingsServiceInterface
-	// TeamSettingsAuditService reads and writes the team settings copy audit
+	// TeamSettingsAuditService reads and writes the team settings audit
 	// log (epic #827); the read path is #832.
 	TeamSettingsAuditService() services.TeamSettingsAuditServiceInterface
 	// FreshnessService manages per-team freshness rules and settings (epic #726).

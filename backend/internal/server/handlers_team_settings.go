@@ -222,6 +222,34 @@ func searchSettingsBodyProblem(fields map[string]json.RawMessage) string {
 	return ""
 }
 
+// peekJSONObjectBody reads a request body for a guard that must inspect its
+// top-level keys before the generated decoder runs, and puts the bytes back so
+// that decoder still sees them. It returns the keys of a JSON object, or nil
+// fields for a body that is empty or not an object. A JSON `null` decodes into
+// a map without error, so it is returned as an object with no keys: the
+// generated decoder would turn it into a zero-valued struct, and the guard
+// must get to judge that as a body in which every field is missing. ok is false
+// only when the body could not be read, in which case the 400 has already been
+// written.
+func peekJSONObjectBody(
+	w http.ResponseWriter, r *http.Request,
+) (fields map[string]json.RawMessage, ok bool) {
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError("Failed to read request body"))
+		return nil, false
+	}
+	r.Body = io.NopCloser(bytes.NewReader(raw))
+
+	if len(bytes.TrimSpace(raw)) == 0 || json.Unmarshal(raw, &fields) != nil {
+		return nil, true
+	}
+	if fields == nil {
+		fields = map[string]json.RawMessage{}
+	}
+	return fields, true
+}
+
 // requireCompleteSettingsBodyFor builds the chi middleware shared by every
 // settings-singleton PUT in this route group: read/restore/decode the body,
 // then reject it unless problem reports it as a complete, exact profile.
@@ -244,18 +272,13 @@ func requireCompleteSettingsBodyFor(
 				return
 			}
 
-			raw, err := io.ReadAll(r.Body)
-			if err != nil {
-				apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError("Failed to read request body"))
+			fields, ok := peekJSONObjectBody(w, r)
+			if !ok {
 				return
 			}
-			// Restore the body for the generated decoder regardless of the outcome.
-			r.Body = io.NopCloser(bytes.NewReader(raw))
-
 			// An empty or non-object body is the generated decoder's problem, not
 			// ours; let it produce its usual error.
-			var fields map[string]json.RawMessage
-			if len(bytes.TrimSpace(raw)) == 0 || json.Unmarshal(raw, &fields) != nil {
+			if fields == nil {
 				next.ServeHTTP(w, r)
 				return
 			}

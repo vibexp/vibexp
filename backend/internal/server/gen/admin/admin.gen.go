@@ -361,6 +361,7 @@ func (e AdminTeamEmailProviderConfigStatus) Valid() bool {
 
 // Defines values for AdminTeamSettingsAuditEntrySurface.
 const (
+	CustomStatuses    AdminTeamSettingsAuditEntrySurface = "custom_statuses"
 	CustomTypes       AdminTeamSettingsAuditEntrySurface = "custom_types"
 	EmbeddingProvider AdminTeamSettingsAuditEntrySurface = "embedding_provider"
 	ModelProvider     AdminTeamSettingsAuditEntrySurface = "model_provider"
@@ -369,6 +370,8 @@ const (
 // Valid indicates whether the value is a known member of the AdminTeamSettingsAuditEntrySurface enum.
 func (e AdminTeamSettingsAuditEntrySurface) Valid() bool {
 	switch e {
+	case CustomStatuses:
+		return true
 	case CustomTypes:
 		return true
 	case EmbeddingProvider:
@@ -2758,7 +2761,7 @@ type AdminTeamSearchConfig struct {
 	Values AdminSearchValues `json:"values"`
 }
 
-// AdminTeamSettingsAuditEntry One recorded settings copy into the team.
+// AdminTeamSettingsAuditEntry One recorded change to the team's settings: a configuration copied in from another team, or (`custom_statuses`) a custom status created, renamed or deleted.
 type AdminTeamSettingsAuditEntry struct {
 	ActorName         *string             `json:"actor_name"`
 	ActorUserId       *openapi_types.UUID `json:"actor_user_id"`
@@ -2769,8 +2772,9 @@ type AdminTeamSettingsAuditEntry struct {
 	// (model_provider: source_name, created_name, provider_type, model,
 	// has_api_key; embedding_provider: the same plus becomes_active,
 	// displaced_model, displaced_embedded_resources; custom_types: added_ids,
-	// added_slugs, skipped_slugs). Any other stored key is dropped. Always an
-	// object, never null.
+	// added_slugs, skipped_slugs; custom_statuses: action, resource_type,
+	// slug, name, previous_name, reassigned_count, reassigned_to). Any other
+	// stored key is dropped. Always an object, never null.
 	Detail           map[string]interface{}             `json:"detail"`
 	Id               openapi_types.UUID                 `json:"id"`
 	SourceResourceId *openapi_types.UUID                `json:"source_resource_id"`

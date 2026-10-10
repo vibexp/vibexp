@@ -173,6 +173,17 @@ func ProvideStatusCatalogService(
 	return services.NewStatusCatalogService(repo)
 }
 
+// ProvideStatusManagementService creates a new StatusManagementService.
+func ProvideStatusManagementService(
+	repo repositories.TeamStatusRepository,
+	catalog services.StatusCatalogServiceInterface,
+	authorizer services.AuthorizationServiceInterface,
+	audit services.TeamSettingsAuditServiceInterface,
+	logger *slog.Logger,
+) services.StatusManagementServiceInterface {
+	return services.NewStatusManagementService(repo, catalog, authorizer, audit, logger)
+}
+
 // ProvideBlueprintService creates a new BlueprintService. Wire fills the deps
 // struct via wire.Struct (see the container ProviderSet).
 func ProvideBlueprintService(deps services.BlueprintServiceDeps) services.BlueprintServiceInterface {

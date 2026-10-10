@@ -34,7 +34,7 @@ func NewTeamSettingsAuditRepository(db *database.DB) repositories.TeamSettingsAu
 	return &TeamSettingsAuditRepository{db: db}
 }
 
-// Append records one settings-copy event and populates the model from the
+// Append records one settings event and populates the model from the
 // persisted row.
 func (r *TeamSettingsAuditRepository) Append(
 	ctx context.Context, entry *models.TeamSettingsAudit,

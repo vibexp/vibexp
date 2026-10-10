@@ -173,6 +173,7 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"NotificationListResponse":            "generated strict-server type (internal/server/gen); handler builds via make(...,0) — handlers_notifications.go toGenNotifications",
 	"TypeListResponse":                    "generated strict-server type (internal/server/gen/types); handler builds via make(...,0) — handlers_types.go toGenTypes",
 	"CopyTypesResponse":                   "generated strict-server type (internal/server/gen/types); handler builds added via make(...,0) — handlers_types.go toGenTypes, skipped via toGenSkippedTypes",
+	"StatusListResponse":                  "generated strict-server type (internal/server/gen/statuses); handler builds via make(...,0) — handlers_statuses.go ListStatuses",
 	"CommentListResponse":                 "generated strict-server type (internal/server/gen/comments); handler builds via make(...,0) — handlers_comments.go toGenCommentListResponse",
 	"RelationListResponse":                "generated strict-server type (internal/server/gen/relations); handler builds via make(...,0) — handlers_relations.go toGenRelationListResponse",
 	"FreshnessRuleListResponse":           "generated strict-server type (internal/server/gen/freshness); handler builds via make(...,0) — handlers_freshness.go toGenFreshnessRuleListResponse",
