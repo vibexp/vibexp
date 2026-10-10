@@ -37,8 +37,9 @@ name: Stale issue & PR lifecycle
 #   - a review submitted on a FORK pull request. `pull_request_review` has no
 #     `_target` variant, so that run gets a read-only token and could only fail
 #     with a 403; the unstale job skips it instead.
-#   - activity this file declares no trigger for (cross-references, a review
-#     request being removed, a base-branch change, ...).
+#   - activity this file declares no trigger for: label changes and
+#     (un)assignment on a PULL REQUEST (the `issues` trigger does not fire for
+#     PRs), cross-references, a review request being removed.
 # Board moves are seen by neither path -- `projects_v2_item` is an org-level
 # webhook with no repo workflow trigger, and the timeline scan does not count
 # it. The label and edit events that accompany a refinement cover them.
@@ -85,15 +86,6 @@ permissions:
   issues: write
   pull-requests: write
 
-# One group per item for event runs, and a group of its own for the sweep. A
-# single shared group would queue every event run behind the daily sweep, and
-# since a group holds at most one PENDING run, a newer event would silently
-# replace an older one waiting there -- for a different item. Per item that
-# replacement is harmless: any one of the runs removes the label.
-concurrency:
-  group: stale-${{ github.event.issue.number || github.event.pull_request.number || 'sweep' }}
-  cancel-in-progress: false
-
 env:
   # One label for both tracks -- filter with `is:pr label:Stale` in the UI.
   # Created automatically on first use.
@@ -129,6 +121,18 @@ jobs:
   sweep:
     name: Mark, remind & close stale issues and PRs
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Job-level, so it serialises sweeps against each other and nothing else.
+    # Event runs deliberately share NO group, not even one per item: a group
+    # holds at most one PENDING run and a newer run replaces it, and not every
+    # event run removes the label (one for the stale label itself, or by an
+    # ignored actor, exits without touching it). Queued behind another run for
+    # the same item, the one run that carried real activity could be the one
+    # replaced -- and a body edit is invisible to the sweep, so nothing would
+    # ever recover it. Running them in parallel is safe: removing the label is
+    # idempotent and an already-removed label (404) is ignored.
+    concurrency:
+      group: stale-sweep
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       # Actions expressions have NO arithmetic operators: the supported set is
