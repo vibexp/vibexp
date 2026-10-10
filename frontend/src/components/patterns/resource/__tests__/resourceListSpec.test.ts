@@ -1,7 +1,7 @@
 import type { ResourceKindKey } from '../registry'
 import { getResourceDescriptor } from '../registry'
 import type { FieldRole } from '../types'
-import { queryEnum } from './specYaml'
+import { queryComponent, queryEnum, systemStatuses } from './specYaml'
 
 /**
  * The descriptor's `list.sortable` becomes a `sort_by` value on the wire, and
@@ -78,13 +78,18 @@ describe('resource list specs', () => {
   // descriptor lacks is stripped from the request — `?status=<new>` silently
   // returns an unfiltered list. Hand review caught that drift twice on this
   // branch, which is the evidence that review is the wrong mechanism for it.
+  //
+  // Since #1266 `status` is an open string in the spec (a team may define its
+  // own statuses), so there is no enum to compare against: the descriptor is
+  // held to the SYSTEM values named by the schema its list endpoint's `status`
+  // parameter points at instead. Offering a team's
+  // custom statuses in the UI is #1270.
   it.each(KINDS)(
-    "%s's status values are exactly its list endpoint's status enum",
+    "%s's status values are exactly its status schema's system values",
     (kind, file) => {
-      const accepted = queryEnum(file, 'status')
-      expect(accepted.size).toBeGreaterThan(0)
+      const system = systemStatuses(queryComponent(file, 'status'))
       expect([...declaredValues(kind, 'status')].sort()).toEqual(
-        [...accepted].sort()
+        [...system].sort()
       )
     }
   )

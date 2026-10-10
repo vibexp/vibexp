@@ -75,6 +75,110 @@ export function refEnum(fromFile: string, ref: string, hops = 4): string[] {
   return refEnum(target, next[1], hops - 1)
 }
 
+/** A schema component: the file that finally defines it, and its name there. */
+export interface SchemaComponent {
+  file: string
+  name: string
+}
+
+/**
+ * Where a `$ref` finally lands, following it through however many files it
+ * hops (see {@link refEnum}): the last component whose block is a definition
+ * rather than another `$ref`.
+ *
+ * Throws rather than returning nothing when a component cannot be resolved.
+ */
+export function refTarget(
+  fromFile: string,
+  ref: string,
+  hops = 4
+): SchemaComponent {
+  const [file, pointer] = ref.split('#')
+  const target = resolve(dirname(fromFile), file)
+  const name = pointer.split('/').findLast(Boolean) ?? ''
+  const block = blockOf(readFileSync(target, 'utf8'), name)
+  if (block === '') {
+    throw new Error(`schema component '${name}' not found in ${target}`)
+  }
+  const next = REF.exec(block)
+  if (!next) return { file: target, name }
+  if (hops === 0) {
+    throw new Error(`schema component '${name}' never resolves (${target})`)
+  }
+  return refTarget(target, next[1], hops - 1)
+}
+
+/**
+ * The one schema component a named query parameter `$ref`s, across a path
+ * file's team-scoped and by-project variants of the same list.
+ *
+ * Throws when the parameter is missing, is declared inline, or its variants
+ * point at different components — each of which would otherwise let a caller
+ * compare against the wrong schema, or against nothing.
+ */
+export function queryComponent(file: string, param: string): SchemaComponent {
+  const path = resolve(SPEC_DIR, file)
+  const found = new Map<string, SchemaComponent>()
+  for (const chunk of readFileSync(path, 'utf8').split(/^\s*- name: /m)) {
+    if (!chunk.startsWith(`${param}\n`)) continue
+    const ref = REF.exec(chunk)
+    if (!ref) {
+      throw new Error(`query parameter '${param}' has no $ref in ${path}`)
+    }
+    const component = refTarget(path, ref[1])
+    found.set(`${component.file}#${component.name}`, component)
+  }
+  const components = [...found.values()]
+  if (components.length !== 1) {
+    throw new Error(
+      `query parameter '${param}' resolves to ${String(components.length)} schema components in ${path}`
+    )
+  }
+  return components[0]
+}
+
+/**
+ * The SYSTEM status values of a per-kind status schema (`PromptStatus`,
+ * `ArtifactStatus`, ...).
+ *
+ * Those schemas have been open strings since #1266 — a team's custom status is
+ * a legal value — so there is no enum to read. What the spec still pins is the
+ * system subset: each description names, in backticks, exactly the values of
+ * the shared `ResourceStatus` vocabulary that are system statuses of that kind
+ * (the backend holds it to that in `TestStatusSchemasAreOpenAndNameSystemValues`).
+ * This reads the subset the same way, out of the file that defines the schema.
+ *
+ * Throws rather than returning nothing when the schema is missing, has grown
+ * an enum again, or names no system value.
+ */
+export function systemStatuses({ file, name }: SchemaComponent): string[] {
+  const yaml = readFileSync(file, 'utf8')
+  const vocabulary = /enum: \[([^\]]+)\]/.exec(blockOf(yaml, 'ResourceStatus'))
+  if (!vocabulary) {
+    throw new Error(
+      `schema component 'ResourceStatus' declares no enum (${file})`
+    )
+  }
+  const block = blockOf(yaml, name)
+  if (block === '') {
+    throw new Error(`schema component '${name}' not found in ${file}`)
+  }
+  if (/^\s*enum:/m.test(block)) {
+    throw new Error(
+      `schema component '${name}' declares an enum; read it with refEnum (${file})`
+    )
+  }
+  const named = enumValues(vocabulary[1]).filter(value =>
+    block.includes('`' + value + '`')
+  )
+  if (named.length === 0) {
+    throw new Error(
+      `schema component '${name}' names no system status (${file})`
+    )
+  }
+  return named
+}
+
 /**
  * Every value a named query parameter accepts, unioned across a path file. A
  * file describes both the team-scoped and the by-project variant of the same
