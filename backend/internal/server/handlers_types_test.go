@@ -39,6 +39,10 @@ func (c *MockTypesContainer) TypeService() services.TypeServiceInterface {
 	return c.typeService
 }
 
+func (c *MockTypesContainer) StatusCatalogService() services.StatusCatalogServiceInterface {
+	return nil
+}
+
 // createTestTypesServer mounts the generated Types strict-server handler on a
 // bare router. The team-membership/subscription middleware that setupTypesRoutes
 // adds is exercised elsewhere; here the authenticated user is injected per

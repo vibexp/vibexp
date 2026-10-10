@@ -654,4 +654,8 @@ func TestEmbeddingProviderUpdateCoverage_SuccessWithValidData(t *testing.T) {
 
 func (c *CoverageTestContainer) TypeService() services.TypeServiceInterface { return nil }
 
+func (c *CoverageTestContainer) StatusCatalogService() services.StatusCatalogServiceInterface {
+	return nil
+}
+
 func (c *CoverageTestContainer) AttachmentService() services.AttachmentServiceInterface { return nil }

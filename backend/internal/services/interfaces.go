@@ -172,6 +172,23 @@ type AttachmentServiceInterface interface {
 	DeleteAllForOwner(ctx context.Context, ownerType, ownerID string) error
 }
 
+// StatusCatalogServiceInterface answers which statuses a team may use for a
+// resource type (epic #1263): the type's system statuses, defined in Go, plus
+// the team's own rows in `team_statuses`. It is read-only and authorizes
+// nothing -- whether the caller may see the team is the caller's concern --
+// and every method returns ErrStatusResourceTypeUnsupported for a resource
+// type that has no status catalog.
+type StatusCatalogServiceInterface interface {
+	// List returns the catalog for (teamID, resourceType): the system statuses
+	// in their declared order, then the team's custom statuses.
+	List(ctx context.Context, teamID, resourceType string) ([]CatalogStatus, error)
+	// IsAllowed reports whether status is in that catalog. An empty status is
+	// not: "not supplied" is the caller's to default.
+	IsAllowed(ctx context.Context, teamID, resourceType, status string) (bool, error)
+	// AllowedSlugs returns the catalog's slugs, in List order.
+	AllowedSlugs(ctx context.Context, teamID, resourceType string) ([]string, error)
+}
+
 // TypeServiceInterface defines the resource-type-agnostic, team-customizable
 // type taxonomy operations. System defaults are global and read-only; custom
 // types belong to a team. It has no artifact-specific knowledge in its

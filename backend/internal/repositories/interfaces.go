@@ -181,6 +181,15 @@ var (
 	// slug — already exists.
 	ErrTypeAlreadyExists = errors.New("type already exists")
 
+	// ErrTeamStatusNotFound is returned by TeamStatusRepository lookups, renames
+	// and deletes when no row matches the id within the given team -- which is
+	// also the answer for another team's status.
+	ErrTeamStatusNotFound = errors.New("team status not found")
+
+	// ErrTeamStatusExists is returned by TeamStatusRepository.Create when the
+	// team already has a status with the same (resource_type, slug).
+	ErrTeamStatusExists = errors.New("team status already exists")
+
 	// ErrEmbeddingProviderNotFound is returned by EmbeddingProviderRepository
 	// lookups/updates/deletes when no provider row matches the given identifier.
 	ErrEmbeddingProviderNotFound = errors.New("embedding provider not found")
@@ -2123,6 +2132,34 @@ type RelationRepository interface {
 	FindSeedCandidates(
 		ctx context.Context, teamID string, maxDistance float64, limit int,
 	) ([]models.RelationSeedCandidate, error)
+}
+
+// TeamStatusRepository persists a team's custom resource statuses (table
+// `team_statuses`, epic #1263). Every row belongs to one team and every method
+// is scoped by teamID, so another team's status is indistinguishable from a
+// missing one. It knows nothing of the system statuses, which live in Go
+// (models.SystemStatusesFor); composing the two is the catalog service's job.
+type TeamStatusRepository interface {
+	// Create inserts a custom status, populating its ID, CreatedAt and
+	// UpdatedAt from the persisted row. It returns ErrTeamStatusExists when the
+	// team already has that (resource_type, slug).
+	Create(ctx context.Context, status *models.TeamStatus) error
+	// GetByID returns the team's status with the given id, or
+	// ErrTeamStatusNotFound.
+	GetByID(ctx context.Context, teamID, id string) (*models.TeamStatus, error)
+	// List returns the team's custom statuses for resourceType, ordered by name
+	// then slug. The result is never nil.
+	List(ctx context.Context, teamID, resourceType string) ([]models.TeamStatus, error)
+	// Count returns how many custom statuses the team has for resourceType.
+	Count(ctx context.Context, teamID, resourceType string) (int, error)
+	// UpdateName renames the team's status with the given id and returns the
+	// updated row. The slug is immutable: resources reference it. It returns
+	// ErrTeamStatusNotFound when no row matched.
+	UpdateName(ctx context.Context, teamID, id, name string) (*models.TeamStatus, error)
+	// Delete removes the team's status with the given id, or returns
+	// ErrTeamStatusNotFound. It does not touch the resources that carry the
+	// slug; reassigning them is the caller's concern.
+	Delete(ctx context.Context, teamID, id string) error
 }
 
 // TypeRepository persists the resource-type-agnostic, team-customizable type

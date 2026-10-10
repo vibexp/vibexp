@@ -68,6 +68,7 @@ type WireContainer struct {
 	artifactService              services.ArtifactServiceInterface
 	attachmentService            services.AttachmentServiceInterface
 	typeService                  services.TypeServiceInterface
+	statusCatalogService         services.StatusCatalogServiceInterface
 	specLibraryService           services.BlueprintServiceInterface
 	embeddingProviderService     services.EmbeddingProviderServiceInterface
 	modelProviderService         services.ModelProviderServiceInterface
@@ -362,6 +363,10 @@ func (c *WireContainer) AttachmentService() services.AttachmentServiceInterface 
 
 func (c *WireContainer) TypeService() services.TypeServiceInterface {
 	return c.typeService
+}
+
+func (c *WireContainer) StatusCatalogService() services.StatusCatalogServiceInterface {
+	return c.statusCatalogService
 }
 
 func (c *WireContainer) BlueprintService() services.BlueprintServiceInterface {

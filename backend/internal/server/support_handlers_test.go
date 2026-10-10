@@ -543,4 +543,8 @@ func (m *MockContainerForSupport) ProjectMigrationService() services.ProjectMigr
 
 func (m *MockContainerForSupport) TypeService() services.TypeServiceInterface { return nil }
 
+func (m *MockContainerForSupport) StatusCatalogService() services.StatusCatalogServiceInterface {
+	return nil
+}
+
 func (m *MockContainerForSupport) AttachmentService() services.AttachmentServiceInterface { return nil }

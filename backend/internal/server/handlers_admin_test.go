@@ -101,6 +101,10 @@ func (c *adminMockContainer) FreshnessService() services.FreshnessServiceInterfa
 	return c.freshnessService
 }
 func (c *adminMockContainer) TypeService() services.TypeServiceInterface { return c.typeService }
+
+func (c *adminMockContainer) StatusCatalogService() services.StatusCatalogServiceInterface {
+	return nil
+}
 func (c *adminMockContainer) ModelProviderService() services.ModelProviderServiceInterface {
 	return c.modelProviderService
 }

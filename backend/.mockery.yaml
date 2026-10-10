@@ -69,6 +69,7 @@ packages:
       Searcher:
       SearchSummaryServiceInterface:
       SearchSettingsResolver:
+      StatusCatalogServiceInterface:
       StreamProcessor:
       AISummarySettingsResolver:
       AISummaryAvailabilityResolver:
@@ -163,6 +164,7 @@ packages:
       TeamAISummarySettingsRepository:
       TeamSearchSettingsRepository:
       TeamSettingsAuditRepository:
+      TeamStatusRepository:
       TypeRepository:
       UserPreferencesRepository:
       UserRepository:

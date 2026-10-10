@@ -887,4 +887,8 @@ func TestHandleGitHubRepositories_OtherError_Returns500(t *testing.T) {
 
 func (c *GitHubTestContainer) TypeService() services.TypeServiceInterface { return nil }
 
+func (c *GitHubTestContainer) StatusCatalogService() services.StatusCatalogServiceInterface {
+	return nil
+}
+
 func (c *GitHubTestContainer) AttachmentService() services.AttachmentServiceInterface { return nil }

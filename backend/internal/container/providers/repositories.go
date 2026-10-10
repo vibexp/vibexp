@@ -108,6 +108,11 @@ func ProvideTypeRepository(db *database.DB) repositories.TypeRepository {
 	return postgres.NewTypeRepository(db)
 }
 
+// ProvideTeamStatusRepository creates a new TeamStatusRepository
+func ProvideTeamStatusRepository(db *database.DB) repositories.TeamStatusRepository {
+	return postgres.NewTeamStatusRepository(db)
+}
+
 // ProvideBlueprintRepository creates a new BlueprintRepository
 func ProvideBlueprintRepository(db *database.DB) repositories.BlueprintRepository {
 	return postgres.NewBlueprintRepository(db)

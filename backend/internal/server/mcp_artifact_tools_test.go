@@ -785,6 +785,10 @@ var _ container.Container = (*TestContainer)(nil)
 
 func (tc *TestContainer) TypeService() services.TypeServiceInterface { return nil }
 
+func (tc *TestContainer) StatusCatalogService() services.StatusCatalogServiceInterface {
+	return nil
+}
+
 func (tc *TestContainer) AttachmentService() services.AttachmentServiceInterface {
 	return tc.AttachmentServiceMock
 }

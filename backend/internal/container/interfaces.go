@@ -77,6 +77,7 @@ type Container interface {
 	RelationService() services.RelationServiceInterface
 	RelationSeedService() services.RelationSeedServiceInterface
 	TypeService() services.TypeServiceInterface
+	StatusCatalogService() services.StatusCatalogServiceInterface
 	BlueprintService() services.BlueprintServiceInterface
 	EmbeddingProviderService() services.EmbeddingProviderServiceInterface
 	ModelProviderService() services.ModelProviderServiceInterface
