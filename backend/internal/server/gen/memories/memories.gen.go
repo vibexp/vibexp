@@ -21,27 +21,6 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "BearerAuth.Scopes"
 )
 
-// Defines values for MemoryStatus.
-const (
-	Active   MemoryStatus = "active"
-	Archived MemoryStatus = "archived"
-	Draft    MemoryStatus = "draft"
-)
-
-// Valid indicates whether the value is a known member of the MemoryStatus enum.
-func (e MemoryStatus) Valid() bool {
-	switch e {
-	case Active:
-		return true
-	case Archived:
-		return true
-	case Draft:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for RelatedResourceDirection.
 const (
 	Incoming RelatedResourceDirection = "incoming"
@@ -269,7 +248,7 @@ type Memory struct {
 	// Similar Computed embedding-similarity neighborhood of this resource (up to 5), derived live at read time from vector similarity — NOT stored edges and distinct from `related`. Populated on the detail GET; empty otherwise.
 	Similar *[]SimilarResource `json:"similar,omitempty"`
 
-	// Status Lifecycle status of a memory.
+	// Status Status of a memory. The system values are `active`, `draft` and `archived`. A team may define further statuses of its own for memories, so this is an open string: any other value must be one of the team's custom memory statuses, or the request is rejected with 400.
 	Status MemoryStatus `json:"status"`
 
 	// TeamId ID of the team this memory belongs to
@@ -309,8 +288,8 @@ type MemoryListResponse struct {
 	TotalPages int `json:"total_pages"`
 }
 
-// MemoryStatus Lifecycle status of a memory.
-type MemoryStatus string
+// MemoryStatus Status of a memory. The system values are `active`, `draft` and `archived`. A team may define further statuses of its own for memories, so this is an open string: any other value must be one of the team's custom memory statuses, or the request is rejected with 400.
+type MemoryStatus = string
 
 // ProjectSummary defines model for ProjectSummary.
 type ProjectSummary struct {

@@ -188,19 +188,18 @@ func memoryFiltersFromParams(
 	}, nil
 }
 
-// validatedMemoryEnums checks the three query parameters the spec declares as
-// enums. oapi-codegen binds them as string-typed named types and accepts ANY
-// value, so these are the checks the chi handler carried and the binder does
-// not replace -- see memoryFiltersFromParams for why a silently ignored filter
+// validatedMemoryEnums reads the three query parameters oapi-codegen binds as
+// string-typed named types, accepting ANY value, and checks the two the spec
+// declares as enums -- the checks the chi handler carried and the binder does
+// not replace. See memoryFiltersFromParams for why a silently ignored filter
 // is worse than a rejected one.
 func validatedMemoryEnums(
 	params memoriesgen.ListMemoriesParams,
 ) (status *string, freshness, sortBy string, err error) {
+	// Status is the exception: it is an open string, checked by the service
+	// against the team's status catalog (#1266).
 	if params.Status != nil {
 		value := string(*params.Status)
-		if !isAllowedMemoryStatus(value) {
-			return nil, "", "", apierrors.NewBadRequestError(memoryMsgInvalidStatus)
-		}
 		status = &value
 	}
 
@@ -442,6 +441,11 @@ func memoryUUID(field, value string) (openapi_types.UUID, error) {
 func (ms *memoriesStrictServer) memoriesError(op string, err error) error {
 	if errors.Is(err, repositories.ErrMemoryNotFound) {
 		return apierrors.NewResourceNotFoundError("memory", memoryMsgNotFound)
+	}
+	// An unknown status filter; the service's message lists the allowed
+	// values (#1266).
+	if errors.Is(err, services.ErrInvalidStatus) {
+		return apierrors.NewBadRequestError(err.Error())
 	}
 	ms.s.logger.With("error", err, "operation", op).Error("Memories request failed")
 	return apierrors.NewInternalError(memoriesMsgInternalError)

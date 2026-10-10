@@ -23,12 +23,6 @@ const (
 
 	promptMsgGetFailed = "Failed to get prompt"
 	promptMsgNotFound  = "Prompt not found"
-
-	// promptMsgInvalidStatus keeps prompts' long-standing 400 wording. Unlike the
-	// other three domains it names the two values in prose, so it stays a literal
-	// rather than being built from models.PromptStatuses -- the allowlist is what
-	// decides, this is only how the rejection reads (#912).
-	promptMsgInvalidStatus = "Status must be either 'draft' or 'published'"
 )
 
 // writeErrorResponse is a helper function for backward compatibility
@@ -98,10 +92,6 @@ func validateCreatePromptRequest(req *models.CreatePromptRequest, w http.Respons
 		writeErrorResponse(w, nil, "validation_error", "Slug cannot be longer than 255 characters", http.StatusBadRequest)
 		return false
 	}
-	if req.Status != "" && !models.IsAllowedStatus(models.PromptStatuses, req.Status) {
-		writeErrorResponse(w, nil, "validation_error", promptMsgInvalidStatus, http.StatusBadRequest)
-		return false
-	}
 	return true
 }
 
@@ -125,9 +115,8 @@ func (s *Server) createPromptWithErrorHandling(
 			return nil, false
 		}
 
-		// A status outside PromptStatus reaches here only from a caller that
-		// bypasses validateCreatePromptRequest (the MCP tools); it is a client
-		// error, not a 500 (#912).
+		// A status the team does not have for prompts is a client error, not a
+		// 500; the service's message lists the allowed values (#912, #1266).
 		if stderrors.Is(err, services.ErrInvalidStatus) {
 			writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 			return nil, false
@@ -287,11 +276,6 @@ func (s *Server) validateUpdatePromptRequest(req *models.UpdatePromptRequest, w 
 		return false
 	}
 
-	if req.Status != nil && !models.IsAllowedStatus(models.PromptStatuses, *req.Status) {
-		writeErrorResponse(w, nil, "validation_error", promptMsgInvalidStatus, http.StatusBadRequest)
-		return false
-	}
-
 	return true
 }
 
@@ -312,8 +296,8 @@ func (s *Server) handleUpdatePromptError(err error, req *models.UpdatePromptRequ
 		return
 	}
 
-	// A status outside PromptStatus reaches here only from a caller that bypasses
-	// validateUpdatePromptRequest (the MCP tools); it is a client error (#912).
+	// A status the team does not have for prompts is a client error; the
+	// service's message lists the allowed values (#912, #1266).
 	if stderrors.Is(err, services.ErrInvalidStatus) {
 		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return

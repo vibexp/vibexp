@@ -94,10 +94,7 @@ func (s *Server) storeMemory(
 		return r, nil, nil
 	}
 
-	statusPtr, statusErr := validateMCPMemoryStatus(params.Status)
-	if statusErr != nil {
-		return statusErr, nil, nil
-	}
+	statusPtr := optionalMCPStatus(params.Status)
 
 	createReq := &models.CreateMemoryRequest{
 		ProjectID: params.ProjectID,
@@ -146,24 +143,14 @@ func (s *Server) storeMemory(
 	}, result, nil
 }
 
-// validateMCPMemoryStatus validates an optional MCP status argument. It returns
-// the status as a pointer to thread into a request (nil when unset, so the
-// service default applies), or a non-nil error result to hand back to the caller
-// when the value falls outside the allowed enum.
-func validateMCPMemoryStatus(status string) (*string, *mcp.CallToolResult) {
+// optionalMCPStatus threads an optional MCP status argument into a request as
+// a pointer: nil when unset, so the service default (or "no filter") applies.
+// Whether the value is one the team has is the service's question (#1266).
+func optionalMCPStatus(status string) *string {
 	if status == "" {
-		return nil, nil
+		return nil
 	}
-	if !isAllowedMemoryStatus(status) {
-		return nil, &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: "status must be one of: " + strings.Join(models.MemoryStatuses, ", ")},
-			},
-			IsError: true,
-		}
-	}
-	s := status
-	return &s, nil
+	return &status
 }
 
 // buildMemoryWriteResponse builds the slim write response for a memory by ID.
@@ -235,10 +222,7 @@ func (s *Server) updateMemory(
 		return errResult, nil, nil
 	}
 
-	statusPtr, statusErr := validateMCPMemoryStatus(params.Status)
-	if statusErr != nil {
-		return statusErr, nil, nil
-	}
+	statusPtr := optionalMCPStatus(params.Status)
 
 	memory, err := s.container.MemoryService().UpdateMemory(
 		userID, teamID, params.MemoryID, buildMemoryUpdateRequest(params, statusPtr))

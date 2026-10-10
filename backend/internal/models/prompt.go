@@ -57,7 +57,7 @@ type CreatePromptRequest struct {
 	Description string   `json:"description" validate:"omitempty,max=200"`
 	Body        string   `json:"body" validate:"required"`
 	ProjectID   string   `json:"project_id" validate:"required,uuid"`
-	Status      string   `json:"status" validate:"omitempty,oneof=draft published"`
+	Status      string   `json:"status"`
 	MCPExpose   *bool    `json:"mcp_expose,omitempty"`
 	Labels      []string `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
 }
@@ -68,7 +68,7 @@ type UpdatePromptRequest struct {
 	Description *string  `json:"description,omitempty" validate:"omitempty,max=200"`
 	Body        *string  `json:"body,omitempty" validate:"omitempty"`
 	ProjectID   *string  `json:"project_id,omitempty" validate:"omitempty,uuid"`
-	Status      *string  `json:"status,omitempty" validate:"omitempty,oneof=draft published"`
+	Status      *string  `json:"status,omitempty"`
 	MCPExpose   *bool    `json:"mcp_expose,omitempty"`
 	Labels      []string `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
 }

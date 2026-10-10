@@ -21,7 +21,6 @@ const (
 
 	memoryMsgNotFound         = "Memory not found"
 	memoryMsgInvalidProjectID = "project_id must be a valid UUID"
-	memoryMsgInvalidStatus    = "status must be one of: active, draft, archived"
 	// memoriesMsgInternalError is the opaque message the strict read handlers
 	// return for anything unexpected; details go to the log, never to the client.
 	memoriesMsgInternalError = "Internal server error"
@@ -91,14 +90,6 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Status != nil && *req.Status != "" && !isAllowedMemoryStatus(*req.Status) {
-		writeErrorResponse(
-			w, nil, "validation_error",
-			memoryMsgInvalidStatus, http.StatusBadRequest,
-		)
-		return
-	}
-
 	if !s.validateProjectBelongsToTeam(r.Context(), w, userID, teamID, req.ProjectID) {
 		return
 	}
@@ -135,13 +126,6 @@ func (s *Server) logMemoryError(handler, userID, memoryID string, err error, msg
 // allowedMemorySortFields contains the allowlisted sort fields for memories
 var allowedMemorySortFields = map[string]bool{
 	"text": true, "updated_at": true, "created_at": true,
-}
-
-// isAllowedMemoryStatus reports whether status is one of the memory lifecycle
-// statuses. An empty value is handled by the caller (treated as "unset"), so it
-// is not accepted here.
-func isAllowedMemoryStatus(status string) bool {
-	return models.IsAllowedStatus(models.MemoryStatuses, status)
 }
 
 func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
@@ -214,14 +198,6 @@ func (s *Server) validateUpdateMemoryRequest(w http.ResponseWriter, req *models.
 
 	if req.ProjectID != nil && !isValidUUID(*req.ProjectID) {
 		writeErrorResponse(w, nil, "validation_error", memoryMsgInvalidProjectID, http.StatusBadRequest)
-		return false
-	}
-
-	if req.Status != nil && *req.Status != "" && !isAllowedMemoryStatus(*req.Status) {
-		writeErrorResponse(
-			w, nil, "validation_error",
-			memoryMsgInvalidStatus, http.StatusBadRequest,
-		)
 		return false
 	}
 

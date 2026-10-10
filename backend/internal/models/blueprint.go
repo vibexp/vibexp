@@ -97,7 +97,7 @@ type CreateBlueprintRequest struct {
 	Description string                 `json:"description" validate:"omitempty,max=500"`
 	Type        string                 `json:"type" validate:"omitempty"` // validated by handler + DB CHECK
 	Subtype     *string                `json:"subtype,omitempty"`
-	Status      string                 `json:"status" validate:"omitempty,oneof=active expired"`
+	Status      string                 `json:"status"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 	// Path optionally freezes the blueprint's repo-relative path; when omitted a
 	// default is derived from (type, subtype, slug). Traversal-validated.
@@ -113,7 +113,7 @@ type UpdateBlueprintRequest struct {
 	Description *string                `json:"description,omitempty" validate:"omitempty,max=500"`
 	Type        *string                `json:"type,omitempty" validate:"omitempty"` // validated by handler + DB CHECK
 	Subtype     *string                `json:"subtype,omitempty"`
-	Status      *string                `json:"status,omitempty" validate:"omitempty,oneof=active expired"`
+	Status      *string                `json:"status,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 	// Path optionally overrides (freezes) the blueprint's repo-relative path.
 	// Traversal-validated.

@@ -124,66 +124,82 @@ SortOrderParam:
     default: desc
 
 # ---------------------------------------------------------------------------
-# Resource status vocabulary (#912)
+# Resource status vocabulary (#912, opened to team custom statuses in #1266)
 #
-# ResourceStatus is the single vocabulary every resource type draws its status
-# values from. Each type declares its own named subset below, and every resource
-# schema and create/update request $refs its subset instead of restating an
-# inline `enum:` -- eleven copies of three vocabularies used to drift silently
-# against each other and against the Go allowlists.
+# ResourceStatus is the SYSTEM vocabulary: the statuses VibeXP itself defines
+# and gives a meaning to. It stays a closed enum, because it is the list of
+# slugs a team may not take for a custom status.
 #
-# Each subset carries `x-subset-of: ResourceStatus`; TestResourceStatusSubsets
-# (internal/services/status_enum_test.go) reads that extension and fails the
-# build if a subset ever contains a value ResourceStatus does not, and
-# TestSpecEnumsMatchServiceAllowlists pins each subset to the Go allowlist in
-# internal/models/status.go that actually enforces it.
+# PromptStatus, ArtifactStatus, BlueprintStatus and MemoryStatus are what a
+# resource of that type may carry, and they are OPEN strings: each type has a
+# fixed system subset (named in its description, and enforced by the Go
+# allowlists in internal/models/status.go) plus whatever custom statuses the
+# resource's team has defined for that type. A closed `enum:` here would make
+# every custom status a value neither generated client can represent.
 #
-# Subsets are deliberately NOT unified: a status is only meaningful where the
-# resource type has semantics for it. Widening one is a product decision with
-# list-filter and UI consequences, not a spec tidy-up.
+# The server validates a status against the team's catalog, on writes and on
+# list filters alike, and answers 400 with the allowed values otherwise. What
+# keeps the descriptions honest is TestStatusSchemasAreOpenAndNameSystemValues
+# (internal/services/spec_enum_drift_test.go): each schema must stay an open
+# string of at most 50 characters whose description names every system value
+# of its type.
+#
+# The system subsets are deliberately NOT unified: a system status is only
+# meaningful where the resource type has semantics for it (`published` gates a
+# prompt's MCP exposure, `expired` retires a blueprint).
 # ---------------------------------------------------------------------------
 
 ResourceStatus:
   type: string
   description: >-
-    The complete status vocabulary shared by prompts, artifacts, blueprints and
-    memories. Each resource type accepts a named subset of these values, never
-    the whole set; see PromptStatus, ArtifactStatus, BlueprintStatus and
-    MemoryStatus.
+    The system status vocabulary shared by prompts, artifacts, blueprints and
+    memories. Each resource type has a named subset of these values as its
+    system statuses; see PromptStatus, ArtifactStatus, BlueprintStatus and
+    MemoryStatus. A team's custom status may not reuse any of these values.
   enum: [active, draft, archived, published, expired]
   example: "active"
 
 PromptStatus:
   type: string
+  maxLength: 50
   description: >-
-    Publication status of a prompt. A prompt is only exposed over MCP once it is
-    `published`.
-  enum: [draft, published]
+    Status of a prompt. The system values are `draft` and `published`; a prompt
+    is only exposed over MCP once it is `published`. A team may define further
+    statuses of its own for prompts, so this is an open string: any other value
+    must be one of the team's custom prompt statuses, or the request is
+    rejected with 400.
   example: "published"
-  x-subset-of: ResourceStatus
 
 ArtifactStatus:
   type: string
-  description: Lifecycle status of an artifact.
-  enum: [active, draft, archived]
+  maxLength: 50
+  description: >-
+    Status of an artifact. The system values are `active`, `draft` and
+    `archived`. A team may define further statuses of its own for artifacts, so
+    this is an open string: any other value must be one of the team's custom
+    artifact statuses, or the request is rejected with 400.
   example: "active"
-  x-subset-of: ResourceStatus
 
 BlueprintStatus:
   type: string
+  maxLength: 50
   description: >-
-    Lifecycle status of a blueprint. `expired` marks a blueprint whose rules no
-    longer apply but whose content is kept for reference.
-  enum: [active, expired]
+    Status of a blueprint. The system values are `active` and `expired`;
+    `expired` marks a blueprint whose rules no longer apply but whose content is
+    kept for reference. A team may define further statuses of its own for
+    blueprints, so this is an open string: any other value must be one of the
+    team's custom blueprint statuses, or the request is rejected with 400.
   example: "active"
-  x-subset-of: ResourceStatus
 
 MemoryStatus:
   type: string
-  description: Lifecycle status of a memory.
-  enum: [active, draft, archived]
+  maxLength: 50
+  description: >-
+    Status of a memory. The system values are `active`, `draft` and `archived`.
+    A team may define further statuses of its own for memories, so this is an
+    open string: any other value must be one of the team's custom memory
+    statuses, or the request is rejected with 400.
   example: "active"
-  x-subset-of: ResourceStatus
 
 PaginatedResponse:
   type: object

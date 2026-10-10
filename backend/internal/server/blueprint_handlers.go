@@ -321,13 +321,9 @@ func (s *Server) validateBlueprintFieldLengths(w http.ResponseWriter, f blueprin
 	if !s.validateBlueprintType(w, f.blueprintType) {
 		return false
 	}
-	if !s.validateBlueprintSubtype(w, f.blueprintType, f.subtype, f.metadata) {
-		return false
-	}
-	if !s.validateBlueprintStatus(w, f.status) {
-		return false
-	}
-	return true
+	// Status is not checked here: the service validates it against the team's
+	// status catalog and its error maps to the same 400 (#1266).
+	return s.validateBlueprintSubtype(w, f.blueprintType, f.subtype, f.metadata)
 }
 
 // validateBlueprintStringLength validates string length
@@ -427,21 +423,6 @@ func (s *Server) validateBlueprintSubtype(w http.ResponseWriter, blueprintType *
 		return validateSubAgentsMetadata(w, metadata)
 	}
 
-	return true
-}
-
-// validateBlueprintStatus validates blueprint status
-func (s *Server) validateBlueprintStatus(w http.ResponseWriter, status *string) bool {
-	if status == nil || *status == "" {
-		return true
-	}
-	if !models.IsAllowedStatus(models.BlueprintStatuses, *status) {
-		// Message built from the allowlist, not restated: the two must never
-		// disagree about what is accepted (#912).
-		writeErrorResponse(w, nil, "validation_error",
-			"Status must be one of: "+strings.Join(models.BlueprintStatuses, ", "), http.StatusBadRequest)
-		return false
-	}
 	return true
 }
 

@@ -150,15 +150,17 @@ func scalarEnum(proxy *base.SchemaProxy, subject string) ([]string, error) {
 }
 
 // ComponentsWithExtension returns every component schema carrying the given
-// specification extension, mapped to that extension's scalar value — e.g.
-// ComponentsWithExtension("x-subset-of") returns
-// {"PromptStatus": "ResourceStatus", …}.
+// specification extension, mapped to that extension's scalar value — e.g. for
+// schemas declaring `x-subset-of: Vocabulary`, ComponentsWithExtension("x-subset-of")
+// returns {"SubsetA": "Vocabulary", …}.
 //
 // It exists so a gate over a FAMILY of schemas can discover its members from
 // the spec instead of restating them in Go. A hand-written list is the failure
-// mode being avoided: the fifth subset added to common.yaml would simply not be
+// mode being avoided: the next member added to the spec would simply not be
 // checked, and nothing would say so. Discovering them by extension means a
-// schema is in the gate the moment it claims to be.
+// schema is in the gate the moment it claims to be. (Its first user, the
+// resource status subsets, stopped being enums in #1266; no schema carries
+// such an extension today.)
 //
 // A non-scalar extension value is an error rather than a skip: the extension is
 // a machine-read declaration, so a shape nobody can read is a spec bug.

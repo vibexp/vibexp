@@ -85,7 +85,9 @@ api-v1-team_id-artifacts:
           format: uuid
       - name: status
         in: query
-        description: Filter by status
+        description: >-
+          Filter by status: one of the system statuses or one of the team's
+          custom statuses for this resource type. Returns 400 for unknown values.
         schema:
           $ref: '../openapi.yaml#/components/schemas/ArtifactStatus'
       - name: type
@@ -244,7 +246,9 @@ api-v1-team_id-artifacts-project_id:
           format: uuid
       - name: status
         in: query
-        description: Filter by status
+        description: >-
+          Filter by status: one of the system statuses or one of the team's
+          custom statuses for this resource type. Returns 400 for unknown values.
         schema:
           $ref: '../openapi.yaml#/components/schemas/ArtifactStatus'
       - name: type

@@ -267,7 +267,6 @@ func TestListMemories_RejectsInvalidEnumQueryValues(t *testing.T) {
 	}{
 		{"freshness", "?freshness=stail", "freshness must be stale"},
 		{"sort_by", "?sort_by=drop_table", "invalid sort_by value"},
-		{"status", "?status=pending", "status must be one of"},
 	}
 
 	for _, tt := range tests {

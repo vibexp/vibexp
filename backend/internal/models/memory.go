@@ -64,7 +64,7 @@ type CreateMemoryRequest struct {
 	// this domain, so the 255-rune limit is enforced in the service.
 	Title    *string                `json:"title,omitempty" validate:"omitempty,max=255"`
 	Text     string                 `json:"text" validate:"required,min=1"`
-	Status   *string                `json:"status,omitempty" validate:"omitempty,oneof=active draft archived"`
+	Status   *string                `json:"status,omitempty"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 	Labels   []string               `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
 }
@@ -76,7 +76,7 @@ type UpdateMemoryRequest struct {
 	// an explicit `null` clears it. A *string cannot express that difference.
 	Title    OptionalString         `json:"title,omitzero"`
 	Text     *string                `json:"text,omitempty" validate:"omitempty,min=1"`
-	Status   *string                `json:"status,omitempty" validate:"omitempty,oneof=active draft archived"`
+	Status   *string                `json:"status,omitempty"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 	Labels   []string               `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
 }

@@ -134,6 +134,7 @@ type BlueprintService struct {
 	relationRepo      repositories.RelationRepository
 	freshnessClearer  FreshnessClearer
 	freshnessRepo     repositories.ResourceFreshnessRepository
+	statuses          statusValidator
 	logger            *slog.Logger
 }
 
@@ -152,6 +153,9 @@ type BlueprintServiceDeps struct {
 	RelationRepo      repositories.RelationRepository
 	FreshnessClearer  FreshnessClearer
 	FreshnessRepo     repositories.ResourceFreshnessRepository
+	// StatusCatalog resolves the team's custom statuses (#1266). Without one
+	// the service accepts the system statuses only.
+	StatusCatalog StatusCatalogServiceInterface
 }
 
 func NewBlueprintService(deps BlueprintServiceDeps) *BlueprintService {
@@ -166,6 +170,7 @@ func NewBlueprintService(deps BlueprintServiceDeps) *BlueprintService {
 		freshnessClearer:  deps.FreshnessClearer,
 		freshnessRepo:     deps.FreshnessRepo,
 		logger:            deps.Logger,
+		statuses:          statusValidator{catalog: deps.StatusCatalog},
 	}
 }
 
@@ -236,11 +241,6 @@ func (s *BlueprintService) CreateBlueprint(
 		return nil, err
 	}
 
-	// Status is checked here so the MCP tools get the REST answer (#912).
-	if err := validateStatus(models.BlueprintStatuses, req.Status); err != nil {
-		return nil, err
-	}
-
 	// Team ID comes from URL path and is already validated by middleware
 	finalTeamID := teamID
 
@@ -248,6 +248,13 @@ func (s *BlueprintService) CreateBlueprint(
 	// must still BE one — the middleware proves tenancy, this proves the role.
 	if authzErr := s.authz.Can(ctx, userID, finalTeamID, authz.ResourceCreate); authzErr != nil {
 		return nil, authzErr
+	}
+
+	// Status is checked here so the MCP tools get the REST answer (#912), and
+	// after the authorization above: the rejection lists the team's custom
+	// statuses (#1266).
+	if statusErr := s.validateStatus(ctx, finalTeamID, &req.Status); statusErr != nil {
+		return nil, statusErr
 	}
 
 	blueprint := buildBlueprintFromRequest(userID, finalTeamID, req)
@@ -344,7 +351,25 @@ func (s *BlueprintService) GetBlueprintByProjectIDAndSlugInTeam(
 	return blueprint, nil
 }
 
+// validateStatus checks a blueprint status against the status catalog of the
+// given team: nil and "" are "not supplied" and pass.
+func (s *BlueprintService) validateStatus(ctx context.Context, teamID string, status *string) error {
+	return s.statuses.ValidateOptional(ctx, teamID, models.StatusResourceTypeBlueprint, status)
+}
+
 func (s *BlueprintService) ListBlueprints(
+	userID string, filters BlueprintFilters,
+) (*models.BlueprintListResponse, error) {
+	// An unknown status filter is rejected rather than answered with an empty
+	// page: a typo and "nothing has that status" must not look alike (#1266).
+	if err := s.validateStatus(context.Background(), filters.TeamID, &filters.Status); err != nil {
+		return nil, err
+	}
+	return s.listBlueprints(userID, filters)
+}
+
+// listBlueprints runs the list query for filters ListBlueprints has validated.
+func (s *BlueprintService) listBlueprints(
 	userID string, filters BlueprintFilters,
 ) (*models.BlueprintListResponse, error) {
 	// Convert service filters to repository filters
@@ -537,12 +562,13 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 		return nil, err
 	}
 
-	// Status is checked here so the MCP tools get the REST answer (#912).
-	if err := validateOptionalStatus(models.BlueprintStatuses, req.Status); err != nil {
+	ctx := context.Background()
+
+	// Status is checked here so the MCP tools get the REST answer (#912),
+	// against the catalog of the blueprint's own team (#1266).
+	if err := s.validateStatus(ctx, blueprint.TeamID, req.Status); err != nil {
 		return nil, err
 	}
-
-	ctx := context.Background()
 
 	// Note: team_id cannot be changed via update (removed from UpdateBlueprintRequest)
 	// Team reassignment is forbidden to prevent cross-team resource moves

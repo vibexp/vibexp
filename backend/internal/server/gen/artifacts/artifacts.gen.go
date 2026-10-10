@@ -21,27 +21,6 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "BearerAuth.Scopes"
 )
 
-// Defines values for ArtifactStatus.
-const (
-	Active   ArtifactStatus = "active"
-	Archived ArtifactStatus = "archived"
-	Draft    ArtifactStatus = "draft"
-)
-
-// Valid indicates whether the value is a known member of the ArtifactStatus enum.
-func (e ArtifactStatus) Valid() bool {
-	switch e {
-	case Active:
-		return true
-	case Archived:
-		return true
-	case Draft:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for RelatedResourceDirection.
 const (
 	Incoming RelatedResourceDirection = "incoming"
@@ -302,7 +281,7 @@ type Artifact struct {
 	// Slug Unique slug for the artifact within the project
 	Slug string `json:"slug"`
 
-	// Status Lifecycle status of an artifact.
+	// Status Status of an artifact. The system values are `active`, `draft` and `archived`. A team may define further statuses of its own for artifacts, so this is an open string: any other value must be one of the team's custom artifact statuses, or the request is rejected with 400.
 	Status ArtifactStatus `json:"status"`
 
 	// Title Human-readable title for the artifact
@@ -336,8 +315,8 @@ type ArtifactListResponse struct {
 	TotalPages int `json:"total_pages"`
 }
 
-// ArtifactStatus Lifecycle status of an artifact.
-type ArtifactStatus string
+// ArtifactStatus Status of an artifact. The system values are `active`, `draft` and `archived`. A team may define further statuses of its own for artifacts, so this is an open string: any other value must be one of the team's custom artifact statuses, or the request is rejected with 400.
+type ArtifactStatus = string
 
 // ErrorResponse RFC 9457 Problem Details for HTTP APIs
 type ErrorResponse struct {
@@ -500,7 +479,7 @@ type ListArtifactsParams struct {
 	// ProjectId Filter by project ID
 	ProjectId *openapi_types.UUID `form:"project_id,omitempty" json:"project_id,omitempty"`
 
-	// Status Filter by status
+	// Status Filter by status: one of the system statuses or one of the team's custom statuses for this resource type. Returns 400 for unknown values.
 	Status *ArtifactStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// Type Filter by type. An open string matched against the team's registered types (the system defaults work_reports, static_contexts and general, plus any custom types the team has added), not a fixed enum.
@@ -542,7 +521,7 @@ type ListArtifactsByProjectParams struct {
 	// Freshness Filter to resources currently flagged stale by the team's freshness rules (epic #726). Omit for no freshness filtering. Returns 400 for any other value — a silently ignored filter would return the full list, which looks like a legitimate answer.
 	Freshness *ListArtifactsByProjectParamsFreshness `form:"freshness,omitempty" json:"freshness,omitempty"`
 
-	// Status Filter by status
+	// Status Filter by status: one of the system statuses or one of the team's custom statuses for this resource type. Returns 400 for unknown values.
 	Status *ArtifactStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// Type Filter by type. An open string matched against the team's registered types (the system defaults work_reports, static_contexts and general, plus any custom types the team has added), not a fixed enum.

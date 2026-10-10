@@ -103,7 +103,9 @@ api-v1-team_id-prompts:
         in: query
         schema:
           $ref: '../openapi.yaml#/components/schemas/PromptStatus'
-        description: Filter by prompt status
+        description: >-
+          Filter by status: one of the system statuses or one of the team's
+          custom statuses for this resource type. Returns 400 for unknown values.
       - name: labels
         in: query
         description: >-

@@ -15,43 +15,46 @@ const (
 )
 
 // ResourceStatuses mirrors the `ResourceStatus` schema in
-// backend/schemas/common.yaml: the complete set of status values any of the
-// four resource types may use. Each type accepts one of the named subsets
-// below -- never the whole vocabulary -- and each subset mirrors its own
-// component schema (PromptStatus, ArtifactStatus, BlueprintStatus,
-// MemoryStatus).
+// backend/schemas/common.yaml: the complete set of SYSTEM status values, the
+// ones VibeXP itself defines. Each resource type has one of the named subsets
+// below as its system statuses -- never the whole vocabulary -- and may carry,
+// besides those, the custom statuses its team defined for that type in
+// `team_statuses` (epic #1263).
 //
-// These slices are the ENFORCEMENT side of that contract. The spec enum is
-// documentation: oapi-codegen binds a status straight off the wire without
-// validating its enum, in a request body or a query parameter, and no
-// spec-driven request validator runs in front of the handlers. So the two sides
-// drift in both directions unless something pins them --
-// TestSpecEnumsMatchServiceAllowlists does, one table row per subset, and
-// TestResourceStatusSubsetsAreDrawnFromVocabulary additionally fails the build
-// if a subset ever contains a value ResourceStatus does not declare.
+// The per-type schemas (PromptStatus, ArtifactStatus, BlueprintStatus,
+// MemoryStatus) are open strings since #1266, so these slices are the only
+// definition of the system subsets. Three things keep them honest:
+// TestSpecEnumsMatchServiceAllowlists pins ResourceStatuses to its spec enum,
+// TestSystemStatusSubsetsArePinned pins each subset's exact values, and
+// TestStatusSchemasAreOpenAndNameSystemValues fails the build if a schema's
+// description stops naming exactly its type's subset.
 //
-// Subsets are deliberately NOT unified. A status is only meaningful where the
-// resource type has semantics for it: `published` gates MCP exposure and exists
-// only for prompts, `expired` retires a blueprint whose rules no longer apply.
-// Widening one is a product decision -- it changes what the list filters accept
-// and what the UI must render -- not a spec tidy-up.
+// Whether a status is ALLOWED on a resource is not decided here: that is the
+// status catalog's question (services.StatusCatalogService), asked by the one
+// validator every create, update and list path goes through.
+//
+// Subsets are deliberately NOT unified. A system status is only meaningful
+// where the resource type has semantics for it: `published` gates MCP exposure
+// and exists only for prompts, `expired` retires a blueprint whose rules no
+// longer apply. Widening one is a product decision -- it changes what the UI
+// must render and what every team gets by default -- not a spec tidy-up.
 var (
-	// ResourceStatuses is the full vocabulary, and must stay the union of the
-	// four subsets below.
+	// ResourceStatuses is the full system vocabulary, and must stay the union
+	// of the four subsets below.
 	ResourceStatuses = []string{
 		StatusActive, StatusDraft, StatusArchived, StatusPublished, StatusExpired,
 	}
 
-	// PromptStatuses is the subset a prompt may carry.
+	// PromptStatuses are the system statuses of a prompt.
 	PromptStatuses = []string{PromptStatusDraft, PromptStatusPublished}
 
-	// ArtifactStatuses is the subset an artifact may carry.
+	// ArtifactStatuses are the system statuses of an artifact.
 	ArtifactStatuses = []string{ArtifactStatusActive, ArtifactStatusDraft, ArtifactStatusArchived}
 
-	// BlueprintStatuses is the subset a blueprint may carry.
+	// BlueprintStatuses are the system statuses of a blueprint.
 	BlueprintStatuses = []string{BlueprintStatusActive, BlueprintStatusExpired}
 
-	// MemoryStatuses is the subset a memory may carry.
+	// MemoryStatuses are the system statuses of a memory.
 	MemoryStatuses = []string{MemoryStatusActive, MemoryStatusDraft, MemoryStatusArchived}
 )
 
@@ -143,11 +146,4 @@ func IsLiveStatus(resourceType, status string) bool {
 	default:
 		return true
 	}
-}
-
-// IsAllowedStatus reports whether status is a member of the given subset.
-// An empty status is NOT a member: every caller treats "" as "not supplied"
-// and applies its own default, so deciding that is the caller's job.
-func IsAllowedStatus(allowed []string, status string) bool {
-	return slices.Contains(allowed, status)
 }

@@ -500,6 +500,10 @@ func (as *artifactsStrictServer) artifactsError(op string, notFoundIsPossible bo
 		return apierrors.NewResourceNotFoundError("artifact", "Artifact not found")
 	case errors.Is(err, services.ErrPermissionDenied):
 		return apierrors.NewForbiddenError("You do not have permission to access this artifact")
+	case errors.Is(err, services.ErrInvalidStatus):
+		// An unknown status filter; the service's message lists the allowed
+		// values (#1266).
+		return apierrors.NewBadRequestError(err.Error())
 	default:
 		as.s.logger.With("error", err, "operation", op).Error("Artifacts request failed")
 		return apierrors.NewInternalError(artifactsMsgInternalError)
