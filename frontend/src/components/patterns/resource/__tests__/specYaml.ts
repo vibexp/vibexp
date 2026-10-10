@@ -163,7 +163,7 @@ export function systemStatuses({ file, name }: SchemaComponent): string[] {
   if (block === '') {
     throw new Error(`schema component '${name}' not found in ${file}`)
   }
-  if (/^\s*enum:/m.test(block)) {
+  if (block.split('\n').some(line => line.trimStart().startsWith('enum:'))) {
     throw new Error(
       `schema component '${name}' declares an enum; read it with refEnum (${file})`
     )
