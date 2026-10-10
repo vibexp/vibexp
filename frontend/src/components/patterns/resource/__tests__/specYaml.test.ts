@@ -2,6 +2,7 @@ import {
   namedStatuses,
   paramChunks,
   queryEnum,
+  schemaRef,
   systemStatuses,
 } from './specYaml'
 
@@ -46,6 +47,19 @@ describe('paramChunks', () => {
 
   it('returns nothing for a parameter the file does not declare', () => {
     expect(paramChunks(yaml, 'page')).toEqual([])
+  })
+})
+
+describe('schemaRef', () => {
+  it("returns the target of the chunk's $ref", () => {
+    const chunk =
+      "    schema:\n      $ref: '../openapi.yaml#/components/schemas/X'"
+    expect(schemaRef(chunk)).toBe('../openapi.yaml#/components/schemas/X')
+  })
+
+  it('throws for a parameter whose schema was inlined', () => {
+    const chunk = '    schema:\n      type: string\n      enum: [active]'
+    expect(() => schemaRef(chunk)).toThrow(/has no schema \$ref/)
   })
 })
 

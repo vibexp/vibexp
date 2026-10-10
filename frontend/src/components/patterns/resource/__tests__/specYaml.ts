@@ -150,7 +150,8 @@ export function paramChunks(yaml: string, param: string): string[] {
  * the `ResourceStatus` values that description names.
  *
  * Throws, rather than returning nothing, when the file has no `status`
- * parameter behind a `$ref`, and for the reasons {@link namedStatuses} does.
+ * parameter, and for the reasons {@link schemaRef} and {@link namedStatuses}
+ * do.
  */
 export function systemStatuses(file: string): Set<string> {
   const path = resolve(SPEC_DIR, file)
@@ -160,15 +161,26 @@ export function systemStatuses(file: string): Set<string> {
   )
   const values = new Set<string>()
   for (const chunk of paramChunks(readFileSync(path, 'utf8'), 'status')) {
-    const ref = REF.exec(chunk)
-    if (!ref) continue
-    const { block } = refComponent(path, ref[1])
+    const { block } = refComponent(path, schemaRef(chunk))
     for (const status of namedStatuses(block, vocabulary)) values.add(status)
   }
   if (values.size === 0) {
-    throw new Error(`${file} declares no status parameter behind a $ref`)
+    throw new Error(`${file} declares no status parameter`)
   }
   return values
+}
+
+/**
+ * The `$ref` a parameter's chunk points its schema at.
+ *
+ * Throws when there is none. A path file declares the same parameter once per
+ * operation, so skipping a declaration that was inlined would answer from the
+ * other operations alone and hide that the reader no longer understands one.
+ */
+export function schemaRef(chunk: string): string {
+  const ref = REF.exec(chunk)
+  if (!ref) throw new Error('the parameter has no schema $ref')
+  return ref[1]
 }
 
 /**
