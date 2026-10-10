@@ -620,6 +620,10 @@ func (m *MockArtifactContainer) TypeService() services.TypeServiceInterface {
 	return permissiveTypeService{}
 }
 
+func (m *MockArtifactContainer) StatusCatalogService() services.StatusCatalogServiceInterface {
+	return nil
+}
+
 // permissiveTypeService is a test stub that treats every type as valid.
 type permissiveTypeService struct{}
 

@@ -774,6 +774,10 @@ func (m *MockContainerForBackoffice) ProjectMigrationService() services.ProjectM
 
 func (m *MockContainerForBackoffice) TypeService() services.TypeServiceInterface { return nil }
 
+func (m *MockContainerForBackoffice) StatusCatalogService() services.StatusCatalogServiceInterface {
+	return nil
+}
+
 func (m *MockContainerForBackoffice) AttachmentService() services.AttachmentServiceInterface {
 	return nil
 }

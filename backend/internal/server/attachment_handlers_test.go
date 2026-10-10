@@ -43,6 +43,10 @@ func (m *MockAttachmentContainer) ArtifactService() services.ArtifactServiceInte
 
 func (m *MockAttachmentContainer) TypeService() services.TypeServiceInterface { return nil }
 
+func (m *MockAttachmentContainer) StatusCatalogService() services.StatusCatalogServiceInterface {
+	return nil
+}
+
 func (m *MockAttachmentContainer) AttachmentService() services.AttachmentServiceInterface {
 	return m.AttachmentServiceMock
 }
