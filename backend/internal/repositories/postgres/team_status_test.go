@@ -244,43 +244,6 @@ func TestTeamStatusRepository_UpdateName(t *testing.T) {
 	})
 }
 
-func TestTeamStatusRepository_Delete(t *testing.T) {
-	const query = `DELETE FROM team_statuses WHERE team_id = \$1 AND id = \$2`
-
-	t.Run("deletes the row", func(t *testing.T) {
-		repo, mock := newTeamStatusMockRepo(t)
-		mock.ExpectExec(query).WithArgs("team-1", "status-1").WillReturnResult(sqlmock.NewResult(0, 1))
-
-		require.NoError(t, repo.Delete(context.Background(), "team-1", "status-1"))
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("no row affected maps to the not-found sentinel", func(t *testing.T) {
-		repo, mock := newTeamStatusMockRepo(t)
-		mock.ExpectExec(query).WithArgs("team-1", "status-1").WillReturnResult(sqlmock.NewResult(0, 0))
-
-		assert.ErrorIs(t, repo.Delete(context.Background(), "team-1", "status-1"),
-			repositories.ErrTeamStatusNotFound)
-	})
-
-	t.Run("an exec error is wrapped", func(t *testing.T) {
-		repo, mock := newTeamStatusMockRepo(t)
-		mock.ExpectExec(query).WithArgs("team-1", "status-1").WillReturnError(errTeamStatusBoom)
-
-		assertTypeError(t, repo.Delete(context.Background(), "team-1", "status-1"),
-			errTeamStatusBoom, "failed to delete team status")
-	})
-
-	t.Run("an unreadable result is wrapped", func(t *testing.T) {
-		repo, mock := newTeamStatusMockRepo(t)
-		mock.ExpectExec(query).WithArgs("team-1", "status-1").
-			WillReturnResult(sqlmock.NewErrorResult(errTeamStatusBoom))
-
-		assertTypeError(t, repo.Delete(context.Background(), "team-1", "status-1"),
-			errTeamStatusBoom, "failed to read team status delete result")
-	})
-}
-
 func TestTeamStatusRepository_UsageCounts(t *testing.T) {
 	tables := map[string]string{
 		models.StatusResourceTypePrompt:    "prompts",

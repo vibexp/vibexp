@@ -69,10 +69,15 @@ func TestIntegrationTeamStatusRepository_CRUD(t *testing.T) {
 	assert.Equal(t, "in-review", renamed.Slug, "a rename never changes the slug")
 	assert.False(t, renamed.UpdatedAt.Before(created.UpdatedAt))
 
-	require.NoError(t, f.repo.Delete(ctx, f.teamA, created.ID))
+	deleted, reassigned, err := f.repo.DeleteAndReassign(ctx, f.teamA, created.ID, models.StatusActive)
+	require.NoError(t, err)
+	assert.Equal(t, created.ID, deleted.ID)
+	assert.Equal(t, "Under review", deleted.Name, "the deleted row is returned as it was stored")
+	assert.Zero(t, reassigned, "no resource carried the status")
 	_, err = f.repo.GetByID(ctx, f.teamA, created.ID)
 	require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
-	require.ErrorIs(t, f.repo.Delete(ctx, f.teamA, created.ID), repositories.ErrTeamStatusNotFound)
+	_, _, err = f.repo.DeleteAndReassign(ctx, f.teamA, created.ID, models.StatusActive)
+	require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
 	_, err = f.repo.UpdateName(ctx, f.teamA, created.ID, "Gone")
 	require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
 }
@@ -177,7 +182,8 @@ func TestIntegrationTeamStatusRepository_CrossTeamIsolation(t *testing.T) {
 	require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
 	_, err = f.repo.UpdateName(ctx, f.teamA, theirs.ID, "Hijacked")
 	require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
-	require.ErrorIs(t, f.repo.Delete(ctx, f.teamA, theirs.ID), repositories.ErrTeamStatusNotFound)
+	_, _, err = f.repo.DeleteAndReassign(ctx, f.teamA, theirs.ID, models.StatusActive)
+	require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
 
 	// ...and the failed writes left the other team's row exactly as it was.
 	untouched, err := f.repo.GetByID(ctx, f.teamOther, theirs.ID)

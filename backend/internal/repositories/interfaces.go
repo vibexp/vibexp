@@ -2156,16 +2156,14 @@ type TeamStatusRepository interface {
 	// updated row. The slug is immutable: resources reference it. It returns
 	// ErrTeamStatusNotFound when no row matched.
 	UpdateName(ctx context.Context, teamID, id, name string) (*models.TeamStatus, error)
-	// Delete removes the team's status with the given id, or returns
-	// ErrTeamStatusNotFound. It does not touch the resources that carry the
-	// slug; reassigning them is the caller's concern.
-	Delete(ctx context.Context, teamID, id string) error
 	// UsageCounts returns, per status slug, how many of the team's resources of
 	// resourceType carry it. It counts every status in use, system and custom
 	// alike, and omits a slug no resource carries; the result is never nil.
 	// resourceType must be one of models.StatusResourceTypes.
 	UsageCounts(ctx context.Context, teamID, resourceType string) (map[string]int, error)
-	// DeleteAndReassign removes the team's status with the given id and, in the
+	// DeleteAndReassign is the only way to remove a status: a delete that left
+	// resources on a slug the catalog no longer lists is not offered. It
+	// removes the team's status with the given id and, in the
 	// same transaction, moves every resource of that team and the status's
 	// resource type that carries its slug to defaultStatus. It returns the
 	// deleted row and the number of resources moved, or ErrTeamStatusNotFound,

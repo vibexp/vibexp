@@ -120,8 +120,9 @@ CreateStatusRequest:
       example: "in-review"
     name:
       type: string
-      description: Display name, at most 50 characters after trimming surrounding whitespace
-      maxLength: 50
+      description: >
+        Display name. Surrounding whitespace is trimmed, and what remains must
+        be 1 to 50 characters.
       example: "In review"
   required:
     - resource_type
@@ -137,8 +138,9 @@ UpdateStatusRequest:
   properties:
     name:
       type: string
-      description: New display name, at most 50 characters after trimming surrounding whitespace
-      maxLength: 50
+      description: >
+        New display name. Surrounding whitespace is trimmed, and what remains
+        must be 1 to 50 characters.
       example: "Under review"
   required:
     - name

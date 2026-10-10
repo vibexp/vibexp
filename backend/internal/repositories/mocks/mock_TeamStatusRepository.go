@@ -127,54 +127,6 @@ func (_c *MockTeamStatusRepository_Create_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
-// Delete provides a mock function with given fields: ctx, teamID, id
-func (_m *MockTeamStatusRepository) Delete(ctx context.Context, teamID string, id string) error {
-	ret := _m.Called(ctx, teamID, id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Delete")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
-		r0 = rf(ctx, teamID, id)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// MockTeamStatusRepository_Delete_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Delete'
-type MockTeamStatusRepository_Delete_Call struct {
-	*mock.Call
-}
-
-// Delete is a helper method to define mock.On call
-//   - ctx context.Context
-//   - teamID string
-//   - id string
-func (_e *MockTeamStatusRepository_Expecter) Delete(ctx interface{}, teamID interface{}, id interface{}) *MockTeamStatusRepository_Delete_Call {
-	return &MockTeamStatusRepository_Delete_Call{Call: _e.mock.On("Delete", ctx, teamID, id)}
-}
-
-func (_c *MockTeamStatusRepository_Delete_Call) Run(run func(ctx context.Context, teamID string, id string)) *MockTeamStatusRepository_Delete_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
-	})
-	return _c
-}
-
-func (_c *MockTeamStatusRepository_Delete_Call) Return(_a0 error) *MockTeamStatusRepository_Delete_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *MockTeamStatusRepository_Delete_Call) RunAndReturn(run func(context.Context, string, string) error) *MockTeamStatusRepository_Delete_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // DeleteAndReassign provides a mock function with given fields: ctx, teamID, id, defaultStatus
 func (_m *MockTeamStatusRepository) DeleteAndReassign(ctx context.Context, teamID string, id string, defaultStatus string) (*models.TeamStatus, int, error) {
 	ret := _m.Called(ctx, teamID, id, defaultStatus)

@@ -48,7 +48,7 @@ func (e StatusResourceType) Valid() bool {
 
 // CreateStatusRequest Request body for creating a custom status
 type CreateStatusRequest struct {
-	// Name Display name, at most 50 characters after trimming surrounding whitespace
+	// Name Display name. Surrounding whitespace is trimmed, and what remains must be 1 to 50 characters.
 	Name string `json:"name"`
 
 	// ResourceType A resource type that carries a status. Singular, as in the comment and relation APIs.
@@ -138,7 +138,7 @@ type StatusResourceType string
 
 // UpdateStatusRequest Request body for renaming a custom status. Only the display name can change; any other field, including `slug`, is rejected.
 type UpdateStatusRequest struct {
-	// Name New display name, at most 50 characters after trimming surrounding whitespace
+	// Name New display name. Surrounding whitespace is trimmed, and what remains must be 1 to 50 characters.
 	Name string `json:"name"`
 }
 

@@ -347,8 +347,8 @@ func (s *StatusManagementService) managed(
 	}, nil
 }
 
-// validateStatusSlug applies the slug rules in the order a caller can act on
-// them: shape, length, then the reserved vocabulary. The slug is taken as
+// validateStatusSlug applies the slug rules in order: length, shape, then the
+// reserved vocabulary. The slug is taken as
 // sent, never trimmed or lowercased, because it is the value resources store.
 func validateStatusSlug(slug string) error {
 	switch {

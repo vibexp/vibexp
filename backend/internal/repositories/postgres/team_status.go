@@ -53,9 +53,6 @@ const (
 		 WHERE team_id = $1 AND id = $2
 		RETURNING id, team_id, resource_type, slug, name, created_by, created_at, updated_at`
 
-	teamStatusDeleteSQL = `
-		DELETE FROM team_statuses WHERE team_id = $1 AND id = $2`
-
 	teamStatusDeleteReturningSQL = `
 		DELETE FROM team_statuses
 		 WHERE team_id = $1 AND id = $2
@@ -167,21 +164,6 @@ func (r *TeamStatusRepository) UpdateName(
 		)
 	}
 	return &status, nil
-}
-
-func (r *TeamStatusRepository) Delete(ctx context.Context, teamID, id string) error {
-	result, err := r.db.ExecContext(ctx, teamStatusDeleteSQL, teamID, id)
-	if err != nil {
-		return fmt.Errorf("failed to delete team status: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to read team status delete result: %w", err)
-	}
-	if affected == 0 {
-		return repositories.ErrTeamStatusNotFound
-	}
-	return nil
 }
 
 func (r *TeamStatusRepository) UsageCounts(
