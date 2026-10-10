@@ -508,7 +508,8 @@ func TestUpdateMemory_InvalidStatus(t *testing.T) {
 // TestListResources_InvalidStatusFilter covers the status filter of the MCP
 // list tool on all three resource types it serves: the service rejects an
 // unknown status, and the tool answers with the service's message -- the
-// allowed values -- instead of a generic read failure or an empty page.
+// allowed values -- and the name of the tool that lists a team's statuses
+// (#1268), instead of a generic read failure or an empty page.
 func TestListResources_InvalidStatusFilter(t *testing.T) {
 	t.Run(resourceTypeMemory, func(t *testing.T) {
 		srv, mockMemoryService := newMemoryTestServer(t)
@@ -530,7 +531,7 @@ func TestListResources_InvalidStatusFilter(t *testing.T) {
 			t.Error("expected nil structured result on rejection")
 		}
 		assertValidationFailure(t, result,
-			[]string{"invalid status: must be one of: active, draft, archived, in-review"})
+			[]string{"invalid status: must be one of: active, draft, archived, in-review", listStatusesToolName})
 		if text := extractText(t, result); strings.Contains(text, "Failed to list") {
 			t.Errorf("an unknown status filter is not a failed read; got %q", text)
 		}
@@ -552,7 +553,8 @@ func TestListResources_InvalidStatusFilter(t *testing.T) {
 			ProjectID: testProjectID, Status: "bogus",
 		}, testMemberUserID)
 		require.NoError(t, err)
-		assertValidationFailure(t, result, []string{"invalid status: must be one of:", "in-review"})
+		assertValidationFailure(t, result,
+			[]string{"invalid status: must be one of:", "in-review", listStatusesToolName})
 	})
 
 	t.Run(resourceTypeBlueprint, func(t *testing.T) {
@@ -571,7 +573,8 @@ func TestListResources_InvalidStatusFilter(t *testing.T) {
 			ProjectID: testProjectID, Status: "bogus",
 		}, testMemberUserID)
 		require.NoError(t, err)
-		assertValidationFailure(t, result, []string{"invalid status: must be one of:", "in-review"})
+		assertValidationFailure(t, result,
+			[]string{"invalid status: must be one of:", "in-review", listStatusesToolName})
 	})
 }
 

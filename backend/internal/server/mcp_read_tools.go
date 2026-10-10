@@ -34,7 +34,8 @@ const listResourcesToolDescription = "List resources in a project with filtering
 	"without full content — call get_resource for a single resource's content. The team is resolved per call. " +
 	"Use `metadata` to filter on the metadata agents write: keys are ANDed, values within a key ORed, and an " +
 	"empty array means \"the key exists\". Call vibexp_io_list_resource_metadata first to discover which keys " +
-	"and values a team actually uses rather than guessing."
+	"and values a team actually uses rather than guessing, and vibexp_io_list_statuses for the statuses the " +
+	"`status` filter accepts."
 
 // GetResourceParams defines the parameters for the generic get_resource tool.
 // The required identifier fields vary by resource_type and are validated per type.
@@ -58,7 +59,7 @@ type ListResourcesParams struct {
 	Page         int                 `json:"page,omitempty" jsonschema:"Page number (default: 1)"`
 	Limit        int                 `json:"limit,omitempty" jsonschema:"Items per page (default: 10, max: 10)"`
 	Search       string              `json:"search,omitempty" jsonschema:"Search filter (memory text, or artifact/blueprint title/description)"`
-	Status       string              `json:"status,omitempty" jsonschema:"Filter by status"`
+	Status       string              `json:"status,omitempty" jsonschema:"Filter by status: a system status of the resource type or a custom status of the team (call vibexp_io_list_statuses). An unknown value is an error that lists the allowed ones."`
 	Type         string              `json:"type,omitempty" jsonschema:"Filter by type (artifact and blueprint only)"`
 	Metadata     map[string][]string `json:"metadata,omitempty" jsonschema:"Filter by metadata: an object of key to array of string values, e.g. {\"env\":[\"prod\",\"staging\"],\"scope\":[\"backend\"]}. Keys are combined with AND, values within a key with OR. An empty array means \"the key exists\". Array-valued metadata matches element-wise, and numeric or boolean values match their string form. At most 10 keys, 25 values per key, key length 255, value length 512."`
 }
@@ -392,9 +393,10 @@ func buildBlueprintListItems(blueprints []models.Blueprint) []blueprintListItem 
 // mcpReadError logs a read failure and returns the IsError result to hand back.
 func (s *Server) mcpReadError(resourceType, op, userID, teamID string, err error) *mcp.CallToolResult {
 	// An unknown status filter is the caller's mistake, not a failed read: hand
-	// back the service's message, which lists the allowed values (#1266).
+	// back the service's message, which lists the allowed values (#1266), and
+	// name the tool that describes them (#1268).
 	if errors.Is(err, services.ErrInvalidStatus) {
-		return mcpTextError(err.Error())
+		return mcpTextError(err.Error() + statusListHint)
 	}
 	slog.Error(
 		"Failed to read resource via MCP",

@@ -19,6 +19,7 @@ const EXPECTED_TOOL_NAMES = new Set([
   'vibexp_io_get_resource',
   'vibexp_io_list_resources',
   'vibexp_io_list_resource_metadata',
+  'vibexp_io_list_statuses',
   'vibexp_io_delete_resource',
   'vibexp_io_upload_attachment',
   'vibexp_io_list_attachments',
@@ -37,7 +38,7 @@ const EXPECTED_TOOL_NAMES = new Set([
 ])
 
 describe('mcpTools catalog', () => {
-  it('contains exactly the 27 expected tool names', () => {
+  it('contains exactly the 28 expected tool names', () => {
     const actualNames = new Set(mcpTools.map(t => t.name))
     expect(actualNames).toEqual(EXPECTED_TOOL_NAMES)
   })
@@ -61,22 +62,63 @@ describe('mcpTools catalog', () => {
 
   // The curated catalog is hand-maintained and drifts silently from the backend
   // tool structs: it is what a user browsing /mcp actually reads. `labels`
-  // (#910) and `title` (#911) were both added to the memory write tools, so
-  // both are pinned here rather than trusted.
-  //
-  // Deliberately a SUBSET check, not an exhaustive one: `status` is a real
-  // argument on both backend param structs and is missing from this catalog
-  // already, so an exhaustive assertion would fail on a gap that predates the
-  // two fields being pinned.
-  it('documents title and labels on both memory write tools', () => {
+  // (#910) and `title` (#911) were both added to the memory write tools, and
+  // `status` -- a real argument on both backend param structs that this
+  // catalog used to omit -- joined them in #1268, so all three are pinned here
+  // rather than trusted.
+  it('documents title, labels and status on both memory write tools', () => {
     for (const name of ['vibexp_io_create_memory', 'vibexp_io_update_memory']) {
       const tool = mcpTools.find(t => t.name === name)
       expect(tool).toBeDefined()
       const properties = tool?.inputSchema.properties ?? {}
       expect(Object.keys(properties)).toEqual(
-        expect.arrayContaining(['title', 'text', 'metadata', 'labels'])
+        expect.arrayContaining([
+          'title',
+          'text',
+          'metadata',
+          'labels',
+          'status',
+        ])
       )
     }
+  })
+
+  // A team's custom statuses cannot be written into a static description, so
+  // every `status` argument has to name the tool that lists them (#1268). The
+  // Go side pins the same on the tools' own schemas
+  // (TestMCPStatusDescriptionsNameSystemStatusesAndTheDiscoveryTool); this is
+  // the half a user browsing /mcp reads.
+  it('points every status argument at vibexp_io_list_statuses', () => {
+    const withStatus = mcpTools.filter(t =>
+      Object.hasOwn(t.inputSchema.properties, 'status')
+    )
+    expect(withStatus.map(t => t.name).sort()).toEqual([
+      'vibexp_io_create_artifact',
+      'vibexp_io_create_blueprint',
+      'vibexp_io_create_memory',
+      'vibexp_io_create_prompt',
+      'vibexp_io_list_resources',
+      'vibexp_io_update_artifact',
+      'vibexp_io_update_blueprint',
+      'vibexp_io_update_memory',
+      'vibexp_io_update_prompt',
+    ])
+    for (const tool of withStatus) {
+      expect(
+        tool.inputSchema.properties.status.description,
+        `${tool.name}.status does not mention vibexp_io_list_statuses`
+      ).toContain('vibexp_io_list_statuses')
+    }
+  })
+
+  it('documents the status discovery tool with an optional resource_type', () => {
+    const tool = mcpTools.find(t => t.name === 'vibexp_io_list_statuses')
+    expect(tool).toBeDefined()
+    expect(Object.keys(tool?.inputSchema.properties ?? {})).toEqual([
+      'team_id',
+      'resource_type',
+    ])
+    expect(tool?.inputSchema.required).toEqual(['team_id'])
   })
 
   // #937 added `labels` to the blueprint write tools, and #939 is what put

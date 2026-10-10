@@ -54,7 +54,7 @@ export const mcpTools: MCPTool[] = [
         status: {
           type: 'string',
           description:
-            'Artifact status. One of: "active" for current/usable artifacts, "draft" for works-in-progress, "archived" for retired artifacts. Defaults to "active" if not specified.',
+            'Artifact status. One of: "active" for current/usable artifacts, "draft" for works-in-progress, "archived" for retired artifacts. Defaults to "active" if not specified. A team can also have custom statuses: call vibexp_io_list_statuses to list them.',
         },
         metadata: {
           type: 'object',
@@ -115,7 +115,7 @@ export const mcpTools: MCPTool[] = [
         status: {
           type: 'string',
           description:
-            'New status for the artifact. Options: "active", "draft", "archived". Leave empty to keep the existing status.',
+            'New status for the artifact. One of: "active", "draft", "archived", or a custom status of the team (call vibexp_io_list_statuses). Leave empty to keep the existing status.',
         },
         metadata: {
           type: 'object',

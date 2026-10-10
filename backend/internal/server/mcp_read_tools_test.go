@@ -10,6 +10,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services"
 )
 
 // The unified read dispatchers reuse newDeleteResourceTestServer (it mocks the
@@ -176,4 +177,49 @@ func assertReadIsError(t *testing.T, result *mcp.CallToolResult, structured any,
 	if structured != nil {
 		t.Error("expected nil structured result on error")
 	}
+}
+
+// TestListResources_CustomStatusFilterAccepted passes a team's custom status
+// through to each of the three services untouched: the tool does not judge the
+// value itself, so a status only the team's catalog knows still filters (#1268).
+func TestListResources_CustomStatusFilterAccepted(t *testing.T) {
+	const custom = "in-review"
+	list := func(t *testing.T, srv *Server, resourceType string) {
+		t.Helper()
+		result, _, err := srv.listResources(context.Background(), nil, &ListResourcesParams{
+			TeamID: testTeamUUID, ResourceType: resourceType, ProjectID: testProjectID, Status: custom,
+		}, testMemberUserID)
+		if err != nil {
+			t.Fatalf("listResources returned error: %v", err)
+		}
+		if result == nil || result.IsError {
+			t.Fatalf("expected a custom status filter to be accepted, got %v", result)
+		}
+	}
+
+	t.Run(resourceTypeMemory, func(t *testing.T) {
+		srv, m := newDeleteResourceTestServer(t)
+		m.memory.On("ListMemories", testMemberUserID, mock.MatchedBy(func(f services.MemoryFilters) bool {
+			return f.TeamID == testTeamUUID && f.Status != nil && *f.Status == custom
+		})).Return(&models.MemoryListResponse{Page: 1, PerPage: 10}, nil)
+		list(t, srv, resourceTypeMemory)
+	})
+
+	t.Run(resourceTypeArtifact, func(t *testing.T) {
+		srv, m := newDeleteResourceTestServer(t)
+		m.artifact.On("ListArtifactsByProject", testMemberUserID, testProjectID,
+			mock.MatchedBy(func(f services.ArtifactFilters) bool {
+				return f.TeamID == testTeamUUID && f.Status == custom
+			})).Return(&models.ArtifactListResponse{Page: 1, PerPage: 10}, nil)
+		list(t, srv, resourceTypeArtifact)
+	})
+
+	t.Run(resourceTypeBlueprint, func(t *testing.T) {
+		srv, m := newDeleteResourceTestServer(t)
+		m.blueprint.On("ListBlueprintsByProject", testMemberUserID, testProjectID,
+			mock.MatchedBy(func(f services.BlueprintFilters) bool {
+				return f.TeamID == testTeamUUID && f.Status == custom
+			})).Return(&models.BlueprintListResponse{Page: 1, PerPage: 10}, nil)
+		list(t, srv, resourceTypeBlueprint)
+	})
 }

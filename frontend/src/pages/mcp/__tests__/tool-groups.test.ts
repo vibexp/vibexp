@@ -123,6 +123,9 @@ describe('groupTools', () => {
     expect(idOf('vibexp_io_upload_attachment')).toBe('attachments')
     expect(idOf('vibexp_io_delete_attachment')).toBe('attachments')
     expect(idOf('vibexp_io_delete_resource')).toBe('resources')
+    // No `_resource` in its name: matched explicitly, or it would fall through
+    // to the catch-all (#1268).
+    expect(idOf('vibexp_io_list_statuses')).toBe('resources')
 
     const account = groups.find(g => g.id === 'account')
     expect(account?.tools.map(t => t.name)).toEqual([
@@ -142,6 +145,7 @@ describe('groupTools', () => {
       'vibexp_io_get_resource',
       'vibexp_io_list_resources',
       'vibexp_io_delete_resource',
+      'vibexp_io_list_statuses',
       'vibexp_io_list_resource_metadata',
       'vibexp_io_link_resources',
     ])
