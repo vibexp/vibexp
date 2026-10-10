@@ -431,9 +431,9 @@ export function sameAllowlistEntries(
   a: readonly string[],
   b: readonly string[]
 ): boolean {
-  const left = normalizeAllowlistEntries(a).sort()
-  const right = normalizeAllowlistEntries(b).sort()
-  return left.length === right.length && left.every((v, i) => v === right[i])
+  const left = new Set(normalizeAllowlistEntries(a))
+  const right = normalizeAllowlistEntries(b)
+  return left.size === right.length && right.every(entry => left.has(entry))
 }
 
 /** "N signed-in users will be signed out", with the singular spelled out. */

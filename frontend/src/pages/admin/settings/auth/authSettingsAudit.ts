@@ -119,7 +119,10 @@ export function madeFromCli(
 }
 
 /** The setup events the server records itself, with no user involved. */
-const SERVER_SETUP_EVENTS: readonly unknown[] = ['token_minted', 'rearmed']
+const SERVER_SETUP_EVENTS: ReadonlySet<unknown> = new Set([
+  'token_minted',
+  'rearmed',
+])
 
 /**
  * Who made an authentication settings change, saying only what the entry
@@ -150,7 +153,7 @@ export function authAuditActorLabel(
   if (madeFromCli(entry)) return 'Server CLI'
   switch (entry.setting) {
     case 'auth_setup':
-      return SERVER_SETUP_EVENTS.includes(entry.after?.event)
+      return SERVER_SETUP_EVENTS.has(entry.after?.event)
         ? 'Server'
         : auditActorLabel(entry)
     case 'auth_providers':

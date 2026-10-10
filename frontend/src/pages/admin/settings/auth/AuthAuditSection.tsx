@@ -38,6 +38,11 @@ function EntryBadges({
   )
 }
 
+// Module-level so the list is not handed a new render function per render.
+const renderEntryBadges = (entry: AdminInstanceSettingsAuditEntry) => (
+  <EntryBadges entry={entry} />
+)
+
 function SettingHistory({
   section,
   refreshKey,
@@ -52,7 +57,7 @@ function SettingHistory({
     <InstanceSettingsAuditList
       fetchPage={fetchPage}
       describeChanges={entry => authAuditChanges(entry, section)}
-      entryBadge={entry => <EntryBadges entry={entry} />}
+      entryBadge={renderEntryBadges}
       actionLabel={section.actionLabel}
       actorLabel={authAuditActorLabel}
       description={section.description}

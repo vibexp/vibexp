@@ -207,17 +207,16 @@ function ProviderRow({
         </p>
       )}
       {tested && (
-        <p
-          role="status"
+        <output
           className={
             tested.ok
-              ? 'text-muted-foreground text-xs'
-              : 'text-destructive text-xs'
+              ? 'text-muted-foreground block text-xs'
+              : 'text-destructive block text-xs'
           }
           data-testid="auth-provider-test"
         >
           {tested.text}
-        </p>
+        </output>
       )}
     </li>
   )
