@@ -244,39 +244,198 @@ func TestTeamStatusRepository_UpdateName(t *testing.T) {
 	})
 }
 
-func TestTeamStatusRepository_Delete(t *testing.T) {
-	const query = `DELETE FROM team_statuses WHERE team_id = \$1 AND id = \$2`
+func TestTeamStatusRepository_UsageCounts(t *testing.T) {
+	tables := map[string]string{
+		models.StatusResourceTypePrompt:    "prompts",
+		models.StatusResourceTypeArtifact:  "artifacts",
+		models.StatusResourceTypeBlueprint: "blueprints",
+		models.StatusResourceTypeMemory:    "memories",
+	}
+	require.Len(t, tables, len(models.StatusResourceTypes), "every status resource type has a table")
 
-	t.Run("deletes the row", func(t *testing.T) {
+	for resourceType, table := range tables {
+		t.Run(resourceType+" counts its own table by status, scoped to the team", func(t *testing.T) {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectQuery(`SELECT status, count\(\*\) FROM ` + table + ` WHERE team_id = \$1 GROUP BY status`).
+				WithArgs("team-1").
+				WillReturnRows(sqlmock.NewRows([]string{"status", "count"}).
+					AddRow("active", 4).AddRow("in-review", 2))
+
+			got, err := repo.UsageCounts(context.Background(), "team-1", resourceType)
+			require.NoError(t, err)
+			assert.Equal(t, map[string]int{"active": 4, "in-review": 2}, got)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+
+	t.Run("no resources is an empty map, not nil", func(t *testing.T) {
 		repo, mock := newTeamStatusMockRepo(t)
-		mock.ExpectExec(query).WithArgs("team-1", "status-1").WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectQuery(`FROM artifacts`).WithArgs("team-1").
+			WillReturnRows(sqlmock.NewRows([]string{"status", "count"}))
 
-		require.NoError(t, repo.Delete(context.Background(), "team-1", "status-1"))
+		got, err := repo.UsageCounts(context.Background(), "team-1", models.StatusResourceTypeArtifact)
+		require.NoError(t, err)
+		assert.NotNil(t, got)
+		assert.Empty(t, got)
+	})
+
+	t.Run("an unknown resource type runs no query", func(t *testing.T) {
+		repo, mock := newTeamStatusMockRepo(t)
+
+		_, err := repo.UsageCounts(context.Background(), "team-1", "artifacts; DROP TABLE users")
+		require.ErrorIs(t, err, errTeamStatusResourceTypeUnknown)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("no row affected maps to the not-found sentinel", func(t *testing.T) {
+	t.Run("a query error is wrapped", func(t *testing.T) {
 		repo, mock := newTeamStatusMockRepo(t)
-		mock.ExpectExec(query).WithArgs("team-1", "status-1").WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectQuery(`FROM memories`).WithArgs("team-1").WillReturnError(errTeamStatusBoom)
 
-		assert.ErrorIs(t, repo.Delete(context.Background(), "team-1", "status-1"),
-			repositories.ErrTeamStatusNotFound)
+		_, err := repo.UsageCounts(context.Background(), "team-1", models.StatusResourceTypeMemory)
+		assertTypeError(t, err, errTeamStatusBoom, "failed to query status usage counts")
+	})
+}
+
+func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
+	const (
+		deleteQuery   = `DELETE FROM team_statuses WHERE team_id = \$1 AND id = \$2 RETURNING`
+		preserveQuery = `SELECT set_config\('vibexp.preserve_updated_at', 'on', true\)`
+		reassignQuery = `UPDATE artifacts SET status = \$2 WHERE team_id = \$1 AND status = \$3`
+	)
+	ctx := context.Background()
+
+	t.Run("deletes, reassigns by the deleted row's slug, and commits", func(t *testing.T) {
+		repo, mock := newTeamStatusMockRepo(t)
+		mock.ExpectBegin()
+		mock.ExpectQuery(deleteQuery).WithArgs("team-1", "status-1").WillReturnRows(teamStatusRow("user-1"))
+		mock.ExpectExec(preserveQuery).WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectExec(reassignQuery).WithArgs("team-1", "active", "in-review").
+			WillReturnResult(sqlmock.NewResult(0, 7))
+		mock.ExpectCommit()
+
+		deleted, reassigned, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active")
+		require.NoError(t, err)
+		assert.Equal(t, "in-review", deleted.Slug)
+		assert.Equal(t, "In review", deleted.Name)
+		assert.Equal(t, 7, reassigned)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("an exec error is wrapped", func(t *testing.T) {
-		repo, mock := newTeamStatusMockRepo(t)
-		mock.ExpectExec(query).WithArgs("team-1", "status-1").WillReturnError(errTeamStatusBoom)
+	t.Run("each resource type rewrites only its own table", func(t *testing.T) {
+		for resourceType, table := range map[string]string{
+			models.StatusResourceTypePrompt:    "prompts",
+			models.StatusResourceTypeBlueprint: "blueprints",
+			models.StatusResourceTypeMemory:    "memories",
+		} {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectBegin()
+			mock.ExpectQuery(deleteQuery).WithArgs("team-1", "status-1").
+				WillReturnRows(sqlmock.NewRows(teamStatusTestColumns).AddRow(
+					"status-1", "team-1", resourceType, "in-review", "In review", nil,
+					teamStatusTestNow, teamStatusTestNow))
+			mock.ExpectExec(preserveQuery).WillReturnResult(sqlmock.NewResult(0, 0))
+			mock.ExpectExec(`UPDATE `+table+` SET status = \$2 WHERE team_id = \$1 AND status = \$3`).
+				WithArgs("team-1", "draft", "in-review").WillReturnResult(sqlmock.NewResult(0, 1))
+			mock.ExpectCommit()
 
-		assertTypeError(t, repo.Delete(context.Background(), "team-1", "status-1"),
-			errTeamStatusBoom, "failed to delete team status")
+			_, reassigned, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "draft")
+			require.NoError(t, err, resourceType)
+			assert.Equal(t, 1, reassigned, resourceType)
+			assert.NoError(t, mock.ExpectationsWereMet(), resourceType)
+		}
 	})
 
-	t.Run("an unreadable result is wrapped", func(t *testing.T) {
+	t.Run("an unknown or foreign id rolls back as not-found", func(t *testing.T) {
 		repo, mock := newTeamStatusMockRepo(t)
-		mock.ExpectExec(query).WithArgs("team-1", "status-1").
-			WillReturnResult(sqlmock.NewErrorResult(errTeamStatusBoom))
+		mock.ExpectBegin()
+		mock.ExpectQuery(deleteQuery).WithArgs("team-1", "status-1").WillReturnError(sql.ErrNoRows)
+		mock.ExpectRollback()
 
-		assertTypeError(t, repo.Delete(context.Background(), "team-1", "status-1"),
-			errTeamStatusBoom, "failed to read team status delete result")
+		_, _, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active")
+		require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	t.Run("a row of an unknown resource type rolls back", func(t *testing.T) {
+		repo, mock := newTeamStatusMockRepo(t)
+		mock.ExpectBegin()
+		mock.ExpectQuery(deleteQuery).WithArgs("team-1", "status-1").
+			WillReturnRows(sqlmock.NewRows(teamStatusTestColumns).AddRow(
+				"status-1", "team-1", "widget", "in-review", "In review", nil,
+				teamStatusTestNow, teamStatusTestNow))
+		mock.ExpectRollback()
+
+		_, _, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active")
+		require.ErrorIs(t, err, errTeamStatusResourceTypeUnknown)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	failures := map[string]struct {
+		arrange func(mock sqlmock.Sqlmock)
+		msg     string
+	}{
+		"begin": {
+			arrange: func(mock sqlmock.Sqlmock) { mock.ExpectBegin().WillReturnError(errTeamStatusBoom) },
+			msg:     "failed to begin team status delete",
+		},
+		"delete": {
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectQuery(deleteQuery).WillReturnError(errTeamStatusBoom)
+				mock.ExpectRollback()
+			},
+			msg: "failed to delete team status",
+		},
+		"preserve updated_at": {
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectQuery(deleteQuery).WillReturnRows(teamStatusRow(nil))
+				mock.ExpectExec(preserveQuery).WillReturnError(errTeamStatusBoom)
+				mock.ExpectRollback()
+			},
+			msg: "failed to preserve updated_at for status reassignment",
+		},
+		"reassign": {
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectQuery(deleteQuery).WillReturnRows(teamStatusRow(nil))
+				mock.ExpectExec(preserveQuery).WillReturnResult(sqlmock.NewResult(0, 0))
+				mock.ExpectExec(reassignQuery).WillReturnError(errTeamStatusBoom)
+				mock.ExpectRollback()
+			},
+			msg: "failed to reassign artifact resources after status delete",
+		},
+		"reassign result": {
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectQuery(deleteQuery).WillReturnRows(teamStatusRow(nil))
+				mock.ExpectExec(preserveQuery).WillReturnResult(sqlmock.NewResult(0, 0))
+				mock.ExpectExec(reassignQuery).WillReturnResult(sqlmock.NewErrorResult(errTeamStatusBoom))
+				mock.ExpectRollback()
+			},
+			msg: "failed to read status reassignment result",
+		},
+		"commit": {
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectQuery(deleteQuery).WillReturnRows(teamStatusRow(nil))
+				mock.ExpectExec(preserveQuery).WillReturnResult(sqlmock.NewResult(0, 0))
+				mock.ExpectExec(reassignQuery).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectCommit().WillReturnError(errTeamStatusBoom)
+			},
+			msg: "failed to commit team status delete",
+		},
+	}
+	for name, tc := range failures {
+		t.Run("a "+name+" failure is wrapped and nothing is reported as deleted", func(t *testing.T) {
+			repo, mock := newTeamStatusMockRepo(t)
+			tc.arrange(mock)
+
+			deleted, reassigned, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active")
+			assertTypeError(t, err, errTeamStatusBoom, tc.msg)
+			assert.Nil(t, deleted)
+			assert.Zero(t, reassigned)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }

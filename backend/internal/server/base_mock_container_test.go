@@ -207,6 +207,10 @@ func (b *BaseMockContainer) StatusCatalogService() services.StatusCatalogService
 	return nil
 }
 
+func (b *BaseMockContainer) StatusManagementService() services.StatusManagementServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) BlueprintService() services.BlueprintServiceInterface {
 	return nil
 }

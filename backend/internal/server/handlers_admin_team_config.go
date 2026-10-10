@@ -280,9 +280,9 @@ func (a *adminStrictServer) GetAdminTeamArtifactTypes(
 	}), nil
 }
 
-// settingsAuditDetailAllowlist is the closed set of `detail` keys each copy
-// surface writes today (model_provider_copy.go, embedding_provider_copy.go,
-// type.go). Anything else stored on a row is dropped on this surface —
+// settingsAuditDetailAllowlist is the closed set of `detail` keys each surface
+// writes today (model_provider_copy.go, embedding_provider_copy.go, type.go,
+// status_management.go). Anything else stored on a row is dropped on this surface —
 // fail-closed, so a future writer that puts something sensitive in `detail`
 // cannot leak it to the admin view by accident. An unknown surface keeps no
 // keys at all.
@@ -296,6 +296,10 @@ var settingsAuditDetailAllowlist = map[string][]string{
 	},
 	models.SettingsAuditSurfaceCustomTypes: {
 		"added_ids", "added_slugs", "skipped_slugs",
+	},
+	models.SettingsAuditSurfaceCustomStatuses: {
+		"action", "resource_type", "slug", "name", "previous_name",
+		"reassigned_count", "reassigned_to",
 	},
 }
 

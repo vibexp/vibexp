@@ -778,6 +778,10 @@ func (m *MockContainerForBackoffice) StatusCatalogService() services.StatusCatal
 	return nil
 }
 
+func (m *MockContainerForBackoffice) StatusManagementService() services.StatusManagementServiceInterface {
+	return nil
+}
+
 func (m *MockContainerForBackoffice) AttachmentService() services.AttachmentServiceInterface {
 	return nil
 }

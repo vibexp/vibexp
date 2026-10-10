@@ -80,6 +80,13 @@ func TestSpecEnumsMatchServiceAllowlists(t *testing.T) {
 			goName:  "models.SettingsAuditSurfaces (internal/models/team_settings_audit.go)",
 			goValue: models.SettingsAuditSurfaces,
 		},
+		// A request enum (query parameter and body field) on the statuses
+		// API (#1265): the service allowlist is its only enforcement.
+		{
+			schema:  "StatusResourceType",
+			goName:  "models.StatusResourceTypes (internal/models/status.go)",
+			goValue: models.StatusResourceTypes,
+		},
 		// The SYSTEM status vocabulary (#912). It is the one status schema that
 		// is still an enum: the per-type schemas are open strings since #1266
 		// and are pinned by TestStatusSchemasAreOpenAndNameSystemValues below.

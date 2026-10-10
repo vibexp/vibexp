@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -21,9 +22,15 @@ func newStatusCatalogService(t *testing.T) (*StatusCatalogService, *repomocks.Mo
 	return NewStatusCatalogService(repo), repo
 }
 
+var (
+	testStatusCreatedAt = time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	testStatusUpdatedAt = time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)
+)
+
 func customStatus(id, resourceType, slug, name string) models.TeamStatus {
 	return models.TeamStatus{
 		ID: id, TeamID: testStatusTeamID, ResourceType: resourceType, Slug: slug, Name: name,
+		CreatedAt: testStatusCreatedAt, UpdatedAt: testStatusUpdatedAt,
 	}
 }
 
@@ -39,12 +46,13 @@ func TestStatusCatalogService_List_SystemThenCustom(t *testing.T) {
 	require.NoError(t, err)
 
 	id1, id2 := "status-1", "status-2"
+	created, renamed := testStatusCreatedAt, testStatusUpdatedAt
 	assert.Equal(t, []CatalogStatus{
 		{Slug: "active", Name: "Active", IsSystem: true, IsLive: true},
 		{Slug: "draft", Name: "Draft", IsSystem: true, IsLive: false},
 		{Slug: "archived", Name: "Archived", IsSystem: true, IsLive: false},
-		{ID: &id1, Slug: "in-review", Name: "In review", IsLive: true},
-		{ID: &id2, Slug: "shipped", Name: "Shipped", IsLive: true},
+		{ID: &id1, Slug: "in-review", Name: "In review", IsLive: true, CreatedAt: &created, UpdatedAt: &renamed},
+		{ID: &id2, Slug: "shipped", Name: "Shipped", IsLive: true, CreatedAt: &created, UpdatedAt: &renamed},
 	}, got)
 }
 

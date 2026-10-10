@@ -643,3 +643,26 @@ func TestFilterSettingsAuditDetail(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{"model": "m"},
 		filterSettingsAuditDetail(models.SettingsAuditSurfaceModelProvider, json.RawMessage(`{"model":"m","api_key":"k"}`)))
 }
+
+// Every audited surface needs an allowlist entry, or its whole detail is
+// dropped from the admin view without any error.
+func TestSettingsAuditDetailAllowlist_CoversEverySurface(t *testing.T) {
+	for _, surface := range models.SettingsAuditSurfaces {
+		assert.NotEmpty(t, settingsAuditDetailAllowlist[surface], surface)
+	}
+}
+
+// A custom_statuses entry keeps every key the status management service
+// writes for a create, a rename and a delete, and nothing else.
+func TestFilterSettingsAuditDetail_CustomStatuses(t *testing.T) {
+	stored := json.RawMessage(`{
+		"action": "deleted", "resource_type": "artifact", "slug": "in-review", "name": "In review",
+		"previous_name": "Review", "reassigned_count": 12, "reassigned_to": "active",
+		"created_by_email": "someone@example.com"
+	}`)
+
+	assert.Equal(t, map[string]interface{}{
+		"action": "deleted", "resource_type": "artifact", "slug": "in-review", "name": "In review",
+		"previous_name": "Review", "reassigned_count": float64(12), "reassigned_to": "active",
+	}, filterSettingsAuditDetail(models.SettingsAuditSurfaceCustomStatuses, stored))
+}

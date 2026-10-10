@@ -2189,7 +2189,8 @@ api-v1-admin-teams-id-config-settings-audit:
   get:
     summary: List a team's settings audit log
     description: |
-      Returns one page of the team's settings-copy audit log, newest first, with
+      Returns one page of the team's settings audit log (cross-team copies and
+      custom status changes), newest first, with
       actor and source-team names resolved. Each entry's `detail` is filtered to
       a per-surface key allowlist, so no credential can surface here.
       Read-only. Instance-admin only; non-admin and unauthenticated requests

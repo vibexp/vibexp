@@ -789,6 +789,10 @@ func (tc *TestContainer) StatusCatalogService() services.StatusCatalogServiceInt
 	return nil
 }
 
+func (tc *TestContainer) StatusManagementService() services.StatusManagementServiceInterface {
+	return nil
+}
+
 func (tc *TestContainer) AttachmentService() services.AttachmentServiceInterface {
 	return tc.AttachmentServiceMock
 }

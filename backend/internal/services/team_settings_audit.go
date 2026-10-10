@@ -13,23 +13,27 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// ErrInvalidSettingsAudit is returned when an entry does not identify what was
-// copied, where to, or onto which surface. It is a programming error rather
-// than user input — every field it guards is supplied by the copy service, not
-// by a request body — so it is deliberately not mapped to a status code.
+// ErrInvalidSettingsAudit is returned when an entry does not identify which
+// team's settings changed, on which surface, or — for a copy — where the
+// configuration came from. It is a programming error rather than user input —
+// every field it guards is supplied by the calling service, not by a request
+// body — so it is deliberately not mapped to a status code.
 var ErrInvalidSettingsAudit = errors.New("invalid team settings audit entry")
 
-// TeamSettingsAuditRecord is one settings-copy event as the copy services
-// (#829/#830/#831) describe it.
+// TeamSettingsAuditRecord is one settings event as its writer describes it: a
+// copy service (#829/#830/#831), or the status management service (#1265) for
+// a custom status created, renamed or deleted.
 //
 // It is a separate type from models.TeamSettingsAudit rather than the model
-// itself because the caller supplies only the facts of the copy: id and
+// itself because the caller supplies only the facts of the event: id and
 // created_at are the database's to assign, and accepting a model would invite a
 // caller to set them.
 //
+// SourceTeamID is required for a copy surface
+// (models.IsSettingsAuditCopySurface) and left empty otherwise.
 // SourceResourceID and CreatedResourceID are optional and both are absent for a
 // custom-types copy, which produces many rows from many rows in one action —
-// their ids belong in Detail. ActorUserID is optional so a copy performed by
+// their ids belong in Detail. ActorUserID is optional so a change performed by
 // something other than a signed-in user still records the event rather than
 // failing; every current caller has one.
 type TeamSettingsAuditRecord struct {
@@ -46,20 +50,21 @@ type TeamSettingsAuditRecord struct {
 // decision 8): an unauthorized write path and an authorized read path.
 //
 // Record carries no permission check of its own, and that is deliberate: an
-// entry is written as part of an already-authorized copy, which has checked
-// authz.TeamUpdate on BOTH the source and the destination team. Re-checking
-// there would only be able to re-derive that answer, while making the audit
-// write fail for an actor who was allowed to perform the copy — an audit the
-// authorized path can silently skip is worse than no audit. ListAudit is where
-// the permission check belongs, and it makes one.
+// entry is written as part of an already-authorized change — a copy, which has
+// checked both the source and the destination team, or a custom-status write,
+// which has checked authz.TeamSettingsUpdate. Re-checking there would only be
+// able to re-derive that answer, while making the audit write fail for an actor
+// who was allowed to make the change — an audit the authorized path can
+// silently skip is worse than no audit. ListAudit is where the permission check
+// belongs, and it makes one.
 type TeamSettingsAuditServiceInterface interface {
-	// Record appends one settings-copy event and returns the stored entry.
+	// Record appends one settings event and returns the stored entry.
 	//
 	// It returns an ErrInvalidSettingsAudit-wrapped error for an entry with no
-	// destination team, no source team, or an unrecognized surface, and it
-	// propagates a storage failure unchanged. Callers must NOT swallow that
+	// team, an unrecognized surface, or a copy surface with no source team, and
+	// it propagates a storage failure unchanged. Callers must NOT swallow that
 	// error: the entry is the compensating control for a copy that moved a
-	// credential's use into a different set of members, so a copy whose audit
+	// credential's use into a different set of members, so a change whose audit
 	// did not land must not report success.
 	Record(ctx context.Context, record TeamSettingsAuditRecord) (*models.TeamSettingsAudit, error)
 
@@ -111,21 +116,29 @@ func NewTeamSettingsAuditService(
 	}
 }
 
-// Record appends one settings-copy event.
+// Record appends one settings event.
 func (s *TeamSettingsAuditService) Record(
 	ctx context.Context, record TeamSettingsAuditRecord,
 ) (*models.TeamSettingsAudit, error) {
 	if record.TeamID == "" {
-		return nil, fmt.Errorf("%w: destination team is required", ErrInvalidSettingsAudit)
-	}
-	// The source team is required even though the column has no foreign key:
-	// "this configuration came from somewhere else" is the entire claim the
-	// entry makes, and an entry without it records only that something changed.
-	if record.SourceTeamID == "" {
-		return nil, fmt.Errorf("%w: source team is required", ErrInvalidSettingsAudit)
+		return nil, fmt.Errorf("%w: team is required", ErrInvalidSettingsAudit)
 	}
 	if !slices.Contains(models.SettingsAuditSurfaces, record.Surface) {
-		return nil, fmt.Errorf("%w: surface %q is not a copyable settings surface",
+		return nil, fmt.Errorf("%w: surface %q is not an audited settings surface",
+			ErrInvalidSettingsAudit, record.Surface)
+	}
+	// A copy must name its source team even though the column has no foreign
+	// key: "this configuration came from somewhere else" is the entire claim a
+	// copy entry makes, and one without it records only that something changed.
+	// A surface changed in place has no source, and naming one would make the
+	// entry read as a copy.
+	isCopy := models.IsSettingsAuditCopySurface(record.Surface)
+	if isCopy && record.SourceTeamID == "" {
+		return nil, fmt.Errorf("%w: source team is required for a %s copy",
+			ErrInvalidSettingsAudit, record.Surface)
+	}
+	if !isCopy && record.SourceTeamID != "" {
+		return nil, fmt.Errorf("%w: surface %q is not a copy and takes no source team",
 			ErrInvalidSettingsAudit, record.Surface)
 	}
 
@@ -148,7 +161,7 @@ func (s *TeamSettingsAuditService) Record(
 		return nil, fmt.Errorf("failed to record team settings audit entry: %w", err)
 	}
 
-	s.logger.Info("Recorded team settings copy",
+	s.logger.Info("Recorded team settings audit entry",
 		"team_id", entry.TeamID, "source_team_id", record.SourceTeamID,
 		"surface", entry.Surface, "actor_user_id", record.ActorUserID,
 	)

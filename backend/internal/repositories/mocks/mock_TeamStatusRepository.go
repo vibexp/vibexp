@@ -127,50 +127,70 @@ func (_c *MockTeamStatusRepository_Create_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
-// Delete provides a mock function with given fields: ctx, teamID, id
-func (_m *MockTeamStatusRepository) Delete(ctx context.Context, teamID string, id string) error {
-	ret := _m.Called(ctx, teamID, id)
+// DeleteAndReassign provides a mock function with given fields: ctx, teamID, id, defaultStatus
+func (_m *MockTeamStatusRepository) DeleteAndReassign(ctx context.Context, teamID string, id string, defaultStatus string) (*models.TeamStatus, int, error) {
+	ret := _m.Called(ctx, teamID, id, defaultStatus)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Delete")
+		panic("no return value specified for DeleteAndReassign")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
-		r0 = rf(ctx, teamID, id)
+	var r0 *models.TeamStatus
+	var r1 int
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (*models.TeamStatus, int, error)); ok {
+		return rf(ctx, teamID, id, defaultStatus)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) *models.TeamStatus); ok {
+		r0 = rf(ctx, teamID, id, defaultStatus)
 	} else {
-		r0 = ret.Error(0)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.TeamStatus)
+		}
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) int); ok {
+		r1 = rf(ctx, teamID, id, defaultStatus)
+	} else {
+		r1 = ret.Get(1).(int)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string, string, string) error); ok {
+		r2 = rf(ctx, teamID, id, defaultStatus)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
-// MockTeamStatusRepository_Delete_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Delete'
-type MockTeamStatusRepository_Delete_Call struct {
+// MockTeamStatusRepository_DeleteAndReassign_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteAndReassign'
+type MockTeamStatusRepository_DeleteAndReassign_Call struct {
 	*mock.Call
 }
 
-// Delete is a helper method to define mock.On call
+// DeleteAndReassign is a helper method to define mock.On call
 //   - ctx context.Context
 //   - teamID string
 //   - id string
-func (_e *MockTeamStatusRepository_Expecter) Delete(ctx interface{}, teamID interface{}, id interface{}) *MockTeamStatusRepository_Delete_Call {
-	return &MockTeamStatusRepository_Delete_Call{Call: _e.mock.On("Delete", ctx, teamID, id)}
+//   - defaultStatus string
+func (_e *MockTeamStatusRepository_Expecter) DeleteAndReassign(ctx interface{}, teamID interface{}, id interface{}, defaultStatus interface{}) *MockTeamStatusRepository_DeleteAndReassign_Call {
+	return &MockTeamStatusRepository_DeleteAndReassign_Call{Call: _e.mock.On("DeleteAndReassign", ctx, teamID, id, defaultStatus)}
 }
 
-func (_c *MockTeamStatusRepository_Delete_Call) Run(run func(ctx context.Context, teamID string, id string)) *MockTeamStatusRepository_Delete_Call {
+func (_c *MockTeamStatusRepository_DeleteAndReassign_Call) Run(run func(ctx context.Context, teamID string, id string, defaultStatus string)) *MockTeamStatusRepository_DeleteAndReassign_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
 	})
 	return _c
 }
 
-func (_c *MockTeamStatusRepository_Delete_Call) Return(_a0 error) *MockTeamStatusRepository_Delete_Call {
-	_c.Call.Return(_a0)
+func (_c *MockTeamStatusRepository_DeleteAndReassign_Call) Return(_a0 *models.TeamStatus, _a1 int, _a2 error) *MockTeamStatusRepository_DeleteAndReassign_Call {
+	_c.Call.Return(_a0, _a1, _a2)
 	return _c
 }
 
-func (_c *MockTeamStatusRepository_Delete_Call) RunAndReturn(run func(context.Context, string, string) error) *MockTeamStatusRepository_Delete_Call {
+func (_c *MockTeamStatusRepository_DeleteAndReassign_Call) RunAndReturn(run func(context.Context, string, string, string) (*models.TeamStatus, int, error)) *MockTeamStatusRepository_DeleteAndReassign_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -352,6 +372,66 @@ func (_c *MockTeamStatusRepository_UpdateName_Call) Return(_a0 *models.TeamStatu
 }
 
 func (_c *MockTeamStatusRepository_UpdateName_Call) RunAndReturn(run func(context.Context, string, string, string) (*models.TeamStatus, error)) *MockTeamStatusRepository_UpdateName_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UsageCounts provides a mock function with given fields: ctx, teamID, resourceType
+func (_m *MockTeamStatusRepository) UsageCounts(ctx context.Context, teamID string, resourceType string) (map[string]int, error) {
+	ret := _m.Called(ctx, teamID, resourceType)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UsageCounts")
+	}
+
+	var r0 map[string]int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (map[string]int, error)); ok {
+		return rf(ctx, teamID, resourceType)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) map[string]int); ok {
+		r0 = rf(ctx, teamID, resourceType)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]int)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, teamID, resourceType)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTeamStatusRepository_UsageCounts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UsageCounts'
+type MockTeamStatusRepository_UsageCounts_Call struct {
+	*mock.Call
+}
+
+// UsageCounts is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - resourceType string
+func (_e *MockTeamStatusRepository_Expecter) UsageCounts(ctx interface{}, teamID interface{}, resourceType interface{}) *MockTeamStatusRepository_UsageCounts_Call {
+	return &MockTeamStatusRepository_UsageCounts_Call{Call: _e.mock.On("UsageCounts", ctx, teamID, resourceType)}
+}
+
+func (_c *MockTeamStatusRepository_UsageCounts_Call) Run(run func(ctx context.Context, teamID string, resourceType string)) *MockTeamStatusRepository_UsageCounts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockTeamStatusRepository_UsageCounts_Call) Return(_a0 map[string]int, _a1 error) *MockTeamStatusRepository_UsageCounts_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTeamStatusRepository_UsageCounts_Call) RunAndReturn(run func(context.Context, string, string) (map[string]int, error)) *MockTeamStatusRepository_UsageCounts_Call {
 	_c.Call.Return(run)
 	return _c
 }

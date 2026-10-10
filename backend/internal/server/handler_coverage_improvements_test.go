@@ -658,4 +658,8 @@ func (c *CoverageTestContainer) StatusCatalogService() services.StatusCatalogSer
 	return nil
 }
 
+func (c *CoverageTestContainer) StatusManagementService() services.StatusManagementServiceInterface {
+	return nil
+}
+
 func (c *CoverageTestContainer) AttachmentService() services.AttachmentServiceInterface { return nil }

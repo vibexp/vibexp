@@ -2156,10 +2156,22 @@ type TeamStatusRepository interface {
 	// updated row. The slug is immutable: resources reference it. It returns
 	// ErrTeamStatusNotFound when no row matched.
 	UpdateName(ctx context.Context, teamID, id, name string) (*models.TeamStatus, error)
-	// Delete removes the team's status with the given id, or returns
-	// ErrTeamStatusNotFound. It does not touch the resources that carry the
-	// slug; reassigning them is the caller's concern.
-	Delete(ctx context.Context, teamID, id string) error
+	// UsageCounts returns, per status slug, how many of the team's resources of
+	// resourceType carry it. It counts every status in use, system and custom
+	// alike, and omits a slug no resource carries; the result is never nil.
+	// resourceType must be one of models.StatusResourceTypes.
+	UsageCounts(ctx context.Context, teamID, resourceType string) (map[string]int, error)
+	// DeleteAndReassign is the only way to remove a status: a delete that left
+	// resources on a slug the catalog no longer lists is not offered. It
+	// removes the team's status with the given id and, in the
+	// same transaction, moves every resource of that team and the status's
+	// resource type that carries its slug to defaultStatus. It returns the
+	// deleted row and the number of resources moved, or ErrTeamStatusNotFound,
+	// in which case nothing changed. The moved resources keep their updated_at:
+	// a status disappearing is not an edit of the resource.
+	DeleteAndReassign(
+		ctx context.Context, teamID, id, defaultStatus string,
+	) (*models.TeamStatus, int, error)
 }
 
 // TypeRepository persists the resource-type-agnostic, team-customizable type
@@ -2427,7 +2439,7 @@ type FreshnessAuditRepository interface {
 	ListStaleResourcesMissingMark(ctx context.Context, teamID string) ([]models.FreshnessResourceRef, error)
 }
 
-// TeamSettingsAuditRepository appends to and reads a team's settings-copy log
+// TeamSettingsAuditRepository appends to and reads a team's settings audit log
 // (table `team_settings_audit`, epic #827). Like FreshnessAuditRepository the
 // log is append-only: there is deliberately no update and no delete, and rows
 // disappear only with their team.
@@ -2436,7 +2448,7 @@ type FreshnessAuditRepository interface {
 // who may read a team's audit is the calling service's decision, not this
 // layer's.
 type TeamSettingsAuditRepository interface {
-	// Append records one settings-copy event, populating ID, Detail and
+	// Append records one settings event, populating ID, Detail and
 	// CreatedAt from the persisted row on return.
 	Append(ctx context.Context, entry *models.TeamSettingsAudit) error
 	// ListByTeam returns a team's audit entries newest first, together with the

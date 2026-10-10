@@ -1741,7 +1741,10 @@ AdminTeamArtifactTypes:
 
 AdminTeamSettingsAuditEntry:
   type: object
-  description: One recorded settings copy into the team.
+  description: >
+    One recorded change to the team's settings: a configuration copied in from
+    another team, or (`custom_statuses`) a custom status created, renamed or
+    deleted.
   additionalProperties: false
   required:
     - id
@@ -1764,6 +1767,7 @@ AdminTeamSettingsAuditEntry:
         - embedding_provider
         - model_provider
         - custom_types
+        - custom_statuses
     actor_user_id:
       type: string
       format: uuid
@@ -1794,8 +1798,9 @@ AdminTeamSettingsAuditEntry:
         (model_provider: source_name, created_name, provider_type, model,
         has_api_key; embedding_provider: the same plus becomes_active,
         displaced_model, displaced_embedded_resources; custom_types: added_ids,
-        added_slugs, skipped_slugs). Any other stored key is dropped. Always an
-        object, never null.
+        added_slugs, skipped_slugs; custom_statuses: action, resource_type,
+        slug, name, previous_name, reassigned_count, reassigned_to). Any other
+        stored key is dropped. Always an object, never null.
     created_at:
       type: string
       format: date-time

@@ -1,0 +1,16 @@
+# oapi-codegen configuration for the Statuses domain (epic #1263): the
+# team-customizable resource statuses. Like every spec-first domain it
+# generates into its own package (see oapi-codegen-types.yaml for why), selected
+# by its own tag so no other domain lands on its StrictServerInterface.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: statusesgen
+output: internal/server/gen/statuses/statuses.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-tags:
+    - Statuses

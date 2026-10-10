@@ -338,18 +338,24 @@ UpdateTeamAISummarySettingsRequest:
 
 TeamSettingsAuditSurface:
   type: string
-  description: Which settings surface was copied between teams.
+  description: >
+    Which settings surface the entry is about. `embedding_provider`,
+    `model_provider` and `custom_types` record a copy from another team;
+    `custom_statuses` records a custom status being created, renamed or
+    deleted in this team.
   enum:
     - embedding_provider
     - model_provider
     - custom_types
+    - custom_statuses
   example: model_provider
 
 TeamSettingsAuditEntry:
   type: object
   description: >
-    One recorded settings copy into this team: which surface arrived, who
-    brought it, and where it came from.
+    One recorded change to this team's settings: a configuration copied in
+    from another team (which surface arrived, who brought it, and where it came
+    from), or a custom status created, renamed or deleted here.
   required:
     - id
     - surface
@@ -373,7 +379,7 @@ TeamSettingsAuditEntry:
       format: uuid
       nullable: true
       description: >
-        Who performed the copy. `null` once that account is deleted — the entry
+        Who made the change. `null` once that account is deleted — the entry
         outlives the actor on purpose, so that deletion cannot erase the record
         of what the account did.
     actor_name:
@@ -388,14 +394,17 @@ TeamSettingsAuditEntry:
       type: string
       format: uuid
       nullable: true
-      description: The team the configuration was copied FROM.
+      description: >
+        The team the configuration was copied FROM. `null` for a
+        `custom_statuses` entry, which has no source team.
     source_team_name:
       type: string
       nullable: true
       description: >
         The source team's name, resolved server-side. `null` when that team has
         since been deleted — the id above is then the only remaining handle on
-        it, and is deliberately still present rather than blanked.
+        it, and is deliberately still present rather than blanked. Also `null`
+        for a `custom_statuses` entry.
       example: Platform Team
     source_resource_id:
       type: string
@@ -403,21 +412,27 @@ TeamSettingsAuditEntry:
       nullable: true
       description: >
         The resource that was copied. `null` for a `custom_types` copy, where
-        one action copies a whole set and the individual ids live in `detail`.
+        one action copies a whole set and the individual ids live in `detail`,
+        and for a `custom_statuses` entry, which copies nothing.
     created_resource_id:
       type: string
       format: uuid
       nullable: true
       description: >
         The resource created in this team. `null` for a `custom_types` copy, for
-        the same reason as `source_resource_id`.
+        the same reason as `source_resource_id`. For a `custom_statuses` entry
+        it is the id of a newly created status, and `null` for a rename or a
+        delete.
     detail:
       type: object
       additionalProperties: true
       description: >
         Surface-specific facts snapshotted at write time — resource names, and
         for a provider copy whether it carried a credential and whether it
-        became the team's active provider. Always an object, never null.
+        became the team's active provider. A `custom_statuses` entry carries
+        `action` (`created`, `renamed` or `deleted`), `resource_type`, `slug`
+        and `name`, plus `previous_name` for a rename and `reassigned_count`
+        and `reassigned_to` for a delete. Always an object, never null.
       example:
         source_name: OpenAI (Platform)
         created_name: OpenAI (Platform)
@@ -425,7 +440,7 @@ TeamSettingsAuditEntry:
     created_at:
       type: string
       format: date-time
-      description: When the copy was recorded.
+      description: When the change was recorded.
 
 TeamSettingsAuditListResponse:
   type: object

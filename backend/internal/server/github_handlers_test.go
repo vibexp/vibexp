@@ -891,4 +891,8 @@ func (c *GitHubTestContainer) StatusCatalogService() services.StatusCatalogServi
 	return nil
 }
 
+func (c *GitHubTestContainer) StatusManagementService() services.StatusManagementServiceInterface {
+	return nil
+}
+
 func (c *GitHubTestContainer) AttachmentService() services.AttachmentServiceInterface { return nil }

@@ -128,6 +128,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideRelationSeedService,
 	providers.ProvideTypeService,
 	providers.ProvideStatusCatalogService,
+	providers.ProvideStatusManagementService,
 	providers.ProvideBlueprintService,
 	providers.ProvideEmbeddingProviderService,
 	providers.ProvideModelProviderService,

@@ -33,8 +33,9 @@ var (
 const typeSlugMaxLen = 255
 const typeNameMaxLen = 255
 
-// typeSlugPattern enforces URL-safe, lowercase, hyphenated slugs.
-var typeSlugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+// slugPattern enforces URL-safe, lowercase, hyphenated slugs. Shared by the
+// custom type and custom status (status_management.go) slug rules.
+var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 // resourceTypeDefaultSlug maps a supported resource_type to the system-default
 // slug that orphaned resources are reassigned to when a custom type is deleted.
@@ -288,7 +289,7 @@ func validateTypeSlug(slug string) error {
 		return ErrTypeSlugRequired
 	case len(slug) > typeSlugMaxLen:
 		return ErrTypeSlugTooLong
-	case !typeSlugPattern.MatchString(slug):
+	case !slugPattern.MatchString(slug):
 		return ErrTypeSlugInvalid
 	default:
 		return nil

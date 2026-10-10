@@ -40,6 +40,7 @@ import (
 	promptsgen "github.com/vibexp/vibexp/internal/server/gen/prompts"
 	relationsgen "github.com/vibexp/vibexp/internal/server/gen/relations"
 	searchsummarygen "github.com/vibexp/vibexp/internal/server/gen/searchsummary"
+	statusesgen "github.com/vibexp/vibexp/internal/server/gen/statuses"
 	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
 	teamsettingsgen "github.com/vibexp/vibexp/internal/server/gen/teamsettings"
 	typesgen "github.com/vibexp/vibexp/internal/server/gen/types"
@@ -731,6 +732,7 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupArtifactsRoutes(r)
 		s.setupAttachmentsRoutes(r)
 		s.setupTypesRoutes(r)
+		s.setupStatusesRoutes(r)
 		s.setupCommentsRoutes(r)
 		s.setupRelationsRoutes(r)
 		s.setupTeamSettingsRoutes(r)
@@ -1073,6 +1075,39 @@ func (s *Server) setupTypesRoutes(r chi.Router) {
 		typesgen.HandlerWithOptions(strict, typesgen.ChiServerOptions{
 			BaseRouter:       gr,
 			ErrorHandlerFunc: s.typesBindErrorHandler,
+		})
+	})
+}
+
+// setupStatusesRoutes mounts the generated Statuses strict-server handler: the
+// team's custom resource statuses (epic #1263), under
+// /api/v1/{team_id}/statuses. teamValidationMiddleware establishes membership
+// of the URL's team, which is all the list requires; the writes are further
+// authorized in the service (authz.TeamSettingsUpdate).
+func (s *Server) setupStatusesRoutes(r chi.Router) {
+	strict := statusesgen.NewStrictHandlerWithOptions(
+		&statusesStrictServer{s: s},
+		nil,
+		statusesgen.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  s.statusesBindErrorHandler,
+			ResponseErrorHandlerFunc: s.statusesResponseErrorHandler,
+		},
+	)
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
+		s.mountStatusesHandlers(gr, strict)
+	})
+}
+
+// mountStatusesHandlers registers the Statuses routes and the body guard they
+// rely on. It is separate from setupStatusesRoutes so the handler tests mount
+// exactly what production does, minus the team middleware.
+func (s *Server) mountStatusesHandlers(r chi.Router, strict statusesgen.ServerInterface) {
+	r.Group(func(gr chi.Router) {
+		gr.Use(rejectUnknownStatusBodyFields)
+		statusesgen.HandlerWithOptions(strict, statusesgen.ChiServerOptions{
+			BaseRouter:       gr,
+			ErrorHandlerFunc: s.statusesBindErrorHandler,
 		})
 	})
 }

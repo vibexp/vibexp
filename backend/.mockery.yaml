@@ -70,6 +70,7 @@ packages:
       SearchSummaryServiceInterface:
       SearchSettingsResolver:
       StatusCatalogServiceInterface:
+      StatusManagementServiceInterface:
       StreamProcessor:
       AISummarySettingsResolver:
       AISummaryAvailabilityResolver:

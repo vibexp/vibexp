@@ -69,6 +69,7 @@ type WireContainer struct {
 	attachmentService            services.AttachmentServiceInterface
 	typeService                  services.TypeServiceInterface
 	statusCatalogService         services.StatusCatalogServiceInterface
+	statusManagementService      services.StatusManagementServiceInterface
 	specLibraryService           services.BlueprintServiceInterface
 	embeddingProviderService     services.EmbeddingProviderServiceInterface
 	modelProviderService         services.ModelProviderServiceInterface
@@ -369,6 +370,10 @@ func (c *WireContainer) StatusCatalogService() services.StatusCatalogServiceInte
 	return c.statusCatalogService
 }
 
+func (c *WireContainer) StatusManagementService() services.StatusManagementServiceInterface {
+	return c.statusManagementService
+}
+
 func (c *WireContainer) BlueprintService() services.BlueprintServiceInterface {
 	return c.specLibraryService
 }
@@ -457,7 +462,7 @@ func (c *WireContainer) TeamAISummarySettingsService() services.TeamAISummarySet
 	return c.teamAISummarySettingsService
 }
 
-// TeamSettingsAuditService returns the team settings copy audit log service.
+// TeamSettingsAuditService returns the team settings audit log service.
 func (c *WireContainer) TeamSettingsAuditService() services.TeamSettingsAuditServiceInterface {
 	return c.teamSettingsAuditService
 }
