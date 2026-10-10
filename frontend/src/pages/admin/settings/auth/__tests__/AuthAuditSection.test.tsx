@@ -136,10 +136,27 @@ describe('authAuditActorLabel', () => {
     )
   })
 
-  it('reads an actorless save as a setup session, never a deleted user', () => {
+  it.each(['auth_providers', 'auth_allowlist'] as const)(
+    'cannot tell a setup session from a deleted admin on %s, and says so',
+    setting => {
+      expect(
+        authAuditActorLabel(
+          entry({ ...noActor, setting, after: { slug: 'okta' } })
+        )
+      ).toBe('Setup session or deleted user')
+    }
+  )
+
+  it('reads an actorless admin grant as a deleted user: no setup session can make one', () => {
     expect(
-      authAuditActorLabel(entry({ ...noActor, after: { slug: 'okta' } }))
-    ).toBe('Setup session (no signed-in user)')
+      authAuditActorLabel(
+        entry({
+          ...noActor,
+          setting: 'instance_admins',
+          after: { user_id: 'u9' },
+        })
+      )
+    ).toBe('Deleted user')
   })
 
   it('reads an actorless CLI save and CLI removal as the server CLI', () => {
@@ -151,6 +168,38 @@ describe('authAuditActorLabel', () => {
         entry({ ...noActor, action: 'delete', before: { source: 'cli' } })
       )
     ).toBe('Server CLI')
+    expect(
+      authAuditActorLabel(
+        entry({
+          ...noActor,
+          setting: 'auth_setup',
+          after: { event: 'rearmed', source: 'cli' },
+        })
+      )
+    ).toBe('Server CLI')
+  })
+
+  it.each(['token_minted', 'rearmed'])(
+    'attributes a %s setup event to the server',
+    event => {
+      expect(
+        authAuditActorLabel(
+          entry({ ...noActor, setting: 'auth_setup', after: { event } })
+        )
+      ).toBe('Server')
+    }
+  )
+
+  it('reads an actorless completed setup as a deleted user: a root admin completed it', () => {
+    expect(
+      authAuditActorLabel(
+        entry({
+          ...noActor,
+          setting: 'auth_setup',
+          after: { event: 'consumed' },
+        })
+      )
+    ).toBe('Deleted user')
   })
 
   it('keeps the boot-time import label', () => {
@@ -161,7 +210,7 @@ describe('authAuditActorLabel', () => {
 })
 
 describe('AuthAuditSection', () => {
-  it('shows a setup-session change and a CLI change without a "Deleted user"', async () => {
+  it('labels an actorless change and a CLI change by what the entry supports', async () => {
     service.listAudit.mockResolvedValue({
       entries: [
         entry({
@@ -183,10 +232,9 @@ describe('AuthAuditSection', () => {
     render(<AuthAuditSection refreshKey={0} />)
 
     const rows = await screen.findAllByTestId('auth-audit-entry-auth_providers')
-    expect(rows[0]).toHaveTextContent('Setup session (no signed-in user)')
+    expect(rows[0]).toHaveTextContent('Setup session or deleted user')
     expect(rows[1]).toHaveTextContent('Server CLI')
     expect(rows[1]).toHaveTextContent('via CLI')
-    expect(screen.queryByText('Deleted user')).toBeNull()
   })
 
   it('loads the provider history first, with its badges', async () => {

@@ -118,21 +118,45 @@ export function madeFromCli(
   return entry.after?.source === 'cli' || entry.before?.source === 'cli'
 }
 
+/** The setup events the server records itself, with no user involved. */
+const SERVER_SETUP_EVENTS: readonly unknown[] = ['token_minted', 'rearmed']
+
 /**
- * Who made an authentication settings change. Unlike the other instance
- * settings, a change here can have no actor by design: the break-glass CLI
- * runs on the server with no user, and a setup session (`/setup`) exists
- * precisely because nobody can sign in yet. Only those two write without one,
- * so a missing actor is never read as a deleted user.
+ * Who made an authentication settings change, saying only what the entry
+ * supports. An entry has no actor for one of four reasons, and they cannot
+ * always be told apart:
+ *
+ * - the break-glass CLI wrote it, which stamps `source: cli`;
+ * - the server minted or re-armed a setup token (`auth_setup`), which no user
+ *   does;
+ * - it was written on a setup session, which has no user. Only the providers
+ *   and the allowlist can be, and nothing in the entry marks it;
+ * - the admin who made it has since been deleted (the audit row keeps the
+ *   change and drops the reference), which nothing marks either.
+ *
+ * So an unmarked actorless provider or allowlist entry is one of the last two
+ * and is labelled as both, never as a deleted user alone or a setup session
+ * alone; for the other settings it can only be a deleted user.
  */
 export function authAuditActorLabel(
   entry: Pick<
     AdminInstanceSettingsAuditEntry,
-    'action' | 'actor_name' | 'before' | 'after'
+    'setting' | 'action' | 'actor_name' | 'before' | 'after'
   >
 ): string {
   if (entry.action === 'import' || entry.actor_name !== null) {
     return auditActorLabel(entry)
   }
-  return madeFromCli(entry) ? 'Server CLI' : 'Setup session (no signed-in user)'
+  if (madeFromCli(entry)) return 'Server CLI'
+  switch (entry.setting) {
+    case 'auth_setup':
+      return SERVER_SETUP_EVENTS.includes(entry.after?.event)
+        ? 'Server'
+        : auditActorLabel(entry)
+    case 'auth_providers':
+    case 'auth_allowlist':
+      return 'Setup session or deleted user'
+    default:
+      return auditActorLabel(entry)
+  }
 }
