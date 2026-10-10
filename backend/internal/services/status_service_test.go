@@ -30,7 +30,7 @@ func statusTestLogger() *slog.Logger {
 	return l
 }
 
-func TestPromptService_RejectsOutOfSubsetStatus(t *testing.T) {
+func TestPromptService_RejectsStatusOutsideCatalog(t *testing.T) {
 	const (
 		userID = "user-1"
 		teamID = "team-1"
@@ -69,7 +69,7 @@ func TestPromptService_RejectsOutOfSubsetStatus(t *testing.T) {
 	})
 }
 
-func TestArtifactService_RejectsOutOfSubsetStatus(t *testing.T) {
+func TestArtifactService_RejectsStatusOutsideCatalog(t *testing.T) {
 	const (
 		userID    = "user-1"
 		teamID    = "team-1"
@@ -111,7 +111,7 @@ func TestArtifactService_RejectsOutOfSubsetStatus(t *testing.T) {
 	})
 }
 
-func TestBlueprintService_RejectsOutOfSubsetStatus(t *testing.T) {
+func TestBlueprintService_RejectsStatusOutsideCatalog(t *testing.T) {
 	const (
 		userID    = "user-1"
 		teamID    = "team-1"
@@ -153,7 +153,7 @@ func TestBlueprintService_RejectsOutOfSubsetStatus(t *testing.T) {
 	})
 }
 
-func TestMemoryService_RejectsOutOfSubsetStatus(t *testing.T) {
+func TestMemoryService_RejectsStatusOutsideCatalog(t *testing.T) {
 	const (
 		userID   = "user-1"
 		teamID   = "team-1"

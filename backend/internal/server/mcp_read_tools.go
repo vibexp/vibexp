@@ -275,7 +275,7 @@ func (s *Server) listMemoryResources(
 		TeamID:         teamID,
 		ProjectID:      &projectID,
 		Search:         params.Search,
-		Status:         optionalMCPStatus(params.Status),
+		Status:         optionalString(params.Status),
 		MetadataFilter: repositories.MetadataFilter(params.Metadata),
 		Page:           page,
 		Limit:          limit,

@@ -94,7 +94,9 @@ func (s *Server) storeMemory(
 		return r, nil, nil
 	}
 
-	statusPtr := optionalMCPStatus(params.Status)
+	// "" is "not supplied"; whether a value is one the team has is the
+	// service's question (#1266).
+	statusPtr := optionalString(params.Status)
 
 	createReq := &models.CreateMemoryRequest{
 		ProjectID: params.ProjectID,
@@ -141,16 +143,6 @@ func (s *Server) storeMemory(
 		},
 		StructuredContent: result,
 	}, result, nil
-}
-
-// optionalMCPStatus threads an optional MCP status argument into a request as
-// a pointer: nil when unset, so the service default (or "no filter") applies.
-// Whether the value is one the team has is the service's question (#1266).
-func optionalMCPStatus(status string) *string {
-	if status == "" {
-		return nil
-	}
-	return &status
 }
 
 // buildMemoryWriteResponse builds the slim write response for a memory by ID.
@@ -222,7 +214,9 @@ func (s *Server) updateMemory(
 		return errResult, nil, nil
 	}
 
-	statusPtr := optionalMCPStatus(params.Status)
+	// "" is "not supplied"; whether a value is one the team has is the
+	// service's question (#1266).
+	statusPtr := optionalString(params.Status)
 
 	memory, err := s.container.MemoryService().UpdateMemory(
 		userID, teamID, params.MemoryID, buildMemoryUpdateRequest(params, statusPtr))

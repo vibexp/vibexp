@@ -261,7 +261,7 @@ func (s *Server) validateCreateBlueprintRequest(w http.ResponseWriter, req *mode
 
 	return s.validateBlueprintFieldLengths(w, blueprintFieldValues{
 		slug: req.Slug, title: req.Title, description: req.Description,
-		blueprintType: &req.Type, subtype: req.Subtype, status: &req.Status,
+		blueprintType: &req.Type, subtype: req.Subtype,
 		metadata: req.Metadata,
 	})
 }
@@ -290,7 +290,7 @@ func (s *Server) validateUpdateBlueprintRequest(w http.ResponseWriter, req *mode
 
 	return s.validateBlueprintFieldLengths(w, blueprintFieldValues{
 		slug: slug, title: title, description: description,
-		blueprintType: req.Type, subtype: req.Subtype, status: req.Status,
+		blueprintType: req.Type, subtype: req.Subtype,
 		metadata: req.Metadata,
 	})
 }
@@ -303,7 +303,6 @@ type blueprintFieldValues struct {
 	description   string
 	blueprintType *string
 	subtype       *string
-	status        *string
 	metadata      map[string]interface{}
 }
 
