@@ -24,6 +24,7 @@ import { AcceptInvitation } from '@/pages/auth/AcceptInvitation'
 import { AuthCallback } from '@/pages/auth/AuthCallback'
 import { OAuthConsentPage } from '@/pages/auth/OAuthConsentPage'
 import { SharedPrompt } from '@/pages/prompts/SharedPrompt'
+import { SetupPage } from '@/pages/setup/SetupPage'
 import { AppRoutes } from '@/routes'
 
 function PageTracker() {
@@ -148,6 +149,16 @@ function App() {
                     element={
                       <BareLayout>
                         <SharedPrompt />
+                      </BareLayout>
+                    }
+                  />
+                  {/* First-run setup (#1239): outside the auth gate, since a
+                      setup session has no user. */}
+                  <Route
+                    path="/setup"
+                    element={
+                      <BareLayout>
+                        <SetupPage />
                       </BareLayout>
                     }
                   />

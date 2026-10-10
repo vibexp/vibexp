@@ -20,6 +20,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useAnalytics } from '../../hooks/useAnalytics'
 import type { AuthProvider } from '../../services/authService'
 import { authService } from '../../services/authService'
+import { setupService } from '../../services/setupService'
 import { sanitizeReturnTo, stashReturnTo } from '../../utils/returnTo'
 import { sessionStore } from '../../utils/storage'
 import { DevLogin } from './DevLogin'
@@ -217,6 +218,8 @@ export function SignInPage() {
   // flight, so we can show a per-button spinner and disable the others.
   const [signingIn, setSigningIn] = useState<string | null>(null)
   const [error, setError] = useState<string>('')
+  // Whether the instance still has to be configured through /setup (#1239).
+  const [setupRequired, setSetupRequired] = useState(false)
 
   const { login } = useAuth()
   const { trackAuth } = useAnalytics()
@@ -258,6 +261,26 @@ export function SignInPage() {
       active = false
     }
   }, [])
+
+  // With no provider to sign in through, ask whether the instance is waiting
+  // to be set up, so the page can say where the setup URL is. A failure here
+  // only costs the hint.
+  const noProviders = providers?.length === 0 && providersError === ''
+  useEffect(() => {
+    if (!noProviders) return
+    let active = true
+    setupService
+      .getStatus()
+      .then(status => {
+        if (active) setSetupRequired(status.setup_required)
+      })
+      .catch((err: unknown) => {
+        console.error('Failed to read the setup status:', err)
+      })
+    return () => {
+      active = false
+    }
+  }, [noProviders])
 
   const handleSignIn = async (provider: AuthProvider) => {
     setError('')
@@ -335,6 +358,16 @@ export function SignInPage() {
                 <p className="text-muted-foreground text-sm">
                   No login providers are configured for this deployment.
                 </p>
+              )}
+              {noProviders && setupRequired && (
+                <Alert data-testid="setup-required-hint">
+                  <AlertTitle>This instance is waiting to be set up</AlertTitle>
+                  <AlertDescription>
+                    Look for the line starting with{' '}
+                    <code className="font-mono">SETUP URL</code> in the server
+                    logs and open that link to add a sign-in provider.
+                  </AlertDescription>
+                </Alert>
               )}
               {providers?.map(provider => (
                 <Button

@@ -39,6 +39,18 @@ vi.mock('../../hooks/useAnalytics', () => ({
   }),
 }))
 
+const mockGetSetupStatus = vi.hoisted(() =>
+  vi.fn((): Promise<{ setup_required: boolean }> =>
+    Promise.resolve({ setup_required: false })
+  )
+)
+
+vi.mock('../../services/setupService', () => ({
+  setupService: {
+    getStatus: () => mockGetSetupStatus(),
+  },
+}))
+
 vi.mock('../../services/authService', () => ({
   authService: {
     getProviders: () => mockGetProviders(),
@@ -115,6 +127,7 @@ describe('SignInPage — config-driven provider picker', () => {
     // Default: login resolves immediately (redirect handled by location mock)
     mockLogin.mockResolvedValue(undefined)
     mockGetProviders.mockResolvedValue(PROVIDERS)
+    mockGetSetupStatus.mockResolvedValue({ setup_required: false })
   })
 
   it('renders one button per enabled provider fetched from the backend', async () => {
@@ -185,6 +198,66 @@ describe('SignInPage — config-driven provider picker', () => {
     renderSignInPage()
 
     expect(await screen.findByText(/boom/i)).toBeInTheDocument()
+    // A failed provider list says nothing about setup, so it is not asked.
+    expect(mockGetSetupStatus).not.toHaveBeenCalled()
+  })
+})
+
+describe('SignInPage — setup hint (#1239)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetProviders.mockResolvedValue([])
+    mockGetSetupStatus.mockResolvedValue({ setup_required: false })
+  })
+
+  it('points at the SETUP URL in the server logs while setup is required', async () => {
+    mockGetSetupStatus.mockResolvedValue({ setup_required: true })
+
+    renderSignInPage()
+
+    const hint = await screen.findByText(
+      /this instance is waiting to be set up/i
+    )
+    expect(hint).toBeInTheDocument()
+    expect(screen.getByText('SETUP URL')).toBeInTheDocument()
+    expect(screen.getByText(/in the server\s+logs/i)).toBeInTheDocument()
+  })
+
+  it('shows no hint when there is no provider but setup is not required', async () => {
+    renderSignInPage()
+
+    await screen.findByText(/no login providers are configured/i)
+    await waitFor(() => {
+      expect(mockGetSetupStatus).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.queryByText(/waiting to be set up/i)).not.toBeInTheDocument()
+  })
+
+  it('does not ask for the setup status when a provider is enabled', async () => {
+    mockGetProviders.mockResolvedValue(PROVIDERS)
+
+    renderSignInPage()
+
+    await screen.findByRole('button', { name: /continue with google/i })
+    expect(mockGetSetupStatus).not.toHaveBeenCalled()
+    expect(screen.queryByText(/waiting to be set up/i)).not.toBeInTheDocument()
+  })
+
+  it('still renders the page when the setup status cannot be read', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockGetSetupStatus.mockRejectedValue(new Error('status unavailable'))
+
+    renderSignInPage()
+
+    await screen.findByText(/no login providers are configured/i)
+    await waitFor(() => {
+      expect(logged).toHaveBeenCalledWith(
+        'Failed to read the setup status:',
+        expect.any(Error)
+      )
+    })
+    expect(screen.queryByText(/waiting to be set up/i)).not.toBeInTheDocument()
+    logged.mockRestore()
   })
 })
 

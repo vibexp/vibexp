@@ -38,6 +38,12 @@ export interface InstanceSettingsAuditListProps {
   /** Extra badge shown after the timestamp (e.g. the credential marker). */
   entryBadge?: (entry: AdminInstanceSettingsAuditEntry) => ReactNode
   actionLabel?: (action: AdminInstanceSettingsAuditEntry['action']) => string
+  /**
+   * Who made the change. Defaults to `auditActorLabel`, which reads a missing
+   * actor as a deleted user; a section where a change can have no actor by
+   * design (the authentication settings, #1239) supplies its own.
+   */
+  actorLabel?: (entry: AdminInstanceSettingsAuditEntry) => string
   description: string
   /** `data-testid` of each entry row. */
   entryTestId: string
@@ -50,12 +56,14 @@ function AuditEntry({
   changes,
   badge,
   actionLabel,
+  actorLabel,
   testId,
 }: Readonly<{
   entry: AdminInstanceSettingsAuditEntry
   changes: AuditFieldChange[]
   badge: ReactNode
   actionLabel: string
+  actorLabel: string
   testId: string
 }>) {
   return (
@@ -64,7 +72,7 @@ function AuditEntry({
         <Badge variant={entry.action === 'delete' ? 'destructive' : 'outline'}>
           {actionLabel}
         </Badge>
-        <span className="font-medium">{auditActorLabel(entry)}</span>
+        <span className="font-medium">{actorLabel}</span>
         <span className="text-muted-foreground">
           {formatDateTime(entry.created_at)}
         </span>
@@ -104,6 +112,7 @@ export function InstanceSettingsAuditList({
   describeChanges,
   entryBadge,
   actionLabel = auditActionLabel,
+  actorLabel = auditActorLabel,
   description,
   entryTestId,
   refreshKey,
@@ -191,6 +200,7 @@ export function InstanceSettingsAuditList({
                     changes={describeChanges(entry)}
                     badge={entryBadge?.(entry)}
                     actionLabel={actionLabel(entry.action)}
+                    actorLabel={actorLabel(entry)}
                     testId={entryTestId}
                   />
                 ))}

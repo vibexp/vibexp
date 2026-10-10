@@ -1,5 +1,6 @@
 import {
   FolderKanban,
+  KeyRound,
   LayoutDashboard,
   type LucideIcon,
   Mail,
@@ -98,6 +99,14 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     group: 'settings',
     description:
       'The AI summary defaults for teams, and the server budgets every team shares.',
+  },
+  {
+    label: 'Authentication',
+    href: '/admin/settings/auth',
+    icon: KeyRound,
+    group: 'settings',
+    description:
+      'Who can sign in to this instance: identity providers, the access allowlist and instance admins.',
   },
 ]
 
