@@ -9,6 +9,7 @@ import { authSettingsService } from '@/services/authSettingsService'
 import { InstanceSettingsAuditList } from '../InstanceSettingsAuditList'
 import {
   AUTH_AUDIT_SECTIONS,
+  authAuditActorLabel,
   authAuditChanges,
   type AuthAuditSection as Section,
   clientSecretChange,
@@ -53,6 +54,7 @@ function SettingHistory({
       describeChanges={entry => authAuditChanges(entry, section)}
       entryBadge={entry => <EntryBadges entry={entry} />}
       actionLabel={section.actionLabel}
+      actorLabel={authAuditActorLabel}
       description={section.description}
       entryTestId={`auth-audit-entry-${setting}`}
       refreshKey={refreshKey}

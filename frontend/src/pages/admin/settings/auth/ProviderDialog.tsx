@@ -28,6 +28,7 @@ import {
 import {
   emptyProviderForm,
   issuerChanged,
+  messageOf,
   nextSortOrder,
   PROVIDER_FORM_FIELDS,
   PROVIDER_TYPE_LABELS,
@@ -217,7 +218,7 @@ export function ProviderEditor({
       setFormError(split.other.length > 0 ? split.other.join(' ') : null)
       return
     }
-    setFormError(err instanceof Error ? err.message : fallback)
+    setFormError(messageOf(err, fallback))
   }
 
   const invalid = () => {
@@ -263,9 +264,7 @@ export function ProviderEditor({
         setTestError(split.other.length > 0 ? split.other.join(' ') : null)
         return
       }
-      setTestError(
-        err instanceof Error ? err.message : 'Failed to test the provider'
-      )
+      setTestError(messageOf(err, 'Failed to test the provider'))
     } finally {
       setTesting(false)
     }

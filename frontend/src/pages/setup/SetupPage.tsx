@@ -51,11 +51,22 @@ const TERMINAL_COPY: Record<
   },
 }
 
-function exchangeFailure(err: unknown): SetupState {
-  if (err instanceof ApiError && err.status === 401)
-    return { status: 'invalid' }
-  if (err instanceof ApiError && err.status === 404) {
-    return { status: 'inactive' }
+function statusOf(err: unknown): number | null {
+  return err instanceof ApiError ? err.status : null
+}
+
+/**
+ * The state a failed start leads to. A token the server refuses is `invalid`
+ * (401) or `inactive` (404). On a tokenless `resume` those same two answers
+ * only mean there is no setup session, so the link is `missing` its token.
+ * Anything else (a timeout, a network error, a 5xx) is a failure to report as
+ * such, never as a bad link.
+ */
+function startFailure(err: unknown, resume: boolean): SetupState {
+  const status = statusOf(err)
+  if (status === 401 || status === 404) {
+    if (resume) return { status: 'missing' }
+    return { status: status === 401 ? 'invalid' : 'inactive' }
   }
   return {
     status: 'failed',
@@ -219,36 +230,32 @@ export function SetupPage() {
   const [token] = useState(() => searchParams.get('token') ?? '')
   const [state, setState] = useState<SetupState>({ status: 'exchanging' })
 
+  // Exchange once per token. Kept apart from the effect that strips the token:
+  // that one re-runs when the search string changes, and an exchange in it
+  // would post the token a second time.
   useEffect(() => {
     let active = true
-    if (token.length === 0) {
-      // No token: a reload of this page after the token was stripped. The
-      // setup cookie may still be valid, which the first setup call tells.
-      authSettingsService
-        .listProviders()
-        .then(() => {
-          if (active) setState({ status: 'ready' })
-        })
-        .catch(() => {
-          if (active) setState({ status: 'missing' })
-        })
-      return () => {
-        active = false
-      }
-    }
-    setSearchParams({}, { replace: true })
-    setupService
-      .createSession(token)
+    // No token: a reload of this page after the token was stripped. The setup
+    // cookie may still be valid, which the first setup call tells.
+    const resume = token.length === 0
+    const start: Promise<unknown> = resume
+      ? authSettingsService.listProviders()
+      : setupService.createSession(token)
+    start
       .then(() => {
         if (active) setState({ status: 'ready' })
       })
       .catch((err: unknown) => {
-        if (active) setState(exchangeFailure(err))
+        if (active) setState(startFailure(err, resume))
       })
     return () => {
       active = false
     }
-  }, [setSearchParams, token])
+  }, [token])
+
+  useEffect(() => {
+    if (searchParams.has('token')) setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
 
   if (state.status === 'exchanging') {
     return (

@@ -16,14 +16,11 @@ import {
   ALLOWLIST_FORM_FIELDS,
   type AllowlistField,
   type AllowlistForm,
+  messageOf,
   normalizeAllowlistEntries,
   sameAllowlistEntries,
   validateAllowlistForm,
 } from './authSettingsForm'
-
-function messageOf(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback
-}
 
 /**
  * State and actions of the access allowlist editor (#1239).

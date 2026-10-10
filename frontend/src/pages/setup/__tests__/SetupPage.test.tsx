@@ -91,6 +91,8 @@ describe('SetupPage', () => {
     expect(await screen.findByTestId('auth-allowlist-section')).toBeVisible()
     expect(setup.createSession).toHaveBeenCalledWith('tok-123')
     expect(screen.getByTestId('address')).toHaveTextContent(/^\/setup$/)
+    // Stripping the token changes the URL; it must not exchange it again.
+    expect(setup.createSession).toHaveBeenCalledTimes(1)
 
     // A setup session cannot reach the admins or the audit log (404), so the
     // page neither renders nor requests them.
@@ -188,6 +190,27 @@ describe('SetupPage', () => {
     )
     expect(setup.createSession).not.toHaveBeenCalled()
   })
+
+  it('reads a 401 on the resume as a missing token too', async () => {
+    settings.listProviders.mockRejectedValue(problem(401, 'AUTH_REQUIRED'))
+    renderAt('/setup')
+    expect(await screen.findByTestId('setup-missing')).toBeVisible()
+  })
+
+  it.each([
+    ['a network error', new Error('Network error: Unable to connect')],
+    ['a server error', problem(500, 'INTERNAL_ERROR')],
+  ])(
+    'reports %s on the resume as a failure, not a bad link',
+    async (_, err) => {
+      settings.listProviders.mockRejectedValue(err)
+      renderAt('/setup')
+      expect(await screen.findByTestId('setup-failed')).toHaveTextContent(
+        err.message
+      )
+      expect(screen.queryByTestId('setup-missing')).toBeNull()
+    }
+  )
 })
 
 describe('SetupFinishPrompt', () => {

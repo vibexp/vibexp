@@ -146,6 +146,49 @@ describe('ProvidersSection: the list', () => {
   })
 })
 
+describe('ProvidersSection: a row test result', () => {
+  it('is dropped once the provider changes, since it no longer describes it', async () => {
+    service.testProvider.mockResolvedValue({ is_valid: true, message: null })
+    service.updateProvider.mockResolvedValue(saved(okta, 8))
+    const user = await renderSection([okta, google])
+    await user.click(screen.getByRole('button', { name: 'Test Okta' }))
+    await rowOf('okta').findByTestId('auth-provider-test')
+
+    // The list is re-read after the change, with the provider now disabled.
+    service.listProviders.mockResolvedValue({
+      providers: [
+        provider({
+          enabled: false,
+          health: { status: 'disabled', last_error: null, checked_at: null },
+        }),
+        google,
+      ],
+      version: 8,
+    })
+    await user.click(screen.getByRole('switch', { name: 'Okta enabled' }))
+    await waitFor(() => {
+      expect(
+        rowOf('okta').getByTestId('auth-provider-health')
+      ).toHaveTextContent('Disabled')
+    })
+    expect(rowOf('okta').queryByTestId('auth-provider-test')).toBeNull()
+  })
+
+  it('stays while nothing changed', async () => {
+    service.testProvider.mockResolvedValue({ is_valid: true, message: null })
+    const user = await renderSection([okta, google])
+    await user.click(screen.getByRole('button', { name: 'Test Okta' }))
+    await rowOf('okta').findByTestId('auth-provider-test')
+    await user.click(screen.getByRole('button', { name: 'Edit Google' }))
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: 'Cancel',
+      })
+    )
+    expect(rowOf('okta').getByTestId('auth-provider-test')).toBeVisible()
+  })
+})
+
 describe('ProvidersSection: enable and disable', () => {
   it('saves the switch against the loaded version, then re-reads the list', async () => {
     service.updateProvider.mockResolvedValue(saved(okta, 8))

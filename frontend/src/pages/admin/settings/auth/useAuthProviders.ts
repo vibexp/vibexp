@@ -8,6 +8,7 @@ import {
 import { isVersionConflict } from '../instanceSettingsForm'
 import {
   lockoutRiskReason,
+  messageOf,
   moveProvider,
   sortProviders,
   toProviderUpdate,
@@ -33,10 +34,6 @@ interface PendingLockout {
   reason: string
   write: ProviderWrite
   onOk?: () => void
-}
-
-function messageOf(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback
 }
 
 /**

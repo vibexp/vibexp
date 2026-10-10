@@ -31,6 +31,7 @@ import {
 import {
   availableProviderTypes,
   lockoutRiskCopy,
+  messageOf,
   PROVIDER_TYPE_LABELS,
 } from './authSettingsForm'
 import { ProviderDialog } from './ProviderDialog'
@@ -53,10 +54,15 @@ const HEALTH_VARIANTS: Record<
   unknown: 'outline',
 }
 
-/** A stored provider's last test, shown under its row until the next change. */
+/**
+ * A stored provider's last test, shown under its row until the next change.
+ * It is tied to the row object it ran against: every stored change re-reads
+ * the list, which replaces those objects, so a result never outlives the
+ * configuration it describes.
+ */
 type RowTest =
-  | { id: string; result: AdminAuthProviderTestResult }
-  | { id: string; error: string }
+  | { provider: AdminAuthProvider; result: AdminAuthProviderTestResult }
+  | { provider: AdminAuthProvider; error: string }
 
 function rowTestMessage(test: RowTest): { ok: boolean; text: string } {
   if ('error' in test) return { ok: false, text: test.error }
@@ -264,12 +270,11 @@ export function ProvidersSection({
       setTestingId(provider.id)
       setRowTest(null)
       const result = await authSettingsService.testProvider({ id: provider.id })
-      setRowTest({ id: provider.id, result })
+      setRowTest({ provider, result })
     } catch (err) {
       setRowTest({
-        id: provider.id,
-        error:
-          err instanceof Error ? err.message : 'Failed to test the provider',
+        provider,
+        error: messageOf(err, 'Failed to test the provider'),
       })
     } finally {
       setTestingId(null)
@@ -358,7 +363,7 @@ export function ProvidersSection({
                 count={providers.length}
                 state={state}
                 testing={testingId === provider.id}
-                test={rowTest?.id === provider.id ? rowTest : undefined}
+                test={rowTest?.provider === provider ? rowTest : undefined}
                 onTest={() => {
                   void testStored(provider)
                 }}

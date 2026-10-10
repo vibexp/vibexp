@@ -11,6 +11,7 @@ vi.mock('@/services/authSettingsService', () => ({
 import { AuthAuditSection } from '../AuthAuditSection'
 import {
   AUTH_AUDIT_SECTIONS,
+  authAuditActorLabel,
   authAuditChanges,
   clientSecretChange,
   madeFromCli,
@@ -126,7 +127,68 @@ describe('authSettingsAudit', () => {
   })
 })
 
+describe('authAuditActorLabel', () => {
+  const noActor = { actor_user_id: null, actor_name: null }
+
+  it('names the admin who made the change', () => {
+    expect(authAuditActorLabel(entry({ after: { slug: 'okta' } }))).toBe(
+      'Ada Admin'
+    )
+  })
+
+  it('reads an actorless save as a setup session, never a deleted user', () => {
+    expect(
+      authAuditActorLabel(entry({ ...noActor, after: { slug: 'okta' } }))
+    ).toBe('Setup session (no signed-in user)')
+  })
+
+  it('reads an actorless CLI save and CLI removal as the server CLI', () => {
+    expect(
+      authAuditActorLabel(entry({ ...noActor, after: { source: 'cli' } }))
+    ).toBe('Server CLI')
+    expect(
+      authAuditActorLabel(
+        entry({ ...noActor, action: 'delete', before: { source: 'cli' } })
+      )
+    ).toBe('Server CLI')
+  })
+
+  it('keeps the boot-time import label', () => {
+    expect(authAuditActorLabel(entry({ ...noActor, action: 'import' }))).toBe(
+      'Imported from config.yaml'
+    )
+  })
+})
+
 describe('AuthAuditSection', () => {
+  it('shows a setup-session change and a CLI change without a "Deleted user"', async () => {
+    service.listAudit.mockResolvedValue({
+      entries: [
+        entry({
+          id: 'setup',
+          actor_user_id: null,
+          actor_name: null,
+          after: { slug: 'okta', enabled: true },
+        }),
+        entry({
+          id: 'cli',
+          actor_user_id: null,
+          actor_name: null,
+          before: { slug: 'okta', enabled: true },
+          after: { slug: 'okta', enabled: false, source: 'cli' },
+        }),
+      ],
+      next_cursor: null,
+    })
+    render(<AuthAuditSection refreshKey={0} />)
+
+    const rows = await screen.findAllByTestId('auth-audit-entry-auth_providers')
+    expect(rows[0]).toHaveTextContent('Setup session (no signed-in user)')
+    expect(rows[1]).toHaveTextContent('Server CLI')
+    expect(rows[1]).toHaveTextContent('via CLI')
+    expect(screen.queryByText('Deleted user')).toBeNull()
+  })
+
   it('loads the provider history first, with its badges', async () => {
     service.listAudit.mockResolvedValue({
       entries: [

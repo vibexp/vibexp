@@ -25,10 +25,7 @@ import {
 
 import { FieldFrame } from '../InstanceSettingsFields'
 import { fieldDescribedBy } from '../instanceSettingsForm'
-
-function messageOf(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback
-}
+import { messageOf } from './authSettingsForm'
 
 /**
  * Instance admins (#1239): the root admins set in the server configuration,

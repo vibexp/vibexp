@@ -21,6 +21,11 @@ import type { FieldErrors } from '../instanceSettingsForm'
  * the authority, and its 400 field errors are shown on the same inputs.
  */
 
+/** What to show for a failure: the error's own message, or `fallback`. */
+export function messageOf(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback
+}
+
 export const PROVIDER_TYPES: readonly AdminAuthProviderType[] = [
   'google',
   'github',

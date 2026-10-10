@@ -3,6 +3,7 @@ import type { AdminAuthSettingsAuditSetting } from '@/services/authSettingsServi
 
 import {
   auditActionLabel,
+  auditActorLabel,
   type AuditField,
   type AuditFieldChange,
   type AuditSnapshot,
@@ -115,4 +116,23 @@ export function madeFromCli(
   entry: Pick<AdminInstanceSettingsAuditEntry, 'before' | 'after'>
 ): boolean {
   return entry.after?.source === 'cli' || entry.before?.source === 'cli'
+}
+
+/**
+ * Who made an authentication settings change. Unlike the other instance
+ * settings, a change here can have no actor by design: the break-glass CLI
+ * runs on the server with no user, and a setup session (`/setup`) exists
+ * precisely because nobody can sign in yet. Only those two write without one,
+ * so a missing actor is never read as a deleted user.
+ */
+export function authAuditActorLabel(
+  entry: Pick<
+    AdminInstanceSettingsAuditEntry,
+    'action' | 'actor_name' | 'before' | 'after'
+  >
+): string {
+  if (entry.action === 'import' || entry.actor_name !== null) {
+    return auditActorLabel(entry)
+  }
+  return madeFromCli(entry) ? 'Server CLI' : 'Setup session (no signed-in user)'
 }
