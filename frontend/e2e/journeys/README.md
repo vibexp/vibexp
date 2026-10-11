@@ -18,8 +18,44 @@ e2e/journeys/
 ├── admin-email-settings.journey.spec.ts     # Admin → Settings → Email against the stack's Mailpit
 ├── instance-settings.journey.spec.ts        # Admin → Settings → Search defaults reach a team; reset
 ├── admin-auth-settings.journey.spec.ts      # Admin → Settings → Authentication + first-run /setup
+├── custom-statuses.journey.spec.ts          # Custom status: create, apply, search, filter, delete
 └── README.md                                # This file
 ```
+
+## Custom statuses (`custom-statuses.journey.spec.ts`)
+
+The ship gate for epic #1263: an owner creates a custom artifact status on
+Settings › Statuses, sets it on an artifact through the edit form, finds that
+artifact through global search and the list's status filter, then deletes the
+status and sees the artifact back on the system default. A plain member reads
+the same Statuses page with no create, rename or delete control, and a direct
+`POST /api/v1/{team_id}/statuses` from that session answers 403.
+
+Two of its assertions are the reason this is an e2e at all:
+
+- **An artifact in a custom status stays visible.** Search and the lists hide
+  resources by a denylist of non-live statuses. If that regressed into an
+  allowlist of the system values, every unit suite would still pass and the
+  artifact would vanish here — from the search results and from the filtered
+  list, whose URL (`?status=<slug>`) must also survive a reload, when the page
+  has to wait for the status catalog before it can tell the slug from junk.
+- **Deleting a status reassigns its items, and the UI says so.** The confirm
+  dialog names the one artifact and its destination before the request is sent,
+  the response reports `reassigned_count: 1` / `reassigned_to: active`, and the
+  detail badge, the form select and the list filter all agree afterwards.
+
+The badges are asserted on the status's **display name** while the API is
+asserted to store its **slug** — the pair is what shows the catalog, rather than
+the raw value, is what the pages render.
+
+The team is new, so it holds exactly two artifacts: the one that moves through
+the custom status and a control that stays `active`. The control is what lets
+the filter assertion fail — a filter that narrowed nothing would still show it.
+The stack configures no embedding provider, so search takes the keyword path,
+which reads the same live-status rule and has no indexing latency.
+
+It uses artifacts only. The other three resource types share the same catalog
+code and are covered by the unit and integration tests of #1265–#1270.
 
 ## Cross-team settings copy (`cross-team-settings-copy.journey.spec.ts`)
 
