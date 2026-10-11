@@ -2,7 +2,7 @@ import type { MCPTool } from './mcp-tool-shared'
 import { TEAM_ID_DESCRIPTION } from './mcp-tool-shared'
 
 /**
- * The keyed resource tools -- the three that dispatch on `resource_type` rather
+ * The keyed resource tools -- the ones that dispatch on `resource_type` rather
  * than belonging to one domain -- kept in their own module so the main catalog
  * stays under the 600-line cap the lint config enforces, the same split
  * mcp-tools-memory.ts made for the memory write tools.
@@ -79,7 +79,8 @@ export const resourceTools: MCPTool[] = [
         },
         status: {
           type: 'string',
-          description: 'Filter by status. Leave empty for the default view.',
+          description:
+            'Filter by status: a system status of the resource type or a custom status of the team (call vibexp_io_list_statuses). An unknown value returns an error listing the allowed ones. Leave empty for the default view.',
         },
         type: {
           type: 'string',
@@ -128,6 +129,27 @@ export const resourceTools: MCPTool[] = [
         },
       },
       required: ['team_id', 'resource_type'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'vibexp_io_list_statuses',
+    description:
+      "List the statuses a team can use on its prompts, artifacts, blueprints and memories: the system statuses every team has, then the team's own custom ones, each with `is_system` and `is_live`. Call it before setting or filtering by `status`; omit `resource_type` to get all four types.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
+        resource_type: {
+          type: 'string',
+          description:
+            'Optional. Limit the result to one resource type: one of "prompt", "artifact", "blueprint", or "memory". Omit to list the statuses of all four.',
+        },
+      },
+      required: ['team_id'],
       additionalProperties: false,
     },
   },

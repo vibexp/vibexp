@@ -13,18 +13,23 @@ import (
 
 // The `jsonschema:` description on each MCP tool's Status parameter is what an
 // AI agent reads before choosing a value, and it is a hand-written copy of the
-// vocabulary -- the last one this issue could not replace with a $ref, because
-// a struct tag cannot be computed (#912).
+// vocabulary -- the last one #912 could not replace with a $ref, because a
+// struct tag cannot be computed.
 //
-// So it is pinned instead: a tag must name every status its resource type
-// accepts and none that it does not. That catches both drift directions -- a
-// value dropped from a description (agents stop using a status that works) and
-// a value added to one (agents send a status the service now 400s).
-func TestMCPStatusDescriptionsMatchTheAllowlists(t *testing.T) {
+// So it is pinned instead, on the half a tag can carry: the SYSTEM values. A
+// tag must name every system status of its resource type and none of another
+// type's. That catches both drift directions -- a value dropped from a
+// description (agents stop using a status that works) and a value added to one
+// (agents send a status the service rejects).
+//
+// A team's custom statuses (epic #1263) cannot be in a tag at all, so each tag
+// must also name vibexp_io_list_statuses, the tool that lists them (#1268).
+// Without that pointer an agent has no way to learn a custom status exists.
+func TestMCPStatusDescriptionsNameSystemStatusesAndTheDiscoveryTool(t *testing.T) {
 	cases := []struct {
-		name    string
-		typ     reflect.Type
-		allowed []string
+		name   string
+		typ    reflect.Type
+		system []string
 	}{
 		{"CreatePromptParams", reflect.TypeOf(CreatePromptParams{}), models.PromptStatuses},
 		{"UpdatePromptParams", reflect.TypeOf(UpdatePromptParams{}), models.PromptStatuses},
@@ -51,12 +56,17 @@ func TestMCPStatusDescriptionsMatchTheAllowlists(t *testing.T) {
 				}
 			}
 
-			assert.ElementsMatch(t, tc.allowed, mentioned,
-				"%s.Status's description names %v, but the tool accepts %v. This tag is "+
-					"the only description of the vocabulary an MCP client ever sees, and "+
-					"a struct tag cannot be built from the allowlist -- so it is pinned "+
-					"here instead (#912). Description was: %q",
-				tc.name, mentioned, tc.allowed, description)
+			assert.ElementsMatch(t, tc.system, mentioned,
+				"%s.Status's description names the system statuses %v, but the "+
+					"resource type's are %v. A struct tag cannot be built from the "+
+					"allowlist -- so it is pinned here instead (#912). Description was: %q",
+				tc.name, mentioned, tc.system, description)
+
+			assert.Contains(t, description, listStatusesToolName,
+				"%s.Status's description must point at %s: a team's custom statuses "+
+					"cannot be written into a struct tag, and that tool is the only way "+
+					"an agent learns they exist (#1268). Description was: %q",
+				tc.name, listStatusesToolName, description)
 		})
 	}
 }

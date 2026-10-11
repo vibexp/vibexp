@@ -27,7 +27,7 @@ type CreatePromptParams struct {
 	Slug        string   `json:"slug" jsonschema:"Unique identifier for the prompt (max 255 chars)"`
 	Body        string   `json:"body" jsonschema:"Full prompt body"`
 	Description string   `json:"description,omitempty" jsonschema:"Brief description (max 200 chars)"`
-	Status      string   `json:"status,omitempty" jsonschema:"One of \"draft\", \"published\""`
+	Status      string   `json:"status,omitempty" jsonschema:"One of \"draft\", \"published\", or a custom status of the team (call vibexp_io_list_statuses)"`
 	MCPExpose   *bool    `json:"mcp_expose,omitempty" jsonschema:"Whether to expose this prompt as an MCP prompt primitive"`
 	Labels      []string `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }
@@ -42,7 +42,7 @@ type UpdatePromptParams struct {
 	Name        string   `json:"name,omitempty" jsonschema:"New name (max 50 chars)"`
 	Body        string   `json:"body,omitempty" jsonschema:"New body"`
 	Description string   `json:"description,omitempty" jsonschema:"New description (max 200 chars)"`
-	Status      string   `json:"status,omitempty" jsonschema:"New status: one of \"draft\", \"published\""`
+	Status      string   `json:"status,omitempty" jsonschema:"New status: one of \"draft\", \"published\", or a custom status of the team (call vibexp_io_list_statuses)"`
 	ProjectID   string   `json:"project_id,omitempty" jsonschema:"New project UUID (move the prompt to another project)"`
 	MCPExpose   *bool    `json:"mcp_expose,omitempty" jsonschema:"Whether to expose this prompt as an MCP prompt primitive"`
 	Labels      []string `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`

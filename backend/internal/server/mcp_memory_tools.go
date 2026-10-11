@@ -50,19 +50,21 @@ type StoreMemoryParams struct {
 	ProjectID string                 `json:"project_id" jsonschema:"Project UUID — required; the project this memory belongs to"`
 	Title     string                 `json:"title,omitempty" jsonschema:"Optional short title for the memory (max 255 characters)"`
 	Text      string                 `json:"text" jsonschema:"Memory content/text"`
-	Status    string                 `json:"status,omitempty" jsonschema:"Lifecycle status: active (default), draft, or archived"`
+	Status    string                 `json:"status,omitempty" jsonschema:"Lifecycle status: one of \"active\" (default), \"draft\", \"archived\", or a custom status of the team (call vibexp_io_list_statuses)"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty" jsonschema:"Additional key-value metadata pairs"`
 	Labels    []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }
 
 // UpdateMemoryParams defines the parameters for updating a specific memory
+//
+//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type UpdateMemoryParams struct {
 	TeamID   string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	MemoryID string `json:"memory_id" jsonschema:"Memory identifier"`
 	// Clearing a title is REST-only; see buildMemoryUpdateRequest.
 	Title    string                 `json:"title,omitempty" jsonschema:"New short title (max 255); omit to keep it"`
 	Text     string                 `json:"text,omitempty" jsonschema:"New memory text"`
-	Status   string                 `json:"status,omitempty" jsonschema:"New lifecycle status: active, draft, or archived"`
+	Status   string                 `json:"status,omitempty" jsonschema:"New lifecycle status: one of \"active\", \"draft\", \"archived\", or a custom status of the team (call vibexp_io_list_statuses)"`
 	Metadata map[string]interface{} `json:"metadata,omitempty" jsonschema:"New metadata"`
 	Labels   []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }

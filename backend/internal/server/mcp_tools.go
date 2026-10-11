@@ -21,9 +21,10 @@ const mcpServerInstructions = "VibeXP MCP server. Most tools are team-scoped and
 	"which team holds it, rather than listing teams and then listing each team's projects. Then pass a " +
 	"team you are a member of (each call resolves and membership-checks the team). The only user-scoped " +
 	"tools that take no team_id are vibexp_io_get_user (your identity) and vibexp_io_list_teams_and_projects " +
-	"(workspace discovery). As you work, record how resources relate with vibexp_io_link_resources " +
-	"(governed-by, supersedes, built-from, explained-by); every vibexp_io_get_resource returns the " +
-	"resource's typed neighborhood in its `related` array."
+	"(workspace discovery). Before setting or filtering by a `status`, call vibexp_io_list_statuses: a team " +
+	"can have custom statuses beyond the system ones. As you work, record how resources relate with " +
+	"vibexp_io_link_resources (governed-by, supersedes, built-from, explained-by); every " +
+	"vibexp_io_get_resource returns the resource's typed neighborhood in its `related` array."
 
 // MCPToolsManager manages all MCP tools and provides better organization
 type MCPToolsManager struct {
@@ -56,6 +57,7 @@ func (m *MCPToolsManager) AddAllTools(mcpServer *mcp.Server, userID string) {
 	m.addSearchTools(mcpServer, userID)
 	m.addReadTools(mcpServer, userID)
 	m.addMetadataTools(mcpServer, userID)
+	m.addStatusTools(mcpServer, userID)
 	m.addAttachmentTools(mcpServer, userID)
 	m.addLinkTools(mcpServer, userID)
 	m.addDeleteTools(mcpServer, userID)
@@ -156,6 +158,20 @@ func (m *MCPToolsManager) addMetadataTools(mcpServer *mcp.Server, userID string)
 		ctx context.Context, req *mcp.CallToolRequest, params *ListResourceMetadataParams,
 	) (*mcp.CallToolResult, any, error) {
 		return m.server.listResourceMetadata(ctx, req, params, userID)
+	})
+}
+
+// addStatusTools adds the status discovery tool, which tells an agent which
+// statuses a team has -- the system ones plus its custom ones -- so it can set
+// or filter by `status` without guessing.
+func (m *MCPToolsManager) addStatusTools(mcpServer *mcp.Server, userID string) {
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        listStatusesToolName,
+		Description: listStatusesToolDescription,
+	}, func(
+		ctx context.Context, req *mcp.CallToolRequest, params *ListStatusesParams,
+	) (*mcp.CallToolResult, any, error) {
+		return m.server.listStatuses(ctx, req, params, userID)
 	})
 }
 

@@ -100,7 +100,9 @@ const GROUP_DEFS: GroupDef[] = [
     id: 'resources',
     label: 'Resources',
     icon: 'package',
-    match: name => name.includes('_resource'),
+    // list_statuses is keyed by resource_type like the rest of this group; its
+    // name carries no `_resource`, so it is matched explicitly.
+    match: name => name.includes('_resource') || name.includes('_statuses'),
   },
   {
     id: 'attachments',

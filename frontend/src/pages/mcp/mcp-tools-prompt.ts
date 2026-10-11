@@ -45,7 +45,7 @@ export const promptTools: MCPTool[] = [
         status: {
           type: 'string',
           description:
-            'Prompt status. One of: "draft" for works-in-progress, "published" for prompts ready to be used. Only published prompts can be rendered over MCP.',
+            'Prompt status. One of: "draft" for works-in-progress, "published" for prompts ready to be used. Only published prompts can be rendered over MCP. A team can also have custom statuses: call vibexp_io_list_statuses to list them.',
         },
         mcp_expose: {
           type: 'boolean',
@@ -94,7 +94,8 @@ export const promptTools: MCPTool[] = [
         },
         status: {
           type: 'string',
-          description: 'New status. One of: "draft", "published".',
+          description:
+            'New status. One of: "draft", "published", or a custom status of the team (call vibexp_io_list_statuses).',
         },
         project_id: {
           type: 'string',

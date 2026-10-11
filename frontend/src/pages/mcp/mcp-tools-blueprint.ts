@@ -55,7 +55,7 @@ export const blueprintTools: MCPTool[] = [
         status: {
           type: 'string',
           description:
-            'Blueprint status. One of: "active" for rules in force, "expired" for retired ones.',
+            'Blueprint status. One of: "active" for rules in force, "expired" for retired ones. A team can also have custom statuses: call vibexp_io_list_statuses to list them.',
         },
         metadata: {
           type: 'object',
@@ -117,7 +117,8 @@ export const blueprintTools: MCPTool[] = [
         },
         status: {
           type: 'string',
-          description: 'New status. One of: "active", "expired".',
+          description:
+            'New status. One of: "active", "expired", or a custom status of the team (call vibexp_io_list_statuses).',
         },
         metadata: {
           type: 'object',

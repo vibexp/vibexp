@@ -668,6 +668,7 @@ type TestContainer struct {
 	EmbeddingServiceMock      services.EmbeddingServiceInterface
 	RelationServiceMock       services.RelationServiceInterface
 	MetadataCatalogMock       services.MetadataCatalogServiceInterface
+	StatusCatalogMock         services.StatusCatalogServiceInterface
 	TeamRepositoryMock        repositories.TeamRepository
 	ProjectRepositoryMock     repositories.ProjectRepository
 }
@@ -786,7 +787,7 @@ var _ container.Container = (*TestContainer)(nil)
 func (tc *TestContainer) TypeService() services.TypeServiceInterface { return nil }
 
 func (tc *TestContainer) StatusCatalogService() services.StatusCatalogServiceInterface {
-	return nil
+	return tc.StatusCatalogMock
 }
 
 func (tc *TestContainer) StatusManagementService() services.StatusManagementServiceInterface {

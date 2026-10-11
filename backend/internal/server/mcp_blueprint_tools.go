@@ -27,7 +27,7 @@ type CreateBlueprintParams struct {
 	Description string                 `json:"description,omitempty" jsonschema:"Brief description (max 500 chars)"`
 	Type        string                 `json:"type,omitempty" jsonschema:"Blueprint type (defaults to \"general\")"`
 	Subtype     *string                `json:"subtype,omitempty" jsonschema:"Optional subtype (e.g. \"sub-agents\"); when \"sub-agents\", metadata.model is required"`
-	Status      string                 `json:"status,omitempty" jsonschema:"One of \"active\", \"expired\""`
+	Status      string                 `json:"status,omitempty" jsonschema:"One of \"active\", \"expired\", or a custom status of the team (call vibexp_io_list_statuses)"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty" jsonschema:"Optional custom metadata (e.g. {\"model\": \"...\"} for sub-agents)"`
 	Labels      []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }
@@ -46,7 +46,7 @@ type UpdateBlueprintParams struct {
 	Description string                 `json:"description,omitempty" jsonschema:"New description (max 500 chars)"`
 	Type        string                 `json:"type,omitempty" jsonschema:"New blueprint type"`
 	Subtype     *string                `json:"subtype,omitempty" jsonschema:"New subtype (e.g. \"sub-agents\")"`
-	Status      string                 `json:"status,omitempty" jsonschema:"New status: one of \"active\", \"expired\""`
+	Status      string                 `json:"status,omitempty" jsonschema:"New status: one of \"active\", \"expired\", or a custom status of the team (call vibexp_io_list_statuses)"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty" jsonschema:"New custom metadata (replaces the existing metadata when provided)"`
 	Labels      []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }

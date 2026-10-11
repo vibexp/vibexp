@@ -26,12 +26,14 @@ type CreateArtifactParams struct {
 	Content     string                 `json:"content" jsonschema:"Full artifact content"`
 	Description string                 `json:"description,omitempty" jsonschema:"Brief description (max 500 chars)"`
 	Type        string                 `json:"type,omitempty" jsonschema:"Team type slug. Defaults: general, work-reports, static-contexts; teams may add custom types. Defaults to general when omitted."`
-	Status      string                 `json:"status,omitempty" jsonschema:"One of \"active\", \"draft\", \"archived\""`
+	Status      string                 `json:"status,omitempty" jsonschema:"One of \"active\", \"draft\", \"archived\", or a custom status of the team (call vibexp_io_list_statuses)"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty" jsonschema:"Key-value metadata pairs"`
 	Labels      []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }
 
 // UpdateArtifactParams defines the parameters for updating a specific artifact
+//
+//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type UpdateArtifactParams struct {
 	TeamID      string                 `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ProjectID   string                 `json:"project_id" jsonschema:"Project UUID — required"`
@@ -40,7 +42,7 @@ type UpdateArtifactParams struct {
 	Content     string                 `json:"content,omitempty" jsonschema:"New content"`
 	Description string                 `json:"description,omitempty" jsonschema:"New description"`
 	Type        string                 `json:"type,omitempty" jsonschema:"New type"`
-	Status      string                 `json:"status,omitempty" jsonschema:"New status: active, draft or archived"`
+	Status      string                 `json:"status,omitempty" jsonschema:"New status: one of \"active\", \"draft\", \"archived\", or a custom status of the team (call vibexp_io_list_statuses)"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty" jsonschema:"New metadata"`
 	Labels      []string               `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }

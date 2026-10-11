@@ -43,6 +43,11 @@ export const memoryTools: MCPTool[] = [
           description:
             'Optional labels for categorising and filtering (max 10 labels, 50 characters each). Labels are the shared taxonomy across prompts, artifacts, blueprints and memories, so the same label groups related resources of every type.',
         },
+        status: {
+          type: 'string',
+          description:
+            'Lifecycle status. One of: "active" for current memories, "draft" for works-in-progress, "archived" for retired ones. Defaults to "active" if not specified. A team can also have custom statuses: call vibexp_io_list_statuses to list them.',
+        },
       },
       required: ['team_id', 'project_id', 'text'],
       additionalProperties: false,
@@ -83,6 +88,11 @@ export const memoryTools: MCPTool[] = [
           type: 'array',
           description:
             'Optional labels for categorising and filtering (max 10 labels, 50 characters each). Labels are the shared taxonomy across prompts, artifacts, blueprints and memories, so the same label groups related resources of every type.',
+        },
+        status: {
+          type: 'string',
+          description:
+            'New lifecycle status. One of: "active", "draft", "archived", or a custom status of the team (call vibexp_io_list_statuses). Leave empty to keep the existing status.',
         },
       },
       required: ['team_id', 'memory_id'],
