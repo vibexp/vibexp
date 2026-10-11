@@ -32,7 +32,8 @@ const LOGO_SIZE = 34
  *   decided by `useBrandLockup`, from what is actually on screen.
  * - `showText` forces the wordmark on; otherwise it shows only in the
  *   expanded desktop sidebar (`expanded` + `lg+`) so the icon rail stays at
- *   its collapsed width. The logo follows the same rule for its width: in the
+ *   its collapsed width. In the rail the wordmark is visually hidden but
+ *   still read out, which is what names the link there. The logo follows the same rule for its width: in the
  *   rail it is held to the logo box, however wide the image is.
  * - Forwards ref/props to the underlying `Link` so it composes with Radix
  *   `asChild` slots (e.g. `SheetClose`).
@@ -51,10 +52,10 @@ export const SidebarBrand = forwardRef<HTMLAnchorElement, SidebarBrandProps>(
       wordmarkDisplay = 'flex'
       logoWidth = 'max-w-40'
     } else if (expanded) {
-      wordmarkDisplay = 'hidden lg:flex'
+      wordmarkDisplay = 'sr-only lg:not-sr-only lg:flex'
       logoWidth = 'max-w-[34px] lg:max-w-40'
     } else {
-      wordmarkDisplay = 'hidden'
+      wordmarkDisplay = 'sr-only'
       logoWidth = 'max-w-[34px]'
     }
 
@@ -71,15 +72,15 @@ export const SidebarBrand = forwardRef<HTMLAnchorElement, SidebarBrandProps>(
         )}
         {...props}
       >
-        {/* The mark is decorative only in a drawer (`showText`), where the
-            wordmark is on screen at every size. In the rail the wordmark is
-            `display: none`, so the mark is the link's only accessible name
-            and must keep it. */}
+        {/* Where the rail takes the wordmark off screen it stays in the
+            accessibility tree (`sr-only`, not `hidden`), so the link is named
+            by its text in every form and the VibeXP mark beside it can always
+            be decorative. */}
         <BrandLogo
           size={LOGO_SIZE}
           className={cn('shrink-0', logoWidth)}
           source={logo}
-          decorative={showText && markIsDecorative}
+          decorative={markIsDecorative}
         />
         {company_name !== null && (
           <span

@@ -42,8 +42,7 @@ describe('SidebarBrand', () => {
     it('is the VibeXP mark with the two-line wordmark, as before', () => {
       const link = renderBrand()
 
-      const mark = within(link).getByRole('img', { name: 'VibeXP' })
-      expect(mark.tagName.toLowerCase()).toBe('svg')
+      expect(link.querySelector('svg')).not.toBeNull()
       expect(link.querySelector('img')).toBeNull()
       expect(
         within(link).getByText('VibeXP', { selector: 'span' })
@@ -128,22 +127,44 @@ describe('SidebarBrand', () => {
     })
   })
 
+  // The link is named by its text in every form, so the VibeXP mark beside
+  // that text is decorative in every form. In the rail the wordmark is off
+  // screen but still in the accessibility tree (`sr-only`, not `hidden`).
   describe('the mark and assistive technology', () => {
-    it('keeps its name in the sidebar, where the rail hides the wordmark', () => {
-      const link = renderBrand()
+    const forms = [
+      ['the collapsed rail', { expanded: false }],
+      ['the expanded sidebar', {}],
+      ['a drawer', { showText: true }],
+    ] as const
 
-      expect(link.querySelector('svg')).not.toHaveAttribute('aria-hidden')
-      expect(
-        within(link).getByRole('img', { name: 'VibeXP' })
-      ).toBeInTheDocument()
-    })
+    it.each(forms)('names the unbranded link once in %s', (_, props) => {
+      const link = renderBrand({}, props)
 
-    it('is decorative in a drawer, where the wordmark is always on screen', () => {
-      const link = renderBrand({}, { showText: true })
-
+      // jsdom applies no stylesheet, so the two stacked spans join unspaced.
+      expect(link).toHaveAccessibleName(/^VibeXP\s*Your team's shared brain$/)
       expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
       expect(within(link).queryByRole('img')).toBeNull()
     })
+
+    it.each(forms)(
+      'names a name-only link after the company alone in %s',
+      (_, props) => {
+        const link = renderBrand({ company_name: 'Acme Inc.' }, props)
+
+        expect(link).toHaveAccessibleName('Acme Inc.')
+        expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+      }
+    )
+
+    it.each(forms)(
+      "names the link by a nameless company logo's alt text in %s",
+      (_, props) => {
+        const link = renderBrand({ logo_url: LOGO }, props)
+
+        expect(link).toHaveAccessibleName('Company logo')
+        expect(link.querySelector('img')).not.toHaveAttribute('aria-hidden')
+      }
+    )
   })
 
   describe('rail and expanded forms', () => {
@@ -159,8 +180,9 @@ describe('SidebarBrand', () => {
       const logo = link.querySelector('img')
       expect(logo).toHaveClass('max-w-[34px]')
       expect(logo).not.toHaveClass('lg:max-w-40')
-      expect(wordmark(link)).toHaveClass('hidden')
-      expect(wordmark(link)).not.toHaveClass('lg:flex')
+      // Off screen, not removed: still read out, which names the link.
+      expect(wordmark(link)).toHaveClass('sr-only')
+      expect(wordmark(link)).not.toHaveClass('hidden', 'lg:flex')
     })
 
     it('lifts the width cap and shows the wordmark at lg+ when expanded', () => {
@@ -168,7 +190,8 @@ describe('SidebarBrand', () => {
 
       const logo = link.querySelector('img')
       expect(logo).toHaveClass('max-w-[34px]', 'lg:max-w-40')
-      expect(wordmark(link)).toHaveClass('hidden', 'lg:flex')
+      expect(wordmark(link)).toHaveClass('sr-only', 'lg:not-sr-only', 'lg:flex')
+      expect(wordmark(link)).not.toHaveClass('hidden')
     })
 
     it('shows the wordmark and the wider logo at every size in a drawer', () => {
@@ -181,7 +204,7 @@ describe('SidebarBrand', () => {
       expect(logo).toHaveClass('max-w-40')
       expect(logo).not.toHaveClass('max-w-[34px]')
       expect(wordmark(link)).toHaveClass('flex')
-      expect(wordmark(link)).not.toHaveClass('hidden')
+      expect(wordmark(link)).not.toHaveClass('hidden', 'sr-only')
     })
   })
 })
