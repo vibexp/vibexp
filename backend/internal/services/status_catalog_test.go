@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -208,7 +209,7 @@ func TestStatusCatalogService_ConfirmCustom(t *testing.T) {
 	})
 
 	for _, stillThere := range []bool{true, false} {
-		t.Run("a custom status is the repository's answer", func(t *testing.T) {
+		t.Run(fmt.Sprintf("a custom status is the repository's answer (%t)", stillThere), func(t *testing.T) {
 			svc, repo := newStatusCatalogService(t)
 			repo.EXPECT().
 				ConfirmSlug(mock.Anything, testStatusTeamID, models.StatusResourceTypeArtifact, "in-review").

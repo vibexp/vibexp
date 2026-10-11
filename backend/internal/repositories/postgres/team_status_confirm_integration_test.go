@@ -157,8 +157,10 @@ func TestIntegrationTeamStatusRepository_ConfirmSlugBeforeADelete(t *testing.T) 
 	}
 }
 
-// The wait is bounded by the caller's context: a delete that takes too long
-// fails the confirmation instead of hanging the request.
+// The wait ends with the caller's context. The service gives every
+// confirmation a deadline (statusConfirmTimeout), so a delete that never
+// commits fails the confirmation instead of holding the write, and its
+// connection, for as long as the delete stays open.
 func TestIntegrationTeamStatusRepository_ConfirmSlugHonoursTheContext(t *testing.T) {
 	repo := NewTeamStatusRepository(integrationDB)
 	f := newMigration025Fixture(t, integrationDB.DB)

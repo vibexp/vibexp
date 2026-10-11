@@ -114,6 +114,22 @@ func TestStatusValidator_ConfirmAfterWrite(t *testing.T) {
 		assert.Equal(t, "in-review", stored)
 	})
 
+	// The read waits for a concurrent delete's transaction, and every service
+	// write path arrives here on context.Background(): without a deadline of
+	// its own a stuck delete would hold each waiting write and its connection.
+	t.Run("the confirmation and the repair run on a deadline", func(t *testing.T) {
+		catalog := statusGoneCatalog(models.StatusResourceTypeArtifact, "in-review")
+		stored := "in-review"
+
+		require.NoError(t, statusValidator{catalog: catalog}.ConfirmAfterWrite(
+			context.Background(), statusTestLogger(),
+			statusTestTeam, models.StatusResourceTypeArtifact, resourceID, &stored))
+
+		assert.Equal(t, 1, catalog.confirms)
+		assert.Len(t, catalog.reassigned, 1)
+		assert.Zero(t, catalog.unbounded, "a call reached the catalog without a deadline")
+	})
+
 	// Such a validator only ever admitted system statuses, so there is nothing
 	// it could confirm, and nothing to dereference.
 	t.Run("a validator without a catalog confirms nothing", func(t *testing.T) {

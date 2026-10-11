@@ -7,9 +7,17 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
+
+// statusConfirmTimeout bounds ConfirmAfterWrite: the locking read waits for a
+// concurrent delete of the status to commit, and the write paths that call it
+// run on a context with no deadline of their own. A delete is one DELETE and
+// one UPDATE filtered by team, so it normally commits in milliseconds; this
+// only stops a stuck one from pinning a connection per waiting write.
+const statusConfirmTimeout = 15 * time.Second
 
 // ErrInvalidStatus is returned by a create, an update or a list when the caller
 // supplied a status the resource's team does not have for that resource type:
@@ -100,15 +108,21 @@ func (v statusValidator) ValidateOptional(
 // costs none. A validator without a catalog only ever admitted system
 // statuses and confirms whatever it is given.
 //
-// An error means the resource may still carry a deleted status. It is logged
-// here with the resource id, and callers fail the request rather than report
-// a status the catalog does not list.
+// The confirmation and the repair together get statusConfirmTimeout, whatever
+// ctx allows: the service write paths pass a context without a deadline, and
+// the wait is on somebody else's transaction.
+//
+// An error -- that timeout included -- means the resource may still carry a
+// deleted status. It is logged here with the resource id, and callers fail the
+// request rather than report a status the catalog does not list.
 func (v statusValidator) ConfirmAfterWrite(
 	ctx context.Context, logger *slog.Logger, teamID, resourceType, resourceID string, status *string,
 ) error {
 	if v.catalog == nil || slices.Contains(models.SystemStatusesFor(resourceType), *status) {
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(ctx, statusConfirmTimeout)
+	defer cancel()
 	stored, err := v.confirmCustom(ctx, teamID, resourceType, resourceID, *status)
 	if err != nil {
 		logger.With(

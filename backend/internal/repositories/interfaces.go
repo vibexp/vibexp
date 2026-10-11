@@ -2252,7 +2252,8 @@ type TeamStatusRepository interface {
 	// row, and the delete's reassignment then sees the committed write, or it
 	// answers false and the caller repairs the resource with ReassignResource.
 	// The lock only has to be acquired, not held, so it needs no transaction.
-	// The wait is as long as the delete's one UPDATE and is bounded by ctx.
+	// The wait lasts until the delete's transaction ends and nothing here
+	// bounds it: the caller must pass a ctx with a deadline.
 	ConfirmSlug(ctx context.Context, teamID, resourceType, slug string) (bool, error)
 	// ReassignResource moves one resource of the team from fromSlug to
 	// toStatus: DeleteAndReassign's reassignment for a single row it ran too

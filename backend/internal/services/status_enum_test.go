@@ -194,6 +194,15 @@ type fakeStatusCatalog struct {
 	confirms int
 	// reassigned records each repair as "<resourceType>/<resourceID>/<slug>".
 	reassigned []string
+	// unbounded counts ConfirmCustom and ReassignDeleted calls that arrived on
+	// a context with no deadline: both can wait on another transaction.
+	unbounded int
+}
+
+func (f *fakeStatusCatalog) noteDeadline(ctx context.Context) {
+	if _, ok := ctx.Deadline(); !ok {
+		f.unbounded++
+	}
 }
 
 var _ StatusCatalogServiceInterface = (*fakeStatusCatalog)(nil)
@@ -212,8 +221,9 @@ func (f *fakeStatusCatalog) IsAllowed(ctx context.Context, teamID, resourceType,
 }
 
 func (f *fakeStatusCatalog) ConfirmCustom(
-	_ context.Context, teamID, resourceType, status string,
+	ctx context.Context, teamID, resourceType, status string,
 ) (bool, error) {
+	f.noteDeadline(ctx)
 	f.confirms++
 	if f.confirmErr != nil {
 		return false, f.confirmErr
@@ -225,8 +235,9 @@ func (f *fakeStatusCatalog) ConfirmCustom(
 }
 
 func (f *fakeStatusCatalog) ReassignDeleted(
-	_ context.Context, _, resourceType, resourceID, status string,
+	ctx context.Context, _, resourceType, resourceID, status string,
 ) (string, error) {
+	f.noteDeadline(ctx)
 	if f.reassignErr != nil {
 		return "", f.reassignErr
 	}
