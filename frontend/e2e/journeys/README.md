@@ -20,7 +20,7 @@ e2e/journeys/
 ├── admin-auth-settings.journey.spec.ts      # Admin → Settings → Authentication + first-run /setup
 ├── custom-statuses.journey.spec.ts          # Custom status: create, apply, search, filter, delete
 ├── resource-locking.journey.spec.ts         # Lock, enforcement and unlock across three users
-├── site-info.journey.spec.ts                # Company branding: sign-in, app shell, VibeXP footer mark
+├── site-info.journey.spec.ts                # Company branding: sign-in, app shell, VibeXP footer mark, admin Site info page
 └── README.md                                # This file
 ```
 
@@ -52,10 +52,23 @@ The legal-line check has a positive beside it: the heading still names the
 company on the same page, so the missing line is about the two URLs and not
 about a page that failed to brand.
 
-**The singleton.** Site info is one row shared by every spec in the run, and
-there is no admin page for it yet (#1358), so the journey reads and writes it
-through the admin API. It records what it found and restores exactly that in
-`afterAll` (the stored values, or a reset when nothing was stored). The
+**The admin page (#1389).** The last three steps drive Admin → Settings → Site
+info itself: the stored values are in its form and the logo has really loaded
+in its preview; renaming the company and saving rebrands the tab title and the
+sidebar in place (a marker left on `window` proves there was no reload); and
+"Clear site info" leaves the page "Not configured". With nothing configured the
+preview shows the VibeXP mark on a fixed light and a fixed dark swatch. The
+mark paints itself from theme variables, so the step puts the app in each
+theme in turn and checks, from computed colours, that on both swatches the
+mark's tile differs from the swatch behind it and the glyph differs from the
+tile. jsdom applies no CSS and cannot see that.
+
+**The singleton.** Site info is one row shared by every spec in the run. The
+first steps set it through the admin API, which keeps what they assert
+independent of the admin page; the last steps go through the page, and live in
+this spec rather than a sibling because a second spec writing the one row in
+parallel would race it. The journey records what it found and restores exactly
+that in `afterAll` (the stored values, or a reset when nothing was stored). The
 company name is derived per attempt, so a retry cannot match a previous
 attempt's state. No other spec asserts on the brand text.
 

@@ -16,7 +16,9 @@ import { devLogin } from '../fixtures/auth'
  * As the instance admin: store company branding, then see it on the sign-in
  * page (signed out), in the app shell (sidebar brand, user menu, tab title)
  * and beside the permanent VibeXP mark in the sidebar footer. Clear the legal
- * URLs and see the legal line leave the sign-in page.
+ * URLs and see the legal line leave the sign-in page. Then drive the admin
+ * Site info page itself (issue #1389): see the stored values in its form,
+ * rename the company and watch the shell rebrand in place, and clear it all.
  *
  * ## Why this is an e2e
  *
@@ -34,20 +36,41 @@ import { devLogin } from '../fixtures/auth'
  *   engine, so a trigger that lost its box (#891: a `display: contents`
  *   wrapper, bubble at the viewport origin) is invisible to it. The expected
  *   position is derived from the mark's own box, never from a constant.
+ * - **The admin page's preview and its live rebrand.** The preview draws the
+ *   VibeXP mark on a fixed light and a fixed dark swatch; the mark paints
+ *   itself from theme variables, so without a pin on each swatch it follows
+ *   the app's theme and disappears on the opposite one. jsdom applies no CSS
+ *   and cannot see that. And "saving rebrands the shell without a reload" is
+ *   only real when the event, the provider's refetch and the shell are wired
+ *   together in one running app.
  *
  * ## The singleton
  *
- * Site info is one row shared by every spec in the run, and there is no admin
- * page for it yet (#1358), so the journey reads and writes it through the
- * admin API. It records what it found and restores exactly that afterwards (a
- * stored row or "nothing stored"), also when a test fails. No other spec
- * asserts on the brand text, so the change is safe to make mid-run.
+ * Site info is one row shared by every spec in the run. The first steps set
+ * it through the admin API, which keeps what they assert independent of the
+ * admin page; the last steps go through the page. The journey records what it
+ * found and restores exactly that afterwards (a stored row or "nothing
+ * stored"), also when a test fails. No other spec asserts on the brand text,
+ * so the change is safe to make mid-run. The admin-page steps live in this
+ * spec rather than a sibling for the same reason: a second spec writing the
+ * one row in parallel would race this one.
  */
 
 /** Combined-stack UI budget, matching the other journeys. */
 const UI_TIMEOUT = 20_000
 
 const ADMIN_PATH = '/api/v1/admin/settings/site-info'
+const ADMIN_PAGE = '/admin/settings/site-info'
+/** Where the app keeps the chosen theme (`src/lib/theme.tsx`). */
+const THEME_STORAGE_KEY = 'v2-theme'
+
+/**
+ * The least two colours may differ, summed over the three channels (0..765),
+ * to count as "visibly different". The mark's tile against its swatch, and
+ * its glyph against the tile, are near black on white or the reverse (about
+ * 700); the bug this guards drew one in the other's colour (under 40).
+ */
+const MIN_COLOUR_DISTANCE = 300
 const PRODUCT_URL = 'https://vibexp.io'
 
 /**
@@ -142,6 +165,50 @@ async function openSignIn(
   )
   return { context, page }
 }
+
+/** A CSS colour as the browser paints it, whatever notation it was written in. */
+type Rgb = [number, number, number]
+
+/**
+ * The colours of the fallback mark on one preview surface: its tile, the
+ * glyph drawn on the tile, and the swatch behind both. Computed colours come
+ * back in the notation they were written in (`oklch(...)`, `rgb(...)`), so
+ * each is painted onto a canvas and read back as RGB before comparing.
+ */
+async function markColours(
+  surface: Locator
+): Promise<{ tile: Rgb; glyph: Rgb; swatch: Rgb }> {
+  return surface.evaluate(element => {
+    const toRgb = (colour: string): [number, number, number] => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 1
+      canvas.height = 1
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('no 2d canvas context')
+      context.fillStyle = colour
+      context.fillRect(0, 0, 1, 1)
+      const [r, g, b, alpha] = context.getImageData(0, 0, 1, 1).data
+      // A transparent or unparseable colour would otherwise read as black
+      // and be compared as if that were what is painted.
+      if (alpha !== 255) throw new Error(`colour "${colour}" is not opaque`)
+      return [r, g, b]
+    }
+    const mark = element.querySelector('svg')
+    const tile = mark?.querySelector('rect')
+    const glyph = mark?.querySelector('path')
+    if (!tile || !glyph) throw new Error('the surface shows no VibeXP mark')
+    return {
+      // The tile is `fill: currentColor` (the theme's foreground); the glyph
+      // is stroked in the theme's background.
+      tile: toRgb(getComputedStyle(tile).fill),
+      glyph: toRgb(getComputedStyle(glyph).stroke),
+      swatch: toRgb(getComputedStyle(element).backgroundColor),
+    }
+  })
+}
+
+const colourDistance = (a: Rgb, b: Rgb): number =>
+  Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2])
 
 /** Asserts an `<img>` has actually decoded, not merely that it is in the DOM. */
 async function expectImageLoaded(image: Locator, what: string): Promise<void> {
@@ -369,6 +436,148 @@ test.describe.serial('Instance site info branding', () => {
       ).toHaveCount(0)
     } finally {
       await context.close()
+    }
+  })
+
+  // ── The admin page (#1389). These run last: the final one clears the row,
+  // and `afterAll` then restores what the journey found.
+
+  test('the admin Site info page shows what is stored, with the logo loaded in its preview', async () => {
+    // The previous step cleared the two legal URLs through the API.
+    await adminPage.goto(ADMIN_PAGE)
+    const form = adminPage.getByRole('form', { name: 'Instance site info' })
+    await expect(form).toBeVisible({ timeout: UI_TIMEOUT })
+
+    await expect(adminPage.getByTestId('instance-settings-source')).toHaveText(
+      'Configured'
+    )
+    await expect(form.getByLabel('Company name')).toHaveValue(
+      branded.company_name
+    )
+    await expect(form.getByLabel('Support URL')).toHaveValue(
+      branded.support_url
+    )
+    await expect(form.getByLabel('Terms of service URL')).toHaveValue('')
+    await expect(form.getByLabel('Logo URL', { exact: true })).toHaveValue(
+      branded.logo_url
+    )
+
+    // No dark logo is stored, so both swatches show the logo, really loaded.
+    for (const swatch of ['light', 'dark'] as const) {
+      const image = adminPage
+        .getByTestId(`site-info-preview-${swatch}`)
+        .getByRole('img')
+      await expect(image).toHaveAttribute('src', branded.logo_url)
+      await expectImageLoaded(image, `the logo on the ${swatch} preview swatch`)
+    }
+    await expect(
+      adminPage.getByTestId('site-info-preview-dark-fallback')
+    ).toBeVisible()
+  })
+
+  test('saving a new company name on the admin page rebrands the shell without a reload', async () => {
+    await adminPage.goto(ADMIN_PAGE)
+    const form = adminPage.getByRole('form', { name: 'Instance site info' })
+    const name = form.getByLabel('Company name')
+    await expect(name).toHaveValue(branded.company_name, {
+      timeout: UI_TIMEOUT,
+    })
+    await expect(adminPage).toHaveTitle(`${branded.company_name} · VibeXP`)
+
+    // A marker on `window` dies with the document, so finding it afterwards
+    // proves the page was never reloaded or navigated.
+    await adminPage.evaluate(() => {
+      ;(window as unknown as { __siteInfoJourney?: string }).__siteInfoJourney =
+        'same-document'
+    })
+
+    const renamed = `${branded.company_name} Renamed`
+    await name.fill(renamed)
+    const save = form.getByRole('button', { name: 'Save changes' })
+    await expect(save).toBeEnabled()
+    await save.click()
+
+    // The shell around the page follows: the tab title and the sidebar brand.
+    await expect(adminPage).toHaveTitle(`${renamed} · VibeXP`, {
+      timeout: UI_TIMEOUT,
+    })
+    await expect(
+      adminPage.getByRole('link', { name: renamed }).filter({ visible: true })
+    ).not.toHaveCount(0)
+    // The form took the stored values back and has nothing left to save.
+    await expect(name).toHaveValue(renamed)
+    await expect(save).toBeDisabled()
+
+    expect(
+      await adminPage.evaluate(
+        () =>
+          (window as unknown as { __siteInfoJourney?: string })
+            .__siteInfoJourney
+      ),
+      'the page was reloaded: the rebrand must happen in place'
+    ).toBe('same-document')
+    expect(new URL(adminPage.url()).pathname).toBe(ADMIN_PAGE)
+
+    // And it is really stored, not only shown.
+    expect((await readSiteInfo(adminPage)).values.company_name).toBe(renamed)
+  })
+
+  test('clearing on the admin page removes the branding and leaves a visible VibeXP mark on both swatches in both themes', async () => {
+    await adminPage.goto(ADMIN_PAGE)
+    const form = adminPage.getByRole('form', { name: 'Instance site info' })
+    await expect(form).toBeVisible({ timeout: UI_TIMEOUT })
+
+    await form.getByRole('button', { name: 'Clear site info' }).click()
+    const dialog = adminPage.getByRole('alertdialog')
+    await expect(dialog).toContainText('Clear the site info?')
+    await dialog.getByRole('button', { name: 'Clear site info' }).click()
+
+    await expect(adminPage.getByTestId('instance-settings-source')).toHaveText(
+      'Not configured',
+      { timeout: UI_TIMEOUT }
+    )
+    await expect(form.getByLabel('Company name')).toHaveValue('')
+    // The shell lost the company in place, too.
+    await expect(adminPage).toHaveTitle('VibeXP')
+    expect((await readSiteInfo(adminPage)).version).toBeNull()
+
+    try {
+      for (const theme of ['light', 'dark'] as const) {
+        await adminPage.evaluate(
+          ([key, value]) => {
+            window.localStorage.setItem(key, value)
+          },
+          [THEME_STORAGE_KEY, theme] as const
+        )
+        await adminPage.reload()
+        await expect(form).toBeVisible({ timeout: UI_TIMEOUT })
+        // The control: the app really is in this theme, so the swatch that
+        // matches it and the one that opposes it are both being tested.
+        await expect(adminPage.locator('.v2-root').first()).toHaveAttribute(
+          'data-theme',
+          theme
+        )
+
+        for (const swatch of ['light', 'dark'] as const) {
+          const surface = adminPage.getByTestId(
+            `site-info-preview-${swatch}-surface`
+          )
+          await expect(surface.locator('svg')).toBeVisible()
+          const { tile, glyph, swatch: behind } = await markColours(surface)
+          expect(
+            colourDistance(tile, behind),
+            `app in the ${theme} theme: the VibeXP mark on the ${swatch} swatch is drawn rgb(${tile.join(',')}) on rgb(${behind.join(',')}), which cannot be seen`
+          ).toBeGreaterThan(MIN_COLOUR_DISTANCE)
+          expect(
+            colourDistance(glyph, tile),
+            `app in the ${theme} theme: on the ${swatch} swatch the VibeXP glyph is drawn rgb(${glyph.join(',')}) on its rgb(${tile.join(',')}) tile, which cannot be seen`
+          ).toBeGreaterThan(MIN_COLOUR_DISTANCE)
+        }
+      }
+    } finally {
+      await adminPage.evaluate(key => {
+        window.localStorage.removeItem(key)
+      }, THEME_STORAGE_KEY)
     }
   })
 })
