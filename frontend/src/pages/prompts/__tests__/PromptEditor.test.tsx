@@ -173,14 +173,17 @@ vi.mock('@/components/ProjectPicker', () => ({
   ProjectPicker: ({
     value,
     onChange,
+    disabled,
     'data-testid': testId,
   }: {
     value: string
     onChange: (id: string) => void
+    disabled?: boolean
     'data-testid'?: string
   }) => (
     <button
       type="button"
+      disabled={disabled}
       data-testid={testId}
       onClick={() => {
         onChange('p1')
@@ -714,17 +717,13 @@ describe('PromptEditor — a locked prompt', () => {
       'Locked by Ada Lovelace: Used by the nightly release agent'
     )
     expect(lockNotice).toHaveTextContent(
-      'Slug, Status, Labels, MCP, and Project cannot be changed until this prompt is unlocked.'
+      'Until this prompt is unlocked, these cannot be changed: slug, status, project, labels, and MCP exposure.'
     )
-    expect(screen.queryByTestId('prompt-slug-input')).not.toBeInTheDocument()
-    // This suite's Select mock renders each option as a button, so a status
-    // control on the page is a "Draft" button.
-    expect(
-      screen.queryByRole('button', { name: 'Draft' })
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByTestId('prompt-project-select')
-    ).not.toBeInTheDocument()
+    // Disabled, not removed. (The status select is mocked here and ignores
+    // `disabled`; the form's own suite pins it against the real control.)
+    expect(screen.getByTestId('prompt-slug-input')).toBeDisabled()
+    expect(screen.getByTestId('prompt-project-select')).toBeDisabled()
+    expect(screen.getByTestId('prompt-project-select')).toHaveTextContent('p1')
     expect(screen.getByTestId('prompt-labels-input')).toBeDisabled()
     expect(screen.getByTestId('prompt-mcp-expose')).toBeDisabled()
     expect(screen.getByTestId('prompt-name-input')).toBeEnabled()
@@ -769,13 +768,57 @@ describe('PromptEditor — a locked prompt', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/prompts/my-prompt')
   })
 
+  // A draft is stored exposed by default, and the request mapping sends
+  // `false` for every draft — which a lock would refuse as a change.
+  it('saves a locked draft that is stored as exposed, sending the flag as stored', async () => {
+    const user = userEvent.setup()
+    ;(promptService.getPrompt as Mock).mockResolvedValue(
+      buildPrompt({ status: 'draft', mcp_expose: true, lock: TEST_LOCK })
+    )
+    renderEditor('/prompts/my-prompt/edit')
+    await screen.findByTestId('resource-lock-notice')
+
+    await user.type(screen.getByTestId('prompt-name-input'), ' v2')
+    await user.click(screen.getByTestId('prompt-save-button'))
+
+    await waitFor(() => {
+      expect(promptService.updatePrompt).toHaveBeenCalledWith(
+        'team-1',
+        'my-prompt',
+        expect.objectContaining({
+          name: 'My Prompt v2',
+          status: 'draft',
+          mcp_expose: true,
+        })
+      )
+    })
+  })
+
+  it('still never exposes an unlocked draft, however the toggle was left', async () => {
+    const user = userEvent.setup()
+    ;(promptService.getPrompt as Mock).mockResolvedValue(
+      buildPrompt({ status: 'draft', mcp_expose: true })
+    )
+    renderEditor('/prompts/my-prompt/edit')
+    await screen.findByTestId('prompt-slug-input')
+
+    await user.click(screen.getByTestId('prompt-save-button'))
+
+    await waitFor(() => {
+      expect(promptService.updatePrompt).toHaveBeenCalledWith(
+        'team-1',
+        'my-prompt',
+        expect.objectContaining({ status: 'draft', mcp_expose: false })
+      )
+    })
+  })
+
   it('renders an unlocked prompt’s edit page without the notice or any frozen field', async () => {
     ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
     renderEditor('/prompts/my-prompt/edit')
 
     expect(await screen.findByTestId('prompt-slug-input')).toBeEnabled()
     expect(screen.queryByTestId('resource-lock-notice')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Draft' })).toBeEnabled()
     expect(screen.getByTestId('prompt-project-select')).toBeEnabled()
     expect(screen.getByTestId('prompt-labels-input')).toBeEnabled()
     expect(screen.getByTestId('prompt-mcp-expose')).toBeEnabled()
@@ -810,7 +853,7 @@ describe('PromptEditor — a locked prompt', () => {
       await screen.findByTestId('resource-lock-notice')
     ).toBeInTheDocument()
     expect(promptService.getPrompt).toHaveBeenCalledTimes(2)
-    expect(screen.queryByTestId('prompt-slug-input')).not.toBeInTheDocument()
+    expect(screen.getByTestId('prompt-slug-input')).toBeDisabled()
     // …the refused change is taken back…
     expect(screen.getByTestId('prompt-mcp-expose')).toBeDisabled()
     expect(screen.getByTestId('prompt-mcp-expose')).toBeChecked()

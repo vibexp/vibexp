@@ -20,15 +20,18 @@ vi.mock('@/components/ProjectPicker', () => ({
   ProjectPicker: ({
     onChange,
     id,
+    disabled,
     'data-testid': testId,
   }: {
     onChange: (id: string | null) => void
     id?: string
+    disabled?: boolean
     'data-testid'?: string
   }) => (
     <button
       type="button"
       id={id}
+      disabled={disabled}
       data-testid={testId}
       onClick={() => {
         onChange('p1')
@@ -450,68 +453,69 @@ describe('useResourceForm — taxonomy entry length', () => {
 
 /**
  * What a lock freezes on each kind's edit page (#1285), by the test ids of the
- * controls involved. `rows` are details-column fields, which become read-only
- * rows like a create-only slug; `disabled` are the Labels & metadata controls,
- * which stay in place but disabled; `editable` is the content a lock never
- * touches. A blueprint's and an artifact's slug is already fixed after create.
+ * controls involved: `frozen` stay on the page, disabled, and `editable` is
+ * the content a lock never touches. A blueprint's and an artifact's slug is
+ * fixed after create, so it is a read-only row with or without a lock.
  */
 const LOCK_CASES = [
   {
     kind: 'prompt',
     descriptor: promptDescriptor,
-    rows: [
+    frozen: [
       'prompt-slug-input',
       'prompt-status-select',
       'prompt-project-select',
+      'prompt-labels-input',
     ],
-    disabled: ['prompt-labels-input'],
     editable: [
       'prompt-name-input',
       'prompt-description-input',
       'prompt-body-textarea',
     ],
     notice:
-      'Slug, Status, Labels, MCP, and Project cannot be changed until this prompt is unlocked.',
+      'Until this prompt is unlocked, these cannot be changed: slug, status, project, labels, and MCP exposure.',
   },
   {
     kind: 'blueprint',
     descriptor: blueprintDescriptor,
-    rows: [
+    frozen: [
       'blueprint-status-select',
       'blueprint-type-select',
       'blueprint-project-select',
+      'blueprint-labels-input',
+      'metadata-add-pair',
     ],
-    disabled: ['blueprint-labels-input', 'metadata-add-pair'],
     editable: [
       'blueprint-title-input',
       'blueprint-description-input',
       'blueprint-content-textarea',
     ],
     notice:
-      'Project, Slug, Status, Type, Subtype, Labels, Path, and Metadata cannot be changed until this blueprint is unlocked.',
+      'Until this blueprint is unlocked, these cannot be changed: slug, status, type, subtype, project, labels, metadata, and path.',
   },
   {
     kind: 'artifact',
     descriptor: artifactDescriptor,
-    rows: [
+    frozen: [
       'artifact-status-select',
       'artifact-type-select',
       'artifact-project-select',
+      'artifact-labels-input',
+      'metadata-add-pair',
     ],
-    disabled: ['artifact-labels-input', 'metadata-add-pair'],
     editable: [
       'artifact-title-input',
       'artifact-description-input',
       'artifact-content-textarea',
     ],
     notice:
-      'Project, Slug, Status, Type, Labels, and Metadata cannot be changed until this artifact is unlocked.',
+      'Until this artifact is unlocked, these cannot be changed: slug, status, type, project, labels, and metadata.',
   },
 ] as const
 
 describe.each(LOCK_CASES)(
   'useResourceForm — a locked $kind',
-  ({ descriptor, rows, disabled, editable, notice }) => {
+  ({ descriptor, frozen, editable, notice }) => {
     const stored = {
       slug: 'stored-slug',
       project_id: 'p0',
@@ -519,16 +523,14 @@ describe.each(LOCK_CASES)(
       type: 'general',
     }
 
-    it('freezes the fields the lock covers and leaves the content editable', () => {
+    it('disables the fields the lock freezes and leaves the content editable', () => {
       renderPage(descriptor, {
         mode: 'edit',
         initialValues: stored,
         lock: TEST_LOCK,
       })
-      for (const testId of rows) {
-        expect(screen.queryByTestId(testId)).not.toBeInTheDocument()
-      }
-      for (const testId of disabled) {
+      // Disabled, not removed: the reader still sees what each one holds.
+      for (const testId of frozen) {
         expect(screen.getByTestId(testId)).toBeDisabled()
       }
       for (const testId of editable) {
@@ -558,14 +560,7 @@ describe.each(LOCK_CASES)(
       expect(
         screen.queryByTestId('resource-lock-notice')
       ).not.toBeInTheDocument()
-      for (const testId of [...disabled, ...editable]) {
-        expect(screen.getByTestId(testId)).toBeEnabled()
-      }
-      // A slug fixed after create is a row with or without a lock.
-      const createOnly = descriptor.form.fields
-        .filter(spec => 'editableOnCreateOnly' in spec)
-        .map(spec => spec.testId)
-      for (const testId of rows.filter(id => !createOnly.includes(id))) {
+      for (const testId of [...frozen, ...editable]) {
         expect(screen.getByTestId(testId)).toBeEnabled()
       }
     })
@@ -648,9 +643,7 @@ describe('useResourceForm — a lock that arrives after the page loaded', () => 
     expect(screen.getByTestId('artifact-title-input')).toHaveValue(
       'Loaded and typed'
     )
-    expect(
-      screen.queryByTestId('artifact-project-select')
-    ).not.toBeInTheDocument()
+    expect(screen.getByTestId('artifact-project-select')).toBeDisabled()
     await submit(ref)
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Loaded and typed', project_id: 'p0' })

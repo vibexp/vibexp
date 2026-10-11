@@ -6,7 +6,8 @@ export const RESOURCE_WRITE_LOCKED = 'RESOURCE_WRITE_LOCKED'
 /**
  * Request field names that read badly as they are. Any other name is shown
  * with its underscores as spaces, so a field the server starts freezing later
- * still gets a readable message.
+ * still gets a readable message. The edit page's lock notice names the fields
+ * through the same map, so the notice and the refusal cannot disagree.
  */
 const FIELD_NAMES = new Map([
   ['project_id', 'project'],
@@ -26,6 +27,11 @@ export function isLockedWrite(error: unknown): error is ApiError {
     error.status === 423 &&
     error.code === RESOURCE_WRITE_LOCKED
   )
+}
+
+/** A frozen request field as the reader knows it: "project", "MCP exposure". */
+export function lockedFieldName(field: string): string {
+  return FIELD_NAMES.get(field) ?? field.replaceAll('_', ' ')
 }
 
 function textOf(value: unknown): string {
@@ -63,6 +69,5 @@ export function lockedWriteMessage(error: unknown): string | null {
   if (!field) {
     return `This ${type} is ${lockedBy} and cannot be deleted until it is unlocked.`
   }
-  const fieldName = FIELD_NAMES.get(field) ?? field.replaceAll('_', ' ')
-  return `The ${fieldName} of this ${type} cannot be changed: it is ${lockedBy}. Unlock it first.`
+  return `The ${lockedFieldName(field)} of this ${type} cannot be changed: it is ${lockedBy}. Unlock it first.`
 }

@@ -20,6 +20,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Form } from '@/components/ui/form'
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
+import { lockedFieldName } from '@/utils/lockedWrite'
 
 import { fieldOfRole } from '../fieldOfRole'
 import { ResourceMetadataSection } from '../ResourceMetadataSection'
@@ -136,8 +137,8 @@ export interface ResourceFormReadingPageProps {
   versionHistory?: VersionHistoryMeta
   /**
    * The lock on the resource being edited (#1285). While set, the fields the
-   * descriptor lists as `frozenWhenLocked` are not editable and a notice says
-   * who locked it and why. When the lock was fetched after the page loaded,
+   * descriptor lists as `frozenWhenLocked` are disabled and a notice says who
+   * locked it and why. When the lock was fetched after the page loaded,
    * pass that fetch as `record` too, so the frozen fields show — and submit —
    * the values the server holds.
    */
@@ -190,10 +191,8 @@ function LockNotice({
   descriptor,
   lock,
 }: Readonly<{ descriptor: ResourceDescriptor; lock: ResourceLock }>) {
-  const frozen = descriptor.form?.frozenWhenLocked ?? []
-  const labels = descriptor.fields
-    .filter(field => frozen.includes(field.key))
-    .map(field => field.label)
+  // Named as the 423 names them, so the notice and a refused save agree.
+  const frozen = (descriptor.form?.frozenWhenLocked ?? []).map(lockedFieldName)
   return (
     <Alert role="note" data-testid="resource-lock-notice">
       <Lock className="size-4" aria-hidden="true" />
@@ -201,8 +200,8 @@ function LockNotice({
         Locked by {lock.locked_by.display_name}: {lock.comment}
       </AlertTitle>
       <AlertDescription>
-        {fieldList.format(labels)} cannot be changed until this{' '}
-        {descriptor.singular} is unlocked. Everything else can still be edited.
+        Until this {descriptor.singular} is unlocked, these cannot be changed:{' '}
+        {fieldList.format(frozen)}. Everything else can still be edited.
       </AlertDescription>
     </Alert>
   )

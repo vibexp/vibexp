@@ -55,7 +55,7 @@ export interface UseResourceFormOptions {
   /**
    * The lock on the resource being edited (#1285), or null/undefined when it
    * has none. While set, the descriptor's `frozenWhenLocked` fields are
-   * treated like a create-only slug: disabled, or a read-only row.
+   * disabled: still on the page, showing the value the lock is holding.
    */
   lock?: ResourceLock | null
   /**
@@ -91,9 +91,11 @@ export interface ResourceFormSlots {
   /**
    * The `details` controls one at a time, keyed by field key, in the compact
    * `inline` shape a details-column row places as its value (#1180). Excludes
-   * the header fields and any field locked in this mode or frozen by a lock —
-   * a locked field is a read-only fact, which the row renders as on the
-   * reading page.
+   * the header fields and any field locked in this mode — a locked field is a
+   * read-only fact, which the row renders as on the reading page. A field a
+   * resource lock freezes (#1285) is NOT excluded: it stays a control,
+   * disabled, because not every row has a read-only rendering to fall back to
+   * (the Project row has none on this page).
    */
   rowFieldNodes: ReadonlyMap<string, ReactNode>
 }
@@ -193,8 +195,8 @@ export function useResourceForm({
 
   // A lock can arrive AFTER the page loaded: the save is refused with a 423
   // and the page refetches the lock. The reader may by then have changed a
-  // field that is now frozen, and since frozen fields are no longer editable
-  // they could never change it back — every later save would be refused for
+  // field that is now frozen, and since frozen fields are disabled they could
+  // never change it back — every later save would be refused for
   // the same field. So each frozen field goes back to its stored value, and
   // only those: a `setValue` per field, never the `reset` above, which is what
   // keeps the name, description and body the reader was typing. `shouldDirty`
@@ -268,13 +270,16 @@ export function useResourceForm({
     }
   )
 
-  // Not editable in this mode: fixed after create, or frozen by a lock.
+  // Fixed after create: a read-only fact while editing.
   const isLocked = (spec: FormFieldSpec) =>
-    (!!spec.editableOnCreateOnly && mode === 'edit') || frozenKeys.has(spec.key)
+    !!spec.editableOnCreateOnly && mode === 'edit'
+  // Not editable right now: saving, fixed after create, or frozen by a lock.
+  const isDisabled = (spec: FormFieldSpec) =>
+    isLoading || isLocked(spec) || frozenKeys.has(spec.key)
 
   const renderSpec = (spec: FormFieldSpec) => {
     const label = formFieldLabel(byKey, spec.key)
-    const locked = isLoading || isLocked(spec)
+    const locked = isDisabled(spec)
     return (
       <FormField
         key={spec.key}
@@ -346,7 +351,7 @@ export function useResourceForm({
                 label={label}
                 descriptor={descriptor}
                 value={field.value}
-                disabled={isLoading}
+                disabled={isDisabled(spec)}
                 variant="inline"
                 onChange={next => {
                   if (spec === slugSpec) slugManuallyEdited.current = true
@@ -368,7 +373,7 @@ export function useResourceForm({
 
   const renderHeaderSpec = (spec: FormFieldSpec, slot: HeaderSlot) => {
     const label = formFieldLabel(byKey, spec.key)
-    const locked = isLoading || isLocked(spec)
+    const locked = isDisabled(spec)
     return (
       <FormField
         key={spec.key}

@@ -177,7 +177,8 @@ export const blueprintDescriptor = defineResource({
       metadataFormField(),
     ],
     // `subtype` and `path` have no control to disable, and the slug is already
-    // fixed after create; they are listed because the lock freezes them too.
+    // fixed after create; they are listed because the lock freezes them too,
+    // and the edit page's notice names every one.
     frozenWhenLocked: [
       'slug',
       'status',

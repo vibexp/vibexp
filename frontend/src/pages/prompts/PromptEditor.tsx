@@ -212,7 +212,13 @@ export function PromptEditor() {
   )
 
   const handleSubmit = async (values: ResourceFormValues) => {
-    const savedSlug = await save(toPromptRequest(values, mcpExpose))
+    const request = toPromptRequest(values, mcpExpose)
+    // MCP exposure is frozen under a lock, so it goes out exactly as stored.
+    // `toPromptRequest` sends `false` for every draft, but a draft can be
+    // stored exposed (the API's default on create), and the lock would refuse
+    // that as a change on every save.
+    if (lock && stored) request.mcp_expose = stored.mcp_expose
+    const savedSlug = await save(request)
     if (savedSlug) {
       void navigate(`/prompts/${savedSlug}`)
     }
