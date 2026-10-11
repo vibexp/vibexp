@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
 
@@ -21,6 +21,7 @@ vi.mock('@/services/artifactService', () => ({
   artifactService: {
     getArtifactVersions: vi.fn(),
     getArtifact: vi.fn(),
+    updateArtifact: vi.fn(),
   },
 }))
 
@@ -29,11 +30,14 @@ vi.mock('@/hooks', () => ({
   useAnalytics: () => ({ trackEvent: vi.fn() }),
 }))
 
+const mockHandleError = vi.hoisted(() => vi.fn())
 vi.mock('@/hooks/useErrorHandler', () => ({
-  useErrorHandler: () => ({ handleError: vi.fn() }),
+  useErrorHandler: () => ({ handleError: mockHandleError }),
 }))
 
+import type { ResourceFormReadingPageProps } from '@/components/patterns/resource'
 import { ResourceFormReadingPage } from '@/components/patterns/resource'
+import { lockedWriteError, TEST_LOCK } from '@/lib/testing/resourceLock'
 import { artifactService } from '@/services/artifactService'
 
 import { ArtifactEdit } from '../ArtifactEdit'
@@ -234,5 +238,119 @@ describe('ArtifactEdit', () => {
       'my-project',
       'my-artifact'
     )
+  })
+
+  // #1285: the fields a lock freezes are the form's business; the page's is to
+  // hand it the lock, and to find out about one taken after the page loaded.
+  describe('a locked artifact', () => {
+    const lockedArtifact: Artifact = {
+      ...mockArtifact,
+      status: 'archived',
+      lock: TEST_LOCK,
+    }
+
+    /** The props of the form's latest render. */
+    function formProps(): ResourceFormReadingPageProps {
+      const call = (ResourceFormReadingPage as Mock).mock.lastCall
+      return (call as [ResourceFormReadingPageProps])[0]
+    }
+
+    async function renderLoaded(loaded: Artifact) {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(artifactService.getArtifact as Mock).mockResolvedValueOnce(loaded)
+      ;(artifactService.getArtifactVersions as Mock).mockResolvedValue({
+        versions: [],
+      })
+      renderArtifactEdit()
+      await screen.findByTestId('artifact-form')
+    }
+
+    it('hands the loaded lock to the form', async () => {
+      await renderLoaded(lockedArtifact)
+
+      expect(formProps().lock).toEqual(TEST_LOCK)
+      // Nothing was refetched, so the loaded resource is the only record.
+      expect(formProps().record).toBeUndefined()
+    })
+
+    it('hands the form no lock for an unlocked artifact', async () => {
+      await renderLoaded(mockArtifact)
+
+      expect(formProps().lock).toBeNull()
+    })
+
+    it('refetches the lock when a save is refused, without re-seeding the form', async () => {
+      await renderLoaded(mockArtifact)
+      const refused = lockedWriteError()
+      ;(artifactService.updateArtifact as Mock).mockRejectedValue(refused)
+      ;(artifactService.getArtifact as Mock).mockResolvedValueOnce(
+        lockedArtifact
+      )
+
+      await act(async () => {
+        await formProps().onSubmit({ title: 'Typed by hand' })
+      })
+
+      expect(mockHandleError).toHaveBeenCalledWith(
+        refused,
+        'Failed to update artifact'
+      )
+      expect(artifactService.getArtifact).toHaveBeenCalledTimes(2)
+      expect(artifactService.getArtifact).toHaveBeenLastCalledWith(
+        'team-1',
+        'my-project',
+        'my-artifact'
+      )
+      expect(formProps().lock).toEqual(TEST_LOCK)
+      // The refetch arrives as `record`, which only the frozen fields read…
+      expect(formProps().record).toBe(lockedArtifact)
+      // …while the seed is still the object the page loaded: a new seed would
+      // reset the form and discard what the reader typed.
+      expect(formProps().initialValues).toBe(mockArtifact)
+      // The page never went back to its loading state, which would have
+      // unmounted the form.
+      expect(screen.getByTestId('artifact-form')).toBeInTheDocument()
+      expect(formProps().isLoading).toBe(false)
+    })
+
+    it('does not refetch when a save fails for any other reason', async () => {
+      await renderLoaded(mockArtifact)
+      ;(artifactService.updateArtifact as Mock).mockRejectedValue(
+        new Error('offline')
+      )
+
+      await act(async () => {
+        await formProps().onSubmit({ title: 'Typed by hand' })
+      })
+
+      expect(mockHandleError).toHaveBeenCalled()
+      expect(artifactService.getArtifact).toHaveBeenCalledTimes(1)
+      expect(formProps().lock).toBeNull()
+      expect(formProps().record).toBeUndefined()
+    })
+
+    it('keeps the page as it was when the refetch itself fails', async () => {
+      await renderLoaded(mockArtifact)
+      ;(artifactService.updateArtifact as Mock).mockRejectedValue(
+        lockedWriteError()
+      )
+      ;(artifactService.getArtifact as Mock).mockRejectedValueOnce(
+        new Error('offline')
+      )
+
+      await act(async () => {
+        await formProps().onSubmit({ title: 'Typed by hand' })
+      })
+
+      expect(artifactService.getArtifact).toHaveBeenCalledTimes(2)
+      expect(screen.getByTestId('artifact-form')).toBeInTheDocument()
+      expect(formProps().lock).toBeNull()
+    })
   })
 })

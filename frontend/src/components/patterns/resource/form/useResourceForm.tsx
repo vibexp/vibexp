@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useForm } from 'react-hook-form'
 
+import type { ResourceLock } from '@/components/LockIndicator'
 import {
   FormControl,
   FormDescription,
@@ -51,6 +52,18 @@ export interface UseResourceFormOptions {
    * error they cannot fix (#916).
    */
   onInvalidSubmit?: (invalidKeys: readonly string[]) => void
+  /**
+   * The lock on the resource being edited (#1285), or null/undefined when it
+   * has none. While set, the descriptor's `frozenWhenLocked` fields are
+   * treated like a create-only slug: disabled, or a read-only row.
+   */
+  lock?: ResourceLock | null
+  /**
+   * The stored values of the frozen fields, when they may be newer than
+   * `initialValues` — the resource as refetched after a lock arrived mid-edit.
+   * Defaults to `initialValues`.
+   */
+  lockedValues?: ResourceFormValues
 }
 
 /** The generated form, as nodes a layout places wherever it wants. */
@@ -78,8 +91,9 @@ export interface ResourceFormSlots {
   /**
    * The `details` controls one at a time, keyed by field key, in the compact
    * `inline` shape a details-column row places as its value (#1180). Excludes
-   * the header fields and any field locked in this mode — a locked field is a
-   * read-only fact, which the row renders as on the reading page.
+   * the header fields and any field locked in this mode or frozen by a lock —
+   * a locked field is a read-only fact, which the row renders as on the
+   * reading page.
    */
   rowFieldNodes: ReadonlyMap<string, ReactNode>
 }
@@ -136,6 +150,8 @@ export function useResourceForm({
   metadataRequiredKeys,
   metadataReservedKeys,
   onInvalidSubmit,
+  lock,
+  lockedValues,
 }: UseResourceFormOptions): ResourceFormSlots {
   const formElRef = useRef<HTMLFormElement>(null)
   const slugManuallyEdited = useRef(mode === 'edit')
@@ -164,6 +180,46 @@ export function useResourceForm({
     lastSeed.current = seed
     form.reset(defaultFormValues(descriptor, initialValues))
   }, [seed, initialValues, descriptor, form])
+
+  // What the lock freezes (#1285). Empty without a lock, and on create, where
+  // there is no stored resource to be locked.
+  const frozenKeys = useMemo(
+    () =>
+      new Set(
+        lock && mode === 'edit' ? (descriptor.form?.frozenWhenLocked ?? []) : []
+      ),
+    [lock, mode, descriptor]
+  )
+
+  // A lock can arrive AFTER the page loaded: the save is refused with a 423
+  // and the page refetches the lock. The reader may by then have changed a
+  // field that is now frozen, and since frozen fields are no longer editable
+  // they could never change it back — every later save would be refused for
+  // the same field. So each frozen field goes back to its stored value, and
+  // only those: a `setValue` per field, never the `reset` above, which is what
+  // keeps the name, description and body the reader was typing. `shouldDirty`
+  // recomputes the field's dirtiness, so a change that was just taken back no
+  // longer counts as unsaved. (`resetField` would do both, but it skips a
+  // field whose control is not mounted, as in a folded details column.)
+  const frozenSource = lockedValues ?? initialValues
+  const frozenStored = useMemo(
+    () =>
+      Object.entries(defaultFormValues(descriptor, frozenSource)).filter(
+        ([key]) => frozenKeys.has(key)
+      ),
+    [descriptor, frozenSource, frozenKeys]
+  )
+  // Keyed on content, like the re-seed above: the page rebuilds these objects
+  // on every render.
+  const frozenSeed = JSON.stringify(frozenStored)
+  const lastFrozenSeed = useRef('[]')
+  useEffect(() => {
+    if (lastFrozenSeed.current === frozenSeed) return
+    lastFrozenSeed.current = frozenSeed
+    for (const [key, value] of frozenStored) {
+      form.setValue(key, value, { shouldDirty: true })
+    }
+  }, [frozenSeed, frozenStored, form])
 
   const nameField = fieldOfRole(descriptor, 'name')
   const slugSpec = specs.find(spec => spec.pattern === 'slug')
@@ -212,9 +268,13 @@ export function useResourceForm({
     }
   )
 
+  // Not editable in this mode: fixed after create, or frozen by a lock.
+  const isLocked = (spec: FormFieldSpec) =>
+    (!!spec.editableOnCreateOnly && mode === 'edit') || frozenKeys.has(spec.key)
+
   const renderSpec = (spec: FormFieldSpec) => {
     const label = formFieldLabel(byKey, spec.key)
-    const locked = isLoading || (spec.editableOnCreateOnly && mode === 'edit')
+    const locked = isLoading || isLocked(spec)
     return (
       <FormField
         key={spec.key}
@@ -244,7 +304,7 @@ export function useResourceForm({
                 label={label}
                 descriptor={descriptor}
                 value={field.value}
-                disabled={!!locked}
+                disabled={locked}
                 metadataRequiredKeys={metadataRequiredKeys}
                 metadataReservedKeys={metadataReservedKeys}
                 onMetadataValidityChange={setMetadataValid}
@@ -264,9 +324,6 @@ export function useResourceForm({
       />
     )
   }
-
-  const isLocked = (spec: FormFieldSpec) =>
-    !!spec.editableOnCreateOnly && mode === 'edit'
 
   // A row's value slot: the control right-aligned where the reading page puts
   // the value, its label visually hidden (the row's own label is the visible
@@ -311,7 +368,7 @@ export function useResourceForm({
 
   const renderHeaderSpec = (spec: FormFieldSpec, slot: HeaderSlot) => {
     const label = formFieldLabel(byKey, spec.key)
-    const locked = isLoading || (spec.editableOnCreateOnly && mode === 'edit')
+    const locked = isLoading || isLocked(spec)
     return (
       <FormField
         key={spec.key}
@@ -325,7 +382,7 @@ export function useResourceForm({
             <FormControl>
               <InlineTextarea
                 value={typeof field.value === 'string' ? field.value : ''}
-                disabled={!!locked}
+                disabled={locked}
                 maxLength={spec.maxLength}
                 placeholder={
                   slot === 'title'

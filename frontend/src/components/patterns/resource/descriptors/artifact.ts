@@ -112,6 +112,14 @@ export const artifactDescriptor = defineResource({
       labelsFormField('labels', 'artifact-labels-input'),
       metadataFormField(),
     ],
+    frozenWhenLocked: [
+      'slug',
+      'status',
+      'type',
+      'project_id',
+      'labels',
+      'metadata',
+    ],
   },
   capabilities: {
     attachments: true,

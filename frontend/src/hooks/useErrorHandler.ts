@@ -3,6 +3,7 @@ import { useCallback } from 'react'
 import { useAlertContext } from '../contexts/AlertContext'
 import type { AlertType } from '../types/alert'
 import { ApiError, type ValidationError } from '../types/errors'
+import { lockedWriteMessage } from '../utils/lockedWrite'
 import { storageUtils } from '../utils/storage'
 
 /**
@@ -58,6 +59,17 @@ function handleApiError(
   // so this must never trigger the logout redirect above.
   if (error.isForbidden()) {
     notify(error.getMessage(), 'warning')
+    return {}
+  }
+
+  // Handle a write refused by a resource lock (#1285). The edit page disables
+  // the fields a lock freezes, so this is the race where the lock was taken
+  // after the page loaded — or a delete, which a lock always refuses. A
+  // warning, like the 403 above: nothing broke, and the message says who to
+  // ask.
+  const lockedMessage = lockedWriteMessage(error)
+  if (lockedMessage) {
+    notify(lockedMessage, 'warning')
     return {}
   }
 

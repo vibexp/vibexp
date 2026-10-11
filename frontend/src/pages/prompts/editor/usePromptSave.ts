@@ -5,6 +5,7 @@ import type { CreatePromptRequest, Prompt } from '@/services/promptService'
 import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
+import { lockedWriteMessage } from '@/utils/lockedWrite'
 
 interface UsePromptSaveArgs {
   teamId: string | undefined
@@ -13,12 +14,18 @@ interface UsePromptSaveArgs {
     event: string
     properties?: Record<string, unknown>
   }) => void
+  /**
+   * Called with a failed save's error, after it has been reported — how the
+   * page learns that a lock refused the write (#1285).
+   */
+  onError?: (error: unknown) => void | Promise<void>
 }
 
 export function usePromptSave({
   teamId,
   prompt,
   trackEvent,
+  onError,
 }: UsePromptSaveArgs) {
   const [saving, setSaving] = useState(false)
 
@@ -61,7 +68,13 @@ export function usePromptSave({
       }
       return payload.slug
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to save prompt'))
+      const lockedMessage = lockedWriteMessage(error)
+      if (lockedMessage) {
+        toast.warning(lockedMessage)
+      } else {
+        toast.error(getErrorMessage(error, 'Failed to save prompt'))
+      }
+      await onError?.(error)
       return null
     } finally {
       setSaving(false)

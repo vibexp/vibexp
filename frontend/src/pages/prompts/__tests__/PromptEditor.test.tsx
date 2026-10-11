@@ -204,6 +204,7 @@ vi.mock('@/lib/toast', () => ({
 import React from 'react'
 
 import { useAnalytics } from '@/hooks'
+import { lockedWriteError, TEST_LOCK } from '@/lib/testing/resourceLock'
 import { toast } from '@/lib/toast'
 import { projectService } from '@/services/projectService'
 import { promptService } from '@/services/promptService'
@@ -688,6 +689,164 @@ describe('PromptEditor — edit mode', () => {
       expect(toast.error).toHaveBeenCalled()
     })
     expect(mockNavigate).not.toHaveBeenCalledWith('/prompts/my-prompt')
+  })
+})
+
+// #1285: what a lock freezes on the prompt edit page, and the lock that
+// arrives after the page loaded.
+describe('PromptEditor — a locked prompt', () => {
+  const refused = () =>
+    lockedWriteError({
+      resource_type: 'prompt',
+      field: 'mcp_expose',
+      locked_by: TEST_LOCK.locked_by,
+      comment: TEST_LOCK.comment,
+    })
+
+  it('freezes slug, status, project, labels and MCP exposure, and says why', async () => {
+    ;(promptService.getPrompt as Mock).mockResolvedValue(
+      buildPrompt({ lock: TEST_LOCK })
+    )
+    renderEditor('/prompts/my-prompt/edit')
+
+    const lockNotice = await screen.findByTestId('resource-lock-notice')
+    expect(lockNotice).toHaveTextContent(
+      'Locked by Ada Lovelace: Used by the nightly release agent'
+    )
+    expect(lockNotice).toHaveTextContent(
+      'Slug, Status, Labels, MCP, and Project cannot be changed until this prompt is unlocked.'
+    )
+    expect(screen.queryByTestId('prompt-slug-input')).not.toBeInTheDocument()
+    // This suite's Select mock renders each option as a button, so a status
+    // control on the page is a "Draft" button.
+    expect(
+      screen.queryByRole('button', { name: 'Draft' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('prompt-project-select')
+    ).not.toBeInTheDocument()
+    expect(screen.getByTestId('prompt-labels-input')).toBeDisabled()
+    expect(screen.getByTestId('prompt-mcp-expose')).toBeDisabled()
+    expect(screen.getByTestId('prompt-name-input')).toBeEnabled()
+    expect(screen.getByTestId('prompt-description-input')).toBeEnabled()
+    expect(screen.getByTestId('prompt-body-textarea')).toBeEnabled()
+  })
+
+  it('saves a name, description and body change on a locked prompt', async () => {
+    const user = userEvent.setup()
+    ;(promptService.getPrompt as Mock).mockResolvedValue(
+      buildPrompt({ lock: TEST_LOCK })
+    )
+    renderEditor('/prompts/my-prompt/edit')
+    await screen.findByTestId('resource-lock-notice')
+
+    await user.clear(screen.getByTestId('prompt-name-input'))
+    await user.type(screen.getByTestId('prompt-name-input'), 'Renamed')
+    await user.type(screen.getByTestId('prompt-description-input'), ' more')
+    fireEvent.change(screen.getByTestId('prompt-body-textarea'), {
+      target: { value: 'A new body' },
+    })
+    await user.click(screen.getByTestId('prompt-save-button'))
+
+    // The frozen fields go out with the values the server already holds,
+    // which it does not count as a change.
+    await waitFor(() => {
+      expect(promptService.updatePrompt).toHaveBeenCalledWith(
+        'team-1',
+        'my-prompt',
+        {
+          name: 'Renamed',
+          description: 'A description more',
+          body: 'A new body',
+          slug: 'my-prompt',
+          project_id: 'p1',
+          status: 'published',
+          labels: ['review'],
+          mcp_expose: true,
+        }
+      )
+    })
+    expect(mockNavigate).toHaveBeenCalledWith('/prompts/my-prompt')
+  })
+
+  it('renders an unlocked prompt’s edit page without the notice or any frozen field', async () => {
+    ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
+    renderEditor('/prompts/my-prompt/edit')
+
+    expect(await screen.findByTestId('prompt-slug-input')).toBeEnabled()
+    expect(screen.queryByTestId('resource-lock-notice')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Draft' })).toBeEnabled()
+    expect(screen.getByTestId('prompt-project-select')).toBeEnabled()
+    expect(screen.getByTestId('prompt-labels-input')).toBeEnabled()
+    expect(screen.getByTestId('prompt-mcp-expose')).toBeEnabled()
+  })
+
+  it('learns about a lock taken after the page loaded from the refused save', async () => {
+    const user = userEvent.setup()
+    ;(promptService.getPrompt as Mock)
+      .mockResolvedValueOnce(buildPrompt())
+      .mockResolvedValueOnce(buildPrompt({ lock: TEST_LOCK }))
+    ;(promptService.updatePrompt as Mock).mockRejectedValueOnce(refused())
+    renderEditor('/prompts/my-prompt/edit')
+    await screen.findByTestId('prompt-slug-input')
+
+    await user.clear(screen.getByTestId('prompt-name-input'))
+    await user.type(screen.getByTestId('prompt-name-input'), 'Renamed')
+    // A change the lock is about to refuse.
+    await user.click(screen.getByTestId('prompt-mcp-expose'))
+    expect(screen.getByTestId('prompt-mcp-expose')).not.toBeChecked()
+    await user.click(screen.getByTestId('prompt-save-button'))
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith(
+        'The MCP exposure of this prompt cannot be changed: it is locked by Ada Lovelace ("Used by the nightly release agent"). Unlock it first.'
+      )
+    })
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(mockNavigate).not.toHaveBeenCalledWith('/prompts/my-prompt')
+
+    // The lock is on the page without a reload…
+    expect(
+      await screen.findByTestId('resource-lock-notice')
+    ).toBeInTheDocument()
+    expect(promptService.getPrompt).toHaveBeenCalledTimes(2)
+    expect(screen.queryByTestId('prompt-slug-input')).not.toBeInTheDocument()
+    // …the refused change is taken back…
+    expect(screen.getByTestId('prompt-mcp-expose')).toBeDisabled()
+    expect(screen.getByTestId('prompt-mcp-expose')).toBeChecked()
+    // …and what the reader typed is still there.
+    expect(screen.getByTestId('prompt-name-input')).toHaveValue('Renamed')
+
+    await user.click(screen.getByTestId('prompt-save-button'))
+
+    await waitFor(() => {
+      expect(promptService.updatePrompt).toHaveBeenLastCalledWith(
+        'team-1',
+        'my-prompt',
+        expect.objectContaining({ name: 'Renamed', mcp_expose: true })
+      )
+    })
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/prompts/my-prompt')
+    })
+  })
+
+  it('does not refetch when a save fails for any other reason', async () => {
+    const user = userEvent.setup()
+    ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
+    ;(promptService.updatePrompt as Mock).mockRejectedValue(
+      new Error('save failed')
+    )
+    renderEditor('/prompts/my-prompt/edit')
+    await screen.findByTestId('prompt-slug-input')
+
+    await user.click(screen.getByTestId('prompt-save-button'))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('save failed')
+    })
+    expect(promptService.getPrompt).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('resource-lock-notice')).not.toBeInTheDocument()
   })
 })
 

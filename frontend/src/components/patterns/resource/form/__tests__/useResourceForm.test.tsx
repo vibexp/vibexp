@@ -11,6 +11,7 @@ import { createRef } from 'react'
 
 import { ShellProvider } from '@/components/layout/ShellContext'
 import { mockViewportWidth } from '@/lib/testing/matchMedia'
+import { TEST_LOCK } from '@/lib/testing/resourceLock'
 import { storage } from '@/utils/storage'
 
 // The picker is an async combobox over the projects API; stub it to a button
@@ -444,5 +445,271 @@ describe('useResourceForm — taxonomy entry length', () => {
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ labels: ['x'.repeat(50)] })
     )
+  })
+})
+
+/**
+ * What a lock freezes on each kind's edit page (#1285), by the test ids of the
+ * controls involved. `rows` are details-column fields, which become read-only
+ * rows like a create-only slug; `disabled` are the Labels & metadata controls,
+ * which stay in place but disabled; `editable` is the content a lock never
+ * touches. A blueprint's and an artifact's slug is already fixed after create.
+ */
+const LOCK_CASES = [
+  {
+    kind: 'prompt',
+    descriptor: promptDescriptor,
+    rows: [
+      'prompt-slug-input',
+      'prompt-status-select',
+      'prompt-project-select',
+    ],
+    disabled: ['prompt-labels-input'],
+    editable: [
+      'prompt-name-input',
+      'prompt-description-input',
+      'prompt-body-textarea',
+    ],
+    notice:
+      'Slug, Status, Labels, MCP, and Project cannot be changed until this prompt is unlocked.',
+  },
+  {
+    kind: 'blueprint',
+    descriptor: blueprintDescriptor,
+    rows: [
+      'blueprint-status-select',
+      'blueprint-type-select',
+      'blueprint-project-select',
+    ],
+    disabled: ['blueprint-labels-input', 'metadata-add-pair'],
+    editable: [
+      'blueprint-title-input',
+      'blueprint-description-input',
+      'blueprint-content-textarea',
+    ],
+    notice:
+      'Project, Slug, Status, Type, Subtype, Labels, Path, and Metadata cannot be changed until this blueprint is unlocked.',
+  },
+  {
+    kind: 'artifact',
+    descriptor: artifactDescriptor,
+    rows: [
+      'artifact-status-select',
+      'artifact-type-select',
+      'artifact-project-select',
+    ],
+    disabled: ['artifact-labels-input', 'metadata-add-pair'],
+    editable: [
+      'artifact-title-input',
+      'artifact-description-input',
+      'artifact-content-textarea',
+    ],
+    notice:
+      'Project, Slug, Status, Type, Labels, and Metadata cannot be changed until this artifact is unlocked.',
+  },
+] as const
+
+describe.each(LOCK_CASES)(
+  'useResourceForm — a locked $kind',
+  ({ descriptor, rows, disabled, editable, notice }) => {
+    const stored = {
+      slug: 'stored-slug',
+      project_id: 'p0',
+      status: 'active',
+      type: 'general',
+    }
+
+    it('freezes the fields the lock covers and leaves the content editable', () => {
+      renderPage(descriptor, {
+        mode: 'edit',
+        initialValues: stored,
+        lock: TEST_LOCK,
+      })
+      for (const testId of rows) {
+        expect(screen.queryByTestId(testId)).not.toBeInTheDocument()
+      }
+      for (const testId of disabled) {
+        expect(screen.getByTestId(testId)).toBeDisabled()
+      }
+      for (const testId of editable) {
+        expect(screen.getByTestId(testId)).toBeEnabled()
+      }
+    })
+
+    it('says who locked it, why, and which fields that freezes', () => {
+      renderPage(descriptor, {
+        mode: 'edit',
+        initialValues: stored,
+        lock: TEST_LOCK,
+      })
+      const lockNotice = screen.getByTestId('resource-lock-notice')
+      expect(lockNotice).toHaveTextContent(
+        'Locked by Ada Lovelace: Used by the nightly release agent'
+      )
+      expect(lockNotice).toHaveTextContent(notice)
+    })
+
+    it('renders the edit page as before when there is no lock', () => {
+      renderPage(descriptor, {
+        mode: 'edit',
+        initialValues: stored,
+        lock: null,
+      })
+      expect(
+        screen.queryByTestId('resource-lock-notice')
+      ).not.toBeInTheDocument()
+      for (const testId of [...disabled, ...editable]) {
+        expect(screen.getByTestId(testId)).toBeEnabled()
+      }
+      // A slug fixed after create is a row with or without a lock.
+      const createOnly = descriptor.form.fields
+        .filter(spec => 'editableOnCreateOnly' in spec)
+        .map(spec => spec.testId)
+      for (const testId of rows.filter(id => !createOnly.includes(id))) {
+        expect(screen.getByTestId(testId)).toBeEnabled()
+      }
+    })
+
+    it('still submits the frozen fields, with their stored values', async () => {
+      const { ref, onSubmit } = renderPage(descriptor, {
+        mode: 'edit',
+        initialValues: {
+          ...stored,
+          name: 'A name',
+          title: 'A title',
+          body: 'Body',
+          content: 'Content',
+          labels: ['kept'],
+        },
+        lock: TEST_LOCK,
+      })
+      await submit(ref)
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          slug: 'stored-slug',
+          project_id: 'p0',
+          status: 'active',
+          labels: ['kept'],
+        })
+      )
+    })
+  }
+)
+
+describe('useResourceForm — a lock and the create page', () => {
+  it('ignores a lock while creating: there is no stored resource to freeze', () => {
+    renderPage(artifactDescriptor, { lock: TEST_LOCK })
+    expect(screen.queryByTestId('resource-lock-notice')).not.toBeInTheDocument()
+    expect(screen.getByTestId('artifact-status-select')).toBeEnabled()
+    expect(screen.getByTestId('artifact-labels-input')).toBeEnabled()
+  })
+})
+
+// The lock race: the page loaded unlocked, the save was refused with a 423,
+// and the page refetched the resource to learn about the lock.
+describe('useResourceForm — a lock that arrives after the page loaded', () => {
+  const loaded = {
+    title: 'Loaded',
+    slug: 'an-artifact',
+    content: 'Content',
+    project_id: 'p0',
+    type: 'general',
+    status: 'active',
+  }
+
+  function editTree(props: Partial<ResourceFormReadingPageProps> = {}) {
+    const ref = createRef<ResourceFormHandle>()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const onCancel = vi.fn()
+    const tree = (extra: Partial<ResourceFormReadingPageProps> = {}) =>
+      page({
+        ref,
+        onSubmit,
+        onCancel,
+        descriptor: artifactDescriptor,
+        mode: 'edit',
+        initialValues: loaded,
+        ...props,
+        ...extra,
+      })
+    return { ref, onSubmit, onCancel, tree }
+  }
+
+  it('takes back a change to a field the lock froze and keeps the content edits', async () => {
+    const user = userEvent.setup()
+    const { ref, onSubmit, tree } = editTree()
+    const view = render(tree())
+    await user.type(screen.getByTestId('artifact-title-input'), ' and typed')
+    // The stubbed picker moves the artifact to project `p1`.
+    await user.click(screen.getByTestId('artifact-project-select'))
+
+    view.rerender(tree({ lock: TEST_LOCK, record: loaded }))
+
+    expect(screen.getByTestId('artifact-title-input')).toHaveValue(
+      'Loaded and typed'
+    )
+    expect(
+      screen.queryByTestId('artifact-project-select')
+    ).not.toBeInTheDocument()
+    await submit(ref)
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Loaded and typed', project_id: 'p0' })
+    )
+  })
+
+  it('submits what the server holds when the frozen fields changed under the page', async () => {
+    const { ref, onSubmit, tree } = editTree()
+    const view = render(tree())
+
+    view.rerender(
+      tree({
+        lock: TEST_LOCK,
+        record: { ...loaded, project_id: 'p9', status: 'archived' },
+      })
+    )
+
+    await submit(ref)
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ project_id: 'p9', status: 'archived' })
+    )
+  })
+
+  it('takes the change back even when its control is not mounted', async () => {
+    // Below `lg` the details column is a closed sheet, so the project control
+    // the reader changed is unmounted by the time the lock arrives.
+    const user = userEvent.setup()
+    const { ref, onSubmit, tree } = editTree()
+    const view = render(tree())
+    await user.click(screen.getByTestId('artifact-project-select'))
+    act(() => {
+      viewport.restore()
+      viewport = mockViewportWidth(600)
+    })
+    view.rerender(tree())
+    expect(
+      screen.queryByTestId('artifact-project-select')
+    ).not.toBeInTheDocument()
+
+    view.rerender(tree({ lock: TEST_LOCK, record: loaded }))
+
+    await submit(ref)
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ project_id: 'p0' })
+    )
+  })
+
+  it('no longer counts the taken-back change as unsaved', async () => {
+    const user = userEvent.setup()
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const { onCancel, tree } = editTree()
+    const view = render(tree())
+    await user.click(screen.getByTestId('artifact-project-select'))
+
+    view.rerender(tree({ lock: TEST_LOCK, record: loaded }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(confirmSpy).not.toHaveBeenCalled()
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    confirmSpy.mockRestore()
   })
 })

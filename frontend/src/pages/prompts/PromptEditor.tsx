@@ -19,6 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAnalytics } from '@/hooks'
 import { useEditVersionHistory } from '@/hooks/useEditVersionHistory'
+import { useLockedWriteRefresh } from '@/hooks/useLockedWriteRefresh'
 import { toast } from '@/lib/toast'
 import { toPromptRequest } from '@/pages/prompts/promptRequest'
 import { projectService } from '@/services/projectService'
@@ -90,10 +91,30 @@ export function PromptEditor() {
   const isEditing = !!slug
   const mode = isEditing ? 'edit' : 'create'
 
+  // A lock taken after this page loaded only shows up as a refused save; the
+  // refetch then brings the lock in without re-seeding the form.
+  const { lock, record, refreshOnLockedWrite } = useLockedWriteRefresh(
+    prompt,
+    useCallback(() => {
+      if (!currentTeam || !prompt) {
+        return Promise.reject(new Error('Prompt is not loaded'))
+      }
+      return promptService.getPrompt(currentTeam.id, prompt.slug)
+    }, [currentTeam, prompt])
+  )
+  // The prompt as the server last returned it: what MCP exposure is compared
+  // against, and goes back to once a lock freezes it.
+  const stored = record ?? prompt
+
   const { saving, save } = usePromptSave({
     teamId: currentTeam?.id,
     prompt,
     trackEvent,
+    onError: async error => {
+      const fresh = await refreshOnLockedWrite(error)
+      // The switch is page state, so the form cannot put it back itself.
+      if (fresh) setMcpExpose(fresh.mcp_expose)
+    },
   })
   const {
     allPlaceholders,
@@ -316,17 +337,19 @@ export function PromptEditor() {
         }
         onSubmit={handleSubmit}
         isLoading={saving}
+        lock={lock}
+        record={record}
         renderBody={renderBody}
         saveTestId="prompt-save-button"
         // The MCP card is page state, invisible to react-hook-form: without
         // this, toggling it and hitting Cancel discards it with no prompt.
-        extraDirty={mcpExpose !== (prompt?.mcp_expose ?? false)}
+        extraDirty={mcpExpose !== (stored?.mcp_expose ?? false)}
         extensions={{
           'mcp-exposure': (
             <McpExposureSwitch
               value={mcpExpose}
               onChange={setMcpExpose}
-              disabled={saving}
+              disabled={saving || lock !== null}
             />
           ),
         }}
