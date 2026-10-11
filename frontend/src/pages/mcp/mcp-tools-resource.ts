@@ -133,6 +133,41 @@ export const resourceTools: MCPTool[] = [
     },
   },
   {
+    name: 'vibexp_io_lock_resource',
+    description:
+      'Lock a single resource so it cannot be changed or deleted until a human unlocks it. Supported resource_type values and their required identifiers: "prompt" needs slug; "artifact" and "blueprint" need project_id and slug. A comment saying why the resource is locked is required and is shown to the team. There is no unlock tool: a human unlocks in the VibeXP UI or through the REST API.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
+        resource_type: {
+          type: 'string',
+          description:
+            'The resource type to lock: one of "prompt", "blueprint", or "artifact".',
+        },
+        project_id: {
+          type: 'string',
+          description:
+            'Project UUID. Required when resource_type is "artifact" or "blueprint"; ignored otherwise.',
+        },
+        slug: {
+          type: 'string',
+          description: 'Slug of the resource to lock.',
+        },
+        comment: {
+          type: 'string',
+          description:
+            'Why the resource is locked, shown to the team next to the lock. At most 500 characters.',
+        },
+      },
+      required: ['team_id', 'resource_type', 'slug', 'comment'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'vibexp_io_list_statuses',
     description:
       "List the statuses a team can use on its prompts, artifacts, blueprints and memories: the system statuses every team has, then the team's own custom ones, each with `is_system` and `is_live`. Call it before setting or filtering by `status`; omit `resource_type` to get all four types.",

@@ -36,6 +36,7 @@ const WRITE_TOOLS = new Set([
   'vibexp_io_upload_attachment',
   'vibexp_io_delete_attachment',
   'vibexp_io_delete_resource',
+  'vibexp_io_lock_resource',
   'vibexp_io_link_resources',
   'vibexp_io_post_to_feed',
   'vibexp_io_reply_to_feed_item',
