@@ -134,7 +134,7 @@ func (l *NotificationEventListener) renderFeedItemTemplate(
 		"action_url": actionURL,
 	}
 
-	rendered, err := l.renderer.Render("feed.item.created", templateData)
+	rendered, err := l.renderer.Render(ctx, "feed.item.created", templateData)
 	if err != nil {
 		l.recordListenerError(ctx, event.Type())
 		l.logError(event.Type(), "", "Failed to render notification template", err)

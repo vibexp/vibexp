@@ -69,6 +69,7 @@ type mockTemplateRenderer struct {
 }
 
 func (m *mockTemplateRenderer) Render(
+	_ context.Context,
 	notifType notifications.NotificationType,
 	data map[string]interface{},
 ) (*notifications.RenderedContent, error) {

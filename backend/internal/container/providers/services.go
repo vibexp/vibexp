@@ -254,11 +254,14 @@ func ProvideGitHubAppConfigService(
 // its provider per team, and the instance provider reaches the service as the
 // resolver's fallback. Injecting a provider directly would let a send bypass a
 // team's configuration.
+//
+// siteInfo supplies the company branding every email shows (#1362).
 func ProvideEmailService(
 	resolver services.EmailSenderResolver,
+	siteInfo services.InstanceSiteInfoResolver,
 	cfg *config.Config,
 ) services.EmailServiceInterface {
-	return services.NewEmailService(resolver, cfg)
+	return services.NewEmailService(resolver, siteInfo, cfg)
 }
 
 // ActivityServiceDeps groups the dependencies of ProvideActivityService. Wire
@@ -974,6 +977,7 @@ func ProvideNotificationService(deps NotificationServiceDeps) *notificationsvc.N
 // it via wire.Struct (see the container ProviderSet).
 type DigestRunnerDeps struct {
 	Cfg        *config.Config
+	SiteInfo   services.InstanceSiteInfoResolver
 	DigestRepo repositories.NotificationDigestQueueRepository
 	NotifRepo  repositories.NotificationRepository
 	UserRepo   repositories.UserRepository
@@ -988,7 +992,7 @@ type DigestRunnerDeps struct {
 // EmailServiceInterface satisfies notifications.DigestEmailSender via Go structural typing
 // (both declare SendNotificationEmail(to, subject, htmlBody string) error).
 func ProvideDigestRunner(deps DigestRunnerDeps) *notificationsvc.DigestRunner {
-	renderer := notificationsvc.NewTemplateRenderer(deps.Cfg.Frontend.BaseURL)
+	renderer := notificationsvc.NewTemplateRenderer(deps.Cfg.Frontend.BaseURL, deps.SiteInfo)
 	return notificationsvc.NewDigestRunner(notificationsvc.DigestRunnerDeps{
 		DigestRepo: deps.DigestRepo,
 		NotifRepo:  deps.NotifRepo,

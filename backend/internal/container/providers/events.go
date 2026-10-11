@@ -109,6 +109,8 @@ type EventListenerDeps struct {
 	UserRepo           repositories.UserRepository
 	FeedItemRepo       repositories.FeedItemRepository
 	AppMetrics         *metrics.Metrics
+	// SiteInfo supplies the company branding notification emails show (#1362).
+	SiteInfo services.InstanceSiteInfoResolver
 }
 
 // ProvideEventSystemDeps creates the complete event system with all listeners,
@@ -177,7 +179,7 @@ func registerNotificationEventListener(deps EventListenerDeps) {
 	frontendBaseURL := deps.Cfg.Frontend.BaseURL
 	logger := deps.Logger
 	resolver := notificationsvc.NewRecipientResolver(deps.TeamMemberRepo)
-	renderer := notificationsvc.NewTemplateRenderer(frontendBaseURL)
+	renderer := notificationsvc.NewTemplateRenderer(frontendBaseURL, deps.SiteInfo)
 	listener := notificationsvc.NewNotificationEventListener(notificationsvc.NotificationEventListenerDeps{
 		NotifSvc:        deps.NotifSvc,
 		Resolver:        resolver,

@@ -123,10 +123,8 @@
         <tr>
             <td class="email-header">
                 <div class="logo-container">
-                    <!-- Replace the src below with your actual logo URL -->
-                    <!-- For best results, use a PNG/JPG image hosted on your server or a CDN -->
-                    <img src="https://vibexp.io/logo.png"
-                         alt="Company Logo"
+                    <img src="{{html .Brand.LogoURL}}"
+                         alt="{{html .Brand.DisplayName}}"
                          width="80"
                          style="display: block; width: 80px; height: auto; margin: 0 auto;">
                 </div>
@@ -143,12 +141,15 @@
         <!-- Footer -->
         <tr>
             <td class="email-footer">
-                <p>&copy; {{.Year}} VibeXP. All rights reserved.</p>
+                <p>&copy; {{.Year}} {{html .Brand.DisplayName}}. All rights reserved.</p>
                 <p>
-                    <a href="{{.AppBaseURL}}/settings/notifications?utm_source=email&utm_medium=footer&utm_campaign=email-preferences">Manage Email Preferences</a>{{if .PrivacyPolicyURL}} |
-                    <a href="{{.PrivacyPolicyURL}}?utm_source=email&utm_medium=footer&utm_campaign=privacy">Privacy Policy</a>{{end}}
+                    <a href="{{.AppBaseURL}}/settings/notifications?utm_source=email&utm_medium=footer&utm_campaign=email-preferences">Manage Email Preferences</a>{{if .Brand.SupportHref}} |
+                    <a href="{{html .Brand.SupportHref}}">Support</a>{{end}}{{if .Brand.TermsURL}} |
+                    <a href="{{html .Brand.TermsURL}}">Terms of Service</a>{{end}}{{if .PrivacyPolicyURL}} |
+                    <a href="{{html .PrivacyPolicyURL}}?utm_source=email&utm_medium=footer&utm_campaign=privacy">Privacy Policy</a>{{end}}
                 </p>
                 <p>You're receiving this email because you have a VibeXP account. To manage your email preferences or unsubscribe from specific notifications, visit your <a href="{{.AppBaseURL}}/settings/notifications?utm_source=email&utm_medium=footer&utm_campaign=email-settings" style="color: #6b6e76; text-decoration: underline;">notification settings</a>.</p>
+                <p>Powered by <a href="{{.ProductURL}}">{{.ProductName}}</a></p>
             </td>
         </tr>
     </table>

@@ -22,5 +22,6 @@ ADDITIONAL INFORMATION:
 Please review and respond to this request at your earliest convenience.
 
 ---
-© {{.Year}} VibeXP. All rights reserved.
-This message was sent via the VibeXP support system.
+© {{.Year}} {{.Brand.DisplayName}}. All rights reserved.
+This message was sent via the {{.Brand.DisplayName}} support system.
+Powered by {{.ProductName}} - {{.ProductURL}}

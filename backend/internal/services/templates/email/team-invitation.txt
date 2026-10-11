@@ -2,7 +2,7 @@ You've been invited to join {{.TeamName}}!
 
 Hello!
 
-{{.InviterName}} has invited you to join their team {{.TeamName}} on VibeXP as a {{.Role}}.
+{{.InviterName}} has invited you to join their team {{.TeamName}} on {{.Brand.DisplayName}} as a {{.Role}}.
 
 To accept this invitation, visit:
 {{.AcceptURL}}
@@ -11,4 +11,5 @@ This invitation will expire on {{.ExpiryDate}}.
 If you don't want to join this team, you can safely ignore this email.
 
 ---
-© {{.Year}} VibeXP. All rights reserved.
+© {{.Year}} {{.Brand.DisplayName}}. All rights reserved.
+Powered by {{.ProductName}} - {{.ProductURL}}

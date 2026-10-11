@@ -1,7 +1,7 @@
 {{define "content"}}
 <h1>You've been invited to join {{.TeamName}}!</h1>
 <p>Hello!</p>
-<p>{{.InviterName}} has invited you to join their team <strong>{{.TeamName}}</strong> on VibeXP as a <strong>{{.Role}}</strong>.</p>
+<p>{{.InviterName}} has invited you to join their team <strong>{{.TeamName}}</strong> on {{html .Brand.DisplayName}} as a <strong>{{.Role}}</strong>.</p>
 
 <div class="button-container">
     <a href="{{.AcceptURL}}" class="button">

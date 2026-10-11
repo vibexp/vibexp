@@ -96,7 +96,7 @@ func createTestEmailService() *EmailService {
 	}
 	mockProvider := new(MockEmailProvider)
 	mockProvider.On("SendEmail", mock.Anything, mock.Anything).Return(nil)
-	return NewEmailService(instanceResolver(mockProvider), cfg)
+	return NewEmailService(instanceResolver(mockProvider), noSiteInfo{}, cfg)
 }
 
 func TestNewEmailService(t *testing.T) {
@@ -112,7 +112,7 @@ func TestNewEmailService(t *testing.T) {
 	}
 
 	mockProvider := new(MockEmailProvider)
-	service := NewEmailService(instanceResolver(mockProvider), cfg)
+	service := NewEmailService(instanceResolver(mockProvider), noSiteInfo{}, cfg)
 
 	assert.NotNil(t, service)
 	assert.Equal(t, cfg, service.cfg)
@@ -173,7 +173,7 @@ func TestEmailService_sendEmail(t *testing.T) {
 				},
 			}
 			mockProvider := tt.setupMock()
-			service := NewEmailService(instanceResolver(mockProvider), cfg)
+			service := NewEmailService(instanceResolver(mockProvider), noSiteInfo{}, cfg)
 
 			err := service.sendEmail(context.Background(), "", tt.to, tt.subject, tt.htmlBody, tt.textBody)
 
@@ -206,23 +206,26 @@ func TestEmailService_EmailTemplateFooter(t *testing.T) {
 	service := createTestEmailService()
 
 	testData := struct {
-		TeamName         string
-		InviterName      string
-		Role             string
-		AcceptURL        string
-		ExpiryDate       string
-		Year             int
-		AppBaseURL       string
-		PrivacyPolicyURL string
+		emailLayoutData
+		TeamName    string
+		InviterName string
+		Role        string
+		AcceptURL   string
+		ExpiryDate  string
 	}{
-		TeamName:         "Test Team",
-		InviterName:      "John Doe",
-		Role:             "member",
-		AcceptURL:        "https://app.example.com/invitations/accept/token123",
-		ExpiryDate:       "January 1, 2026",
-		Year:             2025,
-		AppBaseURL:       "https://app.example.com",
-		PrivacyPolicyURL: "https://example.com/privacy-policy",
+		emailLayoutData: emailLayoutData{
+			Year:             2025,
+			AppBaseURL:       "https://app.example.com",
+			PrivacyPolicyURL: "https://example.com/privacy-policy",
+			Brand:            models.InstanceSiteInfoValues{}.EmailBranding(),
+			ProductName:      models.ProductName,
+			ProductURL:       models.ProductURL,
+		},
+		TeamName:    "Test Team",
+		InviterName: "John Doe",
+		Role:        "member",
+		AcceptURL:   "https://app.example.com/invitations/accept/token123",
+		ExpiryDate:  "January 1, 2026",
 	}
 
 	// Render the template
@@ -379,7 +382,7 @@ func TestEmailService_SendSupportRequest(t *testing.T) {
 				},
 			}
 			mockProvider := tt.setupMock()
-			service := NewEmailService(instanceResolver(mockProvider), cfg)
+			service := NewEmailService(instanceResolver(mockProvider), noSiteInfo{}, cfg)
 
 			err := service.SendSupportRequest(context.Background(), tt.userName, tt.userEmail, tt.request)
 
@@ -486,7 +489,7 @@ func TestEmailService_SendTeamInvitation(t *testing.T) {
 				},
 			}
 			mockProvider := tt.setupMock()
-			service := NewEmailService(instanceResolver(mockProvider), cfg)
+			service := NewEmailService(instanceResolver(mockProvider), noSiteInfo{}, cfg)
 
 			err := service.SendTeamInvitation(context.Background(), "team-1", tt.invitation, tt.teamName, tt.inviterName)
 
@@ -617,7 +620,7 @@ func TestEmailService_SendEmail_UsesTheStoredInstanceFromAddress(t *testing.T) {
 	resolver := NewEmailSenderResolver(
 		repomocks.NewMockTeamEmailProviderRepository(t), instanceRepo, nil, slog.New(slog.DiscardHandler))
 	// Swap the built provider for the mock so nothing is dialled.
-	service := NewEmailService(&providerSwappingResolver{EmailSenderResolver: resolver, provider: mockProvider},
+	service := NewEmailService(&providerSwappingResolver{EmailSenderResolver: resolver, provider: mockProvider}, noSiteInfo{},
 		&config.Config{})
 
 	err := service.sendEmail(context.Background(), "", "to@example.com", "Test Subject", "<p>body</p>", "body")
@@ -690,7 +693,7 @@ func TestEmailService_SupportMail_UsesTheInstanceIdentity(t *testing.T) {
 
 			resolver := instanceResolver(mockProvider)
 			resolver.identity = tt.identity
-			service := NewEmailService(resolver, &config.Config{
+			service := NewEmailService(resolver, noSiteInfo{}, &config.Config{
 				Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
 			})
 
@@ -712,7 +715,7 @@ func TestEmailService_IdentityReadFailureFailsTheSend(t *testing.T) {
 	mockProvider := new(MockEmailProvider)
 	resolver := instanceResolver(mockProvider)
 	resolver.identityErr = errors.New("db down")
-	service := NewEmailService(resolver, &config.Config{})
+	service := NewEmailService(resolver, noSiteInfo{}, &config.Config{})
 
 	err := service.SendSupportRequest(context.Background(), "Jane", "jane@acme.test",
 		&models.SupportRequest{Text: "Please help me with this problem."})
@@ -771,7 +774,7 @@ func TestEmailService_sendEmail_UsesTheTeamSenderIdentity(t *testing.T) {
 	captured := captureSentMessage(mockProvider, nil)
 	resolver := teamResolver(mockProvider)
 
-	service := NewEmailService(resolver, &config.Config{})
+	service := NewEmailService(resolver, noSiteInfo{}, &config.Config{})
 
 	err := service.sendEmail(
 		context.Background(), "team-1", "to@example.com", "Subject", "<p>body</p>", "body")
@@ -792,7 +795,7 @@ func TestEmailService_sendEmail_BareAddressWhenNoFromName(t *testing.T) {
 	captured := captureSentMessage(mockProvider, nil)
 	resolver := instanceResolver(mockProvider)
 
-	service := NewEmailService(resolver, &config.Config{})
+	service := NewEmailService(resolver, noSiteInfo{}, &config.Config{})
 
 	require.NoError(t, service.sendEmail(
 		context.Background(), "", "to@example.com", "Subject", "<p>b</p>", "b"))
@@ -810,7 +813,7 @@ func TestEmailService_sendEmail_FromNameIsNotFoldedIntoFrom(t *testing.T) {
 	mockProvider := new(MockEmailProvider)
 	captured := captureSentMessage(mockProvider, nil)
 
-	service := NewEmailService(teamResolver(mockProvider), &config.Config{})
+	service := NewEmailService(teamResolver(mockProvider), noSiteInfo{}, &config.Config{})
 
 	require.NoError(t, service.sendEmail(
 		context.Background(), "team-1", "to@example.com", "S", "<p>b</p>", "b"))
@@ -834,7 +837,7 @@ func TestEmailService_sendEmail_PropagatesCallerContext(t *testing.T) {
 		return true
 	}), mock.Anything).Return(nil)
 
-	service := NewEmailService(instanceResolver(mockProvider), &config.Config{})
+	service := NewEmailService(instanceResolver(mockProvider), noSiteInfo{}, &config.Config{})
 	ctx := context.WithValue(context.Background(), marker, "yes")
 
 	require.NoError(t, service.sendEmail(ctx, "", "to@example.com", "S", "<p>b</p>", "b"))
@@ -849,7 +852,7 @@ func TestEmailService_sendEmail_RecordsTeamDeliveryOutcome(t *testing.T) {
 		captureSentMessage(mockProvider, nil)
 		resolver := teamResolver(mockProvider)
 
-		service := NewEmailService(resolver, &config.Config{})
+		service := NewEmailService(resolver, noSiteInfo{}, &config.Config{})
 		require.NoError(t, service.sendEmail(
 			context.Background(), "team-1", "to@example.com", "S", "<p>b</p>", "b"))
 
@@ -863,7 +866,7 @@ func TestEmailService_sendEmail_RecordsTeamDeliveryOutcome(t *testing.T) {
 		captureSentMessage(mockProvider, fmt.Errorf("relay denied"))
 		resolver := teamResolver(mockProvider)
 
-		service := NewEmailService(resolver, &config.Config{})
+		service := NewEmailService(resolver, noSiteInfo{}, &config.Config{})
 		err := service.sendEmail(context.Background(), "team-1", "to@example.com", "S", "<p>b</p>", "b")
 
 		require.Error(t, err, "a failing team provider must surface, never silently re-send as the operator")
@@ -882,7 +885,7 @@ func TestEmailService_sendEmail_InstanceSendIsNotAttributedToATeam(t *testing.T)
 	captureSentMessage(mockProvider, nil)
 	resolver := instanceResolver(mockProvider)
 
-	service := NewEmailService(resolver, &config.Config{})
+	service := NewEmailService(resolver, noSiteInfo{}, &config.Config{})
 	require.NoError(t, service.sendEmail(
 		context.Background(), "", "to@example.com", "S", "<p>b</p>", "b"))
 
@@ -894,7 +897,7 @@ func TestEmailService_sendEmail_ResolverFailureAborts(t *testing.T) {
 	mockProvider := new(MockEmailProvider)
 	resolver := &stubSenderResolver{resolveErr: fmt.Errorf("cannot decrypt secret")}
 
-	service := NewEmailService(resolver, &config.Config{})
+	service := NewEmailService(resolver, noSiteInfo{}, &config.Config{})
 	err := service.sendEmail(context.Background(), "team-1", "to@example.com", "S", "<p>b</p>", "b")
 
 	require.Error(t, err)
@@ -915,7 +918,7 @@ func TestEmailService_SendSupportRequest_AlwaysResolvesInstance(t *testing.T) {
 		Source:      EmailSenderSourceInstance,
 	}}
 
-	service := NewEmailService(resolver, &config.Config{
+	service := NewEmailService(resolver, noSiteInfo{}, &config.Config{
 		LegacyEmail: config.LegacyEmailConfig{ContactRecipientAddress: "ops@instance.test"},
 		Frontend:    config.FrontendConfig{BaseURL: "https://app.example.com"},
 	})
@@ -961,7 +964,7 @@ func TestEmailService_SendTeamInvitation_ResolvesWithTheTeam(t *testing.T) {
 		TeamID:      "team-42",
 	}}
 
-	service := NewEmailService(resolver, &config.Config{
+	service := NewEmailService(resolver, noSiteInfo{}, &config.Config{
 		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
 	})
 
@@ -984,7 +987,7 @@ func TestEmailService_SendTeamInvitation_UnconfiguredTeamUsesInstance(t *testing
 	captured := captureSentMessage(mockProvider, nil)
 	resolver := instanceResolver(mockProvider)
 
-	service := NewEmailService(resolver, &config.Config{
+	service := NewEmailService(resolver, noSiteInfo{}, &config.Config{
 		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
 	})
 
@@ -1009,7 +1012,7 @@ func TestEmailService_sendEmail_ForwardsTheResolvedFromName(t *testing.T) {
 	mockProvider := new(MockEmailProvider)
 	captured := captureSentOutgoing(mockProvider, nil)
 
-	service := NewEmailService(teamResolver(mockProvider), &config.Config{})
+	service := NewEmailService(teamResolver(mockProvider), noSiteInfo{}, &config.Config{})
 
 	require.NoError(t, service.sendEmail(
 		context.Background(), "team-1", "to@example.com", "S", "<p>b</p>", "b"))
@@ -1027,7 +1030,7 @@ func TestEmailService_sendEmail_NoFromNameStaysBare(t *testing.T) {
 	mockProvider := new(MockEmailProvider)
 	captured := captureSentOutgoing(mockProvider, nil)
 
-	service := NewEmailService(instanceResolver(mockProvider), &config.Config{})
+	service := NewEmailService(instanceResolver(mockProvider), noSiteInfo{}, &config.Config{})
 
 	require.NoError(t, service.sendEmail(
 		context.Background(), "", "to@example.com", "S", "<p>b</p>", "b"))
@@ -1050,7 +1053,7 @@ func TestEmailService_EmptyPrivacyURLOmitsTheFooterLink(t *testing.T) {
 
 	resolver := instanceResolver(mockProvider)
 	resolver.identity = InstanceEmailIdentity{FromAddress: "noreply@instance.test"}
-	service := NewEmailService(resolver, &config.Config{
+	service := NewEmailService(resolver, noSiteInfo{}, &config.Config{
 		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
 	})
 

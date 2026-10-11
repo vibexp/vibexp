@@ -158,7 +158,9 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	teamEmailProviderRepository := providers.ProvideTeamEmailProviderRepository(db)
 	instanceEmailProviderRepository := providers.ProvideInstanceEmailProviderRepository(db)
 	emailSenderResolver := providers.ProvideEmailSenderResolver(teamEmailProviderRepository, instanceEmailProviderRepository, encryptionServiceInterface, logger)
-	emailServiceInterface := providers.ProvideEmailService(emailSenderResolver, cfg)
+	instanceSiteInfoRepository := providers.ProvideInstanceSiteInfoRepository(db)
+	instanceSiteInfoService := providers.ProvideInstanceSiteInfoService(instanceSiteInfoRepository, logger)
+	emailServiceInterface := providers.ProvideEmailService(emailSenderResolver, instanceSiteInfoService, cfg)
 	activityServiceDeps := providers.ActivityServiceDeps{
 		Repo:          activityRepository,
 		ProjectRepo:   projectRepository,
@@ -286,6 +288,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	notificationService := providers.ProvideNotificationService(notificationServiceDeps)
 	digestRunnerDeps := providers.DigestRunnerDeps{
 		Cfg:        cfg,
+		SiteInfo:   instanceSiteInfoService,
 		DigestRepo: notificationDigestQueueRepository,
 		NotifRepo:  notificationRepository,
 		UserRepo:   userRepository,
@@ -303,8 +306,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	scheduler := providers.ProvideScheduler(cfg, scheduleRepository, db, registry, v, logger)
 	instanceSettingsAuditRepository := providers.ProvideInstanceSettingsAuditRepository(db)
 	instanceEmailProviderServiceInterface := providers.ProvideInstanceEmailProviderService(instanceEmailProviderRepository, instanceSettingsAuditRepository, userRepository, encryptionServiceInterface, logger)
-	instanceSiteInfoRepository := providers.ProvideInstanceSiteInfoRepository(db)
-	instanceSiteInfoService := providers.ProvideInstanceSiteInfoService(instanceSiteInfoRepository, logger)
 	instanceAuthSetupRepository := providers.ProvideInstanceAuthSetupRepository(db)
 	setupModeService := providers.ProvideSetupModeService(instanceAuthSetupRepository, instanceAuthProviderRepository, instanceAdminResolver, cfg, logger)
 	instanceAuthSettingsServiceDeps := providers.InstanceAuthSettingsServiceDeps{
@@ -336,6 +337,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		UserRepo:           userRepository,
 		FeedItemRepo:       feedItemRepository,
 		AppMetrics:         metrics,
+		SiteInfo:           instanceSiteInfoService,
 	}
 	eventSystemDeps := providers.ProvideEventSystemDeps(eventListenerDeps)
 	wireContainer := &WireContainer{
