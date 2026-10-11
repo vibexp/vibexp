@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { SITE_NAME } from '@/config/siteConfig'
+import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { AllowlistSection } from '@/pages/admin/settings/auth/AllowlistSection'
 import { ProvidersSection } from '@/pages/admin/settings/auth/ProvidersSection'
 import { useAuthProviders } from '@/pages/admin/settings/auth/useAuthProviders'
@@ -76,10 +76,13 @@ function startFailure(err: unknown, resume: boolean): SetupState {
 }
 
 function SetupFrame({ children }: Readonly<{ children: React.ReactNode }>) {
+  const { displayName } = useSiteInfo()
   return (
     <div className="bg-background text-foreground min-h-screen">
       <header className="border-b px-4 py-3 md:px-6">
-        <span className="text-base font-bold tracking-tight">{SITE_NAME}</span>
+        <span className="text-base font-bold tracking-tight">
+          {displayName}
+        </span>
         <span className="text-muted-foreground ml-2 text-sm">Setup</span>
       </header>
       <main className="mx-auto w-full max-w-screen-lg space-y-6 px-4 py-6 md:px-6">

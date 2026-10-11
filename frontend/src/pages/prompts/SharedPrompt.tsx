@@ -9,7 +9,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { BRAND_LOGO_URL, SITE_NAME, SITE_URL } from '@/config/siteConfig'
+import { PRODUCT_URL } from '@/features/site-info/siteInfo'
+import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { useAnalytics } from '@/hooks/useAnalytics'
 import type { SharedPromptResponse } from '@/services/promptShareService'
 import { promptShareService } from '@/services/promptShareService'
@@ -23,6 +24,7 @@ export function SharedPrompt() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const { displayName, logo_url, website } = useSiteInfo()
 
   useEffect(() => {
     if (!token) return
@@ -137,11 +139,15 @@ export function SharedPrompt() {
     )
   }
 
-  const pageTitle = `${data.prompt.name} | Shared Prompt | ${SITE_NAME}`
-  const description = `${data.prompt.description || 'Shared prompt'}. Prompt shared on ${SITE_NAME}.`
+  const pageTitle = `${data.prompt.name} | Shared Prompt | ${displayName}`
+  const description = `${data.prompt.description || 'Shared prompt'}. Prompt shared on ${displayName}.`
   const pageUrl = window.location.href
-  const imageUrl = BRAND_LOGO_URL
-  const brandLink = `${SITE_URL}?utm_source=prompt_shared_page`
+  // Link previews need an absolute image URL: the company logo when one is
+  // configured, this instance's own bundled logo otherwise.
+  const imageUrl = logo_url ?? `${window.location.origin}/logo_rounded.png`
+  // The company's site exactly as configured; the product's site, tagged,
+  // when none is.
+  const brandLink = website ?? `${PRODUCT_URL}?utm_source=prompt_shared_page`
 
   return (
     <div className="bg-background min-h-screen">
@@ -152,7 +158,7 @@ export function SharedPrompt() {
         <meta property="og:title" content={data.prompt.name} />
         <meta property="og:description" content={description} />
         <meta property="og:url" content={pageUrl} />
-        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="og:site_name" content={displayName} />
         <meta property="og:image" content={imageUrl} />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={data.prompt.name} />
@@ -170,11 +176,11 @@ export function SharedPrompt() {
           >
             <img
               src="/logo_rounded.png"
-              alt={SITE_NAME}
+              alt={displayName}
               className="h-10 w-10"
             />
             <div>
-              <div className="text-lg font-semibold">{SITE_NAME}</div>
+              <div className="text-lg font-semibold">{displayName}</div>
               <div className="text-muted-foreground text-xs">
                 AI-powered prompt management
               </div>

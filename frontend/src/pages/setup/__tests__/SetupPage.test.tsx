@@ -2,6 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 
+import { deriveSiteInfo, EMPTY_SITE_INFO } from '@/features/site-info/siteInfo'
+import { SiteInfoContext } from '@/features/site-info/SiteInfoContext'
 import { authService } from '@/services/authService'
 import { authSettingsService } from '@/services/authSettingsService'
 import { setupService } from '@/services/setupService'
@@ -157,6 +159,32 @@ describe('SetupPage', () => {
     )
     expect(screen.queryByTestId('auth-providers-section')).toBeNull()
     expect(settings.listProviders).not.toHaveBeenCalled()
+  })
+
+  it('is titled with the product name when no company name is configured', async () => {
+    setup.createSession.mockRejectedValue(problem(404, 'RESOURCE_NOT_FOUND'))
+    renderAt('/setup?token=tok-123')
+    await screen.findByTestId('setup-inactive')
+    expect(screen.getByRole('banner')).toHaveTextContent('VibeXP')
+  })
+
+  it('is titled with the company name from site info when one is configured', async () => {
+    setup.createSession.mockRejectedValue(problem(404, 'RESOURCE_NOT_FOUND'))
+    render(
+      <SiteInfoContext.Provider
+        value={deriveSiteInfo({
+          ...EMPTY_SITE_INFO,
+          company_name: 'Acme Inc.',
+        })}
+      >
+        <MemoryRouter initialEntries={['/setup?token=tok-123']}>
+          <SetupPage />
+        </MemoryRouter>
+      </SiteInfoContext.Provider>
+    )
+    await screen.findByTestId('setup-inactive')
+    expect(screen.getByRole('banner')).toHaveTextContent('Acme Inc.')
+    expect(screen.getByRole('banner')).not.toHaveTextContent('VibeXP')
   })
 
   it('renders a terminal state when the instance is not in setup mode (404)', async () => {

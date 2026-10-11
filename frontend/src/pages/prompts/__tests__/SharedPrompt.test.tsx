@@ -26,6 +26,8 @@ vi.mock('@/hooks/useAnalytics', () => ({
   useAnalytics: () => ({ trackEvent: mockTrackEvent }),
 }))
 
+import { deriveSiteInfo, EMPTY_SITE_INFO } from '@/features/site-info/siteInfo'
+import { SiteInfoContext } from '@/features/site-info/SiteInfoContext'
 import { promptShareService } from '@/services/promptShareService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
@@ -117,6 +119,78 @@ describe('SharedPrompt page (public, no auth)', () => {
         event: ANALYTICS_EVENTS.SHARED_PROMPT_VIEWED,
       })
     )
+  })
+
+  it('brands the header as VibeXP, linking to the product, when nothing is configured', async () => {
+    ;(promptShareService.getSharedPrompt as Mock).mockResolvedValue(
+      buildSharedResponse()
+    )
+
+    const { container } = renderSharedPrompt()
+
+    await waitFor(() => {
+      expect(screen.getByText('Code Review Template')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('img', { name: 'VibeXP' })).toBeInTheDocument()
+    const brand = container.querySelector('header a')
+    expect(brand).toHaveAttribute(
+      'href',
+      'https://vibexp.io?utm_source=prompt_shared_page'
+    )
+    expect(container.innerHTML).not.toContain('example.com')
+    await waitFor(() => {
+      expect(document.title).toBe(
+        'Code Review Template | Shared Prompt | VibeXP'
+      )
+    })
+    expect(
+      document.head.querySelector('meta[property="og:image"]')
+    ).toHaveAttribute('content', `${window.location.origin}/logo_rounded.png`)
+  })
+
+  it('uses the company name, site and logo from site info when configured', async () => {
+    ;(promptShareService.getSharedPrompt as Mock).mockResolvedValue(
+      buildSharedResponse()
+    )
+
+    const { container } = render(
+      <SiteInfoContext.Provider
+        value={deriveSiteInfo({
+          ...EMPTY_SITE_INFO,
+          company_name: 'Acme Inc.',
+          website: 'https://acme.test/?ref=home',
+          logo_url: 'https://cdn.acme.test/logo.png',
+        })}
+      >
+        <HelmetProvider>
+          <MemoryRouter initialEntries={['/shared/prompts/share-token-123']}>
+            <Routes>
+              <Route path="/shared/prompts/:token" element={<SharedPrompt />} />
+            </Routes>
+          </MemoryRouter>
+        </HelmetProvider>
+      </SiteInfoContext.Provider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Code Review Template')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('img', { name: 'Acme Inc.' })).toBeInTheDocument()
+    expect(container.querySelector('header a')).toHaveAttribute(
+      'href',
+      'https://acme.test/?ref=home'
+    )
+    await waitFor(() => {
+      expect(document.title).toBe(
+        'Code Review Template | Shared Prompt | Acme Inc.'
+      )
+    })
+    expect(
+      document.head.querySelector('meta[property="og:site_name"]')
+    ).toHaveAttribute('content', 'Acme Inc.')
+    expect(
+      document.head.querySelector('meta[property="og:image"]')
+    ).toHaveAttribute('content', 'https://cdn.acme.test/logo.png')
   })
 
   it('marks a restricted share with the Restricted badge', async () => {

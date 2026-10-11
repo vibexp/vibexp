@@ -1,16 +1,16 @@
 /**
  * Central, env-driven site configuration.
  *
- * All tenant/brand-specific values (brand name, marketing/legal URLs, support
- * email, MCP endpoint, error-type base URI) live here so a self-hoster can
- * rebrand the app entirely through `VITE_*` environment variables without
- * editing component code. Every value has a neutral placeholder default so the
- * app builds and runs out of the box.
+ * What is left here is deployment plumbing: the MCP endpoint advertised in
+ * client setup snippets and the base URI of client-generated error types.
+ * Company branding (name, logo, support and legal links) is NOT configured
+ * here any more: an instance admin edits it as site info, and components read
+ * it through `useSiteInfo` (`features/site-info`, epic #1352).
  *
  * Values are read through `getEnv` (issue #57): in the combined image the
- * backend injects them at runtime via `/config.js`, so rebranding is a deploy-
- * time env var + restart, not a rebuild; the build-time `import.meta.env` stays
- * the fallback for local dev.
+ * backend injects them at runtime via `/config.js`, so changing one is a
+ * deploy-time env var + restart, not a rebuild; the build-time
+ * `import.meta.env` stays the fallback for local dev.
  */
 import { getEnv } from '@/lib/runtimeEnv'
 import { getBackendOrigin } from '@/utils/environment'
@@ -28,44 +28,6 @@ function stripTrailingSlashes(value: string): string {
   }
   return value.slice(0, end)
 }
-
-/** Display name of the product/brand. */
-export const SITE_NAME = or(getEnv('VITE_SITE_NAME'), 'VibeXP')
-
-/** Legal entity name shown in copyright notices. */
-export const SITE_LEGAL_NAME = or(getEnv('VITE_SITE_LEGAL_NAME'), SITE_NAME)
-
-/** Public marketing/home site URL (used for brand links). */
-export const SITE_URL = or(getEnv('VITE_SITE_URL'), 'https://example.com')
-
-/** Hostname portion of SITE_URL, for display as a link label. */
-export const SITE_DOMAIN = stripTrailingSlashes(
-  SITE_URL.replace(/^https?:\/\//, '')
-)
-
-/** Terms & Conditions page URL. */
-export const TERMS_URL = or(
-  getEnv('VITE_TERMS_URL'),
-  `${SITE_URL}/terms-and-conditions`
-)
-
-/** Privacy Policy page URL. */
-export const PRIVACY_URL = or(
-  getEnv('VITE_PRIVACY_URL'),
-  `${SITE_URL}/privacy-policy`
-)
-
-/** Support contact email address. */
-export const SUPPORT_EMAIL = or(
-  getEnv('VITE_SUPPORT_EMAIL'),
-  'support@example.com'
-)
-
-/** Absolute URL to the brand logo (used in shared-page OpenGraph tags). */
-export const BRAND_LOGO_URL = or(
-  getEnv('VITE_BRAND_LOGO_URL'),
-  `${SITE_URL}/logo_rounded.png`
-)
 
 /**
  * Default MCP endpoint for the instance currently being browsed.

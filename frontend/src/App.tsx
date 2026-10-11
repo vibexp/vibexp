@@ -15,6 +15,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { ProjectProvider } from '@/contexts/ProjectContext'
 import { TeamProvider } from '@/contexts/TeamContext'
 import { useAuth } from '@/contexts/useAuth'
+import { SiteInfoProvider } from '@/features/site-info/SiteInfoProvider'
 import { usePageTracking } from '@/hooks'
 import { ThemeProvider } from '@/lib/theme'
 import { AdminRoutes } from '@/pages/admin/AdminRoutes'
@@ -107,70 +108,72 @@ function App() {
     <ErrorBoundary>
       <HelmetProvider>
         <AuthProvider>
-          <AlertProvider>
-            <ThemeProvider defaultTheme="system">
-              <Router>
-                <PageTracker />
-                <Routes>
-                  <Route
-                    path="/login"
-                    element={
-                      <BareLayout>
-                        <SignInPage />
-                      </BareLayout>
-                    }
-                  />
-                  <Route
-                    path="/auth/callback"
-                    element={
-                      <BareLayout>
-                        <AuthCallback />
-                      </BareLayout>
-                    }
-                  />
-                  <Route
-                    path="/invitations/accept/:token"
-                    element={
-                      <BareLayout>
-                        <AcceptInvitation />
-                      </BareLayout>
-                    }
-                  />
-                  <Route
-                    path="/oauth/consent"
-                    element={
-                      <BareLayout>
-                        <OAuthConsentPage />
-                      </BareLayout>
-                    }
-                  />
-                  <Route
-                    path="/shared/prompts/:token"
-                    element={
-                      <BareLayout>
-                        <SharedPrompt />
-                      </BareLayout>
-                    }
-                  />
-                  {/* First-run setup (#1239): outside the auth gate, since a
+          <SiteInfoProvider>
+            <AlertProvider>
+              <ThemeProvider defaultTheme="system">
+                <Router>
+                  <PageTracker />
+                  <Routes>
+                    <Route
+                      path="/login"
+                      element={
+                        <BareLayout>
+                          <SignInPage />
+                        </BareLayout>
+                      }
+                    />
+                    <Route
+                      path="/auth/callback"
+                      element={
+                        <BareLayout>
+                          <AuthCallback />
+                        </BareLayout>
+                      }
+                    />
+                    <Route
+                      path="/invitations/accept/:token"
+                      element={
+                        <BareLayout>
+                          <AcceptInvitation />
+                        </BareLayout>
+                      }
+                    />
+                    <Route
+                      path="/oauth/consent"
+                      element={
+                        <BareLayout>
+                          <OAuthConsentPage />
+                        </BareLayout>
+                      }
+                    />
+                    <Route
+                      path="/shared/prompts/:token"
+                      element={
+                        <BareLayout>
+                          <SharedPrompt />
+                        </BareLayout>
+                      }
+                    />
+                    {/* First-run setup (#1239): outside the auth gate, since a
                       setup session has no user. */}
-                  <Route
-                    path="/setup"
-                    element={
-                      <BareLayout>
-                        <SetupPage />
-                      </BareLayout>
-                    }
-                  />
-                  {/* Must precede the catch-all, which would otherwise swallow
+                    <Route
+                      path="/setup"
+                      element={
+                        <BareLayout>
+                          <SetupPage />
+                        </BareLayout>
+                      }
+                    />
+                    {/* Must precede the catch-all, which would otherwise swallow
                       /admin into the team-scoped MainApp shell. */}
-                  <Route path="/admin/*" element={<AdminApp />} />
-                  <Route path="/*" element={<MainApp />} />
-                </Routes>
-                <AlertContainer />
-              </Router>
-            </ThemeProvider>
-          </AlertProvider>
+                    <Route path="/admin/*" element={<AdminApp />} />
+                    <Route path="/*" element={<MainApp />} />
+                  </Routes>
+                  <AlertContainer />
+                </Router>
+              </ThemeProvider>
+            </AlertProvider>
+          </SiteInfoProvider>
         </AuthProvider>
       </HelmetProvider>
     </ErrorBoundary>
