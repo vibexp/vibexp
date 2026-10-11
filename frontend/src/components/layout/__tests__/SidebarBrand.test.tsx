@@ -140,8 +140,7 @@ describe('SidebarBrand', () => {
     it.each(forms)('names the unbranded link once in %s', (_, props) => {
       const link = renderBrand({}, props)
 
-      // jsdom applies no stylesheet, so the two stacked spans join unspaced.
-      expect(link).toHaveAccessibleName(/^VibeXP\s*Your team's shared brain$/)
+      expect(link).toHaveAccessibleName("VibeXP Your team's shared brain")
       expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
       expect(within(link).queryByRole('img')).toBeNull()
     })

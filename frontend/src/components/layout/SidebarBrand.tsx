@@ -33,8 +33,9 @@ const LOGO_SIZE = 34
  * - `showText` forces the wordmark on; otherwise it shows only in the
  *   expanded desktop sidebar (`expanded` + `lg+`) so the icon rail stays at
  *   its collapsed width. In the rail the wordmark is visually hidden but
- *   still read out, which is what names the link there. The logo follows the same rule for its width: in the
- *   rail it is held to the logo box, however wide the image is.
+ *   still read out, which is what names the link there. The logo follows the
+ *   same rule for its width: in the rail it is held to the logo box, however
+ *   wide the image is.
  * - Forwards ref/props to the underlying `Link` so it composes with Radix
  *   `asChild` slots (e.g. `SheetClose`).
  */
@@ -99,6 +100,9 @@ export const SidebarBrand = forwardRef<HTMLAnchorElement, SidebarBrandProps>(
             <span className="text-sm font-bold tracking-tight">
               {PRODUCT_NAME}
             </span>
+            {/* Not rendered in the flex column; where the wordmark is
+                `sr-only` the two spans are inline, and this keeps the name
+                and the tagline two words when read out. */}{' '}
             <span className="text-muted-foreground text-xs font-normal">
               Your team&apos;s shared brain
             </span>
