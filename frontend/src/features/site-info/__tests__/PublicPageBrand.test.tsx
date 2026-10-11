@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 
 import { PublicCardPage, PublicPageBrand } from '../PublicPageBrand'
 import { deriveSiteInfo, EMPTY_SITE_INFO, type SiteInfo } from '../siteInfo'
@@ -61,6 +61,26 @@ describe('PublicPageBrand', () => {
     expect(brand.querySelector('svg')).not.toBeNull()
     expect(brand.querySelector('img')).toBeNull()
     expect(brand).toHaveTextContent('Acme Inc.')
+  })
+
+  it('names the VibeXP mark when a nameless logo fails to load', () => {
+    render(withInfo({ logo_url: LOGO }, <PublicPageBrand />))
+    const brand = screen.getByTestId('public-page-brand')
+    expect(brand).toHaveTextContent('')
+
+    fireEvent.error(within(brand).getByRole('img'))
+
+    expect(brand.querySelector('img')).toBeNull()
+    expect(brand.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(brand).toHaveTextContent('VibeXP')
+  })
+
+  it('hides the stand-in mark beside a company name', () => {
+    render(withInfo({ company_name: 'Acme Inc.' }, <PublicPageBrand />))
+
+    expect(
+      screen.getByTestId('public-page-brand').querySelector('svg')
+    ).toHaveAttribute('aria-hidden', 'true')
   })
 
   it('is plain content, not a link, without a website', () => {

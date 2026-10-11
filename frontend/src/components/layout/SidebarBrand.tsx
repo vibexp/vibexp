@@ -3,6 +3,7 @@ import { Link, type LinkProps } from 'react-router'
 
 import { BrandLogo } from '@/features/site-info/BrandLogo'
 import { PRODUCT_NAME } from '@/features/site-info/siteInfo'
+import { useBrandLockup } from '@/features/site-info/useBrandLockup'
 import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { cn } from '@/lib/utils'
 
@@ -27,11 +28,14 @@ const LOGO_SIZE = 34
  * - With company branding (epic #1352), the logo is the company's (`BrandLogo`)
  *   and the wordmark is the company name on one line. The product tagline is
  *   VibeXP's, so it is not shown under another company's name, and a company
- *   logo configured without a name stands alone.
+ *   logo shown without a name stands alone. What is paired with what is
+ *   decided by `useBrandLockup`, from what is actually on screen.
  * - `showText` forces the wordmark on; otherwise it shows only in the
  *   expanded desktop sidebar (`expanded` + `lg+`) so the icon rail stays at
- *   its collapsed width. The logo follows the same rule for its width: in the
- *   rail it is held to the logo box, however wide the image is.
+ *   its collapsed width. In the rail the wordmark is visually hidden but
+ *   still read out, which is what names the link there. The logo follows the
+ *   same rule for its width: in the rail it is held to the logo box, however
+ *   wide the image is.
  * - Forwards ref/props to the underlying `Link` so it composes with Radix
  *   `asChild` slots (e.g. `SheetClose`).
  */
@@ -40,7 +44,8 @@ export const SidebarBrand = forwardRef<HTMLAnchorElement, SidebarBrandProps>(
     { showText = false, expanded = true, className, ...props },
     ref
   ) {
-    const { company_name, hasCompanyBranding } = useSiteInfo()
+    const { company_name } = useSiteInfo()
+    const { logo, name, markIsDecorative } = useBrandLockup()
 
     let wordmarkDisplay: string
     let logoWidth: string
@@ -48,10 +53,10 @@ export const SidebarBrand = forwardRef<HTMLAnchorElement, SidebarBrandProps>(
       wordmarkDisplay = 'flex'
       logoWidth = 'max-w-40'
     } else if (expanded) {
-      wordmarkDisplay = 'hidden lg:flex'
+      wordmarkDisplay = 'sr-only lg:not-sr-only lg:flex'
       logoWidth = 'max-w-[34px] lg:max-w-40'
     } else {
-      wordmarkDisplay = 'hidden'
+      wordmarkDisplay = 'sr-only'
       logoWidth = 'max-w-[34px]'
     }
 
@@ -68,22 +73,36 @@ export const SidebarBrand = forwardRef<HTMLAnchorElement, SidebarBrandProps>(
         )}
         {...props}
       >
-        <BrandLogo size={LOGO_SIZE} className={cn('shrink-0', logoWidth)} />
-        {hasCompanyBranding ? (
-          company_name !== null && (
-            <span
-              className={cn('min-w-0 flex-col leading-tight', wordmarkDisplay)}
-            >
-              <span className="truncate text-sm font-bold tracking-tight">
-                {company_name}
-              </span>
+        {/* Where the rail takes the wordmark off screen it stays in the
+            accessibility tree (`sr-only`, not `hidden`), so the link is named
+            by its text in every form and the VibeXP mark beside it can always
+            be decorative. */}
+        <BrandLogo
+          size={LOGO_SIZE}
+          className={cn('shrink-0', logoWidth)}
+          source={logo}
+          decorative={markIsDecorative}
+        />
+        {company_name !== null && (
+          <span
+            className={cn('min-w-0 flex-col leading-tight', wordmarkDisplay)}
+          >
+            <span className="truncate text-sm font-bold tracking-tight">
+              {company_name}
             </span>
-          )
-        ) : (
+          </span>
+        )}
+        {/* No company name and the VibeXP mark on screen: the product's own
+            wordmark and tagline, whether or not a company logo is configured
+            (it may be dark-only, or have failed to load). */}
+        {company_name === null && name !== null && (
           <span className={cn('flex-col leading-tight', wordmarkDisplay)}>
             <span className="text-sm font-bold tracking-tight">
               {PRODUCT_NAME}
             </span>
+            {/* Not rendered in the flex column; where the wordmark is
+                `sr-only` the two spans are inline, and this keeps the name
+                and the tagline two words when read out. */}{' '}
             <span className="text-muted-foreground text-xs font-normal">
               Your team&apos;s shared brain
             </span>

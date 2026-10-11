@@ -102,9 +102,13 @@ describe('MobileSidebar', () => {
       expect(homeLink).toBeInTheDocument()
       expect(homeLink).toHaveAttribute('href', '/')
       // Brand renders the design-system LogoMark component (#921), an inline
-      // SVG exposed as an image — not the raw logo.svg asset.
-      const logo = within(homeLink).getByRole('img', { name: 'VibeXP' })
-      expect(logo.tagName.toLowerCase()).toBe('svg')
+      // SVG — not the raw logo.svg asset. In the drawer the wordmark is always
+      // on screen, so the mark is decorative and hidden from assistive
+      // technology: the link is named by its text, once (#1386).
+      const logo = homeLink.querySelector('svg')
+      expect(logo).not.toBeNull()
+      expect(logo).toHaveAttribute('aria-hidden', 'true')
+      expect(within(homeLink).queryByRole('img')).toBeNull()
       expect(homeLink.querySelector('img')).toBeNull()
     })
 

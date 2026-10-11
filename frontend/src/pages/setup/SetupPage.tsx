@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/card'
 import { BrandLogo } from '@/features/site-info/BrandLogo'
 import { PoweredBy } from '@/features/site-info/PoweredBy'
+import { useBrandLockup } from '@/features/site-info/useBrandLockup'
 import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { AllowlistSection } from '@/pages/admin/settings/auth/AllowlistSection'
 import { ProvidersSection } from '@/pages/admin/settings/auth/ProvidersSection'
@@ -78,18 +79,19 @@ function startFailure(err: unknown, resume: boolean): SetupState {
 }
 
 function SetupFrame({ children }: Readonly<{ children: React.ReactNode }>) {
-  const { displayName, hasCompanyBranding, company_name } = useSiteInfo()
-  // A company logo configured without a name stands alone: "VibeXP" is never
-  // printed beside another company's logo.
-  const showName = !hasCompanyBranding || company_name !== null
+  const { hasCompanyBranding } = useSiteInfo()
+  // The logo shows only under company branding; the name beside it follows
+  // `useBrandLockup`: a company's own logo with no name stands alone, and the
+  // VibeXP mark is always named.
+  const { logo, name, markIsDecorative } = useBrandLockup()
   return (
     <div className="bg-background text-foreground min-h-screen">
       <header className="flex items-center gap-2 border-b px-4 py-3 md:px-6">
-        {hasCompanyBranding && <BrandLogo size={24} />}
-        {showName && (
-          <span className="text-base font-bold tracking-tight">
-            {displayName}
-          </span>
+        {hasCompanyBranding && (
+          <BrandLogo size={24} source={logo} decorative={markIsDecorative} />
+        )}
+        {name !== null && (
+          <span className="text-base font-bold tracking-tight">{name}</span>
         )}
         <span className="text-muted-foreground text-sm">Setup</span>
         {hasCompanyBranding && <PoweredBy className="ml-auto" />}

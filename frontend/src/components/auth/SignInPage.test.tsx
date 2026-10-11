@@ -79,8 +79,8 @@ vi.mock('@/lib/theme', () => ({
 
 // The VibeXP mark, as a node the lockup and credit assertions can find
 vi.mock('@vibexp/design-system/react', () => ({
-  LogoMark: ({ size }: { size?: number }) => (
-    <span data-testid="vibexp-mark" data-size={size} />
+  LogoMark: ({ size, ...rest }: { size?: number; 'aria-hidden'?: 'true' }) => (
+    <span data-testid="vibexp-mark" data-size={size} {...rest} />
   ),
 }))
 
@@ -572,25 +572,57 @@ describe('SignInPage — logo, credit and small-screen footer (#1359)', () => {
     expectCredited()
   })
 
-  it('falls back to the VibeXP mark, still without a name, when the logo fails to load', async () => {
+  // The name follows what is on screen (#1386): once the company's image is
+  // gone, the mark showing is VibeXP's own, and it is named.
+  it('falls back to a named VibeXP mark when a nameless logo fails to load', async () => {
     renderBranded({ logo_url: LOGO })
+
+    const brand = await cardBrand()
+    expect(brand.textContent).toBe('')
+    fireEvent.error(within(brand).getByRole('img'))
+
+    expect(within(brand).getByTestId('vibexp-mark')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    )
+    expect(brand.textContent).toBe('VibeXP')
+    expectCredited()
+  })
+
+  it('keeps the company name beside the VibeXP mark when a named logo fails to load', async () => {
+    renderBranded({ company_name: 'Acme Inc.', logo_url: LOGO })
 
     const brand = await cardBrand()
     fireEvent.error(within(brand).getByRole('img'))
 
-    expect(within(brand).getByTestId('vibexp-mark')).toBeInTheDocument()
-    expect(brand.textContent).toBe('')
-    expectCredited()
+    expect(within(brand).getByTestId('vibexp-mark')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    )
+    expect(brand.textContent).toBe('Acme Inc.')
   })
 
-  it('counts a dark-only logo as company branding', async () => {
+  it('counts a dark-only logo as company branding, and names the VibeXP mark it shows in light theme', async () => {
     renderBranded({ logo_dark_url: LOGO_DARK })
 
     const brand = await cardBrand()
     expect(brand).not.toHaveClass('lg:hidden')
-    // Light theme: the dark logo is not shown, and no name is printed.
+    // Light theme: the dark logo is not shown, so the mark on screen is
+    // VibeXP's own and carries its name.
     expect(within(brand).queryByRole('img')).toBeNull()
-    expect(brand.textContent).toBe('')
+    expect(within(brand).getByTestId('vibexp-mark')).toBeInTheDocument()
+    expect(brand.textContent).toBe('VibeXP')
     expectCredited()
+  })
+
+  it('hides the VibeXP mark from assistive technology beside the printed name when unbranded', async () => {
+    renderSignInPage()
+
+    const brand = await cardBrand()
+    expect(brand.textContent).toBe('VibeXP')
+    expect(within(brand).getByTestId('vibexp-mark')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    )
   })
 })

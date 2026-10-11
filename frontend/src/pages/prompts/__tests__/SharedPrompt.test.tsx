@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HelmetProvider } from 'react-helmet-async'
 import { MemoryRouter, Route, Routes } from 'react-router'
@@ -131,8 +131,12 @@ describe('SharedPrompt page (public, no auth)', () => {
     await waitFor(() => {
       expect(screen.getByText('Code Review Template')).toBeInTheDocument()
     })
-    expect(screen.getByRole('img', { name: 'VibeXP' })).toBeInTheDocument()
     const brand = container.querySelector('header a')
+    // The VibeXP mark beside the printed name is decorative (#1386): the
+    // lockup is announced as "VibeXP" once, by its text.
+    expect(brand?.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.queryByRole('img', { name: 'VibeXP' })).toBeNull()
+    expect(brand).toHaveTextContent('VibeXP')
     expect(brand).toHaveAttribute(
       'href',
       'https://vibexp.io?utm_source=prompt_shared_page'
@@ -208,6 +212,49 @@ describe('SharedPrompt page (public, no auth)', () => {
     expect(
       document.head.querySelector('meta[property="og:image"]')
     ).toHaveAttribute('content', 'https://cdn.acme.test/logo.png')
+  })
+
+  it("names the fallback mark when a nameless company's logo fails to load", async () => {
+    ;(promptShareService.getSharedPrompt as Mock).mockResolvedValue(
+      buildSharedResponse()
+    )
+
+    const { container } = render(
+      <SiteInfoContext.Provider
+        value={deriveSiteInfo({
+          ...EMPTY_SITE_INFO,
+          logo_url: 'https://cdn.acme.test/logo.png',
+        })}
+      >
+        <HelmetProvider>
+          <MemoryRouter initialEntries={['/shared/prompts/share-token-123']}>
+            <Routes>
+              <Route path="/shared/prompts/:token" element={<SharedPrompt />} />
+            </Routes>
+          </MemoryRouter>
+        </HelmetProvider>
+      </SiteInfoContext.Provider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Code Review Template')).toBeInTheDocument()
+    })
+    const brand = container.querySelector('header a')
+    if (!(brand instanceof HTMLElement)) throw new Error('no brand link')
+    // A logo that loads stands alone: no name is invented beside it.
+    expect(brand).not.toHaveTextContent('VibeXP')
+
+    fireEvent.error(screen.getByRole('img', { name: 'Company logo' }))
+
+    // The header fell back to the VibeXP mark, so it is named, once: the
+    // printed name names the link and the mark beside it is decorative.
+    expect(brand).toHaveTextContent('VibeXP')
+    expect(brand.querySelector('img')).toBeNull()
+    expect(brand.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    // The tagline stays off: the instance is still a company's.
+    expect(
+      screen.queryByText('AI-powered prompt management')
+    ).not.toBeInTheDocument()
   })
 
   it('marks a restricted share with the Restricted badge', async () => {

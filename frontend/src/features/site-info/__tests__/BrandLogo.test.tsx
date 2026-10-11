@@ -16,8 +16,8 @@ vi.mock('@/lib/theme', () => ({
 }))
 
 vi.mock('@vibexp/design-system/react', () => ({
-  LogoMark: ({ size }: { size?: number }) => (
-    <span data-testid="vibexp-mark" data-size={size} />
+  LogoMark: ({ size, ...rest }: { size?: number; 'aria-hidden'?: 'true' }) => (
+    <span data-testid="vibexp-mark" data-size={size} {...rest} />
   ),
 }))
 
@@ -135,6 +135,66 @@ describe('BrandLogo', () => {
 
     rerender(tree({}))
     expect(screen.getByTestId('vibexp-mark')).toHaveAttribute('data-size', '34')
+  })
+
+  describe('decorative', () => {
+    const render1 = (info: Partial<SiteInfo>, decorative: boolean) =>
+      render(
+        <SiteInfoContext.Provider
+          value={deriveSiteInfo({ ...EMPTY_SITE_INFO, ...info })}
+        >
+          <BrandLogo decorative={decorative} />
+        </SiteInfoContext.Provider>
+      )
+
+    it('hides the fallback mark from assistive technology', () => {
+      render1({}, true)
+
+      expect(screen.getByTestId('vibexp-mark')).toHaveAttribute(
+        'aria-hidden',
+        'true'
+      )
+    })
+
+    it('leaves the fallback mark exposed by default', () => {
+      render1({}, false)
+
+      expect(screen.getByTestId('vibexp-mark')).not.toHaveAttribute(
+        'aria-hidden'
+      )
+    })
+
+    it('never hides a company image, which keeps its alt text', () => {
+      render1({ company_name: 'Acme Inc.', logo_url: LIGHT }, true)
+
+      const img = screen.getByRole('img', { name: 'Acme Inc.' })
+      expect(img).not.toHaveAttribute('aria-hidden')
+    })
+  })
+
+  it('shows what a passed source says, not its own choice', () => {
+    const onError = vi.fn()
+    const { rerender } = render(
+      <SiteInfoContext.Provider
+        value={deriveSiteInfo({ ...EMPTY_SITE_INFO, logo_url: LIGHT })}
+      >
+        <BrandLogo source={{ src: null, onError }} />
+      </SiteInfoContext.Provider>
+    )
+    // The site info has a logo, but the source says the mark is showing.
+    expect(screen.getByTestId('vibexp-mark')).toBeInTheDocument()
+
+    rerender(
+      <SiteInfoContext.Provider
+        value={deriveSiteInfo({ ...EMPTY_SITE_INFO, logo_url: LIGHT })}
+      >
+        <BrandLogo source={{ src: DARK, onError }} />
+      </SiteInfoContext.Provider>
+    )
+    const img = screen.getByRole('img')
+    expect(img).toHaveAttribute('src', DARK)
+    fireEvent.error(img)
+    expect(onError).toHaveBeenCalledTimes(1)
   })
 
   it('applies the caller class to the image', () => {
