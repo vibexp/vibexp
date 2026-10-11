@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -86,6 +87,11 @@ func sendInvitation(es *EmailService) error {
 func sendAcknowledgement(es *EmailService) error {
 	return es.sendSupportAcknowledgement(context.Background(), "Ada Lovelace", "ada@example.com",
 		&models.SupportRequest{Text: "Help", Acknowledgement: true})
+}
+
+func sendNotification(es *EmailService) error {
+	return es.sendSupportNotificationToAdmin(context.Background(), "Ada", "ada@example.com",
+		&models.SupportRequest{Text: "Help"})
 }
 
 // The mail library sanitizes HTML bodies, adding rel="nofollow" to every link.
@@ -172,14 +178,32 @@ func TestEmailBranding_SupportAcknowledgement(t *testing.T) {
 
 // The operator-facing support notification carries the same layout.
 func TestEmailBranding_SupportNotification(t *testing.T) {
-	got := sendWith(t, acmeSiteInfo(), func(es *EmailService) error {
-		return es.sendSupportNotificationToAdmin(context.Background(), "Ada", "ada@example.com",
-			&models.SupportRequest{Text: "Help"})
-	})
+	got := sendWith(t, acmeSiteInfo(), sendNotification)
 
 	assert.Contains(t, got.html, `alt="Acme Inc."`)
 	assert.Contains(t, got.html, poweredByHTML)
 	assert.Contains(t, got.text, "Powered by VibeXP - https://vibexp.io")
+}
+
+// Every email's footer carries the year it was sent in (#1375): the two
+// support emails once passed a literal that went stale.
+func TestEmailBranding_FooterCarriesCurrentYear(t *testing.T) {
+	senders := map[string]func(es *EmailService) error{
+		"team invitation":         sendInvitation,
+		"support acknowledgement": sendAcknowledgement,
+		"support notification":    sendNotification,
+	}
+	for name, send := range senders {
+		t.Run(name, func(t *testing.T) {
+			// Read before the send; the mail library's sanitizer decodes the
+			// layout's &copy; entity, so both bodies carry the literal sign.
+			footer := fmt.Sprintf("© %d Acme Inc.. All rights reserved.", time.Now().Year())
+			got := sendWith(t, acmeSiteInfo(), send)
+
+			assert.Contains(t, got.html, footer)
+			assert.Contains(t, got.text, footer)
+		})
+	}
 }
 
 // The base layout renders through text/template, which escapes nothing, so

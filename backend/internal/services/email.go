@@ -67,10 +67,11 @@ type emailLayoutData struct {
 	ProductURL  string
 }
 
-// layoutData builds the shared template data for one send.
-func (es *EmailService) layoutData(ctx context.Context, year int) emailLayoutData {
+// layoutData builds the shared template data for one send. The copyright year
+// is read here rather than passed in, so no sender can supply a stale one.
+func (es *EmailService) layoutData(ctx context.Context) emailLayoutData {
 	return emailLayoutData{
-		Year:        year,
+		Year:        time.Now().Year(),
 		AppBaseURL:  es.appBaseURL(),
 		Brand:       es.siteInfo.Resolve(ctx).EmailBranding(),
 		ProductName: models.ProductName,
@@ -230,7 +231,7 @@ func (es *EmailService) sendSupportNotificationToAdmin(
 		AdditionalInfoHTML string
 		AdditionalInfoText string
 	}{
-		emailLayoutData:    es.layoutData(ctx, 2025),
+		emailLayoutData:    es.layoutData(ctx),
 		UserName:           userName,
 		UserEmail:          userEmail,
 		Text:               req.Text,
@@ -274,7 +275,7 @@ func (es *EmailService) sendSupportAcknowledgement(
 		FirstName string
 		Text      string
 	}{
-		emailLayoutData: es.layoutData(ctx, 2025),
+		emailLayoutData: es.layoutData(ctx),
 		FirstName:       firstName,
 		Text:            req.Text,
 	}
@@ -326,7 +327,7 @@ func (es *EmailService) SendTeamInvitation(
 		AcceptURL   string
 		ExpiryDate  string
 	}{
-		emailLayoutData: es.layoutData(ctx, time.Now().Year()),
+		emailLayoutData: es.layoutData(ctx),
 		TeamName:        teamName,
 		InviterName:     inviterName,
 		Role:            string(invitation.Role),
