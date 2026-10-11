@@ -125,6 +125,15 @@ describe('deriveSiteInfo', () => {
     expect(derived.displayName).toBe('VibeXP')
   })
 
+  it('counts a dark-mode logo alone as company branding', () => {
+    expect(
+      deriveSiteInfo({
+        ...EMPTY_SITE_INFO,
+        logo_dark_url: 'https://cdn.acme.test/logo-dark.svg',
+      }).hasCompanyBranding
+    ).toBe(true)
+  })
+
   it('does not count links alone as company branding', () => {
     expect(
       deriveSiteInfo({ ...EMPTY_SITE_INFO, website: 'https://acme.test' })

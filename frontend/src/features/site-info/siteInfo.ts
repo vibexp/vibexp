@@ -33,8 +33,9 @@ export interface DerivedSiteInfo extends SiteInfo {
   /** The company name, or the product name when none is configured. */
   displayName: string
   /**
-   * Whether the instance shows a company's branding (a name or a logo), in
-   * which case the product is credited as "Powered by VibeXP".
+   * Whether the instance shows a company's branding (a name or either logo),
+   * in which case the product is credited as "Powered by VibeXP". A dark logo
+   * alone counts: `BrandLogo` shows it in dark mode.
    */
   hasCompanyBranding: boolean
   /** `support_url`, else `mailto:company_email`, else `null` (no link). */
@@ -125,7 +126,10 @@ export function deriveSiteInfo(info: SiteInfo): DerivedSiteInfo {
   return {
     ...info,
     displayName: info.company_name ?? PRODUCT_NAME,
-    hasCompanyBranding: info.company_name !== null || info.logo_url !== null,
+    hasCompanyBranding:
+      info.company_name !== null ||
+      info.logo_url !== null ||
+      info.logo_dark_url !== null,
     supportHref,
   }
 }

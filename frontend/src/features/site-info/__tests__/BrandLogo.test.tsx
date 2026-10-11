@@ -16,18 +16,20 @@ vi.mock('@/lib/theme', () => ({
 }))
 
 vi.mock('@vibexp/design-system/react', () => ({
-  LogoMark: () => <span data-testid="vibexp-mark" />,
+  LogoMark: ({ size }: { size?: number }) => (
+    <span data-testid="vibexp-mark" data-size={size} />
+  ),
 }))
 
 const LIGHT = 'https://cdn.acme.test/logo.svg'
 const DARK = 'https://cdn.acme.test/logo-dark.svg'
 
-function tree(info: Partial<SiteInfo>) {
+function tree(info: Partial<SiteInfo>, size?: number) {
   return (
     <SiteInfoContext.Provider
       value={deriveSiteInfo({ ...EMPTY_SITE_INFO, ...info })}
     >
-      <BrandLogo />
+      <BrandLogo size={size} />
     </SiteInfoContext.Provider>
   )
 }
@@ -111,6 +113,25 @@ describe('BrandLogo', () => {
       'src',
       'https://cdn.acme.test/logo-v2.svg'
     )
+  })
+
+  it('sizes the image and the fallback mark alike', () => {
+    const { rerender } = render(tree({ logo_url: LIGHT }, 24))
+    expect(screen.getByRole('img')).toHaveStyle({ height: '24px' })
+
+    fireEvent.error(screen.getByRole('img'))
+    expect(screen.getByTestId('vibexp-mark')).toHaveAttribute('data-size', '24')
+
+    rerender(tree({}, 24))
+    expect(screen.getByTestId('vibexp-mark')).toHaveAttribute('data-size', '24')
+  })
+
+  it('defaults both forms to the design-system mark size', () => {
+    const { rerender } = render(tree({ logo_url: LIGHT }))
+    expect(screen.getByRole('img')).toHaveStyle({ height: '34px' })
+
+    rerender(tree({}))
+    expect(screen.getByTestId('vibexp-mark')).toHaveAttribute('data-size', '34')
   })
 
   it('applies the caller class to the image', () => {

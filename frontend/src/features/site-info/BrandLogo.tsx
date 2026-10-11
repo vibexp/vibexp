@@ -7,9 +7,19 @@ import { cn } from '@/lib/utils'
 import { useSiteInfo } from './useSiteInfo'
 
 interface BrandLogoProps {
-  /** Classes for the company logo image (size it here, e.g. `h-9 w-auto`). */
+  /**
+   * Height of the logo in pixels. It sizes both forms: the company image (its
+   * width follows its aspect ratio) and the VibeXP mark shown instead, so the
+   * layout does not jump when there is no logo or the image fails to load.
+   * Defaults to the design-system mark's own size.
+   */
+  size?: number
+  /** Extra classes for the company logo image. */
   className?: string
 }
+
+/** The design-system `LogoMark`'s default size, in pixels. */
+const DEFAULT_SIZE = 34
 
 /**
  * The instance's logo: the company's when one is configured, the VibeXP mark
@@ -22,7 +32,10 @@ interface BrandLogoProps {
  *   mark takes its place rather than a broken-image icon. The fallback is per
  *   URL: a new logo URL gets a fresh attempt.
  */
-export function BrandLogo({ className }: Readonly<BrandLogoProps>) {
+export function BrandLogo({
+  size = DEFAULT_SIZE,
+  className,
+}: Readonly<BrandLogoProps>) {
   const { logo_url, logo_dark_url, displayName } = useSiteInfo()
   const { resolvedTheme } = useTheme()
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
@@ -33,14 +46,15 @@ export function BrandLogo({ className }: Readonly<BrandLogoProps>) {
       : logo_url
 
   if (src === null || src === failedSrc) {
-    return <LogoMark />
+    return <LogoMark size={size} />
   }
 
   return (
     <img
       src={src}
       alt={displayName}
-      className={cn('h-9 w-auto max-w-40 object-contain', className)}
+      style={{ height: size }}
+      className={cn('w-auto max-w-40 object-contain', className)}
       onError={() => {
         setFailedSrc(src)
       }}
