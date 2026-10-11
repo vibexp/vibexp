@@ -66,6 +66,7 @@ packages:
       QueryEmbedder:
       RelationSeedServiceInterface:
       RelationServiceInterface:
+      ResourceLockServiceInterface:
       Searcher:
       SearchSummaryServiceInterface:
       SearchSettingsResolver:

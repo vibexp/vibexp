@@ -51,10 +51,10 @@ type Prompt struct {
 	Project *ProjectSummary `json:"project" db:"-"`
 	// Lock is the lock held on the resource, or nil when it is unlocked (issue
 	// #1286). It is read from the row's locked_by / locked_at / lock_comment
-	// columns by every repository read. Not serialized yet (json:"-"): #1288
-	// exposes it together with the spec change, so no response body changes
-	// here.
-	Lock *ResourceLock `json:"-" db:"-"`
+	// columns by every repository read. The json tag carries NO omitempty
+	// because the spec declares `lock` required+nullable (issue #1288): the key
+	// is always present, and `null` when the resource is unlocked.
+	Lock *ResourceLock `json:"lock" db:"-"`
 }
 
 type CreatePromptRequest struct {

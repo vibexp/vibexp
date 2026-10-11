@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -600,4 +601,39 @@ func TestPromptShareService_GetSharedPrompt_ResolvesReferencesInPromptsTeam(t *t
 
 	require.NoError(t, err)
 	assert.Equal(t, "Hello {{name}} -- the team", result.RenderedBody)
+}
+
+// #1288: a share-link viewer may be anonymous, so a locked prompt is shared
+// without its lock. The locker's identity and the lock comment are
+// team-internal; the key itself stays, as null, because the Prompt schema
+// requires it.
+func TestPromptShareService_GetSharedPrompt_WithholdsTheLock(t *testing.T) {
+	shareRepo := mocks.NewMockPromptShareRepository(t)
+	promptRepo := mocks.NewMockPromptRepository(t)
+
+	share := createTestPromptShare()
+	shareRepo.On("GetByToken", mock.Anything, "abc123xyz789").Return(share, nil)
+	shareRepo.On("IncrementAccessCount", mock.Anything, share.ID).Return(nil).Maybe()
+	prompt := createTestPromptForSharing()
+	prompt.Body = "Hello {{name}}"
+	prompt.Lock = &models.ResourceLock{
+		LockedBy: "locker-id", LockedByName: "Ada Lovelace", Comment: "used by the release agent",
+	}
+	promptRepo.On("GetByID", mock.Anything, "", "", "prompt-123").Return(prompt, nil)
+
+	logger, _ := logtest.New()
+	service := NewPromptShareService(shareRepo, promptRepo, createTestPromptService(promptRepo, nil), logger)
+
+	result, err := service.GetSharedPrompt("abc123xyz789", nil)
+
+	require.NoError(t, err)
+	assert.Nil(t, result.Prompt.Lock)
+
+	raw, err := json.Marshal(result)
+	require.NoError(t, err)
+	body := string(raw)
+	assert.Contains(t, body, `"lock":null`, "the required key stays present")
+	assert.NotContains(t, body, "locker-id")
+	assert.NotContains(t, body, "Ada Lovelace")
+	assert.NotContains(t, body, "used by the release agent")
 }

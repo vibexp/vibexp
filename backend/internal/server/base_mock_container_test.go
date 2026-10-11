@@ -211,6 +211,10 @@ func (b *BaseMockContainer) StatusManagementService() services.StatusManagementS
 	return nil
 }
 
+func (b *BaseMockContainer) ResourceLockService() services.ResourceLockServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) BlueprintService() services.BlueprintServiceInterface {
 	return nil
 }

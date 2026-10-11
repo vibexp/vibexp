@@ -263,3 +263,115 @@ PromptLabelsEnvelope:
             - labels
       required:
         - data
+
+# Resource locks (epic #1285). A prompt, blueprint or artifact can be locked by
+# a team member to mark it "in use, do not remove". These schemas are shared by
+# the three resource domains.
+ResourceLockActor:
+  type: object
+  description: A user named on a resource lock or a lock history event.
+  properties:
+    user_id:
+      type: string
+      description: ID of the user.
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    display_name:
+      type: string
+      description: The user's display name.
+      example: "Ada Lovelace"
+  required:
+    - user_id
+    - display_name
+
+ResourceLock:
+  type: object
+  description: >-
+    The lock held on a prompt, blueprint or artifact. A resource carries one
+    while it is locked and `null` when it is not.
+  properties:
+    locked_by:
+      allOf:
+        - $ref: '#/ResourceLockActor'
+      description: The team member holding the lock.
+    comment:
+      type: string
+      description: Why the resource was locked, as given by the locker.
+      example: "Used by the nightly release agent"
+    locked_at:
+      type: string
+      format: date-time
+      description: When the lock was taken.
+      example: "2026-10-11T10:15:30Z"
+  required:
+    - locked_by
+    - comment
+    - locked_at
+
+LockResourceRequest:
+  type: object
+  properties:
+    comment:
+      type: string
+      minLength: 1
+      maxLength: 500
+      description: >-
+        Why the resource is being locked. Required: surrounding whitespace is
+        trimmed, and a comment that is then empty or longer than 500 characters
+        is rejected with 400.
+      example: "Used by the nightly release agent"
+  required:
+    - comment
+
+ResourceLockEvent:
+  type: object
+  description: One entry of a resource's append-only lock history.
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: ID of the history event.
+      example: "123e4567-e89b-12d3-a456-426614174000"
+    action:
+      type: string
+      enum: [lock, unlock]
+      x-enum-varnames:
+        - ResourceLockEventActionLock
+        - ResourceLockEventActionUnlock
+      description: Whether the resource was locked or unlocked.
+      example: "lock"
+    actor:
+      allOf:
+        - $ref: '#/ResourceLockActor'
+      nullable: true
+      description: >-
+        Who locked or unlocked the resource. Null once that user's account has
+        been deleted.
+    comment:
+      type: string
+      nullable: true
+      description: The lock comment for a `lock` event; null for an `unlock`.
+      example: "Used by the nightly release agent"
+    created_at:
+      type: string
+      format: date-time
+      description: When the event happened.
+      example: "2026-10-11T10:15:30Z"
+  required:
+    - id
+    - action
+    - actor
+    - comment
+    - created_at
+
+ResourceLockHistoryResponse:
+  type: object
+  properties:
+    events:
+      type: array
+      description: >-
+        Lock and unlock events, newest first. Not paginated: at most the 100
+        most recent events are returned.
+      items:
+        $ref: '#/ResourceLockEvent'
+  required:
+    - events

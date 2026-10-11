@@ -106,6 +106,14 @@ api-v1-team_id-blueprints:
       filtering and pagination.
     operationId: listSpecLibraries
     parameters:
+      - name: locked
+        in: query
+        description: >-
+          Filter by lock state (epic #1285): `true` returns only locked
+          resources, `false` only unlocked ones. Omit for no lock filtering.
+          Returns 400 for a value that is not a boolean.
+        schema:
+          type: boolean
       - name: freshness
         in: query
         description: >-
@@ -294,6 +302,14 @@ api-v1-team_id-blueprints-project_id:
       Retrieves spec libraries for a specific project with optional filtering.
     operationId: listSpecLibrariesByProject
     parameters:
+      - name: locked
+        in: query
+        description: >-
+          Filter by lock state (epic #1285): `true` returns only locked
+          resources, `false` only unlocked ones. Omit for no lock filtering.
+          Returns 400 for a value that is not a boolean.
+        schema:
+          type: boolean
       - name: freshness
         in: query
         description: >-
@@ -634,6 +650,252 @@ api-v1-team_id-blueprints-project_id-slug:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '500':
         description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Blueprints
+
+api-v1-team_id-blueprints-project_id-slug-lock:
+  post:
+    summary: Lock a blueprint
+    description: |
+      Locks the blueprint to mark it as in use (epic #1285). Any team member may
+      lock a resource and must say why in `comment`. Locking is not an edit: it
+      does not change `updated_at` or create a version. Locking a blueprint that
+      is already locked returns 409 and leaves the existing lock untouched.
+    operationId: lockBlueprint
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: Project identifier (URL-encoded)
+        schema:
+          type: string
+          example: "my-api-project"
+      - name: slug
+        in: path
+        required: true
+        description: Blueprint slug (URL-encoded)
+        schema:
+          type: string
+          example: "openapi-spec"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/LockResourceRequest'
+    responses:
+      '200':
+        description: Blueprint locked; the updated blueprint is returned
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/BlueprintDetail'
+      '400':
+        description: >-
+          Bad request: a malformed path parameter or request body, or a missing, blank or too long comment
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: >-
+          Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden: not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: >-
+          Blueprint not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: >-
+          The blueprint is already locked (code `RESOURCE_LOCKED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: >-
+          Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Blueprints
+
+  delete:
+    summary: Unlock a blueprint
+    description: |
+      Releases the lock on the blueprint (epic #1285). The member who placed the
+      lock may release it; so may a member whose role holds the
+      `resource.unlock.any` permission (owners and admins). Unlocking a blueprint
+      that is not locked returns 409.
+    operationId: unlockBlueprint
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: Project identifier (URL-encoded)
+        schema:
+          type: string
+          example: "my-api-project"
+      - name: slug
+        in: path
+        required: true
+        description: Blueprint slug (URL-encoded)
+        schema:
+          type: string
+          example: "openapi-spec"
+    responses:
+      '200':
+        description: Blueprint unlocked; the updated blueprint is returned
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/BlueprintDetail'
+      '400':
+        description: >-
+          Bad request: a malformed path parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: >-
+          Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden: not a member of the team, or the lock was placed by someone else and the caller's role does not hold `resource.unlock.any`
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: >-
+          Blueprint not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: >-
+          The blueprint is not locked (code `RESOURCE_NOT_LOCKED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: >-
+          Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Blueprints
+
+api-v1-team_id-blueprints-project_id-slug-lock-history:
+  get:
+    summary: Get the lock history of a blueprint
+    description: |
+      Returns the blueprint's lock and unlock events, newest first (epic #1285).
+      Any team member may read it. The history is not paginated: at most the
+      100 most recent events are returned.
+    operationId: getBlueprintLockHistory
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: Project identifier (URL-encoded)
+        schema:
+          type: string
+          example: "my-api-project"
+      - name: slug
+        in: path
+        required: true
+        description: Blueprint slug (URL-encoded)
+        schema:
+          type: string
+          example: "openapi-spec"
+    responses:
+      '200':
+        description: Lock history retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ResourceLockHistoryResponse'
+      '400':
+        description: >-
+          Bad request: a malformed path parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: >-
+          Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden: not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: >-
+          Blueprint not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: >-
+          Internal server error
         content:
           application/problem+json:
             schema:

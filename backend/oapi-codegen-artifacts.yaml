@@ -26,3 +26,7 @@ output-options:
     - listArtifacts
     - listArtifactsByProject
     - getArtifact
+    # Resource locks (issue #1288, epic #1285).
+    - lockArtifact
+    - unlockArtifact
+    - getArtifactLockHistory

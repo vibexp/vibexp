@@ -26,6 +26,11 @@ const (
 	CodeResourceConflict = "RESOURCE_CONFLICT"
 	CodeDuplicateMembers = "DUPLICATE_MEMBERS"
 
+	// Resource lock errors (#1288): locking a resource that is already locked,
+	// and unlocking one that is not. Both are 409s; the code tells them apart.
+	CodeResourceLocked    = "RESOURCE_LOCKED"
+	CodeResourceNotLocked = "RESOURCE_NOT_LOCKED"
+
 	// Rate limiting and quotas
 	CodeRateLimitExceeded     = "RATE_LIMIT_EXCEEDED"
 	CodeResourceLimitExceeded = "RESOURCE_LIMIT_EXCEEDED"
@@ -175,6 +180,10 @@ var errorTitles = map[string]string{
 	// Instance authentication settings errors (#1238)
 	CodeInstanceAuthProviderConflict: "Instance Auth Provider Conflict",
 	CodeLockoutRisk:                  "Lockout Risk",
+
+	// Resource lock errors (#1288)
+	CodeResourceLocked:    "Resource Locked",
+	CodeResourceNotLocked: "Resource Not Locked",
 }
 
 // GetErrorTitle returns the title for a given error code

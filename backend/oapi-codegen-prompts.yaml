@@ -30,3 +30,7 @@ output-options:
   include-operation-ids:
     - listPrompts
     - getPrompt
+    # Resource locks (issue #1288, epic #1285).
+    - lockPrompt
+    - unlockPrompt
+    - getPromptLockHistory

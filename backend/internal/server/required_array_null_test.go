@@ -187,6 +187,7 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"MemoryListResponse":                  "generated strict-server type (internal/server/gen/memories); handler builds memories via make(...,0) — handlers_memories.go toGenMemoryListResponse",
 	"ArtifactListResponse":                "generated strict-server type (internal/server/gen/artifacts); handler builds artifacts via make(...,0) — handlers_artifacts.go toGenArtifactListResponse",
 	"BlueprintListResponse":               "generated strict-server type (internal/server/gen/blueprints); handler builds blueprints via make(...,0) — handlers_blueprints.go toGenBlueprintListResponse",
+	"ResourceLockHistoryResponse":         "generated strict-server type (internal/server/gen/{prompts,blueprints,artifacts}); handlers build events via make(...,0) — handlers_{prompts,blueprints,artifacts}_lock.go toGen*LockHistory",
 	"PromptListResponse":                  "generated strict-server type (internal/server/gen/prompts); handler builds prompts via make(...,0) — handlers_prompts.go toGenPromptListEnvelope (nested in the legacy PromptListEnvelope)",
 	"FreshnessRule":                       "generated strict-server type (internal/server/gen/freshness); handler builds resource_types + mediums via make(...,0) — handlers_freshness.go toGenFreshnessRule",
 	"SearchSummaryResponse":               "generated strict-server type (internal/server/gen/searchsummary); handler builds sources via make(...,0) — search_summary_handlers.go toGenSearchSummaryResponse (the domain models.SearchSummary also uses JSONArray[T])",

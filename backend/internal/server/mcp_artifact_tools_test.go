@@ -201,7 +201,7 @@ func TestGetArtifact_Success(t *testing.T) {
 	if result == nil || result.IsError {
 		t.Fatalf("expected success, got %v", result)
 	}
-	artifact, ok := structuredResult.(*models.Artifact)
+	artifact, ok := structuredResult.(mcpArtifactResource)
 	if !ok || artifact.ID != expectedArtifact.ID {
 		t.Error("getArtifact returned wrong structured result")
 	}

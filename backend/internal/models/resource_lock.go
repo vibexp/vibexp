@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Lock history actions (resource_lock_events.action).
 const (
@@ -17,14 +20,38 @@ const (
 // this value from locked_by alone.
 type ResourceLock struct {
 	// LockedBy is the id of the member holding the lock.
-	LockedBy string `json:"locked_by"`
+	LockedBy string `json:"-"`
 	// LockedByName is that member's display name, resolved by the read's join
 	// on users so a client can render "locked by …" without a second request.
-	LockedByName string `json:"locked_by_name"`
+	LockedByName string `json:"-"`
 	// Comment is why the resource was locked, as given by the locker.
 	Comment string `json:"comment"`
 	// LockedAt is when the lock was taken.
 	LockedAt time.Time `json:"locked_at"`
+}
+
+// The type is marshal-only: it defines no UnmarshalJSON, so decoding a
+// response body into a model does not restore LockedBy or LockedByName.
+//
+// MarshalJSON renders the lock in the shape the spec's ResourceLock schema
+// publishes, with the locker as a nested {user_id, display_name} object. The
+// resource handlers that still marshal models.* directly (create, update,
+// restore) emit a lock through this, so they agree with the strict-server
+// reads, which build the same shape from the generated types.
+func (l ResourceLock) MarshalJSON() ([]byte, error) {
+	type actor struct {
+		UserID      string `json:"user_id"`
+		DisplayName string `json:"display_name"`
+	}
+	return json.Marshal(struct {
+		LockedBy actor     `json:"locked_by"`
+		Comment  string    `json:"comment"`
+		LockedAt time.Time `json:"locked_at"`
+	}{
+		LockedBy: actor{UserID: l.LockedBy, DisplayName: l.LockedByName},
+		Comment:  l.Comment,
+		LockedAt: l.LockedAt,
+	})
 }
 
 // ResourceLockEvent is one entry of the append-only lock history

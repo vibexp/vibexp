@@ -30,3 +30,7 @@ output-options:
     - listSpecLibraries
     - listSpecLibrariesByProject
     - getBlueprint
+    # Resource locks (issue #1288, epic #1285).
+    - lockBlueprint
+    - unlockBlueprint
+    - getBlueprintLockHistory

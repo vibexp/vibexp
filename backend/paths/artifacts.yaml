@@ -60,6 +60,14 @@ api-v1-team_id-artifacts:
     description: Retrieves all artifacts for the specified team with optional filtering
     operationId: listArtifacts
     parameters:
+      - name: locked
+        in: query
+        description: >-
+          Filter by lock state (epic #1285): `true` returns only locked
+          resources, `false` only unlocked ones. Omit for no lock filtering.
+          Returns 400 for a value that is not a boolean.
+        schema:
+          type: boolean
       - name: freshness
         in: query
         description: >-
@@ -220,6 +228,14 @@ api-v1-team_id-artifacts-project_id:
     description: Retrieves artifacts for a specific project within the specified team
     operationId: listArtifactsByProject
     parameters:
+      - name: locked
+        in: query
+        description: >-
+          Filter by lock state (epic #1285): `true` returns only locked
+          resources, `false` only unlocked ones. Omit for no lock filtering.
+          Returns 400 for a value that is not a boolean.
+        schema:
+          type: boolean
       - name: freshness
         in: query
         description: >-
@@ -507,6 +523,249 @@ api-v1-team_id-artifacts-project_id-slug:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Artifact not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+api-v1-team_id-artifacts-project_id-slug-lock:
+  post:
+    summary: Lock a artifact
+    description: |
+      Locks the artifact to mark it as in use (epic #1285). Any team member may
+      lock a resource and must say why in `comment`. Locking is not an edit: it
+      does not change `updated_at` or create a version. Locking a artifact that
+      is already locked returns 409 and leaves the existing lock untouched.
+    operationId: lockArtifact
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/LockResourceRequest'
+    responses:
+      '200':
+        description: Artifact locked; the updated artifact is returned
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Artifact'
+      '400':
+        description: >-
+          Bad request: a malformed path parameter or request body, or a missing, blank or too long comment
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: >-
+          Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden: not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: >-
+          Artifact not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: >-
+          The artifact is already locked (code `RESOURCE_LOCKED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: >-
+          Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+  delete:
+    summary: Unlock a artifact
+    description: |
+      Releases the lock on the artifact (epic #1285). The member who placed the
+      lock may release it; so may a member whose role holds the
+      `resource.unlock.any` permission (owners and admins). Unlocking a artifact
+      that is not locked returns 409.
+    operationId: unlockArtifact
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Artifact unlocked; the updated artifact is returned
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Artifact'
+      '400':
+        description: >-
+          Bad request: a malformed path parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: >-
+          Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden: not a member of the team, or the lock was placed by someone else and the caller's role does not hold `resource.unlock.any`
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: >-
+          Artifact not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: >-
+          The artifact is not locked (code `RESOURCE_NOT_LOCKED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: >-
+          Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+api-v1-team_id-artifacts-project_id-slug-lock-history:
+  get:
+    summary: Get the lock history of a artifact
+    description: |
+      Returns the artifact's lock and unlock events, newest first (epic #1285).
+      Any team member may read it. The history is not paginated: at most the
+      100 most recent events are returned.
+    operationId: getArtifactLockHistory
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Lock history retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ResourceLockHistoryResponse'
+      '400':
+        description: >-
+          Bad request: a malformed path parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: >-
+          Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden: not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: >-
+          Artifact not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: >-
+          Internal server error
         content:
           application/problem+json:
             schema:

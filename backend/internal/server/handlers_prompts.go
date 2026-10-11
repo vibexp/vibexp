@@ -34,9 +34,10 @@ const promptMsgListFailed = "Failed to list prompts"
 // promptsStrictServer implements the generated Prompts read strict server
 // (issue #777, epic #122) — the last of the four read-domain conversions.
 //
-// Only listPrompts and getPrompt are generated — see oapi-codegen-prompts.yaml
-// for why the package is scoped by operation id rather than by tag. The other
-// ten Prompts operations keep their chi handlers in prompt_handlers.go and are
+// listPrompts and getPrompt are generated, plus the three lock operations
+// (#1288, in handlers_prompts_lock.go) — see oapi-codegen-prompts.yaml for why
+// the package is scoped by operation id rather than by tag. The other ten
+// Prompts operations keep their chi handlers in prompt_handlers.go and are
 // registered beside these.
 type promptsStrictServer struct {
 	s *Server
@@ -117,9 +118,9 @@ func (ps *promptsStrictServer) GetPrompt(
 	// defaults to false). The chi handler this replaces did not decode at all,
 	// and chi hands back an already-decoded segment for a canonical path, so
 	// nothing more is needed here.
-	prompt, err := ps.s.container.PromptService().GetPromptBySlug(userID, teamID, request.Slug)
+	prompt, err := ps.loadPrompt(userID, teamID, request.Slug)
 	if err != nil {
-		return nil, ps.getPromptError(userID, request.Slug, err)
+		return nil, err
 	}
 
 	// Records the access event, via the recordResourceAccess middleware wrapping
@@ -127,6 +128,31 @@ func (ps *promptsStrictServer) GetPrompt(
 	// is why only the detail path produces an event.
 	contextkeys.SetAccessedResourceID(ctx, prompt.ID)
 
+	body, err := ps.promptDetailBody(ctx, "GetPrompt", userID, teamID, prompt)
+	if err != nil {
+		return nil, err
+	}
+	return promptsgen.GetPrompt200JSONResponse(body), nil
+}
+
+// loadPrompt resolves a prompt by slug, mapping a failure onto the API error
+// the detail operation documents. The lock operations resolve their resource
+// through it too, so they answer the same 404.
+func (ps *promptsStrictServer) loadPrompt(userID, teamID, slug string) (*models.Prompt, error) {
+	prompt, err := ps.s.container.PromptService().GetPromptBySlug(userID, teamID, slug)
+	if err != nil {
+		return nil, ps.getPromptError(userID, slug, err)
+	}
+	return prompt, nil
+}
+
+// promptDetailBody attaches the typed neighborhood to a loaded prompt and
+// converts it to the detail representation. It is the body of the detail GET
+// and of the lock operations, which answer with the updated prompt in the same
+// shape so a client needs no refetch.
+func (ps *promptsStrictServer) promptDetailBody(
+	ctx context.Context, op, userID, teamID string, prompt *models.Prompt,
+) (promptsgen.Prompt, error) {
 	prompt.Related = ps.s.relatedForResource(
 		ctx, userID, teamID, models.RelationResourceTypePrompt, prompt.ID,
 	)
@@ -135,10 +161,10 @@ func (ps *promptsStrictServer) GetPrompt(
 
 	body, err := toGenPrompt(prompt)
 	if err != nil {
-		ps.s.logger.With("error", err, "operation", "GetPrompt").Error("Prompts response conversion failed")
-		return nil, apierrors.NewInternalError(promptMsgGetFailed)
+		ps.s.logger.With("error", err, "operation", op).Error("Prompts response conversion failed")
+		return promptsgen.Prompt{}, apierrors.NewInternalError(promptMsgGetFailed)
 	}
-	return promptsgen.GetPrompt200JSONResponse(body), nil
+	return body, nil
 }
 
 // getPromptError maps a service error onto the API error the detail operation
@@ -218,6 +244,7 @@ func promptFiltersFromParams(
 		SortOrder: strings.ToLower(optionalEnumValue(params.SortOrder)),
 		MCPExpose: params.McpExpose,
 		IsShared:  params.Shared,
+		Locked:    params.Locked,
 	}
 
 	if params.ProjectId != nil {
@@ -315,6 +342,7 @@ func toGenPrompt(src *models.Prompt) (promptsgen.Prompt, error) {
 		CreatedAt:   src.CreatedAt,
 		UpdatedAt:   src.UpdatedAt,
 		Version:     src.Version,
+		Lock:        toGenPromptLock(src.Lock),
 	}
 
 	if out.Project, err = toGenPromptProjectSummary(src.Project); err != nil {

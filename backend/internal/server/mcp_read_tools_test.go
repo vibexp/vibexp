@@ -40,9 +40,9 @@ func TestGetResource_BlueprintSuccess(t *testing.T) {
 	if result == nil || result.IsError {
 		t.Fatalf("expected success, got %v", result)
 	}
-	bp, ok := structured.(*models.Blueprint)
+	bp, ok := structured.(mcpBlueprintResource)
 	if !ok || bp.ID != "bp-1" {
-		t.Fatalf("expected *models.Blueprint bp-1, got %T %+v", structured, structured)
+		t.Fatalf("expected an mcpBlueprintResource for bp-1, got %T %+v", structured, structured)
 	}
 	// get_resource returns the full resource, so content is present.
 	if !strings.Contains(extractText(t, result), "full body") {

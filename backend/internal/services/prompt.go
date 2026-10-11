@@ -108,6 +108,10 @@ type PromptFilters struct {
 	// means no exclusion. It is not validated against the status catalog: it
 	// is set by the server itself (MCP prompt exposure), never from a request.
 	ExcludeStatuses []string
+
+	// Locked narrows the list by lock state (issue #1288): true returns only
+	// locked resources, false only unlocked ones, nil applies no filter.
+	Locked *bool
 }
 
 // publishPromptCreatedEvent publishes a prompt.created event with rendered body
@@ -317,6 +321,8 @@ func (s *PromptService) ListPrompts(userID string, filters PromptFilters) (*mode
 		Limit:     filters.Limit,
 
 		ExcludeStatuses: filters.ExcludeStatuses,
+
+		Locked: filters.Locked,
 	}
 
 	prompts, totalCount, err := s.repo.List(ctx, userID, repoFilters)

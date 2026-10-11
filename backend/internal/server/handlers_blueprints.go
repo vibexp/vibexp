@@ -30,6 +30,11 @@ const blueprintsMsgInternalError = "Internal server error"
 // operation id rather than by tag, and for the legacy spelling of those ids. The
 // other seven Blueprints operations keep their chi handlers in
 // blueprint_handlers.go and are registered beside these.
+// blueprintOpGet names the detail read in blueprintsError, which treats it
+// differently from the list operations. The lock operations resolve their
+// blueprint through the same read and so report its errors the same way.
+const blueprintOpGet = "GetBlueprint"
+
 type blueprintsStrictServer struct {
 	s *Server
 }
@@ -53,6 +58,7 @@ func (bs *blueprintsStrictServer) ListSpecLibraries(
 		queryProjectUUID: request.Params.ProjectId,
 		page:             request.Params.Page,
 		limit:            request.Params.Limit,
+		locked:           request.Params.Locked,
 	}
 
 	filters, err := blueprintFiltersFromQuery(request.TeamId.String(), "", query)
@@ -93,6 +99,7 @@ func (bs *blueprintsStrictServer) ListSpecLibrariesByProject(
 		sortOrder:     optionalEnumValue(request.Params.SortOrder),
 		page:          request.Params.Page,
 		limit:         request.Params.Limit,
+		locked:        request.Params.Locked,
 	}
 
 	filters, err := blueprintFiltersFromQuery(request.TeamId.String(), projectID, query)
@@ -169,11 +176,9 @@ func (bs *blueprintsStrictServer) GetBlueprint(
 	// path parameters itself (BindStyledParameterOptions.ValueIsUnescaped
 	// defaults to false), supplying the unescape decodeBlueprintURLParams used
 	// to do explicitly. Decoding again would corrupt an encoded percent sign.
-	blueprint, err := bs.s.container.BlueprintService().GetBlueprintByProjectIDAndSlugInTeam(
-		userID, teamID, projectID, request.Slug,
-	)
+	blueprint, err := bs.loadBlueprint(userID, teamID, projectID, request.Slug)
 	if err != nil {
-		return nil, bs.blueprintsError("GetBlueprint", err)
+		return nil, err
 	}
 
 	// Records the access event, via the recordResourceAccess middleware wrapping
@@ -181,6 +186,35 @@ func (bs *blueprintsStrictServer) GetBlueprint(
 	// is why only the detail path produces an event.
 	contextkeys.SetAccessedResourceID(ctx, blueprint.ID)
 
+	body, err := bs.blueprintDetailBody(ctx, userID, teamID, blueprint)
+	if err != nil {
+		return nil, err
+	}
+	return blueprintsgen.GetBlueprint200JSONResponse(body), nil
+}
+
+// loadBlueprint resolves a blueprint by (project_id, slug), mapping a failure
+// onto the API error the detail operation documents. The lock operations
+// resolve their resource through it too, so they answer the same 404.
+func (bs *blueprintsStrictServer) loadBlueprint(
+	userID, teamID, projectID, slug string,
+) (*models.Blueprint, error) {
+	blueprint, err := bs.s.container.BlueprintService().GetBlueprintByProjectIDAndSlugInTeam(
+		userID, teamID, projectID, slug,
+	)
+	if err != nil {
+		return nil, bs.blueprintsError(blueprintOpGet, err)
+	}
+	return blueprint, nil
+}
+
+// blueprintDetailBody attaches the typed neighborhood to a loaded blueprint
+// and converts it to the detail representation. It is the body of the detail
+// GET and of the lock operations, which answer with the updated blueprint in
+// the same shape so a client needs no refetch.
+func (bs *blueprintsStrictServer) blueprintDetailBody(
+	ctx context.Context, userID, teamID string, blueprint *models.Blueprint,
+) (blueprintsgen.BlueprintDetail, error) {
 	blueprint.Related = bs.s.relatedForResource(
 		ctx, userID, teamID, models.RelationResourceTypeBlueprint, blueprint.ID,
 	)
@@ -191,9 +225,9 @@ func (bs *blueprintsStrictServer) GetBlueprint(
 
 	body, err := toGenBlueprintDetail(blueprint)
 	if err != nil {
-		return nil, bs.blueprintsError("GetBlueprint", err)
+		return blueprintsgen.BlueprintDetail{}, bs.blueprintsError(blueprintOpGet, err)
 	}
-	return blueprintsgen.GetBlueprint200JSONResponse(body), nil
+	return body, nil
 }
 
 // blueprintsUserID reads the authenticated user from the context. The auth
@@ -236,6 +270,9 @@ type blueprintListQuery struct {
 	queryProjectUUID *openapi_types.UUID
 	page             *int
 	limit            *int
+	// locked is the `locked` filter (#1288); nil means no lock filtering. The
+	// binder rejects a non-boolean value before the handler runs.
+	locked *bool
 }
 
 // blueprintFiltersFromQuery maps the generated query parameters onto the service
@@ -294,6 +331,7 @@ func blueprintFiltersFromQuery(
 		Labels:         labels,
 		Page:           pagination.Page,
 		Limit:          pagination.Limit,
+		Locked:         query.locked,
 	}, nil
 }
 
@@ -356,6 +394,7 @@ func toGenBlueprint(src *models.Blueprint) (blueprintsgen.Blueprint, error) {
 		Type:        blueprintsgen.BlueprintType(src.Type),
 		Status:      blueprintsgen.BlueprintStatus(src.Status),
 		Labels:      genLabels(src.Labels),
+		Lock:        toGenBlueprintLock(src.Lock),
 		CreatedAt:   src.CreatedAt,
 		UpdatedAt:   src.UpdatedAt,
 	}
@@ -414,6 +453,7 @@ func toGenBlueprintDetail(src *models.Blueprint) (blueprintsgen.BlueprintDetail,
 		Similar:     base.Similar,
 		Freshness:   base.Freshness,
 		Project:     base.Project,
+		Lock:        base.Lock,
 		CreatedAt:   base.CreatedAt,
 		UpdatedAt:   base.UpdatedAt,
 	}
@@ -576,7 +616,7 @@ func (bs *blueprintsStrictServer) blueprintsError(op string, err error) error {
 	// sentinel -- dropping that would turn documented 404s into 500s. Scoping it
 	// to the detail op also keeps a list failure that merely MENTIONS "not
 	// found" from surfacing as a status neither list operation documents.
-	if op == "GetBlueprint" && strings.Contains(err.Error(), errNotFoundFragment) {
+	if op == blueprintOpGet && strings.Contains(err.Error(), errNotFoundFragment) {
 		return apierrors.NewResourceNotFoundError("blueprint", "Blueprint not found")
 	}
 	// An unknown status filter; the service's message lists the allowed
@@ -589,7 +629,7 @@ func (bs *blueprintsStrictServer) blueprintsError(op string, err error) error {
 	// The 500 body keeps the per-operation wording the chi handlers used, rather
 	// than collapsing to a generic message: it costs nothing and it is one fewer
 	// wire difference to explain (the equivalent artifacts change is #800 item 1).
-	if op == "GetBlueprint" {
+	if op == blueprintOpGet {
 		return apierrors.NewInternalError("Failed to get blueprint")
 	}
 	return apierrors.NewInternalError(blueprintMsgListFailed)

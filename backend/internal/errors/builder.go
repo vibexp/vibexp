@@ -57,6 +57,24 @@ func NewResourceExistsError(resourceType, detail string) *APIError {
 	return NewAPIError(CodeResourceExists, GetErrorTitle(CodeResourceExists), detail, http.StatusConflict)
 }
 
+// NewResourceLockedError reports an attempt to lock a resource that already
+// carries a lock (#1288). The existing lock is untouched.
+func NewResourceLockedError(resourceType string) *APIError {
+	return NewAPIError(
+		CodeResourceLocked, GetErrorTitle(CodeResourceLocked),
+		"This "+resourceType+" is already locked", http.StatusConflict,
+	)
+}
+
+// NewResourceNotLockedError reports an attempt to unlock a resource that
+// carries no lock (#1288).
+func NewResourceNotLockedError(resourceType string) *APIError {
+	return NewAPIError(
+		CodeResourceNotLocked, GetErrorTitle(CodeResourceNotLocked),
+		"This "+resourceType+" is not locked", http.StatusConflict,
+	)
+}
+
 // NewInternalError creates an internal server error
 func NewInternalError(detail string) *APIError {
 	if detail == "" {
