@@ -297,7 +297,7 @@ test.describe.serial('Custom statuses journey', () => {
       .getByRole('option', { name: STATUS_NAME, exact: true })
       .click()
     // By exact name: the edit header's "Copy slug: <slug>" chip would match a
-    // loose filter (#973).
+    // loose /update|save/ filter whenever the slug contains the word (#1179).
     await ownerPage.getByRole('button', { name: 'Save changes' }).click()
 
     // The detail page: the header badge reads the display name...
