@@ -14,9 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Up/down round-trip for migration 022_instance_search_ai_summary_settings
-// (#1197), on its OWN scratch database: this test migrates DOWN, which would
-// corrupt the shared integrationDB.
+// Up/down round-trip for the instance-search-ai-summary-settings block of
+// migration 019_consolidated (#1197; originally migration 022), on its OWN
+// scratch database: this test migrates DOWN, which would corrupt the shared
+// integrationDB.
 //
 // Beyond "it applies", it pins the singleton on both tables at the database
 // level, exercises every CHECK at and just past its boundary, SET NULL on the
@@ -147,7 +148,7 @@ var instanceAISummaryCheckCases = []instanceSettingsCheckCase{
 	{"request_timeout_ms -1", map[string]any{"request_timeout_ms": -1}, false},
 }
 
-func TestMigration022_InstanceSearchAISummarySettings_UpDownRoundTrip(t *testing.T) {
+func TestMigration019_InstanceSearchAISummarySettings_UpDownRoundTrip(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
@@ -158,13 +159,13 @@ func TestMigration022_InstanceSearchAISummarySettings_UpDownRoundTrip(t *testing
 	}
 
 	// 1. The version immediately before this migration: nothing exists yet.
-	require.NoError(t, m.Migrate(21), "migrate to 021")
+	require.NoError(t, m.Migrate(18), "migrate to 018")
 	for table := range tables {
-		require.False(t, tableExists(t, db, table), "fixture: %s must not exist before 022", table)
+		require.False(t, tableExists(t, db, table), "fixture: %s must not exist before 019", table)
 	}
 
-	// 2. Apply 022.
-	require.NoError(t, m.Migrate(22), "migrate to 022")
+	// 2. Apply 019.
+	require.NoError(t, m.Migrate(19), "migrate to 019")
 
 	for table, row := range tables {
 		t.Run(table+" is a singleton", func(t *testing.T) {
@@ -222,14 +223,13 @@ func TestMigration022_InstanceSearchAISummarySettings_UpDownRoundTrip(t *testing
 		require.Equal(t, 1, countRows(t, db, "SELECT count(*) FROM "+table),
 			"fixture: %s must hold its row before rolling back", table)
 	}
-	require.NoError(t, m.Migrate(21), "migrate down to 021")
+	require.NoError(t, m.Migrate(18), "migrate down to 018")
 	for table := range tables {
 		assert.False(t, tableExists(t, db, table), "down must drop the populated %s", table)
 	}
-	assert.True(t, tableExists(t, db, "instance_settings_audit"), "rolling back 022 must leave 021 in place")
 
 	// 4. Re-apply: an operator who rolls back must be able to roll forward.
-	require.NoError(t, m.Migrate(22), "re-apply 022")
+	require.NoError(t, m.Migrate(19), "re-apply 019")
 	for table, row := range tables {
 		assert.Equal(t, 0, countRows(t, db, "SELECT count(*) FROM "+table), "the re-applied %s starts empty", table)
 		require.NoError(t, insertInstanceSettingsRow(db, table, row, nil), "the re-applied %s is usable", table)

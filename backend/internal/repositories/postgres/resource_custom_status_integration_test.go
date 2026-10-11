@@ -15,11 +15,11 @@ import (
 )
 
 // A team's custom status against a real Postgres, on all four resource types
-// (#1266, on top of migration 025 from #1264).
+// (#1266, on top of migration 019_consolidated, #1264).
 //
 // The status columns used to be varchar(20) and, on memories, guarded by a
-// CHECK constraint naming the three system values. Migration 025 widened them
-// to varchar(50) and dropped the constraint; these tests are the end-to-end
+// CHECK constraint naming the three system values. Migration 019_consolidated
+// widened them to varchar(50) and dropped the constraint; these tests are the end-to-end
 // proof that a status of the full 50 characters -- the longest slug
 // `team_statuses` can hold -- is written, read back and filtered on, which
 // sqlmock cannot show because it never evaluates a column type.

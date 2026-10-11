@@ -13,7 +13,7 @@ import (
 )
 
 // Lock state for prompts, blueprints and artifacts lives on the resource row
-// (migration 027, issue #1286). Every read of those three tables projects the
+// (migration 019_consolidated, issue #1286). Every read of those three tables projects the
 // same four columns -- locked_by, locked_at, lock_comment and the locker's
 // display name from a LEFT JOIN on users aliased lock_u -- and scans them
 // through resourceLockScan, the one place a ResourceLock is built.

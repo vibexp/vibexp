@@ -23,7 +23,7 @@ var ErrInvalidInstanceAuthAllowlist = errors.New("invalid instance auth allowlis
 
 // instanceAuthProviderSlugPattern is a provider slug: lower-case, url-safe,
 // 1–63 characters, not starting with a hyphen. It mirrors the CHECK on
-// instance_auth_providers.slug (migration 023); change both together.
+// instance_auth_providers.slug (migration 019_consolidated); change both together.
 var instanceAuthProviderSlugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 
 // instanceAuthDomainLabel is one DNS label of an allowlisted email domain.

@@ -36,15 +36,15 @@ type InstanceSearchSettings struct {
 // definition shared by every enforcement point: config.validateSearchRankingConfig,
 // the team and instance settings validators in services, the
 // team_search_settings CHECK constraints (migration 011_consolidated) and the
-// instance_search_settings CHECK constraint (migration 022). Change them
-// together.
+// instance_search_settings CHECK constraint (migration 019_consolidated).
+// Change them together.
 const MaxSearchRankHalfLifeDays = 36500
 
 // MaxSearchRankCandidateCap bounds the re-rank candidate pool so a misconfigured
 // cap cannot blow up per-query memory and sort cost (the cap becomes the SQL
 // LIMIT and the in-memory slice that is sorted on every ranked query). The
-// instance_search_settings.rank_candidate_cap CHECK constraint (migration 022)
-// mirrors it; change both together.
+// instance_search_settings.rank_candidate_cap CHECK constraint (migration
+// 019_consolidated) mirrors it; change both together.
 const MaxSearchRankCandidateCap = 5000
 
 // Provenance of the instance search ranking defaults.

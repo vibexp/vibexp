@@ -236,8 +236,8 @@ func TestIntegrationTeamStatusRepository_UsageCounts(t *testing.T) {
 
 	for resourceType, table := range statusResourceTables {
 		t.Run(resourceType, func(t *testing.T) {
-			mine := newMigration025Fixture(t, integrationDB.DB)
-			other := newMigration025Fixture(t, integrationDB.DB)
+			mine := newTeamStatusesFixture(t, integrationDB.DB)
+			other := newTeamStatusesFixture(t, integrationDB.DB)
 			defaultStatus := models.DefaultStatusFor(resourceType)
 
 			mine.insert(t, table, defaultStatus)
@@ -265,7 +265,7 @@ func TestIntegrationTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 	ctx := context.Background()
 	repo := NewTeamStatusRepository(integrationDB)
 
-	create := func(t *testing.T, f migration025Fixture, resourceType, slug string) *models.TeamStatus {
+	create := func(t *testing.T, f teamStatusesFixture, resourceType, slug string) *models.TeamStatus {
 		t.Helper()
 		status := &models.TeamStatus{
 			TeamID: f.teamID, ResourceType: resourceType, Slug: slug, Name: "In review",
@@ -276,8 +276,8 @@ func TestIntegrationTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 
 	for resourceType, table := range statusResourceTables {
 		t.Run(resourceType+" resources move to the default and keep updated_at", func(t *testing.T) {
-			mine := newMigration025Fixture(t, integrationDB.DB)
-			other := newMigration025Fixture(t, integrationDB.DB)
+			mine := newTeamStatusesFixture(t, integrationDB.DB)
+			other := newTeamStatusesFixture(t, integrationDB.DB)
 			defaultStatus := models.DefaultStatusFor(resourceType)
 
 			status := create(t, mine, resourceType, "in-review")
@@ -295,7 +295,7 @@ func TestIntegrationTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 			untouched := mine.insert(t, table, "shipped")
 			foreign := other.insert(t, table, "in-review")
 
-			before := make(map[string]migration025Snapshot)
+			before := make(map[string]teamStatusesSnapshot)
 			for _, id := range append(carrying, untouched) {
 				before[id] = mine.snapshot(t, table, id)
 			}
@@ -332,7 +332,7 @@ func TestIntegrationTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 	}
 
 	t.Run("a failed reassignment rolls the delete back", func(t *testing.T) {
-		f := newMigration025Fixture(t, integrationDB.DB)
+		f := newTeamStatusesFixture(t, integrationDB.DB)
 		status := create(t, f, models.StatusResourceTypeArtifact, "in-review")
 		row := f.insert(t, "artifacts", "in-review")
 		before := f.snapshot(t, "artifacts", row)
@@ -351,8 +351,8 @@ func TestIntegrationTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 	})
 
 	t.Run("another team's id is not found and changes nothing", func(t *testing.T) {
-		mine := newMigration025Fixture(t, integrationDB.DB)
-		other := newMigration025Fixture(t, integrationDB.DB)
+		mine := newTeamStatusesFixture(t, integrationDB.DB)
+		other := newTeamStatusesFixture(t, integrationDB.DB)
 		status := create(t, other, models.StatusResourceTypeMemory, "in-review")
 		row := other.insert(t, "memories", "in-review")
 		before := other.snapshot(t, "memories", row)
@@ -366,7 +366,7 @@ func TestIntegrationTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 	})
 
 	t.Run("an ordinary memory edit after a delete is still stamped", func(t *testing.T) {
-		f := newMigration025Fixture(t, integrationDB.DB)
+		f := newTeamStatusesFixture(t, integrationDB.DB)
 		status := create(t, f, models.StatusResourceTypeMemory, "in-review")
 		row := f.insert(t, "memories", "in-review")
 

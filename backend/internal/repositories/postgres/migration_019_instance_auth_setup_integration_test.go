@@ -10,23 +10,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Up/down round-trip for migration 024_instance_auth_setup (#1236), on its OWN
+// Up/down round-trip for the instance-auth-setup block of migration
+// 019_consolidated (#1236; originally migration 024), on its OWN
 // scratch database: this test migrates DOWN, which would corrupt the shared
 // integrationDB.
 //
 // Beyond "it applies", it pins the singleton, the token-hash shape and
 // token-needs-expiry CHECKs, the consumer FK behaviour, and that the down
 // migration drops a POPULATED table.
-func TestMigration024_InstanceAuthSetup_UpDownRoundTrip(t *testing.T) {
+func TestMigration019_InstanceAuthSetup_UpDownRoundTrip(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
 	m := newMigrator(t, db)
 
-	require.NoError(t, m.Migrate(23), "migrate to 023")
-	require.False(t, tableExists(t, db, "instance_auth_setup"), "fixture: the table must not exist before 024")
+	require.NoError(t, m.Migrate(18), "migrate to 018")
+	require.False(t, tableExists(t, db, "instance_auth_setup"), "fixture: the table must not exist before 019")
 
-	require.NoError(t, m.Migrate(24), "migrate to 024")
+	require.NoError(t, m.Migrate(19), "migrate to 019")
 	assert.Equal(t, 0, countRows(t, db, "SELECT count(*) FROM instance_auth_setup"),
 		"the table starts empty: no token was ever issued")
 
@@ -68,10 +69,9 @@ func TestMigration024_InstanceAuthSetup_UpDownRoundTrip(t *testing.T) {
 			"SELECT count(*) FROM instance_auth_setup WHERE consumed_by IS NULL AND consumed_at IS NOT NULL"))
 	})
 
-	require.NoError(t, m.Migrate(23), "migrate back down to 023")
+	require.NoError(t, m.Migrate(18), "migrate back down to 018")
 	assert.False(t, tableExists(t, db, "instance_auth_setup"), "the down migration drops the populated table")
-	assert.True(t, tableExists(t, db, "instance_auth_allowlist"), "023's tables are untouched")
 
-	require.NoError(t, m.Migrate(24), "re-apply 024")
+	require.NoError(t, m.Migrate(19), "re-apply 019")
 	assert.True(t, tableExists(t, db, "instance_auth_setup"))
 }

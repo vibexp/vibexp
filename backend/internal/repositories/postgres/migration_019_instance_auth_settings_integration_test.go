@@ -10,7 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Up/down round-trip for migration 023_instance_auth_settings (#1231), on its
+// Up/down round-trip for the instance-auth-settings block of migration
+// 019_consolidated (#1231; originally migration 023), on its
 // OWN scratch database: this test migrates DOWN, which would corrupt the shared
 // integrationDB.
 //
@@ -47,20 +48,20 @@ var instanceAuthProviderCheckCases = []instanceSettingsCheckCase{
 	{"an empty slug", map[string]any{"slug": ""}, false},
 }
 
-func TestMigration023_InstanceAuthSettings_UpDownRoundTrip(t *testing.T) {
+func TestMigration019_InstanceAuthSettings_UpDownRoundTrip(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
 	m := newMigrator(t, db)
 
 	// 1. The version immediately before this migration: nothing exists yet.
-	require.NoError(t, m.Migrate(22), "migrate to 022")
+	require.NoError(t, m.Migrate(18), "migrate to 018")
 	for _, table := range instanceAuthSettingsTables {
-		require.False(t, tableExists(t, db, table), "fixture: %s must not exist before 023", table)
+		require.False(t, tableExists(t, db, table), "fixture: %s must not exist before 019", table)
 	}
 
-	// 2. Apply 023.
-	require.NoError(t, m.Migrate(23), "migrate to 023")
+	// 2. Apply 019.
+	require.NoError(t, m.Migrate(19), "migrate to 019")
 
 	t.Run("the settings version is seeded with one row at 1", func(t *testing.T) {
 		assert.Equal(t, 1, countRows(t, db, "SELECT count(*) FROM instance_auth_settings_version WHERE id AND version = 1"))
@@ -154,14 +155,13 @@ func TestMigration023_InstanceAuthSettings_UpDownRoundTrip(t *testing.T) {
 		require.Positive(t, countRows(t, db, "SELECT count(*) FROM "+table),
 			"fixture: %s must hold rows before rolling back", table)
 	}
-	require.NoError(t, m.Migrate(22), "migrate down to 022")
+	require.NoError(t, m.Migrate(18), "migrate down to 018")
 	for _, table := range instanceAuthSettingsTables {
 		assert.False(t, tableExists(t, db, table), "down must drop the populated %s", table)
 	}
-	assert.True(t, tableExists(t, db, "instance_search_settings"), "rolling back 023 must leave 022 in place")
 
 	// 4. Re-apply: an operator who rolls back must be able to roll forward.
-	require.NoError(t, m.Migrate(23), "re-apply 023")
+	require.NoError(t, m.Migrate(19), "re-apply 019")
 	assert.Equal(t, 1, countRows(t, db, "SELECT count(*) FROM instance_auth_settings_version WHERE version = 1"),
 		"the re-applied version row is seeded again")
 	assert.Equal(t, 0, countRows(t, db, "SELECT count(*) FROM instance_auth_providers"))

@@ -12,8 +12,8 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// Up/down round-trip for migration 021_instance_settings_audit (#1187), on its
-// OWN scratch database: this test migrates DOWN, which would corrupt the shared
+// Up/down round-trip for the instance-settings-audit block of migration
+// 019_consolidated (#1187; originally migration 021), on its OWN scratch database: this test migrates DOWN, which would corrupt the shared
 // integrationDB.
 //
 // Beyond "it applies", it pins the constraints the database itself enforces
@@ -23,19 +23,19 @@ import (
 
 const pqCheckViolation = "23514"
 
-func TestMigration021_InstanceSettingsAudit_UpDownRoundTrip(t *testing.T) {
+func TestMigration019_InstanceSettingsAudit_UpDownRoundTrip(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
 	m := newMigrator(t, db)
 
 	// 1. The version immediately before this migration: nothing exists yet.
-	require.NoError(t, m.Migrate(20), "migrate to 020")
+	require.NoError(t, m.Migrate(18), "migrate to 018")
 	require.False(t, tableExists(t, db, "instance_settings_audit"),
-		"fixture: instance_settings_audit must not exist before 021")
+		"fixture: instance_settings_audit must not exist before 019")
 
-	// 2. Apply 021.
-	require.NoError(t, m.Migrate(21), "migrate to 021")
+	// 2. Apply 019.
+	require.NoError(t, m.Migrate(19), "migrate to 019")
 
 	t.Run("creates the table, empty", func(t *testing.T) {
 		require.True(t, tableExists(t, db, "instance_settings_audit"))
@@ -113,15 +113,13 @@ func TestMigration021_InstanceSettingsAudit_UpDownRoundTrip(t *testing.T) {
 	// 3. Roll back a populated table.
 	require.Positive(t, countRows(t, db, "SELECT count(*) FROM instance_settings_audit"),
 		"fixture: the table must hold rows before rolling back")
-	require.NoError(t, m.Migrate(20), "migrate down to 020")
+	require.NoError(t, m.Migrate(18), "migrate down to 018")
 	assert.False(t, tableExists(t, db, "instance_settings_audit"),
 		"instance_settings_audit must be gone after rollback")
-	assert.True(t, tableExists(t, db, "instance_email_provider"),
-		"rolling back 021 must leave 020 in place")
 
 	// 4. Re-apply: an operator who rolls back a release must be able to roll
 	//    forward again.
-	require.NoError(t, m.Migrate(21), "re-apply 021")
+	require.NoError(t, m.Migrate(19), "re-apply 019")
 	assert.True(t, tableExists(t, db, "instance_settings_audit"))
 	assert.Equal(t, 0, countRows(t, db, "SELECT count(*) FROM instance_settings_audit"),
 		"the re-applied table starts empty -- the dropped rows are gone for good")

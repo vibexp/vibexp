@@ -14,7 +14,8 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// Up/down/up round-trip for migration 027_resource_locks (#1286), on its OWN
+// Up/down/up round-trip for the resource-locks block of migration
+// 019_consolidated (#1286; originally migration 027), on its OWN
 // scratch database: this test migrates DOWN, which would corrupt the shared
 // integrationDB.
 //
@@ -23,58 +24,58 @@ import (
 // itself makes "locked with no locker" impossible, and that deleting the
 // locker's account unlocks the resource with no application code involved.
 
-// migration027Tables maps each lockable table to a status its rows can carry,
+// resourceLockTables maps each lockable table to a status its rows can carry,
 // its lock CHECK and its partial index.
-var migration027Tables = map[string]struct{ status, check, index string }{
+var resourceLockTables = map[string]struct{ status, check, index string }{
 	"prompts":    {models.PromptStatusPublished, "prompts_lock_state_check", "idx_prompts_locked"},
 	"blueprints": {models.StatusActive, "blueprints_lock_state_check", "idx_blueprints_locked"},
 	"artifacts":  {models.StatusActive, "artifacts_lock_state_check", "idx_artifacts_locked"},
 }
 
-var migration027LockColumns = []string{"locked_by", "locked_at", "lock_comment"}
+var resourceLockColumnNames = []string{"locked_by", "locked_at", "lock_comment"}
 
-// migration027Snapshot is what a lock migration must not disturb on a row.
-type migration027Snapshot struct {
+// resourceLockSnapshot is what a lock migration must not disturb on a row.
+type resourceLockSnapshot struct {
 	updatedAt time.Time
 	version   int64
 }
 
-func migration027Snap(t *testing.T, db *sql.DB, table, id string) migration027Snapshot {
+func resourceLockSnap(t *testing.T, db *sql.DB, table, id string) resourceLockSnapshot {
 	t.Helper()
-	var snap migration027Snapshot
+	var snap resourceLockSnapshot
 	require.NoError(t, db.QueryRow(
 		"SELECT updated_at, version FROM "+table+" WHERE id = $1", id,
 	).Scan(&snap.updatedAt, &snap.version))
 	return snap
 }
 
-func TestMigration027_ResourceLocks_UpDownRoundTrip(t *testing.T) {
+func TestMigration019_ResourceLocks_UpDownRoundTrip(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
 	m := newMigrator(t, db)
 
 	// 1. The version immediately before this migration, with one row per table.
-	require.NoError(t, m.Migrate(26), "migrate to 026")
-	require.False(t, tableExists(t, db, "resource_lock_events"), "fixture: no history table before 027")
+	require.NoError(t, m.Migrate(18), "migrate to 018")
+	require.False(t, tableExists(t, db, "resource_lock_events"), "fixture: no history table before 019")
 
-	// migration025Fixture is reused for its per-table INSERTs; they are valid
-	// on every schema version from 025 on.
-	f := newMigration025Fixture(t, db)
-	rows := make(map[string]string, len(migration027Tables))
-	before := make(map[string]migration027Snapshot, len(migration027Tables))
-	for table, spec := range migration027Tables {
-		require.False(t, columnExists(t, db, table, "locked_by"), "fixture: %s has no lock columns before 027", table)
+	// teamStatusesFixture is reused for its per-table INSERTs; with a system
+	// status they are valid on 018 as well as 019.
+	f := newTeamStatusesFixture(t, db)
+	rows := make(map[string]string, len(resourceLockTables))
+	before := make(map[string]resourceLockSnapshot, len(resourceLockTables))
+	for table, spec := range resourceLockTables {
+		require.False(t, columnExists(t, db, table, "locked_by"), "fixture: %s has no lock columns before 019", table)
 		rows[table] = f.insert(t, table, spec.status)
-		before[table] = migration027Snap(t, db, table, rows[table])
+		before[table] = resourceLockSnap(t, db, table, rows[table])
 	}
 
-	// 2. Apply 027.
-	require.NoError(t, m.Migrate(27), "migrate to 027")
+	// 2. Apply 019.
+	require.NoError(t, m.Migrate(19), "migrate to 019")
 
 	t.Run("up leaves existing rows unchanged and unlocked", func(t *testing.T) {
 		for table, id := range rows {
-			assert.Equal(t, before[table], migration027Snap(t, db, table, id), table)
+			assert.Equal(t, before[table], resourceLockSnap(t, db, table, id), table)
 			assert.Equal(t, 1, countRows(t, db,
 				"SELECT count(*) FROM "+table+
 					" WHERE id = $1 AND locked_by IS NULL AND locked_at IS NULL AND lock_comment IS NULL", id), table)
@@ -82,8 +83,8 @@ func TestMigration027_ResourceLocks_UpDownRoundTrip(t *testing.T) {
 	})
 
 	t.Run("up adds the lock columns, the CHECK and the partial index to all three tables", func(t *testing.T) {
-		for table, spec := range migration027Tables {
-			for _, column := range migration027LockColumns {
+		for table, spec := range resourceLockTables {
+			for _, column := range resourceLockColumnNames {
 				assert.True(t, columnExists(t, db, table, column), "%s.%s", table, column)
 			}
 			assert.Equal(t, 1, constraintCount(t, db, spec.check), spec.check)
@@ -137,7 +138,7 @@ func TestMigration027_ResourceLocks_UpDownRoundTrip(t *testing.T) {
 			assert.Equal(t, 1, countRows(t, db,
 				"SELECT count(*) FROM "+table+
 					" WHERE id = $1 AND locked_at IS NOT NULL AND lock_comment = 'freeze'", id), table)
-			assert.Equal(t, before[table], migration027Snap(t, db, table, id),
+			assert.Equal(t, before[table], resourceLockSnap(t, db, table, id),
 				"%s: the unlock-by-deletion must not look like an edit", table)
 		}
 	})
@@ -186,12 +187,12 @@ func TestMigration027_ResourceLocks_UpDownRoundTrip(t *testing.T) {
 		"UPDATE artifacts SET locked_by = $1, locked_at = now(), lock_comment = 'freeze' WHERE id = $2",
 		f.userID, rows["artifacts"])
 	require.NoError(t, err)
-	require.NoError(t, m.Migrate(26), "migrate down to 026")
+	require.NoError(t, m.Migrate(18), "migrate down to 018")
 
 	t.Run("down drops the history, the columns, the CHECKs and the indexes", func(t *testing.T) {
 		assert.False(t, tableExists(t, db, "resource_lock_events"))
-		for table, spec := range migration027Tables {
-			for _, column := range migration027LockColumns {
+		for table, spec := range resourceLockTables {
+			for _, column := range resourceLockColumnNames {
 				assert.False(t, columnExists(t, db, table, column), "%s.%s", table, column)
 			}
 			assert.Equal(t, 0, constraintCount(t, db, spec.check), spec.check)
@@ -201,20 +202,20 @@ func TestMigration027_ResourceLocks_UpDownRoundTrip(t *testing.T) {
 
 	t.Run("down leaves the rows themselves unchanged", func(t *testing.T) {
 		for table, id := range rows {
-			assert.Equal(t, before[table], migration027Snap(t, db, table, id), table)
+			assert.Equal(t, before[table], resourceLockSnap(t, db, table, id), table)
 		}
 	})
 
 	// 5. Re-apply: an operator who rolls back a release must be able to roll
 	//    forward again.
-	require.NoError(t, m.Migrate(27), "re-apply 027")
+	require.NoError(t, m.Migrate(19), "re-apply 019")
 
 	t.Run("re-applying after a down starts every row unlocked", func(t *testing.T) {
 		assert.True(t, tableExists(t, db, "resource_lock_events"))
 		for table, id := range rows {
 			assert.Equal(t, 1, countRows(t, db,
 				"SELECT count(*) FROM "+table+" WHERE id = $1 AND locked_by IS NULL AND locked_at IS NULL", id), table)
-			assert.Equal(t, before[table], migration027Snap(t, db, table, id), table)
+			assert.Equal(t, before[table], resourceLockSnap(t, db, table, id), table)
 		}
 	})
 }

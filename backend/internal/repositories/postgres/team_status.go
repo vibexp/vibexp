@@ -81,7 +81,7 @@ const (
 
 	// teamStatusPreserveUpdatedAtSQL switches off, for the current transaction
 	// only, the trigger that stamps memories.updated_at on every update
-	// (migration 026). The other three resource tables have no such trigger.
+	// (migration 019_consolidated). The other three resource tables have no such trigger.
 	teamStatusPreserveUpdatedAtSQL = `
 		SELECT set_config('vibexp.preserve_updated_at', 'on', true)`
 )
