@@ -19,6 +19,7 @@ import { formatDateTime } from '@/lib/time'
 import {
   carriedCredential,
   describeResource,
+  isCopyEntry,
   surfaceLabel,
 } from '@/pages/teams/settings/audit/settingsAuditFormat'
 import type { Team } from '@/services/teamService'
@@ -76,9 +77,11 @@ function AuditRow({ entry }: Readonly<{ entry: TeamSettingsAuditEntry }>) {
             </Badge>
           )}
         </div>
-        <p className="text-muted-foreground">
-          <SourceTeamCell entry={entry} />
-        </p>
+        {isCopyEntry(entry) && (
+          <p className="text-muted-foreground" data-testid="audit-source-team">
+            <SourceTeamCell entry={entry} />
+          </p>
+        )}
       </TableCell>
     </TableRow>
   )
@@ -103,8 +106,8 @@ function EmptyLog() {
         className="text-muted-foreground p-8 text-center text-sm"
         data-testid="settings-audit-empty"
       >
-        Nothing copied in yet. Whenever configuration is copied into this team
-        from another one, it will be recorded here.
+        Nothing recorded yet. Configuration copied into this team from another
+        one, and changes to its custom statuses, will be recorded here.
       </CardContent>
     </Card>
   )
@@ -169,7 +172,7 @@ export function SettingsAudit({ team }: Readonly<{ team: Team }>) {
   const header = (
     <PageHeader
       title="Audit"
-      description="Configuration copied into this team from another one, newest first."
+      description="Configuration copied into this team from another one, and changes to its custom statuses, newest first."
     />
   )
 

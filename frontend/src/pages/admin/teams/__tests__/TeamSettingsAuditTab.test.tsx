@@ -38,7 +38,9 @@ it('shows the empty state', async () => {
     auditPage({ entries: [], total_count: 0, total_pages: 0 })
   )
   render(<TeamSettingsAuditTab teamId="t1" />)
-  expect(await screen.findByTestId('config-empty')).toBeInTheDocument()
+  expect(await screen.findByTestId('config-empty')).toHaveTextContent(
+    'Nothing has been copied into this team, and none of its custom statuses have changed.'
+  )
 })
 
 it('renders allowlisted detail fields only, never raw detail', async () => {
@@ -103,4 +105,45 @@ it('keeps a way back when a later page fails to load', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
   expect(await screen.findByText('Copied OpenAI')).toBeInTheDocument()
   expect(mockList).toHaveBeenLastCalledWith('t1', { page: 1, limit: 20 })
+})
+
+// A status change is not a copy (#1265): it has no source team, and its detail
+// has none of the copy surfaces' keys.
+it('describes a custom status entry and shows no source team for it', async () => {
+  mockList.mockResolvedValue(
+    auditPage({
+      entries: [
+        {
+          id: 'a3',
+          surface: 'custom_statuses',
+          actor_user_id: 'u1',
+          actor_name: 'Alice',
+          source_team_id: null,
+          source_team_name: null,
+          source_resource_id: null,
+          created_resource_id: null,
+          detail: {
+            action: 'deleted',
+            resource_type: 'prompt',
+            slug: 'in-review',
+            name: 'In review',
+            reassigned_count: 3,
+            reassigned_to: 'draft',
+          },
+          created_at: '2026-10-10T00:00:00Z',
+        },
+      ],
+      total_count: 1,
+      total_pages: 1,
+    })
+  )
+  render(<TeamSettingsAuditTab teamId="t1" />)
+
+  const row = await screen.findByTestId('settings-audit-row')
+  expect(row).toHaveTextContent('Statuses')
+  expect(row).toHaveTextContent(
+    'Deleted prompt status "In review" — 3 moved to draft'
+  )
+  expect(row).not.toHaveTextContent('Unknown team')
+  expect(row).not.toHaveTextContent('Unnamed')
 })

@@ -6,6 +6,7 @@ import {
   Shapes,
   SlidersHorizontal,
   Timer,
+  Workflow,
 } from 'lucide-react'
 
 import { GitHubIcon } from '@/components/icons/GitHubIcon'
@@ -86,13 +87,23 @@ export function teamSettingsCardsFor(teamId: string): TeamSettingsCard[] {
       href: `${base}/customization`,
     },
     {
+      // No `permission`: every member may see the team's statuses. The page
+      // gates its own write controls on `team.settings.update` (#1269).
+      title: 'Statuses',
+      description: 'Add custom statuses for your prompts and other resources.',
+      icon: Workflow,
+      href: `${base}/statuses`,
+    },
+    {
       // The compensating control for cross-team copy (epic #827): configuration
       // can arrive from outside the team, so its owners need to see what came
       // in and who brought it. Owner/admin only, matching the endpoint's own
       // `team.settings.update` gate (#832) — the hub hides the card, and the
-      // page repeats the check for anyone deep-linking straight to it.
+      // page repeats the check for anyone deep-linking straight to it. The log
+      // also records custom status changes (#1265), hence "or changed".
       title: 'Audit',
-      description: 'See what configuration was copied in, and by whom.',
+      description:
+        'See what configuration was copied in or changed, and by whom.',
       icon: History,
       href: `${base}/audit`,
       permission: 'team.settings.update',

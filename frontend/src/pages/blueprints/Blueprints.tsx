@@ -67,9 +67,7 @@ function coerceType(value: string): Blueprint['type'] | undefined {
 }
 
 function coerceStatus(value: string): Blueprint['status'] | undefined {
-  return BLUEPRINT_STATUSES.has(value)
-    ? (value as Blueprint['status'])
-    : undefined
+  return BLUEPRINT_STATUSES.has(value) ? value : undefined
 }
 
 export function Blueprints() {

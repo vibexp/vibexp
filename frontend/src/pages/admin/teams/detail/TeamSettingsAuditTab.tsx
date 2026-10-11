@@ -15,6 +15,7 @@ import { formatDateTime } from '@/lib/time'
 import {
   carriedCredential,
   describeResource,
+  isCopyEntry,
   surfaceLabel,
 } from '@/pages/teams/settings/audit/settingsAuditFormat'
 import type { AdminTeamSettingsAuditEntry } from '@/services/adminService'
@@ -26,8 +27,12 @@ import { useAdminTeamSection } from './useAdminTeamSection'
 
 const PER_PAGE = 20
 
-/** The source team by name, or the id once that team is gone. */
+/**
+ * The source team by name, or the id once that team is gone. An entry that is
+ * not a copy (a status change) has no source team, which reads as a dash.
+ */
 function sourceTeam(entry: AdminTeamSettingsAuditEntry): string {
+  if (!isCopyEntry(entry)) return '—'
   if (entry.source_team_name) return entry.source_team_name
   if (entry.source_team_id) {
     return `Deleted team ${shortId(entry.source_team_id)}`
@@ -108,8 +113,8 @@ function Pager({
 }
 
 /**
- * The team's settings audit log — configuration copied in from other teams —
- * newest first, 20 per page (read-only).
+ * The team's settings audit log — configuration copied in from other teams,
+ * and changes to its custom statuses — newest first, 20 per page (read-only).
  *
  * The pager sits outside the panel so a failed later page still offers a way
  * back rather than stranding the admin on an error.
@@ -134,7 +139,7 @@ export function TeamSettingsAuditTab({ teamId }: Readonly<{ teamId: string }>) {
         error={error}
         errorTitle="Failed to load the settings audit log"
         empty={data?.entries.length === 0 && page === 1}
-        emptyMessage="Nothing has been copied into this team from another one."
+        emptyMessage="Nothing has been copied into this team, and none of its custom statuses have changed."
       >
         {data && (
           <Card className="overflow-hidden">

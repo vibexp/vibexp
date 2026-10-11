@@ -64,7 +64,7 @@ const FILTER_DEFAULTS = {
  * forward whatever the URL happens to contain.
  */
 function coerceStatus(value: string): MemoryStatus | undefined {
-  return MEMORY_STATUSES.has(value) ? (value as MemoryStatus) : undefined
+  return MEMORY_STATUSES.has(value) ? value : undefined
 }
 
 export function Memories() {

@@ -152,13 +152,20 @@ describe('SettingsAudit permission gate', () => {
 })
 
 describe('SettingsAudit content', () => {
-  it('shows the empty state when nothing has been copied in', async () => {
+  it('shows the empty state when nothing has been recorded', async () => {
     mocked.getAudit.mockResolvedValue(page([]))
 
     render(<SettingsAudit team={ownerTeam} />)
 
+    // The log holds copies and custom status changes (#1265); the empty state
+    // and the header name both, so neither reads as "copies only".
+    expect(await screen.findByTestId('settings-audit-empty')).toHaveTextContent(
+      'Configuration copied into this team from another one, and changes to its custom statuses, will be recorded here.'
+    )
     expect(
-      await screen.findByTestId('settings-audit-empty')
+      screen.getByText(
+        'Configuration copied into this team from another one, and changes to its custom statuses, newest first.'
+      )
     ).toBeInTheDocument()
     expect(screen.queryByTestId('settings-audit-row')).not.toBeInTheDocument()
   })
@@ -228,6 +235,107 @@ describe('SettingsAudit content', () => {
     expect(
       within(row).getByText('No new types — every one already existed')
     ).toBeInTheDocument()
+  })
+
+  // A status entry is a change made inside the team (#1265): it has no source
+  // team and none of the copy surfaces' `detail` keys, so without its own
+  // branch the row read "Unnamed · from an unknown team".
+  describe('custom_statuses entries', () => {
+    const statusEntry = (detail: TeamSettingsAuditEntry['detail']) =>
+      entry({
+        surface: 'custom_statuses',
+        source_team_id: null,
+        source_team_name: null,
+        source_resource_id: null,
+        created_resource_id: null,
+        detail,
+      })
+
+    it.each([
+      [
+        'a created status',
+        {
+          action: 'created',
+          resource_type: 'prompt',
+          slug: 'in-review',
+          name: 'In review',
+        },
+        'Created prompt status "In review"',
+      ],
+      [
+        'a renamed status',
+        {
+          action: 'renamed',
+          resource_type: 'artifact',
+          slug: 'in-review',
+          name: 'Under review',
+          previous_name: 'In review',
+        },
+        'Renamed artifact status "In review" to "Under review"',
+      ],
+      [
+        'a deleted status that moved resources',
+        {
+          action: 'deleted',
+          resource_type: 'memory',
+          slug: 'in-review',
+          name: 'In review',
+          reassigned_count: 12,
+          reassigned_to: 'active',
+        },
+        'Deleted memory status "In review" — 12 moved to active',
+      ],
+      [
+        'a deleted status nothing used',
+        {
+          action: 'deleted',
+          resource_type: 'blueprint',
+          slug: 'in-review',
+          name: 'In review',
+          reassigned_count: 0,
+          reassigned_to: 'active',
+        },
+        'Deleted blueprint status "In review"',
+      ],
+    ])('describes %s', async (_label, detail, expected) => {
+      mocked.getAudit.mockResolvedValue(page([statusEntry(detail)]))
+
+      render(<SettingsAudit team={ownerTeam} />)
+
+      const row = await screen.findByTestId('settings-audit-row')
+      expect(within(row).getByText('Statuses')).toBeInTheDocument()
+      expect(within(row).getByText(expected)).toBeInTheDocument()
+    })
+
+    it('claims no source team, since nothing was copied', async () => {
+      mocked.getAudit.mockResolvedValue(
+        page([
+          statusEntry({
+            action: 'created',
+            resource_type: 'prompt',
+            slug: 'in-review',
+            name: 'In review',
+          }),
+        ])
+      )
+
+      render(<SettingsAudit team={ownerTeam} />)
+
+      const row = await screen.findByTestId('settings-audit-row')
+      expect(
+        within(row).queryByTestId('audit-source-team')
+      ).not.toBeInTheDocument()
+      expect(row).not.toHaveTextContent(/from/)
+    })
+
+    it('still names the source team on a copy row', async () => {
+      render(<SettingsAudit team={ownerTeam} />)
+
+      const row = await screen.findByTestId('settings-audit-row')
+      expect(within(row).getByTestId('audit-source-team')).toHaveTextContent(
+        'from Platform Team'
+      )
+    })
   })
 
   // Epic #827 grows the surface enum server-side, and the frontend's copy of it

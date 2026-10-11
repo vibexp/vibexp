@@ -61,9 +61,7 @@ const FILTER_DEFAULTS = {
  * is an open string matched against the team's registered types, not an enum.
  */
 function coerceStatus(value: string): Artifact['status'] | undefined {
-  return ARTIFACT_STATUSES.has(value)
-    ? (value as Artifact['status'])
-    : undefined
+  return ARTIFACT_STATUSES.has(value) ? value : undefined
 }
 
 export function Artifacts() {
