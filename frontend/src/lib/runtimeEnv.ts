@@ -5,8 +5,8 @@
  * sets `window.__VIBEXP_ENV__` from its own env vars BEFORE this app's module
  * bundle runs. `getEnv` prefers those runtime values and falls back to the
  * build-time `import.meta.env`, so:
- *   - self-hosters can rebrand / configure at deploy time (env var + restart),
- *     with no rebuild; and
+ *   - self-hosters can configure at deploy time (env var + restart), with no
+ *     rebuild; and
  *   - local dev (Vite dev server, no backend-rendered `config.js`) keeps working
  *     off `import.meta.env`.
  *

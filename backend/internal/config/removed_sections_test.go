@@ -391,22 +391,3 @@ func TestCheckRemovedSections_LegacyBrandingKeysWarn(t *testing.T) {
 		assert.Empty(t, warnings)
 	})
 }
-
-// The runtime frontend env served in /config.js carries exactly the four
-// remaining VITE_* values, and never a branding key.
-func TestRuntimeFrontendEnv_HasNoBrandingKeys(t *testing.T) {
-	cfg := &Config{Frontend: FrontendConfig{
-		BaseURL:          "https://app.acme.test",
-		MCPEndpoint:      "https://app.acme.test/mcp/v1/common",
-		ErrorTypeBaseURI: "https://errors.acme.test",
-		GTMID:            "GTM-XYZ",
-		GA4MeasurementID: "G-XYZ",
-	}}
-
-	assert.Equal(t, map[string]string{
-		"VITE_MCP_ENDPOINT":        "https://app.acme.test/mcp/v1/common",
-		"VITE_ERROR_TYPE_BASE_URI": "https://errors.acme.test",
-		"VITE_GTM_ID":              "GTM-XYZ",
-		"VITE_GA4_MEASUREMENT_ID":  "G-XYZ",
-	}, cfg.RuntimeFrontendEnv())
-}

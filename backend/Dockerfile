@@ -10,7 +10,7 @@
 #
 #   docker build -f backend/Dockerfile .
 #
-# Frontend branding/analytics are injected at RUNTIME via /config.js (issue
+# Frontend analytics and the MCP endpoint are injected at RUNTIME via /config.js (issue
 # #57), so they are NOT build args here; only deployment-neutral, build-time
 # values remain (relative API base URL, release stamps, optional Sentry DSN).
 
@@ -30,7 +30,7 @@ COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
 RUN npm ci --ignore-scripts
 
 # Deployment-neutral build-time values. The API is same-origin in the combined
-# image, so the base URL is relative; branding/GTM are runtime (config.js).
+# image, so the base URL is relative; GTM and site info are runtime (config.js).
 ARG VITE_API_BASE_URL=/api/v1
 ARG VITE_RELEASE_SHA=dev
 ARG VITE_RELEASE_DATE=unknown
