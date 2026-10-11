@@ -4,17 +4,9 @@ import { useSearchParams } from 'react-router'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { useTheme } from '@/lib/theme'
 
-import {
-  PRIVACY_URL,
-  SITE_DOMAIN,
-  SITE_LEGAL_NAME,
-  SITE_NAME,
-  SITE_URL,
-  SUPPORT_EMAIL,
-  TERMS_URL,
-} from '../../config/siteConfig'
 import { STORAGE_KEYS } from '../../constants/storageKeys'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAnalytics } from '../../hooks/useAnalytics'
@@ -98,12 +90,13 @@ function VibeXPMark() {
 }
 
 function Brand() {
+  const { displayName } = useSiteInfo()
   return (
     <div className="inline-flex items-center gap-2.5">
       <div className="bg-primary text-primary-foreground grid h-9 w-9 place-items-center rounded-lg">
         <VibeXPMark />
       </div>
-      <span className="text-base font-bold tracking-tight">{SITE_NAME}</span>
+      <span className="text-base font-bold tracking-tight">{displayName}</span>
     </div>
   )
 }
@@ -147,7 +140,59 @@ const PITCH_BULLETS = [
   },
 ] as const
 
+/** The host of an http(s) URL, for display as a link label. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
+}
+
+const LEGAL_LINK_CLASS =
+  'text-foreground border-border hover:border-foreground border-b transition-colors'
+
+/**
+ * The "By continuing, you agree to ..." line. It names only the documents the
+ * instance has configured, and renders nothing when it has configured neither.
+ */
+function LegalLine() {
+  const { terms_url, privacy_url } = useSiteInfo()
+  if (terms_url === null && privacy_url === null) return null
+
+  const terms = terms_url !== null && (
+    <a
+      href={terms_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={LEGAL_LINK_CLASS}
+    >
+      Terms
+    </a>
+  )
+  const privacy = privacy_url !== null && (
+    <a
+      href={privacy_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={LEGAL_LINK_CLASS}
+    >
+      Privacy Policy
+    </a>
+  )
+
+  return (
+    <p className="text-muted-foreground mt-6 text-center text-xs leading-relaxed">
+      By continuing, you agree to our {terms}
+      {terms && privacy ? ' and ' : null}
+      {privacy}
+      {'.'}
+    </p>
+  )
+}
+
 function PitchPanel() {
+  const { displayName, website, supportHref } = useSiteInfo()
   return (
     <div className="bg-muted relative hidden flex-col justify-between overflow-hidden border-r p-10 lg:flex lg:p-14">
       {/* Subtle dot grid backdrop */}
@@ -194,17 +239,21 @@ function PitchPanel() {
 
       <div className="text-muted-foreground relative z-10 flex gap-4 text-xs">
         <span>
-          © {CURRENT_YEAR} {SITE_LEGAL_NAME}
+          © {CURRENT_YEAR} {displayName}
         </span>
-        <a href={SITE_URL} className="hover:text-foreground transition-colors">
-          {SITE_DOMAIN}
-        </a>
-        <a
-          href={`mailto:${SUPPORT_EMAIL}`}
-          className="hover:text-foreground transition-colors"
-        >
-          support
-        </a>
+        {website !== null && (
+          <a href={website} className="hover:text-foreground transition-colors">
+            {hostOf(website)}
+          </a>
+        )}
+        {supportHref !== null && (
+          <a
+            href={supportHref}
+            className="hover:text-foreground transition-colors"
+          >
+            support
+          </a>
+        )}
       </div>
     </div>
   )
@@ -222,6 +271,7 @@ export function SignInPage() {
   const [setupRequired, setSetupRequired] = useState(false)
 
   const { login } = useAuth()
+  const { displayName } = useSiteInfo()
   const { trackAuth } = useAnalytics()
   const [searchParams] = useSearchParams()
   // Where to send the user after login (e.g. back to an OAuth consent page).
@@ -334,7 +384,7 @@ export function SignInPage() {
             </div>
 
             <h1 className="text-2xl font-bold tracking-tight">
-              Sign in to {SITE_NAME}
+              Sign in to {displayName}
             </h1>
             <p className="text-muted-foreground mt-1.5 text-sm">
               Your team&apos;s shared brain. Pick up where you left off.
@@ -402,27 +452,7 @@ export function SignInPage() {
 
             <DevLogin returnTo={returnTo} onError={setError} />
 
-            <p className="text-muted-foreground mt-6 text-center text-xs leading-relaxed">
-              By continuing, you agree to our{' '}
-              <a
-                href={TERMS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-foreground border-border hover:border-foreground border-b transition-colors"
-              >
-                Terms
-              </a>{' '}
-              and{' '}
-              <a
-                href={PRIVACY_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-foreground border-border hover:border-foreground border-b transition-colors"
-              >
-                Privacy Policy
-              </a>
-              {'.'}
-            </p>
+            <LegalLine />
           </div>
         </div>
       </div>

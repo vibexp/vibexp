@@ -2,6 +2,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { MemoryRouter } from 'react-router'
 
+import {
+  deriveSiteInfo,
+  EMPTY_SITE_INFO,
+  type SiteInfo,
+} from '@/features/site-info/siteInfo'
+import { SiteInfoContext } from '@/features/site-info/SiteInfoContext'
+
 import type { AuthProvider } from '../../services/authService'
 import { SignInPage } from './SignInPage'
 
@@ -310,4 +317,110 @@ describe('SignInPage — return_to plumbing', () => {
 
     expect(window.sessionStorage.getItem(RETURN_TO_KEY)).toBe('/')
   })
+})
+
+// ---------------------------------------------------------------------------
+// Company branding from site info (#1356)
+// ---------------------------------------------------------------------------
+
+function renderBranded(info: Partial<SiteInfo>) {
+  return render(
+    <SiteInfoContext.Provider
+      value={deriveSiteInfo({ ...EMPTY_SITE_INFO, ...info })}
+    >
+      <MemoryRouter initialEntries={['/login']}>
+        <SignInPage />
+      </MemoryRouter>
+    </SiteInfoContext.Provider>
+  )
+}
+
+describe('SignInPage — site info branding', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetProviders.mockResolvedValue(PROVIDERS)
+    mockGetSetupStatus.mockResolvedValue({ setup_required: false })
+  })
+
+  it('is VibeXP with no placeholder links when nothing is configured', async () => {
+    const { container } = renderSignInPage()
+
+    expect(
+      await screen.findByRole('heading', { name: 'Sign in to VibeXP' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(`© ${new Date().getFullYear()} VibeXP`)
+    ).toBeInTheDocument()
+    expect(container.innerHTML).not.toContain('example.com')
+    expect(container.querySelector('a[href^="mailto:"]')).toBeNull()
+    expect(screen.queryByText('support')).not.toBeInTheDocument()
+    expect(screen.queryByText(/by continuing, you agree/i)).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Terms' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Privacy Policy' })).toBeNull()
+  })
+
+  it('shows the company name, site, support and legal links when configured', async () => {
+    renderBranded({
+      company_name: 'Acme Inc.',
+      website: 'https://www.acme.test/about',
+      support_url: 'https://acme.test/help',
+      terms_url: 'https://acme.test/terms',
+      privacy_url: 'https://acme.test/privacy',
+    })
+
+    expect(
+      await screen.findByRole('heading', { name: 'Sign in to Acme Inc.' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(`© ${new Date().getFullYear()} Acme Inc.`)
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'www.acme.test' })).toHaveAttribute(
+      'href',
+      'https://www.acme.test/about'
+    )
+    expect(screen.getByRole('link', { name: 'support' })).toHaveAttribute(
+      'href',
+      'https://acme.test/help'
+    )
+    expect(screen.getByRole('link', { name: 'Terms' })).toHaveAttribute(
+      'href',
+      'https://acme.test/terms'
+    )
+    expect(
+      screen.getByRole('link', { name: 'Privacy Policy' })
+    ).toHaveAttribute('href', 'https://acme.test/privacy')
+    expect(
+      screen.getByText(/by continuing, you agree to our/i)
+    ).toHaveTextContent(
+      'By continuing, you agree to our Terms and Privacy Policy.'
+    )
+  })
+
+  it('falls back to a mailto for support when only an email is configured', async () => {
+    renderBranded({ company_email: 'hello@acme.test' })
+
+    expect(
+      await screen.findByRole('link', { name: 'support' })
+    ).toHaveAttribute('href', 'mailto:hello@acme.test')
+  })
+
+  it.each([
+    [
+      { terms_url: 'https://acme.test/terms' },
+      'By continuing, you agree to our Terms.',
+    ],
+    [
+      { privacy_url: 'https://acme.test/privacy' },
+      'By continuing, you agree to our Privacy Policy.',
+    ],
+  ])(
+    'names only the legal document that is configured',
+    async (info, sentence) => {
+      renderBranded(info)
+
+      expect(
+        await screen.findByText(/by continuing, you agree to our/i)
+      ).toHaveTextContent(sentence)
+    }
+  )
 })
