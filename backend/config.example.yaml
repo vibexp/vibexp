@@ -260,20 +260,15 @@ email:
     api_key: "${SENDGRID_API_KEY}"
 
 # Frontend values served to the SPA via /config.js (window.__VIBEXP_ENV__).
-# SECURITY: /config.js is world-readable — never put secrets here. Each Site*/
-# Brand*/GTM*/GA4 field is optional; empty uses the SPA's neutral built-in.
+# SECURITY: /config.js is world-readable — never put secrets here. Every field
+# after base_url is optional; empty uses the SPA's built-in default.
+# Company branding (name, logo, support and legal links) is not configured
+# here: an instance admin edits it as site info in the admin area.
 frontend:
   # The public base URL of the app. In the combined image the backend serves the
   # SPA and API from the SAME origin, so set this to your public URL in
   # production. In local dev the SPA runs on the Vite dev server.
   base_url: "http://localhost:5173"
-  site_name: ""
-  site_legal_name: ""
-  site_url: ""
-  terms_url: ""
-  privacy_url: ""
-  support_email: ""
-  brand_logo_url: ""
   mcp_endpoint: ""
   error_type_base_uri: ""
   # Optional analytics. Setting gtm_id IS the opt-in: Google Tag Manager loads

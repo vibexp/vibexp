@@ -599,21 +599,19 @@ type SendGridConfig struct {
 
 // FrontendConfig holds the SPA base URL plus the deploy-time, non-secret
 // frontend values served to the SPA via /config.js (window.__VIBEXP_ENV__).
-// Each Site*/Brand*/GTM*/GA4 field mirrors a VITE_* the frontend otherwise
-// bakes in at build time. SECURITY: /config.js is world-readable — only
-// non-secret values belong here.
+// Each field after BaseURL mirrors a VITE_* the frontend otherwise bakes in at
+// build time. SECURITY: /config.js is world-readable — only non-secret values
+// belong here.
+//
+// Company branding (name, logo, support and legal links) is NOT configured
+// here: it is the instance's site info, stored in the database and edited in
+// the admin area (epic #1352). The seven keys that used to carry it were
+// removed in #1357; see removedConfigKeys.
 type FrontendConfig struct {
 	// BaseURL is the frontend SPA base URL; used for redirects, email links, and
 	// the IsLocalDevelopment heuristic.
 	BaseURL string `koanf:"base_url"`
 
-	SiteName         string `koanf:"site_name"`
-	SiteLegalName    string `koanf:"site_legal_name"`
-	SiteURL          string `koanf:"site_url"`
-	TermsURL         string `koanf:"terms_url"`
-	PrivacyURL       string `koanf:"privacy_url"`
-	SupportEmail     string `koanf:"support_email"`
-	BrandLogoURL     string `koanf:"brand_logo_url"`
 	MCPEndpoint      string `koanf:"mcp_endpoint"`
 	ErrorTypeBaseURI string `koanf:"error_type_base_uri"`
 	// GTMID is the Google Tag Manager container ID. Setting it IS the opt-in:
@@ -866,13 +864,6 @@ type DeploymentConfig struct {
 // result is served publicly and MUST contain only non-secret values.
 func (c *Config) RuntimeFrontendEnv() map[string]string {
 	pairs := []struct{ key, val string }{
-		{"VITE_SITE_NAME", c.Frontend.SiteName},
-		{"VITE_SITE_LEGAL_NAME", c.Frontend.SiteLegalName},
-		{"VITE_SITE_URL", c.Frontend.SiteURL},
-		{"VITE_TERMS_URL", c.Frontend.TermsURL},
-		{"VITE_PRIVACY_URL", c.Frontend.PrivacyURL},
-		{"VITE_SUPPORT_EMAIL", c.Frontend.SupportEmail},
-		{"VITE_BRAND_LOGO_URL", c.Frontend.BrandLogoURL},
 		{"VITE_MCP_ENDPOINT", c.Frontend.MCPEndpoint},
 		{"VITE_ERROR_TYPE_BASE_URI", c.Frontend.ErrorTypeBaseURI},
 		{"VITE_GTM_ID", c.Frontend.GTMID},
@@ -1648,6 +1639,14 @@ const legacyAuthKeyGuidance = "sign-in providers and the access allowlist are no
 	"becomes a boot failure no earlier than the second minor release after this one. " +
 	"See https://vibexp.io/docs/user-guide/self-hosting/upgrading"
 
+// legacyBrandingKeyGuidance is the warning for the seven `frontend.*` keys that
+// carried company branding until #1357. Like their VITE_* env counterparts they
+// are ignored now, and never imported: branding is the instance's site info
+// (epic #1352).
+const legacyBrandingKeyGuidance = "company branding (name, logo, support and legal links) is the instance's " +
+	"site info now, stored in the database and managed in the admin area. This key is ignored: it is not " +
+	"imported. Delete it from your config.yaml (and its VITE_* env var) and enter the value in site info instead."
+
 // removedConfigKeys lists the config.yaml keys that no longer do what they
 // used to, with the guidance an operator needs when their config.yaml still
 // carries one.
@@ -1668,6 +1667,13 @@ var removedConfigKeys = []removedConfigKey{
 		"(open the team, then Settings → GitHub Integration), not instance-wide. " +
 		"Delete the `github:` section from your config.yaml and re-register the App on each team. " +
 		"Note this is NOT `auth.github` (the web-login OAuth client), which is unaffected."},
+	{path: "frontend.site_name", mode: removalWarn, guidance: legacyBrandingKeyGuidance},
+	{path: "frontend.site_legal_name", mode: removalWarn, guidance: legacyBrandingKeyGuidance},
+	{path: "frontend.site_url", mode: removalWarn, guidance: legacyBrandingKeyGuidance},
+	{path: "frontend.terms_url", mode: removalWarn, guidance: legacyBrandingKeyGuidance},
+	{path: "frontend.privacy_url", mode: removalWarn, guidance: legacyBrandingKeyGuidance},
+	{path: "frontend.support_email", mode: removalWarn, guidance: legacyBrandingKeyGuidance},
+	{path: "frontend.brand_logo_url", mode: removalWarn, guidance: legacyBrandingKeyGuidance},
 	{path: "email.privacy_policy_url", mode: removalWarn, guidance: "the privacy policy URL is part of the " +
 		"instance's site info now, stored in the database and managed in the admin area. This key is ignored: " +
 		"it is not imported. Delete it from your config.yaml and set the URL in site info instead."},

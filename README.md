@@ -82,7 +82,7 @@ The defaults in `docker-compose.yml` are for local evaluation only. For any real
 - **`DB_PASSWORD`** — change it from the default (and keep `POSTGRES_PASSWORD` in sync).
 - **`SESSION_ENCRYPTION_KEY`** (`openssl rand -hex 32`) and an **identity provider**: set `AUTH_PROVIDER` to `google`, `github`, or `oidc` with the matching `*_CLIENT_ID` / `*_CLIENT_SECRET` (and `*_REDIRECT_URI` if it differs from `<FRONTEND_BASE_URL>/api/v1/auth/callback`). For several providers at once, mount a `config.yaml` with `auth.providers: [...]`.
 - **MCP in production (optional)** — set `OAUTH_AS_ISSUER_URL` (your public HTTPS URL) **and** `MCP_RESOURCE_URI` (`<url>/mcp/v1/common`) to enable the embedded OAuth server that issues MCP tokens.
-- **Branding / analytics (optional)** rebrand the SPA at deploy time with `VITE_*` env vars (served via `/config.js`, no rebuild) — see the `app` service comments in `docker-compose.yml`.
+- **MCP endpoint / analytics (optional)** set them at deploy time with `VITE_*` env vars (served via `/config.js`, no rebuild) — see the `app` service comments in `docker-compose.yml`. Company branding (name, logo, support and legal links) is not an env var: an instance admin edits it as site info in the admin area.
 - **Semantic search & file attachments** are optional, opt-in services. See the comments in `docker-compose.yml` and the [docs](https://vibexp.io/docs/?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=self_host).
 
 Data persists in the `pgdata` volume.

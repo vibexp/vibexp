@@ -337,3 +337,57 @@ func TestCheckRemovedSections_EmailPrivacyPolicyURLWarns(t *testing.T) {
 		}
 	})
 }
+
+// legacyBrandingKeys are the seven `frontend.*` keys that carried company
+// branding until #1357.
+var legacyBrandingKeys = []string{
+	"frontend.brand_logo_url", "frontend.privacy_url", "frontend.site_legal_name", "frontend.site_name",
+	"frontend.site_url", "frontend.support_email", "frontend.terms_url",
+}
+
+// Company branding left config.yaml (#1357: it is site info now). A config
+// that still sets the old keys must keep loading, with one warning per
+// populated key saying where the setting went; the frontend keys that remain
+// never warn.
+func TestCheckRemovedSections_LegacyBrandingKeysWarn(t *testing.T) {
+	t.Run("every populated key warns", func(t *testing.T) {
+		warnings, err := checkRemovedSections("config.yaml", map[string]interface{}{
+			"frontend": map[string]interface{}{
+				"base_url":        "https://app.acme.test",
+				"mcp_endpoint":    "https://app.acme.test/mcp/v1/common",
+				"gtm_id":          "GTM-XYZ",
+				"site_name":       "Acme",
+				"site_legal_name": "Acme Inc.",
+				"site_url":        "https://acme.test",
+				"terms_url":       "https://acme.test/terms",
+				"privacy_url":     "https://acme.test/privacy",
+				"support_email":   "help@acme.test",
+				"brand_logo_url":  "https://acme.test/logo.png",
+			},
+		})
+
+		require.NoError(t, err, "a removed warn-mode key never fails startup")
+		require.Len(t, warnings, len(legacyBrandingKeys))
+		for i, key := range legacyBrandingKeys {
+			assert.Contains(t, warnings[i], `"`+key+`"`, "warnings are sorted by key")
+			assert.Contains(t, warnings[i], "site info")
+		}
+	})
+
+	t.Run("blank keys and the remaining frontend keys do not", func(t *testing.T) {
+		warnings, err := checkRemovedSections("config.yaml", map[string]interface{}{
+			"frontend": map[string]interface{}{
+				"base_url":            "https://app.acme.test",
+				"mcp_endpoint":        "https://app.acme.test/mcp/v1/common",
+				"error_type_base_uri": "https://errors.acme.test",
+				"gtm_id":              "GTM-XYZ",
+				"ga4_measurement_id":  "G-XYZ",
+				"site_name":           "",
+				"site_url":            "",
+			},
+		})
+
+		require.NoError(t, err)
+		assert.Empty(t, warnings)
+	})
+}
