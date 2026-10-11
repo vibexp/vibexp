@@ -68,3 +68,5 @@ type ActivityCountByDate struct {
 	Date  string `json:"date"`
 	Count int    `json:"count"`
 }
+
+// probe for #1329: Go-only change, never merged
