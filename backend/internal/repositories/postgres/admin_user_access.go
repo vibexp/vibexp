@@ -11,7 +11,7 @@ import (
 // Per-user resource access analytics for the instance-admin surface (#1136).
 // Both queries are keyed on resource_access_events.user_id with no membership
 // check, and both lead with the (user_id, created_at) predicate that
-// idx_rae_user_created (migration 019) serves. No query selects a title, slug
+// idx_rae_user_created (migration 019_consolidated) serves. No query selects a title, slug
 // or body column. resource_access_events.created_at is the AWARE family.
 
 // adminUserAccessBySourceQueryFmt is adminAccessBySourceQueryFmt scoped to one

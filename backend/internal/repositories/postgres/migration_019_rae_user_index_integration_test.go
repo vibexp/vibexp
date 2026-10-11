@@ -12,8 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Migration 019 (#1136) adds idx_rae_user_created ON resource_access_events
-// (user_id, created_at) for the per-user admin access queries.
+// The resource-access-events-user-index block of migration 019_consolidated
+// (#1136) adds idx_rae_user_created ON resource_access_events (user_id,
+// created_at) for the per-user admin access queries.
 
 // TestMigration019_UpDown migrates a scratch database to 018, up to 019 and
 // back down, on its OWN database so migrating down cannot disturb the shared

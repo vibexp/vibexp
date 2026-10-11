@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Up/down round-trip for migration 020_instance_email_provider (#1186), on its
-// OWN scratch database: this test migrates DOWN, which would corrupt the shared
+// Up/down round-trip for the instance-email-provider block of migration
+// 019_consolidated (#1186; originally migration 020), on its OWN scratch database: this test migrates DOWN, which would corrupt the shared
 // integrationDB.
 //
 // Beyond "it applies", it pins the singleton at the database level (a second
@@ -30,19 +30,19 @@ func requirePQCode(t *testing.T, err error, code pq.ErrorCode) {
 	assert.Equal(t, code, pqErr.Code, "unexpected SQLSTATE: %v", pqErr)
 }
 
-func TestMigration020_InstanceEmailProvider_UpDownRoundTrip(t *testing.T) {
+func TestMigration019_InstanceEmailProvider_UpDownRoundTrip(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
 	m := newMigrator(t, db)
 
 	// 1. The version immediately before this migration: nothing exists yet.
-	require.NoError(t, m.Migrate(19), "migrate to 019")
+	require.NoError(t, m.Migrate(18), "migrate to 018")
 	require.False(t, tableExists(t, db, "instance_email_provider"),
-		"fixture: instance_email_provider must not exist before 020")
+		"fixture: instance_email_provider must not exist before 019")
 
-	// 2. Apply 020.
-	require.NoError(t, m.Migrate(20), "migrate to 020")
+	// 2. Apply 019.
+	require.NoError(t, m.Migrate(19), "migrate to 019")
 
 	t.Run("creates the table, empty", func(t *testing.T) {
 		require.True(t, tableExists(t, db, "instance_email_provider"))
@@ -70,12 +70,12 @@ func TestMigration020_InstanceEmailProvider_UpDownRoundTrip(t *testing.T) {
 	})
 
 	// 3. Roll back with the row still in place.
-	require.NoError(t, m.Migrate(19), "migrate down to 019")
+	require.NoError(t, m.Migrate(18), "migrate down to 018")
 	assert.False(t, tableExists(t, db, "instance_email_provider"),
 		"down must drop the populated table")
 
 	// 4. Re-apply: an operator who rolls back must be able to roll forward.
-	require.NoError(t, m.Migrate(20), "re-apply 020")
+	require.NoError(t, m.Migrate(19), "re-apply 019")
 	require.True(t, tableExists(t, db, "instance_email_provider"))
 	assert.Equal(t, 0, countRows(t, db, "SELECT count(*) FROM instance_email_provider"),
 		"the re-applied table starts empty")

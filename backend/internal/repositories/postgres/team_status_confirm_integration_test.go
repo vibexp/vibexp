@@ -82,7 +82,7 @@ func TestIntegrationTeamStatusRepository_ConfirmSlugWaitsOutADelete(t *testing.T
 
 	for resourceType, table := range statusResourceTables {
 		t.Run(resourceType, func(t *testing.T) {
-			f := newMigration025Fixture(t, integrationDB.DB)
+			f := newTeamStatusesFixture(t, integrationDB.DB)
 			defaultStatus := models.DefaultStatusFor(resourceType)
 			status := &models.TeamStatus{
 				TeamID: f.teamID, ResourceType: resourceType, Slug: "in-review", Name: "In review",
@@ -138,7 +138,7 @@ func TestIntegrationTeamStatusRepository_ConfirmSlugBeforeADelete(t *testing.T) 
 
 	for resourceType, table := range statusResourceTables {
 		t.Run(resourceType, func(t *testing.T) {
-			f := newMigration025Fixture(t, integrationDB.DB)
+			f := newTeamStatusesFixture(t, integrationDB.DB)
 			defaultStatus := models.DefaultStatusFor(resourceType)
 			status := &models.TeamStatus{
 				TeamID: f.teamID, ResourceType: resourceType, Slug: "in-review", Name: "In review",
@@ -165,7 +165,7 @@ func TestIntegrationTeamStatusRepository_ConfirmSlugBeforeADelete(t *testing.T) 
 // connection, for as long as the delete stays open.
 func TestIntegrationTeamStatusRepository_ConfirmSlugHonoursTheContext(t *testing.T) {
 	repo := NewTeamStatusRepository(integrationDB)
-	f := newMigration025Fixture(t, integrationDB.DB)
+	f := newTeamStatusesFixture(t, integrationDB.DB)
 	status := &models.TeamStatus{
 		TeamID: f.teamID, ResourceType: models.StatusResourceTypeArtifact, Slug: "in-review", Name: "In review",
 	}
@@ -209,8 +209,8 @@ func TestIntegrationTeamStatusRepository_ReassignResource(t *testing.T) {
 
 	for resourceType, table := range statusResourceTables {
 		t.Run(resourceType+" moves only the named row", func(t *testing.T) {
-			mine := newMigration025Fixture(t, integrationDB.DB)
-			other := newMigration025Fixture(t, integrationDB.DB)
+			mine := newTeamStatusesFixture(t, integrationDB.DB)
+			other := newTeamStatusesFixture(t, integrationDB.DB)
 			defaultStatus := models.DefaultStatusFor(resourceType)
 
 			target := mine.insert(t, table, "in-review")
@@ -233,7 +233,7 @@ func TestIntegrationTeamStatusRepository_ReassignResource(t *testing.T) {
 	// A resource that has moved on since -- to a status somebody chose -- is
 	// not dragged back to the default.
 	t.Run("a row that no longer carries the status is left alone", func(t *testing.T) {
-		f := newMigration025Fixture(t, integrationDB.DB)
+		f := newTeamStatusesFixture(t, integrationDB.DB)
 		row := f.insert(t, "artifacts", models.StatusArchived)
 		before := f.snapshot(t, "artifacts", row)
 

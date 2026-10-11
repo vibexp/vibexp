@@ -245,7 +245,7 @@ func instanceAISummaryValuesFromStored(
 // least 1ms (it is stored in whole milliseconds) and a style from
 // models.AISummaryStyles. The upper bounds on the budgets and the timeout are
 // what the 32-bit storage columns can hold. The instance_ai_summary_settings
-// CHECK constraints (migration 022) enforce the same bounds in the database.
+// CHECK constraints (migration 019_consolidated) enforce the same bounds in the database.
 // It is exported for the boot-time config import (#1201).
 func ValidateInstanceAISummarySettings(v models.InstanceAISummarySettingsValues) error {
 	if err := validateAISummaryProfileBounds(v.TeamValues()); err != nil {

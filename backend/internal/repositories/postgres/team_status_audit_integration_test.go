@@ -120,13 +120,13 @@ func TestIntegrationTeamStatusRepository_DeleteRollsBackWithoutItsAuditEntry(t *
 
 	for resourceType, table := range statusResourceTables {
 		t.Run(resourceType, func(t *testing.T) {
-			f := newMigration025Fixture(t, integrationDB.DB)
+			f := newTeamStatusesFixture(t, integrationDB.DB)
 			status := &models.TeamStatus{
 				TeamID: f.teamID, ResourceType: resourceType, Slug: "in-review", Name: "In review",
 			}
 			require.NoError(t, repo.Create(ctx, status, testStatusAudit))
 			carrying := []string{f.insert(t, table, "in-review"), f.insert(t, table, "in-review")}
-			before := make(map[string]migration025Snapshot, len(carrying))
+			before := make(map[string]teamStatusesSnapshot, len(carrying))
 			for _, id := range carrying {
 				before[id] = f.snapshot(t, table, id)
 			}
@@ -216,7 +216,7 @@ func TestIntegrationTeamStatusRepository_RenameReadsThePreviousNameUnderTheLock(
 // exactly one custom_statuses audit row, with the detail the audit page reads.
 func TestIntegrationStatusManagement_EachWriteStoresExactlyOneAuditRow(t *testing.T) {
 	ctx := context.Background()
-	f := newMigration025Fixture(t, integrationDB.DB)
+	f := newTeamStatusesFixture(t, integrationDB.DB)
 	_, err := integrationDB.Exec(
 		"INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, $3)",
 		f.teamID, f.userID, models.TeamMemberRoleOwner)

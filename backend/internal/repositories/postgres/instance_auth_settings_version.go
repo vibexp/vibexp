@@ -14,7 +14,7 @@ import (
 // InstanceAuthSettingsVersionRepository implements
 // repositories.InstanceAuthSettingsVersionRepository for PostgreSQL.
 //
-// The table is a seeded singleton (migration 023), so statements carry no WHERE
+// The table is a seeded singleton (migration 019_consolidated), so statements carry no WHERE
 // clause and no tenancy or role predicate.
 type InstanceAuthSettingsVersionRepository struct {
 	db *database.DB

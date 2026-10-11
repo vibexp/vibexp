@@ -15,40 +15,41 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// Up/down round-trip for migration 025_team_statuses (#1264), on its OWN
+// Up/down round-trip for the team-statuses block of migration 019_consolidated
+// (#1264; originally migration 025), on its OWN
 // scratch database: this test migrates DOWN, which would corrupt the shared
 // integrationDB.
 //
 // It pins that existing rows come through the up unchanged (status AND
 // updated_at), that a custom status becomes storable on all four resource
 // tables, and that the documented, lossy down reassigns exactly the rows the
-// pre-025 schema cannot hold and nothing else.
+// pre-019 schema cannot hold and nothing else.
 
-// migration025Tables maps each resource table to its status resource type.
-var migration025Tables = map[string]string{
+// teamStatusesTables maps each resource table to its status resource type.
+var teamStatusesTables = map[string]string{
 	"prompts":    models.StatusResourceTypePrompt,
 	"artifacts":  models.StatusResourceTypeArtifact,
 	"blueprints": models.StatusResourceTypeBlueprint,
 	"memories":   models.StatusResourceTypeMemory,
 }
 
-type migration025Fixture struct {
+type teamStatusesFixture struct {
 	db                        *sql.DB
 	userID, teamID, projectID string
 }
 
-func newMigration025Fixture(t *testing.T, db *sql.DB) migration025Fixture {
+func newTeamStatusesFixture(t *testing.T, db *sql.DB) teamStatusesFixture {
 	t.Helper()
 	userID := refScopeInsertUser(t, db)
 	teamID := refScopeInsertTeam(t, db, userID)
-	return migration025Fixture{
+	return teamStatusesFixture{
 		db: db, userID: userID, teamID: teamID,
 		projectID: refScopeInsertProject(t, db, userID, teamID),
 	}
 }
 
 // insert adds one resource row carrying status to table and returns its id.
-func (f migration025Fixture) insert(t *testing.T, table, status string) string {
+func (f teamStatusesFixture) insert(t *testing.T, table, status string) string {
 	t.Helper()
 	id := uuid.New().String()
 	var err error
@@ -80,16 +81,16 @@ func (f migration025Fixture) insert(t *testing.T, table, status string) string {
 	return id
 }
 
-// snapshot is a row's status and updated_at, the two things 025 must not
+// snapshot is a row's status and updated_at, the two things 019 must not
 // disturb on a row it has no reason to touch.
-type migration025Snapshot struct {
+type teamStatusesSnapshot struct {
 	status    string
 	updatedAt time.Time
 }
 
-func (f migration025Fixture) snapshot(t *testing.T, table, id string) migration025Snapshot {
+func (f teamStatusesFixture) snapshot(t *testing.T, table, id string) teamStatusesSnapshot {
 	t.Helper()
-	var snap migration025Snapshot
+	var snap teamStatusesSnapshot
 	require.NoError(t, f.db.QueryRow(
 		"SELECT status, updated_at FROM "+table+" WHERE id = $1", id,
 	).Scan(&snap.status, &snap.updatedAt))
@@ -108,7 +109,7 @@ func constraintCount(t *testing.T, db *sql.DB, name string) int {
 	return countRows(t, db, "SELECT count(*) FROM pg_constraint WHERE conname = $1", name)
 }
 
-func TestMigration025_TeamStatuses_UpDownRoundTrip(t *testing.T) {
+func TestMigration019_TeamStatuses_UpDownRoundTrip(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
@@ -116,27 +117,27 @@ func TestMigration025_TeamStatuses_UpDownRoundTrip(t *testing.T) {
 
 	// 1. The version immediately before this migration, populated with one row
 	//    per system status of every resource type.
-	require.NoError(t, m.Migrate(24), "migrate to 024")
-	require.False(t, tableExists(t, db, "team_statuses"), "fixture: team_statuses must not exist before 025")
+	require.NoError(t, m.Migrate(18), "migrate to 018")
+	require.False(t, tableExists(t, db, "team_statuses"), "fixture: team_statuses must not exist before 019")
 
-	f := newMigration025Fixture(t, db)
+	f := newTeamStatusesFixture(t, db)
 	type seeded struct{ table, id string }
 	var existing []seeded
-	for table, resourceType := range migration025Tables {
-		require.Equal(t, 20, statusColumnLength(t, db, table), "fixture: %s.status is varchar(20) before 025", table)
+	for table, resourceType := range teamStatusesTables {
+		require.Equal(t, 20, statusColumnLength(t, db, table), "fixture: %s.status is varchar(20) before 019", table)
 		for _, status := range models.SystemStatusesFor(resourceType) {
 			existing = append(existing, seeded{table, f.insert(t, table, status)})
 		}
 	}
-	before := make(map[string]migration025Snapshot, len(existing))
+	before := make(map[string]teamStatusesSnapshot, len(existing))
 	for _, row := range existing {
 		before[row.id] = f.snapshot(t, row.table, row.id)
 	}
 	require.Equal(t, 1, constraintCount(t, db, "prompts_status_check"), "fixture")
 	require.Equal(t, 1, constraintCount(t, db, "memories_status_check"), "fixture")
 
-	// 2. Apply 025.
-	require.NoError(t, m.Migrate(25), "migrate to 025")
+	// 2. Apply 019.
+	require.NoError(t, m.Migrate(19), "migrate to 019")
 
 	t.Run("leaves existing rows unchanged", func(t *testing.T) {
 		for _, row := range existing {
@@ -152,7 +153,7 @@ func TestMigration025_TeamStatuses_UpDownRoundTrip(t *testing.T) {
 	t.Run("drops both status CHECKs and widens all four columns", func(t *testing.T) {
 		assert.Equal(t, 0, constraintCount(t, db, "prompts_status_check"))
 		assert.Equal(t, 0, constraintCount(t, db, "memories_status_check"))
-		for table := range migration025Tables {
+		for table := range teamStatusesTables {
 			assert.Equal(t, 50, statusColumnLength(t, db, table), table)
 		}
 	})
@@ -185,14 +186,14 @@ func TestMigration025_TeamStatuses_UpDownRoundTrip(t *testing.T) {
 		requirePQCode(t, err, "23503")
 	})
 
-	// 3. What 025 exists for: a custom status, up to 50 characters, on every
+	// 3. What this block exists for: a custom status, up to 50 characters, on every
 	//    resource table -- including the two that had a CHECK.
 	longSlug := strings.Repeat("s", 50)
-	custom := make(map[string]string, len(migration025Tables))
-	for table := range migration025Tables {
+	custom := make(map[string]string, len(teamStatusesTables))
+	for table := range teamStatusesTables {
 		custom[table] = f.insert(t, table, longSlug)
 	}
-	for table := range migration025Tables {
+	for table := range teamStatusesTables {
 		_, err := db.Exec("UPDATE "+table+" SET status = $1 WHERE id = $2",
 			strings.Repeat("s", 51), custom[table])
 		require.Error(t, err, "%s.status must still be capped at 50", table)
@@ -210,13 +211,13 @@ func TestMigration025_TeamStatuses_UpDownRoundTrip(t *testing.T) {
 	customMemoryBefore := f.snapshot(t, "memories", custom["memories"])
 
 	// 4. Roll back a populated schema.
-	require.NoError(t, m.Migrate(24), "migrate down to 024")
+	require.NoError(t, m.Migrate(18), "migrate down to 018")
 
 	t.Run("down drops the table and restores the CHECKs and the width", func(t *testing.T) {
 		assert.False(t, tableExists(t, db, "team_statuses"))
 		assert.Equal(t, 1, constraintCount(t, db, "prompts_status_check"))
 		assert.Equal(t, 1, constraintCount(t, db, "memories_status_check"))
-		for table := range migration025Tables {
+		for table := range teamStatusesTables {
 			assert.Equal(t, 20, statusColumnLength(t, db, table), table)
 		}
 	})
@@ -228,7 +229,7 @@ func TestMigration025_TeamStatuses_UpDownRoundTrip(t *testing.T) {
 	})
 
 	t.Run("down reassigns a custom status to the type's default", func(t *testing.T) {
-		for table, resourceType := range migration025Tables {
+		for table, resourceType := range teamStatusesTables {
 			assert.Equal(t, models.DefaultStatusFor(resourceType),
 				f.snapshot(t, table, custom[table]).status, table)
 		}
@@ -258,7 +259,7 @@ func TestMigration025_TeamStatuses_UpDownRoundTrip(t *testing.T) {
 
 	// 5. Re-apply: an operator who rolls back a release must be able to roll
 	//    forward again.
-	require.NoError(t, m.Migrate(25), "re-apply 025")
+	require.NoError(t, m.Migrate(19), "re-apply 019")
 	assert.True(t, tableExists(t, db, "team_statuses"))
 	assert.Equal(t, 0, countRows(t, db, "SELECT count(*) FROM team_statuses"),
 		"the re-applied table starts empty -- the dropped rows are gone for good")
