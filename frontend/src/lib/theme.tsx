@@ -86,6 +86,19 @@ export function ThemeProvider({
   )
 }
 
+/**
+ * The theme in effect, for decoration that must render anywhere.
+ *
+ * Unlike `useTheme` it does not throw outside a `ThemeProvider`: it answers
+ * `light`. The app always mounts a provider, so that only happens when a
+ * component is rendered on its own. Use it for read-only, cosmetic choices
+ * (which logo variant to show); anything that sets the theme needs `useTheme`.
+ */
+export function useResolvedTheme(): 'light' | 'dark' {
+  const ctx = React.useContext(ThemeProviderContext)
+  return ctx?.resolvedTheme ?? 'light'
+}
+
 export function useTheme() {
   const ctx = React.useContext(ThemeProviderContext)
   if (!ctx) {

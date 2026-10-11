@@ -73,6 +73,8 @@ vi.mock('../../services/authService', () => ({
 // Mock theme hook
 vi.mock('@/lib/theme', () => ({
   useTheme: () => ({ resolvedTheme: 'light', setTheme: vi.fn() }),
+  // BrandLogo reads the theme through the non-throwing hook.
+  useResolvedTheme: () => 'light',
 }))
 
 // The VibeXP mark, as a node the lockup and credit assertions can find

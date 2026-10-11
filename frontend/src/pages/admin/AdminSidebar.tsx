@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router'
 
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
+import { SidebarProductMark } from '@/components/layout/SidebarProductMark'
 import { useNavLinkActive } from '@/components/layout/useNavLinkActive'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { SheetClose } from '@/components/ui/sheet'
@@ -158,6 +159,7 @@ export function AdminMobileSidebar() {
       <ScrollArea className="flex-1">
         <AdminNavList variant="drawer" />
       </ScrollArea>
+      <SidebarProductMark showText />
     </div>
   )
 }
@@ -175,6 +177,7 @@ export function AdminSidebar() {
         <ScrollArea className="flex-1">
           <AdminNavList />
         </ScrollArea>
+        <SidebarProductMark />
       </aside>
     </TooltipProvider>
   )

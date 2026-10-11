@@ -1,4 +1,11 @@
-import { LogOut, Settings as SettingsIcon, Shield } from 'lucide-react'
+import {
+  FileText,
+  HelpCircle,
+  Lock,
+  LogOut,
+  Settings as SettingsIcon,
+  Shield,
+} from 'lucide-react'
 import { useNavigate } from 'react-router'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -12,10 +19,38 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/contexts/useAuth'
+import { useSiteInfo } from '@/features/site-info/useSiteInfo'
+
+/**
+ * One of the instance's own links (support, terms, privacy) as a menu item.
+ * A real `<a>`, slotted into the item, so it opens in a new tab and still
+ * supports middle-click, "copy link" and screen-reader link semantics.
+ */
+function ExternalMenuLink({
+  href,
+  icon: Icon,
+  children,
+}: Readonly<{
+  href: string
+  icon: typeof HelpCircle
+  children: React.ReactNode
+}>) {
+  return (
+    <DropdownMenuItem asChild>
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        <Icon className="mr-2 size-4" />
+        {children}
+      </a>
+    </DropdownMenuItem>
+  )
+}
 
 export function UserMenu() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { supportHref, terms_url, privacy_url } = useSiteInfo()
+  const hasSiteLinks =
+    supportHref !== null || terms_url !== null || privacy_url !== null
 
   if (!user) return null
 
@@ -72,6 +107,24 @@ export function UserMenu() {
             <Shield className="mr-2 size-4" />
             Admin Portal
           </DropdownMenuItem>
+        )}
+        {/* The instance's own links, from site info. Each shows only when it
+            is configured; with none, the menu has no extra group at all. */}
+        {hasSiteLinks && <DropdownMenuSeparator />}
+        {supportHref !== null && (
+          <ExternalMenuLink href={supportHref} icon={HelpCircle}>
+            Support
+          </ExternalMenuLink>
+        )}
+        {terms_url !== null && (
+          <ExternalMenuLink href={terms_url} icon={FileText}>
+            Terms
+          </ExternalMenuLink>
+        )}
+        {privacy_url !== null && (
+          <ExternalMenuLink href={privacy_url} icon={Lock}>
+            Privacy
+          </ExternalMenuLink>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>

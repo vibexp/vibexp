@@ -8,6 +8,12 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 
 import { UserMenu } from '@/components/layout/UserMenu'
+import {
+  deriveSiteInfo,
+  EMPTY_SITE_INFO,
+  type SiteInfo,
+} from '@/features/site-info/siteInfo'
+import { SiteInfoContext } from '@/features/site-info/SiteInfoContext'
 
 const mockUseAuth = vi.hoisted(() => vi.fn())
 vi.mock('@/contexts/useAuth', () => ({
@@ -63,4 +69,94 @@ it('hides the Admin Portal item for a non-admin', async () => {
 
   expect(await screen.findByText('Settings')).toBeInTheDocument()
   expect(screen.queryByText('Admin Portal')).not.toBeInTheDocument()
+})
+
+// ---------------------------------------------------------------------------
+// The instance's own links, from site info (#1360)
+// ---------------------------------------------------------------------------
+
+async function openMenuWith(info: Partial<SiteInfo>) {
+  mockUseAuth.mockReturnValue(authUser(false))
+  render(
+    <SiteInfoContext.Provider
+      value={deriveSiteInfo({ ...EMPTY_SITE_INFO, ...info })}
+    >
+      <MemoryRouter>
+        <UserMenu />
+      </MemoryRouter>
+    </SiteInfoContext.Provider>
+  )
+  await userEvent.click(screen.getByTestId('user-menu'))
+  await screen.findByText('Sign out')
+}
+
+const siteLink = (label: string) => screen.queryByText(label)?.closest('a')
+
+describe('site info links', () => {
+  it('adds no item and no extra separator when nothing is configured', async () => {
+    await openMenuWith({})
+
+    expect(screen.queryByText('Support')).not.toBeInTheDocument()
+    expect(screen.queryByText('Terms')).not.toBeInTheDocument()
+    expect(screen.queryByText('Privacy')).not.toBeInTheDocument()
+    // Label | Settings | Sign out: exactly the two separators there were.
+    expect(screen.getAllByRole('separator')).toHaveLength(2)
+  })
+
+  it('shows all three as links opening in a new tab', async () => {
+    await openMenuWith({
+      support_url: 'https://acme.test/help',
+      terms_url: 'https://acme.test/terms',
+      privacy_url: 'https://acme.test/privacy',
+    })
+
+    for (const [label, href] of [
+      ['Support', 'https://acme.test/help'],
+      ['Terms', 'https://acme.test/terms'],
+      ['Privacy', 'https://acme.test/privacy'],
+    ]) {
+      const link = siteLink(label)
+      expect(link).toHaveAttribute('href', href)
+      expect(link).toHaveAttribute('target', '_blank')
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    }
+    expect(screen.getAllByRole('separator')).toHaveLength(3)
+  })
+
+  it('falls back to a mailto for Support when only an email is configured', async () => {
+    await openMenuWith({ company_email: 'hello@acme.test' })
+
+    expect(siteLink('Support')).toHaveAttribute(
+      'href',
+      'mailto:hello@acme.test'
+    )
+    expect(screen.queryByText('Terms')).not.toBeInTheDocument()
+    expect(screen.queryByText('Privacy')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['Terms', { terms_url: 'https://acme.test/terms' }, ['Support', 'Privacy']],
+    [
+      'Privacy',
+      { privacy_url: 'https://acme.test/privacy' },
+      ['Support', 'Terms'],
+    ],
+  ])(
+    'shows %s alone when it is the only one set',
+    async (shown, info, hidden) => {
+      await openMenuWith(info)
+
+      expect(siteLink(shown)).not.toBeNull()
+      for (const label of hidden) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument()
+      }
+    }
+  )
+
+  it('keeps Settings and Sign out', async () => {
+    await openMenuWith({ support_url: 'https://acme.test/help' })
+
+    expect(screen.getByText('Settings')).toBeInTheDocument()
+    expect(screen.getByText('Sign out')).toBeInTheDocument()
+  })
 })

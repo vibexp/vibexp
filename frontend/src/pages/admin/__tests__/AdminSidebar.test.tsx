@@ -100,6 +100,25 @@ describe('AdminSidebar', () => {
     })
   })
 
+  // The admin area carries the product's mark like the main app (#1360).
+  describe('product mark in the footer', () => {
+    it('ends the admin sidebar with the VibeXP link', () => {
+      renderRail()
+
+      const link = screen.getByTestId('sidebar-product-mark').querySelector('a')
+      expect(link).toHaveAttribute('href', 'https://vibexp.io')
+      expect(link).toHaveAttribute('target', '_blank')
+    })
+
+    it('ends the admin drawer with the labelled VibeXP link', () => {
+      renderDrawer()
+
+      const link = screen.getByTestId('sidebar-product-mark').querySelector('a')
+      expect(link).toHaveAttribute('href', 'https://vibexp.io')
+      expect(link?.querySelector('span')).toHaveClass('inline')
+    })
+  })
+
   describe('active-route highlighting parity', () => {
     it('highlights Dashboard only on the exact /admin path', () => {
       renderRail('/admin')

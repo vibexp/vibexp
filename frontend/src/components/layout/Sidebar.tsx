@@ -4,6 +4,7 @@ import { NavLink, useLocation } from 'react-router'
 import { NAV_GROUPS, type NavItem } from '@/components/layout/nav-items'
 import { useShell } from '@/components/layout/ShellContext'
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
+import { SidebarProductMark } from '@/components/layout/SidebarProductMark'
 import { useNavLinkActive } from '@/components/layout/useNavLinkActive'
 import {
   Collapsible,
@@ -237,6 +238,7 @@ export function Sidebar() {
             ))}
           </nav>
         </ScrollArea>
+        <SidebarProductMark expanded={expanded} />
       </aside>
     </TooltipProvider>
   )
