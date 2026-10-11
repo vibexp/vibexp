@@ -28,6 +28,7 @@ import (
 //	| Update any resource (incl. others')      |  yes  |  yes  |  yes   |
 //	| Delete own resources                     |  yes  |  yes  |  yes   |
 //	| Delete others' resources                 |  yes  |  yes  |   no   |
+//	| Unlock a resource locked by someone else |  yes  |  yes  |   no   |
 //	| Feed posts/replies: delete anyone's      |  yes  |  yes  |   no   |
 var matrixSpec = []struct {
 	perm   Permission
@@ -50,6 +51,7 @@ var matrixSpec = []struct {
 	{ResourceUpdateAny, true, true, true},
 	{ResourceDeleteOwn, true, true, true},
 	{ResourceDeleteAny, true, true, false},
+	{ResourceUnlockAny, true, true, false},
 	{FeedItemDeleteAny, true, true, false},
 }
 
@@ -105,7 +107,7 @@ func TestRolePermissions_MatchesMatrixAndIsOrdered(t *testing.T) {
 				MemberInvite, MemberRemove, MemberRoleUpdate,
 				ProjectCreate, ProjectUpdate, ProjectDelete,
 				ResourceCreate, ResourceUpdateAny, ResourceDeleteOwn, ResourceDeleteAny,
-				FeedItemDeleteAny,
+				ResourceUnlockAny, FeedItemDeleteAny,
 			},
 		},
 		{
@@ -115,7 +117,7 @@ func TestRolePermissions_MatchesMatrixAndIsOrdered(t *testing.T) {
 				MemberInvite, MemberRemove, MemberRoleUpdate,
 				ProjectCreate, ProjectUpdate, ProjectDelete,
 				ResourceCreate, ResourceUpdateAny, ResourceDeleteOwn, ResourceDeleteAny,
-				FeedItemDeleteAny,
+				ResourceUnlockAny, FeedItemDeleteAny,
 			},
 		},
 		{

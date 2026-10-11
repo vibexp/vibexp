@@ -16,6 +16,9 @@ import "github.com/vibexp/vibexp/internal/models"
 //     including agents carrying encrypted credentials (decision D1).
 //   - Member has ResourceDeleteOwn but not ResourceDeleteAny, and no
 //     FeedItemDeleteAny: members delete only what they authored.
+//   - Member has no ResourceUnlockAny: a member releases only the locks they
+//     took themselves (the locker may always unlock their own, which needs no
+//     permission); releasing someone else's lock stays with owner and admin.
 //   - Member has no TeamSettingsUpdate: changing team-level configuration
 //     (e.g. search ranking) affects everyone in the team, so it stays with
 //     owner and admin.
@@ -39,6 +42,7 @@ var rolePermissions = map[models.TeamMemberRole]map[Permission]bool{
 		ResourceUpdateAny:  true,
 		ResourceDeleteOwn:  true,
 		ResourceDeleteAny:  true,
+		ResourceUnlockAny:  true,
 		FeedItemDeleteAny:  true,
 	},
 	models.TeamMemberRoleAdmin: {
@@ -54,6 +58,7 @@ var rolePermissions = map[models.TeamMemberRole]map[Permission]bool{
 		ResourceUpdateAny:  true,
 		ResourceDeleteOwn:  true,
 		ResourceDeleteAny:  true,
+		ResourceUnlockAny:  true,
 		FeedItemDeleteAny:  true,
 	},
 	models.TeamMemberRoleMember: {

@@ -48,6 +48,40 @@ func TestTeamService_GetTeam_PopulatesPermissionsForRole(t *testing.T) {
 	}
 }
 
+// TestTeamService_GetTeam_UnlockAnyReachesOwnerAndAdminOnly names the
+// resource.unlock.any wire string literally (#1287): the test above compares
+// against the matrix it is computed from, so it cannot tell whether the grant
+// reaches the payload under the published name.
+func TestTeamService_GetTeam_UnlockAnyReachesOwnerAndAdminOnly(t *testing.T) {
+	for role, granted := range map[models.TeamMemberRole]bool{
+		models.TeamMemberRoleOwner:  true,
+		models.TeamMemberRoleAdmin:  true,
+		models.TeamMemberRoleMember: false,
+	} {
+		t.Run(string(role), func(t *testing.T) {
+			teamRepo := mocks.NewMockTeamRepository(t)
+			memberRepo := mocks.NewMockTeamMemberRepository(t)
+			userRepo := mocks.NewMockUserRepository(t)
+
+			teamRepo.EXPECT().GetByID(mock.Anything, "team-456").
+				Return(&models.Team{ID: "team-456", OwnerID: "user-123", Name: "Team"}, nil).Once()
+			memberRepo.EXPECT().GetByTeamAndUser(mock.Anything, "team-456", "user-123").
+				Return(&models.TeamMember{TeamID: "team-456", UserID: "user-123", Role: role}, nil).Once()
+
+			svc := createTestTeamService(teamRepo, memberRepo, userRepo)
+
+			team, err := svc.GetTeam(context.Background(), "user-123", "team-456")
+
+			require.NoError(t, err)
+			if granted {
+				assert.Contains(t, []string(team.Permissions), "resource.unlock.any")
+			} else {
+				assert.NotContains(t, []string(team.Permissions), "resource.unlock.any")
+			}
+		})
+	}
+}
+
 // TestTeamService_GetTeam_MemberDoesNotReceiveAdminPermissions is the negative
 // half: it names the grants a member must never be handed, so a matrix-wiring
 // mistake fails loudly here rather than silently unlocking a client's UI.
@@ -70,7 +104,7 @@ func TestTeamService_GetTeam_MemberDoesNotReceiveAdminPermissions(t *testing.T) 
 		authz.TeamUpdate, authz.TeamDelete, authz.OwnershipTransfer,
 		authz.MemberInvite, authz.MemberRemove, authz.MemberRoleUpdate,
 		authz.ProjectCreate, authz.ProjectUpdate, authz.ProjectDelete,
-		authz.ResourceDeleteAny, authz.FeedItemDeleteAny,
+		authz.ResourceDeleteAny, authz.ResourceUnlockAny, authz.FeedItemDeleteAny,
 	} {
 		assert.NotContains(t, []string(team.Permissions), denied.String(),
 			"a member must not be granted %q", denied)
