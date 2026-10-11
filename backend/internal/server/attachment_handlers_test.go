@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
@@ -286,4 +287,47 @@ func TestHandleUploadArtifactAttachment_MissingFile(t *testing.T) {
 	srv.handleUploadArtifactAttachment(rr, req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+// A lock freezes an artifact's identity, not its attachments (#1289): adding
+// and removing one on a locked artifact stays allowed.
+func TestArtifactAttachments_LockedArtifactStillAcceptsUploadAndDelete(t *testing.T) {
+	locked := sampleArtifact()
+	locked.Lock = &models.ResourceLock{LockedBy: "user-locker", LockedByName: "Ada Lovelace", Comment: "in use"}
+	artifacts := servicesmocks.NewMockArtifactServiceInterface(t)
+	artifacts.On("GetArtifactByProjectIDAndSlugInTeam",
+		testAttachmentUser, testAttachmentTeamID, testAttachmentProjectID, testAttachmentSlug,
+	).Return(locked, nil)
+
+	attachments := servicesmocks.NewMockAttachmentServiceInterface(t)
+	attachments.On("Upload", mock.Anything, mock.AnythingOfType("services.UploadAttachmentParams")).
+		Return(sampleAttachment(), nil).Once()
+	attachments.On("Delete", mock.Anything, ownerTypeArtifact, testAttachmentArtifact, testAttachmentID).
+		Return(nil).Once()
+
+	srv := newAttachmentTestServer(&MockAttachmentContainer{
+		ArtifactServiceMock: artifacts, AttachmentServiceMock: attachments,
+	})
+	base := "/api/v1/" + testAttachmentTeamID + "/artifacts/" + testAttachmentProjectID +
+		"/" + testAttachmentSlug + "/attachments"
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", "notes.txt")
+	require.NoError(t, err)
+	_, err = part.Write([]byte("hello world!"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	upload := httptest.NewRequest(http.MethodPost, base, body)
+	upload.Header.Set("Content-Type", writer.FormDataContentType())
+	upload = upload.WithContext(context.WithValue(upload.Context(), contextKeyUserID, testAttachmentUser))
+	uploaded := httptest.NewRecorder()
+	srv.handleUploadArtifactAttachment(uploaded, attachmentURLParams(upload, false))
+	assert.Equal(t, http.StatusCreated, uploaded.Code, uploaded.Body.String())
+
+	remove := httptest.NewRequest(http.MethodDelete, base+"/"+testAttachmentID, nil)
+	remove = remove.WithContext(context.WithValue(remove.Context(), contextKeyUserID, testAttachmentUser))
+	removed := httptest.NewRecorder()
+	srv.handleDeleteArtifactAttachment(removed, attachmentURLParams(remove, true))
+	assert.Equal(t, http.StatusNoContent, removed.Code, removed.Body.String())
 }

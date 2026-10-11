@@ -75,6 +75,43 @@ func NewResourceNotLockedError(resourceType string) *APIError {
 	)
 }
 
+// ResourceWriteLock describes the lock that refused a write, for
+// NewResourceWriteLockedError.
+type ResourceWriteLock struct {
+	// ResourceType is "prompt", "blueprint" or "artifact".
+	ResourceType string
+	// Field is the frozen field the update tried to change. Empty for a delete.
+	Field string
+	// LockedByID and LockedByName identify the member holding the lock.
+	LockedByID   string
+	LockedByName string
+	// Comment is why the resource was locked.
+	Comment string
+}
+
+// NewResourceWriteLockedError reports a delete, or an update changing a frozen
+// field, refused because the resource is locked (#1289). The lock is carried in
+// the problem's metadata so a client can say who locked the resource and why
+// without parsing detail: resource_type, locked_by {user_id, display_name},
+// comment, and field when an update was refused.
+func NewResourceWriteLockedError(detail string, lock ResourceWriteLock) *APIError {
+	err := NewAPIError(
+		CodeResourceWriteLocked, GetErrorTitle(CodeResourceWriteLocked), detail, http.StatusLocked,
+	)
+	err.Metadata = map[string]any{
+		"resource_type": lock.ResourceType,
+		"locked_by": map[string]any{
+			"user_id":      lock.LockedByID,
+			"display_name": lock.LockedByName,
+		},
+		"comment": lock.Comment,
+	}
+	if lock.Field != "" {
+		err.Metadata["field"] = lock.Field
+	}
+	return err
+}
+
 // NewInternalError creates an internal server error
 func NewInternalError(detail string) *APIError {
 	if detail == "" {

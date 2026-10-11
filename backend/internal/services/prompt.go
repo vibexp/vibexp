@@ -387,6 +387,12 @@ func (s *PromptService) updatePromptInternal(
 		return nil, authzErr
 	}
 
+	// A locked prompt keeps its frozen fields (#1289). A restore reaches here
+	// with only the body set, so it stays allowed.
+	if lockErr := guardLockedPromptUpdate(existingPrompt, req); lockErr != nil {
+		return nil, lockErr
+	}
+
 	// The catalog is the PROMPT's team's, read off the loaded row rather than
 	// the caller-supplied id (#1266).
 	if statusErr := s.statuses.ValidateOptional(
@@ -653,6 +659,12 @@ func (s *PromptService) deleteFetchedPrompt(
 		authz.ResourceDeleteOwn, authz.ResourceDeleteAny,
 	); authzErr != nil {
 		return authzErr
+	}
+
+	// A locked prompt cannot be deleted by anyone, owners and admins included
+	// (#1289); it has to be unlocked first.
+	if lockErr := guardLockedDelete(models.RelationResourceTypePrompt, existingPrompt.Lock); lockErr != nil {
+		return lockErr
 	}
 
 	promptID := existingPrompt.ID

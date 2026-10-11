@@ -116,6 +116,9 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 	blueprint, err := s.container.BlueprintService().UpdateBlueprintByProjectIDAndSlugInTeam(
 		userID, teamID, decodedProjectID, decodedSlug, &req,
 	)
+	if writeResourceWriteLocked(w, r, err) {
+		return
+	}
 	if err != nil {
 		s.handleUpdateBlueprintError(w, userID, decodedProjectID, decodedSlug, err)
 		return
@@ -166,6 +169,9 @@ func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = s.container.BlueprintService().DeleteBlueprintByProjectIDAndSlug(userID, teamID, decodedProjectID, decodedSlug)
+	if writeResourceWriteLocked(w, r, err) {
+		return
+	}
 	if err != nil {
 		// Without this branch a denied delete would hit logHandlerError's
 		// unconditional 500 — it has no branching at all.

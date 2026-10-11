@@ -107,6 +107,9 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 	artifact, err := s.container.ArtifactService().UpdateArtifactByProjectIDAndSlugInTeam(
 		userID, teamID, decodedProjectID, decodedSlug, &req,
 	)
+	if writeResourceWriteLocked(w, r, err) {
+		return
+	}
 	if err != nil {
 		s.handleUpdateArtifactError(w, userID, decodedProjectID, decodedSlug, err)
 		return
@@ -174,7 +177,7 @@ func (s *Server) handleDeleteArtifact(w http.ResponseWriter, r *http.Request) {
 
 	err = s.container.ArtifactService().DeleteArtifactByProjectIDAndSlug(userID, teamID, decodedProjectID, decodedSlug)
 	if err != nil {
-		if s.writeArtifactDeleteDenial(w, userID, decodedSlug, err) {
+		if writeResourceWriteLocked(w, r, err) || s.writeArtifactDeleteDenial(w, userID, decodedSlug, err) {
 			return
 		}
 

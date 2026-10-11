@@ -495,6 +495,12 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 		return nil, authzErr
 	}
 
+	// A locked artifact keeps its frozen fields (#1289). A restore reaches here
+	// with only the content set, so it stays allowed.
+	if lockErr := guardLockedArtifactUpdate(artifact, req); lockErr != nil {
+		return nil, lockErr
+	}
+
 	// Reject an over-limit label list before anything else: the documented
 	// maxItems/maxLength are enforced nowhere else (issue #910).
 	if err := validateLabels(req.Labels); err != nil {
@@ -592,6 +598,12 @@ func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, teamID, proje
 		authz.ResourceDeleteOwn, authz.ResourceDeleteAny,
 	); authzErr != nil {
 		return authzErr
+	}
+
+	// A locked artifact cannot be deleted by anyone, owners and admins included
+	// (#1289); it has to be unlocked first.
+	if lockErr := guardLockedDelete(models.RelationResourceTypeArtifact, artifact.Lock); lockErr != nil {
+		return lockErr
 	}
 
 	err = s.repo.Delete(ctx, userID, artifact.TeamID, artifact.ID)

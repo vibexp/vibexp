@@ -369,6 +369,9 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	prompt, err := s.container.PromptService().UpdatePromptBySlug(userID, teamID, promptSlug, &req)
+	if writeResourceWriteLocked(w, r, err) {
+		return
+	}
 	if err != nil {
 		s.logger.With(
 			"service", serverLogServiceName,
@@ -683,6 +686,9 @@ func (s *Server) deletePromptAndEmbeddings(
 	prompt *models.Prompt,
 ) error {
 	err := s.container.PromptService().DeletePromptBySlug(userID, teamID, promptSlug)
+	if writeResourceWriteLocked(w, nil, err) {
+		return err
+	}
 	if err != nil {
 		// Denial before the string-matching chain (see handleCreatePrompt).
 		if stderrors.Is(err, services.ErrPermissionDenied) {

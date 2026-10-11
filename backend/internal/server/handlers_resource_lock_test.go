@@ -74,7 +74,11 @@ type lockFixture struct {
 	// expectList makes every list read answer with one resource carrying the
 	// given lock, and returns where the `Locked` filter it received is stored.
 	expectList func(lock *models.ResourceLock) **bool
-	request    func(method, path, body string) *http.Request
+	// expectUpdate and expectDelete queue one failing write on the resource
+	// service (#1289).
+	expectUpdate func(err error)
+	expectDelete func(err error)
+	request      func(method, path, body string) *http.Request
 }
 
 func (f *lockFixture) do(method, path, body string) (*http.Request, *httptest.ResponseRecorder) {
@@ -162,6 +166,13 @@ func promptLockFixture(t *testing.T) *lockFixture {
 			}, nil)
 		return &got
 	}
+	f.expectUpdate = func(err error) {
+		c.promptService.On("UpdatePromptBySlug", strictPrUserID, strictPrTeamID, strictPrSlug, mock.Anything).
+			Return(nil, err).Once()
+	}
+	f.expectDelete = func(err error) {
+		c.promptService.On("DeletePromptBySlug", strictPrUserID, strictPrTeamID, strictPrSlug).Return(err).Once()
+	}
 	f.install(t)
 	return f
 }
@@ -200,6 +211,14 @@ func blueprintLockFixture(t *testing.T) *lockFixture {
 			}, nil)
 		return &got
 	}
+	f.expectUpdate = func(err error) {
+		svc.On("UpdateBlueprintByProjectIDAndSlugInTeam",
+			strictBpUserID, strictBpTeamID, strictBpProject, strictBpSlug, mock.Anything).Return(nil, err).Once()
+	}
+	f.expectDelete = func(err error) {
+		svc.On("DeleteBlueprintByProjectIDAndSlug",
+			strictBpUserID, strictBpTeamID, strictBpProject, strictBpSlug).Return(err).Once()
+	}
 	f.install(t)
 	return f
 }
@@ -237,6 +256,14 @@ func artifactLockFixture(t *testing.T) *lockFixture {
 				Artifacts: []models.Artifact{*artifact}, TotalCount: 1, Page: 1, PerPage: 20, TotalPages: 1,
 			}, nil)
 		return &got
+	}
+	f.expectUpdate = func(err error) {
+		svc.On("UpdateArtifactByProjectIDAndSlugInTeam",
+			strictArtUserID, strictArtTeamID, strictArtProject, strictArtSlug, mock.Anything).Return(nil, err).Once()
+	}
+	f.expectDelete = func(err error) {
+		svc.On("DeleteArtifactByProjectIDAndSlug",
+			strictArtUserID, strictArtTeamID, strictArtProject, strictArtSlug).Return(err).Once()
 	}
 	f.install(t)
 	return f
