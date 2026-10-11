@@ -111,17 +111,17 @@ func TestArtifactRepository_ListSquirrel(t *testing.T) {
 			expectCount: 1,
 		},
 		{
-			name: "List search forces active status and adds ILIKE",
+			name: "List search excludes non-live statuses and adds ILIKE",
 			filters: repositories.ArtifactFilters{
 				TeamID: "team-123", Search: "alpha", Page: 1, Limit: 10,
 			},
 			setupMock: func(mock sqlmock.Sqlmock) {
-				args := append(artifactListBaseArgs(), "active", "%alpha%", "%alpha%", "%alpha%")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a .*a\.status = ` +
+				args := append(artifactListBaseArgs(), "draft", "archived", "%alpha%", "%alpha%", "%alpha%")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a .*a\.status NOT IN \(\$\d+,\$\d+\) ` +
 					`.*a\.title ILIKE .* OR a\.description ILIKE .* OR a\.content ILIKE`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM artifacts a .*a\.status = .*a\.title ILIKE`).
+				mock.ExpectQuery(`FROM artifacts a .*a\.status NOT IN \(\$\d+,\$\d+\) .*a\.title ILIKE`).
 					WithArgs(args...).
 					WillReturnRows(artifactListOneRow(now))
 			},
@@ -129,17 +129,18 @@ func TestArtifactRepository_ListSquirrel(t *testing.T) {
 			expectCount: 1,
 		},
 		{
-			name: "List search overrides an explicit status filter with active",
+			name: "List search overrides an explicit status filter with the live denylist",
 			filters: repositories.ArtifactFilters{
 				TeamID: "team-123", Status: ptr("draft"), Search: "alpha", Page: 1, Limit: 10,
 			},
 			setupMock: func(mock sqlmock.Sqlmock) {
-				// 'draft' is intentionally absent: search forces active-only.
-				args := append(artifactListBaseArgs(), "active", "%alpha%", "%alpha%", "%alpha%")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a .*a\.status = .*ILIKE`).
+				// The explicit 'draft' filter is dropped: search binds the non-live
+				// denylist (draft, archived) instead, so it can never surface drafts.
+				args := append(artifactListBaseArgs(), "draft", "archived", "%alpha%", "%alpha%", "%alpha%")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a .*a\.status NOT IN \(\$\d+,\$\d+\) .*ILIKE`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM artifacts a .*a\.status = .*ILIKE`).
+				mock.ExpectQuery(`FROM artifacts a .*a\.status NOT IN \(\$\d+,\$\d+\) .*ILIKE`).
 					WithArgs(args...).
 					WillReturnRows(artifactListOneRow(now))
 			},
@@ -147,20 +148,20 @@ func TestArtifactRepository_ListSquirrel(t *testing.T) {
 			expectCount: 1,
 		},
 		{
-			name: "List project and type filters combine with search-forced active",
+			name: "List project and type filters combine with the search live denylist",
 			filters: repositories.ArtifactFilters{
 				TeamID: "team-123", ProjectID: &projectID, Type: ptr("general"),
 				Search: "alpha", Page: 1, Limit: 10,
 			},
 			setupMock: func(mock sqlmock.Sqlmock) {
 				args := append(artifactListBaseArgs(),
-					"project-x", "general", "active", "%alpha%", "%alpha%", "%alpha%")
+					"project-x", "general", "draft", "archived", "%alpha%", "%alpha%", "%alpha%")
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a .*a\.project_id = .*a\.type = ` +
-					`.*a\.status = .*a\.title ILIKE .* OR a\.description ILIKE .* OR a\.content ILIKE`).
+					`.*a\.status NOT IN \(\$\d+,\$\d+\) .*a\.title ILIKE .* OR a\.description ILIKE .* OR a\.content ILIKE`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM artifacts a .*a\.project_id = .*a\.type = ` +
-					`.*a\.status = .*a\.title ILIKE`).
+					`.*a\.status NOT IN \(\$\d+,\$\d+\) .*a\.title ILIKE`).
 					WithArgs(args...).
 					WillReturnRows(artifactListOneRow(now))
 			},
@@ -295,7 +296,7 @@ func TestArtifactRepository_ListSquirrel(t *testing.T) {
 			expectCount: 1,
 		},
 		{
-			name: "ListCrossTeam project and type filters combine with search-forced active",
+			name: "ListCrossTeam project and type filters combine with the search live denylist",
 			filters: repositories.ArtifactFilters{
 				ProjectID: &projectID, Type: ptr("general"),
 				Search: "alpha", Page: 1, Limit: 10,
@@ -303,13 +304,13 @@ func TestArtifactRepository_ListSquirrel(t *testing.T) {
 			crossTeam: true,
 			setupMock: func(mock sqlmock.Sqlmock) {
 				args := append(artifactCrossTeamBaseArgs(),
-					"project-x", "general", "active", "%alpha%", "%alpha%", "%alpha%")
+					"project-x", "general", "draft", "archived", "%alpha%", "%alpha%", "%alpha%")
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a .*a\.project_id = .*a\.type = ` +
-					`.*a\.status = .*a\.title ILIKE .* OR a\.description ILIKE .* OR a\.content ILIKE`).
+					`.*a\.status NOT IN \(\$\d+,\$\d+\) .*a\.title ILIKE .* OR a\.description ILIKE .* OR a\.content ILIKE`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM artifacts a .*a\.project_id = .*a\.type = ` +
-					`.*a\.status = .*a\.title ILIKE`).
+					`.*a\.status NOT IN \(\$\d+,\$\d+\) .*a\.title ILIKE`).
 					WithArgs(args...).
 					WillReturnRows(artifactListOneRow(now))
 			},

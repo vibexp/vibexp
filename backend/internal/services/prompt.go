@@ -103,6 +103,11 @@ type PromptFilters struct {
 	SortOrder string
 	Page      int
 	Limit     int
+
+	// ExcludeStatuses drops prompts carrying any of the listed statuses; empty
+	// means no exclusion. It is not validated against the status catalog: it
+	// is set by the server itself (MCP prompt exposure), never from a request.
+	ExcludeStatuses []string
 }
 
 // publishPromptCreatedEvent publishes a prompt.created event with rendered body
@@ -311,6 +316,8 @@ func (s *PromptService) ListPrompts(userID string, filters PromptFilters) (*mode
 		SortOrder: filters.SortOrder,
 		Page:      filters.Page,
 		Limit:     filters.Limit,
+
+		ExcludeStatuses: filters.ExcludeStatuses,
 	}
 
 	prompts, totalCount, err := s.repo.List(ctx, userID, repoFilters)

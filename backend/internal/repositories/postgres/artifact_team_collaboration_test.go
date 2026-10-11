@@ -561,19 +561,19 @@ func TestArtifactRepository_ListCrossTeam_HonoursSearchFilter(t *testing.T) {
 		Limit:  20,
 	}
 
-	// squirrel binds userID 3× (one per EXISTS clause), then the search-forced
-	// active status, then the search term 3× (title/description/content ILIKE);
+	// squirrel binds userID 3× (one per EXISTS clause), then the two non-live
+	// statuses the search excludes, then the search term 3× (title/description/content ILIKE);
 	// LIMIT/OFFSET are literals.
 	countQuery := `SELECT COUNT\(\*\) FROM artifacts a WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(countQuery).
-		WithArgs(aliceUserID, aliceUserID, aliceUserID, "active", "%design%", "%design%", "%design%").
+		WithArgs(aliceUserID, aliceUserID, aliceUserID, "draft", "archived", "%design%", "%design%", "%design%").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
 		` a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
-		WithArgs(aliceUserID, aliceUserID, aliceUserID, "active", "%design%", "%design%", "%design%").
+		WithArgs(aliceUserID, aliceUserID, aliceUserID, "draft", "archived", "%design%", "%design%", "%design%").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"status", "type", "metadata", "created_at", "updated_at", "labels",

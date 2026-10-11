@@ -34,10 +34,11 @@ const (
 // validator every create, update and list path goes through.
 //
 // Subsets are deliberately NOT unified. A system status is only meaningful
-// where the resource type has semantics for it: `published` gates MCP exposure
-// and exists only for prompts, `expired` retires a blueprint whose rules no
-// longer apply. Widening one is a product decision -- it changes what the UI
-// must render and what every team gets by default -- not a spec tidy-up.
+// where the resource type has semantics for it: `published` is the counterpart
+// of a prompt's `draft` (which keeps it out of MCP) and exists only for
+// prompts, `expired` retires a blueprint whose rules no longer apply. Widening
+// one is a product decision -- it changes what the UI must render and what
+// every team gets by default -- not a spec tidy-up.
 var (
 	// ResourceStatuses is the full system vocabulary, and must stay the union
 	// of the four subsets below.
@@ -125,25 +126,39 @@ func DefaultStatusFor(resourceType string) string {
 	}
 }
 
+// NonLiveStatusesFor returns the system statuses that take a resource of the
+// given type out of the places live content is read (search, keyword lists,
+// MCP prompt exposure): `draft` and `archived` for an artifact or memory,
+// `draft` for a prompt, `expired` for a blueprint. It is nil for a type that
+// has no status catalog.
+//
+// This is the DENYLIST liveness is defined by, and the only definition: SQL
+// read paths build a `NOT IN` from it and IsLiveStatus tests membership in it,
+// so the two cannot disagree. Every value is a system status, so a team's
+// custom statuses are live by construction. The result is a copy.
+func NonLiveStatusesFor(resourceType string) []string {
+	switch resourceType {
+	case StatusResourceTypeArtifact, StatusResourceTypeMemory:
+		return []string{StatusDraft, StatusArchived}
+	case StatusResourceTypePrompt:
+		return []string{StatusDraft}
+	case StatusResourceTypeBlueprint:
+		return []string{StatusExpired}
+	default:
+		return nil
+	}
+}
+
 // IsLiveStatus reports whether a resource carrying status counts as live:
 // current, usable content, as opposed to work in progress or retired content.
 //
-// It is false ONLY for the non-live system statuses -- `draft` and `archived`
-// on an artifact or memory, `draft` on a prompt, `expired` on a blueprint --
-// and true for everything else. In particular every custom status is live:
-// a team that invents `in-review` has not asked for its resources to drop out
-// of the places live content is read. The function is total and does no
-// validation, so it also answers true for a status or resource type it has
-// never heard of; whether a status is ALLOWED is the catalog's question.
+// It is false ONLY for the non-live system statuses of the type
+// (NonLiveStatusesFor) and true for everything else. In particular every
+// custom status is live: a team that invents `in-review` has not asked for its
+// resources to drop out of the places live content is read. The function is
+// total and does no validation, so it also answers true for a status or
+// resource type it has never heard of; whether a status is ALLOWED is the
+// catalog's question.
 func IsLiveStatus(resourceType, status string) bool {
-	switch resourceType {
-	case StatusResourceTypeArtifact, StatusResourceTypeMemory:
-		return status != StatusDraft && status != StatusArchived
-	case StatusResourceTypePrompt:
-		return status != StatusDraft
-	case StatusResourceTypeBlueprint:
-		return status != StatusExpired
-	default:
-		return true
-	}
+	return !slices.Contains(NonLiveStatusesFor(resourceType), status)
 }

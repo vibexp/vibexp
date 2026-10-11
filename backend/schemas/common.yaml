@@ -145,8 +145,9 @@ SortOrderParam:
 # of its type.
 #
 # The system subsets are deliberately NOT unified: a system status is only
-# meaningful where the resource type has semantics for it (`published` gates a
-# prompt's MCP exposure, `expired` retires a blueprint).
+# meaningful where the resource type has semantics for it (`published` is the
+# counterpart of a prompt's `draft`, which keeps it out of MCP; `expired`
+# retires a blueprint).
 # ---------------------------------------------------------------------------
 
 ResourceStatus:
@@ -163,11 +164,11 @@ PromptStatus:
   type: string
   maxLength: 50
   description: >-
-    Status of a prompt. The system values are `draft` and `published`; a prompt
-    is only exposed over MCP once it is `published`. A team may define further
-    statuses of its own for prompts, so this is an open string: any other value
-    must be one of the team's custom prompt statuses, or the request is
-    rejected with 400.
+    Status of a prompt. The system values are `draft` and `published`; a
+    `draft` prompt is never exposed over MCP, while a prompt in any other
+    status is once `mcp_expose` is on. A team may define further statuses of
+    its own for prompts, so this is an open string: any other value must be one
+    of the team's custom prompt statuses, or the request is rejected with 400.
   example: "published"
 
 ArtifactStatus:

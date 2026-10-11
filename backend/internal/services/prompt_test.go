@@ -385,6 +385,29 @@ func TestPromptService_ListPrompts(t *testing.T) {
 			expectedLen: 1,
 		},
 		{
+			name:   "ExcludeStatuses and MCPExpose reach the repository unchanged",
+			userID: "user-123",
+			filters: PromptFilters{
+				ExcludeStatuses: []string{"draft"},
+				MCPExpose:       boolPtr(true),
+				Page:            1,
+				Limit:           20,
+			},
+			setup: func(mockRepo *mocks.MockPromptRepository) {
+				prompts := []models.Prompt{
+					{ID: "prompt-1", Name: "Prompt 1", UserID: "user-123", Status: "in-review", MCPExpose: true},
+				}
+				mockRepo.On("List", mock.AnythingOfType("context.backgroundCtx"), "user-123", repositories.PromptFilters{
+					ExcludeStatuses: []string{"draft"},
+					MCPExpose:       boolPtr(true),
+					Page:            1,
+					Limit:           20,
+				}).Return(prompts, 1, nil)
+			},
+			expectError: false,
+			expectedLen: 1,
+		},
+		{
 			name:   "Repository error",
 			userID: "user-123",
 			filters: PromptFilters{

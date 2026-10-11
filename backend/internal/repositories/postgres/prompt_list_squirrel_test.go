@@ -50,6 +50,7 @@ func TestPromptRepository_List_SquirrelMigration(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	isSharedTrue := true
+	mcpExposeTrue := true
 	projectID := "project-x"
 
 	oneRow := func() *sqlmock.Rows {
@@ -77,6 +78,24 @@ func TestPromptRepository_List_SquirrelMigration(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM prompts p .* ORDER BY p\.name ASC LIMIT 10 OFFSET 0`).
 					WithArgs(promptListBaseArgs()...).
+					WillReturnRows(oneRow())
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
+			name: "ExcludeStatuses renders a status denylist beside the mcp_expose filter",
+			filters: repositories.PromptFilters{
+				TeamID: "team-123", ExcludeStatuses: []string{"draft"}, MCPExpose: &mcpExposeTrue,
+				Page: 1, Limit: 10,
+			},
+			setupMock: func() {
+				args := append(promptListBaseArgs(), "draft", true)
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM prompts p .* AND p\.status NOT IN \(\$6\) AND p\.mcp_expose = \$7`).
+					WithArgs(args...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM prompts p .* AND p\.status NOT IN \(\$6\) AND p\.mcp_expose = \$7`).
+					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},
 			expectTotal: 1,

@@ -223,3 +223,34 @@ func TestAddTeamPromptsToMCP_LimitZeroRegistersNothing(t *testing.T) {
 	assert.Empty(t, registered)
 	mockPrompt.AssertNotCalled(t, "ListPrompts")
 }
+
+// TestAddTeamPromptsToMCP_AsksForLiveExposedPrompts pins the registration
+// query to "not a draft AND mcp_expose" (#1267) -- a denylist built from the
+// models package, with no status equality -- and proves a prompt in a team's
+// custom status that the query returns is registered as a primitive.
+func TestAddTeamPromptsToMCP_AsksForLiveExposedPrompts(t *testing.T) {
+	srv := newServerWithNullLogger(t)
+	mockPrompt := mocks.NewMockPromptServiceInterface(t)
+	srv.container = &TestContainer{PromptServiceMock: mockPrompt}
+
+	mockPrompt.On("ListPrompts", testMemberUserID,
+		mock.MatchedBy(func(f services.PromptFilters) bool {
+			return f.TeamID == testTeamUUID &&
+				f.Status == "" &&
+				assert.ObjectsAreEqual([]string{models.PromptStatusDraft}, f.ExcludeStatuses) &&
+				f.MCPExpose != nil && *f.MCPExpose
+		}),
+	).Return(&models.PromptListResponse{Prompts: []models.Prompt{
+		{Slug: "reviewing", Body: "x", TeamID: testTeamUUID, Status: "in-review", MCPExpose: true},
+		{Slug: "shipped", Body: "x", TeamID: testTeamUUID, Status: models.PromptStatusPublished, MCPExpose: true},
+	}}, nil).Once()
+	mockPrompt.On("ExtractAllPlaceholders", testTeamUUID, "x", mock.Anything).Return([]string{}, nil)
+
+	mcpServer := mcp.NewServer(&mcp.Implementation{Name: "t", Version: "1.0.0"}, &mcp.ServerOptions{HasPrompts: true})
+	registered := map[string]struct{}{}
+	n := srv.addTeamPromptsToMCP(mcpServer, testMemberUserID, testTeamUUID, testTeamSlug, registered, 10)
+
+	assert.Equal(t, 2, n)
+	assert.Contains(t, registered, "reviewing")
+	assert.Contains(t, registered, "shipped")
+}

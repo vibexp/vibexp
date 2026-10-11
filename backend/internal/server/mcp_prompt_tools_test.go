@@ -415,7 +415,7 @@ func TestRenderPrompt_StrictUnresolvedReferences(t *testing.T) {
 }
 
 // TestRenderPrompt_NotExposedRejected verifies render_prompt honors the same gate
-// as prompt primitives: a prompt that is not published+mcp_expose is refused, so
+// as prompt primitives: a prompt that is not live+mcp_expose is refused, so
 // mcp_expose=false keeps a prompt out of MCP even via an explicit slug.
 func TestRenderPrompt_NotExposedRejected(t *testing.T) {
 	srv, mockPromptService := newPromptTestServer(t)
@@ -428,6 +428,53 @@ func TestRenderPrompt_NotExposedRejected(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, result.IsError)
 	assert.Nil(t, structured)
-	assert.Contains(t, extractText(t, result), "must be published and MCP-exposed")
+	assert.Contains(t, extractText(t, result), "must not be a draft and must be MCP-exposed")
 	mockPromptService.AssertNotCalled(t, "RenderPrompt")
+}
+
+// TestRenderPrompt_LiveStatusGate pins the render gate to "live and
+// mcp_expose" (#1267): a prompt in a team's custom status renders exactly like
+// a published one, while a draft -- and any prompt with mcp_expose off, custom
+// status or not -- is refused before the render service is reached.
+func TestRenderPrompt_LiveStatusGate(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     string
+		mcpExpose  bool
+		wantRender bool
+	}{
+		{name: "published and exposed renders", status: "published", mcpExpose: true, wantRender: true},
+		{name: "custom status and exposed renders", status: "in-review", mcpExpose: true, wantRender: true},
+		{name: "draft and exposed is refused", status: "draft", mcpExpose: true},
+		{name: "custom status and not exposed is refused", status: "in-review", mcpExpose: false},
+		{name: "draft and not exposed is refused", status: "draft", mcpExpose: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv, mockPromptService := newPromptTestServer(t)
+			mockPromptService.On("GetPromptBySlug", testMemberUserID, testTeamUUID, "deploy").
+				Return(&models.Prompt{Slug: "deploy", Status: tt.status, MCPExpose: tt.mcpExpose}, nil)
+			if tt.wantRender {
+				mockPromptService.On("RenderPrompt", testMemberUserID, testTeamUUID, "deploy", mock.Anything,
+					services.RenderOptions{}).
+					Return(&models.RenderPromptResponse{RenderedBody: "rendered"}, nil)
+			}
+
+			params := &RenderPromptParams{TeamID: testTeamUUID, Slug: "deploy"}
+			result, _, err := srv.renderPrompt(context.Background(), nil, params, testMemberUserID)
+
+			assert.NoError(t, err)
+			if tt.wantRender {
+				assert.False(t, result.IsError)
+				assert.Equal(t, "rendered", extractText(t, result))
+				return
+			}
+			assert.True(t, result.IsError)
+			assert.Equal(t,
+				`prompt "deploy" is not available for rendering: `+
+					`it must not be a draft and must be MCP-exposed (mcp_expose=true)`,
+				extractText(t, result))
+			mockPromptService.AssertNotCalled(t, "RenderPrompt")
+		})
+	}
 }

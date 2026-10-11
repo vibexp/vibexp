@@ -263,7 +263,7 @@ func (m *MCPToolsManager) addPromptTools(mcpServer *mcp.Server, userID string) {
 
 	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name: "vibexp_io_render_prompt",
-		Description: "Render a published, MCP-exposed prompt by slug, substituting values for its " +
+		Description: "Render a live (not draft), MCP-exposed prompt by slug, substituting values for its " +
 			"{{placeholders}} and expanding its @prompt:slug references. Use this to run any of your team's " +
 			"prompts as a tool — including prompts not exposed as a slash-command primitive (only the most " +
 			"recent are). Set strict=true for unattended use: a bare @word then stays literal text and an " +

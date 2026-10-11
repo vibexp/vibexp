@@ -58,7 +58,7 @@ func (s *Server) extractPromptArguments(prompt *models.Prompt, userID string) []
 	return arguments
 }
 
-// addUserPromptsToMCP registers the authenticated user's published, MCP-exposed
+// addUserPromptsToMCP registers the authenticated user's live, MCP-exposed
 // prompts across all teams the user belongs to. Each prompt's render closure
 // captures its own team_id, so prompt rendering operates on a membership-validated
 // team without any per-call team parameter. Prompt names are disambiguated across
@@ -108,12 +108,14 @@ func (s *Server) addUserPromptsToMCP(ctx context.Context, mcpServer *mcp.Server,
 	).Info("Added user prompts to MCP server across teams")
 }
 
-// addTeamPromptsToMCP registers up to limit of one team's published, MCP-exposed
+// addTeamPromptsToMCP registers up to limit of one team's live, MCP-exposed
 // prompts (most-recently-updated first) as prompt primitives and returns the
-// number registered. The registered set tracks names already taken so cross-team
-// slug collisions are disambiguated with the team slug. limit is the remaining
-// per-user primitive budget (see maxPromptPrimitives); prompts beyond it stay
-// renderable via vibexp_io_render_prompt.
+// number registered. Live means "not a draft" (models.NonLiveStatusesFor), so a
+// prompt in one of the team's custom statuses is exposed like a published one.
+// The registered set tracks names already taken so cross-team slug collisions
+// are disambiguated with the team slug. limit is the remaining per-user
+// primitive budget (see maxPromptPrimitives); prompts beyond it stay renderable
+// via vibexp_io_render_prompt.
 func (s *Server) addTeamPromptsToMCP(
 	mcpServer *mcp.Server, userID, teamID, teamSlug string, registered map[string]struct{}, limit int,
 ) int {
@@ -123,7 +125,6 @@ func (s *Server) addTeamPromptsToMCP(
 
 	mcpExposeTrue := true
 	filters := services.PromptFilters{
-		Status:    "published",
 		MCPExpose: &mcpExposeTrue,
 		UserID:    userID,
 		TeamID:    teamID,
@@ -131,6 +132,8 @@ func (s *Server) addTeamPromptsToMCP(
 		SortOrder: "desc",
 		Page:      1,
 		Limit:     10000,
+
+		ExcludeStatuses: models.NonLiveStatusesFor(models.StatusResourceTypePrompt),
 	}
 
 	promptResponse, err := s.container.PromptService().ListPrompts(userID, filters)
