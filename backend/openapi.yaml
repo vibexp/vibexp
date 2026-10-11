@@ -1082,6 +1082,14 @@ components:
       $ref: "./schemas/admin.yaml#/AdminInstanceSearchSettings"
     AdminInstanceSearchSettingsUpdate:
       $ref: "./schemas/admin.yaml#/AdminInstanceSearchSettingsUpdate"
+    AdminSiteInfoValues:
+      $ref: "./schemas/admin.yaml#/AdminSiteInfoValues"
+    AdminSiteInfoLimits:
+      $ref: "./schemas/admin.yaml#/AdminSiteInfoLimits"
+    AdminSiteInfo:
+      $ref: "./schemas/admin.yaml#/AdminSiteInfo"
+    AdminSiteInfoUpdate:
+      $ref: "./schemas/admin.yaml#/AdminSiteInfoUpdate"
     AdminInstanceAISummaryStyle:
       $ref: "./schemas/admin.yaml#/AdminInstanceAISummaryStyle"
     AdminInstanceAISummaryValues:
@@ -1504,6 +1512,10 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-search"
   /api/v1/admin/settings/search/audit:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-search-audit"
+  /api/v1/admin/settings/site-info:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-site-info"
+  /api/v1/admin/settings/site-info/audit:
+    $ref: "./paths/admin.yaml#/api-v1-admin-settings-site-info-audit"
   /api/v1/admin/settings/ai-summary:
     $ref: "./paths/admin.yaml#/api-v1-admin-settings-ai-summary"
   /api/v1/admin/settings/ai-summary/audit:

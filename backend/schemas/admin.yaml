@@ -2759,7 +2759,8 @@ AdminInstanceSettingsAuditEntry:
     and `auth_setup` snapshots hold no credential (the setup token and its
     hash are never recorded). A snapshot of any of these four settings
     carries `source: cli` when the change was made by the `vibexp admin auth`
-    commands rather than through this API.
+    commands rather than through this API. The `site_info` snapshot is the
+    company branding values, which hold no credential.
   additionalProperties: false
   required:
     - id
@@ -2786,6 +2787,7 @@ AdminInstanceSettingsAuditEntry:
         - auth_allowlist
         - instance_admins
         - auth_setup
+        - site_info
       # Explicit constant names: generated clients emit every schema into one
       # package, so bare names risk colliding with another enum's values.
       x-enum-varnames:
@@ -2796,6 +2798,7 @@ AdminInstanceSettingsAuditEntry:
         - AdminInstanceSettingsAuditEntrySettingAuthAllowlist
         - AdminInstanceSettingsAuditEntrySettingInstanceAdmins
         - AdminInstanceSettingsAuditEntrySettingAuthSetup
+        - AdminInstanceSettingsAuditEntrySettingSiteInfo
       example: "email_provider"
     action:
       type: string
@@ -3051,6 +3054,203 @@ AdminInstanceSearchSettingsUpdate:
       format: int64
       minimum: 0
       nullable: true
+      description: |
+        The `version` the caller last read. Send `0` when that `version` was
+        null, to save only while nothing is stored. Omit it or send null for
+        last-write-wins. A negative value matches nothing and is a 409.
+
+AdminSiteInfoValues:
+  type: object
+  description: |
+    The instance's company branding. Every value is a string and every value is
+    optional: an empty string means "not configured", and the surface that
+    would show it is hidden. Each URL is an absolute `http` or `https` URL.
+  additionalProperties: false
+  required:
+    - company_name
+    - company_email
+    - website
+    - support_url
+    - terms_url
+    - privacy_url
+    - logo_url
+    - logo_dark_url
+  properties:
+    company_name:
+      type: string
+      maxLength: 120
+      description: The company name shown in the copyright line, the logo alt text and "Sign in to ...".
+      example: "Acme Inc."
+    company_email:
+      type: string
+      maxLength: 254
+      description: The company contact address; one bare email address. Used as the support link when `support_url` is empty.
+      example: "hello@acme.example.com"
+    website:
+      type: string
+      maxLength: 2048
+      description: The company website; the logo and name link to it.
+      example: "https://acme.example.com"
+    support_url:
+      type: string
+      maxLength: 2048
+      description: Where the Support link points.
+      example: "https://acme.example.com/help"
+    terms_url:
+      type: string
+      maxLength: 2048
+      description: The terms of service page.
+      example: "https://acme.example.com/terms"
+    privacy_url:
+      type: string
+      maxLength: 2048
+      description: The privacy policy page.
+      example: "https://acme.example.com/privacy"
+    logo_url:
+      type: string
+      maxLength: 2048
+      description: The company logo image.
+      example: "https://cdn.acme.example.com/logo.svg"
+    logo_dark_url:
+      type: string
+      maxLength: 2048
+      description: The dark-mode logo image; `logo_url` is used when it is empty.
+      example: "https://cdn.acme.example.com/logo-dark.svg"
+
+AdminSiteInfoLimits:
+  type: object
+  description: The longest value each kind of field accepts, in characters, for form validation.
+  additionalProperties: false
+  required:
+    - company_name_max_length
+    - company_email_max_length
+    - url_max_length
+  properties:
+    company_name_max_length:
+      type: integer
+      example: 120
+    company_email_max_length:
+      type: integer
+      example: 254
+    url_max_length:
+      type: integer
+      description: Applies to every URL value.
+      example: 2048
+
+AdminSiteInfo:
+  type: object
+  description: |
+    The instance's company branding as stored, the limits its values must
+    respect and the stored row's metadata. With nothing stored every value is
+    an empty string and the metadata fields are null.
+  additionalProperties: false
+  required:
+    - values
+    - limits
+    - updated_at
+    - updated_by_user_id
+    - updated_by_name
+    - version
+  properties:
+    values:
+      $ref: '#/AdminSiteInfoValues'
+    limits:
+      $ref: '#/AdminSiteInfoLimits'
+    updated_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the values were last stored; null when nothing is stored.
+    updated_by_user_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: |
+        The admin who last stored the values. Null when nothing is stored, or
+        once that user has been deleted.
+    updated_by_name:
+      type: string
+      nullable: true
+      description: That admin's display name (or email), when it could be resolved.
+    version:
+      type: integer
+      format: int64
+      nullable: true
+      description: |
+        The stored row's optimistic-lock version; null when nothing is stored.
+        Send it back as `expected_version` (`0` when it is null) to reject a
+        save that would overwrite someone else's change.
+      example: 4
+
+AdminSiteInfoUpdate:
+  type: object
+  description: |
+    A whole replacement of the instance's company branding. Every value is
+    required; send an empty string for one that is not configured. Values are
+    trimmed before they are validated and stored. `expected_version` is
+    optional and makes the save a compare-and-set:
+
+    - omitted or null: last-write-wins, never a conflict.
+    - `0`: nothing may be stored yet; the save is rejected with 409 when a row
+      is stored. Send it when the `version` last read was null.
+    - a positive value: the save is rejected with 409 unless it equals the
+      stored `version`, and also when nothing is stored.
+  additionalProperties: false
+  required:
+    - company_name
+    - company_email
+    - website
+    - support_url
+    - terms_url
+    - privacy_url
+    - logo_url
+    - logo_dark_url
+  properties:
+    company_name:
+      type: string
+      maxLength: 120
+      description: The company name shown in the copyright line, the logo alt text and "Sign in to ...".
+      example: "Acme Inc."
+    company_email:
+      type: string
+      maxLength: 254
+      description: The company contact address; one bare email address. Used as the support link when `support_url` is empty.
+      example: "hello@acme.example.com"
+    website:
+      type: string
+      maxLength: 2048
+      description: The company website; the logo and name link to it.
+      example: "https://acme.example.com"
+    support_url:
+      type: string
+      maxLength: 2048
+      description: Where the Support link points.
+      example: "https://acme.example.com/help"
+    terms_url:
+      type: string
+      maxLength: 2048
+      description: The terms of service page.
+      example: "https://acme.example.com/terms"
+    privacy_url:
+      type: string
+      maxLength: 2048
+      description: The privacy policy page.
+      example: "https://acme.example.com/privacy"
+    logo_url:
+      type: string
+      maxLength: 2048
+      description: The company logo image.
+      example: "https://cdn.acme.example.com/logo.svg"
+    logo_dark_url:
+      type: string
+      maxLength: 2048
+      description: The dark-mode logo image; `logo_url` is used when it is empty.
+      example: "https://cdn.acme.example.com/logo-dark.svg"
+    expected_version:
+      type: integer
+      format: int64
+      nullable: true
+      minimum: 0
       description: |
         The `version` the caller last read. Send `0` when that `version` was
         null, to save only while nothing is stored. Omit it or send null for

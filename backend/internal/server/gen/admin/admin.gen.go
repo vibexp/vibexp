@@ -215,6 +215,7 @@ const (
 	AdminInstanceSettingsAuditEntrySettingEmailProvider  AdminInstanceSettingsAuditEntrySetting = "email_provider"
 	AdminInstanceSettingsAuditEntrySettingInstanceAdmins AdminInstanceSettingsAuditEntrySetting = "instance_admins"
 	AdminInstanceSettingsAuditEntrySettingSearch         AdminInstanceSettingsAuditEntrySetting = "search"
+	AdminInstanceSettingsAuditEntrySettingSiteInfo       AdminInstanceSettingsAuditEntrySetting = "site_info"
 )
 
 // Valid indicates whether the value is a known member of the AdminInstanceSettingsAuditEntrySetting enum.
@@ -233,6 +234,8 @@ func (e AdminInstanceSettingsAuditEntrySetting) Valid() bool {
 	case AdminInstanceSettingsAuditEntrySettingInstanceAdmins:
 		return true
 	case AdminInstanceSettingsAuditEntrySettingSearch:
+		return true
+	case AdminInstanceSettingsAuditEntrySettingSiteInfo:
 		return true
 	default:
 		return false
@@ -2081,7 +2084,8 @@ type AdminInstanceSearchValues struct {
 // and `auth_setup` snapshots hold no credential (the setup token and its
 // hash are never recorded). A snapshot of any of these four settings
 // carries `source: cli` when the change was made by the `vibexp admin auth`
-// commands rather than through this API.
+// commands rather than through this API. The `site_info` snapshot is the
+// company branding values, which hold no credential.
 type AdminInstanceSettingsAuditEntry struct {
 	// Action `upsert` (created or replaced by an admin), `delete` (removed by an
 	// admin) or `import` (the boot-time import from config.yaml, which has no
@@ -2456,6 +2460,113 @@ type AdminSearchValues struct {
 	RankWeightRelevance   float64 `json:"rank_weight_relevance"`
 	RankWeightUpdated     float64 `json:"rank_weight_updated"`
 	RecencyRankingEnabled bool    `json:"recency_ranking_enabled"`
+}
+
+// AdminSiteInfo The instance's company branding as stored, the limits its values must
+// respect and the stored row's metadata. With nothing stored every value is
+// an empty string and the metadata fields are null.
+type AdminSiteInfo struct {
+	// Limits The longest value each kind of field accepts, in characters, for form validation.
+	Limits AdminSiteInfoLimits `json:"limits"`
+
+	// UpdatedAt When the values were last stored; null when nothing is stored.
+	UpdatedAt *time.Time `json:"updated_at"`
+
+	// UpdatedByName That admin's display name (or email), when it could be resolved.
+	UpdatedByName *string `json:"updated_by_name"`
+
+	// UpdatedByUserId The admin who last stored the values. Null when nothing is stored, or
+	// once that user has been deleted.
+	UpdatedByUserId *openapi_types.UUID `json:"updated_by_user_id"`
+
+	// Values The instance's company branding. Every value is a string and every value is
+	// optional: an empty string means "not configured", and the surface that
+	// would show it is hidden. Each URL is an absolute `http` or `https` URL.
+	Values AdminSiteInfoValues `json:"values"`
+
+	// Version The stored row's optimistic-lock version; null when nothing is stored.
+	// Send it back as `expected_version` (`0` when it is null) to reject a
+	// save that would overwrite someone else's change.
+	Version *int64 `json:"version"`
+}
+
+// AdminSiteInfoLimits The longest value each kind of field accepts, in characters, for form validation.
+type AdminSiteInfoLimits struct {
+	CompanyEmailMaxLength int `json:"company_email_max_length"`
+	CompanyNameMaxLength  int `json:"company_name_max_length"`
+
+	// UrlMaxLength Applies to every URL value.
+	UrlMaxLength int `json:"url_max_length"`
+}
+
+// AdminSiteInfoUpdate A whole replacement of the instance's company branding. Every value is
+// required; send an empty string for one that is not configured. Values are
+// trimmed before they are validated and stored. `expected_version` is
+// optional and makes the save a compare-and-set:
+//
+//   - omitted or null: last-write-wins, never a conflict.
+//   - `0`: nothing may be stored yet; the save is rejected with 409 when a row
+//     is stored. Send it when the `version` last read was null.
+//   - a positive value: the save is rejected with 409 unless it equals the
+//     stored `version`, and also when nothing is stored.
+type AdminSiteInfoUpdate struct {
+	// CompanyEmail The company contact address; one bare email address. Used as the support link when `support_url` is empty.
+	CompanyEmail string `json:"company_email"`
+
+	// CompanyName The company name shown in the copyright line, the logo alt text and "Sign in to ...".
+	CompanyName string `json:"company_name"`
+
+	// ExpectedVersion The `version` the caller last read. Send `0` when that `version` was
+	// null, to save only while nothing is stored. Omit it or send null for
+	// last-write-wins. A negative value matches nothing and is a 409.
+	ExpectedVersion *int64 `json:"expected_version,omitempty"`
+
+	// LogoDarkUrl The dark-mode logo image; `logo_url` is used when it is empty.
+	LogoDarkUrl string `json:"logo_dark_url"`
+
+	// LogoUrl The company logo image.
+	LogoUrl string `json:"logo_url"`
+
+	// PrivacyUrl The privacy policy page.
+	PrivacyUrl string `json:"privacy_url"`
+
+	// SupportUrl Where the Support link points.
+	SupportUrl string `json:"support_url"`
+
+	// TermsUrl The terms of service page.
+	TermsUrl string `json:"terms_url"`
+
+	// Website The company website; the logo and name link to it.
+	Website string `json:"website"`
+}
+
+// AdminSiteInfoValues The instance's company branding. Every value is a string and every value is
+// optional: an empty string means "not configured", and the surface that
+// would show it is hidden. Each URL is an absolute `http` or `https` URL.
+type AdminSiteInfoValues struct {
+	// CompanyEmail The company contact address; one bare email address. Used as the support link when `support_url` is empty.
+	CompanyEmail string `json:"company_email"`
+
+	// CompanyName The company name shown in the copyright line, the logo alt text and "Sign in to ...".
+	CompanyName string `json:"company_name"`
+
+	// LogoDarkUrl The dark-mode logo image; `logo_url` is used when it is empty.
+	LogoDarkUrl string `json:"logo_dark_url"`
+
+	// LogoUrl The company logo image.
+	LogoUrl string `json:"logo_url"`
+
+	// PrivacyUrl The privacy policy page.
+	PrivacyUrl string `json:"privacy_url"`
+
+	// SupportUrl Where the Support link points.
+	SupportUrl string `json:"support_url"`
+
+	// TermsUrl The terms of service page.
+	TermsUrl string `json:"terms_url"`
+
+	// Website The company website; the logo and name link to it.
+	Website string `json:"website"`
 }
 
 // AdminSourcePoint A count for one access source within one time bucket.
@@ -3594,6 +3705,15 @@ type ListAdminSearchSettingsAuditParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListAdminSiteInfoAuditParams defines parameters for ListAdminSiteInfoAudit.
+type ListAdminSiteInfoAuditParams struct {
+	// Cursor Opaque cursor from a previous page's `next_cursor`.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListAdminTeamsParams defines parameters for ListAdminTeams.
 type ListAdminTeamsParams struct {
 	// Page 1-based page number
@@ -4199,6 +4319,9 @@ type TestAdminInstanceEmailSettingsJSONRequestBody = AdminInstanceEmailTestReque
 // UpdateAdminSearchSettingsJSONRequestBody defines body for UpdateAdminSearchSettings for application/json ContentType.
 type UpdateAdminSearchSettingsJSONRequestBody = AdminInstanceSearchSettingsUpdate
 
+// UpdateAdminSiteInfoJSONRequestBody defines body for UpdateAdminSiteInfo for application/json ContentType.
+type UpdateAdminSiteInfoJSONRequestBody = AdminSiteInfoUpdate
+
 // CreateAdminUserJSONRequestBody defines body for CreateAdminUser for application/json ContentType.
 type CreateAdminUserJSONRequestBody = AdminUserCreateRequest
 
@@ -4318,6 +4441,18 @@ type ServerInterface interface {
 	// List the instance search ranking settings audit log
 	// (GET /api/v1/admin/settings/search/audit)
 	ListAdminSearchSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminSearchSettingsAuditParams)
+	// Reset the instance site info to "nothing configured"
+	// (DELETE /api/v1/admin/settings/site-info)
+	ResetAdminSiteInfo(w http.ResponseWriter, r *http.Request)
+	// Get the instance site info
+	// (GET /api/v1/admin/settings/site-info)
+	GetAdminSiteInfo(w http.ResponseWriter, r *http.Request)
+	// Replace the instance site info
+	// (PUT /api/v1/admin/settings/site-info)
+	UpdateAdminSiteInfo(w http.ResponseWriter, r *http.Request)
+	// List the instance site info audit log
+	// (GET /api/v1/admin/settings/site-info/audit)
+	ListAdminSiteInfoAudit(w http.ResponseWriter, r *http.Request, params ListAdminSiteInfoAuditParams)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(w http.ResponseWriter, r *http.Request)
@@ -4624,6 +4759,30 @@ func (_ Unimplemented) UpdateAdminSearchSettings(w http.ResponseWriter, r *http.
 // List the instance search ranking settings audit log
 // (GET /api/v1/admin/settings/search/audit)
 func (_ Unimplemented) ListAdminSearchSettingsAudit(w http.ResponseWriter, r *http.Request, params ListAdminSearchSettingsAuditParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Reset the instance site info to "nothing configured"
+// (DELETE /api/v1/admin/settings/site-info)
+func (_ Unimplemented) ResetAdminSiteInfo(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the instance site info
+// (GET /api/v1/admin/settings/site-info)
+func (_ Unimplemented) GetAdminSiteInfo(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace the instance site info
+// (PUT /api/v1/admin/settings/site-info)
+func (_ Unimplemented) UpdateAdminSiteInfo(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the instance site info audit log
+// (GET /api/v1/admin/settings/site-info/audit)
+func (_ Unimplemented) ListAdminSiteInfoAudit(w http.ResponseWriter, r *http.Request, params ListAdminSiteInfoAuditParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6648,6 +6807,126 @@ func (siw *ServerInterfaceWrapper) ListAdminSearchSettingsAudit(w http.ResponseW
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListAdminSearchSettingsAudit(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResetAdminSiteInfo operation middleware
+func (siw *ServerInterfaceWrapper) ResetAdminSiteInfo(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResetAdminSiteInfo(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminSiteInfo operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminSiteInfo(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminSiteInfo(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAdminSiteInfo operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminSiteInfo(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAdminSiteInfo(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminSiteInfoAudit operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminSiteInfoAudit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminSiteInfoAuditParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminSiteInfoAudit(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -9938,6 +10217,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/admin/settings/search/audit", wrapper.ListAdminSearchSettingsAudit)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/admin/settings/site-info", wrapper.ResetAdminSiteInfo)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/site-info", wrapper.GetAdminSiteInfo)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/admin/settings/site-info", wrapper.UpdateAdminSiteInfo)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/settings/site-info/audit", wrapper.ListAdminSiteInfoAudit)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/stats", wrapper.GetAdminStats)
 	})
 	r.Group(func(r chi.Router) {
@@ -12379,6 +12670,240 @@ func (response ListAdminSearchSettingsAudit500ApplicationProblemPlusJSONResponse
 	return err
 }
 
+type ResetAdminSiteInfoRequestObject struct {
+}
+
+type ResetAdminSiteInfoResponseObject interface {
+	VisitResetAdminSiteInfoResponse(w http.ResponseWriter) error
+}
+
+type ResetAdminSiteInfo204Response struct {
+}
+
+func (response ResetAdminSiteInfo204Response) VisitResetAdminSiteInfoResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ResetAdminSiteInfo404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetAdminSiteInfo404ApplicationProblemPlusJSONResponse) VisitResetAdminSiteInfoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetAdminSiteInfo500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ResetAdminSiteInfo500ApplicationProblemPlusJSONResponse) VisitResetAdminSiteInfoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSiteInfoRequestObject struct {
+}
+
+type GetAdminSiteInfoResponseObject interface {
+	VisitGetAdminSiteInfoResponse(w http.ResponseWriter) error
+}
+
+type GetAdminSiteInfo200JSONResponse AdminSiteInfo
+
+func (response GetAdminSiteInfo200JSONResponse) VisitGetAdminSiteInfoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSiteInfo404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminSiteInfo404ApplicationProblemPlusJSONResponse) VisitGetAdminSiteInfoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSiteInfo500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminSiteInfo500ApplicationProblemPlusJSONResponse) VisitGetAdminSiteInfoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminSiteInfoRequestObject struct {
+	Body *UpdateAdminSiteInfoJSONRequestBody
+}
+
+type UpdateAdminSiteInfoResponseObject interface {
+	VisitUpdateAdminSiteInfoResponse(w http.ResponseWriter) error
+}
+
+type UpdateAdminSiteInfo200JSONResponse AdminSiteInfo
+
+func (response UpdateAdminSiteInfo200JSONResponse) VisitUpdateAdminSiteInfoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminSiteInfo400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminSiteInfo400ApplicationProblemPlusJSONResponse) VisitUpdateAdminSiteInfoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminSiteInfo404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminSiteInfo404ApplicationProblemPlusJSONResponse) VisitUpdateAdminSiteInfoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminSiteInfo409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminSiteInfo409ApplicationProblemPlusJSONResponse) VisitUpdateAdminSiteInfoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminSiteInfo500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminSiteInfo500ApplicationProblemPlusJSONResponse) VisitUpdateAdminSiteInfoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminSiteInfoAuditRequestObject struct {
+	Params ListAdminSiteInfoAuditParams
+}
+
+type ListAdminSiteInfoAuditResponseObject interface {
+	VisitListAdminSiteInfoAuditResponse(w http.ResponseWriter) error
+}
+
+type ListAdminSiteInfoAudit200JSONResponse AdminInstanceSettingsAuditPage
+
+func (response ListAdminSiteInfoAudit200JSONResponse) VisitListAdminSiteInfoAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminSiteInfoAudit400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminSiteInfoAudit400ApplicationProblemPlusJSONResponse) VisitListAdminSiteInfoAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminSiteInfoAudit404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminSiteInfoAudit404ApplicationProblemPlusJSONResponse) VisitListAdminSiteInfoAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminSiteInfoAudit500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminSiteInfoAudit500ApplicationProblemPlusJSONResponse) VisitListAdminSiteInfoAuditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminStatsRequestObject struct {
 }
 
@@ -14251,6 +14776,18 @@ type StrictServerInterface interface {
 	// List the instance search ranking settings audit log
 	// (GET /api/v1/admin/settings/search/audit)
 	ListAdminSearchSettingsAudit(ctx context.Context, request ListAdminSearchSettingsAuditRequestObject) (ListAdminSearchSettingsAuditResponseObject, error)
+	// Reset the instance site info to "nothing configured"
+	// (DELETE /api/v1/admin/settings/site-info)
+	ResetAdminSiteInfo(ctx context.Context, request ResetAdminSiteInfoRequestObject) (ResetAdminSiteInfoResponseObject, error)
+	// Get the instance site info
+	// (GET /api/v1/admin/settings/site-info)
+	GetAdminSiteInfo(ctx context.Context, request GetAdminSiteInfoRequestObject) (GetAdminSiteInfoResponseObject, error)
+	// Replace the instance site info
+	// (PUT /api/v1/admin/settings/site-info)
+	UpdateAdminSiteInfo(ctx context.Context, request UpdateAdminSiteInfoRequestObject) (UpdateAdminSiteInfoResponseObject, error)
+	// List the instance site info audit log
+	// (GET /api/v1/admin/settings/site-info/audit)
+	ListAdminSiteInfoAudit(ctx context.Context, request ListAdminSiteInfoAuditRequestObject) (ListAdminSiteInfoAuditResponseObject, error)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(ctx context.Context, request GetAdminStatsRequestObject) (GetAdminStatsResponseObject, error)
@@ -15362,6 +15899,111 @@ func (sh *strictHandler) ListAdminSearchSettingsAudit(w http.ResponseWriter, r *
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAdminSearchSettingsAuditResponseObject); ok {
 		if err := validResponse.VisitListAdminSearchSettingsAuditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResetAdminSiteInfo operation middleware
+func (sh *strictHandler) ResetAdminSiteInfo(w http.ResponseWriter, r *http.Request) {
+	var request ResetAdminSiteInfoRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResetAdminSiteInfo(ctx, request.(ResetAdminSiteInfoRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResetAdminSiteInfo")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResetAdminSiteInfoResponseObject); ok {
+		if err := validResponse.VisitResetAdminSiteInfoResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminSiteInfo operation middleware
+func (sh *strictHandler) GetAdminSiteInfo(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminSiteInfoRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminSiteInfo(ctx, request.(GetAdminSiteInfoRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminSiteInfo")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminSiteInfoResponseObject); ok {
+		if err := validResponse.VisitGetAdminSiteInfoResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAdminSiteInfo operation middleware
+func (sh *strictHandler) UpdateAdminSiteInfo(w http.ResponseWriter, r *http.Request) {
+	var request UpdateAdminSiteInfoRequestObject
+
+	var body UpdateAdminSiteInfoJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAdminSiteInfo(ctx, request.(UpdateAdminSiteInfoRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAdminSiteInfo")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAdminSiteInfoResponseObject); ok {
+		if err := validResponse.VisitUpdateAdminSiteInfoResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminSiteInfoAudit operation middleware
+func (sh *strictHandler) ListAdminSiteInfoAudit(w http.ResponseWriter, r *http.Request, params ListAdminSiteInfoAuditParams) {
+	var request ListAdminSiteInfoAuditRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminSiteInfoAudit(ctx, request.(ListAdminSiteInfoAuditRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminSiteInfoAudit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminSiteInfoAuditResponseObject); ok {
+		if err := validResponse.VisitListAdminSiteInfoAuditResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

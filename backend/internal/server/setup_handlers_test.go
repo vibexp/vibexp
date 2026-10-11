@@ -410,6 +410,8 @@ func TestSetupSession_IsAnonymousEverywhereElse(t *testing.T) {
 		{http.MethodGet, "/api/v1/admin/dashboard/stats", http.StatusNotFound},
 		{http.MethodGet, "/api/v1/admin/settings/email", http.StatusNotFound},
 		{http.MethodPut, "/api/v1/admin/settings/search", http.StatusNotFound},
+		{http.MethodGet, "/api/v1/admin/settings/site-info", http.StatusNotFound},
+		{http.MethodPut, "/api/v1/admin/settings/site-info", http.StatusNotFound},
 		// User and team routes require a user: 401.
 		{http.MethodGet, "/api/v1/auth/me", http.StatusUnauthorized},
 		{http.MethodGet, "/api/v1/teams", http.StatusUnauthorized},

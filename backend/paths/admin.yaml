@@ -4325,6 +4325,186 @@ api-v1-admin-settings-search-audit:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
 
+api-v1-admin-settings-site-info:
+  get:
+    summary: Get the instance site info
+    description: |
+      Returns the instance's company branding (name, contact address, links and
+      logos), the length limits for form validation and the stored row's
+      `version`. Always 200: with nothing stored, every value is an empty
+      string and `version` is null.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: getAdminSiteInfo
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: The instance site info
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminSiteInfo'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  put:
+    summary: Replace the instance site info
+    description: |
+      Validates and stores a whole replacement of the instance's company
+      branding, taking effect on the next request with no restart, and appends
+      one entry (`action: upsert`) to the `site_info` audit log in the same
+      transaction. Values are trimmed; an empty string stores "not configured".
+      Pass `expected_version` to reject the save with 409 when someone else
+      changed the values since they were read. A body that omits a value
+      field, sends one as null, or carries an unknown field is rejected with
+      400.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: updateAdminSiteInfo
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AdminSiteInfoUpdate'
+    responses:
+      '200':
+        description: The stored site info
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminSiteInfo'
+      '400':
+        description: |
+          Bad request — a value is too long, a URL is not an absolute `http` or
+          `https` URL, or the email is not a single address
+          (`INSTANCE_SETTINGS_VALIDATION_FAILED`, with `validation_errors`
+          naming the offending field), or the body is malformed, omits or nulls
+          a value field (every value is required), or carries an unknown field
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict — `expected_version` does not match the stored version (`INSTANCE_SETTINGS_VERSION_CONFLICT`); nothing was changed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  delete:
+    summary: Reset the instance site info to "nothing configured"
+    description: |
+      Removes the stored company branding, so nothing is configured from the
+      next request, and appends one entry (`action: delete`) to the
+      `site_info` audit log. Idempotent: with nothing stored it is still a 204
+      and writes no audit entry.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: resetAdminSiteInfo
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '204':
+        description: Nothing is configured now
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-settings-site-info-audit:
+  get:
+    summary: List the instance site info audit log
+    description: |
+      Returns one page of the instance site info's audit log (setting
+      `site_info`), newest first, with each actor's display name resolved.
+      Pass the previous page's `next_cursor` to continue.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: listAdminSiteInfoAudit
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: cursor
+        in: query
+        description: Opaque cursor from a previous page's `next_cursor`.
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        description: Page size.
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: One page of audit entries, newest first
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminInstanceSettingsAuditPage'
+      '400':
+        description: Bad request — malformed cursor, or `limit` out of range
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
 api-v1-admin-settings-ai-summary:
   get:
     summary: Get the instance AI summary settings

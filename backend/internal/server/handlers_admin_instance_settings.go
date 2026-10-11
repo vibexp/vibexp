@@ -189,7 +189,8 @@ func (a *adminStrictServer) ListAdminAISummarySettingsAudit(
 func (a *adminStrictServer) mapInstanceSettingsError(handler, invalidMsg string, err error) error {
 	switch {
 	case errors.Is(err, services.ErrInvalidSearchSettings),
-		errors.Is(err, services.ErrInvalidInstanceAISummarySettings):
+		errors.Is(err, services.ErrInvalidInstanceAISummarySettings),
+		errors.Is(err, services.ErrInvalidSiteInfo):
 		return apierrors.NewInstanceSettingsValidationError(invalidMsg, instanceSettingsValidationErrors(err))
 	case errors.Is(err, repositories.ErrInstanceSettingsVersionConflict):
 		return apierrors.NewInstanceSettingsVersionConflictError()

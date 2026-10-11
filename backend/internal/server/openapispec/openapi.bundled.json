@@ -20687,6 +20687,258 @@
         }
       }
     },
+    "/api/v1/admin/settings/site-info": {
+      "get": {
+        "summary": "Get the instance site info",
+        "description": "Returns the instance's company branding (name, contact address, links and\nlogos), the length limits for form validation and the stored row's\n`version`. Always 200: with nothing stored, every value is an empty\nstring and `version` is null.\nInstance-admin only; non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "getAdminSiteInfo",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The instance site info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSiteInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace the instance site info",
+        "description": "Validates and stores a whole replacement of the instance's company\nbranding, taking effect on the next request with no restart, and appends\none entry (`action: upsert`) to the `site_info` audit log in the same\ntransaction. Values are trimmed; an empty string stores \"not configured\".\nPass `expected_version` to reject the save with 409 when someone else\nchanged the values since they were read. A body that omits a value\nfield, sends one as null, or carries an unknown field is rejected with\n400.\nInstance-admin only; non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "updateAdminSiteInfo",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminSiteInfoUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored site info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSiteInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — a value is too long, a URL is not an absolute `http` or\n`https` URL, or the email is not a single address\n(`INSTANCE_SETTINGS_VALIDATION_FAILED`, with `validation_errors`\nnaming the offending field), or the body is malformed, omits or nulls\na value field (every value is required), or carries an unknown field\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — `expected_version` does not match the stored version (`INSTANCE_SETTINGS_VERSION_CONFLICT`); nothing was changed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Reset the instance site info to \"nothing configured\"",
+        "description": "Removes the stored company branding, so nothing is configured from the\nnext request, and appends one entry (`action: delete`) to the\n`site_info` audit log. Idempotent: with nothing stored it is still a 204\nand writes no audit entry.\nInstance-admin only; non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "resetAdminSiteInfo",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Nothing is configured now"
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settings/site-info/audit": {
+      "get": {
+        "summary": "List the instance site info audit log",
+        "description": "Returns one page of the instance site info's audit log (setting\n`site_info`), newest first, with each actor's display name resolved.\nPass the previous page's `next_cursor` to continue.\nInstance-admin only; non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "listAdminSiteInfoAudit",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from a previous page's `next_cursor`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of audit entries, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInstanceSettingsAuditPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed cursor, or `limit` out of range",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/settings/ai-summary": {
       "get": {
         "summary": "Get the instance AI summary settings",
@@ -43862,7 +44114,7 @@
       },
       "AdminInstanceSettingsAuditEntry": {
         "type": "object",
-        "description": "One append-only change to an instance setting. `before` and `after` are\nsnapshots of the setting's values, filtered to that setting's allowlisted\nkeys, and never contain a credential. For `email_provider` they report\nonly `has_credential` and, on an upsert's `after`, a `secret` marker\nsaying whether the credential was `changed` or `unchanged`; the `search`\nand `ai_summary` snapshots are the settings' values, which hold no\ncredential. For `auth_providers` each entry is one provider, reporting\nonly `has_client_secret` and, on an upsert's `after`, a `client_secret`\nmarker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`\nand `auth_setup` snapshots hold no credential (the setup token and its\nhash are never recorded). A snapshot of any of these four settings\ncarries `source: cli` when the change was made by the `vibexp admin auth`\ncommands rather than through this API.\n",
+        "description": "One append-only change to an instance setting. `before` and `after` are\nsnapshots of the setting's values, filtered to that setting's allowlisted\nkeys, and never contain a credential. For `email_provider` they report\nonly `has_credential` and, on an upsert's `after`, a `secret` marker\nsaying whether the credential was `changed` or `unchanged`; the `search`\nand `ai_summary` snapshots are the settings' values, which hold no\ncredential. For `auth_providers` each entry is one provider, reporting\nonly `has_client_secret` and, on an upsert's `after`, a `client_secret`\nmarker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`\nand `auth_setup` snapshots hold no credential (the setup token and its\nhash are never recorded). A snapshot of any of these four settings\ncarries `source: cli` when the change was made by the `vibexp admin auth`\ncommands rather than through this API. The `site_info` snapshot is the\ncompany branding values, which hold no credential.\n",
         "additionalProperties": false,
         "required": [
           "id",
@@ -43890,7 +44142,8 @@
               "auth_providers",
               "auth_allowlist",
               "instance_admins",
-              "auth_setup"
+              "auth_setup",
+              "site_info"
             ],
             "x-enum-varnames": [
               "AdminInstanceSettingsAuditEntrySettingEmailProvider",
@@ -43899,7 +44152,8 @@
               "AdminInstanceSettingsAuditEntrySettingAuthProviders",
               "AdminInstanceSettingsAuditEntrySettingAuthAllowlist",
               "AdminInstanceSettingsAuditEntrySettingInstanceAdmins",
-              "AdminInstanceSettingsAuditEntrySettingAuthSetup"
+              "AdminInstanceSettingsAuditEntrySettingAuthSetup",
+              "AdminInstanceSettingsAuditEntrySettingSiteInfo"
             ],
             "example": "email_provider"
           },
@@ -44176,6 +44430,213 @@
             "format": "int64",
             "minimum": 0,
             "nullable": true,
+            "description": "The `version` the caller last read. Send `0` when that `version` was\nnull, to save only while nothing is stored. Omit it or send null for\nlast-write-wins. A negative value matches nothing and is a 409.\n"
+          }
+        }
+      },
+      "AdminSiteInfoValues": {
+        "type": "object",
+        "description": "The instance's company branding. Every value is a string and every value is\noptional: an empty string means \"not configured\", and the surface that\nwould show it is hidden. Each URL is an absolute `http` or `https` URL.\n",
+        "additionalProperties": false,
+        "required": [
+          "company_name",
+          "company_email",
+          "website",
+          "support_url",
+          "terms_url",
+          "privacy_url",
+          "logo_url",
+          "logo_dark_url"
+        ],
+        "properties": {
+          "company_name": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "The company name shown in the copyright line, the logo alt text and \"Sign in to ...\".",
+            "example": "Acme Inc."
+          },
+          "company_email": {
+            "type": "string",
+            "maxLength": 254,
+            "description": "The company contact address; one bare email address. Used as the support link when `support_url` is empty.",
+            "example": "hello@acme.example.com"
+          },
+          "website": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "The company website; the logo and name link to it.",
+            "example": "https://acme.example.com"
+          },
+          "support_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Where the Support link points.",
+            "example": "https://acme.example.com/help"
+          },
+          "terms_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "The terms of service page.",
+            "example": "https://acme.example.com/terms"
+          },
+          "privacy_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "The privacy policy page.",
+            "example": "https://acme.example.com/privacy"
+          },
+          "logo_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "The company logo image.",
+            "example": "https://cdn.acme.example.com/logo.svg"
+          },
+          "logo_dark_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "The dark-mode logo image; `logo_url` is used when it is empty.",
+            "example": "https://cdn.acme.example.com/logo-dark.svg"
+          }
+        }
+      },
+      "AdminSiteInfoLimits": {
+        "type": "object",
+        "description": "The longest value each kind of field accepts, in characters, for form validation.",
+        "additionalProperties": false,
+        "required": [
+          "company_name_max_length",
+          "company_email_max_length",
+          "url_max_length"
+        ],
+        "properties": {
+          "company_name_max_length": {
+            "type": "integer",
+            "example": 120
+          },
+          "company_email_max_length": {
+            "type": "integer",
+            "example": 254
+          },
+          "url_max_length": {
+            "type": "integer",
+            "description": "Applies to every URL value.",
+            "example": 2048
+          }
+        }
+      },
+      "AdminSiteInfo": {
+        "type": "object",
+        "description": "The instance's company branding as stored, the limits its values must\nrespect and the stored row's metadata. With nothing stored every value is\nan empty string and the metadata fields are null.\n",
+        "additionalProperties": false,
+        "required": [
+          "values",
+          "limits",
+          "updated_at",
+          "updated_by_user_id",
+          "updated_by_name",
+          "version"
+        ],
+        "properties": {
+          "values": {
+            "$ref": "#/components/schemas/AdminSiteInfoValues"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/AdminSiteInfoLimits"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the values were last stored; null when nothing is stored."
+          },
+          "updated_by_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The admin who last stored the values. Null when nothing is stored, or\nonce that user has been deleted.\n"
+          },
+          "updated_by_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "That admin's display name (or email), when it could be resolved."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "The stored row's optimistic-lock version; null when nothing is stored.\nSend it back as `expected_version` (`0` when it is null) to reject a\nsave that would overwrite someone else's change.\n",
+            "example": 4
+          }
+        }
+      },
+      "AdminSiteInfoUpdate": {
+        "type": "object",
+        "description": "A whole replacement of the instance's company branding. Every value is\nrequired; send an empty string for one that is not configured. Values are\ntrimmed before they are validated and stored. `expected_version` is\noptional and makes the save a compare-and-set:\n\n- omitted or null: last-write-wins, never a conflict.\n- `0`: nothing may be stored yet; the save is rejected with 409 when a row\n  is stored. Send it when the `version` last read was null.\n- a positive value: the save is rejected with 409 unless it equals the\n  stored `version`, and also when nothing is stored.\n",
+        "additionalProperties": false,
+        "required": [
+          "company_name",
+          "company_email",
+          "website",
+          "support_url",
+          "terms_url",
+          "privacy_url",
+          "logo_url",
+          "logo_dark_url"
+        ],
+        "properties": {
+          "company_name": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "The company name shown in the copyright line, the logo alt text and \"Sign in to ...\".",
+            "example": "Acme Inc."
+          },
+          "company_email": {
+            "type": "string",
+            "maxLength": 254,
+            "description": "The company contact address; one bare email address. Used as the support link when `support_url` is empty.",
+            "example": "hello@acme.example.com"
+          },
+          "website": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "The company website; the logo and name link to it.",
+            "example": "https://acme.example.com"
+          },
+          "support_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Where the Support link points.",
+            "example": "https://acme.example.com/help"
+          },
+          "terms_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "The terms of service page.",
+            "example": "https://acme.example.com/terms"
+          },
+          "privacy_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "The privacy policy page.",
+            "example": "https://acme.example.com/privacy"
+          },
+          "logo_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "The company logo image.",
+            "example": "https://cdn.acme.example.com/logo.svg"
+          },
+          "logo_dark_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "The dark-mode logo image; `logo_url` is used when it is empty.",
+            "example": "https://cdn.acme.example.com/logo-dark.svg"
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0,
             "description": "The `version` the caller last read. Send `0` when that `version` was\nnull, to save only while nothing is stored. Omit it or send null for\nlast-write-wins. A negative value matches nothing and is a 409.\n"
           }
         }
