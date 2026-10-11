@@ -106,6 +106,7 @@ export const promptDescriptor = defineResource({
     extensionPlacement: {
       'mcp-exposure': { section: 'details', row: 'mcp_expose' },
     },
+    frozenWhenLocked: ['slug', 'status', 'project_id', 'labels', 'mcp_expose'],
   },
   capabilities: {
     attachments: true,

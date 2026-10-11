@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
 
@@ -22,6 +22,7 @@ vi.mock('@/services/blueprintService', () => ({
   blueprintService: {
     getBlueprintVersions: vi.fn(),
     getBlueprint: vi.fn(),
+    updateBlueprint: vi.fn(),
   },
 }))
 
@@ -36,11 +37,14 @@ vi.mock('@/hooks', () => ({
   useAnalytics: () => ({ trackEvent: vi.fn() }),
 }))
 
+const mockHandleError = vi.hoisted(() => vi.fn())
 vi.mock('@/hooks/useErrorHandler', () => ({
-  useErrorHandler: () => ({ handleError: vi.fn() }),
+  useErrorHandler: () => ({ handleError: mockHandleError }),
 }))
 
+import type { ResourceFormReadingPageProps } from '@/components/patterns/resource'
 import { ResourceFormReadingPage } from '@/components/patterns/resource'
+import { lockedWriteError, TEST_LOCK } from '@/lib/testing/resourceLock'
 import { blueprintService } from '@/services/blueprintService'
 import { projectService } from '@/services/projectService'
 
@@ -246,5 +250,119 @@ describe('BlueprintEdit', () => {
       'my-project',
       'my-blueprint'
     )
+  })
+
+  // #1285: the fields a lock freezes are the form's business; the page's is to
+  // hand it the lock, and to find out about one taken after the page loaded.
+  describe('a locked blueprint', () => {
+    const lockedBlueprint: Blueprint = {
+      ...mockBlueprint,
+      status: 'archived',
+      lock: TEST_LOCK,
+    }
+
+    /** The props of the form's latest render. */
+    function formProps(): ResourceFormReadingPageProps {
+      const call = (ResourceFormReadingPage as Mock).mock.lastCall
+      return (call as [ResourceFormReadingPageProps])[0]
+    }
+
+    async function renderLoaded(loaded: Blueprint) {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValueOnce(loaded)
+      ;(blueprintService.getBlueprintVersions as Mock).mockResolvedValue({
+        versions: [],
+      })
+      renderBlueprintEdit()
+      await screen.findByTestId('blueprint-form')
+    }
+
+    it('hands the loaded lock to the form', async () => {
+      await renderLoaded(lockedBlueprint)
+
+      expect(formProps().lock).toEqual(TEST_LOCK)
+      // Nothing was refetched, so the loaded resource is the only record.
+      expect(formProps().record).toBeUndefined()
+    })
+
+    it('hands the form no lock for an unlocked blueprint', async () => {
+      await renderLoaded(mockBlueprint)
+
+      expect(formProps().lock).toBeNull()
+    })
+
+    it('refetches the lock when a save is refused, without re-seeding the form', async () => {
+      await renderLoaded(mockBlueprint)
+      const refused = lockedWriteError()
+      ;(blueprintService.updateBlueprint as Mock).mockRejectedValue(refused)
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValueOnce(
+        lockedBlueprint
+      )
+
+      await act(async () => {
+        await formProps().onSubmit({ title: 'Typed by hand' })
+      })
+
+      expect(mockHandleError).toHaveBeenCalledWith(
+        refused,
+        'Failed to update blueprint'
+      )
+      expect(blueprintService.getBlueprint).toHaveBeenCalledTimes(2)
+      expect(blueprintService.getBlueprint).toHaveBeenLastCalledWith(
+        'team-1',
+        'my-project',
+        'my-blueprint'
+      )
+      expect(formProps().lock).toEqual(TEST_LOCK)
+      // The refetch arrives as `record`, which only the frozen fields read…
+      expect(formProps().record).toBe(lockedBlueprint)
+      // …while the seed is still the object the page loaded: a new seed would
+      // reset the form and discard what the reader typed.
+      expect(formProps().initialValues).toBe(mockBlueprint)
+      // The page never went back to its loading state, which would have
+      // unmounted the form.
+      expect(screen.getByTestId('blueprint-form')).toBeInTheDocument()
+      expect(formProps().isLoading).toBe(false)
+    })
+
+    it('does not refetch when a save fails for any other reason', async () => {
+      await renderLoaded(mockBlueprint)
+      ;(blueprintService.updateBlueprint as Mock).mockRejectedValue(
+        new Error('offline')
+      )
+
+      await act(async () => {
+        await formProps().onSubmit({ title: 'Typed by hand' })
+      })
+
+      expect(mockHandleError).toHaveBeenCalled()
+      expect(blueprintService.getBlueprint).toHaveBeenCalledTimes(1)
+      expect(formProps().lock).toBeNull()
+      expect(formProps().record).toBeUndefined()
+    })
+
+    it('keeps the page as it was when the refetch itself fails', async () => {
+      await renderLoaded(mockBlueprint)
+      ;(blueprintService.updateBlueprint as Mock).mockRejectedValue(
+        lockedWriteError()
+      )
+      ;(blueprintService.getBlueprint as Mock).mockRejectedValueOnce(
+        new Error('offline')
+      )
+
+      await act(async () => {
+        await formProps().onSubmit({ title: 'Typed by hand' })
+      })
+
+      expect(blueprintService.getBlueprint).toHaveBeenCalledTimes(2)
+      expect(screen.getByTestId('blueprint-form')).toBeInTheDocument()
+      expect(formProps().lock).toBeNull()
+    })
   })
 })

@@ -16,6 +16,7 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useEditVersionHistory } from '@/hooks/useEditVersionHistory'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { useLockedWriteRefresh } from '@/hooks/useLockedWriteRefresh'
 import {
   requiredMetadataKeys,
   toBlueprintRequest,
@@ -73,6 +74,22 @@ export function BlueprintEdit() {
     void loadAll()
   }, [loadAll])
 
+  // A lock taken after this page loaded only shows up as a refused save; the
+  // refetch then brings the lock in without re-seeding the form.
+  const { lock, record, refreshOnLockedWrite } = useLockedWriteRefresh(
+    blueprint,
+    useCallback(() => {
+      if (!currentTeam || !blueprint) {
+        return Promise.reject(new Error('Blueprint is not loaded'))
+      }
+      return blueprintService.getBlueprint(
+        currentTeam.id,
+        blueprint.project_id,
+        blueprint.slug
+      )
+    }, [currentTeam, blueprint])
+  )
+
   const versionHistory = useEditVersionHistory(
     blueprint && {
       type: 'blueprint',
@@ -108,6 +125,7 @@ export function BlueprintEdit() {
       )
     } catch (err) {
       handleError(err, 'Failed to update blueprint')
+      await refreshOnLockedWrite(err)
     } finally {
       setUpdating(false)
     }
@@ -167,6 +185,8 @@ export function BlueprintEdit() {
       }
       onSubmit={handleSubmit}
       isLoading={updating}
+      lock={lock}
+      record={record}
       metadataRequiredKeys={requiredMetadataKeys(blueprint)}
       onCancel={() => {
         void navigate(

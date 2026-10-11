@@ -315,6 +315,21 @@ export interface ResourceFormSpec {
    * at the end of the Metadata section.
    */
   readonly extensionPlacement?: Readonly<Record<string, ExtensionPlacement>>
+  /**
+   * What a lock freezes on this kind (#1285), by the API's request field
+   * names: the fields an update may not change while the resource is locked.
+   * Name, description and body are never here — content stays editable under
+   * a lock, which is the point of one.
+   *
+   * A list on the form spec rather than a flag per field, because it is not
+   * only fields: a prompt's MCP exposure is a page extension, and a
+   * blueprint's `subtype` and `path` have no control at all. One list per kind
+   * also reads side by side with the server's, which it mirrors
+   * (`backend/internal/services/resource_lock_guard.go`). The server is the
+   * enforcement point; this only keeps the edit page from offering a change
+   * it would refuse.
+   */
+  readonly frozenWhenLocked?: readonly string[]
 }
 
 /**

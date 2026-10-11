@@ -2,6 +2,7 @@ import { renderHook } from '@testing-library/react'
 import { act } from 'react'
 import type { Mock, MockInstance } from 'vitest'
 
+import { lockedWriteError, TEST_LOCK } from '../../lib/testing/resourceLock'
 import { ApiError } from '../../types/errors'
 import { useErrorHandler } from '../useErrorHandler'
 
@@ -253,6 +254,54 @@ describe('useErrorHandler', () => {
 
         act(() => {
           result.current.handleError(forbiddenError())
+        })
+
+        expect(mockClearVibeXPData).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('writes refused by a resource lock', () => {
+      it('explains a refused update as a warning naming the field and the locker', () => {
+        const { result } = renderHook(() => useErrorHandler())
+
+        act(() => {
+          result.current.handleError(lockedWriteError())
+        })
+
+        expect(mockShowAlert).toHaveBeenCalledWith({
+          message:
+            'The status of this artifact cannot be changed: it is locked by Ada Lovelace ("Used by the nightly release agent"). Unlock it first.',
+          type: 'warning',
+        })
+        expect(mockShowAlert).toHaveBeenCalledTimes(1)
+      })
+
+      it('explains a refused delete, where the server names no field', () => {
+        const { result } = renderHook(() => useErrorHandler())
+
+        act(() => {
+          result.current.handleError(
+            lockedWriteError({
+              resource_type: 'prompt',
+              locked_by: TEST_LOCK.locked_by,
+              comment: TEST_LOCK.comment,
+            }),
+            'Failed to delete prompt'
+          )
+        })
+
+        expect(mockShowAlert).toHaveBeenCalledWith({
+          message:
+            'This prompt is locked by Ada Lovelace ("Used by the nightly release agent") and cannot be deleted until it is unlocked.',
+          type: 'warning',
+        })
+      })
+
+      it('does not log the user out', () => {
+        const { result } = renderHook(() => useErrorHandler())
+
+        act(() => {
+          result.current.handleError(lockedWriteError())
         })
 
         expect(mockClearVibeXPData).not.toHaveBeenCalled()

@@ -176,6 +176,19 @@ export const blueprintDescriptor = defineResource({
       labelsFormField('labels', 'blueprint-labels-input'),
       metadataFormField(),
     ],
+    // `subtype` and `path` have no control to disable, and the slug is already
+    // fixed after create; they are listed because the lock freezes them too,
+    // and the edit page's notice names every one.
+    frozenWhenLocked: [
+      'slug',
+      'status',
+      'type',
+      'subtype',
+      'project_id',
+      'labels',
+      'metadata',
+      'path',
+    ],
     // No extension slots. A sub-agents blueprint must carry a `model` metadata
     // key (enforced in internal/services/blueprint.go), but that is a rule ABOUT
     // the metadata control rather than a node beside it, so the page passes it

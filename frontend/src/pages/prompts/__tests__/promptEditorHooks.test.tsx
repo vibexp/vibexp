@@ -23,6 +23,7 @@ vi.mock('@/lib/toast', () => ({
   },
 }))
 
+import { lockedWriteError, TEST_LOCK } from '@/lib/testing/resourceLock'
 import { toast } from '@/lib/toast'
 import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
@@ -167,6 +168,64 @@ describe('usePromptSave', () => {
     expect(toast.error).toHaveBeenCalledWith('slug already taken')
     expect(trackEvent).not.toHaveBeenCalled()
     expect(result.current.saving).toBe(false)
+  })
+})
+
+describe('usePromptSave — a save refused by a lock', () => {
+  const trackEvent = vi.fn()
+
+  it('explains the lock as a warning and hands the error to the page', async () => {
+    const refused = lockedWriteError({
+      resource_type: 'prompt',
+      field: 'status',
+      locked_by: TEST_LOCK.locked_by,
+      comment: TEST_LOCK.comment,
+    })
+    ;(promptService.updatePrompt as Mock).mockRejectedValue(refused)
+    const onError = vi.fn()
+    const { result } = renderHook(() =>
+      usePromptSave({
+        teamId: 'team-1',
+        prompt: buildPrompt(),
+        trackEvent,
+        onError,
+      })
+    )
+
+    let saved: string | null = 'sentinel'
+    await act(async () => {
+      saved = await result.current.save(payload)
+    })
+
+    expect(saved).toBeNull()
+    expect(toast.warning).toHaveBeenCalledWith(
+      'The status of this prompt cannot be changed: it is locked by Ada Lovelace ("Used by the nightly release agent"). Unlock it first.'
+    )
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(onError).toHaveBeenCalledWith(refused)
+    expect(result.current.saving).toBe(false)
+  })
+
+  it('hands any other failure to the page too, after the usual error toast', async () => {
+    const failure = new Error('slug already taken')
+    ;(promptService.updatePrompt as Mock).mockRejectedValue(failure)
+    const onError = vi.fn()
+    const { result } = renderHook(() =>
+      usePromptSave({
+        teamId: 'team-1',
+        prompt: buildPrompt(),
+        trackEvent,
+        onError,
+      })
+    )
+
+    await act(async () => {
+      await result.current.save(payload)
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('slug already taken')
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(onError).toHaveBeenCalledWith(failure)
   })
 })
 

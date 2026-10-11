@@ -16,6 +16,7 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useEditVersionHistory } from '@/hooks/useEditVersionHistory'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { useLockedWriteRefresh } from '@/hooks/useLockedWriteRefresh'
 import { toArtifactRequest } from '@/pages/artifacts/artifactRequest'
 import type { Artifact } from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
@@ -70,6 +71,22 @@ export function ArtifactEdit() {
     void loadAll()
   }, [loadAll])
 
+  // A lock taken after this page loaded only shows up as a refused save; the
+  // refetch then brings the lock in without re-seeding the form.
+  const { lock, record, refreshOnLockedWrite } = useLockedWriteRefresh(
+    artifact,
+    useCallback(() => {
+      if (!currentTeam || !artifact) {
+        return Promise.reject(new Error('Artifact is not loaded'))
+      }
+      return artifactService.getArtifact(
+        currentTeam.id,
+        artifact.project_id,
+        artifact.slug
+      )
+    }, [currentTeam, artifact])
+  )
+
   const versionHistory = useEditVersionHistory(
     artifact && {
       type: 'artifact',
@@ -105,6 +122,7 @@ export function ArtifactEdit() {
       )
     } catch (err) {
       handleError(err, 'Failed to update artifact')
+      await refreshOnLockedWrite(err)
     } finally {
       setUpdating(false)
     }
@@ -167,6 +185,8 @@ export function ArtifactEdit() {
       }
       onSubmit={handleSubmit}
       isLoading={updating}
+      lock={lock}
+      record={record}
       onCancel={() => {
         void navigate(
           `/artifacts/${encodeURIComponent(artifact.project_id)}/${encodeURIComponent(artifact.slug)}`

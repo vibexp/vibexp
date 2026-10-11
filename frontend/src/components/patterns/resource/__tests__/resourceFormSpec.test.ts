@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import type { ResourceKindKey } from '../registry'
 import { getResourceDescriptor } from '../registry'
 import type { FormFieldSpec } from '../types'
-import { requestLimits } from './specYaml'
+import { blockOf, requestLimits, SCHEMA_DIR } from './specYaml'
 
 /**
  * A generated form's field bounds must not be laxer than the API's.
@@ -98,5 +101,68 @@ describe('resource form specs', () => {
     expect(() =>
       requestLimits('prompts.yaml', 'CreatePromptRequest', 'nonesuch')
     ).toThrow(/CreatePromptRequest.nonesuch not found/)
+  })
+})
+
+/**
+ * The fields a lock freezes on a kind, as the spec states them (#1285).
+ *
+ * The API documents them in prose — the "Frozen fields" sentence of
+ * `ResourceWriteLockedError`, one `; `-separated clause per kind, each ending
+ * "on a <kind>" — because they are a rule of the update operations, not a
+ * schema. Read from there rather than restated, so a field the server starts
+ * freezing turns this red instead of leaving an edit page offering a change the
+ * API refuses. Throws when the sentence or a kind's clause is not found: a
+ * reworded description must fail loudly, not compare against nothing.
+ */
+function frozenFieldsInSpec(kind: string): string[] {
+  const yaml = readFileSync(resolve(SCHEMA_DIR, 'common.yaml'), 'utf8')
+  const prose = blockOf(yaml, 'ResourceWriteLockedError').replace(/\s+/g, ' ')
+  const start = prose.indexOf('Frozen fields')
+  if (start === -1) {
+    throw new Error('ResourceWriteLockedError no longer lists "Frozen fields"')
+  }
+  const sentence = prose.slice(start, prose.indexOf('. ', start))
+  const clause = sentence
+    .split(';')
+    .find(part => new RegExp(`on an? ${kind}$`).test(part.trim()))
+  if (!clause) {
+    throw new Error(`No frozen-field clause for "${kind}" in the spec`)
+  }
+  return [...clause.matchAll(/`([a-z_]+)`/g)].map(match => match[1])
+}
+
+describe('resource form specs — fields frozen by a lock', () => {
+  it.each(['prompt', 'blueprint', 'artifact'] as const)(
+    'freezes exactly the fields the API freezes on a %s',
+    kind => {
+      const frozen = getResourceDescriptor(kind).form?.frozenWhenLocked ?? []
+      expect(frozen.length).toBeGreaterThan(0)
+      expect([...frozen].sort()).toEqual(frozenFieldsInSpec(kind).sort())
+    }
+  )
+
+  it('never freezes the content a lock leaves editable', () => {
+    for (const kind of ['prompt', 'blueprint', 'artifact'] as const) {
+      const descriptor = getResourceDescriptor(kind)
+      const content = descriptor.fields
+        .filter(field => ['name', 'summary', 'body'].includes(field.role))
+        .map(field => field.key)
+      expect(content).toHaveLength(3)
+      for (const key of content) {
+        expect(descriptor.form?.frozenWhenLocked).not.toContain(key)
+      }
+    }
+  })
+
+  it('declares nothing for a kind that cannot be locked', () => {
+    expect(getResourceDescriptor('memory').form).toBeDefined()
+    expect(
+      getResourceDescriptor('memory').form?.frozenWhenLocked
+    ).toBeUndefined()
+  })
+
+  it('throws for a kind the spec has no clause for', () => {
+    expect(() => frozenFieldsInSpec('memory')).toThrow(/No frozen-field clause/)
   })
 })

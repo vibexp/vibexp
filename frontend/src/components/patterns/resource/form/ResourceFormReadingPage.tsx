@@ -1,4 +1,4 @@
-import { Save, X } from 'lucide-react'
+import { Lock, Save, X } from 'lucide-react'
 import type { ReactNode, Ref } from 'react'
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 
@@ -16,8 +16,11 @@ import {
   RESOURCE_SECTION_CHROME,
   RESOURCE_SECTION_IDS,
 } from '@/components/resource-detail/resourceSections'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Form } from '@/components/ui/form'
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
+import type { ResourceLock } from '@/types/resourceLock'
+import { lockedFieldName } from '@/utils/lockedWrite'
 
 import { fieldOfRole } from '../fieldOfRole'
 import { ResourceMetadataSection } from '../ResourceMetadataSection'
@@ -132,6 +135,14 @@ export interface ResourceFormReadingPageProps {
   record?: Readonly<Record<string, unknown>>
   /** The Metadata section's Version row and history link, as on the reading page. */
   versionHistory?: VersionHistoryMeta
+  /**
+   * The lock on the resource being edited (#1285). While set, the fields the
+   * descriptor lists as `frozenWhenLocked` are disabled and a notice says who
+   * locked it and why. When the lock was fetched after the page loaded,
+   * pass that fetch as `record` too, so the frozen fields show — and submit —
+   * the values the server holds.
+   */
+  lock?: ResourceLock | null
 }
 
 /** A form value as display text; anything that is not a string reads as absent. */
@@ -164,6 +175,36 @@ function headingText(
   const nameKey = fieldOfRole(descriptor, 'name')?.key
   const name = nameKey ? valueOf(initialValues, nameKey).trim() : ''
   return name ? `${title}: ${name}` : title
+}
+
+const fieldList = new Intl.ListFormat('en', {
+  style: 'long',
+  type: 'conjunction',
+})
+
+/**
+ * Says who locked the resource, why, and what that freezes. In the article
+ * rather than the details column, so it is still on screen when the column is
+ * folded to its rail or, on a phone, closed in its sheet.
+ */
+function LockNotice({
+  descriptor,
+  lock,
+}: Readonly<{ descriptor: ResourceDescriptor; lock: ResourceLock }>) {
+  // Named as the 423 names them, so the notice and a refused save agree.
+  const frozen = (descriptor.form?.frozenWhenLocked ?? []).map(lockedFieldName)
+  return (
+    <Alert role="note" data-testid="resource-lock-notice">
+      <Lock className="size-4" aria-hidden="true" />
+      <AlertTitle>
+        Locked by {lock.locked_by.display_name}: {lock.comment}
+      </AlertTitle>
+      <AlertDescription>
+        Until this {descriptor.singular} is unlocked, these cannot be changed:{' '}
+        {fieldList.format(frozen)}. Everything else can still be edited.
+      </AlertDescription>
+    </Alert>
+  )
 }
 
 /**
@@ -240,6 +281,7 @@ export function ResourceFormReadingPage({
   resource,
   record,
   versionHistory,
+  lock,
 }: Readonly<ResourceFormReadingPageProps>) {
   const { isDesktop, detailsOpen, setDetailsOpen, setDetailsSheetOpen } =
     useShell()
@@ -283,6 +325,8 @@ export function ResourceFormReadingPage({
     renderBody,
     metadataRequiredKeys,
     metadataReservedKeys,
+    lock,
+    lockedValues: record,
     // Most fields live in the details column, and the column folds to a 48px
     // rail that renders none of them. A validation error the reader cannot
     // reach is one they cannot fix, so a failed submit reopens the column —
@@ -493,6 +537,9 @@ export function ResourceFormReadingPage({
           className="space-y-4"
           onSubmit={onFormSubmit}
         >
+          {lock && mode === 'edit' && (
+            <LockNotice descriptor={descriptor} lock={lock} />
+          )}
           {bodyNode}
         </form>
       </ReadingPage>
