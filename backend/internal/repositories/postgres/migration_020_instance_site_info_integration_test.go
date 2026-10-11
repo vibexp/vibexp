@@ -13,7 +13,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// Up/down round-trip for migration 028_instance_site_info (#1353), on its OWN
+// Up/down round-trip for migration 020_instance_site_info (#1353), on its OWN
 // scratch database: this test migrates DOWN, which would corrupt the shared
 // integrationDB.
 //
@@ -71,7 +71,7 @@ func validInstanceSiteInfoRow() map[string]any {
 	}
 }
 
-func TestMigration028_InstanceSiteInfo_UpDownRoundTrip(t *testing.T) {
+func TestMigration020_InstanceSiteInfo_UpDownRoundTrip(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
@@ -83,11 +83,11 @@ func TestMigration028_InstanceSiteInfo_UpDownRoundTrip(t *testing.T) {
 	}
 
 	// 1. The version immediately before this migration: nothing exists yet.
-	require.NoError(t, m.Migrate(27), "migrate to 027")
-	require.False(t, tableExists(t, db, table), "fixture: the table must not exist before 028")
+	require.NoError(t, m.Migrate(19), "migrate to 019")
+	require.False(t, tableExists(t, db, table), "fixture: the table must not exist before 020")
 
-	// 2. Apply 028.
-	require.NoError(t, m.Migrate(28), "migrate to 028")
+	// 2. Apply 020.
+	require.NoError(t, m.Migrate(20), "migrate to 020")
 
 	t.Run("it is a singleton", func(t *testing.T) {
 		assert.Equal(t, 0, countRows(t, db, "SELECT count(*) FROM "+table))
@@ -137,12 +137,12 @@ func TestMigration028_InstanceSiteInfo_UpDownRoundTrip(t *testing.T) {
 	// 3. Roll back with the table populated.
 	require.Equal(t, 1, countRows(t, db, "SELECT count(*) FROM "+table),
 		"fixture: the table must hold its row before rolling back")
-	require.NoError(t, m.Migrate(27), "migrate down to 027")
+	require.NoError(t, m.Migrate(19), "migrate down to 019")
 	assert.False(t, tableExists(t, db, table), "down must drop the populated table")
-	assert.True(t, tableExists(t, db, "instance_settings_audit"), "rolling back 028 must leave earlier migrations in place")
+	assert.True(t, tableExists(t, db, "instance_settings_audit"), "rolling back 020 must leave earlier migrations in place")
 
 	// 4. Re-apply: an operator who rolls back must be able to roll forward.
-	require.NoError(t, m.Migrate(28), "re-apply 028")
+	require.NoError(t, m.Migrate(20), "re-apply 020")
 	assert.Equal(t, 0, countRows(t, db, "SELECT count(*) FROM "+table), "the re-applied table starts empty")
 	require.NoError(t, insertInstanceSettingsRow(db, table, validInstanceSiteInfoRow(), nil),
 		"the re-applied table is usable")

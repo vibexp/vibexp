@@ -5,7 +5,7 @@ import "time"
 // Length caps for the instance site info values, counted in characters. They
 // live here, in the leaf models package, because they are shared by the service
 // validator (services.ValidateInstanceSiteInfo) and the instance_site_info
-// CHECK constraints (migration 028). Change them together.
+// CHECK constraints (migration 020). Change them together.
 const (
 	// MaxSiteInfoCompanyNameLength caps the company name.
 	MaxSiteInfoCompanyNameLength = 120

@@ -5,7 +5,7 @@
 -- hardcoded example.com fallbacks. This table is the storage that lets an
 -- instance admin edit them at runtime.
 --
--- It has the same singleton shape as instance_search_settings (022). Every
+-- It has the same singleton shape as instance_search_settings (019_consolidated). Every
 -- value is optional: NULL means "not configured", and the surface that would
 -- show it is hidden. No row means nothing is configured, so DELETE is the
 -- reset.
