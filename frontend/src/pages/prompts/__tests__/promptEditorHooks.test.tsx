@@ -32,6 +32,7 @@ import { useRenderPreview } from '../editor/useRenderPreview'
 
 function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
   return {
+    lock: null,
     id: 'prompt-1',
     name: 'My Prompt',
     slug: 'my-prompt',

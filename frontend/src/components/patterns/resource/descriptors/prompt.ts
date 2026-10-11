@@ -1,5 +1,10 @@
 import { defineResource } from '../defineResource'
-import { freshnessFilter, searchFilter, statusFilter } from '../filterSpecs'
+import {
+  freshnessFilter,
+  lockFilter,
+  searchFilter,
+  statusFilter,
+} from '../filterSpecs'
 import {
   bodyFormField,
   labelsFormField,
@@ -65,6 +70,7 @@ export const promptDescriptor = defineResource({
         testId: 'prompt-labels-filter',
       },
       freshnessFilter('prompt', 'prompts'),
+      lockFilter('prompt', 'prompts'),
     ],
     // Prompts are the one list whose endpoint accepts `status` as a sort field
     // (backend/paths/prompts.yaml: [name, status, updated_at, created_at]).

@@ -1,6 +1,7 @@
 import { defineResource } from '../defineResource'
 import {
   freshnessFilter,
+  lockFilter,
   metadataFilter,
   searchFilter,
   statusFilter,
@@ -76,6 +77,7 @@ export const artifactDescriptor = defineResource({
       },
       statusFilter('artifact'),
       freshnessFilter('artifact', 'artifacts'),
+      lockFilter('artifact', 'artifacts'),
       metadataFilter('artifacts'),
     ],
     // `status` is absent because the list endpoint's `sort_by` enum is

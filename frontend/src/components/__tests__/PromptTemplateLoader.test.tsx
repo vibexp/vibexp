@@ -45,6 +45,7 @@ import { PromptTemplateLoader } from '../PromptTemplateLoader'
 
 function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
   return {
+    lock: null,
     id: 'prompt-1',
     name: 'Code Review Template',
     slug: 'code-review-template',

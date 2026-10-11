@@ -47,6 +47,7 @@ import { projectService } from '@/services/projectService'
 import { BlueprintEdit } from '../BlueprintEdit'
 
 const mockBlueprint: Blueprint = {
+  lock: null,
   id: 'blueprint-1',
   project_id: 'my-project',
   project: null,

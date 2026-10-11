@@ -50,6 +50,7 @@ describe('createBlueprintVersionSource', () => {
   const backHref = `/blueprints/${projectId}/${slug}`
 
   const blueprint: Blueprint = {
+    lock: null,
     id: 'bp-1',
     project_id: projectId,
     project: null,
@@ -234,6 +235,7 @@ describe('createPromptVersionSource', () => {
   const backHref = `/prompts/${slug}`
 
   const prompt: Prompt = {
+    lock: null,
     id: 'prompt-1',
     name: 'My Prompt',
     slug,

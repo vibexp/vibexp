@@ -3,6 +3,7 @@ import { Eye, Pencil, Trash2 } from 'lucide-react'
 import type { NavigateFunction } from 'react-router'
 
 import { FreshnessBadge } from '@/components/FreshnessBadge'
+import { LockIndicator } from '@/components/LockIndicator'
 import {
   actionsColumn,
   columnList,
@@ -48,9 +49,13 @@ export function buildBlueprintsColumns({
       to: detailPath,
       navigate,
       summary: blueprint => blueprint.description,
-      // Renders nothing when the resource is fresh.
+      // Each renders nothing by itself: the badge when the resource is fresh,
+      // the icon when it is unlocked, so a plain row pays no layout for either.
       adornment: blueprint => (
-        <FreshnessBadge freshness={blueprint.freshness} />
+        <>
+          <FreshnessBadge freshness={blueprint.freshness} />
+          <LockIndicator lock={blueprint.lock} />
+        </>
       ),
     }),
     typeColumn<Blueprint>({
@@ -87,7 +92,9 @@ export function buildBlueprintsColumns({
           label: 'Delete',
           icon: Trash2,
           onSelect: onDelete,
-          visible: canDelete,
+          // A locked resource cannot be deleted by anyone, owners and admins
+          // included: the server answers 423, so the action is not offered.
+          visible: blueprint => canDelete(blueprint) && !blueprint.lock,
         },
       ],
     })

@@ -26,7 +26,11 @@ import type {
   MetadataResourceType,
 } from '@/services/metadataService'
 
-import { FILTER_ALL, FILTER_CONTROL_WIDTH } from './filterControls'
+import {
+  FILTER_ALL,
+  FILTER_CONTROL_WIDTH,
+  FILTER_LOCKED,
+} from './filterControls'
 
 /**
  * A resource list's filter bar, generated from `descriptor.list.filters`.
@@ -48,7 +52,7 @@ import { FILTER_ALL, FILTER_CONTROL_WIDTH } from './filterControls'
  * ## The value contract
  *
  * The bar reads and writes the RAW URL strings the hook holds:
- * {@link FILTER_ALL} for a cleared `select`/`freshness`, `''` for a cleared
+ * {@link FILTER_ALL} for a cleared `select`/`freshness`/`lock`, `''` for a cleared
  * `taxonomy`. Coercing a value to what the API accepts stays with the page,
  * which is where the allowlists are applied — a junk `?status=bogus` must be
  * dropped from the request rather than forwarded into a 400. For a status the
@@ -135,6 +139,14 @@ function SelectFilter({
     </Select>
   )
 }
+
+/**
+ * The lock filter's whole option set. The API also accepts `locked=false`, but
+ * "unlocked only" is not offered (#1292), so this is "all" plus one value.
+ */
+const LOCK_OPTIONS: SelectOption[] = [
+  { value: FILTER_LOCKED, label: 'Locked only' },
+]
 
 /**
  * Artifact types are the team's own registered types, so the option list is a
@@ -285,6 +297,17 @@ function ResourceFilterControl({
         }}
         ariaLabel={spec.label}
         testId={spec.testId}
+      />
+    )
+  }
+
+  if (spec.control === 'lock') {
+    return (
+      <SelectFilter
+        spec={spec}
+        value={value}
+        onChange={onChange}
+        options={LOCK_OPTIONS}
       />
     )
   }

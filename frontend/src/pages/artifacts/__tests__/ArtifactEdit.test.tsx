@@ -39,6 +39,7 @@ import { artifactService } from '@/services/artifactService'
 import { ArtifactEdit } from '../ArtifactEdit'
 
 const mockArtifact: Artifact = {
+  lock: null,
   id: 'artifact-1',
   project_id: 'my-project',
   project: null,

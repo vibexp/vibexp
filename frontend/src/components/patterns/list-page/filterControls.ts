@@ -19,3 +19,15 @@ export const FILTER_CONTROL_WIDTH = 'w-control-sm'
  * URL entirely (see `useUrlFilters`).
  */
 export const FILTER_ALL = 'all'
+
+/**
+ * The one value the lock filter carries when it is filtering (#1292): the URL
+ * reads `?locked=locked`, and the page turns it into the `locked=true` the API
+ * takes. Anything else in the URL is "not filtering".
+ */
+export const FILTER_LOCKED = 'locked'
+
+/** The `locked` request parameter for a raw URL value: `true` or omitted. */
+export function lockedParam(value: string): true | undefined {
+  return value === FILTER_LOCKED ? true : undefined
+}

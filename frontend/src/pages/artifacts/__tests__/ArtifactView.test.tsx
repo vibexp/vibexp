@@ -90,6 +90,7 @@ import { projectService } from '@/services/projectService'
 import { ArtifactView } from '../ArtifactView'
 
 const mockArtifact: Artifact = vi.hoisted(() => ({
+  lock: null,
   id: 'artifact-1',
   project_id: 'my-project',
   project: { id: 'my-project', name: 'My Project', slug: 'my-project-slug' },

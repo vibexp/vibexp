@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import type { ResourceKindKey } from '../registry'
 import { getResourceDescriptor } from '../registry'
 import type { FieldRole } from '../types'
-import { queryEnum, systemStatuses } from './specYaml'
+import { paramChunks, queryEnum, SPEC_DIR, systemStatuses } from './specYaml'
 
 /**
  * The descriptor's `list.sortable` becomes a `sort_by` value on the wire, and
@@ -72,6 +75,42 @@ describe('resource list specs', () => {
     expect(controls).toContain('search')
     expect(controls).toContain('freshness')
   })
+
+  // A filter's key IS the query parameter it drives, so one the list endpoint
+  // does not declare is a control that silently filters nothing.
+  it.each(KINDS)(
+    '%s only declares filters its list endpoint has a parameter for',
+    (kind, file) => {
+      const yaml = readFileSync(resolve(SPEC_DIR, file), 'utf8')
+      const declared = (getResourceDescriptor(kind).list?.filters ?? []).map(
+        filter => filter.key
+      )
+      expect(declared.length).toBeGreaterThan(0)
+      expect(
+        declared.filter(key => paramChunks(yaml, key).length === 0)
+      ).toEqual([])
+    }
+  )
+
+  // Lock state exists on prompts, blueprints and artifacts only (#1285), and
+  // the spec is what says so: a kind offers the filter exactly when its list
+  // endpoint takes a boolean `locked`. That keeps memories without one, and
+  // fails if a lockable kind loses its filter.
+  it.each(KINDS)(
+    '%s offers a lock filter exactly when its list endpoint takes `locked`',
+    (kind, file) => {
+      const yaml = readFileSync(resolve(SPEC_DIR, file), 'utf8')
+      const chunks = paramChunks(yaml, 'locked')
+      for (const chunk of chunks) expect(chunk).toContain('type: boolean')
+      const lock = (getResourceDescriptor(kind).list?.filters ?? []).filter(
+        filter => filter.control === 'lock'
+      )
+      expect(lock.map(filter => filter.key)).toEqual(
+        chunks.length > 0 ? ['locked'] : []
+      )
+      expect(chunks.length > 0).toBe(kind !== 'memory')
+    }
+  )
 
   // A descriptor's status/type values stopped being badge trivia in #908: they
   // are now ALSO the page's request guard, so a value the backend adds and the

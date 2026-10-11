@@ -166,6 +166,7 @@ import { Blueprints } from '../Blueprints'
 
 function buildBlueprint(overrides: Partial<Blueprint> = {}): Blueprint {
   return {
+    lock: null,
     id: 'blueprint-1',
     project_id: 'proj-1',
     project: null,
@@ -409,7 +410,7 @@ describe('Blueprints page', () => {
       })
       expect(
         screen.getByText(
-          'Try different search, type, status or metadata settings.'
+          'Try different search, type, status, lock or metadata settings.'
         )
       ).toBeInTheDocument()
     })
@@ -1269,5 +1270,134 @@ describe('Blueprints page — custom statuses (#1263)', () => {
 
     const table = await screen.findByRole('table')
     expect(within(table).getByText('in-review')).toHaveClass('bg-muted')
+  })
+})
+
+describe('Blueprints page — lock state (#1292)', () => {
+  const lock = {
+    locked_by: { user_id: 'user-2', display_name: 'Ada Lovelace' },
+    comment: 'Used by the nightly release agent',
+    locked_at: '2026-10-11T10:15:30Z',
+  }
+  const lockedAndOpen = () =>
+    buildListResponse([
+      buildBlueprint({ id: 'b-1', title: 'Locked Blueprint', slug: 'l', lock }),
+      buildBlueprint({ id: 'b-2', title: 'Open Blueprint', slug: 'o' }),
+    ])
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions(['resource.delete.any'])
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
+      buildListResponse([])
+    )
+    ;(metadataService.listKeys as Mock).mockResolvedValue({
+      keys: [],
+      truncated: false,
+    })
+    ;(metadataService.listValues as Mock).mockResolvedValue({
+      values: [],
+      truncated: false,
+    })
+  })
+
+  it('shows the lock icon, naming the locker, on a locked row only', async () => {
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValue(lockedAndOpen())
+    renderBlueprints()
+
+    await screen.findByText('Locked Blueprint')
+    expect(
+      within(rowOf('Locked Blueprint')).getByRole('img', {
+        name: 'Locked by Ada Lovelace',
+      })
+    ).toBeInTheDocument()
+    expect(
+      within(rowOf('Open Blueprint')).queryByTestId('lock-indicator')
+    ).not.toBeInTheDocument()
+  })
+
+  it('offers no Delete on a locked row, even with resource.delete.any', async () => {
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValue(lockedAndOpen())
+    renderBlueprints()
+
+    await screen.findByText('Locked Blueprint')
+    const lockedRow = within(rowOf('Locked Blueprint'))
+    expect(lockedRow.queryByLabelText('Delete')).not.toBeInTheDocument()
+    // The other row actions are untouched, and so is an unlocked row's Delete.
+    expect(lockedRow.getByLabelText('Edit')).toBeInTheDocument()
+    expect(
+      within(rowOf('Open Blueprint')).getByLabelText('Delete')
+    ).toBeInTheDocument()
+  })
+
+  it('sends no locked param by default', async () => {
+    renderBlueprints()
+
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalled()
+    })
+    expect(lastQuery().locked).toBeUndefined()
+    expect(currentSearch).toBe('')
+  })
+
+  it('picking "Locked only" writes the URL and refetches from page 1', async () => {
+    renderBlueprints('/blueprints?page=3')
+    await waitFor(() => {
+      expect(lastQuery().page).toBe(3)
+    })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Locked only' }))
+
+    await waitFor(() => {
+      expect(lastQuery().locked).toBe(true)
+    })
+    expect(lastQuery().page).toBe(1)
+    expect(currentSearch).toContain('locked=locked')
+  })
+
+  it('drops a junk locked value rather than forwarding it', async () => {
+    renderBlueprints('/blueprints?locked=bogus')
+
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalled()
+    })
+    expect(lastQuery().locked).toBeUndefined()
+  })
+
+  it('keeps the filter in the request and the URL across pagination', async () => {
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValue({
+      ...buildListResponse([buildBlueprint({ lock })]),
+      total_count: 25,
+      total_pages: 2,
+    })
+    renderBlueprints('/blueprints?locked=locked')
+    await screen.findByText('API Specification')
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+
+    await waitFor(() => {
+      expect(lastQuery().page).toBe(2)
+    })
+    expect(lastQuery().locked).toBe(true)
+    expect(currentSearch).toContain('locked=locked')
+    expect(currentSearch).toContain('page=2')
+  })
+
+  it('counts as an active filter, and Clear filters drops it', async () => {
+    renderBlueprints('/blueprints?locked=locked')
+    await screen.findByText('No blueprints match your filters')
+
+    const user = userEvent.setup()
+    const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
+    await user.click(clear)
+
+    await waitFor(() => {
+      expect(lastQuery().locked).toBeUndefined()
+    })
+    expect(currentSearch).not.toContain('locked')
   })
 })

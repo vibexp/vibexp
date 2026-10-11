@@ -56,6 +56,7 @@ import { PromptVersions } from '../PromptVersions'
 
 function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
   return {
+    lock: null,
     id: 'prompt-1',
     name: 'My Prompt',
     slug: 'my-prompt',

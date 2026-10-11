@@ -16,7 +16,12 @@ export {
   typeColumn,
   updatedColumn,
 } from './columns'
-export { FILTER_ALL, FILTER_CONTROL_WIDTH } from './filterControls'
+export {
+  FILTER_ALL,
+  FILTER_CONTROL_WIDTH,
+  FILTER_LOCKED,
+  lockedParam,
+} from './filterControls'
 export { ListPage } from './ListPage'
 export { ListTable } from './ListTable'
 export {

@@ -21,7 +21,7 @@ export interface NameColumnOptions<T> {
   navigate?: (to: string) => unknown
   /** One-line description under the name. Falsy renders nothing. */
   summary?: (row: T) => string | null | undefined
-  /** Per-resource cell rendered beside the name — today only `<FreshnessBadge>`. */
+  /** Per-resource cell rendered beside the name: `<FreshnessBadge>`, `<LockIndicator>`. */
   adornment?: (row: T) => ReactNode
   /** Width override for the cell (`max-w-md` by default). */
   className?: string
