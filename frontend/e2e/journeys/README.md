@@ -20,8 +20,47 @@ e2e/journeys/
 ├── admin-auth-settings.journey.spec.ts      # Admin → Settings → Authentication + first-run /setup
 ├── custom-statuses.journey.spec.ts          # Custom status: create, apply, search, filter, delete
 ├── resource-locking.journey.spec.ts         # Lock, enforcement and unlock across three users
+├── site-info.journey.spec.ts                # Company branding: sign-in, app shell, VibeXP footer mark
 └── README.md                                # This file
 ```
+
+## Site info branding (`site-info.journey.spec.ts`)
+
+The ship gate for epic #1352. As the instance admin it stores company branding
+(name, contact address, links, logo), then checks it where people meet it: the
+sign-in page in a signed-out browser (logo, "Sign in to …", the legal line,
+copyright, support link, "Powered by VibeXP"), and the app shell in the admin's
+own session (sidebar brand, the user menu's Support / Terms / Privacy links,
+the tab title). It then clears the terms and privacy URLs and sees the legal
+line leave the sign-in page.
+
+Three of its assertions are the reason this is an e2e at all:
+
+- **The whole chain.** The values travel database → `/config.js`
+  (`window.__VIBEXP_SITE_INFO__`) → `SiteInfoProvider` → page. `useSiteInfo`
+  answers "nothing configured" outside a provider on purpose, so the unit suite
+  stays green if the provider is ever unmounted from `App.tsx`; this journey is
+  what turns red.
+- **The logo really loads.** A logo that fails to load falls back to the VibeXP
+  mark, so the journey checks `naturalWidth`, not just that an `<img>` exists.
+- **The footer mark's tooltip is anchored on the mark.** jsdom cannot see where
+  a bubble lands (#891). The expected position comes from the mark's own box,
+  never from a constant. Wrapping the mark's `<a>` in a `display: contents`
+  span turns this test red.
+
+The legal-line check has a positive beside it: the heading still names the
+company on the same page, so the missing line is about the two URLs and not
+about a page that failed to brand.
+
+**The singleton.** Site info is one row shared by every spec in the run, and
+there is no admin page for it yet (#1358), so the journey reads and writes it
+through the admin API. It records what it found and restores exactly that in
+`afterAll` (the stored values, or a reset when nothing was stored). The
+company name is derived per attempt, so a retry cannot match a previous
+attempt's state. No other spec asserts on the brand text.
+
+The logo is the instance's own bundled `/logo_rounded.png`, addressed
+absolutely from the base URL, so the journey depends on no external host.
 
 ## Resource locking (`resource-locking.journey.spec.ts`)
 
