@@ -98,7 +98,9 @@ Prompt:
       nullable: true
       description: >-
         The lock held on this resource (epic #1285), or null when it is not
-        locked. Present on every read, list and write response.
+        locked. Present on every read, list and write response. Always null
+        on a prompt read through a share link: lock state is internal to the
+        team.
   required:
     - id
     - name

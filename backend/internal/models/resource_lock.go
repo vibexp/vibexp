@@ -30,6 +30,9 @@ type ResourceLock struct {
 	LockedAt time.Time `json:"locked_at"`
 }
 
+// The type is marshal-only: it defines no UnmarshalJSON, so decoding a
+// response body into a model does not restore LockedBy or LockedByName.
+//
 // MarshalJSON renders the lock in the shape the spec's ResourceLock schema
 // publishes, with the locker as a nested {user_id, display_name} object. The
 // resource handlers that still marshal models.* directly (create, update,

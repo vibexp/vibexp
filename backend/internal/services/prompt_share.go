@@ -274,6 +274,13 @@ func (s *PromptShareService) GetSharedPrompt(
 		return nil, fmt.Errorf("prompt not found")
 	}
 
+	// Lock state is team-internal (#1288): the locker's identity and the lock
+	// comment must not reach a share-link viewer, who may be anonymous. The
+	// shared read above selects the lock like every other prompt read, so it is
+	// dropped here; `lock` still serializes, as null, which the Prompt schema
+	// requires.
+	prompt.Lock = nil
+
 	return &models.SharedPromptResponse{
 		Prompt:       *prompt,
 		ShareType:    share.ShareType,

@@ -9,7 +9,7 @@ import (
 )
 
 // The blueprint lock operations (issue #1288, epic #1285). The rules, the
-// activity record and the error mapping are shared with blueprints and
+// activity record and the error mapping are shared with prompts and
 // artifacts in handlers_resource_lock.go; this file resolves the blueprint and
 // converts the result.
 

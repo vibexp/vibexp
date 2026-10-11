@@ -274,7 +274,7 @@ type Prompt struct {
 	// Labels Labels for categorizing and filtering prompts. null on the wire when the prompt has none (nil slice serialization).
 	Labels *[]string `json:"labels,omitempty"`
 
-	// Lock The lock held on this resource (epic #1285), or null when it is not locked. Present on every read, list and write response.
+	// Lock The lock held on this resource (epic #1285), or null when it is not locked. Present on every read, list and write response. Always null on a prompt read through a share link: lock state is internal to the team.
 	Lock *ResourceLock `json:"lock"`
 
 	// McpExpose Whether this prompt is discoverable via MCP (Model Context Protocol) tools

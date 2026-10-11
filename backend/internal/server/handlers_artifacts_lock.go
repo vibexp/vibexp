@@ -9,8 +9,8 @@ import (
 )
 
 // The artifact lock operations (issue #1288, epic #1285). The rules, the
-// activity record and the error mapping are shared with blueprints and
-// artifacts in handlers_resource_lock.go; this file resolves the artifact and
+// activity record and the error mapping are shared with prompts and
+// blueprints in handlers_resource_lock.go; this file resolves the artifact and
 // converts the result.
 
 // LockArtifact locks an artifact for the caller and returns the updated artifact.
