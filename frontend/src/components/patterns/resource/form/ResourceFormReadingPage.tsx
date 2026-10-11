@@ -4,7 +4,6 @@ import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 
 import { ResourceAttachments } from '@/components/attachments/ResourceAttachments'
 import { useShell } from '@/components/layout/ShellContext'
-import type { ResourceLock } from '@/components/LockIndicator'
 import type { VersionHistoryMeta } from '@/components/metadata/MetadataPanel'
 import {
   type ReadingAction,
@@ -20,6 +19,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Form } from '@/components/ui/form'
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
+import type { ResourceLock } from '@/types/resourceLock'
 import { lockedFieldName } from '@/utils/lockedWrite'
 
 import { fieldOfRole } from '../fieldOfRole'

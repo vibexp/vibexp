@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 
-import type { ResourceLock } from '@/components/LockIndicator'
+import type { ResourceLock } from '@/types/resourceLock'
 import { isLockedWrite } from '@/utils/lockedWrite'
 
 interface Lockable {

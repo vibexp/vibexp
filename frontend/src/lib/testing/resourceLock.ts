@@ -1,5 +1,5 @@
-import type { ResourceLock } from '@/components/LockIndicator'
 import { ApiError } from '@/types/errors'
+import type { ResourceLock } from '@/types/resourceLock'
 
 /** A lock as the API returns it on a locked prompt, blueprint or artifact. */
 export const TEST_LOCK: ResourceLock = {

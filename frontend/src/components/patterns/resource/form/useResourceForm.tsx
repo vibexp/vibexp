@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useForm } from 'react-hook-form'
 
-import type { ResourceLock } from '@/components/LockIndicator'
 import {
   FormControl,
   FormDescription,
@@ -15,6 +14,7 @@ import {
 } from '@/components/ui/form'
 import { labelVariants } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import type { ResourceLock } from '@/types/resourceLock'
 
 import { fieldOfRole } from '../fieldOfRole'
 import type { FormFieldSpec, ResourceDescriptor } from '../types'

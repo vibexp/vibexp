@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 
-import type { ResourceLock } from '@/components/LockIndicator'
 import { lockedWriteError, TEST_LOCK } from '@/lib/testing/resourceLock'
+import type { ResourceLock } from '@/types/resourceLock'
 
 import { useLockedWriteRefresh } from '../useLockedWriteRefresh'
 
