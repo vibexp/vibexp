@@ -398,6 +398,16 @@ components:
       $ref: "./schemas/projects.yaml#/Project"
     ProjectSummary:
       $ref: "./schemas/projects.yaml#/ProjectSummary"
+    ResourceLockActor:
+      $ref: "./schemas/common.yaml#/ResourceLockActor"
+    ResourceLock:
+      $ref: "./schemas/common.yaml#/ResourceLock"
+    LockResourceRequest:
+      $ref: "./schemas/common.yaml#/LockResourceRequest"
+    ResourceLockEvent:
+      $ref: "./schemas/common.yaml#/ResourceLockEvent"
+    ResourceLockHistoryResponse:
+      $ref: "./schemas/common.yaml#/ResourceLockHistoryResponse"
     CreateProjectRequest:
       $ref: "./schemas/projects.yaml#/CreateProjectRequest"
     UpdateProjectRequest:
@@ -1208,6 +1218,10 @@ paths:
     $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts-project_id"
   /api/v1/{team_id}/artifacts/{project_id}/{slug}:
     $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts-project_id-slug"
+  /api/v1/{team_id}/artifacts/{project_id}/{slug}/lock:
+    $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts-project_id-slug-lock"
+  /api/v1/{team_id}/artifacts/{project_id}/{slug}/lock/history:
+    $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts-project_id-slug-lock-history"
   /api/v1/{team_id}/attachments:
     $ref: "./paths/attachments.yaml#/api-v1-team_id-attachments"
   /api/v1/{team_id}/attachments/{id}:
@@ -1250,6 +1264,10 @@ paths:
     $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id"
   /api/v1/{team_id}/blueprints/{project_id}/{slug}:
     $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id-slug"
+  /api/v1/{team_id}/blueprints/{project_id}/{slug}/lock:
+    $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id-slug-lock"
+  /api/v1/{team_id}/blueprints/{project_id}/{slug}/lock/history:
+    $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id-slug-lock-history"
   /api/v1/{team_id}/blueprints/{project_id}/{slug}/versions:
     $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id-slug-versions"
   /api/v1/{team_id}/blueprints/{project_id}/{slug}/versions/{version_number}:
@@ -1262,6 +1280,10 @@ paths:
     $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-labels"
   /api/v1/{team_id}/prompts/{slug}:
     $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-slug"
+  /api/v1/{team_id}/prompts/{slug}/lock:
+    $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-slug-lock"
+  /api/v1/{team_id}/prompts/{slug}/lock/history:
+    $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-slug-lock-history"
   /api/v1/{team_id}/prompts/{slug}/placeholders:
     $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-slug-placeholders"
   /api/v1/{team_id}/prompts/{slug}/dependencies:

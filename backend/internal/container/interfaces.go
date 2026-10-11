@@ -79,6 +79,7 @@ type Container interface {
 	TypeService() services.TypeServiceInterface
 	StatusCatalogService() services.StatusCatalogServiceInterface
 	StatusManagementService() services.StatusManagementServiceInterface
+	ResourceLockService() services.ResourceLockServiceInterface
 	BlueprintService() services.BlueprintServiceInterface
 	EmbeddingProviderService() services.EmbeddingProviderServiceInterface
 	ModelProviderService() services.ModelProviderServiceInterface

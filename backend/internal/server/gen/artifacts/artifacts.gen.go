@@ -135,6 +135,24 @@ func (e ResourceFreshnessStateStatus) Valid() bool {
 	}
 }
 
+// Defines values for ResourceLockEventAction.
+const (
+	ResourceLockEventActionLock   ResourceLockEventAction = "lock"
+	ResourceLockEventActionUnlock ResourceLockEventAction = "unlock"
+)
+
+// Valid indicates whether the value is a known member of the ResourceLockEventAction enum.
+func (e ResourceLockEventAction) Valid() bool {
+	switch e {
+	case ResourceLockEventActionLock:
+		return true
+	case ResourceLockEventActionUnlock:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListArtifactsParamsFreshness.
 const (
 	ListArtifactsParamsFreshnessStale ListArtifactsParamsFreshness = "stale"
@@ -263,6 +281,9 @@ type Artifact struct {
 	// Labels Labels for categorising and filtering. Always present: an empty array when the resource has none. At most 10 labels, 50 characters each.
 	Labels []string `json:"labels"`
 
+	// Lock The lock held on this resource (epic #1285), or null when it is not locked. Present on every read, list and write response.
+	Lock *ResourceLock `json:"lock"`
+
 	// Metadata Additional metadata as key-value pairs
 	Metadata *map[string]interface{} `json:"metadata,omitempty"`
 
@@ -348,6 +369,12 @@ type ErrorResponse struct {
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
 }
 
+// LockResourceRequest defines model for LockResourceRequest.
+type LockResourceRequest struct {
+	// Comment Why the resource is being locked. Required: surrounding whitespace is trimmed, and a comment that is then empty or longer than 500 characters is rejected with 400.
+	Comment string `json:"comment"`
+}
+
 // ProjectSummary defines model for ProjectSummary.
 type ProjectSummary struct {
 	// Id Unique identifier for the project
@@ -429,6 +456,54 @@ type ResourceFreshnessStateReason string
 // ResourceFreshnessStateStatus Today the only state a resource can be in while it has freshness state at all. It is modelled as an enum rather than a boolean so a future state can be added without changing the field's type.
 type ResourceFreshnessStateStatus string
 
+// ResourceLock The lock held on a prompt, blueprint or artifact. A resource carries one while it is locked and `null` when it is not.
+type ResourceLock struct {
+	// Comment Why the resource was locked, as given by the locker.
+	Comment string `json:"comment"`
+
+	// LockedAt When the lock was taken.
+	LockedAt time.Time `json:"locked_at"`
+
+	// LockedBy The team member holding the lock.
+	LockedBy ResourceLockActor `json:"locked_by"`
+}
+
+// ResourceLockActor A user named on a resource lock or a lock history event.
+type ResourceLockActor struct {
+	// DisplayName The user's display name.
+	DisplayName string `json:"display_name"`
+
+	// UserId ID of the user.
+	UserId string `json:"user_id"`
+}
+
+// ResourceLockEvent One entry of a resource's append-only lock history.
+type ResourceLockEvent struct {
+	// Action Whether the resource was locked or unlocked.
+	Action ResourceLockEventAction `json:"action"`
+
+	// Actor Who locked or unlocked the resource. Null once that user's account has been deleted.
+	Actor *ResourceLockActor `json:"actor"`
+
+	// Comment The lock comment for a `lock` event; null for an `unlock`.
+	Comment *string `json:"comment"`
+
+	// CreatedAt When the event happened.
+	CreatedAt time.Time `json:"created_at"`
+
+	// Id ID of the history event.
+	Id openapi_types.UUID `json:"id"`
+}
+
+// ResourceLockEventAction Whether the resource was locked or unlocked.
+type ResourceLockEventAction string
+
+// ResourceLockHistoryResponse defines model for ResourceLockHistoryResponse.
+type ResourceLockHistoryResponse struct {
+	// Events Lock and unlock events, newest first. Not paginated: at most the 100 most recent events are returned.
+	Events []ResourceLockEvent `json:"events"`
+}
+
 // SimilarResource An embedding-similarity neighbor of a resource, COMPUTED live at read time from vector similarity — never a stored edge, and kept strictly distinct from the typed `related` edges. Score is 1 - cosine_distance (higher is closer).
 type SimilarResource struct {
 	// Id Identifier of the similar resource
@@ -473,6 +548,9 @@ type cookieAuthContextKey string
 
 // ListArtifactsParams defines parameters for ListArtifacts.
 type ListArtifactsParams struct {
+	// Locked Filter by lock state (epic #1285): `true` returns only locked resources, `false` only unlocked ones. Omit for no lock filtering. Returns 400 for a value that is not a boolean.
+	Locked *bool `form:"locked,omitempty" json:"locked,omitempty"`
+
 	// Freshness Filter to resources currently flagged stale by the team's freshness rules (epic #726). Omit for no freshness filtering. Returns 400 for any other value — a silently ignored filter would return the full list, which looks like a legitimate answer.
 	Freshness *ListArtifactsParamsFreshness `form:"freshness,omitempty" json:"freshness,omitempty"`
 
@@ -518,6 +596,9 @@ type ListArtifactsParamsSortOrder string
 
 // ListArtifactsByProjectParams defines parameters for ListArtifactsByProject.
 type ListArtifactsByProjectParams struct {
+	// Locked Filter by lock state (epic #1285): `true` returns only locked resources, `false` only unlocked ones. Omit for no lock filtering. Returns 400 for a value that is not a boolean.
+	Locked *bool `form:"locked,omitempty" json:"locked,omitempty"`
+
 	// Freshness Filter to resources currently flagged stale by the team's freshness rules (epic #726). Omit for no freshness filtering. Returns 400 for any other value — a silently ignored filter would return the full list, which looks like a legitimate answer.
 	Freshness *ListArtifactsByProjectParamsFreshness `form:"freshness,omitempty" json:"freshness,omitempty"`
 
@@ -558,6 +639,9 @@ type ListArtifactsByProjectParamsSortBy string
 // ListArtifactsByProjectParamsSortOrder defines parameters for ListArtifactsByProject.
 type ListArtifactsByProjectParamsSortOrder string
 
+// LockArtifactJSONRequestBody defines body for LockArtifact for application/json ContentType.
+type LockArtifactJSONRequestBody = LockResourceRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// List artifacts
@@ -569,6 +653,15 @@ type ServerInterface interface {
 	// Get artifact by project and slug
 	// (GET /api/v1/{team_id}/artifacts/{project_id}/{slug})
 	GetArtifact(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, projectId openapi_types.UUID, slug string)
+	// Unlock a artifact
+	// (DELETE /api/v1/{team_id}/artifacts/{project_id}/{slug}/lock)
+	UnlockArtifact(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, projectId openapi_types.UUID, slug string)
+	// Lock a artifact
+	// (POST /api/v1/{team_id}/artifacts/{project_id}/{slug}/lock)
+	LockArtifact(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, projectId openapi_types.UUID, slug string)
+	// Get the lock history of a artifact
+	// (GET /api/v1/{team_id}/artifacts/{project_id}/{slug}/lock/history)
+	GetArtifactLockHistory(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, projectId openapi_types.UUID, slug string)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -590,6 +683,24 @@ func (_ Unimplemented) ListArtifactsByProject(w http.ResponseWriter, r *http.Req
 // Get artifact by project and slug
 // (GET /api/v1/{team_id}/artifacts/{project_id}/{slug})
 func (_ Unimplemented) GetArtifact(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, projectId openapi_types.UUID, slug string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Unlock a artifact
+// (DELETE /api/v1/{team_id}/artifacts/{project_id}/{slug}/lock)
+func (_ Unimplemented) UnlockArtifact(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, projectId openapi_types.UUID, slug string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Lock a artifact
+// (POST /api/v1/{team_id}/artifacts/{project_id}/{slug}/lock)
+func (_ Unimplemented) LockArtifact(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, projectId openapi_types.UUID, slug string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get the lock history of a artifact
+// (GET /api/v1/{team_id}/artifacts/{project_id}/{slug}/lock/history)
+func (_ Unimplemented) GetArtifactLockHistory(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, projectId openapi_types.UUID, slug string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -625,6 +736,19 @@ func (siw *ServerInterfaceWrapper) ListArtifacts(w http.ResponseWriter, r *http.
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListArtifactsParams
+
+	// ------------- Optional query parameter "locked" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "locked", r.URL.Query(), &params.Locked, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "locked"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locked", Err: err})
+		}
+		return
+	}
 
 	// ------------- Optional query parameter "freshness" -------------
 
@@ -812,6 +936,19 @@ func (siw *ServerInterfaceWrapper) ListArtifactsByProject(w http.ResponseWriter,
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListArtifactsByProjectParams
+
+	// ------------- Optional query parameter "locked" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "locked", r.URL.Query(), &params.Locked, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "locked"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "locked", Err: err})
+		}
+		return
+	}
 
 	// ------------- Optional query parameter "freshness" -------------
 
@@ -1004,6 +1141,156 @@ func (siw *ServerInterfaceWrapper) GetArtifact(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// UnlockArtifact operation middleware
+func (siw *ServerInterfaceWrapper) UnlockArtifact(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "project_id" -------------
+	var projectId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "project_id", chi.URLParam(r, "project_id"), &projectId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "project_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", chi.URLParam(r, "slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnlockArtifact(w, r, teamId, projectId, slug)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// LockArtifact operation middleware
+func (siw *ServerInterfaceWrapper) LockArtifact(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "project_id" -------------
+	var projectId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "project_id", chi.URLParam(r, "project_id"), &projectId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "project_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", chi.URLParam(r, "slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LockArtifact(w, r, teamId, projectId, slug)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetArtifactLockHistory operation middleware
+func (siw *ServerInterfaceWrapper) GetArtifactLockHistory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "project_id" -------------
+	var projectId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "project_id", chi.URLParam(r, "project_id"), &projectId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "project_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", chi.URLParam(r, "slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetArtifactLockHistory(w, r, teamId, projectId, slug)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -1125,6 +1412,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/{team_id}/artifacts/{project_id}/{slug}", wrapper.GetArtifact)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/{team_id}/artifacts/{project_id}/{slug}/lock", wrapper.UnlockArtifact)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/{team_id}/artifacts/{project_id}/{slug}/lock", wrapper.LockArtifact)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/{team_id}/artifacts/{project_id}/{slug}/lock/history", wrapper.GetArtifactLockHistory)
 	})
 
 	return r
@@ -1327,6 +1623,317 @@ func (response GetArtifact404ApplicationProblemPlusJSONResponse) VisitGetArtifac
 	return err
 }
 
+type UnlockArtifactRequestObject struct {
+	TeamId    openapi_types.UUID `json:"team_id"`
+	ProjectId openapi_types.UUID `json:"project_id"`
+	Slug      string             `json:"slug"`
+}
+
+type UnlockArtifactResponseObject interface {
+	VisitUnlockArtifactResponse(w http.ResponseWriter) error
+}
+
+type UnlockArtifact200JSONResponse Artifact
+
+func (response UnlockArtifact200JSONResponse) VisitUnlockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnlockArtifact400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UnlockArtifact400ApplicationProblemPlusJSONResponse) VisitUnlockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnlockArtifact401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UnlockArtifact401ApplicationProblemPlusJSONResponse) VisitUnlockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnlockArtifact403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UnlockArtifact403ApplicationProblemPlusJSONResponse) VisitUnlockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnlockArtifact404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UnlockArtifact404ApplicationProblemPlusJSONResponse) VisitUnlockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnlockArtifact409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UnlockArtifact409ApplicationProblemPlusJSONResponse) VisitUnlockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnlockArtifact500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UnlockArtifact500ApplicationProblemPlusJSONResponse) VisitUnlockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LockArtifactRequestObject struct {
+	TeamId    openapi_types.UUID `json:"team_id"`
+	ProjectId openapi_types.UUID `json:"project_id"`
+	Slug      string             `json:"slug"`
+	Body      *LockArtifactJSONRequestBody
+}
+
+type LockArtifactResponseObject interface {
+	VisitLockArtifactResponse(w http.ResponseWriter) error
+}
+
+type LockArtifact200JSONResponse Artifact
+
+func (response LockArtifact200JSONResponse) VisitLockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LockArtifact400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response LockArtifact400ApplicationProblemPlusJSONResponse) VisitLockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LockArtifact401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response LockArtifact401ApplicationProblemPlusJSONResponse) VisitLockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LockArtifact403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response LockArtifact403ApplicationProblemPlusJSONResponse) VisitLockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LockArtifact404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response LockArtifact404ApplicationProblemPlusJSONResponse) VisitLockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LockArtifact409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response LockArtifact409ApplicationProblemPlusJSONResponse) VisitLockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LockArtifact500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response LockArtifact500ApplicationProblemPlusJSONResponse) VisitLockArtifactResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetArtifactLockHistoryRequestObject struct {
+	TeamId    openapi_types.UUID `json:"team_id"`
+	ProjectId openapi_types.UUID `json:"project_id"`
+	Slug      string             `json:"slug"`
+}
+
+type GetArtifactLockHistoryResponseObject interface {
+	VisitGetArtifactLockHistoryResponse(w http.ResponseWriter) error
+}
+
+type GetArtifactLockHistory200JSONResponse ResourceLockHistoryResponse
+
+func (response GetArtifactLockHistory200JSONResponse) VisitGetArtifactLockHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetArtifactLockHistory400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetArtifactLockHistory400ApplicationProblemPlusJSONResponse) VisitGetArtifactLockHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetArtifactLockHistory401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetArtifactLockHistory401ApplicationProblemPlusJSONResponse) VisitGetArtifactLockHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetArtifactLockHistory403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetArtifactLockHistory403ApplicationProblemPlusJSONResponse) VisitGetArtifactLockHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetArtifactLockHistory404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetArtifactLockHistory404ApplicationProblemPlusJSONResponse) VisitGetArtifactLockHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetArtifactLockHistory500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetArtifactLockHistory500ApplicationProblemPlusJSONResponse) VisitGetArtifactLockHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// List artifacts
@@ -1338,6 +1945,15 @@ type StrictServerInterface interface {
 	// Get artifact by project and slug
 	// (GET /api/v1/{team_id}/artifacts/{project_id}/{slug})
 	GetArtifact(ctx context.Context, request GetArtifactRequestObject) (GetArtifactResponseObject, error)
+	// Unlock a artifact
+	// (DELETE /api/v1/{team_id}/artifacts/{project_id}/{slug}/lock)
+	UnlockArtifact(ctx context.Context, request UnlockArtifactRequestObject) (UnlockArtifactResponseObject, error)
+	// Lock a artifact
+	// (POST /api/v1/{team_id}/artifacts/{project_id}/{slug}/lock)
+	LockArtifact(ctx context.Context, request LockArtifactRequestObject) (LockArtifactResponseObject, error)
+	// Get the lock history of a artifact
+	// (GET /api/v1/{team_id}/artifacts/{project_id}/{slug}/lock/history)
+	GetArtifactLockHistory(ctx context.Context, request GetArtifactLockHistoryRequestObject) (GetArtifactLockHistoryResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1445,6 +2061,97 @@ func (sh *strictHandler) GetArtifact(w http.ResponseWriter, r *http.Request, tea
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetArtifactResponseObject); ok {
 		if err := validResponse.VisitGetArtifactResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnlockArtifact operation middleware
+func (sh *strictHandler) UnlockArtifact(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, projectId openapi_types.UUID, slug string) {
+	var request UnlockArtifactRequestObject
+
+	request.TeamId = teamId
+	request.ProjectId = projectId
+	request.Slug = slug
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnlockArtifact(ctx, request.(UnlockArtifactRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnlockArtifact")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnlockArtifactResponseObject); ok {
+		if err := validResponse.VisitUnlockArtifactResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// LockArtifact operation middleware
+func (sh *strictHandler) LockArtifact(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, projectId openapi_types.UUID, slug string) {
+	var request LockArtifactRequestObject
+
+	request.TeamId = teamId
+	request.ProjectId = projectId
+	request.Slug = slug
+
+	var body LockArtifactJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.LockArtifact(ctx, request.(LockArtifactRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LockArtifact")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LockArtifactResponseObject); ok {
+		if err := validResponse.VisitLockArtifactResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetArtifactLockHistory operation middleware
+func (sh *strictHandler) GetArtifactLockHistory(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, projectId openapi_types.UUID, slug string) {
+	var request GetArtifactLockHistoryRequestObject
+
+	request.TeamId = teamId
+	request.ProjectId = projectId
+	request.Slug = slug
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetArtifactLockHistory(ctx, request.(GetArtifactLockHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetArtifactLockHistory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetArtifactLockHistoryResponseObject); ok {
+		if err := validResponse.VisitGetArtifactLockHistoryResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

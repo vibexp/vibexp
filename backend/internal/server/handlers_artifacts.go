@@ -25,8 +25,9 @@ const artifactsMsgInternalError = "Internal server error"
 // artifactsStrictServer implements the generated Artifacts read strict server
 // (issue #776, epic #122).
 //
-// Only listArtifacts, listArtifactsByProject and getArtifact are generated --
-// see oapi-codegen-artifacts.yaml for why the package is scoped by operation id
+// listArtifacts, listArtifactsByProject and getArtifact are generated, plus the
+// three lock operations (#1288, in handlers_artifacts_lock.go) -- see
+// oapi-codegen-artifacts.yaml for why the package is scoped by operation id
 // rather than by tag. The other eleven Artifacts operations keep their chi
 // handlers in artifact_handlers.go and are registered beside these.
 type artifactsStrictServer struct {
@@ -51,6 +52,7 @@ func (as *artifactsStrictServer) ListArtifacts(
 		queryProject: request.Params.ProjectId,
 		page:         request.Params.Page,
 		limit:        request.Params.Limit,
+		locked:       request.Params.Locked,
 	})
 	if err != nil {
 		return nil, err
@@ -80,6 +82,7 @@ func (as *artifactsStrictServer) ListArtifactsByProject(
 			sortOrder:    optionalEnumValue(request.Params.SortOrder),
 			page:         request.Params.Page,
 			limit:        request.Params.Limit,
+			locked:       request.Params.Locked,
 		})
 	if err != nil {
 		return nil, err
@@ -158,11 +161,9 @@ func (as *artifactsStrictServer) GetArtifact(
 	// back the raw segment and the runtime's is the ONLY one. Both regimes match
 	// the pre-conversion behaviour, which is the criterion -- adding a decode
 	// here would break the first regime.
-	artifact, err := as.s.container.ArtifactService().GetArtifactByProjectIDAndSlugInTeam(
-		userID, teamID, projectID, request.Slug,
-	)
+	artifact, err := as.loadArtifact(userID, teamID, projectID, request.Slug)
 	if err != nil {
-		return nil, as.artifactsError("GetArtifact", true, err)
+		return nil, err
 	}
 
 	// Records the access event, via the recordResourceAccess middleware wrapping
@@ -170,6 +171,35 @@ func (as *artifactsStrictServer) GetArtifact(
 	// is why only the detail path produces an event.
 	contextkeys.SetAccessedResourceID(ctx, artifact.ID)
 
+	body, err := as.artifactDetailBody(ctx, "GetArtifact", userID, teamID, artifact)
+	if err != nil {
+		return nil, err
+	}
+	return artifactsgen.GetArtifact200JSONResponse(body), nil
+}
+
+// loadArtifact resolves an artifact by (project_id, slug), mapping a failure
+// onto the API error the detail operation documents. The lock operations
+// resolve their resource through it too, so they answer the same 404.
+func (as *artifactsStrictServer) loadArtifact(
+	userID, teamID, projectID, slug string,
+) (*models.Artifact, error) {
+	artifact, err := as.s.container.ArtifactService().GetArtifactByProjectIDAndSlugInTeam(
+		userID, teamID, projectID, slug,
+	)
+	if err != nil {
+		return nil, as.artifactsError("GetArtifact", true, err)
+	}
+	return artifact, nil
+}
+
+// artifactDetailBody attaches the typed neighborhood to a loaded artifact and
+// converts it to the detail representation. It is the body of the detail GET
+// and of the lock operations, which answer with the updated artifact in the
+// same shape so a client needs no refetch.
+func (as *artifactsStrictServer) artifactDetailBody(
+	ctx context.Context, op, userID, teamID string, artifact *models.Artifact,
+) (artifactsgen.Artifact, error) {
 	artifact.Related = as.s.relatedForResource(
 		ctx, userID, teamID, models.RelationResourceTypeArtifact, artifact.ID,
 	)
@@ -180,9 +210,9 @@ func (as *artifactsStrictServer) GetArtifact(
 
 	body, err := toGenArtifact(artifact)
 	if err != nil {
-		return nil, as.artifactsError("GetArtifact", true, err)
+		return artifactsgen.Artifact{}, as.artifactsError(op, true, err)
 	}
-	return artifactsgen.GetArtifact200JSONResponse(body), nil
+	return body, nil
 }
 
 // artifactsUserID reads the authenticated user from the context. The auth
@@ -229,6 +259,9 @@ type artifactListQuery struct {
 	queryProject *openapi_types.UUID
 	page         *int
 	limit        *int
+	// locked is the `locked` filter (#1288); nil means no lock filtering. The
+	// binder rejects a non-boolean value before the handler runs.
+	locked *bool
 }
 
 func artifactFiltersFromQuery(
@@ -274,6 +307,7 @@ func artifactFiltersFromQuery(
 		Labels:         labels,
 		Page:           pagination.Page,
 		Limit:          pagination.Limit,
+		Locked:         query.locked,
 	}, nil
 }
 
@@ -349,6 +383,7 @@ func toGenArtifact(src *models.Artifact) (artifactsgen.Artifact, error) {
 		Labels:      genLabels(src.Labels),
 		CreatedAt:   src.CreatedAt,
 		UpdatedAt:   src.UpdatedAt,
+		Lock:        toGenArtifactLock(src.Lock),
 	}
 
 	if src.Content != "" {

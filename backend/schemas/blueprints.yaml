@@ -120,6 +120,15 @@ Blueprint:
         a client must not read a null here as "this resource has no project".
     freshness:
       $ref: '../openapi.yaml#/components/schemas/ResourceFreshnessState'
+    lock:
+      # allOf, not a bare $ref: under OpenAPI 3.0.3 a sibling of $ref is
+      # ignored, and `nullable` is real API surface here.
+      allOf:
+        - $ref: './common.yaml#/ResourceLock'
+      nullable: true
+      description: >-
+        The lock held on this resource (epic #1285), or null when it is not
+        locked. Present on every read, list and write response.
   required:
     - id
     - project_id
@@ -134,6 +143,7 @@ Blueprint:
     - path
     - labels
     - project
+    - lock
 
 # Read-only import provenance for a blueprint (server-set on import; absent for
 # VibeXP-authored blueprints).

@@ -193,6 +193,10 @@ type BlueprintFilters struct {
 	MetadataFilter repositories.MetadataFilter
 	Page           int
 	Limit          int
+
+	// Locked narrows the list by lock state (issue #1288): true returns only
+	// locked resources, false only unlocked ones, nil applies no filter.
+	Locked *bool
 }
 
 // buildBlueprintFromRequest constructs a Blueprint from a create request with defaults
@@ -402,6 +406,8 @@ func (s *BlueprintService) listBlueprints(
 		Labels:         filters.Labels,
 		Page:           filters.Page,
 		Limit:          filters.Limit,
+
+		Locked: filters.Locked,
 	}
 
 	blueprints, totalCount, err := s.repo.List(context.Background(), userID, repoFilters)

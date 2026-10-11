@@ -186,7 +186,27 @@ func (s *Server) getArtifactResource(
 	artifact.Related = s.relatedForResource(ctx, userID, teamID, models.RelationResourceTypeArtifact, artifact.ID)
 	artifact.Similar = s.similarForResource(ctx, teamID, models.RelationResourceTypeArtifact, artifact.ID)
 	artifact.Freshness = s.freshnessForResource(ctx, teamID, models.RelationResourceTypeArtifact, artifact.ID)
-	return mcpJSONResult(artifact)
+	return mcpJSONResult(mcpArtifactResource{Artifact: artifact})
+}
+
+// mcpArtifactResource and mcpBlueprintResource are what get_resource returns
+// for an artifact and a blueprint: the full model, minus its lock.
+//
+// Lock state is deliberately not part of any MCP read result (issue #1288): the
+// MCP lock tool (#1296) is where an agent meets locks. The models now emit
+// `lock` for the REST API with no omitempty, so the key is removed here by
+// shadowing it at depth 0 with the same JSON name plus omitempty and leaving it
+// nil -- encoding/json resolves the name to the shallower field, which omits
+// itself. (`json:"-"` would not work: such a field takes no part in that
+// resolution, so the embedded one would still be emitted.)
+type mcpArtifactResource struct {
+	*models.Artifact
+	Lock *models.ResourceLock `json:"lock,omitempty"`
+}
+
+type mcpBlueprintResource struct {
+	*models.Blueprint
+	Lock *models.ResourceLock `json:"lock,omitempty"`
 }
 
 // getBlueprintResource fetches a blueprint by project_id + slug through the
@@ -215,7 +235,7 @@ func (s *Server) getBlueprintResource(
 	blueprint.Related = s.relatedForResource(ctx, userID, teamID, models.RelationResourceTypeBlueprint, blueprint.ID)
 	blueprint.Similar = s.similarForResource(ctx, teamID, models.RelationResourceTypeBlueprint, blueprint.ID)
 	blueprint.Freshness = s.freshnessForResource(ctx, teamID, models.RelationResourceTypeBlueprint, blueprint.ID)
-	return mcpJSONResult(blueprint)
+	return mcpJSONResult(mcpBlueprintResource{Blueprint: blueprint})
 }
 
 // listResources implements the generic list_resources tool.

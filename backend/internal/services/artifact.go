@@ -81,6 +81,10 @@ type ArtifactFilters struct {
 	MetadataFilter repositories.MetadataFilter
 	Page           int
 	Limit          int
+
+	// Locked narrows the list by lock state (issue #1288): true returns only
+	// locked resources, false only unlocked ones, nil applies no filter.
+	Locked *bool
 }
 
 // validateAndResolveTeamID validates team membership and returns the final team ID to use
@@ -315,6 +319,8 @@ func (s *ArtifactService) ListArtifacts(userID string, filters ArtifactFilters) 
 		Labels:         filters.Labels,
 		Page:           filters.Page,
 		Limit:          filters.Limit,
+
+		Locked: filters.Locked,
 	}
 
 	artifacts, totalCount, err := s.repo.List(context.Background(), userID, repoFilters)
@@ -379,6 +385,8 @@ func (s *ArtifactService) ListArtifactsByProjectCrossTeam(
 		Labels:         filters.Labels,
 		Page:           filters.Page,
 		Limit:          filters.Limit,
+
+		Locked: filters.Locked,
 	}
 
 	artifacts, totalCount, err := s.repo.ListCrossTeam(context.Background(), userID, repoFilters)

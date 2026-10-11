@@ -119,6 +119,11 @@ const (
 	ActivityTypeArtifactUpdated = "artifact_updated"
 	ActivityTypeArtifactDeleted = "artifact_deleted"
 
+	// Resource lock activities (#1288), recorded against the locked prompt,
+	// blueprint or artifact.
+	ActivityTypeResourceLocked   = "resource_locked"
+	ActivityTypeResourceUnlocked = "resource_unlocked"
+
 	// Blueprint activities
 	ActivityTypeBlueprintCreated = "blueprint_created"
 	ActivityTypeBlueprintUpdated = "blueprint_updated"

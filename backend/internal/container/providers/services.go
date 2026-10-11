@@ -184,6 +184,12 @@ func ProvideStatusManagementService(
 	return services.NewStatusManagementService(repo, catalog, authorizer, audit, logger)
 }
 
+// ProvideResourceLockService creates a new ResourceLockService. Wire fills the
+// deps struct via wire.Struct (see the container ProviderSet).
+func ProvideResourceLockService(deps services.ResourceLockServiceDeps) services.ResourceLockServiceInterface {
+	return services.NewResourceLockService(deps)
+}
+
 // ProvideBlueprintService creates a new BlueprintService. Wire fills the deps
 // struct via wire.Struct (see the container ProviderSet).
 func ProvideBlueprintService(deps services.BlueprintServiceDeps) services.BlueprintServiceInterface {
