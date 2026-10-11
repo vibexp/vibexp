@@ -170,6 +170,15 @@ func TestIntegrationTeamStatusRepository_RenameReadsThePreviousNameUnderTheLock(
 	_, err = scanTeamStatus(tx.QueryRowContext(ctx, teamStatusUpdateNameSQL, f.teamA, created.ID, "Second"))
 	require.NoError(t, err)
 
+	// The open rename holds FOR NO KEY UPDATE, which does not conflict with the
+	// key-share lock a resource write takes to confirm its status (#1332): that
+	// check answers at once instead of waiting for the rename to commit.
+	confirmCtx, cancelConfirm := context.WithTimeout(ctx, 2*time.Second)
+	defer cancelConfirm()
+	confirmed, err := f.repo.ConfirmSlug(confirmCtx, f.teamA, models.StatusResourceTypeArtifact, "in-review")
+	require.NoError(t, err, "a rename in flight must not block ConfirmSlug")
+	assert.True(t, confirmed)
+
 	type renameResult struct {
 		previous string
 		err      error

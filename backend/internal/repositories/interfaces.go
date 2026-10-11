@@ -2223,7 +2223,7 @@ type TeamStatusChange struct {
 // transaction, after the change and before the commit, so it must be pure: no
 // I/O and no use of the caller's database handle (it would run outside the
 // transaction and could wait on the very locks the transaction holds). An error
-// from it rolls the change back.
+// from it, or a nil entry, rolls the change back.
 type TeamStatusAuditBuilder func(change TeamStatusChange) (*models.TeamSettingsAudit, error)
 
 // TeamStatusRepository persists a team's custom resource statuses (table

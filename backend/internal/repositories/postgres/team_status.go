@@ -49,12 +49,15 @@ const (
 
 	// teamStatusLockNameSQL reads the name a rename is about to replace and
 	// locks the row until the rename commits, so a concurrent rename waits and
-	// then reads the name this one stored.
+	// then reads the name this one stored. FOR NO KEY UPDATE is the lock the
+	// rename's own UPDATE takes (name is not a key column): unlike FOR UPDATE
+	// it does not conflict with ConfirmSlug's FOR KEY SHARE, so a resource
+	// write confirming its status never waits for a rename.
 	teamStatusLockNameSQL = `
 		SELECT name
 		  FROM team_statuses
 		 WHERE team_id = $1 AND id = $2
-		   FOR UPDATE`
+		   FOR NO KEY UPDATE`
 
 	teamStatusUpdateNameSQL = `
 		UPDATE team_statuses
@@ -132,9 +135,10 @@ var teamStatusResourceTables = map[string]teamStatusResourceSQL{
 var errTeamStatusResourceTypeUnknown = errors.New("resource type has no status table")
 
 // errTeamStatusAuditRequired is returned by a write called without an audit
-// builder. Every custom-status change is audited in its own transaction, so a
-// write with nothing to record is a programming error, refused before it
-// touches the database.
+// builder, or whose builder returned no entry. Every custom-status change is
+// audited in its own transaction, so a write with nothing to record is a
+// programming error: a missing builder is refused before the database is
+// touched, and a missing entry rolls the change back.
 var errTeamStatusAuditRequired = errors.New("team status write requires an audit builder")
 
 // runAuditedTx is the one transaction shape behind the three custom-status
@@ -170,6 +174,9 @@ func (r *TeamStatusRepository) runAuditedTx(
 	entry, err := audit(done)
 	if err != nil {
 		return none, fmt.Errorf("failed to build team status %s audit entry: %w", op, err)
+	}
+	if entry == nil {
+		return none, fmt.Errorf("team status %s: builder returned no entry: %w", op, errTeamStatusAuditRequired)
 	}
 	if err = appendTeamSettingsAudit(ctx, tx, entry); err != nil {
 		return none, fmt.Errorf("failed to audit team status %s: %w", op, err)

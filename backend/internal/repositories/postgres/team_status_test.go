@@ -86,7 +86,7 @@ func teamStatusAuditStored() *sqlmock.Rows {
 
 const (
 	teamStatusInsertQuery = `INSERT INTO team_statuses \(team_id, resource_type, slug, name, created_by\)`
-	teamStatusLockQuery   = `SELECT name\s+FROM team_statuses\s+WHERE team_id = \$1 AND id = \$2\s+FOR UPDATE`
+	teamStatusLockQuery   = `SELECT name\s+FROM team_statuses\s+WHERE team_id = \$1 AND id = \$2\s+FOR NO KEY UPDATE`
 	teamStatusRenameQuery = `UPDATE team_statuses\s+SET name = \$3, updated_at = now\(\)\s+WHERE team_id = \$1 AND id = \$2`
 	teamStatusDeleteQuery = `DELETE FROM team_statuses WHERE team_id = \$1 AND id = \$2 RETURNING`
 )
@@ -238,6 +238,19 @@ func TestTeamStatusRepository_AuditedWrites_FailTogether(t *testing.T) {
 			audit := &statusAuditRecorder{err: errTeamStatusBoom}
 			reported, err := write.call(repo, audit.build)
 			assertTypeError(t, err, errTeamStatusBoom, "failed to build team status "+op+" audit entry")
+			assert.False(t, reported)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+
+		t.Run(op+": a builder that returns no entry rolls the change back", func(t *testing.T) {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectBegin()
+			write.change(mock)
+			mock.ExpectRollback()
+
+			reported, err := write.call(repo,
+				func(repositories.TeamStatusChange) (*models.TeamSettingsAudit, error) { return nil, nil })
+			require.ErrorIs(t, err, errTeamStatusAuditRequired)
 			assert.False(t, reported)
 			assert.NoError(t, mock.ExpectationsWereMet())
 		})
