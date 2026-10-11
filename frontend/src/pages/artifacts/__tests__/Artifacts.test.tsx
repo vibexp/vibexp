@@ -1,9 +1,20 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 import type { Mock } from 'vitest'
 
 import type { Project } from '@/services/projectService'
+
+// The team's status catalog (#1263), settable per test. Empty and answered by
+// default — a team with no custom statuses — so every other case in this file
+// sees the page exactly as the descriptor alone describes it.
+const statusCatalog = vi.hoisted(() => ({
+  statuses: [] as unknown[],
+  isLoading: false,
+}))
+vi.mock('@/hooks/useStatusCatalog', () => ({
+  useStatusCatalog: () => statusCatalog,
+}))
 
 // Mock Radix Select — it can loop in JSDOM (same approach as Feeds.test.tsx)
 vi.mock('@/components/ui/select', () => ({
@@ -566,5 +577,155 @@ describe('Artifacts page — descriptor-driven sorting (#908)', () => {
       expect(artifactService.getArtifacts).toHaveBeenCalled()
     })
     expect(lastQuery().sort_by).toBe('updated_at')
+  })
+})
+
+describe('Artifacts page — custom statuses (#1263)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
+    ;(artifactService.getArtifacts as Mock).mockResolvedValue(emptyResponse)
+    statusCatalog.statuses = [
+      { slug: 'in-review', name: 'In review', is_system: false },
+    ]
+    statusCatalog.isLoading = false
+  })
+
+  afterEach(() => {
+    statusCatalog.statuses = []
+    statusCatalog.isLoading = false
+  })
+
+  it('applies a custom status from the URL and sends its slug to the API', async () => {
+    renderArtifacts('/artifacts?status=in-review')
+
+    await waitFor(() => {
+      expect(artifactService.getArtifacts).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBe('in-review')
+  })
+
+  // A reload: the page mounts before the catalog has answered. Sending the
+  // value could 400 (it may be junk); dropping it would strip the filter the
+  // user reloaded with. So the list waits for the answer.
+  it('holds the list request for an unconfirmed status until the catalog answers, then sends it', async () => {
+    statusCatalog.statuses = []
+    statusCatalog.isLoading = true
+    const view = renderArtifacts('/artifacts?status=in-review')
+
+    // Long enough for a request that was going to fire to have fired.
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20))
+    })
+    expect(artifactService.getArtifacts).not.toHaveBeenCalled()
+
+    statusCatalog.statuses = [
+      { slug: 'in-review', name: 'In review', is_system: false },
+    ]
+    statusCatalog.isLoading = false
+    view.rerender(artifactsTree('/artifacts?status=in-review'))
+
+    await waitFor(() => {
+      expect(artifactService.getArtifacts).toHaveBeenCalledTimes(1)
+    })
+    expect(lastQuery().status).toBe('in-review')
+  })
+
+  it('sends no status, and never the unknown value, once the catalog answers without it', async () => {
+    statusCatalog.statuses = []
+    statusCatalog.isLoading = true
+    const view = renderArtifacts('/artifacts?status=deleted-elsewhere')
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20))
+    })
+    expect(artifactService.getArtifacts).not.toHaveBeenCalled()
+
+    statusCatalog.isLoading = false
+    view.rerender(artifactsTree('/artifacts?status=deleted-elsewhere'))
+
+    await waitFor(() => {
+      expect(artifactService.getArtifacts).toHaveBeenCalledTimes(1)
+    })
+    expect(lastQuery().status).toBeUndefined()
+  })
+
+  it('does not wait for the catalog to filter on a system status', async () => {
+    statusCatalog.statuses = []
+    statusCatalog.isLoading = true
+    renderArtifacts('/artifacts?status=active')
+
+    await waitFor(() => {
+      expect(artifactService.getArtifacts).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBe('active')
+  })
+
+  it('drops a status that is in neither the descriptor nor the answered catalog', async () => {
+    renderArtifacts('/artifacts?status=deleted-elsewhere')
+
+    await waitFor(() => {
+      expect(artifactService.getArtifacts).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBeUndefined()
+  })
+
+  it('shows a custom status by its display name, in a neutral badge', async () => {
+    ;(artifactService.getArtifacts as Mock).mockResolvedValue({
+      ...emptyResponse,
+      artifacts: [
+        {
+          id: 'artifact-1',
+          project_id: 'proj-1',
+          slug: 'sprint-report',
+          user_id: 'user-1',
+          title: 'Sprint Report',
+          description: '',
+          content: '',
+          type: 'general',
+          status: 'in-review',
+          metadata: {},
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-02T00:00:00Z',
+        },
+      ],
+      total_count: 1,
+      total_pages: 1,
+    })
+    renderArtifacts()
+
+    // Scoped to the table: the filter bar offers the same name as an option.
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('In review')).toHaveClass('bg-muted')
+  })
+
+  it('shows the raw slug, in a neutral badge, for a status the catalog no longer has', async () => {
+    statusCatalog.statuses = []
+    ;(artifactService.getArtifacts as Mock).mockResolvedValue({
+      ...emptyResponse,
+      artifacts: [
+        {
+          id: 'artifact-1',
+          project_id: 'proj-1',
+          slug: 'sprint-report',
+          user_id: 'user-1',
+          title: 'Sprint Report',
+          description: '',
+          content: '',
+          type: 'general',
+          status: 'in-review',
+          metadata: {},
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-02T00:00:00Z',
+        },
+      ],
+      total_count: 1,
+      total_pages: 1,
+    })
+    renderArtifacts()
+
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('in-review')).toHaveClass('bg-muted')
   })
 })

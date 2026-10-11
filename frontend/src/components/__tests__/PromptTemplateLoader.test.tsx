@@ -28,6 +28,19 @@ vi.mock('@/hooks/usePromptSearch', () => ({
   },
 }))
 
+// The team's status catalog (#1263), settable per test. Empty and answered by
+// default — a team with no custom statuses.
+const statusCatalog = vi.hoisted(() => ({
+  statuses: [] as unknown[],
+  isLoading: false,
+}))
+vi.mock('@/hooks/useStatusCatalog', () => ({
+  useStatusCatalog: () => statusCatalog,
+}))
+afterEach(() => {
+  statusCatalog.statuses = []
+})
+
 import { PromptTemplateLoader } from '../PromptTemplateLoader'
 
 function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
@@ -236,6 +249,26 @@ describe('PromptTemplateLoader', () => {
       expect(screen.getByText('Short body')).toBeInTheDocument()
 
       expect(screen.getByText('Found 2 prompts')).toBeInTheDocument()
+    })
+
+    // The shared status badge, so every list of prompts reads one way: the
+    // descriptor's tone for a system status, neutral for a custom one — which
+    // the loader's own two-way colouring used to paint as a warning.
+    it('badges each result through the shared status vocabulary', () => {
+      statusCatalog.statuses = [
+        { slug: 'in-review', name: 'In review', is_system: false },
+      ]
+      searchState.prompts = [
+        buildPrompt(),
+        buildPrompt({ id: 'prompt-2', slug: 'second', status: 'in-review' }),
+        buildPrompt({ id: 'prompt-3', slug: 'third', status: 'gone' }),
+      ]
+
+      renderLoader()
+
+      expect(screen.getByText('Published')).toHaveClass('bg-success')
+      expect(screen.getByText('In review')).toHaveClass('bg-muted')
+      expect(screen.getByText('gone')).toHaveClass('bg-muted')
     })
 
     it('uses the singular noun for a single result', () => {

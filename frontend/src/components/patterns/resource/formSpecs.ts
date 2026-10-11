@@ -94,8 +94,12 @@ export function projectFormField(testId: string): FormFieldSpec {
   }
 }
 
+/** A status slug is capped at 50 by the API (`backend/schemas/statuses.yaml`). */
+const STATUS_MAX = 50
+
 /**
- * The lifecycle status, read off the kind's own `status` field.
+ * The lifecycle status: the kind's own system statuses plus the team's custom
+ * ones, which only the catalog knows (#1263).
  *
  * `description` is a parameter because what a status MEANS is per-kind and the
  * copy is not always worth having: an artifact and a memory both hide drafts
@@ -111,7 +115,8 @@ export function statusFormField(
     control: 'select',
     section: 'details',
     required: true,
-    optionsFrom: 'field',
+    maxLength: STATUS_MAX,
+    optionsFrom: 'statuses',
     description,
     testId: `${kind}-status-select`,
   }

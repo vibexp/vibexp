@@ -25,8 +25,9 @@ import {
   ReadOnlyTaxonomyGroups,
   TaxonomyPanel,
 } from '../ResourceTaxonomySection'
-import { fieldLabel, fieldTone, statusFieldOf } from '../statusTone'
+import { statusFieldOf } from '../statusTone'
 import type { ResourceDescriptor } from '../types'
+import { useStatusOptions } from '../useStatusOptions'
 import type { ResourceFormValues } from './buildFormSchema'
 import type { ResourceFormMode } from './formLabels'
 import { formSaveLabel } from './formLabels'
@@ -314,6 +315,7 @@ export function ResourceFormReadingPage({
   // column recolours the badge at once — the header is the same header as on
   // the reading page, not a snapshot of the saved resource.
   const statusField = statusFieldOf(descriptor)
+  const statusOptions = useStatusOptions(descriptor)
   const slugKey = descriptor.form?.fields.find(
     spec => spec.pattern === 'slug'
   )?.key
@@ -327,8 +329,8 @@ export function ResourceFormReadingPage({
         status={
           typeof statusValue === 'string' && statusValue
             ? {
-                value: fieldLabel(statusField, statusValue),
-                tone: fieldTone(statusField, statusValue),
+                value: statusOptions.labelOf(statusValue),
+                tone: statusOptions.toneOf(statusValue),
               }
             : undefined
         }
@@ -438,6 +440,7 @@ export function ResourceFormReadingPage({
             resource={readOnly}
             versionHistory={versionHistory}
             controls={placed.rowControls}
+            statusLabel={statusOptions.labelOf}
           />
           {placed.unplaced}
           <TaxonomyPanel data-testid="resource-form-taxonomy">

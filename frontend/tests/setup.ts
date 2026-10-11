@@ -26,3 +26,19 @@ if (typeof global.ResizeObserver === 'undefined') {
     disconnect(): void {}
   }
 }
+
+// The team's status catalog (#1263) is read by every resource form, filter bar,
+// list and detail page, through `useStatusCatalog` — which needs a
+// `TeamProvider` and asks the API. A suite about something else gets the answer
+// of a team with no custom statuses, so those pages render exactly as they do
+// from the descriptor alone. A suite about custom statuses mocks this module
+// itself (a file-level `vi.mock` wins), and the hook's own suite `vi.unmock`s it.
+vi.mock('@/hooks/useStatusCatalog', () => {
+  // One stable answer, as the real hook gives: readers memoise on it.
+  const answered = { statuses: [], isLoading: false }
+  return {
+    FRESH_FOR_MS: 5000,
+    resetStatusCatalog: () => {},
+    useStatusCatalog: () => answered,
+  }
+})

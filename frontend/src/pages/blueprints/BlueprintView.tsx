@@ -13,8 +13,7 @@ import {
   ResourceMetadataSection,
   resourceRegistry,
   ResourceTaxonomySection,
-  statusLabel,
-  statusTone,
+  useStatusOptions,
 } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -41,6 +40,7 @@ export function BlueprintView() {
   const { project, slug } = useParams<{ project: string; slug: string }>()
   const navigate = useNavigate()
   const { currentTeam, isLoading: isLoadingTeam } = useTeam()
+  const statusOptions = useStatusOptions(resourceRegistry.blueprint)
   const { canDeleteResource } = usePermissions()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
@@ -209,8 +209,8 @@ export function BlueprintView() {
       <ResourceReadingPage
         title={blueprint.title}
         status={{
-          value: statusLabel('blueprint', blueprint.status),
-          tone: statusTone('blueprint', blueprint.status),
+          value: statusOptions.labelOf(blueprint.status),
+          tone: statusOptions.toneOf(blueprint.status),
         }}
         address={{ value: blueprint.slug }}
         updatedAt={blueprint.updated_at}
@@ -227,6 +227,7 @@ export function BlueprintView() {
               descriptor={resourceRegistry.blueprint}
               resource={blueprint}
               versionHistory={versionHistory}
+              statusLabel={statusOptions.labelOf}
               project={blueprint.project}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />

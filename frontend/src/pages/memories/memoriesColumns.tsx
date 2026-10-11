@@ -54,6 +54,7 @@ export function buildMemoriesColumns({
   navigate,
   onDelete,
   canDelete,
+  statusLabel,
   includeTags,
   projects = [],
 }: {
@@ -65,6 +66,11 @@ export function buildMemoriesColumns({
    * `resource.update.any`.
    */
   canDelete: (memory: Memory) => boolean
+  /**
+   * Display text for a status value, so a team's custom status reads by its
+   * display name (#1263). Defaults to the descriptor's own labels.
+   */
+  statusLabel?: (status: string) => string
   includeTags: boolean
   projects?: Project[]
 }): ColumnDef<Memory>[] {
@@ -115,6 +121,7 @@ export function buildMemoriesColumns({
     statusColumn<Memory>({
       field: fieldOfRole(descriptor, 'status'),
       value: memory => memory.status,
+      label: statusLabel,
     }),
     updatedColumn<Memory>({ value: memory => memory.updated_at }),
     actionsColumn<Memory>({

@@ -48,10 +48,16 @@ export function usePromptSearch(
           search: query.trim(),
           limit,
           page: 1,
-          status: 'published', // Only show published prompts for embedding
         })
 
-        let searchResults = response.prompts
+        // Only prompts that have left draft can be embedded: `published`, or
+        // any of the team's custom statuses (#1263). The list endpoint filters
+        // on one exact status, so "not draft" is applied to the page it
+        // returns — which can therefore hold fewer than `limit` rows when
+        // drafts match the search.
+        let searchResults = response.prompts.filter(
+          prompt => prompt.status !== 'draft'
+        )
 
         // Filter out the current prompt if editing
         if (excludeCurrentPrompt) {

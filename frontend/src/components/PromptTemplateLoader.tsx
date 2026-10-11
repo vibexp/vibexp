@@ -1,6 +1,11 @@
 import { Calendar, FileText, Loader2, Search, User, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
+import {
+  getResourceDescriptor,
+  useStatusOptions,
+} from '@/components/patterns/resource'
+import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { usePromptSearch } from '@/hooks/usePromptSearch'
 import type { Prompt } from '@/services/promptService'
@@ -22,6 +27,9 @@ export function PromptTemplateLoader({
 }: Readonly<PromptTemplateLoaderProps>) {
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
+  // Read inside the component, not at module scope: the body editor imports
+  // this loader, so the resource barrel is still loading when this module is.
+  const statusOptions = useStatusOptions(getResourceDescriptor('prompt'))
 
   const { prompts, loading, error, searchPrompts, clearResults } =
     usePromptSearch({
@@ -200,16 +208,9 @@ export function PromptTemplateLoader({
                           <Calendar className="h-3 w-3 mr-1" />
                           {formatDate(prompt.created_at)}
                         </span>
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            prompt.status === 'published'
-                              ? 'bg-success text-success-foreground'
-                              : 'bg-warning text-warning-foreground'
-                          }`}
-                        >
-                          {prompt.status.charAt(0).toUpperCase() +
-                            prompt.status.slice(1)}
-                        </span>
+                        <StatusBadge tone={statusOptions.toneOf(prompt.status)}>
+                          {statusOptions.labelOf(prompt.status)}
+                        </StatusBadge>
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-3">
                         {truncateText(prompt.body)}

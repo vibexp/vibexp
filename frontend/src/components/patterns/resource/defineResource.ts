@@ -87,7 +87,11 @@ function assertAddressMatchesShape(
 
 /**
  * Status metadata belongs to `status` fields, every status field declares its
- * values, and every toned value is one the resource can actually be in.
+ * system values, and every toned value is one of them.
+ *
+ * `statusValues` is the system baseline, not necessarily every value the
+ * resource can be in: a team's custom statuses (#1263) are only known at
+ * runtime, carry no tone and are never declared here.
  *
  * The converse is deliberately not required: `tone` is optional and may be
  * partial, so a value without one falls back to the default badge.
@@ -204,7 +208,7 @@ const FIELD_BACKED_CONTROLS: ReadonlySet<FilterSpec['control']> = new Set([
  */
 const ALLOWED_OPTIONS_SOURCES: ReadonlyMap<string, readonly string[]> = new Map(
   [
-    ['select', ['field', 'types']],
+    ['select', ['field', 'types', 'statuses']],
     ['taxonomy', ['prompt-labels']],
   ]
 )
@@ -275,6 +279,12 @@ function assertFilter(
     fail(
       kind,
       `filter '${filter.key}' with control '${filter.control}' needs optionsFrom ${JSON.stringify(allowed)}, found ${JSON.stringify(filter.optionsFrom ?? null)}`
+    )
+  }
+  if (filter.optionsFrom === 'statuses' && field.role !== 'status') {
+    fail(
+      kind,
+      `filter '${filter.key}' reads the status catalog but its field has role '${field.role}'`
     )
   }
   assertFieldOptions(kind, filter, field)
@@ -386,15 +396,18 @@ function rolesByKey(
 }
 
 /**
- * A `select` reads its options from the field's exhaustive list or from the
- * team's runtime type catalog — never from `valueLabels`, which is partial by
- * design, for the same reason a list filter may not (#908). A control with no
- * option list has no business declaring where options come from.
+ * A `select` reads its options from the field's exhaustive list or from a
+ * runtime catalog (the team's types, the team's statuses) — never from
+ * `valueLabels`, which is partial by design, for the same reason a list filter
+ * may not (#908). The status catalog only describes a `status` field. A
+ * control with no option list has no business declaring where options come
+ * from.
  */
 function assertFormOptions(
   kind: string,
   form: FormFieldSpec,
-  field: FieldSpec
+  field: FieldSpec,
+  roles: ReadonlySet<FieldRole>
 ) {
   if (form.control !== 'select') {
     if (form.optionsFrom) {
@@ -409,6 +422,12 @@ function assertFormOptions(
     fail(
       kind,
       `form field '${form.key}' with control 'select' needs 'optionsFrom'`
+    )
+  }
+  if (form.optionsFrom === 'statuses' && !roles.has('status')) {
+    fail(
+      kind,
+      `form field '${form.key}' reads the status catalog but the field has ${JSON.stringify([...roles])}`
     )
   }
   if (
@@ -478,8 +497,9 @@ function assertFormField(
       `form field '${form.key}' names no declared field (control '${form.control}')`
     )
   }
-  assertFormControl(kind, form, roles.get(form.key) ?? new Set())
-  assertFormOptions(kind, form, field)
+  const fieldRoles = roles.get(form.key) ?? new Set<FieldRole>()
+  assertFormControl(kind, form, fieldRoles)
+  assertFormOptions(kind, form, field, fieldRoles)
 }
 
 /**

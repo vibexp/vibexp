@@ -157,3 +157,75 @@ describe.each(listCases())('$list list columns', testCase => {
     }
   })
 })
+
+/*
+ * A team's custom status (#1263): every resource list's builder must hand the
+ * page's `statusLabel` to its status column, or that list alone shows a slug
+ * where the other three show a display name.
+ */
+describe('custom status labels', () => {
+  const statusLabel = (status: string) =>
+    status === 'in-review' ? 'In review' : status
+  const base = {
+    id: 'r1',
+    project_id: 'p1',
+    slug: 'runbook',
+    updated_at: THREE_HOURS_AGO,
+    status: 'in-review',
+  }
+  const asColumns = (columns: unknown) => columns as ColumnDef<{ id: string }>[]
+  const cases = [
+    {
+      list: 'prompts',
+      build: (label?: typeof statusLabel) =>
+        asColumns(buildPromptsColumns({ ...common, statusLabel: label })),
+      row: { ...base, name: 'Runbook', labels: [] },
+    },
+    {
+      list: 'artifacts',
+      build: (label?: typeof statusLabel) =>
+        asColumns(buildArtifactsColumns({ ...common, statusLabel: label })),
+      row: { ...base, title: 'Runbook', type: 'general' },
+    },
+    {
+      list: 'blueprints',
+      build: (label?: typeof statusLabel) =>
+        asColumns(buildBlueprintsColumns({ ...common, statusLabel: label })),
+      row: { ...base, title: 'Runbook', type: 'cursor' },
+    },
+    {
+      list: 'memories',
+      build: (label?: typeof statusLabel) =>
+        asColumns(
+          buildMemoriesColumns({
+            ...common,
+            includeTags: true,
+            projects: [],
+            statusLabel: label,
+          })
+        ),
+      row: { ...base, text: 'Remember this', metadata: {} },
+    },
+  ]
+
+  it.each(cases)(
+    'the $list list shows the display name, in a neutral badge',
+    ({ build, row }) => {
+      render(
+        <ListTable
+          rows={[row as { id: string }]}
+          columns={build(statusLabel)}
+        />
+      )
+      expect(screen.getByText('In review')).toHaveClass('bg-muted')
+    }
+  )
+
+  it.each(cases)(
+    'the $list list falls back to the raw slug with no label',
+    ({ build, row }) => {
+      render(<ListTable rows={[row as { id: string }]} columns={build()} />)
+      expect(screen.getByText('in-review')).toHaveClass('bg-muted')
+    }
+  )
+})

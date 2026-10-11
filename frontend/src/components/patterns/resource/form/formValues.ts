@@ -53,12 +53,17 @@ export function recordValue(
 /**
  * A `select` value, narrowed to the literal union its request field declares.
  *
- * The generated schema is a `z.enum` over the descriptor's own `statusValues`,
- * and `resourceListSpec.test.ts` pins those to the endpoint's enum — so the
- * value is already one of `allowed`. Passing the tuple typed as the request
- * field's own type is what turns a spec change into a compile error here rather
- * than a 400 at runtime; the fallback is unreachable and exists so this needs
- * no type assertion.
+ * For a CLOSED vocabulary only — the blueprint `type`. The generated schema is
+ * a `z.enum` over the descriptor's own `typeValues`, and
+ * `resourceListSpec.test.ts` pins those to the endpoint's enum — so the value
+ * is already one of `allowed`. Passing the tuple typed as the request field's
+ * own type is what turns a spec change into a compile error here rather than a
+ * 400 at runtime; the fallback is unreachable and exists so this needs no type
+ * assertion.
+ *
+ * Never for a `status`: that vocabulary includes the team's custom statuses
+ * (#1263), so narrowing it against a fixed tuple would replace one with the
+ * fallback. Read a status with {@link stringValue}.
  */
 export function enumValue<T extends string>(
   values: ResourceFormValues,

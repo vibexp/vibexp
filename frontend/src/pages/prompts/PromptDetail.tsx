@@ -10,7 +10,10 @@ import {
   useBodyViewMode,
   useCopyAction,
 } from '@/components/patterns/reading-page'
-import { statusLabel, statusTone } from '@/components/patterns/resource'
+import {
+  resourceRegistry,
+  useStatusOptions,
+} from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
@@ -90,6 +93,7 @@ export function PromptDetail() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const { currentTeam, isLoading: isLoadingTeam } = useTeam()
+  const statusOptions = useStatusOptions(resourceRegistry.prompt)
   const { canDeleteResource } = usePermissions()
   const { showSuccess, showError } = useAlerts()
   const { trackEvent } = useAnalytics()
@@ -328,8 +332,8 @@ export function PromptDetail() {
       <ResourceReadingPage
         title={prompt.name}
         status={{
-          value: statusLabel('prompt', prompt.status),
-          tone: statusTone('prompt', prompt.status),
+          value: statusOptions.labelOf(prompt.status),
+          tone: statusOptions.toneOf(prompt.status),
         }}
         address={{ label: 'Slug', value: prompt.slug }}
         updatedAt={prompt.updated_at}

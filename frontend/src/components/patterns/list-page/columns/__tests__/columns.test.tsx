@@ -180,6 +180,18 @@ describe('statusColumn', () => {
     expect(badge).toHaveClass('bg-muted')
   })
 
+  // A team's custom status (#1263) has a display name only the catalog knows;
+  // the page passes `useStatusOptions(descriptor).labelOf`.
+  it('words the badge through `label` when the page supplies one', () => {
+    const col = statusColumn<TestRow>({
+      field: statusFieldOf(artifact),
+      value: r => r.status,
+      label: raw => (raw === 'in-review' ? 'In review' : raw),
+    })
+    renderCell(col, row({ status: 'in-review' }))
+    expect(screen.getByText('In review')).toHaveClass('bg-muted')
+  })
+
   it('returns undefined for a kind with no status field', () => {
     expect(
       statusColumn<TestRow>({

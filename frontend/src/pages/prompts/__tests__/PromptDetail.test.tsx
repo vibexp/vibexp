@@ -7,6 +7,19 @@ import type { Mock } from 'vitest'
 import type { Prompt } from '@/services/promptService'
 import { storage } from '@/utils/storage'
 
+// The team's status catalog (#1263), settable per test. Empty and answered by
+// default — a team with no custom statuses.
+const statusCatalog = vi.hoisted(() => ({
+  statuses: [] as unknown[],
+  isLoading: false,
+}))
+vi.mock('@/hooks/useStatusCatalog', () => ({
+  useStatusCatalog: () => statusCatalog,
+}))
+afterEach(() => {
+  statusCatalog.statuses = []
+})
+
 // Mock MarkdownRenderer to avoid marked/DOMPurify JSDOM issues
 vi.mock('@/components/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => (
@@ -236,6 +249,33 @@ describe('PromptDetail page', () => {
   })
 
   describe('happy render', () => {
+    it('shows a custom status by its display name, in the header and the Metadata row (#1263)', async () => {
+      statusCatalog.statuses = [
+        { slug: 'in-review', name: 'In review', is_system: false },
+      ]
+      ;(promptService.getPrompt as Mock).mockResolvedValue(
+        buildPrompt({ status: 'in-review' })
+      )
+      renderPromptDetail()
+
+      const header = await screen.findByTestId('resource-header-meta')
+      expect(within(header).getByText('In review')).toHaveClass('bg-muted')
+      // The header badge and the descriptor-generated Status row.
+      expect(screen.getAllByText('In review')).toHaveLength(2)
+      expect(screen.queryByText('in-review')).not.toBeInTheDocument()
+    })
+
+    it('shows the raw slug for a status the catalog no longer has (#1263)', async () => {
+      ;(promptService.getPrompt as Mock).mockResolvedValue(
+        buildPrompt({ status: 'in-review' })
+      )
+      renderPromptDetail()
+
+      const header = await screen.findByTestId('resource-header-meta')
+      expect(within(header).getByText('in-review')).toHaveClass('bg-muted')
+      expect(screen.getAllByText('in-review')).toHaveLength(2)
+    })
+
     it('renders the fetched prompt title, status, slug and body', async () => {
       renderPromptDetail()
 

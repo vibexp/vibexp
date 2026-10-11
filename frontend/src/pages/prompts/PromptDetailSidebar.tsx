@@ -8,6 +8,7 @@ import {
   ResourceMetadataSection,
   resourceRegistry,
   ResourceTaxonomySection,
+  useStatusOptions,
 } from '@/components/patterns/resource'
 import {
   Panel,
@@ -42,6 +43,7 @@ export function PromptMetadata({
   project,
   projectHref,
 }: Readonly<PromptMetadataProps>) {
+  const { labelOf } = useStatusOptions(resourceRegistry.prompt)
   return (
     <div className="space-y-5">
       <ResourceMetadataSection
@@ -50,6 +52,7 @@ export function PromptMetadata({
         versionHistory={versionHistory}
         project={project}
         projectHref={projectHref}
+        statusLabel={labelOf}
       />
 
       <ResourceTaxonomySection

@@ -15,6 +15,7 @@ import {
 import {
   getResourceDescriptor,
   roleValues,
+  useStatusOptions,
 } from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
@@ -31,11 +32,10 @@ import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 const BLUEPRINT = getResourceDescriptor('blueprint')
 
-// Both guards read the descriptor's EXHAUSTIVE value lists, which is also what
-// the filter bar enumerates — so the page can never drop a value the control
-// just offered (`active | expired`, and the five blueprint types).
+// The type guard reads the descriptor's EXHAUSTIVE value list, which is also
+// what the filter bar enumerates — so the page can never drop a value the
+// control just offered (the five blueprint types).
 const BLUEPRINT_TYPES = roleValues(BLUEPRINT, 'type')
-const BLUEPRINT_STATUSES = roleValues(BLUEPRINT, 'status')
 
 const PAGE_SIZE = 20
 
@@ -59,20 +59,17 @@ const FILTER_DEFAULTS = {
 }
 
 /**
- * The API rejects a `type` or `status` outside its enum with a 400, so the page
- * must not forward whatever the URL happens to contain.
+ * The API rejects a `type` outside its enum with a 400, so the page must not
+ * forward whatever the URL happens to contain.
  */
 function coerceType(value: string): Blueprint['type'] | undefined {
   return BLUEPRINT_TYPES.has(value) ? (value as Blueprint['type']) : undefined
 }
 
-function coerceStatus(value: string): Blueprint['status'] | undefined {
-  return BLUEPRINT_STATUSES.has(value) ? value : undefined
-}
-
 export function Blueprints() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
+  const statusOptions = useStatusOptions(BLUEPRINT)
   const { canDeleteResource } = usePermissions()
   const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
@@ -113,8 +110,17 @@ export function Blueprints() {
 
   const type =
     filters.type === FILTER_ALL ? undefined : coerceType(filters.type)
+  // A status is a system value or one of the team's custom statuses (#1263),
+  // which only the catalog knows. The API 400s on anything else, so an unknown
+  // URL value is dropped — but only once the catalog has answered: until then
+  // the list waits, because sending the value could 400 and dropping it would
+  // strip a custom status filter from a reloaded page.
+  const statusPending =
+    filters.status !== FILTER_ALL && statusOptions.isPending(filters.status)
   const status =
-    filters.status === FILTER_ALL ? undefined : coerceStatus(filters.status)
+    filters.status !== FILTER_ALL && statusOptions.has(filters.status)
+      ? filters.status
+      : undefined
   // The API accepts only `stale` and 400s on anything else, so a junk URL value
   // must be dropped rather than forwarded.
   const freshness =
@@ -166,8 +172,9 @@ export function Blueprints() {
 
   const state = useResourceListQuery({
     // Wait for a persisted project selection to restore, so the first fetch is
-    // already scoped instead of flashing unfiltered results.
-    ready: !!currentTeam && !isProjectLoading,
+    // already scoped instead of flashing unfiltered results — and for the
+    // status catalog, when the URL filters on a status only it can confirm.
+    ready: !!currentTeam && !isProjectLoading && !statusPending,
     load,
     reloadToken,
     errorFallback: 'Failed to fetch blueprints',
@@ -206,8 +213,9 @@ export function Blueprints() {
         navigate,
         onDelete: setBlueprintToDelete,
         canDelete: blueprint => canDeleteResource(blueprint.user_id),
+        statusLabel: statusOptions.labelOf,
       }),
-    [navigate, canDeleteResource]
+    [navigate, canDeleteResource, statusOptions.labelOf]
   )
 
   const listStatus = listPageStatus(

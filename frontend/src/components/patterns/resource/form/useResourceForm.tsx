@@ -242,7 +242,7 @@ export function useResourceForm({
                 spec={spec}
                 field={byKey.get(spec.key)}
                 label={label}
-                resourceType={descriptor.plural}
+                descriptor={descriptor}
                 value={field.value}
                 disabled={!!locked}
                 metadataRequiredKeys={metadataRequiredKeys}
@@ -287,7 +287,7 @@ export function useResourceForm({
                 spec={spec}
                 field={byKey.get(spec.key)}
                 label={label}
-                resourceType={descriptor.plural}
+                descriptor={descriptor}
                 value={field.value}
                 disabled={isLoading}
                 variant="inline"

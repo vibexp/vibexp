@@ -19,8 +19,8 @@ import {
 } from '../formSpecs'
 
 /**
- * Blueprint — addressed like an artifact. Its status enum is `active | expired`
- * (not `active | inactive`), and `path` is the repo-relative file it
+ * Blueprint — addressed like an artifact. Its system statuses are
+ * `active | expired` (not `active | inactive`), and `path` is the repo-relative file it
  * materializes to; `source` carries import provenance for imported blueprints.
  *
  * The three `source.*` fields are declared with dotted keys rather than as one
@@ -164,9 +164,8 @@ export const blueprintDescriptor = defineResource({
       },
       // A blueprint's status IS editable — the API has accepted it since
       // before this epic (`UpdateBlueprintRequest.status`) and only the form
-      // was missing (#915). The vocabulary is the two values #912 left it
-      // with: widening a subset is a product decision, not a UI one, and
-      // `BlueprintStatus` is still `[active, expired]` on the spec.
+      // was missing (#915). The system values are the two #912 left it with;
+      // the team's custom statuses (#1263) are added from the catalog.
       statusFormField('blueprint'),
       {
         ...bodyFormField('content', 'blueprint-content-textarea'),

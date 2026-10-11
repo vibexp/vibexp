@@ -56,12 +56,17 @@ export function fieldLabel(
 }
 
 /**
- * Every value a `status` or closed `type` field can hold, in display order.
+ * The values a field declares, in display order: every value of a closed
+ * `type`, and the SYSTEM values of a `status`.
  *
- * This is the ONE reader of that vocabulary, so a filter's option list and the
- * page's "is this URL value in the enum?" guard cannot disagree — the failure
- * that shape produces is silent (the control offers a value the page then
- * drops from the request, so the list quietly shows everything).
+ * This is the ONE reader of the declared vocabulary, so a filter's option list
+ * and the page's "is this URL value in the enum?" guard cannot disagree — the
+ * failure that shape produces is silent (the control offers a value the page
+ * then drops from the request, so the list quietly shows everything).
+ *
+ * For a status whose vocabulary is a team catalog (#1263) these are only the
+ * baseline: `useStatusOptions` adds the team's custom statuses, and is what a
+ * status select, filter and guard read.
  *
  * `valueLabels` is deliberately not consulted: it is partial by design, so its
  * keys are a subset, not the value set. A field with no exhaustive list — the

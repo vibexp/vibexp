@@ -8,6 +8,19 @@ import { storage } from '@/utils/storage'
 
 // Mock TeamContext — stable references to prevent effect re-runs
 const mockUseTeam = vi.hoisted(() => vi.fn())
+// The team's status catalog (#1263), settable per test. Empty and answered by
+// default — a team with no custom statuses.
+const statusCatalog = vi.hoisted(() => ({
+  statuses: [] as unknown[],
+  isLoading: false,
+}))
+vi.mock('@/hooks/useStatusCatalog', () => ({
+  useStatusCatalog: () => statusCatalog,
+}))
+afterEach(() => {
+  statusCatalog.statuses = []
+})
+
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
 vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
@@ -124,6 +137,49 @@ describe('MemoryView', () => {
   })
 
   describe('when TeamContext finishes loading with a team', () => {
+    it('shows a custom status by its display name, in the header and the Metadata row (#1263)', async () => {
+      statusCatalog.statuses = [
+        { slug: 'in-review', name: 'In review', is_system: false },
+      ]
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(memoryService.getMemory as Mock).mockResolvedValue({
+        ...mockMemory,
+        status: 'in-review',
+      })
+      renderMemoryView()
+
+      const header = await screen.findByTestId('resource-header-meta')
+      expect(within(header).getByText('In review')).toHaveClass('bg-muted')
+      // The header badge and the descriptor-generated Status row.
+      expect(screen.getAllByText('In review')).toHaveLength(2)
+      expect(screen.queryByText('in-review')).not.toBeInTheDocument()
+    })
+
+    it('shows the raw slug for a status the catalog no longer has (#1263)', async () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(memoryService.getMemory as Mock).mockResolvedValue({
+        ...mockMemory,
+        status: 'in-review',
+      })
+      renderMemoryView()
+
+      const header = await screen.findByTestId('resource-header-meta')
+      expect(within(header).getByText('in-review')).toHaveClass('bg-muted')
+      expect(screen.getAllByText('in-review')).toHaveLength(2)
+    })
+
     it('loads and renders the memory text via MarkdownRenderer', async () => {
       mockUseTeam.mockReturnValue({
         currentTeam: { id: 'team-1', name: 'Test Team' },

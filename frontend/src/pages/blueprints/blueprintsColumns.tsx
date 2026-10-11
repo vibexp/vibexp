@@ -23,6 +23,7 @@ export function buildBlueprintsColumns({
   navigate,
   onDelete,
   canDelete,
+  statusLabel,
 }: {
   navigate: NavigateFunction
   onDelete: (blueprint: Blueprint) => void
@@ -32,6 +33,11 @@ export function buildBlueprintsColumns({
    * `resource.update.any`.
    */
   canDelete: (blueprint: Blueprint) => boolean
+  /**
+   * Display text for a status value, so a team's custom status reads by its
+   * display name (#1263). Defaults to the descriptor's own labels.
+   */
+  statusLabel?: (status: string) => string
 }): ColumnDef<Blueprint>[] {
   const detailPath = (blueprint: Blueprint) =>
     `/blueprints/${encodeURIComponent(blueprint.project_id)}/${encodeURIComponent(blueprint.slug)}`
@@ -54,6 +60,7 @@ export function buildBlueprintsColumns({
     statusColumn<Blueprint>({
       field: fieldOfRole(descriptor, 'status'),
       value: blueprint => blueprint.status,
+      label: statusLabel,
     }),
     updatedColumn<Blueprint>({ value: blueprint => blueprint.updated_at }),
     actionsColumn<Blueprint>({

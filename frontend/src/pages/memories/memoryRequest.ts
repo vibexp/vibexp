@@ -1,21 +1,10 @@
 import type { ResourceFormValues } from '@/components/patterns/resource'
 import {
-  enumValue,
   recordValue,
   stringListValue,
   stringValue,
 } from '@/components/patterns/resource'
-import type {
-  CreateMemoryRequest,
-  Memory,
-  MemoryStatus,
-} from '@/services/memoryService'
-
-const MEMORY_STATUSES: readonly [MemoryStatus, ...MemoryStatus[]] = [
-  'active',
-  'draft',
-  'archived',
-]
+import type { CreateMemoryRequest, Memory } from '@/services/memoryService'
 
 /**
  * The metadata key the Tags chip editor owns.
@@ -67,7 +56,8 @@ export type EmptyTitle = 'omit' | 'clear'
 
 /**
  * The memory request body, built from a generated form's parsed values plus the
- * page-owned tag chips, which are folded back into `metadata`.
+ * page-owned tag chips, which are folded back into `metadata`. `status` is sent
+ * as the form holds it — see `toArtifactRequest`.
  */
 export function toMemoryRequest(
   values: ResourceFormValues,
@@ -79,7 +69,7 @@ export function toMemoryRequest(
   const request: CreateMemoryRequest = {
     project_id: stringValue(values, 'project_id'),
     text: stringValue(values, 'text'),
-    status: enumValue(values, 'status', MEMORY_STATUSES),
+    status: stringValue(values, 'status'),
     labels: stringListValue(values, 'labels'),
     metadata,
   }

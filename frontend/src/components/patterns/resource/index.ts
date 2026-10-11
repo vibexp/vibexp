@@ -77,3 +77,9 @@ export type {
   ResourceFormSpec,
   ResourceListSpec,
 } from './types'
+export {
+  type StatusOption,
+  type StatusOptions,
+  statusResourceTypeOf,
+  useStatusOptions,
+} from './useStatusOptions'
