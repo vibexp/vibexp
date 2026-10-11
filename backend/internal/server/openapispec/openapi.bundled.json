@@ -1796,6 +1796,16 @@
                 }
               }
             }
+          },
+          "423": {
+            "description": "The artifact is locked and the update changes a frozen field (code `RESOURCE_WRITE_LOCKED`). The lock is in `metadata`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceWriteLockedError"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1867,6 +1877,16 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "The artifact is locked, so it cannot be deleted (code `RESOURCE_WRITE_LOCKED`). The lock is in `metadata`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceWriteLockedError"
                 }
               }
             }
@@ -5275,6 +5295,16 @@
               }
             }
           },
+          "423": {
+            "description": "The blueprint is locked and the update changes a frozen field (code `RESOURCE_WRITE_LOCKED`). The lock is in `metadata`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceWriteLockedError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -5356,6 +5386,16 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "The blueprint is locked, so it cannot be deleted (code `RESOURCE_WRITE_LOCKED`). The lock is in `metadata`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceWriteLockedError"
                 }
               }
             }
@@ -6488,6 +6528,16 @@
                 }
               }
             }
+          },
+          "423": {
+            "description": "The prompt is locked and the update changes a frozen field (code `RESOURCE_WRITE_LOCKED`). The lock is in `metadata`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceWriteLockedError"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -6549,6 +6599,16 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "The prompt is locked, so it cannot be deleted (code `RESOURCE_WRITE_LOCKED`). The lock is in `metadata`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceWriteLockedError"
                 }
               }
             }
@@ -35102,6 +35162,61 @@
           "locked_by",
           "comment",
           "locked_at"
+        ]
+      },
+      "ResourceWriteLockedError": {
+        "description": "RFC 9457 problem returned with `423 Locked` and code `RESOURCE_WRITE_LOCKED` when a write is refused because the prompt, blueprint or artifact is locked. A locked resource cannot be deleted, and an update may not change one of its frozen fields; content, title/name and description stay editable. Unlock the resource to make the change.\n\nFrozen fields, as `metadata.field` names them: `slug`, `status`, `project_id`, `labels` and `mcp_expose` on a prompt; `slug`, `status`, `type`, `subtype`, `project_id`, `labels`, `metadata` and `path` on a blueprint; `slug`, `status`, `type`, `project_id`, `labels` and `metadata` on an artifact. A frozen field sent with its current value is not a change.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "metadata": {
+                "type": "object",
+                "description": "The lock that refused the write.",
+                "properties": {
+                  "resource_type": {
+                    "type": "string",
+                    "enum": [
+                      "prompt",
+                      "blueprint",
+                      "artifact"
+                    ],
+                    "description": "The kind of resource that is locked.",
+                    "example": "artifact"
+                  },
+                  "field": {
+                    "type": "string",
+                    "description": "The frozen field the update tried to change, by its request name. Absent when a delete was refused.",
+                    "example": "status"
+                  },
+                  "locked_by": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/ResourceLockActor"
+                      }
+                    ],
+                    "description": "The team member holding the lock."
+                  },
+                  "comment": {
+                    "type": "string",
+                    "description": "Why the resource was locked, as given by the locker.",
+                    "example": "Used by the nightly release agent"
+                  }
+                },
+                "required": [
+                  "resource_type",
+                  "locked_by",
+                  "comment"
+                ]
+              }
+            },
+            "required": [
+              "metadata"
+            ]
+          }
         ]
       },
       "LockResourceRequest": {

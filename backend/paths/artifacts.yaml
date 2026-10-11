@@ -478,6 +478,14 @@ api-v1-team_id-artifacts-project_id-slug:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '423':
+        description: >-
+          The artifact is locked and the update changes a frozen field (code `RESOURCE_WRITE_LOCKED`). The lock
+          is in `metadata`.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ResourceWriteLockedError'
     tags:
       - Artifacts
 
@@ -527,6 +535,14 @@ api-v1-team_id-artifacts-project_id-slug:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '423':
+        description: >-
+          The artifact is locked, so it cannot be deleted (code `RESOURCE_WRITE_LOCKED`). The lock
+          is in `metadata`.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ResourceWriteLockedError'
     tags:
       - Artifacts
 

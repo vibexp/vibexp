@@ -557,6 +557,13 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 		return nil, authzErr
 	}
 
+	// A locked blueprint keeps its frozen fields (#1289). Checked against the
+	// request before applyBlueprintUpdates runs, so the path, skill title and
+	// raw content derived from a content edit further down stay allowed.
+	if lockErr := guardLockedBlueprintUpdate(blueprint, req); lockErr != nil {
+		return nil, lockErr
+	}
+
 	// Reject an over-limit label list before anything else: the documented
 	// maxItems/maxLength are enforced nowhere else (issue #910).
 	if err := validateLabels(req.Labels); err != nil {
@@ -719,6 +726,12 @@ func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, teamID, pro
 		authz.ResourceDeleteOwn, authz.ResourceDeleteAny,
 	); authzErr != nil {
 		return authzErr
+	}
+
+	// A locked blueprint cannot be deleted by anyone, owners and admins included
+	// (#1289); it has to be unlocked first.
+	if lockErr := guardLockedDelete(models.RelationResourceTypeBlueprint, blueprint.Lock); lockErr != nil {
+		return lockErr
 	}
 
 	err = s.repo.Delete(ctx, userID, blueprint.TeamID, blueprint.ID)

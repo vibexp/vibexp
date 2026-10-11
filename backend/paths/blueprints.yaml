@@ -592,6 +592,14 @@ api-v1-team_id-blueprints-project_id-slug:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '423':
+        description: >-
+          The blueprint is locked and the update changes a frozen field (code `RESOURCE_WRITE_LOCKED`). The lock
+          is in `metadata`.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ResourceWriteLockedError'
       '500':
         description: Internal server error
         content:
@@ -648,6 +656,14 @@ api-v1-team_id-blueprints-project_id-slug:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '423':
+        description: >-
+          The blueprint is locked, so it cannot be deleted (code `RESOURCE_WRITE_LOCKED`). The lock
+          is in `metadata`.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ResourceWriteLockedError'
       '500':
         description: Internal server error
         content:

@@ -336,3 +336,40 @@ func (e *TeamEmailProviderValidationError) Error() string {
 func (e *TeamEmailProviderValidationError) Is(target error) bool {
 	return target == ErrTeamEmailProviderValidation
 }
+
+// Resource Lock Errors
+
+// ResourceLockedError is returned when a write is refused because the resource
+// is locked (epic #1285): any delete, and any update that changes a frozen
+// field. Handlers map it to a 423 with errors.NewResourceWriteLockedError; the
+// MCP tools print Error() as is, so the message names the locker and carries
+// the lock comment.
+type ResourceLockedError struct {
+	// ResourceType is the RelationResourceType* value of the locked resource.
+	ResourceType string
+	// Field is the frozen field the update tried to change, by its JSON name.
+	// It is empty for a delete.
+	Field string
+	// LockedBy and LockedByName identify the member holding the lock.
+	LockedBy     string
+	LockedByName string
+	// Comment is why the resource was locked, as given by the locker.
+	Comment string
+}
+
+// Error implements the error interface.
+func (e *ResourceLockedError) Error() string {
+	action := "cannot delete"
+	if e.Field != "" {
+		action = "cannot change " + e.Field
+	}
+	locker := e.LockedByName
+	if locker == "" {
+		locker = "another member"
+	}
+	msg := fmt.Sprintf("%s: this %s is locked by %s", action, e.ResourceType, locker)
+	if e.Comment != "" {
+		msg += fmt.Sprintf(": %q", e.Comment)
+	}
+	return msg
+}

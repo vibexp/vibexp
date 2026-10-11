@@ -31,6 +31,12 @@ const (
 	CodeResourceLocked    = "RESOURCE_LOCKED"
 	CodeResourceNotLocked = "RESOURCE_NOT_LOCKED"
 
+	// CodeResourceWriteLocked signals a write refused because the resource is
+	// locked (#1289): a delete, or an update changing a frozen field. It is a
+	// 423 and deliberately not CodeResourceLocked, which is the 409 for locking
+	// what is already locked.
+	CodeResourceWriteLocked = "RESOURCE_WRITE_LOCKED"
+
 	// Rate limiting and quotas
 	CodeRateLimitExceeded     = "RATE_LIMIT_EXCEEDED"
 	CodeResourceLimitExceeded = "RESOURCE_LIMIT_EXCEEDED"
@@ -184,6 +190,8 @@ var errorTitles = map[string]string{
 	// Resource lock errors (#1288)
 	CodeResourceLocked:    "Resource Locked",
 	CodeResourceNotLocked: "Resource Not Locked",
+
+	CodeResourceWriteLocked: "Resource Write Locked",
 }
 
 // GetErrorTitle returns the title for a given error code

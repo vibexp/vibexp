@@ -334,6 +334,14 @@ api-v1-team_id-prompts-slug:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '423':
+        description: >-
+          The prompt is locked and the update changes a frozen field (code `RESOURCE_WRITE_LOCKED`). The lock
+          is in `metadata`.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ResourceWriteLockedError'
     tags:
       - Prompts
 
@@ -377,6 +385,14 @@ api-v1-team_id-prompts-slug:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '423':
+        description: >-
+          The prompt is locked, so it cannot be deleted (code `RESOURCE_WRITE_LOCKED`). The lock
+          is in `metadata`.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ResourceWriteLockedError'
     tags:
       - Prompts
 
