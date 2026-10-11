@@ -189,3 +189,100 @@ func TestStatusCatalogService_IsAllowed_CustomAndForeignStatuses(t *testing.T) {
 		})
 	}
 }
+
+// ConfirmCustom is asked after a write (#1332). A system status needs no row,
+// so it is confirmed without reaching the repository; anything else is the
+// repository's locking read, whatever it answers.
+func TestStatusCatalogService_ConfirmCustom(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("a system status is confirmed without a query", func(t *testing.T) {
+		svc, _ := newStatusCatalogService(t)
+		for _, resourceType := range models.StatusResourceTypes {
+			for _, status := range models.SystemStatusesFor(resourceType) {
+				confirmed, err := svc.ConfirmCustom(ctx, testStatusTeamID, resourceType, status)
+				require.NoError(t, err)
+				assert.True(t, confirmed, "%s %s", resourceType, status)
+			}
+		}
+	})
+
+	for _, stillThere := range []bool{true, false} {
+		t.Run("a custom status is the repository's answer", func(t *testing.T) {
+			svc, repo := newStatusCatalogService(t)
+			repo.EXPECT().
+				ConfirmSlug(mock.Anything, testStatusTeamID, models.StatusResourceTypeArtifact, "in-review").
+				Return(stillThere, nil).Once()
+
+			confirmed, err := svc.ConfirmCustom(ctx, testStatusTeamID, models.StatusResourceTypeArtifact, "in-review")
+			require.NoError(t, err)
+			assert.Equal(t, stillThere, confirmed)
+		})
+	}
+
+	// Another type's system status is not this type's: `published` is a
+	// prompt status only, so on an artifact it is a custom slug to look up.
+	t.Run("another type's system status is looked up", func(t *testing.T) {
+		svc, repo := newStatusCatalogService(t)
+		repo.EXPECT().
+			ConfirmSlug(mock.Anything, testStatusTeamID, models.StatusResourceTypeArtifact, "published").
+			Return(false, nil).Once()
+
+		confirmed, err := svc.ConfirmCustom(ctx, testStatusTeamID, models.StatusResourceTypeArtifact, "published")
+		require.NoError(t, err)
+		assert.False(t, confirmed)
+	})
+
+	t.Run("a repository error is wrapped", func(t *testing.T) {
+		svc, repo := newStatusCatalogService(t)
+		boom := errors.New("connection reset")
+		repo.EXPECT().ConfirmSlug(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(false, boom).Once()
+
+		_, err := svc.ConfirmCustom(ctx, testStatusTeamID, models.StatusResourceTypeArtifact, "in-review")
+		require.ErrorIs(t, err, boom)
+	})
+
+	t.Run("an unsupported resource type", func(t *testing.T) {
+		svc, _ := newStatusCatalogService(t)
+		_, err := svc.ConfirmCustom(ctx, testStatusTeamID, "feeds", "in-review")
+		require.ErrorIs(t, err, ErrStatusResourceTypeUnsupported)
+	})
+}
+
+// ReassignDeleted moves the one resource to the default of its type -- `draft`
+// for a prompt, `active` for the rest -- and reports that default.
+func TestStatusCatalogService_ReassignDeleted(t *testing.T) {
+	ctx := context.Background()
+
+	for _, resourceType := range models.StatusResourceTypes {
+		t.Run(resourceType, func(t *testing.T) {
+			svc, repo := newStatusCatalogService(t)
+			fallback := models.DefaultStatusFor(resourceType)
+			repo.EXPECT().
+				ReassignResource(mock.Anything, testStatusTeamID, resourceType, "resource-1", "in-review", fallback).
+				Return(nil).Once()
+
+			got, err := svc.ReassignDeleted(ctx, testStatusTeamID, resourceType, "resource-1", "in-review")
+			require.NoError(t, err)
+			assert.Equal(t, fallback, got)
+		})
+	}
+
+	t.Run("a repository error is returned", func(t *testing.T) {
+		svc, repo := newStatusCatalogService(t)
+		boom := errors.New("connection reset")
+		repo.EXPECT().
+			ReassignResource(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(boom).Once()
+
+		_, err := svc.ReassignDeleted(ctx, testStatusTeamID, models.StatusResourceTypeMemory, "resource-1", "in-review")
+		require.ErrorIs(t, err, boom)
+	})
+
+	t.Run("an unsupported resource type", func(t *testing.T) {
+		svc, _ := newStatusCatalogService(t)
+		_, err := svc.ReassignDeleted(ctx, testStatusTeamID, "feeds", "resource-1", "in-review")
+		require.ErrorIs(t, err, ErrStatusResourceTypeUnsupported)
+	})
+}

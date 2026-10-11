@@ -190,12 +190,7 @@ func (s *ArtifactService) CreateArtifact(
 
 	artifact := buildArtifactFromRequest(userID, finalTeamID, req)
 
-	err = s.repo.Create(ctx, artifact)
-	if err != nil {
-		s.logger.With(
-			"service", "artifact",
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to create artifact")
+	if err = s.insertArtifact(ctx, artifact); err != nil {
 		return nil, err
 	}
 
@@ -535,15 +530,7 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 		}
 	}
 
-	err := s.repo.Update(ctx, artifact)
-	if err != nil {
-		s.logger.With(
-			"service", "artifact",
-			"user_id", userID,
-			"project_id", artifact.ProjectID,
-			"slug", artifact.Slug,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to update artifact")
+	if err := s.saveArtifact(ctx, userID, artifact); err != nil {
 		return nil, err
 	}
 
@@ -745,4 +732,36 @@ func (s *ArtifactService) GetArtifactStats(userID, teamID string) (*models.Artif
 	}
 
 	return stats, nil
+}
+
+// insertArtifact stores a new artifact and then confirms the status it stored:
+// a custom status deleted while the insert was in flight is replaced by the
+// default, in the row and in artifact (#1332).
+func (s *ArtifactService) insertArtifact(ctx context.Context, artifact *models.Artifact) error {
+	if err := s.repo.Create(ctx, artifact); err != nil {
+		s.logger.With(
+			"service", "artifact",
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create artifact")
+		return err
+	}
+	return s.statuses.ConfirmAfterWrite(
+		ctx, s.logger, artifact.TeamID, models.StatusResourceTypeArtifact, artifact.ID, &artifact.Status)
+}
+
+// saveArtifact is insertArtifact for an update. The update rewrites the whole
+// row, so the status is confirmed whether or not the request set it.
+func (s *ArtifactService) saveArtifact(ctx context.Context, userID string, artifact *models.Artifact) error {
+	if err := s.repo.Update(ctx, artifact); err != nil {
+		s.logger.With(
+			"service", "artifact",
+			"user_id", userID,
+			"project_id", artifact.ProjectID,
+			"slug", artifact.Slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update artifact")
+		return err
+	}
+	return s.statuses.ConfirmAfterWrite(
+		ctx, s.logger, artifact.TeamID, models.StatusResourceTypeArtifact, artifact.ID, &artifact.Status)
 }

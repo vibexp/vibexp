@@ -187,6 +187,18 @@ type StatusCatalogServiceInterface interface {
 	IsAllowed(ctx context.Context, teamID, resourceType, status string) (bool, error)
 	// AllowedSlugs returns the catalog's slugs, in List order.
 	AllowedSlugs(ctx context.Context, teamID, resourceType string) ([]string, error)
+	// ConfirmCustom reports whether status can still be stored on a resource
+	// of (teamID, resourceType), and is meant to be asked AFTER the write that
+	// stored it (#1332). A system status is confirmed without a query. A
+	// custom one costs a locking read that waits out a concurrent delete of
+	// that status, so the answer is false exactly when the delete's
+	// reassignment may have missed the write.
+	ConfirmCustom(ctx context.Context, teamID, resourceType, status string) (bool, error)
+	// ReassignDeleted moves the resource off a status ConfirmCustom reported
+	// gone and returns the status it now carries: the default of its type.
+	ReassignDeleted(
+		ctx context.Context, teamID, resourceType, resourceID, status string,
+	) (string, error)
 }
 
 // TypeServiceInterface defines the resource-type-agnostic, team-customizable

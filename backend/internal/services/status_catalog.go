@@ -131,6 +131,41 @@ func (s *StatusCatalogService) AllowedSlugs(
 	return slugs, nil
 }
 
+// ConfirmCustom reports whether status is a system status of resourceType or a
+// custom status the team still has, taking the row lock that makes the answer
+// safe to act on after a write (see TeamStatusRepository.ConfirmSlug).
+func (s *StatusCatalogService) ConfirmCustom(
+	ctx context.Context, teamID, resourceType, status string,
+) (bool, error) {
+	system, err := systemStatusesFor(resourceType)
+	if err != nil {
+		return false, err
+	}
+	if slices.Contains(system, status) {
+		return true, nil
+	}
+	confirmed, err := s.repo.ConfirmSlug(ctx, teamID, resourceType, status)
+	if err != nil {
+		return false, fmt.Errorf("failed to confirm team status: %w", err)
+	}
+	return confirmed, nil
+}
+
+// ReassignDeleted moves one resource from status to the default status of its
+// type, as the delete of status would have, and returns that default.
+func (s *StatusCatalogService) ReassignDeleted(
+	ctx context.Context, teamID, resourceType, resourceID, status string,
+) (string, error) {
+	if _, err := systemStatusesFor(resourceType); err != nil {
+		return "", err
+	}
+	fallback := models.DefaultStatusFor(resourceType)
+	if err := s.repo.ReassignResource(ctx, teamID, resourceType, resourceID, status, fallback); err != nil {
+		return "", err
+	}
+	return fallback, nil
+}
+
 // systemStatusesFor returns the system statuses of a supported resource type,
 // or ErrStatusResourceTypeUnsupported.
 func systemStatusesFor(resourceType string) ([]string, error) {

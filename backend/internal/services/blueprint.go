@@ -275,12 +275,7 @@ func (s *BlueprintService) CreateBlueprint(
 		return nil, err
 	}
 
-	err = s.repo.Create(ctx, blueprint)
-	if err != nil {
-		s.logger.With(
-			"service", "blueprint",
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to create blueprint")
+	if err = s.insertBlueprint(ctx, blueprint); err != nil {
 		return nil, err
 	}
 
@@ -606,14 +601,7 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 
 	s.snapshotBlueprintContent(ctx, userID, blueprint, oldContent, oldRawContent, actorType, changeSummary)
 
-	if err := s.repo.Update(ctx, blueprint); err != nil {
-		s.logger.With(
-			"service", "blueprint",
-			"user_id", userID,
-			"project_id", blueprint.ProjectID,
-			"slug", blueprint.Slug,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to update blueprint")
+	if err := s.saveBlueprint(ctx, userID, blueprint); err != nil {
 		return nil, err
 	}
 
@@ -822,4 +810,36 @@ func (s *BlueprintService) GetBlueprintStats(userID string) (*models.BlueprintSt
 	}
 
 	return stats, nil
+}
+
+// insertBlueprint stores a new blueprint and then confirms the status it
+// stored: a custom status deleted while the insert was in flight is replaced
+// by the default, in the row and in blueprint (#1332).
+func (s *BlueprintService) insertBlueprint(ctx context.Context, blueprint *models.Blueprint) error {
+	if err := s.repo.Create(ctx, blueprint); err != nil {
+		s.logger.With(
+			"service", "blueprint",
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create blueprint")
+		return err
+	}
+	return s.statuses.ConfirmAfterWrite(
+		ctx, s.logger, blueprint.TeamID, models.StatusResourceTypeBlueprint, blueprint.ID, &blueprint.Status)
+}
+
+// saveBlueprint is insertBlueprint for an update. The update rewrites the
+// whole row, so the status is confirmed whether or not the request set it.
+func (s *BlueprintService) saveBlueprint(ctx context.Context, userID string, blueprint *models.Blueprint) error {
+	if err := s.repo.Update(ctx, blueprint); err != nil {
+		s.logger.With(
+			"service", "blueprint",
+			"user_id", userID,
+			"project_id", blueprint.ProjectID,
+			"slug", blueprint.Slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update blueprint")
+		return err
+	}
+	return s.statuses.ConfirmAfterWrite(
+		ctx, s.logger, blueprint.TeamID, models.StatusResourceTypeBlueprint, blueprint.ID, &blueprint.Status)
 }

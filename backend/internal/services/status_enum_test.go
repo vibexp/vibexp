@@ -183,6 +183,17 @@ type fakeStatusCatalog struct {
 	custom  map[string][]string // "<teamID>/<resourceType>" -> custom slugs
 	err     error
 	lookups int
+
+	// gone holds the custom statuses ("<teamID>/<resourceType>/<slug>") a
+	// delete removed after Validate read them: still in custom, so the write
+	// is let through, and no longer confirmed afterwards (#1332).
+	gone                    map[string]bool
+	confirmErr, reassignErr error
+	// confirms counts ConfirmCustom calls, the locking read a write on a
+	// system status must never cost.
+	confirms int
+	// reassigned records each repair as "<resourceType>/<resourceID>/<slug>".
+	reassigned []string
 }
 
 var _ StatusCatalogServiceInterface = (*fakeStatusCatalog)(nil)
@@ -198,6 +209,29 @@ func (f *fakeStatusCatalog) AllowedSlugs(_ context.Context, teamID, resourceType
 func (f *fakeStatusCatalog) IsAllowed(ctx context.Context, teamID, resourceType, status string) (bool, error) {
 	slugs, err := f.AllowedSlugs(ctx, teamID, resourceType)
 	return slices.Contains(slugs, status), err
+}
+
+func (f *fakeStatusCatalog) ConfirmCustom(
+	_ context.Context, teamID, resourceType, status string,
+) (bool, error) {
+	f.confirms++
+	if f.confirmErr != nil {
+		return false, f.confirmErr
+	}
+	if f.gone[teamID+"/"+resourceType+"/"+status] {
+		return false, nil
+	}
+	return slices.Contains(f.custom[teamID+"/"+resourceType], status), nil
+}
+
+func (f *fakeStatusCatalog) ReassignDeleted(
+	_ context.Context, _, resourceType, resourceID, status string,
+) (string, error) {
+	if f.reassignErr != nil {
+		return "", f.reassignErr
+	}
+	f.reassigned = append(f.reassigned, resourceType+"/"+resourceID+"/"+status)
+	return models.DefaultStatusFor(resourceType), nil
 }
 
 func (f *fakeStatusCatalog) List(ctx context.Context, teamID, resourceType string) ([]CatalogStatus, error) {

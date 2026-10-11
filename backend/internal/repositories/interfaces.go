@@ -2243,6 +2243,26 @@ type TeamStatusRepository interface {
 	DeleteAndReassign(
 		ctx context.Context, teamID, id, defaultStatus string,
 	) (*models.TeamStatus, int, error)
+	// ConfirmSlug reports whether the team still has the custom status slug for
+	// resourceType, and takes a key-share lock on its row to find out. A
+	// DeleteAndReassign of that status that has deleted the row but not yet
+	// committed holds a conflicting lock, so ConfirmSlug waits for it and then
+	// answers false. That makes it the check to run AFTER a resource write
+	// stored the slug (#1332): either it answers before the delete took the
+	// row, and the delete's reassignment then sees the committed write, or it
+	// answers false and the caller repairs the resource with ReassignResource.
+	// The lock only has to be acquired, not held, so it needs no transaction.
+	// The wait is as long as the delete's one UPDATE and is bounded by ctx.
+	ConfirmSlug(ctx context.Context, teamID, resourceType, slug string) (bool, error)
+	// ReassignResource moves one resource of the team from fromSlug to
+	// toStatus: DeleteAndReassign's reassignment for a single row it ran too
+	// early to see. A resource that no longer carries fromSlug is left alone,
+	// which is not an error -- something else already moved it. Unlike the
+	// bulk reassignment it lets a memory's updated_at move: the row was written
+	// an instant ago. resourceType must be one of models.StatusResourceTypes.
+	ReassignResource(
+		ctx context.Context, teamID, resourceType, resourceID, fromSlug, toStatus string,
+	) error
 }
 
 // TypeRepository persists the resource-type-agnostic, team-customizable type
