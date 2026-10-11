@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 
 import { ApiError } from '@/types/errors'
 import type { ResourceLock, ResourceLockEvent } from '@/types/resourceLock'
@@ -239,6 +240,77 @@ describe('useResourceLock — locking', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
+  })
+
+  // The dialog stays mounted on the page, so every way it can close has to
+  // leave the next open empty.
+  it('reopens empty after a successful lock and unlock', async () => {
+    const user = userEvent.setup()
+    const ops = makeOps()
+    ops.lock.mockResolvedValue({ id: 'a-1', lock: lockedBy('user-1') })
+    ops.unlock.mockResolvedValue({ id: 'a-1', lock: null })
+    function Page() {
+      const [doc, setDoc] = useState<Doc>({ id: 'a-1', lock: null })
+      return <Harness resource={doc} ops={ops} onChanged={setDoc} />
+    }
+    render(<Page />)
+
+    await user.click(screen.getByTestId('lock-artifact-button'))
+    await user.type(screen.getByLabelText(/reason/i), 'first reason')
+    await user.click(screen.getByTestId('confirm-lock-button'))
+    await user.click(await screen.findByTestId('unlock-artifact-button'))
+    await user.click(await screen.findByTestId('lock-artifact-button'))
+
+    expect(screen.getByLabelText(/reason/i)).toHaveValue('')
+    expect(screen.getByTestId('confirm-lock-button')).toBeDisabled()
+  })
+
+  it('reopens empty after being cancelled', async () => {
+    const user = userEvent.setup()
+    render(
+      <Harness
+        resource={{ id: 'a-1', lock: null }}
+        ops={makeOps()}
+        onChanged={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByTestId('lock-artifact-button'))
+    await user.type(screen.getByLabelText(/reason/i), 'draft')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    await user.click(screen.getByTestId('lock-artifact-button'))
+
+    expect(screen.getByLabelText(/reason/i)).toHaveValue('')
+  })
+
+  it('reopens empty after a stale-lock refetch closed it', async () => {
+    const user = userEvent.setup()
+    const ops = makeOps()
+    ops.lock.mockRejectedValue(
+      apiError(409, 'RESOURCE_LOCKED', 'The artifact is already locked.')
+    )
+    // The refetch finds it unlocked again, so Lock is still on offer.
+    ops.reload.mockResolvedValue({ id: 'a-1', lock: null })
+    render(
+      <Harness
+        resource={{ id: 'a-1', lock: null }}
+        ops={ops}
+        onChanged={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByTestId('lock-artifact-button'))
+    await user.type(screen.getByLabelText(/reason/i), 'in use')
+    await user.click(screen.getByTestId('confirm-lock-button'))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    await user.click(screen.getByTestId('lock-artifact-button'))
+
+    expect(screen.getByLabelText(/reason/i)).toHaveValue('')
   })
 
   it('does not send a lock request for an empty comment', async () => {

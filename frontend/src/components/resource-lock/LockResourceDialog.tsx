@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { LockableKind } from '@/types/resourceLock'
 
-/** The server's limit on a lock comment (`LockResourceRequest.comment`). */
+/** The server's limit on a lock comment (`LockResourceRequest.comment` in the spec). */
 export const LOCK_COMMENT_MAX_LENGTH = 500
 
 interface LockResourceDialogProps {
@@ -41,10 +41,10 @@ export function LockResourceDialog({
   const [comment, setComment] = useState('')
   const trimmed = comment.trim()
 
+  // The draft is not cleared here: `useResourceLock` remounts the dialog on
+  // every open, which also covers the closes this component never sees.
   const handleOpenChange = (next: boolean) => {
     if (submitting) return
-    // A reopened dialog starts empty rather than with the last draft.
-    if (!next) setComment('')
     onOpenChange(next)
   }
 
@@ -61,9 +61,9 @@ export function LockResourceDialog({
           <DialogHeader>
             <DialogTitle>Lock {kind}?</DialogTitle>
             <DialogDescription>
-              A locked {kind} cannot be deleted, and its slug, status, project
-              and labels cannot be changed until it is unlocked. Its content
-              stays editable.
+              A locked {kind} cannot be deleted, and its slug, status, project,
+              labels and other settings cannot be changed until it is unlocked.
+              Its content stays editable.
             </DialogDescription>
           </DialogHeader>
 

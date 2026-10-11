@@ -88,6 +88,10 @@ export function useResourceLock<T extends LockableResource>({
   const { handleError } = useErrorHandler()
 
   const [dialogOpen, setDialogOpen] = useState(false)
+  // Counts the times the dialog was opened. Used as its `key`, so every open
+  // starts with an empty comment however the last one was closed: by the
+  // reader, by a successful lock, or by a stale-lock refetch.
+  const [dialogSession, setDialogSession] = useState(0)
   const [busy, setBusy] = useState(false)
   const [events, setEvents] = useState<ResourceLockEvent[]>([])
   const [historyError, setHistoryError] = useState<string | null>(null)
@@ -200,6 +204,7 @@ export function useResourceLock<T extends LockableResource>({
     testId: `lock-${kind}-button`,
     disabled: busy,
     onClick: () => {
+      setDialogSession(n => n + 1)
       setDialogOpen(true)
     },
   }
@@ -222,6 +227,7 @@ export function useResourceLock<T extends LockableResource>({
     actions,
     dialog: (
       <LockResourceDialog
+        key={dialogSession}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         kind={kind}

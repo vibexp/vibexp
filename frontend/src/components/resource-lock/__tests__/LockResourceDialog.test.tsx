@@ -93,23 +93,12 @@ describe('LockResourceDialog', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  it('starts empty again after being cancelled', async () => {
+  it('asks to close when cancelled', async () => {
     const user = userEvent.setup()
-    const { onOpenChange, rerender } = renderDialog()
+    const { onOpenChange } = renderDialog()
 
-    await user.type(screen.getByLabelText(/reason/i), 'draft')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(onOpenChange).toHaveBeenCalledWith(false)
 
-    rerender(
-      <LockResourceDialog
-        open
-        kind="prompt"
-        submitting={false}
-        onOpenChange={onOpenChange}
-        onSubmit={vi.fn()}
-      />
-    )
-    expect(screen.getByLabelText(/reason/i)).toHaveValue('')
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })
