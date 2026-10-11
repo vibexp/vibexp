@@ -80,9 +80,8 @@ function ProviderIcon({ name }: Readonly<{ name: string }>) {
  * company's logo.
  */
 function Brand() {
-  const { displayName, company_name, logo_url, logo_dark_url } = useSiteInfo()
-  const logoWithoutName =
-    company_name === null && (logo_url !== null || logo_dark_url !== null)
+  const { displayName, company_name, hasCompanyBranding } = useSiteInfo()
+  const logoWithoutName = hasCompanyBranding && company_name === null
   return (
     <div className="inline-flex items-center gap-2.5">
       <BrandLogo size={36} />

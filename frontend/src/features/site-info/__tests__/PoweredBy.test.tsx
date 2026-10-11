@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import type React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { PoweredBy } from '../PoweredBy'
@@ -6,8 +7,11 @@ import { deriveSiteInfo, EMPTY_SITE_INFO } from '../siteInfo'
 import { SiteInfoContext } from '../SiteInfoContext'
 
 vi.mock('@vibexp/design-system/react', () => ({
-  LogoMark: ({ size }: { size?: number }) => (
-    <span data-testid="vibexp-mark" data-size={size} />
+  LogoMark: ({
+    size,
+    ...rest
+  }: { size?: number } & React.HTMLAttributes<HTMLSpanElement>) => (
+    <span data-testid="vibexp-mark" data-size={size} {...rest} />
   ),
 }))
 
@@ -19,7 +23,11 @@ describe('PoweredBy', () => {
     expect(link).toHaveAttribute('href', 'https://vibexp.io')
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
-    expect(screen.getByTestId('vibexp-mark')).toBeInTheDocument()
+    // The mark names itself "VibeXP"; hidden, it does not double the link's name.
+    expect(screen.getByTestId('vibexp-mark')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    )
   })
 
   it('keeps its own classes when the caller adds some', () => {

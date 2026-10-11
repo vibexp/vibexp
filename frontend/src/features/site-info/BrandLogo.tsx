@@ -18,6 +18,12 @@ interface BrandLogoProps {
   className?: string
 }
 
+/**
+ * The image's name when no company name is configured. An image is only ever
+ * a company's logo, so it is never named after the product.
+ */
+const COMPANY_LOGO_ALT = 'Company logo'
+
 /** The design-system `LogoMark`'s default size, in pixels. */
 const DEFAULT_SIZE = 34
 
@@ -36,7 +42,7 @@ export function BrandLogo({
   size = DEFAULT_SIZE,
   className,
 }: Readonly<BrandLogoProps>) {
-  const { logo_url, logo_dark_url, displayName } = useSiteInfo()
+  const { logo_url, logo_dark_url, company_name } = useSiteInfo()
   const { resolvedTheme } = useTheme()
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
 
@@ -52,7 +58,7 @@ export function BrandLogo({
   return (
     <img
       src={src}
-      alt={displayName}
+      alt={company_name ?? COMPANY_LOGO_ALT}
       style={{ height: size }}
       className={cn('w-auto max-w-40 object-contain', className)}
       onError={() => {

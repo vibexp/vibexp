@@ -562,7 +562,10 @@ describe('SignInPage — logo, credit and small-screen footer (#1359)', () => {
 
     const brand = await cardBrand()
     expect(brand).not.toHaveClass('lg:hidden')
-    expect(within(brand).getByRole('img')).toHaveAttribute('src', LOGO)
+    expect(
+      within(brand).getByRole('img', { name: 'Company logo' })
+    ).toHaveAttribute('src', LOGO)
+    expect(screen.queryByRole('img', { name: /vibexp/i })).toBeNull()
     expect(brand.textContent).toBe('')
     expectCredited()
   })
