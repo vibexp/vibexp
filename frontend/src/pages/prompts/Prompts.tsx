@@ -78,7 +78,7 @@ const FILTER_DEFAULTS = {
  * simply matches nothing.
  */
 function coerceStatus(value: string): PromptStatus | undefined {
-  return PROMPT_STATUSES.has(value) ? (value as PromptStatus) : undefined
+  return PROMPT_STATUSES.has(value) ? value : undefined
 }
 
 /** The tri-state stays a string in the URL; only the request sees a boolean. */

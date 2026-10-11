@@ -15,6 +15,7 @@ import { formatDateTime } from '@/lib/time'
 import {
   carriedCredential,
   describeResource,
+  isCopyEntry,
   surfaceLabel,
 } from '@/pages/teams/settings/audit/settingsAuditFormat'
 import type { AdminTeamSettingsAuditEntry } from '@/services/adminService'
@@ -26,8 +27,12 @@ import { useAdminTeamSection } from './useAdminTeamSection'
 
 const PER_PAGE = 20
 
-/** The source team by name, or the id once that team is gone. */
+/**
+ * The source team by name, or the id once that team is gone. An entry that is
+ * not a copy (a status change) has no source team, which reads as a dash.
+ */
 function sourceTeam(entry: AdminTeamSettingsAuditEntry): string {
+  if (!isCopyEntry(entry)) return '—'
   if (entry.source_team_name) return entry.source_team_name
   if (entry.source_team_id) {
     return `Deleted team ${shortId(entry.source_team_id)}`

@@ -6,6 +6,7 @@ import {
   Shapes,
   SlidersHorizontal,
   Timer,
+  Workflow,
 } from 'lucide-react'
 
 import { GitHubIcon } from '@/components/icons/GitHubIcon'
@@ -84,6 +85,14 @@ export function teamSettingsCardsFor(teamId: string): TeamSettingsCard[] {
       description: 'Create and manage custom categories for your artifacts.',
       icon: Shapes,
       href: `${base}/customization`,
+    },
+    {
+      // No `permission`: every member may see the team's statuses. The page
+      // gates its own write controls on `team.settings.update` (#1269).
+      title: 'Statuses',
+      description: 'Add custom statuses for your prompts and other resources.',
+      icon: Workflow,
+      href: `${base}/statuses`,
     },
     {
       // The compensating control for cross-team copy (epic #827): configuration

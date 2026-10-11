@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { slugify } from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -41,19 +42,6 @@ const schema = z.object({
 })
 
 export type CreateTypeFormValues = z.infer<typeof schema>
-
-function slugify(value: string): string {
-  return (
-    value
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-      // Runs are already collapsed to a single "-" above, so trimming one dash
-      // per end is equivalent — and linear, unlike /^-+|-+$/.
-      .replace(/^-/, '')
-      .replace(/-$/, '')
-  )
-}
 
 interface CreateTypeDialogProps {
   open: boolean

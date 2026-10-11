@@ -7,6 +7,7 @@ import { ProjectMigrate } from '@/pages/teams/projects/ProjectMigrate'
 import { Projects } from '@/pages/teams/projects/Projects'
 import { SettingsAudit } from '@/pages/teams/settings/audit/SettingsAudit'
 import { Customization } from '@/pages/teams/settings/customization/Customization'
+import { Statuses } from '@/pages/teams/settings/customization/Statuses'
 import { EmailProvider } from '@/pages/teams/settings/email-provider/EmailProvider'
 import { EmbeddingProviders } from '@/pages/teams/settings/embedding-providers/EmbeddingProviders'
 import { FreshnessSettings } from '@/pages/teams/settings/freshness/FreshnessSettings'
@@ -81,6 +82,7 @@ export function TeamRoutes({
         path="settings/customization"
         element={<Customization team={team} />}
       />
+      <Route path="settings/statuses" element={<Statuses team={team} />} />
       <Route
         path="settings/integrations/github"
         element={<GitHubIntegration team={team} />}

@@ -19,6 +19,7 @@ import { formatDateTime } from '@/lib/time'
 import {
   carriedCredential,
   describeResource,
+  isCopyEntry,
   surfaceLabel,
 } from '@/pages/teams/settings/audit/settingsAuditFormat'
 import type { Team } from '@/services/teamService'
@@ -76,9 +77,11 @@ function AuditRow({ entry }: Readonly<{ entry: TeamSettingsAuditEntry }>) {
             </Badge>
           )}
         </div>
-        <p className="text-muted-foreground">
-          <SourceTeamCell entry={entry} />
-        </p>
+        {isCopyEntry(entry) && (
+          <p className="text-muted-foreground" data-testid="audit-source-team">
+            <SourceTeamCell entry={entry} />
+          </p>
+        )}
       </TableCell>
     </TableRow>
   )

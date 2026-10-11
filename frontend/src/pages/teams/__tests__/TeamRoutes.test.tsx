@@ -35,6 +35,11 @@ vi.mock(
 vi.mock('@/pages/teams/settings/customization/Customization', () => ({
   Customization: () => <div data-testid="customization" />,
 }))
+vi.mock('@/pages/teams/settings/customization/Statuses', () => ({
+  Statuses: ({ team }: { team: Team }) => (
+    <div data-testid="statuses">{team.name}</div>
+  ),
+}))
 // #506 — the email provider page, added to the same set.
 vi.mock('@/pages/teams/settings/email-provider/EmailProvider', () => ({
   EmailProvider: ({ team }: { team: Team }) => (
@@ -94,6 +99,7 @@ describe('TeamRoutes', () => {
     ['/teams/team-a/settings/model-providers', 'model-providers'],
     ['/teams/team-a/settings/embedding-providers', 'embedding-providers'],
     ['/teams/team-a/settings/customization', 'customization'],
+    ['/teams/team-a/settings/statuses', 'statuses'],
     ['/teams/team-a/settings/email-provider', 'email-provider'],
     // #541 - note the nested path, which a non-splat sibling route still matches.
     ['/teams/team-a/settings/integrations/github', 'github-integration'],
