@@ -263,3 +263,4 @@ PromptLabelsEnvelope:
             - labels
       required:
         - data
+# probe for #1329: spec-only change, never merged
