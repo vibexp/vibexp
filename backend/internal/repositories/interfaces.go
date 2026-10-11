@@ -190,6 +190,20 @@ var (
 	// team already has a status with the same (resource_type, slug).
 	ErrTeamStatusExists = errors.New("team status already exists")
 
+	// ErrResourceAlreadyLocked is returned by SetLock on the prompt, blueprint
+	// and artifact repositories when the resource already carries a lock. The
+	// existing lock is left exactly as it was.
+	ErrResourceAlreadyLocked = errors.New("resource is already locked")
+
+	// ErrResourceNotLocked is returned by ClearLock on the prompt, blueprint and
+	// artifact repositories when the resource carries no lock.
+	ErrResourceNotLocked = errors.New("resource is not locked")
+
+	// ErrInvalidResourceLockEvent is returned by
+	// ResourceLockEventRepository.Append for an event whose resource type is not
+	// lockable or whose action is unknown.
+	ErrInvalidResourceLockEvent = errors.New("invalid resource lock event")
+
 	// ErrEmbeddingProviderNotFound is returned by EmbeddingProviderRepository
 	// lookups/updates/deletes when no provider row matches the given identifier.
 	ErrEmbeddingProviderNotFound = errors.New("embedding provider not found")
@@ -538,6 +552,18 @@ type PromptRepository interface {
 	// GetNamesByIDsCrossTeam returns a map of promptID → name for the given IDs owned by userID,
 	// searching across all the user's teams. Unknown or inaccessible IDs are omitted.
 	GetNamesByIDsCrossTeam(ctx context.Context, userID string, ids []string) (map[string]string, error)
+	// SetLock locks the prompt for lockerID with the given comment. It is one
+	// conditional UPDATE, so two concurrent calls cannot both succeed: the loser
+	// gets ErrResourceAlreadyLocked and the winner's lock is untouched. A prompt
+	// that does not exist in the team returns ErrPromptNotFound. Tenancy-only (no
+	// role predicate, decision D3); it changes neither updated_at nor version,
+	// because locking is not an edit.
+	SetLock(ctx context.Context, teamID, promptID, lockerID, comment string) error
+	// ClearLock unlocks the prompt. It returns ErrResourceNotLocked when the
+	// prompt carries no lock and ErrPromptNotFound when it does not exist in the
+	// team. Like SetLock it is tenancy-only and leaves updated_at and version
+	// alone.
+	ClearLock(ctx context.Context, teamID, promptID string) error
 }
 
 // PromptFilters represents filters for prompt queries
@@ -564,6 +590,11 @@ type PromptFilters struct {
 	// without naming the statuses that are live, which a team can extend.
 	// Empty means no exclusion.
 	ExcludeStatuses []string
+
+	// Locked narrows the list by lock state (issue #1286): true returns only
+	// locked resources, false only unlocked ones. Nil means no lock filtering,
+	// which must return exactly what it returned before the filter existed.
+	Locked *bool
 }
 
 // PromptReferenceRepository defines the interface for prompt reference data access operations
@@ -627,6 +658,18 @@ type ArtifactRepository interface {
 	// GetNamesByIDsCrossTeam returns a map of artifactID → title for the given IDs owned by userID,
 	// searching across all the user's teams. Unknown or inaccessible IDs are omitted.
 	GetNamesByIDsCrossTeam(ctx context.Context, userID string, ids []string) (map[string]string, error)
+	// SetLock locks the artifact for lockerID with the given comment. It is one
+	// conditional UPDATE, so two concurrent calls cannot both succeed: the loser
+	// gets ErrResourceAlreadyLocked and the winner's lock is untouched. A artifact
+	// that does not exist in the team returns ErrArtifactNotFound. Tenancy-only (no
+	// role predicate, decision D3); it changes neither updated_at nor version,
+	// because locking is not an edit.
+	SetLock(ctx context.Context, teamID, artifactID, lockerID, comment string) error
+	// ClearLock unlocks the artifact. It returns ErrResourceNotLocked when the
+	// artifact carries no lock and ErrArtifactNotFound when it does not exist in the
+	// team. Like SetLock it is tenancy-only and leaves updated_at and version
+	// alone.
+	ClearLock(ctx context.Context, teamID, artifactID string) error
 }
 
 // ArtifactFilters represents filters for artifact queries
@@ -651,6 +694,11 @@ type ArtifactFilters struct {
 	Labels []string
 	Page   int
 	Limit  int
+
+	// Locked narrows the list by lock state (issue #1286): true returns only
+	// locked resources, false only unlocked ones. Nil means no lock filtering,
+	// which must return exactly what it returned before the filter existed.
+	Locked *bool
 }
 
 // EmbeddingProviderRepository defines the interface for embedding provider data access operations
@@ -1306,6 +1354,18 @@ type BlueprintRepository interface {
 	// GetNamesByIDsCrossTeam returns a map of blueprintID → title for the given IDs visible to userID,
 	// searching across all the user's teams. Unknown or inaccessible IDs are omitted.
 	GetNamesByIDsCrossTeam(ctx context.Context, userID string, ids []string) (map[string]string, error)
+	// SetLock locks the blueprint for lockerID with the given comment. It is one
+	// conditional UPDATE, so two concurrent calls cannot both succeed: the loser
+	// gets ErrResourceAlreadyLocked and the winner's lock is untouched. A blueprint
+	// that does not exist in the team returns ErrBlueprintNotFound. Tenancy-only (no
+	// role predicate, decision D3); it changes neither updated_at nor version,
+	// because locking is not an edit.
+	SetLock(ctx context.Context, teamID, blueprintID, lockerID, comment string) error
+	// ClearLock unlocks the blueprint. It returns ErrResourceNotLocked when the
+	// blueprint carries no lock and ErrBlueprintNotFound when it does not exist in the
+	// team. Like SetLock it is tenancy-only and leaves updated_at and version
+	// alone.
+	ClearLock(ctx context.Context, teamID, blueprintID string) error
 }
 
 // BlueprintFilters represents filters for blueprint queries
@@ -1331,6 +1391,11 @@ type BlueprintFilters struct {
 	Labels []string
 	Page   int
 	Limit  int
+
+	// Locked narrows the list by lock state (issue #1286): true returns only
+	// locked resources, false only unlocked ones. Nil means no lock filtering,
+	// which must return exactly what it returned before the filter existed.
+	Locked *bool
 }
 
 // UserPreferencesRepository defines the interface for user preferences data access operations
@@ -2465,6 +2530,28 @@ type TeamSettingsAuditRepository interface {
 	// A limit of zero or less means "no limit"; a negative offset is clamped to
 	// zero.
 	ListByTeam(ctx context.Context, teamID string, limit, offset int) ([]*models.TeamSettingsAudit, int, error)
+}
+
+// ResourceLockEventRepository appends to and reads the lock history of
+// prompts, blueprints and artifacts (table `resource_lock_events`, epic
+// #1285). The log is append-only: there is deliberately no update and no
+// delete, and rows disappear only with their team. It outlives the resource it
+// describes, like TeamSettingsAuditRepository's log outlives its subject.
+//
+// Reads are tenancy-scoped and carry no role predicate (authz decision D3).
+type ResourceLockEventRepository interface {
+	// Append records one lock or unlock event, populating ID and CreatedAt from
+	// the persisted row. It returns ErrInvalidResourceLockEvent when the
+	// resource type is not lockable or the action is unknown; neither is
+	// enforced by a CHECK.
+	Append(ctx context.Context, event *models.ResourceLockEvent) error
+	// ListByResource returns one resource's events newest first, with each
+	// actor's display name resolved. Ordering breaks created_at ties on id, so
+	// it is stable. A limit of zero or less means "no limit". The result is
+	// never nil.
+	ListByResource(
+		ctx context.Context, teamID, resourceType, resourceID string, limit int,
+	) ([]*models.ResourceLockEvent, error)
 }
 
 // InstanceSettingsAuditRepository appends to and reads the instance-level

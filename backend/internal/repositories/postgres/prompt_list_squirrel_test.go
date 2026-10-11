@@ -15,12 +15,13 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// promptListColumns mirrors the 14 columns scanned by List (no version column;
-// is_shared is computed, not stored).
-var promptListColumns = []string{
+// promptListColumns mirrors the 18 columns scanned by List: 14 prompt columns
+// (no version column; is_shared is computed, not stored) followed by the four
+// lock columns.
+var promptListColumns = withLockColumns(
 	"id", "name", "slug", "description", "body", "user_id", "team_id", "project_id",
 	"status", "mcp_expose", "labels", "created_at", "updated_at", "is_shared",
-}
+)
 
 // setupPromptListTest builds a PromptRepository backed by a sqlmock connection.
 func setupPromptListTest(t *testing.T) (*PromptRepository, sqlmock.Sqlmock, *sql.DB) {
@@ -49,15 +50,16 @@ func TestPromptRepository_List_SquirrelMigration(t *testing.T) {
 
 	ctx := context.Background()
 	now := time.Now()
+	locked, unlocked := true, false
 	isSharedTrue := true
 	mcpExposeTrue := true
 	projectID := "project-x"
 
 	oneRow := func() *sqlmock.Rows {
-		return sqlmock.NewRows(promptListColumns).AddRow(
+		return sqlmock.NewRows(promptListColumns).AddRow(unlockedRow(
 			"prompt-1", "Prompt 1", "prompt-1", "Desc 1", "Body 1", "user-123", "team-123",
 			"project-123", "published", true, "{}", now, now, false,
-		)
+		)...)
 	}
 
 	tests := []struct {
@@ -132,8 +134,10 @@ func TestPromptRepository_List_SquirrelMigration(t *testing.T) {
 					WithArgs(promptListBaseArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(
-					`SELECT DISTINCT p\.id, .* CASE WHEN ps\.id IS NOT NULL THEN true ELSE false END as is_shared ` +
-						`FROM prompts p LEFT JOIN prompt_shares ps ON .* AND ps\.id IS NOT NULL\) ` +
+					`SELECT DISTINCT p\.id, .* CASE WHEN ps\.id IS NOT NULL THEN true ELSE false END as is_shared, ` +
+						`p\.locked_by::text, p\.locked_at, p\.lock_comment, lock_u\.name ` +
+						`FROM prompts p LEFT JOIN prompt_shares ps ON .* ` +
+						`LEFT JOIN users lock_u ON lock_u\.id = p\.locked_by WHERE .* AND ps\.id IS NOT NULL\) ` +
 						`ORDER BY p\.updated_at DESC LIMIT 10 OFFSET 0`,
 				).
 					WithArgs(promptListBaseArgs()...).
@@ -230,6 +234,38 @@ func TestPromptRepository_List_SquirrelMigration(t *testing.T) {
 			expectTotal: 20,
 			expectCount: 1,
 		},
+		{
+			name: "locked=true narrows count and page to locked rows, binding no extra arg",
+			filters: repositories.PromptFilters{
+				TeamID: "team-123", Locked: &locked, Page: 1, Limit: 10,
+			},
+			setupMock: func() {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM prompts p WHERE .* AND p\.locked_by IS NOT NULL\)`).
+					WithArgs(promptListBaseArgs()...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM prompts p LEFT JOIN users lock_u .* AND p\.locked_by IS NOT NULL\) ORDER BY`).
+					WithArgs(promptListBaseArgs()...).
+					WillReturnRows(oneRow())
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
+			name: "locked=false narrows count and page to unlocked rows",
+			filters: repositories.PromptFilters{
+				TeamID: "team-123", Locked: &unlocked, Page: 1, Limit: 10,
+			},
+			setupMock: func() {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM prompts p WHERE .* AND p\.locked_by IS NULL\)`).
+					WithArgs(promptListBaseArgs()...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM prompts p LEFT JOIN users lock_u .* AND p\.locked_by IS NULL\) ORDER BY`).
+					WithArgs(promptListBaseArgs()...).
+					WillReturnRows(oneRow())
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -247,8 +283,9 @@ func TestPromptRepository_List_SquirrelMigration(t *testing.T) {
 	}
 }
 
-// TestPromptRepository_List_ExplicitProjection pins the full 14-column projection
-// for the default (non-IsShared) path. A `.+` matcher would not catch column
+// TestPromptRepository_List_ExplicitProjection pins the full 18-column projection
+// (the four lock columns last) and the locker join for the default
+// (non-IsShared) path. A `.+` matcher would not catch column
 // drift, so the projection is asserted verbatim.
 func TestPromptRepository_List_ExplicitProjection(t *testing.T) {
 	repo, mock, mockDB := setupPromptListTest(t)
@@ -270,14 +307,15 @@ func TestPromptRepository_List_ExplicitProjection(t *testing.T) {
 		`SELECT p\.id, p\.name, p\.slug, p\.description, p\.body, p\.user_id, p\.team_id, p\.project_id, ` +
 			`p\.status, p\.mcp_expose, p\.labels, p\.created_at, p\.updated_at, ` +
 			`EXISTS\(SELECT 1 FROM prompt_shares ps2 WHERE ps2\.prompt_id = p\.id AND ps2\.is_active = true ` +
-			`AND \(ps2\.expires_at IS NULL OR ps2\.expires_at > NOW\(\)\)\) as is_shared ` +
-			`FROM prompts p WHERE`,
+			`AND \(ps2\.expires_at IS NULL OR ps2\.expires_at > NOW\(\)\)\) as is_shared, ` +
+			`p\.locked_by::text, p\.locked_at, p\.lock_comment, lock_u\.name ` +
+			`FROM prompts p LEFT JOIN users lock_u ON lock_u\.id = p\.locked_by WHERE`,
 	).
 		WithArgs(promptListBaseArgs()...).
-		WillReturnRows(sqlmock.NewRows(promptListColumns).AddRow(
+		WillReturnRows(sqlmock.NewRows(promptListColumns).AddRow(unlockedRow(
 			"prompt-1", "Prompt 1", "prompt-1", "Desc 1", "Body 1", "user-123", "team-123",
 			"project-123", "published", true, "{}", now, now, false,
-		))
+		)...))
 
 	prompts, total, err := repo.List(ctx, "user-123", filters)
 	assert.NoError(t, err)
@@ -337,10 +375,10 @@ func TestPromptRepository_List_ErrorPaths(t *testing.T) {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM prompts p`).
 					WithArgs(promptListBaseArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				rows := sqlmock.NewRows(promptListColumns).AddRow(
+				rows := sqlmock.NewRows(promptListColumns).AddRow(unlockedRow(
 					"prompt-1", "Prompt 1", "prompt-1", "Desc 1", "Body 1", "user-123", "team-123",
 					"project-123", "published", true, "{}", now, now, false,
-				).RowError(0, sql.ErrConnDone)
+				)...).RowError(0, sql.ErrConnDone)
 				mock.ExpectQuery(`FROM prompts p`).
 					WithArgs(promptListBaseArgs()...).
 					WillReturnRows(rows)

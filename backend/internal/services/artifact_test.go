@@ -115,6 +115,14 @@ func (m *MockArtifactRepository) GetNamesByIDsCrossTeam(
 	return map[string]string{}, nil
 }
 
+func (m *MockArtifactRepository) SetLock(ctx context.Context, teamID, resourceID, lockerID, comment string) error {
+	return m.Called(ctx, teamID, resourceID, lockerID, comment).Error(0)
+}
+
+func (m *MockArtifactRepository) ClearLock(ctx context.Context, teamID, resourceID string) error {
+	return m.Called(ctx, teamID, resourceID).Error(0)
+}
+
 func TestNewArtifactService(t *testing.T) {
 	repo := &MockArtifactRepository{}
 	service := NewArtifactService(ArtifactServiceDeps{

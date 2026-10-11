@@ -17,13 +17,14 @@ import (
 )
 
 // blueprintListColumnsTest mirrors the columns scanned by List (content and
-// raw_content excluded from list operations; path + sync columns included).
-var blueprintListColumnsTest = []string{
+// raw_content excluded from list operations; path + sync columns included),
+// followed by the four lock columns.
+var blueprintListColumnsTest = withLockColumns(
 	"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 	"status", "type", "subtype", "metadata", "created_at", "updated_at",
 	"path", "path_derived", "content_sha",
 	"source_repo", "source_commit_sha", "source_blob_sha", "imported_at", "labels",
-}
+)
 
 // setupBlueprintListTest builds a BlueprintRepository backed by a sqlmock
 // connection.
@@ -44,19 +45,20 @@ func blueprintListBaseArgs() []driver.Value {
 }
 
 func blueprintListOneRow(now time.Time) *sqlmock.Rows {
-	return sqlmock.NewRows(blueprintListColumnsTest).AddRow(
+	return sqlmock.NewRows(blueprintListColumnsTest).AddRow(unlockedRow(
 		"blueprint-1", "project-1", "slug-1", "user-123", "team-123",
 		"Title", "Description", "active", "general", "openapi",
 		[]byte(`{"env":"prod"}`), now, now,
 		"slug-1.md", true, nil, nil, nil, nil, nil, // path, path_derived, sync/provenance NULL
 		pq.StringArray{"onboarding"},
-	)
+	)...)
 }
 
 //nolint:funlen // table-driven test with multiple filter scenarios
 func TestBlueprintRepository_ListSquirrel(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
+	locked, unlocked := true, false
 	projectID := "project-x"
 
 	tests := []struct {
@@ -229,6 +231,34 @@ func TestBlueprintRepository_ListSquirrel(t *testing.T) {
 			expectTotal: 20,
 			expectCount: 1,
 		},
+		{
+			name:    "locked=true narrows count and page to locked rows, binding no extra arg",
+			filters: repositories.BlueprintFilters{TeamID: "team-123", Locked: &locked, Page: 1, Limit: 10},
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM blueprints s WHERE .* AND s\.locked_by IS NOT NULL\)`).
+					WithArgs(blueprintListBaseArgs()...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM blueprints s LEFT JOIN users lock_u .* AND s\.locked_by IS NOT NULL\) ORDER BY`).
+					WithArgs(blueprintListBaseArgs()...).
+					WillReturnRows(blueprintListOneRow(now))
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
+			name:    "locked=false narrows count and page to unlocked rows",
+			filters: repositories.BlueprintFilters{TeamID: "team-123", Locked: &unlocked, Page: 1, Limit: 10},
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM blueprints s WHERE .* AND s\.locked_by IS NULL\)`).
+					WithArgs(blueprintListBaseArgs()...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM blueprints s LEFT JOIN users lock_u .* AND s\.locked_by IS NULL\) ORDER BY`).
+					WithArgs(blueprintListBaseArgs()...).
+					WillReturnRows(blueprintListOneRow(now))
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -254,7 +284,8 @@ func TestBlueprintRepository_ListSquirrel(t *testing.T) {
 }
 
 // TestBlueprintRepository_List_ExplicitProjection pins the full List projection
-// (content and raw_content excluded; path + sync columns included). A `.+`
+// (content and raw_content excluded; path + sync columns included; the four lock
+// columns last) and the locker join. A `.+`
 // matcher would not catch column drift, so the projection is asserted verbatim.
 func TestBlueprintRepository_List_ExplicitProjection(t *testing.T) {
 	repo, mock, mockDB := setupBlueprintListTest(t)
@@ -277,7 +308,8 @@ func TestBlueprintRepository_List_ExplicitProjection(t *testing.T) {
 			`s\.title, s\.description, s\.status, s\.type, s\.subtype, s\.metadata, ` +
 			`s\.created_at, s\.updated_at, s\.path, s\.path_derived, s\.content_sha, ` +
 			`s\.source_repo, s\.source_commit_sha, s\.source_blob_sha, s\.imported_at, ` +
-			`s\.labels FROM blueprints s WHERE`,
+			`s\.labels, s\.locked_by::text, s\.locked_at, s\.lock_comment, lock_u\.name ` +
+			`FROM blueprints s LEFT JOIN users lock_u ON lock_u\.id = s\.locked_by WHERE`,
 	).
 		WithArgs(blueprintListBaseArgs()...).
 		WillReturnRows(blueprintListOneRow(now))
@@ -332,13 +364,13 @@ func TestBlueprintRepository_List_EmptyMetadataInitializesMap(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery(`FROM blueprints s`).
 		WithArgs(blueprintListBaseArgs()...).
-		WillReturnRows(sqlmock.NewRows(blueprintListColumnsTest).AddRow(
+		WillReturnRows(sqlmock.NewRows(blueprintListColumnsTest).AddRow(unlockedRow(
 			"blueprint-1", "project-1", "slug-1", "user-123", "team-123",
 			"Title", "Description", "active", "general", nil,
 			nil, now, now, // NULL metadata
 			"slug-1.md", true, nil, nil, nil, nil, nil, // path, path_derived, sync/provenance NULL
 			pq.StringArray{},
-		))
+		)...))
 
 	blueprints, total, err := repo.List(ctx, "user-123", filters)
 	require.NoError(t, err)
@@ -400,12 +432,12 @@ func TestBlueprintRepository_ListSquirrel_ErrorPaths(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM blueprints s`).
 					WithArgs(blueprintListBaseArgs()...).
-					WillReturnRows(sqlmock.NewRows(blueprintListColumnsTest).AddRow(
+					WillReturnRows(sqlmock.NewRows(blueprintListColumnsTest).AddRow(unlockedRow(
 						"blueprint-1", "project-1", "slug-1", "user-123", "team-123",
 						"Title", "Description", "active", "general", "openapi",
 						[]byte(`{not valid json`), now, now,
 						"slug-1.md", true, nil, nil, nil, nil, nil, pq.StringArray{},
-					))
+					)...))
 			},
 			wantErr: "failed to unmarshal metadata",
 		},

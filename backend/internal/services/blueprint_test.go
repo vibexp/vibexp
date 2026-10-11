@@ -121,6 +121,14 @@ func (m *MockBlueprintRepository) GetNamesByIDsCrossTeam(
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
+func (m *MockBlueprintRepository) SetLock(ctx context.Context, teamID, resourceID, lockerID, comment string) error {
+	return m.Called(ctx, teamID, resourceID, lockerID, comment).Error(0)
+}
+
+func (m *MockBlueprintRepository) ClearLock(ctx context.Context, teamID, resourceID string) error {
+	return m.Called(ctx, teamID, resourceID).Error(0)
+}
+
 func TestNewBlueprintService(t *testing.T) {
 	repo := &MockBlueprintRepository{}
 	service := NewBlueprintService(BlueprintServiceDeps{

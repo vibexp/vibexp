@@ -24,6 +24,54 @@ func (_m *MockArtifactRepository) EXPECT() *MockArtifactRepository_Expecter {
 	return &MockArtifactRepository_Expecter{mock: &_m.Mock}
 }
 
+// ClearLock provides a mock function with given fields: ctx, teamID, artifactID
+func (_m *MockArtifactRepository) ClearLock(ctx context.Context, teamID string, artifactID string) error {
+	ret := _m.Called(ctx, teamID, artifactID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClearLock")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, teamID, artifactID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockArtifactRepository_ClearLock_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearLock'
+type MockArtifactRepository_ClearLock_Call struct {
+	*mock.Call
+}
+
+// ClearLock is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - artifactID string
+func (_e *MockArtifactRepository_Expecter) ClearLock(ctx interface{}, teamID interface{}, artifactID interface{}) *MockArtifactRepository_ClearLock_Call {
+	return &MockArtifactRepository_ClearLock_Call{Call: _e.mock.On("ClearLock", ctx, teamID, artifactID)}
+}
+
+func (_c *MockArtifactRepository_ClearLock_Call) Run(run func(ctx context.Context, teamID string, artifactID string)) *MockArtifactRepository_ClearLock_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockArtifactRepository_ClearLock_Call) Return(_a0 error) *MockArtifactRepository_ClearLock_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockArtifactRepository_ClearLock_Call) RunAndReturn(run func(context.Context, string, string) error) *MockArtifactRepository_ClearLock_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CountAll provides a mock function with given fields: ctx, userID
 func (_m *MockArtifactRepository) CountAll(ctx context.Context, userID string) (int, error) {
 	ret := _m.Called(ctx, userID)
@@ -671,6 +719,56 @@ func (_c *MockArtifactRepository_ListCrossTeam_Call) Return(_a0 []models.Artifac
 }
 
 func (_c *MockArtifactRepository_ListCrossTeam_Call) RunAndReturn(run func(context.Context, string, repositories.ArtifactFilters) ([]models.Artifact, int, error)) *MockArtifactRepository_ListCrossTeam_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SetLock provides a mock function with given fields: ctx, teamID, artifactID, lockerID, comment
+func (_m *MockArtifactRepository) SetLock(ctx context.Context, teamID string, artifactID string, lockerID string, comment string) error {
+	ret := _m.Called(ctx, teamID, artifactID, lockerID, comment)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetLock")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) error); ok {
+		r0 = rf(ctx, teamID, artifactID, lockerID, comment)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockArtifactRepository_SetLock_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetLock'
+type MockArtifactRepository_SetLock_Call struct {
+	*mock.Call
+}
+
+// SetLock is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - artifactID string
+//   - lockerID string
+//   - comment string
+func (_e *MockArtifactRepository_Expecter) SetLock(ctx interface{}, teamID interface{}, artifactID interface{}, lockerID interface{}, comment interface{}) *MockArtifactRepository_SetLock_Call {
+	return &MockArtifactRepository_SetLock_Call{Call: _e.mock.On("SetLock", ctx, teamID, artifactID, lockerID, comment)}
+}
+
+func (_c *MockArtifactRepository_SetLock_Call) Run(run func(ctx context.Context, teamID string, artifactID string, lockerID string, comment string)) *MockArtifactRepository_SetLock_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *MockArtifactRepository_SetLock_Call) Return(_a0 error) *MockArtifactRepository_SetLock_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockArtifactRepository_SetLock_Call) RunAndReturn(run func(context.Context, string, string, string, string) error) *MockArtifactRepository_SetLock_Call {
 	_c.Call.Return(run)
 	return _c
 }

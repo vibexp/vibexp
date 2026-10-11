@@ -42,10 +42,10 @@ func TestArtifactListCrossTeam_MembershipGuard(t *testing.T) {
 		WithArgs(userID, userID, userID, "archived").
 		WillReturnRows(countRows)
 
-	dataRows := sqlmock.NewRows([]string{
+	dataRows := sqlmock.NewRows(withLockColumns(
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"status", "type", "metadata", "created_at", "updated_at",
-	})
+	))
 	mock.ExpectQuery(`SELECT (.+) FROM artifacts a.*EXISTS.*team_members`).
 		WillReturnRows(dataRows)
 

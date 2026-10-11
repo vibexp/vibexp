@@ -102,8 +102,10 @@ func (r *ArtifactRepository) Create(ctx context.Context, artifact *models.Artifa
 func (r *ArtifactRepository) GetByID(ctx context.Context, userID, teamID, artifactID string) (*models.Artifact, error) {
 	query := `
 		SELECT a.id, a.project_id, a.slug, a.user_id, a.team_id, a.title, a.description, a.content,
-		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels
+		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels,
+		a.locked_by::text, a.locked_at, a.lock_comment, lock_u.name
 		FROM artifacts a
+		LEFT JOIN users lock_u ON lock_u.id = a.locked_by
 		WHERE a.id = $1
 			AND a.team_id = $2
 			AND (
@@ -114,16 +116,19 @@ func (r *ArtifactRepository) GetByID(ctx context.Context, userID, teamID, artifa
 
 	var artifact models.Artifact
 	var metadataJSON []byte
+	var lock resourceLockScan
 	err := r.db.QueryRowContext(ctx, query, artifactID, teamID, userID).Scan(
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
 		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get artifact by ID: %w", err), repositories.ErrArtifactNotFound)
 	}
+	artifact.Lock = lock.value()
 
 	if err := json.Unmarshal(metadataJSON, &artifact.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -140,8 +145,10 @@ func (r *ArtifactRepository) GetByProjectIDAndSlug(
 	query := `
 		SELECT a.id, a.project_id, a.slug, a.user_id, a.team_id, a.title, a.description, a.content,
 		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels,
-		` + projectSummaryProjection + `
+		` + projectSummaryProjection + `,
+		a.locked_by::text, a.locked_at, a.lock_comment, lock_u.name
 		FROM artifacts a` + projectSummaryJoin("a") + `
+		LEFT JOIN users lock_u ON lock_u.id = a.locked_by
 		WHERE a.project_id = $1
 			AND a.slug = $2
 			AND a.team_id = $3
@@ -154,12 +161,14 @@ func (r *ArtifactRepository) GetByProjectIDAndSlug(
 	var artifact models.Artifact
 	var metadataJSON []byte
 	var project projectSummaryScan
+	var lock resourceLockScan
 	err := r.db.QueryRowContext(ctx, query, projectID, slug, teamID, userID).Scan(
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
 		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
 		&project.id, &project.name, &project.slug,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 	)
 
 	if err != nil {
@@ -169,6 +178,7 @@ func (r *ArtifactRepository) GetByProjectIDAndSlug(
 		)
 	}
 	artifact.Project = project.value()
+	artifact.Lock = lock.value()
 
 	if err := json.Unmarshal(metadataJSON, &artifact.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -182,19 +192,23 @@ func (r *ArtifactRepository) GetByIDCrossTeam(
 	ctx context.Context, userID, artifactID string,
 ) (*models.Artifact, error) {
 	query := `
-		SELECT id, project_id, slug, user_id, team_id, title, description, content, status, type, metadata,
-		created_at, updated_at, version, labels
-		FROM artifacts
-		WHERE id = $1 AND user_id = $2
+		SELECT a.id, a.project_id, a.slug, a.user_id, a.team_id, a.title, a.description, a.content,
+		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels,
+		a.locked_by::text, a.locked_at, a.lock_comment, lock_u.name
+		FROM artifacts a
+		LEFT JOIN users lock_u ON lock_u.id = a.locked_by
+		WHERE a.id = $1 AND a.user_id = $2
 	`
 
 	var artifact models.Artifact
 	var metadataJSON []byte
+	var lock resourceLockScan
 	err := r.db.QueryRowContext(ctx, query, artifactID, userID).Scan(
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
 		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 	)
 
 	if err != nil {
@@ -203,6 +217,7 @@ func (r *ArtifactRepository) GetByIDCrossTeam(
 			repositories.ErrArtifactNotFound,
 		)
 	}
+	artifact.Lock = lock.value()
 
 	if err := json.Unmarshal(metadataJSON, &artifact.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -216,19 +231,23 @@ func (r *ArtifactRepository) GetByProjectIDAndSlugCrossTeam(
 	ctx context.Context, userID, projectID, slug string,
 ) (*models.Artifact, error) {
 	query := `
-		SELECT id, project_id, slug, user_id, team_id, title, description, content, status, type, metadata,
-		created_at, updated_at, version, labels
-		FROM artifacts
-		WHERE project_id = $1 AND slug = $2 AND user_id = $3
+		SELECT a.id, a.project_id, a.slug, a.user_id, a.team_id, a.title, a.description, a.content,
+		a.status, a.type, a.metadata, a.created_at, a.updated_at, a.version, a.labels,
+		a.locked_by::text, a.locked_at, a.lock_comment, lock_u.name
+		FROM artifacts a
+		LEFT JOIN users lock_u ON lock_u.id = a.locked_by
+		WHERE a.project_id = $1 AND a.slug = $2 AND a.user_id = $3
 	`
 
 	var artifact models.Artifact
 	var metadataJSON []byte
+	var lock resourceLockScan
 	err := r.db.QueryRowContext(ctx, query, projectID, slug, userID).Scan(
 		&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 		&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 		&artifact.Content, &artifact.Status, &artifact.Type,
 		&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Version, &artifact.Labels,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 	)
 
 	if err != nil {
@@ -237,6 +256,7 @@ func (r *ArtifactRepository) GetByProjectIDAndSlugCrossTeam(
 			repositories.ErrArtifactNotFound,
 		)
 	}
+	artifact.Lock = lock.value()
 
 	if err := json.Unmarshal(metadataJSON, &artifact.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -282,6 +302,8 @@ func applyArtifactFilters(where squirrel.And, filters repositories.ArtifactFilte
 	}
 
 	where = applyLabelsFilter(where, "a.labels", filters.Labels)
+
+	where = applyLockedFilter(where, "a", filters.Locked)
 
 	where = applyArtifactStatusVisibility(where, filters)
 
@@ -367,9 +389,13 @@ func (r *ArtifactRepository) queryArtifacts(
 ) ([]models.Artifact, error) {
 	limit, offset := clampArtifactPaging(filters)
 
+	// The locker join is on the page query only: the count needs lock STATE,
+	// which is on the row, not the locker's name.
 	query, args, err := psql.
 		Select(artifactListColumns...).
+		Columns(resourceLockColumns("a")...).
 		From("artifacts a").
+		LeftJoin(resourceLockJoin("a")).
 		Where(where).
 		OrderBy(buildArtifactOrderByClause(filters)).
 		Limit(limit).
@@ -402,7 +428,7 @@ func (r *ArtifactRepository) queryArtifacts(
 }
 
 // scanArtifactListRows scans the 13-column artifact projection shared by List
-// and ListCrossTeam (content excluded), unmarshalling the JSON metadata column
+// and ListCrossTeam (content excluded) followed by the lock columns, unmarshalling the JSON metadata column
 // per row. A malformed metadata payload returns an error. crossTeam selects the
 // error-string suffix.
 func scanArtifactListRows(rows *sql.Rows, crossTeam bool) ([]models.Artifact, error) {
@@ -410,11 +436,13 @@ func scanArtifactListRows(rows *sql.Rows, crossTeam bool) ([]models.Artifact, er
 	for rows.Next() {
 		var artifact models.Artifact
 		var metadataJSON []byte
+		var lock resourceLockScan
 		scanErr := rows.Scan(
 			&artifact.ID, &artifact.ProjectID, &artifact.Slug,
 			&artifact.UserID, &artifact.TeamID, &artifact.Title, &artifact.Description,
 			&artifact.Status, &artifact.Type,
 			&metadataJSON, &artifact.CreatedAt, &artifact.UpdatedAt, &artifact.Labels,
+			&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 		)
 		if scanErr != nil {
 			return nil, fmt.Errorf("failed to scan artifact%s: %w", artifactErrSuffix(crossTeam), scanErr)
@@ -424,6 +452,7 @@ func scanArtifactListRows(rows *sql.Rows, crossTeam bool) ([]models.Artifact, er
 			return nil, fmt.Errorf("failed to unmarshal metadata%s: %w", artifactErrSuffix(crossTeam), jsonErr)
 		}
 
+		artifact.Lock = lock.value()
 		artifacts = append(artifacts, artifact)
 	}
 
@@ -561,6 +590,16 @@ func (r *ArtifactRepository) Update(ctx context.Context, artifact *models.Artifa
 	}
 
 	return nil
+}
+
+// SetLock locks an artifact. See repositories.ArtifactRepository.
+func (r *ArtifactRepository) SetLock(ctx context.Context, teamID, artifactID, lockerID, comment string) error {
+	return setResourceLock(ctx, r.db, artifactSetLockSQL, r.validateArtifactInTeam, teamID, artifactID, lockerID, comment)
+}
+
+// ClearLock unlocks an artifact. See repositories.ArtifactRepository.
+func (r *ArtifactRepository) ClearLock(ctx context.Context, teamID, artifactID string) error {
+	return clearResourceLock(ctx, r.db, artifactClearLockSQL, r.validateArtifactInTeam, teamID, artifactID)
 }
 
 // Delete deletes an artifact

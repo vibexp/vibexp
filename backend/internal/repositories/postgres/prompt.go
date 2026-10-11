@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -16,7 +17,7 @@ import (
 
 // promptListSelectColumns is the 13-column projection shared by both variants
 // of the prompt list SELECT clause; each variant appends its own is_shared
-// expression (see buildListSelectClause).
+// expression and then the lock columns (see buildListSelectClause).
 var promptListSelectColumns = []string{
 	"p.id", "p.name", "p.slug", "p.description", "p.body", "p.user_id", "p.team_id",
 	"p.project_id", "p.status", "p.mcp_expose", "p.labels", "p.created_at", "p.updated_at",
@@ -70,11 +71,13 @@ func (r *PromptRepository) GetByID(ctx context.Context, userID, teamID, promptID
 			SELECT
 				p.id, p.name, p.slug, p.description, p.body, p.user_id, p.team_id, p.project_id,
 				p.status, p.mcp_expose, p.labels, p.created_at, p.updated_at, p.version,
-				CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared
+				CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared,
+				p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name
 			FROM prompts p
 			LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 				AND ps.is_active = true
 				AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
+			LEFT JOIN users lock_u ON lock_u.id = p.locked_by
 			WHERE p.id = $1
 		`
 		args = []interface{}{promptID}
@@ -85,11 +88,13 @@ func (r *PromptRepository) GetByID(ctx context.Context, userID, teamID, promptID
 			SELECT
 				p.id, p.name, p.slug, p.description, p.body, p.user_id, p.team_id, p.project_id,
 				p.status, p.mcp_expose, p.labels, p.created_at, p.updated_at, p.version,
-				CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared
+				CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared,
+				p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name
 			FROM prompts p
 			LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 				AND ps.is_active = true
 				AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
+			LEFT JOIN users lock_u ON lock_u.id = p.locked_by
 			WHERE p.id = $1
 				AND p.team_id = $2
 				AND (
@@ -101,15 +106,18 @@ func (r *PromptRepository) GetByID(ctx context.Context, userID, teamID, promptID
 	}
 
 	var prompt models.Prompt
+	var lock resourceLockScan
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(
 		&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description, &prompt.Body,
 		&prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose,
 		&prompt.Labels, &prompt.CreatedAt, &prompt.UpdatedAt, &prompt.Version, &prompt.IsShared,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get prompt by ID: %w", err), repositories.ErrPromptNotFound)
 	}
+	prompt.Lock = lock.value()
 
 	return &prompt, nil
 }
@@ -122,11 +130,13 @@ func (r *PromptRepository) GetBySlug(ctx context.Context, userID, teamID, slug s
 			p.id, p.name, p.slug, p.description, p.body, p.user_id, p.team_id, p.project_id,
 			p.status, p.mcp_expose, p.labels, p.created_at, p.updated_at,
 			p.version, CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared,
-			` + projectSummaryProjection + `
+			` + projectSummaryProjection + `,
+			p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name
 		FROM prompts p
 		LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 			AND ps.is_active = true
 			AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
+		LEFT JOIN users lock_u ON lock_u.id = p.locked_by
 		` + projectSummaryJoin("p") + `
 		WHERE p.slug = $1
 			AND p.team_id = $2
@@ -138,17 +148,20 @@ func (r *PromptRepository) GetBySlug(ctx context.Context, userID, teamID, slug s
 
 	var prompt models.Prompt
 	var project projectSummaryScan
+	var lock resourceLockScan
 	err := r.db.QueryRowContext(ctx, query, slug, teamID, userID).Scan(
 		&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description, &prompt.Body,
 		&prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose,
 		&prompt.Labels, &prompt.CreatedAt, &prompt.UpdatedAt, &prompt.Version, &prompt.IsShared,
 		&project.id, &project.name, &project.slug,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get prompt by slug: %w", err), repositories.ErrPromptNotFound)
 	}
 	prompt.Project = project.value()
+	prompt.Lock = lock.value()
 
 	return &prompt, nil
 }
@@ -159,24 +172,29 @@ func (r *PromptRepository) GetByIDCrossTeam(ctx context.Context, userID, promptI
 		SELECT
 			p.id, p.name, p.slug, p.description, p.body, p.user_id, p.team_id, p.project_id,
 			p.status, p.mcp_expose, p.labels, p.created_at, p.updated_at, p.version,
-			CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared
+			CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared,
+			p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name
 		FROM prompts p
 		LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 			AND ps.is_active = true
 			AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
+		LEFT JOIN users lock_u ON lock_u.id = p.locked_by
 		WHERE p.id = $1 AND p.user_id = $2
 	`
 
 	var prompt models.Prompt
+	var lock resourceLockScan
 	err := r.db.QueryRowContext(ctx, query, promptID, userID).Scan(
 		&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description, &prompt.Body,
 		&prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose,
 		&prompt.Labels, &prompt.CreatedAt, &prompt.UpdatedAt, &prompt.Version, &prompt.IsShared,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get prompt by ID (cross-team): %w", err), repositories.ErrPromptNotFound)
 	}
+	prompt.Lock = lock.value()
 
 	return &prompt, nil
 }
@@ -191,19 +209,23 @@ func (r *PromptRepository) GetBySlugInTeam(ctx context.Context, teamID, slug str
 		SELECT
 			p.id, p.name, p.slug, p.description, p.body, p.user_id, p.team_id, p.project_id,
 			p.status, p.mcp_expose, p.labels, p.created_at, p.updated_at, p.version,
-			CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared
+			CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared,
+			p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name
 		FROM prompts p
 		LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 			AND ps.is_active = true
 			AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
+		LEFT JOIN users lock_u ON lock_u.id = p.locked_by
 		WHERE p.slug = $1 AND p.team_id = $2
 	`
 
 	var prompt models.Prompt
+	var lock resourceLockScan
 	err := r.db.QueryRowContext(ctx, query, slug, teamID).Scan(
 		&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description, &prompt.Body,
 		&prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose,
 		&prompt.Labels, &prompt.CreatedAt, &prompt.UpdatedAt, &prompt.Version, &prompt.IsShared,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 	)
 
 	if err != nil {
@@ -212,6 +234,7 @@ func (r *PromptRepository) GetBySlugInTeam(ctx context.Context, teamID, slug str
 			repositories.ErrPromptNotFound,
 		)
 	}
+	prompt.Lock = lock.value()
 
 	return &prompt, nil
 }
@@ -276,6 +299,8 @@ func buildListWhereClause(userID string, filters repositories.PromptFilters) squ
 
 	where = applyLabelsFilter(where, "p.labels", filters.Labels)
 
+	where = applyLockedFilter(where, "p", filters.Locked)
+
 	if filters.ProjectID != nil && *filters.ProjectID != "" {
 		where = append(where, squirrel.Eq{"p.project_id": *filters.ProjectID})
 	}
@@ -295,7 +320,8 @@ func buildListSelectClause(filters repositories.PromptFilters) []string {
 	if filters.IsShared != nil {
 		isShared = "CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared"
 	}
-	return append(append([]string{}, promptListSelectColumns...), isShared)
+	columns := append(append([]string{}, promptListSelectColumns...), isShared)
+	return append(columns, resourceLockColumns("p")...)
 }
 
 // buildListOrderByClause builds the ORDER BY clause for prompt list query using allowlisted fields.
@@ -393,7 +419,10 @@ func (r *PromptRepository) queryList(
 		// DISTINCT needed due to prompt_shares LEFT JOIN which can produce duplicates.
 		sb = sb.Distinct()
 	}
+	// The locker join is on the page query only: the count needs lock STATE,
+	// which is on the row, not the locker's name.
 	sb = buildListFromClause(sb, filters).
+		LeftJoin(resourceLockJoin("p")).
 		Where(where).
 		OrderBy(buildListOrderByClause(filters)).
 		Limit(limit).
@@ -414,22 +443,37 @@ func (r *PromptRepository) queryList(
 		}
 	}()
 
-	prompts := make([]models.Prompt, 0)
-	for rows.Next() {
-		var prompt models.Prompt
-		scanErr := rows.Scan(
-			&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description,
-			&prompt.Body, &prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose, &prompt.Labels,
-			&prompt.CreatedAt, &prompt.UpdatedAt, &prompt.IsShared,
-		)
-		if scanErr != nil {
-			return nil, fmt.Errorf("failed to scan prompt: %w", scanErr)
-		}
-		prompts = append(prompts, prompt)
+	prompts, err := scanPromptListRows(rows)
+	if err != nil {
+		return nil, err
 	}
 
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to iterate prompts: %w", err)
+	}
+
+	return prompts, nil
+}
+
+// scanPromptListRows scans the prompt list projection built by
+// buildListSelectClause: the 13 shared columns, is_shared, then the lock
+// columns.
+func scanPromptListRows(rows *sql.Rows) ([]models.Prompt, error) {
+	prompts := make([]models.Prompt, 0)
+	for rows.Next() {
+		var prompt models.Prompt
+		var lock resourceLockScan
+		scanErr := rows.Scan(
+			&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description,
+			&prompt.Body, &prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose, &prompt.Labels,
+			&prompt.CreatedAt, &prompt.UpdatedAt, &prompt.IsShared,
+			&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		)
+		if scanErr != nil {
+			return nil, fmt.Errorf("failed to scan prompt: %w", scanErr)
+		}
+		prompt.Lock = lock.value()
+		prompts = append(prompts, prompt)
 	}
 
 	return prompts, nil
@@ -486,6 +530,16 @@ func (r *PromptRepository) Update(ctx context.Context, prompt *models.Prompt) er
 		)
 	}
 	return nil
+}
+
+// SetLock locks a prompt. See repositories.PromptRepository.
+func (r *PromptRepository) SetLock(ctx context.Context, teamID, promptID, lockerID, comment string) error {
+	return setResourceLock(ctx, r.db, promptSetLockSQL, r.validatePromptInTeam, teamID, promptID, lockerID, comment)
+}
+
+// ClearLock unlocks a prompt. See repositories.PromptRepository.
+func (r *PromptRepository) ClearLock(ctx context.Context, teamID, promptID string) error {
+	return clearResourceLock(ctx, r.db, promptClearLockSQL, r.validatePromptInTeam, teamID, promptID)
 }
 
 // Delete deletes a prompt

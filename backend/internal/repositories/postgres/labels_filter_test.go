@@ -55,7 +55,7 @@ func TestArtifactRepository_LabelsFilterNarrowsCountAndPage(t *testing.T) {
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a WHERE .*a\.labels && \$`).
 		WithArgs(labelArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(`FROM artifacts a WHERE .*a\.labels && \$`).
+	mock.ExpectQuery(`FROM artifacts a LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by WHERE .*a\.labels && \$`).
 		WithArgs(labelArgs...).
 		WillReturnRows(artifactListOneRow(now))
 
@@ -79,7 +79,7 @@ func TestBlueprintRepository_LabelsFilterNarrowsCountAndPage(t *testing.T) {
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM blueprints s WHERE .*s\.labels && \$`).
 		WithArgs(labelArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(`FROM blueprints s WHERE .*s\.labels && \$`).
+	mock.ExpectQuery(`FROM blueprints s LEFT JOIN users lock_u ON lock_u\.id = s\.locked_by WHERE .*s\.labels && \$`).
 		WithArgs(labelArgs...).
 		WillReturnRows(blueprintListOneRow(now))
 
@@ -135,10 +135,10 @@ func TestPromptRepository_LabelsFilterNarrowsCountAndPage(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery(`FROM prompts p .*p\.labels && \$`).
 		WithArgs(labelArgs...).
-		WillReturnRows(sqlmock.NewRows(promptListColumns).AddRow(
+		WillReturnRows(sqlmock.NewRows(promptListColumns).AddRow(unlockedRow(
 			"prompt-1", "Prompt 1", "prompt-1", "Desc 1", "Body 1", "user-123", "team-123",
 			"project-123", "published", true, pq.StringArray{"onboarding"}, now, now, false,
-		))
+		)...))
 
 	prompts, total, err := repo.List(context.Background(), "user-123", repositories.PromptFilters{
 		TeamID: "team-123", Page: 1, Limit: 10, Labels: []string{"onboarding", "api"},

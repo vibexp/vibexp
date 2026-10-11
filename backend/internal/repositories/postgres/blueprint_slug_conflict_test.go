@@ -197,19 +197,19 @@ func TestBlueprintRepository_GetByID_AssemblesSource(t *testing.T) {
 
 	repo := NewBlueprintRepository(&database.DB{DB: db})
 	now := time.Now()
-	rows := sqlmock.NewRows([]string{
+	rows := sqlmock.NewRows(withLockColumns(
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 		"path", "path_derived", "raw_content", "content_sha",
 		"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
 		"labels",
-	}).AddRow(
+	)).AddRow(unlockedRow(
 		"bp-1", "proj-1", "s", "u", "team-1", "T", "D",
 		"body", "active", "general", nil, nil, now, now, 1,
 		"CLAUDE.md", false, "raw bytes", "sha-1",
 		"https://github.com/o/r", "commit-1", "blob-1", "import-sha", now,
 		pq.StringArray{"onboarding"},
-	)
+	)...)
 	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*").
 		WithArgs("bp-1", "team-1", "u").WillReturnRows(rows)
 
