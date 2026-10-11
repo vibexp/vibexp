@@ -82,7 +82,6 @@ func instanceResolver(provider external.EmailProvider) *stubSenderResolver {
 func createTestEmailService() *EmailService {
 	cfg := &config.Config{
 		LegacyEmail: config.LegacyEmailConfig{
-			PrivacyPolicyURL: "https://example.com/privacy-policy",
 			SMTP: config.SMTPConfig{
 				Host:     "smtp.example.com",
 				Port:     "587",
@@ -214,12 +213,11 @@ func TestEmailService_EmailTemplateFooter(t *testing.T) {
 		ExpiryDate  string
 	}{
 		emailLayoutData: emailLayoutData{
-			Year:             2025,
-			AppBaseURL:       "https://app.example.com",
-			PrivacyPolicyURL: "https://example.com/privacy-policy",
-			Brand:            models.InstanceSiteInfoValues{}.EmailBranding(),
-			ProductName:      models.ProductName,
-			ProductURL:       models.ProductURL,
+			Year:        2025,
+			AppBaseURL:  "https://app.example.com",
+			Brand:       models.InstanceSiteInfoValues{PrivacyURL: "https://example.com/privacy-policy"}.EmailBranding(),
+			ProductName: models.ProductName,
+			ProductURL:  models.ProductURL,
 		},
 		TeamName:    "Test Team",
 		InviterName: "John Doe",
@@ -249,15 +247,9 @@ func TestEmailService_EmailTemplateFooter(t *testing.T) {
 		assert.True(t, hasEscaped || hasUnescaped, "Footer should contain unsubscribe link with UTM parameters")
 	})
 
-	t.Run("Footer has correct privacy policy link with UTM parameters", func(t *testing.T) {
-		// Note: HTML templates escape & to &amp; but text templates use plain &
-		privacyLinkEscaped := "https://example.com/privacy-policy?" +
-			"utm_source=email&amp;utm_medium=footer&amp;utm_campaign=privacy"
-		privacyLinkUnescaped := "https://example.com/privacy-policy?" +
-			"utm_source=email&utm_medium=footer&utm_campaign=privacy"
-		hasEscaped := strings.Contains(htmlBody, privacyLinkEscaped)
-		hasUnescaped := strings.Contains(htmlBody, privacyLinkUnescaped)
-		assert.True(t, hasEscaped || hasUnescaped, "Footer should contain privacy policy link with UTM parameters")
+	t.Run("Footer links the privacy policy exactly as stored, with no query string appended", func(t *testing.T) {
+		assert.Contains(t, htmlBody, `<a href="https://example.com/privacy-policy">Privacy Policy</a>`)
+		assert.NotContains(t, htmlBody, "utm_campaign=privacy")
 	})
 
 	t.Run("Footer does not contain 'View in Browser' link", func(t *testing.T) {
@@ -655,8 +647,8 @@ func (r *providerSwappingResolver) RecordSendOutcome(
 }
 
 // The contact form delivers to the stored contact recipient, falling back to
-// the stored from-address; every template's privacy link is the stored URL
-// (#1188).
+// the stored from-address (#1188); every template's privacy link is the site
+// info's privacy URL (#1363).
 func TestEmailService_SupportMail_UsesTheInstanceIdentity(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -667,15 +659,12 @@ func TestEmailService_SupportMail_UsesTheInstanceIdentity(t *testing.T) {
 			name: "contact recipient when configured",
 			identity: InstanceEmailIdentity{
 				FromAddress: "noreply@instance.test", ContactRecipientAddress: "support@instance.test",
-				PrivacyPolicyURL: "https://instance.test/privacy",
 			},
 			wantAdmin: "support@instance.test",
 		},
 		{
-			name: "from address otherwise",
-			identity: InstanceEmailIdentity{
-				FromAddress: "noreply@instance.test", PrivacyPolicyURL: "https://instance.test/privacy",
-			},
+			name:      "from address otherwise",
+			identity:  InstanceEmailIdentity{FromAddress: "noreply@instance.test"},
 			wantAdmin: "noreply@instance.test",
 		},
 	}
@@ -693,7 +682,8 @@ func TestEmailService_SupportMail_UsesTheInstanceIdentity(t *testing.T) {
 
 			resolver := instanceResolver(mockProvider)
 			resolver.identity = tt.identity
-			service := NewEmailService(resolver, noSiteInfo{}, &config.Config{
+			siteInfo := fixedSiteInfo{PrivacyURL: "https://instance.test/privacy"}
+			service := NewEmailService(resolver, siteInfo, &config.Config{
 				Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
 			})
 
@@ -709,9 +699,9 @@ func TestEmailService_SupportMail_UsesTheInstanceIdentity(t *testing.T) {
 	}
 }
 
-// A failed identity read fails the send loudly instead of rendering a blank
-// privacy link or delivering support mail to an empty recipient.
-func TestEmailService_IdentityReadFailureFailsTheSend(t *testing.T) {
+// A failed identity read fails the support send loudly instead of delivering
+// support mail to an empty recipient.
+func TestEmailService_IdentityReadFailureFailsTheSupportSend(t *testing.T) {
 	mockProvider := new(MockEmailProvider)
 	resolver := instanceResolver(mockProvider)
 	resolver.identityErr = errors.New("db down")
@@ -722,13 +712,26 @@ func TestEmailService_IdentityReadFailureFailsTheSend(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve the instance email identity")
 
-	err = service.SendTeamInvitation(context.Background(), "team-1", &models.TeamInvitation{
+	mockProvider.AssertNotCalled(t, "SendEmail")
+}
+
+// An invitation is addressed to the invitee and no longer reads the instance
+// identity at all (it did only for the privacy link, which is site info now,
+// #1363), so an identity read failure cannot stop it.
+func TestEmailService_InvitationDoesNotReadTheInstanceIdentity(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	mockProvider.On("SendEmail", mock.Anything, mock.Anything).Return(nil)
+	resolver := instanceResolver(mockProvider)
+	resolver.identityErr = errors.New("db down")
+	service := NewEmailService(resolver, noSiteInfo{}, &config.Config{})
+
+	err := service.SendTeamInvitation(context.Background(), "team-1", &models.TeamInvitation{
 		InviteeEmail: "invitee@example.com", Token: "tok", Role: models.TeamMemberRoleMember,
 		ExpiresAt: time.Now().Add(time.Hour),
 	}, "Acme", "Boss")
-	require.Error(t, err)
 
-	mockProvider.AssertNotCalled(t, "SendEmail")
+	require.NoError(t, err)
+	mockProvider.AssertNumberOfCalls(t, "SendEmail", 1)
 }
 
 // --- Per-team sending (#504) ---------------------------------------------------

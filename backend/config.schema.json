@@ -493,9 +493,6 @@
         "contact_recipient_address": {
           "type": "string"
         },
-        "privacy_policy_url": {
-          "type": "string"
-        },
         "smtp": {
           "$ref": "#/$defs/SMTPConfig"
         },

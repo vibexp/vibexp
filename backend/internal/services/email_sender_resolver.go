@@ -37,13 +37,11 @@ type ResolvedEmailSender struct {
 }
 
 // InstanceEmailIdentity is the instance's own mail identity, read from the
-// instance_email_provider row: who instance mail comes from, where the contact
-// form delivers, and the privacy policy linked from outbound mail. Every field
-// is empty when the instance has no row.
+// instance_email_provider row: who instance mail comes from and where the
+// contact form delivers. Every field is empty when the instance has no row.
 type InstanceEmailIdentity struct {
 	FromAddress             string
 	ContactRecipientAddress string
-	PrivacyPolicyURL        string
 }
 
 // EmailSenderResolver picks the provider and sender identity for a message.
@@ -204,7 +202,6 @@ func (r *teamEmailSenderResolver) InstanceIdentity(ctx context.Context) (Instanc
 	return InstanceEmailIdentity{
 		FromAddress:             InstanceFromAddress(row),
 		ContactRecipientAddress: derefOrEmpty(row.ContactRecipientAddress),
-		PrivacyPolicyURL:        derefOrEmpty(row.PrivacyPolicyURL),
 	}, nil
 }
 

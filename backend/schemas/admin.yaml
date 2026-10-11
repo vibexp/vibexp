@@ -2579,13 +2579,6 @@ AdminInstanceEmailSettingsRequest:
         Where the contact form delivers. Omitted or null falls back to the from
         address.
       example: "hello@vibexp.example.com"
-    privacy_policy_url:
-      type: string
-      nullable: true
-      description: |
-        Absolute http(s) URL of the privacy policy linked from outbound mail.
-        Omitted or null links none.
-      example: "https://vibexp.example.com/privacy"
 
 AdminInstanceEmailTestRequest:
   type: object
@@ -2636,11 +2629,6 @@ AdminInstanceEmailTestRequest:
       nullable: true
       description: Accepted for parity with the upsert body; a test send does not use it.
       example: "hello@vibexp.example.com"
-    privacy_policy_url:
-      type: string
-      nullable: true
-      description: Accepted for parity with the upsert body; a test send does not use it.
-      example: "https://vibexp.example.com/privacy"
 
 AdminInstanceEmailSettings:
   type: object
@@ -2701,11 +2689,6 @@ AdminInstanceEmailSettings:
       nullable: true
       description: Where the contact form delivers; null falls back to the from address.
       example: "hello@vibexp.example.com"
-    privacy_policy_url:
-      type: string
-      nullable: true
-      description: The privacy policy URL linked from outbound mail; null links none.
-      example: "https://vibexp.example.com/privacy"
     is_healthy:
       type: boolean
       nullable: true

@@ -145,8 +145,8 @@
                 <p>
                     <a href="{{.AppBaseURL}}/settings/notifications?utm_source=email&utm_medium=footer&utm_campaign=email-preferences">Manage Email Preferences</a>{{if .Brand.SupportHref}} |
                     <a href="{{html .Brand.SupportHref}}">Support</a>{{end}}{{if .Brand.TermsURL}} |
-                    <a href="{{html .Brand.TermsURL}}">Terms of Service</a>{{end}}{{if .PrivacyPolicyURL}} |
-                    <a href="{{html .PrivacyPolicyURL}}?utm_source=email&utm_medium=footer&utm_campaign=privacy">Privacy Policy</a>{{end}}
+                    <a href="{{html .Brand.TermsURL}}">Terms of Service</a>{{end}}{{if .Brand.PrivacyURL}} |
+                    <a href="{{html .Brand.PrivacyURL}}">Privacy Policy</a>{{end}}
                 </p>
                 <p>You're receiving this email because you have a VibeXP account. To manage your email preferences or unsubscribe from specific notifications, visit your <a href="{{.AppBaseURL}}/settings/notifications?utm_source=email&utm_medium=footer&utm_campaign=email-settings" style="color: #6b6e76; text-decoration: underline;">notification settings</a>.</p>
                 <p>Powered by <a href="{{.ProductURL}}">{{.ProductName}}</a></p>

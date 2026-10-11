@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/mail"
-	"net/url"
 	"strings"
 
 	"github.com/vibexp/vibexp/internal/external/implementations"
@@ -292,7 +291,6 @@ func instanceRowFromRequest(
 		FromName:                trimOptional(req.FromName),
 		ReplyTo:                 trimOptional(req.ReplyTo),
 		ContactRecipientAddress: trimOptional(req.ContactRecipientAddress),
-		PrivacyPolicyURL:        trimOptional(req.PrivacyPolicyURL),
 		UpdatedBy:               optionalActor(actorUserID),
 	}, nil
 }
@@ -485,7 +483,7 @@ func validateInstanceUpsertRequest(req models.UpsertInstanceEmailProviderRequest
 		}
 		fields = append(fields, verr.Fields...)
 	}
-	fields = append(fields, validateInstanceOnlyFields(req.ContactRecipientAddress, req.PrivacyPolicyURL)...)
+	fields = append(fields, validateInstanceOnlyFields(req.ContactRecipientAddress)...)
 
 	if len(fields) > 0 {
 		return &TeamEmailProviderValidationError{Fields: fields}
@@ -493,24 +491,15 @@ func validateInstanceUpsertRequest(req models.UpsertInstanceEmailProviderRequest
 	return nil
 }
 
-// validateInstanceOnlyFields checks the contact recipient (an email address)
-// and the privacy policy URL (an absolute http/https URL). Both may be empty.
-func validateInstanceOnlyFields(contact, privacyURL *string) []FieldError {
+// validateInstanceOnlyFields checks the contact recipient (an email address),
+// which may be empty.
+func validateInstanceOnlyFields(contact *string) []FieldError {
 	var fields []FieldError
 
 	if value := optionalValue(contact); value != "" && !isBareEmailAddress(value) {
 		fields = append(fields, FieldError{
 			Field: "contact_recipient_address", Message: "must be a valid email address",
 		})
-	}
-
-	if value := optionalValue(privacyURL); value != "" {
-		parsed, err := url.Parse(value)
-		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-			fields = append(fields, FieldError{
-				Field: "privacy_policy_url", Message: "must be an absolute http or https URL",
-			})
-		}
 	}
 
 	return fields

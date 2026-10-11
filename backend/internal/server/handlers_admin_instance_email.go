@@ -196,7 +196,6 @@ func toModelInstanceEmailUpsert(
 			ReplyTo:      emailPtrToString(body.ReplyTo),
 		},
 		ContactRecipientAddress: emailPtrToString(body.ContactRecipientAddress),
-		PrivacyPolicyURL:        body.PrivacyPolicyUrl,
 	}
 }
 
@@ -227,7 +226,6 @@ func toModelInstanceEmailTestConfig(
 			ReplyTo:      emailPtrToString(body.ReplyTo),
 		},
 		ContactRecipientAddress: emailPtrToString(body.ContactRecipientAddress),
-		PrivacyPolicyURL:        body.PrivacyPolicyUrl,
 	}
 }
 
@@ -280,7 +278,6 @@ func toGenAdminInstanceEmailSettings(
 		FromName:                eff.FromName,
 		ReplyTo:                 eff.ReplyTo,
 		ContactRecipientAddress: eff.ContactRecipientAddress,
-		PrivacyPolicyUrl:        eff.PrivacyPolicyURL,
 		IsHealthy:               eff.IsHealthy,
 		LastSuccessAt:           eff.LastSuccessAt,
 		LastError:               eff.LastError,
@@ -337,6 +334,10 @@ func toGenAdminInstanceEmailTestResult(r *models.TeamEmailProviderTestResult) ad
 // audit snapshot may surface (services.InstanceEmailAuditSnapshot's shape).
 // The snapshot is already redacted at write time; filtering again here means a
 // key added to the stored shape later cannot reach this surface unreviewed.
+//
+// privacy_policy_url is no longer part of the email settings (#1363: the
+// privacy URL is site info now), but entries written before that still carry
+// it, and it stays listed so that history keeps rendering.
 var instanceEmailAuditSnapshotKeys = []string{
 	"provider_type", "settings", "from_address", "from_name", "reply_to",
 	"contact_recipient_address", "privacy_policy_url", "has_credential", "secret",

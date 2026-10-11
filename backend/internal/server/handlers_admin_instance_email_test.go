@@ -41,7 +41,7 @@ const (
 var adminInstanceEmailSettingsKeys = []string{
 	"configured", "provider_type", "has_credential", "is_healthy",
 	"settings", "settings.smtp", "settings.smtp.host", "settings.smtp.port", "settings.smtp.username",
-	"from_address", "from_name", "reply_to", "contact_recipient_address", "privacy_policy_url",
+	"from_address", "from_name", "reply_to", "contact_recipient_address",
 	"last_success_at", "last_error", "last_error_at", "updated_at", "updated_by",
 }
 
@@ -101,7 +101,6 @@ func (f *instanceEmailFixture) storedRow(t *testing.T) *models.InstanceEmailProv
 		FromName:                strPtr("VibeXP"),
 		ReplyTo:                 strPtr("support@instance.test"),
 		ContactRecipientAddress: strPtr("hello@instance.test"),
-		PrivacyPolicyURL:        strPtr("https://instance.test/privacy"),
 		LastSuccessAt:           &now,
 		LastError:               &lastErr,
 		LastErrorAt:             &now,
@@ -142,7 +141,6 @@ func smtpUpsertBody(secret *string) map[string]any {
 		"from_address":              "noreply@instance.test",
 		"from_name":                 "VibeXP",
 		"contact_recipient_address": "hello@instance.test",
-		"privacy_policy_url":        "https://instance.test/privacy",
 	}
 	if secret != nil {
 		body["secret"] = *secret
@@ -229,7 +227,6 @@ func TestUpsertAdminInstanceEmailSettings_CreatesAndNeverEchoesSecret(t *testing
 	assert.Equal(t, instanceEmailSecretSentinel, decrypted, "the secret is stored, encrypted")
 	assertBodyExcludes(t, rr.Body.Bytes(), *stored.SecretEncrypted)
 	assert.Equal(t, "hello@instance.test", *stored.ContactRecipientAddress)
-	assert.Equal(t, "https://instance.test/privacy", *stored.PrivacyPolicyURL)
 	require.NotNil(t, stored.UpdatedBy)
 	assert.Equal(t, instanceEmailActingAdmin, *stored.UpdatedBy, "the actor is the calling admin")
 
@@ -309,6 +306,29 @@ func TestUpsertAdminInstanceEmailSettings_UnknownFieldIs400(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 	assert.Contains(t, rr.Body.String(), "password_hint")
 	specconformance.AssertConformsToSpec(t, req, rr)
+}
+
+// The privacy policy URL left the email settings (#1363: it is site info now).
+// A client that still sends it gets a 400 naming the field on both bodies that
+// used to accept it, never a silently dropped value.
+func TestAdminInstanceEmailSettings_PrivacyPolicyURLIsNoLongerAccepted(t *testing.T) {
+	for _, tc := range []struct{ name, method, path string }{
+		{"upsert", http.MethodPut, instanceEmailSettingsPath},
+		{"test send", http.MethodPost, instanceEmailSettingsPath + "/test"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			router, _ := newInstanceEmailMockRouter(t) // no expectation: never reached
+
+			body := smtpUpsertBody(nil)
+			body["privacy_policy_url"] = "https://instance.test/privacy"
+			req := instanceEmailRequest(t, tc.method, tc.path, body)
+			rr := serveInstanceEmail(t, router, req)
+
+			require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+			assert.Contains(t, rr.Body.String(), "privacy_policy_url")
+			specconformance.AssertConformsToSpec(t, req, rr)
+		})
+	}
 }
 
 func TestUpsertAdminInstanceEmailSettings_ServiceFailureIs500(t *testing.T) {

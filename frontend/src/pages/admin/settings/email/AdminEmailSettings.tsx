@@ -393,22 +393,6 @@ function InstanceOnlyFields({
           </FormItem>
         )}
       />
-      <FormField
-        control={form.control}
-        name="privacy_policy_url"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Privacy policy URL</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="https://acme.test/privacy" />
-            </FormControl>
-            <FormDescription>
-              Optional — linked from outbound mail. Blank links none.
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
     </>
   )
 }

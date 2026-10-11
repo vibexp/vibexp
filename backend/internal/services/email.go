@@ -56,10 +56,6 @@ func NewEmailService(
 type emailLayoutData struct {
 	Year       int
 	AppBaseURL string
-	// PrivacyPolicyURL is the footer's privacy link, empty for none: the site
-	// info's privacy URL when one is configured, otherwise the one stored with
-	// the email settings.
-	PrivacyPolicyURL string
 	// Brand is the instance's company branding with every fallback applied.
 	// Its values are admin-entered text: the HTML templates here render
 	// through text/template, which does not escape, so each use passes
@@ -72,19 +68,13 @@ type emailLayoutData struct {
 }
 
 // layoutData builds the shared template data for one send.
-func (es *EmailService) layoutData(ctx context.Context, year int, identity InstanceEmailIdentity) emailLayoutData {
-	brand := es.siteInfo.Resolve(ctx).EmailBranding()
-	privacyURL := brand.PrivacyURL
-	if privacyURL == "" {
-		privacyURL = identity.PrivacyPolicyURL
-	}
+func (es *EmailService) layoutData(ctx context.Context, year int) emailLayoutData {
 	return emailLayoutData{
-		Year:             year,
-		AppBaseURL:       es.appBaseURL(),
-		PrivacyPolicyURL: privacyURL,
-		Brand:            brand,
-		ProductName:      models.ProductName,
-		ProductURL:       models.ProductURL,
+		Year:        year,
+		AppBaseURL:  es.appBaseURL(),
+		Brand:       es.siteInfo.Resolve(ctx).EmailBranding(),
+		ProductName: models.ProductName,
+		ProductURL:  models.ProductURL,
 	}
 }
 
@@ -99,11 +89,10 @@ func adminRecipient(identity InstanceEmailIdentity) string {
 	return identity.FromAddress
 }
 
-// instanceIdentity reads the instance's mail identity per send. Templates
-// render before the sender is resolved, so the email settings' privacy URL (the
-// footer's fallback, see layoutData) needs its own read.
-// A failed read fails the send loudly rather than rendering a blank footer or
-// delivering to the wrong mailbox.
+// instanceIdentity reads the instance's mail identity for the support
+// notification, which is addressed to the instance's contact recipient. A
+// failed read fails the send loudly rather than delivering to the wrong
+// mailbox.
 func (es *EmailService) instanceIdentity(ctx context.Context) (InstanceEmailIdentity, error) {
 	identity, err := es.resolver.InstanceIdentity(ctx)
 	if err != nil {
@@ -241,7 +230,7 @@ func (es *EmailService) sendSupportNotificationToAdmin(
 		AdditionalInfoHTML string
 		AdditionalInfoText string
 	}{
-		emailLayoutData:    es.layoutData(ctx, 2025, identity),
+		emailLayoutData:    es.layoutData(ctx, 2025),
 		UserName:           userName,
 		UserEmail:          userEmail,
 		Text:               req.Text,
@@ -279,18 +268,13 @@ func (es *EmailService) sendSupportAcknowledgement(
 	// Extract first name from full name
 	firstName := es.extractFirstName(userName)
 
-	identity, err := es.instanceIdentity(ctx)
-	if err != nil {
-		return err
-	}
-
 	// Prepare template data
 	data := struct {
 		emailLayoutData
 		FirstName string
 		Text      string
 	}{
-		emailLayoutData: es.layoutData(ctx, 2025, identity),
+		emailLayoutData: es.layoutData(ctx, 2025),
 		FirstName:       firstName,
 		Text:            req.Text,
 	}
@@ -330,11 +314,6 @@ func (es *EmailService) SendNotificationEmail(ctx context.Context, teamID, to, s
 func (es *EmailService) SendTeamInvitation(
 	ctx context.Context, teamID string, invitation *models.TeamInvitation, teamName, inviterName string,
 ) error {
-	identity, err := es.instanceIdentity(ctx)
-	if err != nil {
-		return err
-	}
-
 	// Build accept URL
 	acceptURL := fmt.Sprintf("%s/invitations/accept/%s", es.cfg.Frontend.BaseURL, invitation.Token)
 
@@ -347,7 +326,7 @@ func (es *EmailService) SendTeamInvitation(
 		AcceptURL   string
 		ExpiryDate  string
 	}{
-		emailLayoutData: es.layoutData(ctx, time.Now().Year(), identity),
+		emailLayoutData: es.layoutData(ctx, time.Now().Year()),
 		TeamName:        teamName,
 		InviterName:     inviterName,
 		Role:            string(invitation.Role),

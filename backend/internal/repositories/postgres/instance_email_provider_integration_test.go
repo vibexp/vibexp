@@ -38,7 +38,6 @@ func integrationInstanceEmailProvider(t *testing.T) *models.InstanceEmailProvide
 	fromName := "Acme"
 	replyTo := "reply@acme.test"
 	contact := "contact@acme.test"
-	privacy := "https://acme.test/privacy"
 	updatedBy := insertTestUser(t)
 	return &models.InstanceEmailProvider{
 		ProviderType:            "smtp",
@@ -48,7 +47,6 @@ func integrationInstanceEmailProvider(t *testing.T) *models.InstanceEmailProvide
 		FromName:                &fromName,
 		ReplyTo:                 &replyTo,
 		ContactRecipientAddress: &contact,
-		PrivacyPolicyURL:        &privacy,
 		UpdatedBy:               &updatedBy,
 	}
 }
@@ -91,7 +89,6 @@ func TestIntegrationInstanceEmailProvider_Upsert_InsertRoundTrip(t *testing.T) {
 	assert.Equal(t, provider.FromName, got.FromName)
 	assert.Equal(t, provider.ReplyTo, got.ReplyTo)
 	assert.Equal(t, provider.ContactRecipientAddress, got.ContactRecipientAddress)
-	assert.Equal(t, provider.PrivacyPolicyURL, got.PrivacyPolicyURL)
 	assert.Equal(t, provider.UpdatedBy, got.UpdatedBy)
 	assert.Nil(t, got.LastSuccessAt)
 	assert.Nil(t, got.LastErrorAt)

@@ -56,7 +56,6 @@ const configured = (
   from_address: 'noreply@acme.test',
   from_name: 'Acme',
   contact_recipient_address: 'hello@acme.test',
-  privacy_policy_url: null,
   is_healthy: true,
   last_success_at: '2026-09-20T10:00:00Z',
   updated_at: '2026-09-19T10:00:00Z',
@@ -124,6 +123,14 @@ beforeEach(() => {
 })
 
 describe('AdminEmailSettings — states', () => {
+  it('offers no privacy policy field: that URL is edited in site info', async () => {
+    renderPage()
+
+    expect(await screen.findByLabelText(/from address/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/contact form recipient/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/privacy policy/i)).not.toBeInTheDocument()
+  })
+
   it('says unconfigured instance mail is discarded and offers an empty form', async () => {
     renderPage()
 
@@ -305,8 +312,8 @@ describe('AdminEmailSettings — save', () => {
     expect(body).toMatchObject({
       from_name: 'Acme Mail',
       contact_recipient_address: 'hello@acme.test',
-      privacy_policy_url: null,
     })
+    expect(body).not.toHaveProperty('privacy_policy_url')
     expect(mockedToast.success).toHaveBeenCalledWith(
       'Instance email settings saved'
     )

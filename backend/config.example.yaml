@@ -235,7 +235,6 @@ email:
   from_address: "dev@vibexp.local"
   # Inbox for contact/support notifications; empty falls back to from_address.
   contact_recipient_address: ""
-  privacy_policy_url: "https://example.com/privacy-policy"
 
   # SMTP (the default provider). Dev defaults point at Mailpit, which accepts any
   # credentials. For real delivery use e.g. smtp.gmail.com:587 with an app password.

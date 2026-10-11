@@ -306,3 +306,34 @@ func TestConfigSchema_LegacyAuthKeysDeprecated(t *testing.T) {
 		assert.False(t, auth[name].Deprecated, "auth.%s stays in config.yaml", name)
 	}
 }
+
+// The privacy policy URL left the `email:` block (#1363: it is site info now).
+// A config.yaml that still sets it must keep loading, with one warning that
+// says where the setting went; the rest of the block is unaffected.
+func TestCheckRemovedSections_EmailPrivacyPolicyURLWarns(t *testing.T) {
+	t.Run("populated", func(t *testing.T) {
+		warnings, err := checkRemovedSections("config.yaml", map[string]interface{}{
+			"email": map[string]interface{}{
+				"provider":           "smtp",
+				"privacy_policy_url": "https://acme.test/privacy",
+			},
+		})
+
+		require.NoError(t, err, "a removed warn-mode key never fails startup")
+		require.Len(t, warnings, 1)
+		assert.Contains(t, warnings[0], `"email.privacy_policy_url"`)
+		assert.Contains(t, warnings[0], "site info")
+	})
+
+	t.Run("absent or blank", func(t *testing.T) {
+		for _, email := range []map[string]interface{}{
+			{"provider": "smtp"},
+			{"provider": "smtp", "privacy_policy_url": ""},
+		} {
+			warnings, err := checkRemovedSections("config.yaml", map[string]interface{}{"email": email})
+
+			require.NoError(t, err)
+			assert.Empty(t, warnings)
+		}
+	})
+}

@@ -28,6 +28,8 @@ const FIELD_LABELS: readonly AuditField[] = [
   ['from_name', 'Display name'],
   ['reply_to', 'Reply-To'],
   ['contact_recipient_address', 'Contact recipient'],
+  // No longer an email setting (#1363: the privacy URL is site info now). The
+  // label stays so audit entries written before that still read well.
   ['privacy_policy_url', 'Privacy policy URL'],
   ['has_credential', 'Credential stored'],
 ]

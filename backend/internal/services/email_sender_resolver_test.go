@@ -507,10 +507,8 @@ func TestRecordSendOutcome_TeamSenderStampsTheTeamRow(t *testing.T) {
 func TestInstanceIdentity(t *testing.T) {
 	t.Run("from the row", func(t *testing.T) {
 		contact := "support@instance.test"
-		privacy := "https://instance.test/privacy"
 		row := storedInstanceSMTPRow("noreply@instance.test")
 		row.ContactRecipientAddress = &contact
-		row.PrivacyPolicyURL = &privacy
 
 		instanceRepo := repomocks.NewMockInstanceEmailProviderRepository(t)
 		instanceRepo.On("Get", mock.Anything).Return(row, nil)
@@ -520,7 +518,7 @@ func TestInstanceIdentity(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, InstanceEmailIdentity{
-			FromAddress: "noreply@instance.test", ContactRecipientAddress: contact, PrivacyPolicyURL: privacy,
+			FromAddress: "noreply@instance.test", ContactRecipientAddress: contact,
 		}, identity)
 	})
 

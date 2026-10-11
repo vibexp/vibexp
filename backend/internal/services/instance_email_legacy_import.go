@@ -196,8 +196,8 @@ func importLegacyEmail(
 // import is validated and stored exactly like an admin save:
 //   - from_address falls back to smtp.username when that is an email address,
 //     mirroring the legacy sender;
-//   - the privacy policy URL is dropped when it is the defaults() placeholder,
-//     which the operator never chose;
+//   - the block's privacy policy URL is not imported: that link is site
+//     info now (#1363), and the legacy key is gone from the config;
 //   - only the selected provider's settings and secret are taken; another
 //     provider's credential is never stored, and its drop is logged.
 func legacyEmailRequest(c config.LegacyEmailConfig, logger *slog.Logger) models.UpsertInstanceEmailProviderRequest {
@@ -214,9 +214,6 @@ func legacyEmailRequest(c config.LegacyEmailConfig, logger *slog.Logger) models.
 			FromAddress:  fromAddress,
 		},
 		ContactRecipientAddress: trimOptional(&c.ContactRecipientAddress),
-	}
-	if privacy := strings.TrimSpace(c.PrivacyPolicyURL); privacy != config.DefaultLegacyPrivacyPolicyURL {
-		req.PrivacyPolicyURL = trimOptional(&privacy)
 	}
 
 	secrets := map[string]string{
