@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -14,7 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
+	"github.com/vibexp/vibexp/internal/contextkeys"
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
@@ -285,4 +289,88 @@ func TestHandleConfigJS_HeadHasNoBody(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Empty(t, rr.Body.String())
+}
+
+// --- a stalled or panicking read ----------------------------------------------
+
+// stalledSiteInfoRepo never answers: Get blocks until its context ends, the way
+// a query does against an exhausted pool or an unreachable database.
+type stalledSiteInfoRepo struct{ fakeSiteInfoRepo }
+
+func (r *stalledSiteInfoRepo) Get(ctx context.Context) (*models.InstanceSiteInfo, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+var _ repositories.InstanceSiteInfoRepository = (*stalledSiteInfoRepo)(nil)
+
+// A database that stalls must cost a short wait, not the page: both public
+// surfaces answer "nothing configured" once siteInfoReadTimeout passes, long
+// before the router's own request timeout.
+func TestPublicSiteInfo_StalledReadIsBoundedAndFailsOpen(t *testing.T) {
+	prev := siteInfoReadTimeout
+	siteInfoReadTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { siteInfoReadTimeout = prev })
+	const bound = 5 * time.Second // generous for a loaded CI box, far below the 60s router timeout
+
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
+		instanceSiteInfoService: services.NewInstanceSiteInfoService(
+			&stalledSiteInfoRepo{}, slog.New(slog.DiscardHandler)),
+	})
+
+	t.Run("the endpoint", func(t *testing.T) {
+		start := time.Now()
+		rr := getPublicSiteInfo(t, srv)
+
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.Equal(t, allNullSiteInfo(), decodeJSONMap(t, rr))
+		assert.Less(t, time.Since(start), bound)
+	})
+
+	t.Run("config.js", func(t *testing.T) {
+		start := time.Now()
+		_, got := configJSSiteInfoObject(t, srv)
+
+		assert.Equal(t, allNullSiteInfo(), got)
+		assert.Less(t, time.Since(start), bound)
+	})
+}
+
+// The default bound is short enough that a stall cannot hold the first paint
+// for long.
+func TestSiteInfoReadTimeout_IsShort(t *testing.T) {
+	assert.LessOrEqual(t, siteInfoReadTimeout, 5*time.Second)
+	assert.Positive(t, siteInfoReadTimeout)
+}
+
+// panickingSiteInfoRepo stands in for a real bug in the read path.
+type panickingSiteInfoRepo struct{ fakeSiteInfoRepo }
+
+func (r *panickingSiteInfoRepo) Get(context.Context) (*models.InstanceSiteInfo, error) {
+	panic("site info read exploded")
+}
+
+// A panic in the read still fails open, and is logged the way the panic
+// middleware logs one (event, message, stack), so it is never silent.
+func TestPublicSiteInfo_PanicFailsOpenAndIsLoggedWithItsStack(t *testing.T) {
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
+		instanceSiteInfoService: services.NewInstanceSiteInfoService(
+			&panickingSiteInfoRepo{}, slog.New(slog.DiscardHandler)),
+	})
+	logger, hook := logtest.New()
+	ctx := context.WithValue(context.Background(), contextkeys.Logger, logger)
+
+	raw, err := json.Marshal(srv.publicSiteInfo(ctx))
+
+	require.NoError(t, err)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(raw, &got))
+	assert.Equal(t, allNullSiteInfo(), got)
+
+	entry := hook.LastEntry()
+	require.NotNil(t, entry, "the panic must be logged")
+	assert.Equal(t, "panic", entry.Data["event"])
+	assert.Equal(t, "site info read exploded", entry.Data["panic.message"])
+	stack, _ := entry.Data["panic.stack"].(string)
+	assert.Contains(t, stack, "panickingSiteInfoRepo", "the stack names where it panicked")
 }

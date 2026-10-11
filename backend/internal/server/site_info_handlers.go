@@ -3,10 +3,14 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"runtime/debug"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/vibexp/vibexp/internal/contextkeys"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	siteinfogen "github.com/vibexp/vibexp/internal/server/gen/siteinfo"
@@ -56,22 +60,39 @@ func (h *siteInfoStrictServer) GetSiteInfo(
 	return siteinfogen.GetSiteInfo200JSONResponse(h.s.publicSiteInfo(ctx)), nil
 }
 
+// siteInfoReadTimeout bounds the public site info read. /config.js is a
+// synchronous script ahead of the app bundle, so without a bound a stalled
+// database (an exhausted pool, an unreachable host) would hold the first paint
+// until the router's request timeout. Past this bound the read is abandoned and
+// the instance shows as not configured. A variable only so tests can shorten it.
+var siteInfoReadTimeout = 2 * time.Second
+
 // publicSiteInfo resolves the instance's company branding in its public shape.
 //
 // It FAILS OPEN at every step, because both callers sit in front of sign-in
 // and /config.js must render for the app to load at all:
 //
+//   - the read is bounded by siteInfoReadTimeout, so a database that stalls
+//     costs a short wait, not the page;
 //   - the service's Resolve already answers the empty value set on a read
-//     error;
+//     error, a timed-out read included;
 //   - a server with no container or no site info service answers the same;
 //   - so does a read that panics, which is what a server built without a
 //     database does (the SPA and /config.js are served with no database in
-//     tests and tooling). The panic is logged, never swallowed silently.
+//     tests and tooling). The panic is logged the way panicLoggerMiddleware
+//     logs one, with its stack, so a real bug here is never silent.
 func (s *Server) publicSiteInfo(ctx context.Context) (out siteinfogen.SiteInfoResponse) {
 	defer func() {
-		if recovered := recover(); recovered != nil {
-			s.logger.With("panic", recovered).
-				Error("site info read panicked; treating it as not configured")
+		if rec := recover(); rec != nil {
+			stack := string(debug.Stack())
+			if len(stack) > maxPanicStackBytes {
+				stack = stack[:maxPanicStackBytes] + "\n... [truncated]"
+			}
+			contextkeys.GetLoggerFromContext(ctx).With(
+				"event", "panic",
+				"panic.message", fmt.Sprintf("%v", rec),
+				"panic.stack", stack,
+			).Error("site info read panicked; treating it as not configured")
 			out = toPublicSiteInfo(models.InstanceSiteInfoValues{})
 		}
 	}()
@@ -82,7 +103,9 @@ func (s *Server) publicSiteInfo(ctx context.Context) (out siteinfogen.SiteInfoRe
 	if svc == nil {
 		return toPublicSiteInfo(models.InstanceSiteInfoValues{})
 	}
-	return toPublicSiteInfo(svc.Resolve(ctx))
+	readCtx, cancel := context.WithTimeout(ctx, siteInfoReadTimeout)
+	defer cancel()
+	return toPublicSiteInfo(svc.Resolve(readCtx))
 }
 
 // toPublicSiteInfo renders the values for the public surfaces: an unset value
