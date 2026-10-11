@@ -49,7 +49,7 @@ type UpdatePromptParams struct {
 }
 
 // RenderPromptParams defines the parameters for the render_prompt tool, which
-// renders a published, MCP-exposed prompt by slug. It is the tool-based fallback
+// renders a live, MCP-exposed prompt by slug. It is the tool-based fallback
 // for prompts beyond the prompt-primitive cap (maxPromptPrimitives): every such
 // prompt is still reachable here even when it is not exposed as a slash-command
 // primitive.
@@ -211,7 +211,7 @@ func marshalPromptWriteResult(baseURL string, prompt *models.Prompt) (*mcp.CallT
 	}, result, nil
 }
 
-// renderPrompt implements the render_prompt tool: it renders a published,
+// renderPrompt implements the render_prompt tool: it renders a live,
 // MCP-exposed prompt by slug in the resolved team, substituting the given
 // argument values for its placeholders. The rendered body is returned as the
 // text content so a client can use it directly; the full render response
@@ -233,7 +233,7 @@ func (s *Server) renderPrompt(
 	}
 
 	// render_prompt is the fallback for prompts eligible to be MCP primitives, so
-	// it must honor the same gate: only published, MCP-exposed prompts are
+	// it must honor the same gate: only live (not draft), MCP-exposed prompts are
 	// renderable. This keeps mcp_expose=false (and drafts) out of MCP even though
 	// the caller supplies an explicit slug.
 	prompt, err := s.container.PromptService().GetPromptBySlug(userID, teamID, slug)
@@ -248,9 +248,9 @@ func (s *Server) renderPrompt(
 		)
 		return mcpTextError(fmt.Sprintf("Failed to render prompt: %v", err)), nil, nil
 	}
-	if prompt.Status != models.PromptStatusPublished || !prompt.MCPExpose {
+	if !models.IsLiveStatus(models.StatusResourceTypePrompt, prompt.Status) || !prompt.MCPExpose {
 		return mcpTextError(fmt.Sprintf(
-			"prompt %q is not available for rendering: it must be published and MCP-exposed (mcp_expose=true)", slug,
+			"prompt %q is not available for rendering: it must not be a draft and must be MCP-exposed (mcp_expose=true)", slug,
 		)), nil, nil
 	}
 

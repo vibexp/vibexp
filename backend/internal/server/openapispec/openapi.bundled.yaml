@@ -19751,7 +19751,7 @@ components:
     PromptStatus:
       type: string
       maxLength: 50
-      description: 'Status of a prompt. The system values are `draft` and `published`; a prompt is only exposed over MCP once it is `published`. A team may define further statuses of its own for prompts, so this is an open string: any other value must be one of the team''s custom prompt statuses, or the request is rejected with 400.'
+      description: 'Status of a prompt. The system values are `draft` and `published`; a `draft` prompt is never exposed over MCP, while a prompt in any other status is once `mcp_expose` is on. A team may define further statuses of its own for prompts, so this is an open string: any other value must be one of the team''s custom prompt statuses, or the request is rejected with 400.'
       example: published
     ArtifactStatus:
       type: string

@@ -34,7 +34,7 @@ func (r *MemoryRepository) Create(ctx context.Context, memory *models.Memory) er
 	}
 
 	// Default to active when the caller leaves status unset, so the explicit
-	// INSERT value never violates the memories_status_check constraint.
+	// INSERT value never stores an empty status.
 	status := memory.Status
 	if status == "" {
 		status = models.MemoryStatusActive
@@ -143,8 +143,9 @@ func buildMemoryOrderByClause(filters repositories.MemoryFilters) string {
 
 // applyMemoryStatusVisibility appends the status-visibility predicate to a memory
 // query's WHERE clause, mirroring applyArtifactStatusVisibility: a keyword search
-// returns only active memories; an explicit status filter returns exactly that
-// status; otherwise archived memories are hidden from the default listing (active
+// returns only live memories (every status but the non-live system ones, so a
+// team's custom statuses are included); an explicit status filter returns exactly
+// that status; otherwise archived memories are hidden from the default listing (active
 // + draft remain visible). statusCol is the (optionally alias-qualified) status
 // column for the query path — "m.status" for the aliased list query, "status" for
 // the unaliased metadata search. The text-search ILIKE predicate is added by the
@@ -154,7 +155,7 @@ func applyMemoryStatusVisibility(
 ) squirrel.And {
 	switch {
 	case filters.Search != "":
-		return append(where, squirrel.Eq{statusCol: models.MemoryStatusActive})
+		return append(where, squirrel.NotEq{statusCol: models.NonLiveStatusesFor(models.StatusResourceTypeMemory)})
 	case filters.Status != nil && *filters.Status != "":
 		return append(where, squirrel.Eq{statusCol: *filters.Status})
 	default:
@@ -356,7 +357,7 @@ func (r *MemoryRepository) Update(ctx context.Context, memory *models.Memory) er
 
 	// Use EXISTS subqueries to avoid Cartesian product with multi-member teams
 	// Default to active when status is unset, so the UPDATE never writes an empty
-	// string that would violate the memories_status_check constraint.
+	// status.
 	status := memory.Status
 	if status == "" {
 		status = models.MemoryStatusActive

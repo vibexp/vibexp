@@ -267,7 +267,7 @@ type Prompt struct {
 	Similar *[]SimilarResource `json:"similar,omitempty"`
 	Slug    string             `json:"slug"`
 
-	// Status Status of a prompt. The system values are `draft` and `published`; a prompt is only exposed over MCP once it is `published`. A team may define further statuses of its own for prompts, so this is an open string: any other value must be one of the team's custom prompt statuses, or the request is rejected with 400.
+	// Status Status of a prompt. The system values are `draft` and `published`; a `draft` prompt is never exposed over MCP, while a prompt in any other status is once `mcp_expose` is on. A team may define further statuses of its own for prompts, so this is an open string: any other value must be one of the team's custom prompt statuses, or the request is rejected with 400.
 	Status PromptStatus `json:"status"`
 
 	// TeamId Team identifier that owns this prompt
@@ -295,7 +295,7 @@ type PromptListResponse struct {
 	TotalPages int      `json:"total_pages"`
 }
 
-// PromptStatus Status of a prompt. The system values are `draft` and `published`; a prompt is only exposed over MCP once it is `published`. A team may define further statuses of its own for prompts, so this is an open string: any other value must be one of the team's custom prompt statuses, or the request is rejected with 400.
+// PromptStatus Status of a prompt. The system values are `draft` and `published`; a `draft` prompt is never exposed over MCP, while a prompt in any other status is once `mcp_expose` is on. A team may define further statuses of its own for prompts, so this is an open string: any other value must be one of the team's custom prompt statuses, or the request is rejected with 400.
 type PromptStatus = string
 
 // RelatedResource One endpoint of a relation as seen from the other endpoint, enriched with the related resource's resolved title and link fields. project_id is present for every type; slug is present for artifact/blueprint/prompt and absent for memory.

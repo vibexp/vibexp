@@ -46,10 +46,9 @@ type entitySource struct {
 // its source table AS src and the projects join AS proj, so these compose
 // identically for the semantic, FTS and trgm passes.
 const (
-	// srcSlugExpr / srcStatusActiveFilter are the entitySources values shared by
-	// every slug-carrying / active-status entity type.
-	srcSlugExpr           = "src.slug"
-	srcStatusActiveFilter = "src.status = 'active'"
+	// srcSlugExpr is the entitySources value shared by every slug-carrying
+	// entity type.
+	srcSlugExpr = "src.slug"
 	// searchProjectProjection projects the uniform project id/name pair derived
 	// via the projects LEFT JOIN (projectsLeftJoin).
 	searchProjectProjection = "src.project_id::text AS project_id, COALESCE(proj.name, '') AS project_name, "
@@ -68,6 +67,33 @@ const (
 		"chunk_content, source_body, created_at, updated_at, distance "
 )
 
+// srcLiveStatusFilter returns the predicate that keeps only LIVE rows of a
+// resource type in a search branch: everything except the type's non-live
+// system statuses (models.NonLiveStatusesFor), e.g.
+// "src.status NOT IN ('draft', 'archived')" for an artifact and
+// "src.status <> 'draft'" for a prompt. It is a denylist on purpose, so a
+// team's custom statuses (epic #1263) are searchable without being listed
+// here. Every status column is NOT NULL, so NOT IN has no NULL trap.
+//
+// The values inlined into the SQL are compile-time constants from the models
+// package, never request input, and the fragment is built once at package
+// init (entitySources).
+func srcLiveStatusFilter(resourceType string) string {
+	nonLive := models.NonLiveStatusesFor(resourceType)
+	quoted := make([]string, len(nonLive))
+	for i, status := range nonLive {
+		quoted[i] = "'" + status + "'"
+	}
+	switch len(quoted) {
+	case 0:
+		return ""
+	case 1:
+		return "src.status <> " + quoted[0]
+	default:
+		return "src.status NOT IN (" + strings.Join(quoted, ", ") + ")"
+	}
+}
+
 // entitySources maps the singular embeddings entity_type to its source-table metadata.
 var entitySources = map[string]entitySource{
 	"prompt": {
@@ -75,28 +101,28 @@ var entitySources = map[string]entitySource{
 		titleExpr:    "src.name",
 		bodyExpr:     "src.body",
 		slugExpr:     srcSlugExpr,
-		statusFilter: "src.status = 'published'",
+		statusFilter: srcLiveStatusFilter(models.StatusResourceTypePrompt),
 	},
 	"artifact": {
 		table:        "artifacts",
 		titleExpr:    "src.title",
 		bodyExpr:     "src.content",
 		slugExpr:     srcSlugExpr,
-		statusFilter: srcStatusActiveFilter,
+		statusFilter: srcLiveStatusFilter(models.StatusResourceTypeArtifact),
 	},
 	"blueprint": {
 		table:        "blueprints",
 		titleExpr:    "src.title",
 		bodyExpr:     "src.content",
 		slugExpr:     srcSlugExpr,
-		statusFilter: srcStatusActiveFilter,
+		statusFilter: srcLiveStatusFilter(models.StatusResourceTypeBlueprint),
 	},
 	"memory": {
 		table:        "memories",
 		titleExpr:    "LEFT(src.text, 100)",
 		bodyExpr:     "src.text",
 		slugExpr:     "''",
-		statusFilter: srcStatusActiveFilter,
+		statusFilter: srcLiveStatusFilter(models.StatusResourceTypeMemory),
 	},
 }
 

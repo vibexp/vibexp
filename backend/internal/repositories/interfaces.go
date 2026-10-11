@@ -558,6 +558,12 @@ type PromptFilters struct {
 	SortOrder string
 	Page      int
 	Limit     int
+
+	// ExcludeStatuses drops prompts carrying any of the listed statuses. It is
+	// how a caller asks for "every live prompt" (models.NonLiveStatusesFor)
+	// without naming the statuses that are live, which a team can extend.
+	// Empty means no exclusion.
+	ExcludeStatuses []string
 }
 
 // PromptReferenceRepository defines the interface for prompt reference data access operations

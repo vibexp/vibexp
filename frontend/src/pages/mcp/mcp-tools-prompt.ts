@@ -45,7 +45,7 @@ export const promptTools: MCPTool[] = [
         status: {
           type: 'string',
           description:
-            'Prompt status. One of: "draft" for works-in-progress, "published" for prompts ready to be used. Only published prompts can be rendered over MCP. A team can also have custom statuses: call vibexp_io_list_statuses to list them.',
+            'Prompt status. One of: "draft" for works-in-progress, "published" for prompts ready to be used. A draft prompt cannot be rendered over MCP; a prompt in any other status can, once mcp_expose is on. A team can also have custom statuses: call vibexp_io_list_statuses to list them.',
         },
         mcp_expose: {
           type: 'boolean',
@@ -120,7 +120,7 @@ export const promptTools: MCPTool[] = [
   {
     name: 'vibexp_io_render_prompt',
     description:
-      "Render a published, MCP-exposed prompt by slug, substituting values for its {{placeholders}} and expanding its @prompt:slug references. Use this to run any of your team's prompts as a tool — including prompts not exposed as a slash-command primitive, since only the most recent are. Set strict=true for unattended use: a bare @word then stays literal text and an unresolved @prompt:slug fails the render. Returns the rendered body.",
+      "Render a live (not draft), MCP-exposed prompt by slug, substituting values for its {{placeholders}} and expanding its @prompt:slug references. Use this to run any of your team's prompts as a tool — including prompts not exposed as a slash-command primitive, since only the most recent are. Set strict=true for unattended use: a bare @word then stays literal text and an unresolved @prompt:slug fails the render. Returns the rendered body.",
     inputSchema: {
       type: 'object',
       properties: {

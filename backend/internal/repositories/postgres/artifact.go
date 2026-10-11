@@ -294,9 +294,10 @@ func applyArtifactFilters(where squirrel.And, filters repositories.ArtifactFilte
 
 // applyArtifactStatusVisibility encodes the artifact lifecycle visibility rules
 // shared by List and ListCrossTeam, in priority order:
-//   - A substring search only ever returns active artifacts; drafts and archived
-//     content are never surfaced through search, so any explicit status filter is
-//     ignored while searching.
+//   - A substring search only ever returns live artifacts: every status but the
+//     non-live system ones (models.NonLiveStatusesFor), so a team's custom
+//     statuses are included. Drafts and archived content are never surfaced
+//     through search, so any explicit status filter is ignored while searching.
 //   - Otherwise an explicit status filter selects exactly that status (the way to
 //     reach draft or archived artifacts deliberately).
 //   - The default list (no search, no explicit status) hides archived artifacts
@@ -308,7 +309,7 @@ func applyArtifactStatusVisibility(
 	case filters.Search != "":
 		term := "%" + filters.Search + "%"
 		return append(where,
-			squirrel.Eq{artifactStatusColumn: models.ArtifactStatusActive},
+			squirrel.NotEq{artifactStatusColumn: models.NonLiveStatusesFor(models.StatusResourceTypeArtifact)},
 			squirrel.Expr(
 				"(a.title ILIKE ? OR a.description ILIKE ? OR a.content ILIKE ?)", term, term, term,
 			),

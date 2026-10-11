@@ -81,6 +81,23 @@ var nonLiveStatuses = map[string][]string{
 	StatusResourceTypeBlueprint: {StatusExpired},
 }
 
+func TestNonLiveStatusesFor(t *testing.T) {
+	for _, resourceType := range StatusResourceTypes {
+		assert.Equal(t, nonLiveStatuses[resourceType], NonLiveStatusesFor(resourceType), resourceType)
+	}
+	// A type with no status catalog has no non-live status (plural is not a
+	// status resource type).
+	assert.Nil(t, NonLiveStatusesFor("artifacts"))
+}
+
+func TestNonLiveStatusesFor_ReturnsACopy(t *testing.T) {
+	got := NonLiveStatusesFor(StatusResourceTypeArtifact)
+	got[0] = "mutated"
+
+	assert.Equal(t, []string{StatusDraft, StatusArchived}, NonLiveStatusesFor(StatusResourceTypeArtifact))
+	assert.False(t, IsLiveStatus(StatusResourceTypeArtifact, StatusDraft))
+}
+
 func TestIsLiveStatus(t *testing.T) {
 	// Every system word, a custom slug, an unknown value and the empty string,
 	// against every resource type: false only for the pairs listed above.

@@ -141,16 +141,16 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 			expectCount: 1,
 		},
 		{
-			name: "Search binds a single %term% via ILIKE and forces active status",
+			name: "Search binds a single %term% via ILIKE and excludes non-live statuses",
 			filters: repositories.MemoryFilters{
 				TeamID: "team-123", Search: "alpha", Page: 1, Limit: 10,
 			},
 			setupMock: func() {
-				args := append(memoryListBaseArgs(), "%alpha%", "active")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .* AND m\.text ILIKE \$6 AND m\.status = \$7`).
+				args := append(memoryListBaseArgs(), "%alpha%", "draft", "archived")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .* AND m\.text ILIKE \$6 AND m\.status NOT IN \(\$7,\$8\)`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM memories m .* AND m\.text ILIKE \$6 AND m\.status = \$7`).
+				mock.ExpectQuery(`FROM memories m .* AND m\.text ILIKE \$6 AND m\.status NOT IN \(\$7,\$8\)`).
 					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},

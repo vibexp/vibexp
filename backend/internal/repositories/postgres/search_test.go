@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/database"
+	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
@@ -46,13 +48,13 @@ func buildBranchCases() []buildBranchCase {
 	}
 	return []buildBranchCase{
 		{
-			name:       "prompt branch filters published status",
+			name:       "prompt branch excludes draft status",
 			entityType: "prompt",
 			mustContain: append([]string{
 				"e.entity_type = 'prompt'",
 				"e.team_id = $2",
 				"e.model_id = $3",
-				"src.status = 'published'",
+				"src.status <> 'draft'",
 				"JOIN prompts src",
 				"src.name AS title",
 				"src.body AS source_body",
@@ -60,10 +62,10 @@ func buildBranchCases() []buildBranchCase {
 			}, commonProjectFragments...),
 		},
 		{
-			name:       "artifact branch filters active status",
+			name:       "artifact branch excludes draft and archived status",
 			entityType: "artifact",
 			mustContain: append([]string{
-				"src.status = 'active'",
+				"src.status NOT IN ('draft', 'archived')",
 				"JOIN artifacts src",
 				"src.title AS title",
 				"src.content AS source_body",
@@ -71,19 +73,19 @@ func buildBranchCases() []buildBranchCase {
 			}, commonProjectFragments...),
 		},
 		{
-			name:       "blueprint branch filters active status",
+			name:       "blueprint branch excludes expired status",
 			entityType: "blueprint",
 			mustContain: append([]string{
-				"src.status = 'active'",
+				"src.status <> 'expired'",
 				"JOIN blueprints src",
 				"src.slug AS slug",
 			}, commonProjectFragments...),
 		},
 		{
-			name:       "memory branch filters active status",
+			name:       "memory branch excludes draft and archived status",
 			entityType: "memory",
 			mustContain: append([]string{
-				"src.status = 'active'",
+				"src.status NOT IN ('draft', 'archived')",
 				"JOIN memories src",
 				"LEFT(src.text, 100) AS title",
 				"src.text AS source_body",
@@ -108,7 +110,7 @@ func TestBuildBranch_AppliesVisibilityAndScoping(t *testing.T) {
 	}
 
 	memoryBranch := buildBranch("memory", entitySources["memory"])
-	assert.Contains(t, memoryBranch, "src.status = 'active'")
+	assert.Contains(t, memoryBranch, "src.status NOT IN ('draft', 'archived')")
 }
 
 func TestBuildUnion_OrdersAndCountsBranches(t *testing.T) {
@@ -145,7 +147,7 @@ func TestBuildCountUnion_OmitsDistanceAndRenumbersArgs(t *testing.T) {
 	assert.Contains(t, union, "e.entity_id AS entity_id")
 	// Scoping/visibility filters still apply.
 	assert.Contains(t, union, "e.entity_type = 'prompt'")
-	assert.Contains(t, union, "src.status = 'published'")
+	assert.Contains(t, union, "src.status <> 'draft'")
 
 	_, err = buildCountUnion(nil)
 	assert.Error(t, err)
@@ -353,10 +355,10 @@ func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 		mustNotContain []string
 	}{
 		{
-			name:       "prompt branch filters published status and matches name+body",
+			name:       "prompt branch excludes draft status and matches name+body",
 			entityType: "prompt",
 			mustContain: append([]string{
-				"src.status = 'published'",
+				"src.status <> 'draft'",
 				"FROM prompts src",
 				"src.name AS title",
 				"src.body AS source_body",
@@ -367,10 +369,10 @@ func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 			mustNotContain: []string{"FROM embeddings", "<=>", "e.model_id"},
 		},
 		{
-			name:       "artifact branch filters active status and matches title+content",
+			name:       "artifact branch excludes draft and archived status and matches title+content",
 			entityType: "artifact",
 			mustContain: append([]string{
-				"src.status = 'active'",
+				"src.status NOT IN ('draft', 'archived')",
 				"FROM artifacts src",
 				"src.title AS title",
 				"src.content AS source_body",
@@ -379,19 +381,19 @@ func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 			mustNotContain: []string{"FROM embeddings", "<=>"},
 		},
 		{
-			name:       "blueprint branch filters active status",
+			name:       "blueprint branch excludes expired status",
 			entityType: "blueprint",
 			mustContain: append([]string{
-				"src.status = 'active'",
+				"src.status <> 'expired'",
 				"FROM blueprints src",
 			}, commonFragments...),
 			mustNotContain: []string{"FROM embeddings", "<=>"},
 		},
 		{
-			name:       "memory branch filters active status",
+			name:       "memory branch excludes draft and archived status",
 			entityType: "memory",
 			mustContain: append([]string{
-				"src.status = 'active'",
+				"src.status NOT IN ('draft', 'archived')",
 				"FROM memories src",
 				"LEFT(src.text, 100) AS title",
 				"src.text AS source_body",
@@ -450,7 +452,7 @@ func TestBuildKeywordCountUnion_OmitsRankAndBindsThreeArgs(t *testing.T) {
 	assert.Contains(t, union, "WHERE src.team_id = $2")
 	assert.Contains(t, union, "($3::uuid IS NULL OR src.project_id = $3::uuid)")
 	// Visibility filters still apply, and prompt precedes memory deterministically.
-	assert.Contains(t, union, "src.status = 'published'")
+	assert.Contains(t, union, "src.status <> 'draft'")
 	assert.Less(t, indexOf(union, "FROM prompts src"), indexOf(union, "FROM memories src"))
 	assert.Equal(t, 1, countOccurrences(union, "UNION ALL"))
 
@@ -476,7 +478,7 @@ func TestBuildKeywordTrgmBranch_MatchesTitleOnly(t *testing.T) {
 		"AS distance",
 		"WHERE src.team_id = $2",
 		"($3::uuid IS NULL OR src.project_id = $3::uuid)",
-		"src.status = 'published'",
+		"src.status <> 'draft'",
 		"FROM prompts src",
 		"src.name AS title",
 		"'' AS chunk_content",
@@ -709,4 +711,48 @@ func indexOf(haystack, needle string) int {
 
 func countOccurrences(haystack, needle string) int {
 	return len(regexp.MustCompile(regexp.QuoteMeta(needle)).FindAllStringIndex(haystack, -1))
+}
+
+// TestEntitySourceStatusFilters_AreLiveDenylists pins the status predicate of
+// every search source to the non-live set of its resource type (#1267): a
+// denylist, so a team's custom statuses are searchable, and derived from the
+// models package, so SQL and models.IsLiveStatus cannot disagree.
+func TestEntitySourceStatusFilters_AreLiveDenylists(t *testing.T) {
+	want := map[string]string{
+		"prompt":    "src.status <> 'draft'",
+		"artifact":  "src.status NOT IN ('draft', 'archived')",
+		"blueprint": "src.status <> 'expired'",
+		"memory":    "src.status NOT IN ('draft', 'archived')",
+	}
+	require.Len(t, entitySources, len(want))
+
+	for entityType, filter := range want {
+		src := entitySources[entityType]
+		assert.Equal(t, filter, src.statusFilter, entityType)
+
+		// Every denied value is a non-live status of that type, and every
+		// non-live status of that type is denied.
+		for _, status := range models.NonLiveStatusesFor(entityType) {
+			assert.Contains(t, src.statusFilter, "'"+status+"'", entityType)
+		}
+		assert.Equal(t,
+			len(models.NonLiveStatusesFor(entityType)), strings.Count(src.statusFilter, "'")/2, entityType)
+
+		// All six branch builders read the same predicate.
+		for name, sqlText := range map[string]string{
+			"semantic":       buildBranch(entityType, src),
+			"semantic count": buildCountBranch(entityType, src),
+			"fts":            buildKeywordBranch(entityType, src, keywordStrictTSQuery),
+			"fts count":      buildKeywordCountBranch(src, keywordStrictTSQuery),
+			"trgm":           buildKeywordTrgmBranch(entityType, src),
+			"trgm count":     buildKeywordTrgmCountBranch(src),
+		} {
+			assert.Contains(t, sqlText, " AND "+filter, "%s %s", entityType, name)
+			assert.NotContains(t, sqlText, "src.status = ", "%s %s", entityType, name)
+		}
+	}
+}
+
+func TestSrcLiveStatusFilter_NoStatusCatalogMeansNoFilter(t *testing.T) {
+	assert.Empty(t, srcLiveStatusFilter("feed_item"))
 }
