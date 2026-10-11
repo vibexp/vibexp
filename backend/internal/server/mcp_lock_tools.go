@@ -17,8 +17,9 @@ import (
 // One tool covers the three lockable resource types, like the delete tool, so
 // the MCP tool list stays small. There is deliberately no unlock counterpart:
 // an agent can place a guard, only a person can remove one.
-const lockResourceToolDescription = "Lock a single resource so it cannot be changed or deleted until a human " +
-	"unlocks it. Supported resource_type values and their required identifiers: \"prompt\" needs slug; " +
+const lockResourceToolDescription = "Lock a single resource so it cannot be deleted and its identifying fields " +
+	"(slug, status, project, type, labels) cannot be changed until a human unlocks it; its content stays " +
+	"editable. Supported resource_type values and their required identifiers: \"prompt\" needs slug; " +
 	"\"artifact\" and \"blueprint\" need project_id and slug. A comment saying why the resource is locked is " +
 	"required and is shown to the team. There is no unlock tool: a human unlocks in the VibeXP UI or through " +
 	"the REST API."

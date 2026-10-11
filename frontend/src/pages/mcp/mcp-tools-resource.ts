@@ -135,7 +135,7 @@ export const resourceTools: MCPTool[] = [
   {
     name: 'vibexp_io_lock_resource',
     description:
-      'Lock a single resource so it cannot be changed or deleted until a human unlocks it. Supported resource_type values and their required identifiers: "prompt" needs slug; "artifact" and "blueprint" need project_id and slug. A comment saying why the resource is locked is required and is shown to the team. There is no unlock tool: a human unlocks in the VibeXP UI or through the REST API.',
+      'Lock a single resource so it cannot be deleted and its identifying fields (slug, status, project, type, labels) cannot be changed until a human unlocks it; its content stays editable. Supported resource_type values and their required identifiers: "prompt" needs slug; "artifact" and "blueprint" need project_id and slug. A comment saying why the resource is locked is required and is shown to the team. There is no unlock tool: a human unlocks in the VibeXP UI or through the REST API.',
     inputSchema: {
       type: 'object',
       properties: {

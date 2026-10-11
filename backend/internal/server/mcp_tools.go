@@ -26,7 +26,8 @@ const mcpServerInstructions = "VibeXP MCP server. Most tools are team-scoped and
 	"vibexp_io_link_resources (governed-by, supersedes, built-from, explained-by); every " +
 	"vibexp_io_get_resource returns the resource's typed neighborhood in its `related` array. To protect a " +
 	"prompt, blueprint or artifact your workflow depends on, lock it with vibexp_io_lock_resource and a " +
-	"comment saying why; a locked resource cannot be changed or deleted, and only a human can unlock it."
+	"comment saying why; a locked resource cannot be deleted, renamed or moved, its content stays editable, " +
+	"and only a human can unlock it."
 
 // MCPToolsManager manages all MCP tools and provides better organization
 type MCPToolsManager struct {

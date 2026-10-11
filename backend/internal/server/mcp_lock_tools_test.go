@@ -464,5 +464,9 @@ func TestMCPLockTool_RegisteredWithoutAnUnlockCounterpart(t *testing.T) {
 		assert.NotContains(t, strings.ToLower(name), "unlock", "%s: MCP must not offer an unlock tool", name)
 	}
 	assert.Contains(t, lockResourceToolDescription, "There is no unlock tool")
+	// A lock freezes identity, not content (#1289): the description must not
+	// tell an agent to stop writing to a locked resource.
+	assert.Contains(t, lockResourceToolDescription, "its content stays editable")
+	assert.Contains(t, mcpServerInstructions, "its content stays editable")
 	assert.Contains(t, mcpServerInstructions, lockResourceToolName)
 }
