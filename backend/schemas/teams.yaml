@@ -64,6 +64,7 @@ Team:
         * `resource.update.any` — update any resource, including other members'.
         * `resource.delete.own` — delete a resource the caller created.
         * `resource.delete.any` — delete a resource created by someone else.
+        * `resource.unlock.any` — unlock a resource locked by someone else.
         * `feed.delete.any` — delete another member's feed post or reply (moderation).
       items:
         type: string
@@ -82,6 +83,7 @@ Team:
           - resource.update.any
           - resource.delete.own
           - resource.delete.any
+          - resource.unlock.any
           - feed.delete.any
       example:
         - resource.create

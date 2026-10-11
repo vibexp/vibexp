@@ -55,6 +55,11 @@ const (
 	ResourceDeleteOwn Permission = "resource.delete.own"
 	// ResourceDeleteAny covers deleting a resource created by someone else.
 	ResourceDeleteAny Permission = "resource.delete.any"
+	// ResourceUnlockAny covers unlocking a resource locked by someone else; the
+	// locker may always unlock their own. Distinct from ResourceDeleteAny so
+	// that "may delete others' resources" and "may release others' locks" can
+	// diverge without a breaking rename.
+	ResourceUnlockAny Permission = "resource.unlock.any"
 
 	// FeedItemDeleteAny covers deleting another member's feed post or reply
 	// (moderation). Deleting one's own is always allowed to the author.
@@ -79,6 +84,7 @@ var all = []Permission{
 	ResourceUpdateAny,
 	ResourceDeleteOwn,
 	ResourceDeleteAny,
+	ResourceUnlockAny,
 	FeedItemDeleteAny,
 }
 

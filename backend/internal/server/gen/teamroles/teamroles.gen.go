@@ -33,6 +33,7 @@ const (
 	ResourceCreate     TeamPermissions = "resource.create"
 	ResourceDeleteAny  TeamPermissions = "resource.delete.any"
 	ResourceDeleteOwn  TeamPermissions = "resource.delete.own"
+	ResourceUnlockAny  TeamPermissions = "resource.unlock.any"
 	ResourceUpdateAny  TeamPermissions = "resource.update.any"
 	TeamDelete         TeamPermissions = "team.delete"
 	TeamSettingsUpdate TeamPermissions = "team.settings.update"
@@ -62,6 +63,8 @@ func (e TeamPermissions) Valid() bool {
 	case ResourceDeleteAny:
 		return true
 	case ResourceDeleteOwn:
+		return true
+	case ResourceUnlockAny:
 		return true
 	case ResourceUpdateAny:
 		return true
@@ -183,7 +186,7 @@ type Team struct {
 
 	// Permissions Exactly what `role` permits the requesting user to do in this team, expanded server-side from the role matrix (epic #220). Clients MUST gate their UI on these strings rather than re-deriving them from `role` — the matrix lives on the server and may change without a client release.
 	// Computed at read time for the requesting user, alongside `role`, and always present (an empty array means the role grants nothing). The values are stable API surface: renaming one is a breaking change, and they are kept byte-identical to the `internal/authz` constants by a drift test. Meanings:
-	// * `team.update` — change team name, slug or description. * `team.delete` — delete the team (owner only). * `team.transfer` — transfer ownership to another member (owner only). * `team.settings.update` — change team-level configuration, such as search ranking. * `member.invite` — invite new members. * `member.remove` — remove members from the team. * `member.role.update` — change a member's role. * `project.create` — create a project in the team. * `project.update` — update any project in the team. * `project.delete` — delete any project in the team. * `resource.create` — create a prompt, memory, artifact, blueprint or agent. * `resource.update.any` — update any resource, including other members'. * `resource.delete.own` — delete a resource the caller created. * `resource.delete.any` — delete a resource created by someone else. * `feed.delete.any` — delete another member's feed post or reply (moderation).
+	// * `team.update` — change team name, slug or description. * `team.delete` — delete the team (owner only). * `team.transfer` — transfer ownership to another member (owner only). * `team.settings.update` — change team-level configuration, such as search ranking. * `member.invite` — invite new members. * `member.remove` — remove members from the team. * `member.role.update` — change a member's role. * `project.create` — create a project in the team. * `project.update` — update any project in the team. * `project.delete` — delete any project in the team. * `resource.create` — create a prompt, memory, artifact, blueprint or agent. * `resource.update.any` — update any resource, including other members'. * `resource.delete.own` — delete a resource the caller created. * `resource.delete.any` — delete a resource created by someone else. * `resource.unlock.any` — unlock a resource locked by someone else. * `feed.delete.any` — delete another member's feed post or reply (moderation).
 	Permissions []TeamPermissions `json:"permissions"`
 
 	// Role The requesting user's role in this team: owner, admin, or member. Populated at runtime on every response that carries a team, including create (where the caller is by definition the owner). Not an enum constraint: older responses may still carry an empty string.
