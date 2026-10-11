@@ -2205,16 +2205,45 @@ type RelationRepository interface {
 	) ([]models.RelationSeedCandidate, error)
 }
 
+// TeamStatusChange is what a custom-status write did, as its transaction saw
+// it. It is the input of a TeamStatusAuditBuilder.
+type TeamStatusChange struct {
+	// Status is the row as the write left it: the inserted row, the renamed
+	// row, or the row a delete removed.
+	Status *models.TeamStatus
+	// PreviousName is the name a rename replaced, read under the row lock in
+	// the same transaction as the update. Empty for a create or a delete.
+	PreviousName string
+	// ReassignedCount is how many resources a delete moved. Zero otherwise.
+	ReassignedCount int
+}
+
+// TeamStatusAuditBuilder turns a custom-status write into the team settings
+// audit entry to store with it. The repository calls it INSIDE the write's
+// transaction, after the change and before the commit, so it must be pure: no
+// I/O and no use of the caller's database handle (it would run outside the
+// transaction and could wait on the very locks the transaction holds). An error
+// from it rolls the change back.
+type TeamStatusAuditBuilder func(change TeamStatusChange) (*models.TeamSettingsAudit, error)
+
 // TeamStatusRepository persists a team's custom resource statuses (table
 // `team_statuses`, epic #1263). Every row belongs to one team and every method
 // is scoped by teamID, so another team's status is indistinguishable from a
 // missing one. It knows nothing of the system statuses, which live in Go
 // (models.SystemStatusesFor); composing the two is the catalog service's job.
+//
+// The three writes (Create, UpdateName, DeleteAndReassign) each take a
+// TeamStatusAuditBuilder and store the entry it builds in the same transaction
+// as the change (#1333): the change and its `team_settings_audit` row commit
+// together or not at all, so a failure of either leaves nothing behind and the
+// request can simply be retried. The builder is required; a nil one is refused
+// before anything is written.
 type TeamStatusRepository interface {
-	// Create inserts a custom status, populating its ID, CreatedAt and
-	// UpdatedAt from the persisted row. It returns ErrTeamStatusExists when the
-	// team already has that (resource_type, slug).
-	Create(ctx context.Context, status *models.TeamStatus) error
+	// Create inserts a custom status and its audit entry, populating the
+	// status's ID, CreatedAt and UpdatedAt from the persisted row once both are
+	// committed; on any error status is left as it was passed. It returns
+	// ErrTeamStatusExists when the team already has that (resource_type, slug).
+	Create(ctx context.Context, status *models.TeamStatus, audit TeamStatusAuditBuilder) error
 	// GetByID returns the team's status with the given id, or
 	// ErrTeamStatusNotFound.
 	GetByID(ctx context.Context, teamID, id string) (*models.TeamStatus, error)
@@ -2223,10 +2252,15 @@ type TeamStatusRepository interface {
 	List(ctx context.Context, teamID, resourceType string) ([]models.TeamStatus, error)
 	// Count returns how many custom statuses the team has for resourceType.
 	Count(ctx context.Context, teamID, resourceType string) (int, error)
-	// UpdateName renames the team's status with the given id and returns the
-	// updated row. The slug is immutable: resources reference it. It returns
+	// UpdateName renames the team's status with the given id, stores the audit
+	// entry and returns the updated row. The slug is immutable: resources
+	// reference it. The name being replaced is read under a row lock in the
+	// same transaction and handed to audit as PreviousName, so two concurrent
+	// renames each record the name they actually replaced. It returns
 	// ErrTeamStatusNotFound when no row matched.
-	UpdateName(ctx context.Context, teamID, id, name string) (*models.TeamStatus, error)
+	UpdateName(
+		ctx context.Context, teamID, id, name string, audit TeamStatusAuditBuilder,
+	) (*models.TeamStatus, error)
 	// UsageCounts returns, per status slug, how many of the team's resources of
 	// resourceType carry it. It counts every status in use, system and custom
 	// alike, and omits a slug no resource carries; the result is never nil.
@@ -2236,12 +2270,13 @@ type TeamStatusRepository interface {
 	// resources on a slug the catalog no longer lists is not offered. It
 	// removes the team's status with the given id and, in the
 	// same transaction, moves every resource of that team and the status's
-	// resource type that carries its slug to defaultStatus. It returns the
+	// resource type that carries its slug to defaultStatus and stores the audit
+	// entry (audit receives the count as ReassignedCount). It returns the
 	// deleted row and the number of resources moved, or ErrTeamStatusNotFound,
 	// in which case nothing changed. The moved resources keep their updated_at:
 	// a status disappearing is not an edit of the resource.
 	DeleteAndReassign(
-		ctx context.Context, teamID, id, defaultStatus string,
+		ctx context.Context, teamID, id, defaultStatus string, audit TeamStatusAuditBuilder,
 	) (*models.TeamStatus, int, error)
 	// ConfirmSlug reports whether the team still has the custom status slug for
 	// resourceType, and takes a key-share lock on its row to find out. A

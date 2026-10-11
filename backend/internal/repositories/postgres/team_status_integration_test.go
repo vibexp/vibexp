@@ -41,7 +41,7 @@ func (f teamStatusFixture) create(t *testing.T, teamID, resourceType, slug, name
 	status := &models.TeamStatus{
 		TeamID: teamID, ResourceType: resourceType, Slug: slug, Name: name, CreatedBy: &f.userID,
 	}
-	require.NoError(t, f.repo.Create(context.Background(), status))
+	require.NoError(t, f.repo.Create(context.Background(), status, testStatusAudit))
 	return status
 }
 
@@ -63,22 +63,23 @@ func TestIntegrationTeamStatusRepository_CRUD(t *testing.T) {
 	require.NotNil(t, got.CreatedBy)
 	assert.Equal(t, f.userID, *got.CreatedBy)
 
-	renamed, err := f.repo.UpdateName(ctx, f.teamA, created.ID, "Under review")
+	renamed, err := f.repo.UpdateName(ctx, f.teamA, created.ID, "Under review", testStatusAudit)
 	require.NoError(t, err)
 	assert.Equal(t, "Under review", renamed.Name)
 	assert.Equal(t, "in-review", renamed.Slug, "a rename never changes the slug")
 	assert.False(t, renamed.UpdatedAt.Before(created.UpdatedAt))
 
-	deleted, reassigned, err := f.repo.DeleteAndReassign(ctx, f.teamA, created.ID, models.StatusActive)
+	deleted, reassigned, err := f.repo.DeleteAndReassign(
+		ctx, f.teamA, created.ID, models.StatusActive, testStatusAudit)
 	require.NoError(t, err)
 	assert.Equal(t, created.ID, deleted.ID)
 	assert.Equal(t, "Under review", deleted.Name, "the deleted row is returned as it was stored")
 	assert.Zero(t, reassigned, "no resource carried the status")
 	_, err = f.repo.GetByID(ctx, f.teamA, created.ID)
 	require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
-	_, _, err = f.repo.DeleteAndReassign(ctx, f.teamA, created.ID, models.StatusActive)
+	_, _, err = f.repo.DeleteAndReassign(ctx, f.teamA, created.ID, models.StatusActive, testStatusAudit)
 	require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
-	_, err = f.repo.UpdateName(ctx, f.teamA, created.ID, "Gone")
+	_, err = f.repo.UpdateName(ctx, f.teamA, created.ID, "Gone", testStatusAudit)
 	require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
 }
 
@@ -88,7 +89,7 @@ func TestIntegrationTeamStatusRepository_CreateWithoutCreator(t *testing.T) {
 	status := &models.TeamStatus{
 		TeamID: f.teamA, ResourceType: models.StatusResourceTypeMemory, Slug: "verified", Name: "Verified",
 	}
-	require.NoError(t, f.repo.Create(context.Background(), status))
+	require.NoError(t, f.repo.Create(context.Background(), status, testStatusAudit))
 
 	got, err := f.repo.GetByID(context.Background(), f.teamA, status.ID)
 	require.NoError(t, err)
@@ -136,7 +137,7 @@ func TestIntegrationTeamStatusRepository_Uniqueness(t *testing.T) {
 	dup := &models.TeamStatus{
 		TeamID: f.teamA, ResourceType: models.StatusResourceTypeArtifact, Slug: "in-review", Name: "Other",
 	}
-	require.ErrorIs(t, f.repo.Create(context.Background(), dup), repositories.ErrTeamStatusExists)
+	require.ErrorIs(t, f.repo.Create(context.Background(), dup, testStatusAudit), repositories.ErrTeamStatusExists)
 
 	// The key is the full triple: the slug is free on another resource type and
 	// in another team.
@@ -150,13 +151,13 @@ func TestIntegrationTeamStatusRepository_UnknownTeamOrCreator(t *testing.T) {
 
 	err := f.repo.Create(context.Background(), &models.TeamStatus{
 		TeamID: ghost, ResourceType: models.StatusResourceTypeArtifact, Slug: "x", Name: "X",
-	})
+	}, testStatusAudit)
 	require.ErrorContains(t, err, "team or creator not found")
 
 	err = f.repo.Create(context.Background(), &models.TeamStatus{
 		TeamID: f.teamA, ResourceType: models.StatusResourceTypeArtifact, Slug: "x", Name: "X",
 		CreatedBy: &ghost,
-	})
+	}, testStatusAudit)
 	require.ErrorContains(t, err, "team or creator not found")
 }
 
@@ -180,9 +181,9 @@ func TestIntegrationTeamStatusRepository_CrossTeamIsolation(t *testing.T) {
 
 	_, err = f.repo.GetByID(ctx, f.teamA, theirs.ID)
 	require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
-	_, err = f.repo.UpdateName(ctx, f.teamA, theirs.ID, "Hijacked")
+	_, err = f.repo.UpdateName(ctx, f.teamA, theirs.ID, "Hijacked", testStatusAudit)
 	require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
-	_, _, err = f.repo.DeleteAndReassign(ctx, f.teamA, theirs.ID, models.StatusActive)
+	_, _, err = f.repo.DeleteAndReassign(ctx, f.teamA, theirs.ID, models.StatusActive, testStatusAudit)
 	require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
 
 	// ...and the failed writes left the other team's row exactly as it was.
@@ -205,7 +206,7 @@ func TestIntegrationTeamStatusRepository_ForeignKeyDeleteRules(t *testing.T) {
 		TeamID: teamID, ResourceType: models.StatusResourceTypeBlueprint, Slug: "proposed",
 		Name: "Proposed", CreatedBy: &creator,
 	}
-	require.NoError(t, repo.Create(ctx, status))
+	require.NoError(t, repo.Create(ctx, status, testStatusAudit))
 
 	// Deleting the creator keeps the status and blanks created_by.
 	_, err := db.Exec("DELETE FROM users WHERE id = $1", creator)
@@ -269,7 +270,7 @@ func TestIntegrationTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 		status := &models.TeamStatus{
 			TeamID: f.teamID, ResourceType: resourceType, Slug: slug, Name: "In review",
 		}
-		require.NoError(t, repo.Create(ctx, status))
+		require.NoError(t, repo.Create(ctx, status, testStatusAudit))
 		return status
 	}
 
@@ -301,7 +302,8 @@ func TestIntegrationTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 			foreignBefore := other.snapshot(t, table, foreign)
 			siblingBefore := mine.snapshot(t, statusResourceTables[siblingType], siblingRow)
 
-			deleted, reassigned, err := repo.DeleteAndReassign(ctx, mine.teamID, status.ID, defaultStatus)
+			deleted, reassigned, err := repo.DeleteAndReassign(
+				ctx, mine.teamID, status.ID, defaultStatus, testStatusAudit)
 			require.NoError(t, err)
 			assert.Equal(t, 2, reassigned)
 			assert.Equal(t, status.ID, deleted.ID)
@@ -337,7 +339,8 @@ func TestIntegrationTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 
 		// 51 characters cannot be stored in the varchar(50) status column, so
 		// the UPDATE fails after the status row has already been deleted.
-		_, reassigned, err := repo.DeleteAndReassign(ctx, f.teamID, status.ID, strings.Repeat("x", 51))
+		_, reassigned, err := repo.DeleteAndReassign(
+			ctx, f.teamID, status.ID, strings.Repeat("x", 51), testStatusAudit)
 		require.Error(t, err)
 		assert.Zero(t, reassigned)
 
@@ -354,7 +357,7 @@ func TestIntegrationTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 		row := other.insert(t, "memories", "in-review")
 		before := other.snapshot(t, "memories", row)
 
-		_, _, err := repo.DeleteAndReassign(ctx, mine.teamID, status.ID, models.StatusActive)
+		_, _, err := repo.DeleteAndReassign(ctx, mine.teamID, status.ID, models.StatusActive, testStatusAudit)
 		require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
 
 		_, err = repo.GetByID(ctx, other.teamID, status.ID)
@@ -367,7 +370,7 @@ func TestIntegrationTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 		status := create(t, f, models.StatusResourceTypeMemory, "in-review")
 		row := f.insert(t, "memories", "in-review")
 
-		_, _, err := repo.DeleteAndReassign(ctx, f.teamID, status.ID, models.StatusActive)
+		_, _, err := repo.DeleteAndReassign(ctx, f.teamID, status.ID, models.StatusActive, testStatusAudit)
 		require.NoError(t, err)
 		reassignedAt := f.snapshot(t, "memories", row).updatedAt
 

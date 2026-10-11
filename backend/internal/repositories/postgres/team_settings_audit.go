@@ -34,11 +34,30 @@ func NewTeamSettingsAuditRepository(db *database.DB) repositories.TeamSettingsAu
 	return &TeamSettingsAuditRepository{db: db}
 }
 
+// teamSettingsAuditInsertSQL is a whole literal rather than the shared column
+// list concatenated in, so it is a compile-time constant at a glance. Its
+// RETURNING order is teamSettingsAuditColumns'.
+const teamSettingsAuditInsertSQL = `
+	INSERT INTO team_settings_audit
+		(team_id, actor_user_id, surface, source_team_id,
+		 source_resource_id, created_resource_id, detail)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)
+	RETURNING id, team_id, actor_user_id, surface, source_team_id,
+		source_resource_id, created_resource_id, detail, created_at`
+
 // Append records one settings event and populates the model from the
 // persisted row.
 func (r *TeamSettingsAuditRepository) Append(
 	ctx context.Context, entry *models.TeamSettingsAudit,
 ) error {
+	return appendTeamSettingsAudit(ctx, r.db, entry)
+}
+
+// appendTeamSettingsAudit inserts one entry through q and populates it from the
+// persisted row. q is the pool for a standalone append, or a transaction when
+// the entry has to commit together with the change it records
+// (TeamStatusRepository's writes, #1333).
+func appendTeamSettingsAudit(ctx context.Context, q rowQuerier, entry *models.TeamSettingsAudit) error {
 	// An absent Detail is substituted with an empty OBJECT rather than left
 	// nil. The column is `jsonb NOT NULL DEFAULT '{}'`, and a nil
 	// json.RawMessage binds as SQL NULL rather than falling back to that
@@ -49,15 +68,8 @@ func (r *TeamSettingsAuditRepository) Append(
 		detail = json.RawMessage(`{}`)
 	}
 
-	query := `
-		INSERT INTO team_settings_audit
-			(team_id, actor_user_id, surface, source_team_id,
-			 source_resource_id, created_resource_id, detail)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING ` + teamSettingsAuditColumns
-
-	if err := r.db.QueryRowContext(
-		ctx, query,
+	if err := q.QueryRowContext(
+		ctx, teamSettingsAuditInsertSQL,
 		entry.TeamID, entry.ActorUserID, entry.Surface, entry.SourceTeamID,
 		entry.SourceResourceID, entry.CreatedResourceID, detail,
 	).Scan(scanTeamSettingsAuditDest(entry)...); err != nil {

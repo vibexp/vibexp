@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -28,23 +29,30 @@ var errStatusBoom = errors.New("connection reset")
 // statusManagementHarness runs the REAL authorization and audit services over
 // repository mocks, so a test states the caller's role and reads back the
 // audit rows that would be stored, rather than asserting on a double of either.
+//
+// The audit repository mock carries no expectation in any test: a custom-status
+// write never appends its entry on its own (#1333). The entry travels to the
+// status repository as a builder, which the repository runs inside the write's
+// transaction; the mocked writes do the same through h.audited.
 type statusManagementHarness struct {
 	svc     *StatusManagementService
 	repo    *repomocks.MockTeamStatusRepository
 	members *repomocks.MockTeamMemberRepository
 	audits  *repomocks.MockTeamSettingsAuditRepository
-	// recorded collects every audit entry that reached the repository.
+	// recorded collects every audit entry a mocked write built and "stored".
 	recorded []*models.TeamSettingsAudit
+	// logs is everything the service under test logged.
+	logs bytes.Buffer
 }
 
 func newStatusManagementHarness(t *testing.T) *statusManagementHarness {
 	t.Helper()
-	logger := slog.New(slog.DiscardHandler)
 	h := &statusManagementHarness{
 		repo:    repomocks.NewMockTeamStatusRepository(t),
 		members: repomocks.NewMockTeamMemberRepository(t),
 		audits:  repomocks.NewMockTeamSettingsAuditRepository(t),
 	}
+	logger := slog.New(slog.NewTextHandler(&h.logs, nil))
 	authorizer := NewAuthorizationService(h.members, logger)
 	audit := NewTeamSettingsAuditService(
 		h.audits, authorizer,
@@ -61,12 +69,67 @@ func (h *statusManagementHarness) as(role models.TeamMemberRole) *statusManageme
 	return h
 }
 
-// expectAudit lets exactly one audit entry be stored and captures it.
-func (h *statusManagementHarness) expectAudit() {
-	h.audits.EXPECT().Append(mock.Anything, mock.Anything).
-		RunAndReturn(func(_ context.Context, entry *models.TeamSettingsAudit) error {
-			h.recorded = append(h.recorded, entry)
+// audited is what the real repository does with the builder a write hands it:
+// build the entry from what the transaction did, and store it. A build error is
+// the write's error, exactly as it is when the repository rolls back.
+func (h *statusManagementHarness) audited(
+	build repositories.TeamStatusAuditBuilder, change repositories.TeamStatusChange,
+) error {
+	entry, err := build(change)
+	if err != nil {
+		return err
+	}
+	h.recorded = append(h.recorded, entry)
+	return nil
+}
+
+// expectCreate lets one insert through: the row gets its id and timestamps,
+// and the entry built for it is recorded.
+func (h *statusManagementHarness) expectCreate(matches func(row *models.TeamStatus) bool) {
+	h.repo.EXPECT().Create(mock.Anything, mock.MatchedBy(matches), mock.Anything).
+		RunAndReturn(func(
+			_ context.Context, row *models.TeamStatus, build repositories.TeamStatusAuditBuilder,
+		) error {
+			created := *row
+			created.ID = testStatusRowID
+			created.CreatedAt, created.UpdatedAt = testStatusCreatedAt, testStatusCreatedAt
+			if err := h.audited(build, repositories.TeamStatusChange{Status: &created}); err != nil {
+				return err
+			}
+			*row = created
 			return nil
+		}).Once()
+}
+
+// expectRename lets one rename of stored through, replacing previousName.
+func (h *statusManagementHarness) expectRename(stored models.TeamStatus, newName, previousName string) {
+	h.repo.EXPECT().UpdateName(mock.Anything, testStatusTeamID, testStatusRowID, newName, mock.Anything).
+		RunAndReturn(func(
+			_ context.Context, _, _, name string, build repositories.TeamStatusAuditBuilder,
+		) (*models.TeamStatus, error) {
+			renamed := stored
+			renamed.Name = name
+			change := repositories.TeamStatusChange{Status: &renamed, PreviousName: previousName}
+			if err := h.audited(build, change); err != nil {
+				return nil, err
+			}
+			return &renamed, nil
+		}).Once()
+}
+
+// expectDelete lets one delete of stored through, moving reassigned resources
+// to wantDefault.
+func (h *statusManagementHarness) expectDelete(stored models.TeamStatus, wantDefault string, reassigned int) {
+	h.repo.EXPECT().
+		DeleteAndReassign(mock.Anything, testStatusTeamID, testStatusRowID, wantDefault, mock.Anything).
+		RunAndReturn(func(
+			_ context.Context, _, _, _ string, build repositories.TeamStatusAuditBuilder,
+		) (*models.TeamStatus, int, error) {
+			change := repositories.TeamStatusChange{Status: &stored, ReassignedCount: reassigned}
+			if err := h.audited(build, change); err != nil {
+				return nil, 0, err
+			}
+			return &stored, reassigned, nil
 		}).Once()
 }
 
@@ -162,19 +225,15 @@ func TestStatusManagementService_Create_StoresAuditsAndReturnsTheRow(t *testing.
 			h := newStatusManagementHarness(t).as(role)
 			h.repo.EXPECT().Count(mock.Anything, testStatusTeamID, models.StatusResourceTypeArtifact).
 				Return(MaxCustomStatusesPerResourceType-1, nil)
-			h.repo.EXPECT().Create(mock.Anything, mock.MatchedBy(func(row *models.TeamStatus) bool {
+			h.expectCreate(func(row *models.TeamStatus) bool {
 				return row.TeamID == testStatusTeamID &&
 					row.ResourceType == models.StatusResourceTypeArtifact &&
 					row.Slug == "in-review" && row.Name == "In review" &&
 					row.CreatedBy != nil && *row.CreatedBy == testStatusUserID
-			})).RunAndReturn(func(_ context.Context, row *models.TeamStatus) error {
-				row.ID = testStatusRowID
-				row.CreatedAt, row.UpdatedAt = testStatusCreatedAt, testStatusCreatedAt
-				return nil
 			})
-			h.repo.EXPECT().UsageCounts(mock.Anything, testStatusTeamID, models.StatusResourceTypeArtifact).
-				Return(map[string]int{"active": 3}, nil)
-			h.expectAudit()
+			// No UsageCounts expectation: a status that did not exist is on no
+			// resource, so the response's count is 0 without a query. The mock
+			// fails the test on a call it was not told to expect.
 
 			// The name is stored trimmed; the 20th status is still allowed.
 			got, err := h.svc.Create(context.Background(),
@@ -185,6 +244,7 @@ func TestStatusManagementService_Create_StoresAuditsAndReturnsTheRow(t *testing.
 			assert.Equal(t, testStatusRowID, *got.ID)
 			assert.Equal(t, "in-review", got.Slug)
 			assert.Equal(t, "In review", got.Name)
+			assert.Equal(t, models.StatusResourceTypeArtifact, got.ResourceType)
 			assert.False(t, got.IsSystem)
 			assert.True(t, got.IsLive, "a custom status is always live")
 			assert.Zero(t, got.UsageCount)
@@ -299,11 +359,7 @@ func TestStatusManagementService_Create_AcceptsTheLimitsExactly(t *testing.T) {
 	slug := strings.Repeat("a", 50)
 	name := strings.Repeat("é", 50) // 50 characters, 100 bytes
 	h.repo.EXPECT().Count(mock.Anything, mock.Anything, mock.Anything).Return(0, nil)
-	h.repo.EXPECT().Create(mock.Anything, mock.MatchedBy(func(row *models.TeamStatus) bool {
-		return row.Slug == slug && row.Name == name
-	})).Return(nil)
-	h.repo.EXPECT().UsageCounts(mock.Anything, mock.Anything, mock.Anything).Return(map[string]int{}, nil)
-	h.expectAudit()
+	h.expectCreate(func(row *models.TeamStatus) bool { return row.Slug == slug && row.Name == name })
 
 	_, err := h.svc.Create(context.Background(), createParams(models.StatusResourceTypePrompt, slug, name))
 	require.NoError(t, err)
@@ -355,7 +411,7 @@ func TestStatusManagementService_Create_Limit(t *testing.T) {
 func TestStatusManagementService_Create_DuplicateWritesNoAudit(t *testing.T) {
 	h := newStatusManagementHarness(t).as(models.TeamMemberRoleOwner)
 	h.repo.EXPECT().Count(mock.Anything, mock.Anything, mock.Anything).Return(1, nil)
-	h.repo.EXPECT().Create(mock.Anything, mock.Anything).Return(repositories.ErrTeamStatusExists)
+	h.repo.EXPECT().Create(mock.Anything, mock.Anything, mock.Anything).Return(repositories.ErrTeamStatusExists)
 
 	_, err := h.svc.Create(context.Background(),
 		createParams(models.StatusResourceTypeArtifact, "in-review", "In review"))
@@ -369,16 +425,15 @@ func TestStatusManagementService_Rename(t *testing.T) {
 	}
 	stored := customStatus(testStatusRowID, models.StatusResourceTypeBlueprint, "in-review", "In review")
 
-	t.Run("renames, keeps the slug and audits the previous name", func(t *testing.T) {
+	t.Run("renames, keeps the slug and audits the name the transaction replaced", func(t *testing.T) {
 		h := newStatusManagementHarness(t).as(models.TeamMemberRoleAdmin)
-		renamed := stored
-		renamed.Name = "Under review"
-		h.repo.EXPECT().GetByID(mock.Anything, testStatusTeamID, testStatusRowID).Return(&stored, nil)
-		h.repo.EXPECT().UpdateName(mock.Anything, testStatusTeamID, testStatusRowID, "Under review").
-			Return(&renamed, nil)
+		// No GetByID expectation: the previous name is the repository's to
+		// read, under the row lock, and it reaches the entry through the
+		// builder. It deliberately differs from stored.Name here, as it would
+		// after a rename that committed just before this one took the lock.
+		h.expectRename(stored, "Under review", "Being reviewed")
 		h.repo.EXPECT().UsageCounts(mock.Anything, testStatusTeamID, models.StatusResourceTypeBlueprint).
 			Return(map[string]int{"in-review": 6}, nil)
-		h.expectAudit()
 
 		got, err := h.svc.Rename(context.Background(), params)
 		require.NoError(t, err)
@@ -388,9 +443,35 @@ func TestStatusManagementService_Rename(t *testing.T) {
 
 		assert.Equal(t, map[string]interface{}{
 			"action": "renamed", "resource_type": "blueprint", "slug": "in-review",
-			"name": "Under review", "previous_name": "In review",
+			"name": "Under review", "previous_name": "Being reviewed",
 		}, h.auditDetail(t))
 		assert.Nil(t, h.recorded[0].CreatedResourceID, "a rename creates nothing")
+	})
+
+	// The rename and its audit entry are committed by the time the count is
+	// read, so a count that cannot be read must not turn the stored write into
+	// an error: the caller gets the renamed status with a zero count, and the
+	// failure is logged with what identifies it.
+	t.Run("a usage count failure after the rename is logged, not returned", func(t *testing.T) {
+		h := newStatusManagementHarness(t).as(models.TeamMemberRoleOwner)
+		h.expectRename(stored, "Under review", "In review")
+		h.repo.EXPECT().UsageCounts(mock.Anything, testStatusTeamID, models.StatusResourceTypeBlueprint).
+			Return(nil, errStatusBoom)
+
+		got, err := h.svc.Rename(context.Background(), params)
+		require.NoError(t, err)
+		assert.Equal(t, "Under review", got.Name)
+		require.NotNil(t, got.ID)
+		assert.Equal(t, testStatusRowID, *got.ID)
+		assert.Zero(t, got.UsageCount)
+		assert.Len(t, h.recorded, 1, "the rename was audited")
+
+		logged := h.logs.String()
+		assert.Contains(t, logged, "level=ERROR")
+		assert.Contains(t, logged, "usage count could not be read")
+		assert.Contains(t, logged, "team_id="+testStatusTeamID)
+		assert.Contains(t, logged, "status_id="+testStatusRowID)
+		assert.Contains(t, logged, errStatusBoom.Error())
 	})
 
 	for name, tc := range map[string]struct {
@@ -410,24 +491,15 @@ func TestStatusManagementService_Rename(t *testing.T) {
 		})
 	}
 
-	t.Run("an unknown id is not found and writes no audit", func(t *testing.T) {
+	t.Run("an unknown id is not found, writes no audit and counts nothing", func(t *testing.T) {
 		h := newStatusManagementHarness(t).as(models.TeamMemberRoleOwner)
-		h.repo.EXPECT().GetByID(mock.Anything, testStatusTeamID, testStatusRowID).
+		h.repo.EXPECT().
+			UpdateName(mock.Anything, testStatusTeamID, testStatusRowID, "Under review", mock.Anything).
 			Return(nil, repositories.ErrTeamStatusNotFound)
 
-		_, err := h.svc.Rename(context.Background(), params)
+		got, err := h.svc.Rename(context.Background(), params)
 		require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
-		assert.Empty(t, h.recorded)
-	})
-
-	t.Run("a row deleted between the read and the update is not found", func(t *testing.T) {
-		h := newStatusManagementHarness(t).as(models.TeamMemberRoleOwner)
-		h.repo.EXPECT().GetByID(mock.Anything, mock.Anything, mock.Anything).Return(&stored, nil)
-		h.repo.EXPECT().UpdateName(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-			Return(nil, repositories.ErrTeamStatusNotFound)
-
-		_, err := h.svc.Rename(context.Background(), params)
-		require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
+		assert.Nil(t, got)
 		assert.Empty(t, h.recorded)
 	})
 }
@@ -441,9 +513,7 @@ func TestStatusManagementService_Delete(t *testing.T) {
 			stored := customStatus(testStatusRowID, resourceType, "in-review", "In review")
 			wantDefault := models.DefaultStatusFor(resourceType)
 			h.repo.EXPECT().GetByID(mock.Anything, testStatusTeamID, testStatusRowID).Return(&stored, nil)
-			h.repo.EXPECT().DeleteAndReassign(mock.Anything, testStatusTeamID, testStatusRowID, wantDefault).
-				Return(&stored, 12, nil)
-			h.expectAudit()
+			h.expectDelete(stored, wantDefault, 12)
 
 			got, err := h.svc.Delete(context.Background(), params)
 			require.NoError(t, err)
@@ -475,11 +545,13 @@ func TestStatusManagementService_Delete(t *testing.T) {
 		h := newStatusManagementHarness(t).as(models.TeamMemberRoleAdmin)
 		stored := customStatus(testStatusRowID, models.StatusResourceTypeArtifact, "in-review", "In review")
 		h.repo.EXPECT().GetByID(mock.Anything, mock.Anything, mock.Anything).Return(&stored, nil)
-		h.repo.EXPECT().DeleteAndReassign(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		h.repo.EXPECT().
+			DeleteAndReassign(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 			Return(nil, 0, errStatusBoom)
 
-		_, err := h.svc.Delete(context.Background(), params)
+		got, err := h.svc.Delete(context.Background(), params)
 		require.ErrorIs(t, err, errStatusBoom)
+		assert.Nil(t, got)
 		assert.Empty(t, h.recorded)
 	})
 
@@ -493,59 +565,94 @@ func TestStatusManagementService_Delete(t *testing.T) {
 	})
 }
 
-// The audit entry is written after the change is stored. When it cannot be
-// written the caller gets the error -- the interface contract of
-// TeamSettingsAuditServiceInterface.Record -- even though the change stands.
-func TestStatusManagementService_AuditFailureIsReturned(t *testing.T) {
+// The audit entry is built by the service and stored by the repository in the
+// transaction of the change (#1333), so there is no "stored but not audited"
+// outcome left to report. Two things are pinned here: an entry that cannot be
+// built is the write's error (the repository rolls back on it), and whatever
+// the repository fails with, the service reports no partial success and reads
+// nothing more.
+func TestStatusManagementService_AuditIsPartOfTheWrite(t *testing.T) {
 	stored := customStatus(testStatusRowID, models.StatusResourceTypeArtifact, "in-review", "In review")
+	ctx := context.Background()
+	rename := RenameStatusParams{
+		TeamID: testStatusTeamID, UserID: testStatusUserID, ID: testStatusRowID, Name: "New",
+	}
+	deletion := DeleteStatusParams{TeamID: testStatusTeamID, UserID: testStatusUserID, ID: testStatusRowID}
 
-	t.Run("create", func(t *testing.T) {
+	// A row with no team cannot be audited: the real audit service refuses to
+	// build the entry, and the builder hands that refusal to the repository.
+	teamless := stored
+	teamless.TeamID = ""
+
+	t.Run("create: an entry that cannot be built fails the write", func(t *testing.T) {
 		h := newStatusManagementHarness(t).as(models.TeamMemberRoleOwner)
 		h.repo.EXPECT().Count(mock.Anything, mock.Anything, mock.Anything).Return(0, nil)
-		h.repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
-		h.audits.EXPECT().Append(mock.Anything, mock.Anything).Return(errStatusBoom)
+		h.repo.EXPECT().Create(mock.Anything, mock.Anything, mock.Anything).
+			RunAndReturn(func(
+				_ context.Context, _ *models.TeamStatus, build repositories.TeamStatusAuditBuilder,
+			) error {
+				return h.audited(build, repositories.TeamStatusChange{Status: &teamless})
+			})
 
-		got, err := h.svc.Create(context.Background(),
-			createParams(models.StatusResourceTypeArtifact, "in-review", "In review"))
+		got, err := h.svc.Create(ctx, createParams(models.StatusResourceTypeArtifact, "in-review", "In review"))
+		require.ErrorIs(t, err, ErrInvalidSettingsAudit)
+		assert.Nil(t, got)
+		assert.Empty(t, h.recorded)
+	})
+
+	t.Run("rename: an entry that cannot be built fails the write", func(t *testing.T) {
+		h := newStatusManagementHarness(t).as(models.TeamMemberRoleOwner)
+		h.expectRename(teamless, "New", "In review")
+
+		got, err := h.svc.Rename(ctx, rename)
+		require.ErrorIs(t, err, ErrInvalidSettingsAudit)
+		assert.Nil(t, got)
+		assert.Empty(t, h.recorded)
+	})
+
+	t.Run("delete: an entry that cannot be built fails the write", func(t *testing.T) {
+		h := newStatusManagementHarness(t).as(models.TeamMemberRoleOwner)
+		h.repo.EXPECT().GetByID(mock.Anything, mock.Anything, mock.Anything).Return(&stored, nil)
+		h.expectDelete(teamless, models.StatusActive, 1)
+
+		got, err := h.svc.Delete(ctx, deletion)
+		require.ErrorIs(t, err, ErrInvalidSettingsAudit)
+		assert.Nil(t, got)
+		assert.Empty(t, h.recorded)
+	})
+
+	// The repository reports one error for "the change or its audit entry
+	// could not be stored": by then it has rolled both back. The service adds
+	// no read after it -- no UsageCounts expectation is set on any of these.
+	t.Run("create: a rolled-back write returns the error and no status", func(t *testing.T) {
+		h := newStatusManagementHarness(t).as(models.TeamMemberRoleOwner)
+		h.repo.EXPECT().Count(mock.Anything, mock.Anything, mock.Anything).Return(0, nil)
+		h.repo.EXPECT().Create(mock.Anything, mock.Anything, mock.Anything).Return(errStatusBoom)
+
+		got, err := h.svc.Create(ctx, createParams(models.StatusResourceTypeArtifact, "in-review", "In review"))
 		require.ErrorIs(t, err, errStatusBoom)
 		assert.Nil(t, got)
 	})
 
-	t.Run("rename", func(t *testing.T) {
+	t.Run("rename: a rolled-back write returns the error and no status", func(t *testing.T) {
 		h := newStatusManagementHarness(t).as(models.TeamMemberRoleOwner)
-		h.repo.EXPECT().GetByID(mock.Anything, mock.Anything, mock.Anything).Return(&stored, nil)
-		h.repo.EXPECT().UpdateName(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&stored, nil)
-		h.audits.EXPECT().Append(mock.Anything, mock.Anything).Return(errStatusBoom)
+		h.repo.EXPECT().UpdateName(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, errStatusBoom)
 
-		_, err := h.svc.Rename(context.Background(), RenameStatusParams{
-			TeamID: testStatusTeamID, UserID: testStatusUserID, ID: testStatusRowID, Name: "New",
-		})
-		require.ErrorIs(t, err, errStatusBoom)
-	})
-
-	t.Run("delete", func(t *testing.T) {
-		h := newStatusManagementHarness(t).as(models.TeamMemberRoleOwner)
-		h.repo.EXPECT().GetByID(mock.Anything, mock.Anything, mock.Anything).Return(&stored, nil)
-		h.repo.EXPECT().DeleteAndReassign(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-			Return(&stored, 1, nil)
-		h.audits.EXPECT().Append(mock.Anything, mock.Anything).Return(errStatusBoom)
-
-		got, err := h.svc.Delete(context.Background(), DeleteStatusParams{
-			TeamID: testStatusTeamID, UserID: testStatusUserID, ID: testStatusRowID,
-		})
+		got, err := h.svc.Rename(ctx, rename)
 		require.ErrorIs(t, err, errStatusBoom)
 		assert.Nil(t, got)
 	})
 
-	t.Run("a usage count failure after a stored write is returned", func(t *testing.T) {
+	t.Run("delete: a rolled-back write returns the error and no count", func(t *testing.T) {
 		h := newStatusManagementHarness(t).as(models.TeamMemberRoleOwner)
-		h.repo.EXPECT().Count(mock.Anything, mock.Anything, mock.Anything).Return(0, nil)
-		h.repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
-		h.repo.EXPECT().UsageCounts(mock.Anything, mock.Anything, mock.Anything).Return(nil, errStatusBoom)
-		h.expectAudit()
+		h.repo.EXPECT().GetByID(mock.Anything, mock.Anything, mock.Anything).Return(&stored, nil)
+		h.repo.EXPECT().
+			DeleteAndReassign(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, 0, errStatusBoom)
 
-		_, err := h.svc.Create(context.Background(),
-			createParams(models.StatusResourceTypeArtifact, "in-review", "In review"))
+		got, err := h.svc.Delete(ctx, deletion)
 		require.ErrorIs(t, err, errStatusBoom)
+		assert.Nil(t, got)
 	})
 }

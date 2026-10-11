@@ -52,8 +52,10 @@ func confirmSlugAsync(ctx context.Context, teamID, resourceType, slug string) <-
 	return done
 }
 
-// statusDeleteHeldOpen runs DeleteAndReassign's own statements for the status
-// inside a transaction it leaves open, and returns the commit.
+// statusDeleteHeldOpen runs DeleteAndReassign's own delete and reassignment
+// statements for the status inside a transaction it leaves open, and returns
+// the commit. It writes no audit entry: the locks under test are the status
+// row's, which the audit insert does not touch.
 func statusDeleteHeldOpen(
 	t *testing.T, teamID, statusID, resourceType string,
 ) (commit func()) {
@@ -85,7 +87,7 @@ func TestIntegrationTeamStatusRepository_ConfirmSlugWaitsOutADelete(t *testing.T
 			status := &models.TeamStatus{
 				TeamID: f.teamID, ResourceType: resourceType, Slug: "in-review", Name: "In review",
 			}
-			require.NoError(t, repo.Create(ctx, status))
+			require.NoError(t, repo.Create(ctx, status, testStatusAudit))
 			early := f.insert(t, table, "in-review")
 
 			// The delete has removed the row and reassigned what it could see,
@@ -141,14 +143,14 @@ func TestIntegrationTeamStatusRepository_ConfirmSlugBeforeADelete(t *testing.T) 
 			status := &models.TeamStatus{
 				TeamID: f.teamID, ResourceType: resourceType, Slug: "in-review", Name: "In review",
 			}
-			require.NoError(t, repo.Create(ctx, status))
+			require.NoError(t, repo.Create(ctx, status, testStatusAudit))
 
 			written := f.insert(t, table, "in-review")
 			confirmed, err := repo.ConfirmSlug(ctx, f.teamID, resourceType, "in-review")
 			require.NoError(t, err)
 			require.True(t, confirmed)
 
-			_, reassigned, err := repo.DeleteAndReassign(ctx, f.teamID, status.ID, defaultStatus)
+			_, reassigned, err := repo.DeleteAndReassign(ctx, f.teamID, status.ID, defaultStatus, testStatusAudit)
 			require.NoError(t, err)
 			assert.Equal(t, 1, reassigned)
 			assert.Equal(t, defaultStatus, f.snapshot(t, table, written).status)
@@ -167,7 +169,7 @@ func TestIntegrationTeamStatusRepository_ConfirmSlugHonoursTheContext(t *testing
 	status := &models.TeamStatus{
 		TeamID: f.teamID, ResourceType: models.StatusResourceTypeArtifact, Slug: "in-review", Name: "In review",
 	}
-	require.NoError(t, repo.Create(context.Background(), status))
+	require.NoError(t, repo.Create(context.Background(), status, testStatusAudit))
 	statusDeleteHeldOpen(t, f.teamID, status.ID, models.StatusResourceTypeArtifact)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)

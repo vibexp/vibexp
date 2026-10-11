@@ -2,12 +2,15 @@ package postgres
 
 // sqlmock unit tests for TeamStatusRepository (team_status.go): argument
 // wiring (team_id is bound on every statement), NULL created_by scanning,
-// sentinel mapping and error wrapping. Constraint behaviour against a real
-// schema is in team_status_integration_test.go.
+// sentinel mapping, error wrapping, and the statement order of the three
+// audited writes (change, audit entry, commit -- or a rollback). Constraint
+// behaviour against a real schema is in team_status_integration_test.go, and
+// the rollback itself in team_status_audit_integration_test.go.
 
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -43,54 +46,234 @@ func teamStatusRow(createdBy any) *sqlmock.Rows {
 	)
 }
 
+// testStatusAudit is the TeamStatusAuditBuilder for tests that are not about
+// the audit entry: the smallest entry the table accepts, with no actor.
+func testStatusAudit(change repositories.TeamStatusChange) (*models.TeamSettingsAudit, error) {
+	return &models.TeamSettingsAudit{
+		TeamID:  change.Status.TeamID,
+		Surface: models.SettingsAuditSurfaceCustomStatuses,
+	}, nil
+}
+
+// statusAuditRecorder is a TeamStatusAuditBuilder that keeps every change it
+// was handed, and fails with err when set.
+type statusAuditRecorder struct {
+	changes []repositories.TeamStatusChange
+	err     error
+}
+
+func (r *statusAuditRecorder) build(
+	change repositories.TeamStatusChange,
+) (*models.TeamSettingsAudit, error) {
+	r.changes = append(r.changes, change)
+	if r.err != nil {
+		return nil, r.err
+	}
+	return testStatusAudit(change)
+}
+
+// expectTeamStatusAudit expects the insert of the entry testStatusAudit builds.
+func expectTeamStatusAudit(mock sqlmock.Sqlmock) *sqlmock.ExpectedQuery {
+	return mock.ExpectQuery(`INSERT INTO team_settings_audit`).
+		WithArgs("team-1", nil, models.SettingsAuditSurfaceCustomStatuses, nil, nil, nil, json.RawMessage(`{}`))
+}
+
+func teamStatusAuditStored() *sqlmock.Rows {
+	return teamSettingsAuditRow(teamSettingsAuditRowArgs{
+		ID: "audit-1", Surface: models.SettingsAuditSurfaceCustomStatuses, Detail: `{}`, CreatedAt: teamStatusTestNow,
+	})
+}
+
+const (
+	teamStatusInsertQuery = `INSERT INTO team_statuses \(team_id, resource_type, slug, name, created_by\)`
+	teamStatusLockQuery   = `SELECT name\s+FROM team_statuses\s+WHERE team_id = \$1 AND id = \$2\s+FOR UPDATE`
+	teamStatusRenameQuery = `UPDATE team_statuses\s+SET name = \$3, updated_at = now\(\)\s+WHERE team_id = \$1 AND id = \$2`
+	teamStatusDeleteQuery = `DELETE FROM team_statuses WHERE team_id = \$1 AND id = \$2 RETURNING`
+)
+
+func newTeamStatusToCreate(createdBy *string) *models.TeamStatus {
+	return &models.TeamStatus{
+		TeamID: "team-1", ResourceType: "artifact", Slug: "in-review", Name: "In review", CreatedBy: createdBy,
+	}
+}
+
 func TestTeamStatusRepository_Create(t *testing.T) {
 	creator := "user-1"
-	cases := []struct {
-		name      string
-		createdBy *string
-		queryErr  error
-		wantIs    error
-		wantSub   string
+
+	for name, createdBy := range map[string]*string{
+		"binds the creator":               &creator,
+		"a nil creator is stored as NULL": nil,
+	} {
+		t.Run(name+", audits the inserted row and commits", func(t *testing.T) {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectBegin()
+			mock.ExpectQuery(teamStatusInsertQuery).
+				WithArgs("team-1", "artifact", "in-review", "In review", createdBy).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).
+					AddRow("status-1", teamStatusTestNow, teamStatusTestNow))
+			expectTeamStatusAudit(mock).WillReturnRows(teamStatusAuditStored())
+			mock.ExpectCommit()
+
+			status := newTeamStatusToCreate(createdBy)
+			audit := &statusAuditRecorder{}
+			require.NoError(t, repo.Create(context.Background(), status, audit.build))
+
+			assert.Equal(t, "status-1", status.ID)
+			assert.Equal(t, teamStatusTestNow, status.CreatedAt)
+			assert.Equal(t, teamStatusTestNow, status.UpdatedAt)
+			// The builder sees the row as inserted: its id is what the entry's
+			// created_resource_id is taken from.
+			require.Len(t, audit.changes, 1)
+			assert.Equal(t, "status-1", audit.changes[0].Status.ID)
+			assert.Equal(t, "in-review", audit.changes[0].Status.Slug)
+			assert.Empty(t, audit.changes[0].PreviousName)
+			assert.Zero(t, audit.changes[0].ReassignedCount)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+
+	failures := []struct {
+		name     string
+		queryErr error
+		wantIs   error
+		wantSub  string
 	}{
-		{name: "binds the creator", createdBy: &creator},
-		{name: "a nil creator is stored as NULL"},
 		{
-			name: "unique violation maps to the exists sentinel", createdBy: &creator,
+			name:     "unique violation maps to the exists sentinel",
 			queryErr: &pq.Error{Code: uniqueViolationCode}, wantIs: repositories.ErrTeamStatusExists,
 		},
 		{
-			name: "foreign-key violation names the missing parent", createdBy: &creator,
+			name:     "foreign-key violation names the missing parent",
 			queryErr: &pq.Error{Code: fkViolationCode}, wantSub: "team or creator not found",
 		},
 		{
-			name: "any other error is wrapped", createdBy: &creator,
+			name:     "any other error is wrapped",
 			queryErr: errTeamStatusBoom, wantIs: errTeamStatusBoom, wantSub: "failed to create team status",
 		},
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tc := range failures {
+		t.Run(tc.name+" and nothing is audited", func(t *testing.T) {
 			repo, mock := newTeamStatusMockRepo(t)
-			exp := mock.ExpectQuery(`INSERT INTO team_statuses \(team_id, resource_type, slug, name, created_by\)`).
-				WithArgs("team-1", "artifact", "in-review", "In review", tc.createdBy)
-			if tc.queryErr != nil {
-				exp.WillReturnError(tc.queryErr)
-			} else {
-				exp.WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).
-					AddRow("status-1", teamStatusTestNow, teamStatusTestNow))
-			}
+			mock.ExpectBegin()
+			mock.ExpectQuery(teamStatusInsertQuery).WillReturnError(tc.queryErr)
+			mock.ExpectRollback()
 
-			status := &models.TeamStatus{
-				TeamID: "team-1", ResourceType: "artifact", Slug: "in-review",
-				Name: "In review", CreatedBy: tc.createdBy,
-			}
-			err := repo.Create(context.Background(), status)
+			status := newTeamStatusToCreate(&creator)
+			audit := &statusAuditRecorder{}
+			err := repo.Create(context.Background(), status, audit.build)
 
 			assertTypeError(t, err, tc.wantIs, tc.wantSub)
-			if tc.queryErr == nil {
-				assert.Equal(t, "status-1", status.ID)
-				assert.Equal(t, teamStatusTestNow, status.CreatedAt)
-				assert.Equal(t, teamStatusTestNow, status.UpdatedAt)
-			}
+			assert.Empty(t, audit.changes, "no entry is built for a row that was not inserted")
+			assert.Empty(t, status.ID)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+// The three writes share one transaction shape, so its failure modes are
+// pinned once for all of them: whatever fails after the change -- building the
+// entry, inserting it, the commit -- the transaction is rolled back and the
+// caller is told nothing was written.
+func TestTeamStatusRepository_AuditedWrites_FailTogether(t *testing.T) {
+	ctx := context.Background()
+	writes := map[string]struct {
+		// change expects the statements of the write itself, succeeding.
+		change func(mock sqlmock.Sqlmock)
+		// call runs the write and reports whether it returned any result.
+		call func(repo repositories.TeamStatusRepository, audit repositories.TeamStatusAuditBuilder) (bool, error)
+	}{
+		"create": {
+			change: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(teamStatusInsertQuery).
+					WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).
+						AddRow("status-1", teamStatusTestNow, teamStatusTestNow))
+			},
+			call: func(repo repositories.TeamStatusRepository, audit repositories.TeamStatusAuditBuilder) (bool, error) {
+				status := newTeamStatusToCreate(nil)
+				err := repo.Create(ctx, status, audit)
+				return status.ID != "" || !status.CreatedAt.IsZero(), err
+			},
+		},
+		"rename": {
+			change: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(teamStatusLockQuery).
+					WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("Old name"))
+				mock.ExpectQuery(teamStatusRenameQuery).WillReturnRows(teamStatusRow(nil))
+			},
+			call: func(repo repositories.TeamStatusRepository, audit repositories.TeamStatusAuditBuilder) (bool, error) {
+				got, err := repo.UpdateName(ctx, "team-1", "status-1", "In review", audit)
+				return got != nil, err
+			},
+		},
+		"delete": {
+			change: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(teamStatusDeleteQuery).WillReturnRows(teamStatusRow(nil))
+				mock.ExpectExec(`SELECT set_config`).WillReturnResult(sqlmock.NewResult(0, 0))
+				mock.ExpectExec(`UPDATE artifacts SET status`).WillReturnResult(sqlmock.NewResult(0, 3))
+			},
+			call: func(repo repositories.TeamStatusRepository, audit repositories.TeamStatusAuditBuilder) (bool, error) {
+				deleted, reassigned, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active", audit)
+				return deleted != nil || reassigned != 0, err
+			},
+		},
+	}
+
+	for op, write := range writes {
+		t.Run(op+": a begin failure is wrapped", func(t *testing.T) {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectBegin().WillReturnError(errTeamStatusBoom)
+
+			reported, err := write.call(repo, testStatusAudit)
+			assertTypeError(t, err, errTeamStatusBoom, "failed to begin team status "+op)
+			assert.False(t, reported)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+
+		t.Run(op+": an entry that cannot be built rolls the change back", func(t *testing.T) {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectBegin()
+			write.change(mock)
+			mock.ExpectRollback()
+
+			audit := &statusAuditRecorder{err: errTeamStatusBoom}
+			reported, err := write.call(repo, audit.build)
+			assertTypeError(t, err, errTeamStatusBoom, "failed to build team status "+op+" audit entry")
+			assert.False(t, reported)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+
+		t.Run(op+": an entry that cannot be stored rolls the change back", func(t *testing.T) {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectBegin()
+			write.change(mock)
+			expectTeamStatusAudit(mock).WillReturnError(errTeamStatusBoom)
+			mock.ExpectRollback()
+
+			reported, err := write.call(repo, testStatusAudit)
+			assertTypeError(t, err, errTeamStatusBoom, "failed to audit team status "+op)
+			assert.False(t, reported)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+
+		t.Run(op+": a commit failure is wrapped and nothing is reported", func(t *testing.T) {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectBegin()
+			write.change(mock)
+			expectTeamStatusAudit(mock).WillReturnRows(teamStatusAuditStored())
+			mock.ExpectCommit().WillReturnError(errTeamStatusBoom)
+
+			reported, err := write.call(repo, testStatusAudit)
+			assertTypeError(t, err, errTeamStatusBoom, "failed to commit team status "+op)
+			assert.False(t, reported)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+
+		t.Run(op+": a missing builder is refused before any statement", func(t *testing.T) {
+			repo, mock := newTeamStatusMockRepo(t)
+
+			reported, err := write.call(repo, nil)
+			require.ErrorIs(t, err, errTeamStatusAuditRequired)
+			assert.False(t, reported)
 			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
@@ -213,35 +396,81 @@ func TestTeamStatusRepository_Count(t *testing.T) {
 }
 
 func TestTeamStatusRepository_UpdateName(t *testing.T) {
-	const query = `UPDATE team_statuses\s+SET name = \$3, updated_at = now\(\)\s+WHERE team_id = \$1 AND id = \$2`
+	ctx := context.Background()
 
-	t.Run("returns the updated row", func(t *testing.T) {
+	t.Run("locks the row, renames it and audits the name it replaced", func(t *testing.T) {
 		repo, mock := newTeamStatusMockRepo(t)
-		mock.ExpectQuery(query).WithArgs("team-1", "status-1", "In review").
+		mock.ExpectBegin()
+		mock.ExpectQuery(teamStatusLockQuery).WithArgs("team-1", "status-1").
+			WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("Old name"))
+		mock.ExpectQuery(teamStatusRenameQuery).WithArgs("team-1", "status-1", "In review").
 			WillReturnRows(teamStatusRow("user-1"))
+		expectTeamStatusAudit(mock).WillReturnRows(teamStatusAuditStored())
+		mock.ExpectCommit()
 
-		got, err := repo.UpdateName(context.Background(), "team-1", "status-1", "In review")
+		audit := &statusAuditRecorder{}
+		got, err := repo.UpdateName(ctx, "team-1", "status-1", "In review", audit.build)
 		require.NoError(t, err)
 		assert.Equal(t, "In review", got.Name)
 		assert.Equal(t, "in-review", got.Slug)
+
+		require.Len(t, audit.changes, 1)
+		assert.Equal(t, "Old name", audit.changes[0].PreviousName)
+		assert.Equal(t, "In review", audit.changes[0].Status.Name)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("no row maps to the not-found sentinel", func(t *testing.T) {
+	t.Run("no row under the lock is not-found: nothing is renamed or audited", func(t *testing.T) {
 		repo, mock := newTeamStatusMockRepo(t)
-		mock.ExpectQuery(query).WithArgs("team-1", "status-1", "X").WillReturnError(sql.ErrNoRows)
+		mock.ExpectBegin()
+		mock.ExpectQuery(teamStatusLockQuery).WithArgs("team-1", "status-1").WillReturnError(sql.ErrNoRows)
+		mock.ExpectRollback()
 
-		_, err := repo.UpdateName(context.Background(), "team-1", "status-1", "X")
-		assert.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
+		audit := &statusAuditRecorder{}
+		_, err := repo.UpdateName(ctx, "team-1", "status-1", "X", audit.build)
+		require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
+		assert.Empty(t, audit.changes)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("any other error is wrapped", func(t *testing.T) {
+	t.Run("a lock failure is wrapped", func(t *testing.T) {
 		repo, mock := newTeamStatusMockRepo(t)
-		mock.ExpectQuery(query).WithArgs("team-1", "status-1", "X").WillReturnError(errTeamStatusBoom)
+		mock.ExpectBegin()
+		mock.ExpectQuery(teamStatusLockQuery).WillReturnError(errTeamStatusBoom)
+		mock.ExpectRollback()
 
-		_, err := repo.UpdateName(context.Background(), "team-1", "status-1", "X")
-		assertTypeError(t, err, errTeamStatusBoom, "failed to rename team status")
+		_, err := repo.UpdateName(ctx, "team-1", "status-1", "X", testStatusAudit)
+		assertTypeError(t, err, errTeamStatusBoom, "failed to read team status for rename")
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	for name, tc := range map[string]struct {
+		updateErr error
+		wantIs    error
+		wantSub   string
+	}{
+		"an update that matches no row maps to the not-found sentinel": {
+			updateErr: sql.ErrNoRows, wantIs: repositories.ErrTeamStatusNotFound,
+		},
+		"any other update error is wrapped": {
+			updateErr: errTeamStatusBoom, wantIs: errTeamStatusBoom, wantSub: "failed to rename team status",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectBegin()
+			mock.ExpectQuery(teamStatusLockQuery).
+				WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("Old name"))
+			mock.ExpectQuery(teamStatusRenameQuery).WithArgs("team-1", "status-1", "X").WillReturnError(tc.updateErr)
+			mock.ExpectRollback()
+
+			audit := &statusAuditRecorder{}
+			_, err := repo.UpdateName(ctx, "team-1", "status-1", "X", audit.build)
+			assertTypeError(t, err, tc.wantIs, tc.wantSub)
+			assert.Empty(t, audit.changes)
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }
 
 func TestTeamStatusRepository_UsageCounts(t *testing.T) {
@@ -298,7 +527,7 @@ func TestTeamStatusRepository_UsageCounts(t *testing.T) {
 
 func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 	const (
-		deleteQuery   = `DELETE FROM team_statuses WHERE team_id = \$1 AND id = \$2 RETURNING`
+		deleteQuery   = teamStatusDeleteQuery
 		preserveQuery = `SELECT set_config\('vibexp.preserve_updated_at', 'on', true\)`
 		reassignQuery = `UPDATE artifacts SET status = \$2 WHERE team_id = \$1 AND status = \$3`
 	)
@@ -311,10 +540,17 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 		mock.ExpectExec(preserveQuery).WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectExec(reassignQuery).WithArgs("team-1", "active", "in-review").
 			WillReturnResult(sqlmock.NewResult(0, 7))
+		expectTeamStatusAudit(mock).WillReturnRows(teamStatusAuditStored())
 		mock.ExpectCommit()
 
-		deleted, reassigned, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active")
+		audit := &statusAuditRecorder{}
+		deleted, reassigned, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active", audit.build)
 		require.NoError(t, err)
+		// The entry is built from the deleted row and the count the
+		// reassignment reported, after both ran.
+		require.Len(t, audit.changes, 1)
+		assert.Equal(t, 7, audit.changes[0].ReassignedCount)
+		assert.Equal(t, "in-review", audit.changes[0].Status.Slug)
 		assert.Equal(t, "in-review", deleted.Slug)
 		assert.Equal(t, "In review", deleted.Name)
 		assert.Equal(t, 7, reassigned)
@@ -336,9 +572,10 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 			mock.ExpectExec(preserveQuery).WillReturnResult(sqlmock.NewResult(0, 0))
 			mock.ExpectExec(`UPDATE `+table+` SET status = \$2 WHERE team_id = \$1 AND status = \$3`).
 				WithArgs("team-1", "draft", "in-review").WillReturnResult(sqlmock.NewResult(0, 1))
+			expectTeamStatusAudit(mock).WillReturnRows(teamStatusAuditStored())
 			mock.ExpectCommit()
 
-			_, reassigned, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "draft")
+			_, reassigned, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "draft", testStatusAudit)
 			require.NoError(t, err, resourceType)
 			assert.Equal(t, 1, reassigned, resourceType)
 			assert.NoError(t, mock.ExpectationsWereMet(), resourceType)
@@ -351,7 +588,7 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 		mock.ExpectQuery(deleteQuery).WithArgs("team-1", "status-1").WillReturnError(sql.ErrNoRows)
 		mock.ExpectRollback()
 
-		_, _, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active")
+		_, _, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active", testStatusAudit)
 		require.ErrorIs(t, err, repositories.ErrTeamStatusNotFound)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -365,7 +602,7 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 				teamStatusTestNow, teamStatusTestNow))
 		mock.ExpectRollback()
 
-		_, _, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active")
+		_, _, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active", testStatusAudit)
 		require.ErrorIs(t, err, errTeamStatusResourceTypeUnknown)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -374,10 +611,6 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 		arrange func(mock sqlmock.Sqlmock)
 		msg     string
 	}{
-		"begin": {
-			arrange: func(mock sqlmock.Sqlmock) { mock.ExpectBegin().WillReturnError(errTeamStatusBoom) },
-			msg:     "failed to begin team status delete",
-		},
 		"delete": {
 			arrange: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
@@ -415,23 +648,13 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 			},
 			msg: "failed to read status reassignment result",
 		},
-		"commit": {
-			arrange: func(mock sqlmock.Sqlmock) {
-				mock.ExpectBegin()
-				mock.ExpectQuery(deleteQuery).WillReturnRows(teamStatusRow(nil))
-				mock.ExpectExec(preserveQuery).WillReturnResult(sqlmock.NewResult(0, 0))
-				mock.ExpectExec(reassignQuery).WillReturnResult(sqlmock.NewResult(0, 1))
-				mock.ExpectCommit().WillReturnError(errTeamStatusBoom)
-			},
-			msg: "failed to commit team status delete",
-		},
 	}
 	for name, tc := range failures {
 		t.Run("a "+name+" failure is wrapped and nothing is reported as deleted", func(t *testing.T) {
 			repo, mock := newTeamStatusMockRepo(t)
 			tc.arrange(mock)
 
-			deleted, reassigned, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active")
+			deleted, reassigned, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active", testStatusAudit)
 			assertTypeError(t, err, errTeamStatusBoom, tc.msg)
 			assert.Nil(t, deleted)
 			assert.Zero(t, reassigned)
