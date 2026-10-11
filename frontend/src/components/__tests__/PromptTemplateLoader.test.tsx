@@ -47,6 +47,7 @@ function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
   return {
     lock: null,
     id: 'prompt-1',
+    lock: null,
     name: 'Code Review Template',
     slug: 'code-review-template',
     description: 'Template for code reviews',

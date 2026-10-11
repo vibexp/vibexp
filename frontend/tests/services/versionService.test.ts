@@ -52,6 +52,7 @@ describe('createBlueprintVersionSource', () => {
   const blueprint: Blueprint = {
     lock: null,
     id: 'bp-1',
+    lock: null,
     project_id: projectId,
     project: null,
     slug,
@@ -237,6 +238,7 @@ describe('createPromptVersionSource', () => {
   const prompt: Prompt = {
     lock: null,
     id: 'prompt-1',
+    lock: null,
     name: 'My Prompt',
     slug,
     description: '',

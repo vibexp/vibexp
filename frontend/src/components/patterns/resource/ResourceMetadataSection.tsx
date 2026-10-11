@@ -8,8 +8,10 @@ import {
   MetaSlugRow,
   type VersionHistoryMeta,
 } from '@/components/metadata/MetadataPanel'
+import { LockedByRow } from '@/components/resource-lock/LockedByRow'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
+import type { ResourceLock } from '@/types/resourceLock'
 
 import { valueOf } from './fieldValue'
 import { fieldLabel, fieldTone } from './statusTone'
@@ -67,6 +69,12 @@ export interface ResourceMetadataSectionProps {
    * the descriptor's own labels, which is all a closed status has.
    */
   statusLabel?: (value: string) => string
+  /**
+   * The lock held on the resource (epic #1285). When set, a "Locked by" row
+   * names the locker, with the lock comment in a tooltip. Omitted by kinds
+   * that cannot be locked (memories) and by the edit page.
+   */
+  lock?: ResourceLock | null
   className?: string
 }
 
@@ -203,6 +211,7 @@ export function ResourceMetadataSection({
   projectHref,
   controls: controlNodes,
   statusLabel,
+  lock,
   className,
 }: Readonly<ResourceMetadataSectionProps>) {
   const fields = partition(descriptor)
@@ -233,6 +242,7 @@ export function ResourceMetadataSection({
     ...projectRows(fields.hasProject, project, projectHref, controls),
     ...metaRows(fields.meta, resource, controls),
   ]
+  if (lock) rows.push(<LockedByRow key="lock" lock={lock} />)
   // A control no role claimed still gets a row, labelled as the descriptor
   // labels the field.
   for (const key of controls.nodes.keys()) {

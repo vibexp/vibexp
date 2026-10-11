@@ -168,6 +168,7 @@ function buildBlueprint(overrides: Partial<Blueprint> = {}): Blueprint {
   return {
     lock: null,
     id: 'blueprint-1',
+    lock: null,
     project_id: 'proj-1',
     project: null,
     slug: 'api-spec',

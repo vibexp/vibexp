@@ -1,6 +1,7 @@
 import type { components, operations } from '@vibexp/api-client'
 
 import { generatedClient, unwrap } from '../lib/apiClientGenerated'
+import type { ResourceLockEvent } from '../types/resourceLock'
 import type {
   ResourceVersion,
   ResourceVersionListResponse,
@@ -183,6 +184,41 @@ class PromptService {
         }
       )
     )
+  }
+
+  /** Locks the prompt; the comment is required (1-500 characters, trimmed). */
+  async lockPrompt(
+    teamId: string,
+    slug: string,
+    comment: string
+  ): Promise<Prompt> {
+    return unwrap(
+      generatedClient.POST('/api/v1/{team_id}/prompts/{slug}/lock', {
+        params: { path: { team_id: teamId, slug } },
+        body: { comment },
+      })
+    )
+  }
+
+  async unlockPrompt(teamId: string, slug: string): Promise<Prompt> {
+    return unwrap(
+      generatedClient.DELETE('/api/v1/{team_id}/prompts/{slug}/lock', {
+        params: { path: { team_id: teamId, slug } },
+      })
+    )
+  }
+
+  /** Lock and unlock events, newest first (the server caps the list at 100). */
+  async getPromptLockHistory(
+    teamId: string,
+    slug: string
+  ): Promise<ResourceLockEvent[]> {
+    const history = await unwrap(
+      generatedClient.GET('/api/v1/{team_id}/prompts/{slug}/lock/history', {
+        params: { path: { team_id: teamId, slug } },
+      })
+    )
+    return history.events
   }
 
   async getPromptLabels(teamId: string): Promise<string[]> {

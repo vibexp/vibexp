@@ -39,6 +39,7 @@ describe('BlueprintService', () => {
   const mockBlueprint: Blueprint = {
     lock: null,
     id: 'spec-123',
+    lock: null,
     project_id: 'my-project',
     project: null,
     slug: 'api-spec',
@@ -383,6 +384,79 @@ describe('BlueprintService', () => {
         }
       )
       expect(result).toEqual(mockBlueprint)
+    })
+  })
+
+  describe('resource lock (#1291)', () => {
+    const lockPath = '/api/v1/{team_id}/blueprints/{project_id}/{slug}/lock'
+    const address = {
+      team_id: mockTeamId,
+      project_id: mockProjectId,
+      slug: mockSlug,
+    }
+
+    it('lockBlueprint posts the comment to the lock endpoint and returns the blueprint', async () => {
+      mockGeneratedClient.POST.mockReturnValue(success(mockBlueprint))
+
+      const result = await blueprintService.lockBlueprint(
+        mockTeamId,
+        mockProjectId,
+        mockSlug,
+        'in use'
+      )
+
+      expect(mockGeneratedClient.POST).toHaveBeenCalledWith(lockPath, {
+        params: { path: address },
+        body: { comment: 'in use' },
+      })
+      expect(result).toEqual(mockBlueprint)
+    })
+
+    it('unlockBlueprint deletes the lock and returns the blueprint', async () => {
+      mockGeneratedClient.DELETE.mockReturnValue(success(mockBlueprint))
+
+      const result = await blueprintService.unlockBlueprint(
+        mockTeamId,
+        mockProjectId,
+        mockSlug
+      )
+
+      expect(mockGeneratedClient.DELETE).toHaveBeenCalledWith(lockPath, {
+        params: { path: address },
+      })
+      expect(result).toEqual(mockBlueprint)
+    })
+
+    it('getBlueprintLockHistory unwraps the events, in the order the server sent them', async () => {
+      const events = [
+        {
+          id: 'e-2',
+          action: 'unlock',
+          actor: null,
+          comment: null,
+          created_at: '2026-10-11T11:00:00Z',
+        },
+        {
+          id: 'e-1',
+          action: 'lock',
+          actor: { user_id: 'user-1', display_name: 'Ada Lovelace' },
+          comment: 'in use',
+          created_at: '2026-10-11T10:00:00Z',
+        },
+      ]
+      mockGeneratedClient.GET.mockReturnValue(success({ events }))
+
+      const result = await blueprintService.getBlueprintLockHistory(
+        mockTeamId,
+        mockProjectId,
+        mockSlug
+      )
+
+      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+        `${lockPath}/history`,
+        { params: { path: address } }
+      )
+      expect(result).toEqual(events)
     })
   })
 })

@@ -16,6 +16,7 @@ import {
   useStatusOptions,
 } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
+import { useResourceLock } from '@/components/resource-lock/useResourceLock'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
@@ -133,6 +134,43 @@ export function BlueprintView() {
     deps: [isLoadingTeam, currentTeam?.id, project, slug],
   })
 
+  // Lock / Unlock, the lock dialog and the lock history (epic #1285).
+  const resourceLock = useResourceLock<Blueprint>({
+    kind: 'blueprint',
+    resource: blueprint,
+    ops:
+      currentTeam && blueprint
+        ? {
+            lock: comment =>
+              blueprintService.lockBlueprint(
+                currentTeam.id,
+                blueprint.project_id,
+                blueprint.slug,
+                comment
+              ),
+            unlock: () =>
+              blueprintService.unlockBlueprint(
+                currentTeam.id,
+                blueprint.project_id,
+                blueprint.slug
+              ),
+            reload: () =>
+              blueprintService.getBlueprint(
+                currentTeam.id,
+                blueprint.project_id,
+                blueprint.slug
+              ),
+            loadHistory: () =>
+              blueprintService.getBlueprintLockHistory(
+                currentTeam.id,
+                blueprint.project_id,
+                blueprint.slug
+              ),
+          }
+        : null,
+    onChanged: setBlueprint,
+  })
+
   const handleDelete = async () => {
     if (!blueprint || !currentTeam) return
     try {
@@ -191,7 +229,9 @@ export function BlueprintView() {
       },
     },
   ]
-  if (canDeleteResource(blueprint.user_id)) {
+  actions.push(...resourceLock.actions)
+  // A locked blueprint cannot be deleted; Delete returns after unlock.
+  if (canDeleteResource(blueprint.user_id) && !blueprint.lock) {
     actions.push({
       id: 'delete',
       label: 'Delete',
@@ -216,6 +256,7 @@ export function BlueprintView() {
         updatedAt={blueprint.updated_at}
         summary={blueprint.description}
         actions={actions}
+        extraSections={resourceLock.historySection}
         resource={
           currentTeam
             ? { kind: 'blueprint', id: blueprint.id, teamId: currentTeam.id }
@@ -228,6 +269,7 @@ export function BlueprintView() {
               resource={blueprint}
               versionHistory={versionHistory}
               statusLabel={statusOptions.labelOf}
+              lock={blueprint.lock}
               project={blueprint.project}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />
@@ -240,6 +282,8 @@ export function BlueprintView() {
       >
         <ResourceBody content={blueprint.content} />
       </ResourceReadingPage>
+
+      {resourceLock.dialog}
 
       <ConfirmDialog
         open={deleteOpen}

@@ -15,6 +15,7 @@ import {
   useStatusOptions,
 } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
+import { useResourceLock } from '@/components/resource-lock/useResourceLock'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { useTeam } from '@/contexts/TeamContext'
@@ -248,6 +249,25 @@ export function PromptDetail() {
     renderPrompt,
   ])
 
+  // Lock / Unlock, the lock dialog and the lock history (epic #1285).
+  const resourceLock = useResourceLock<Prompt>({
+    kind: 'prompt',
+    resource: prompt,
+    ops:
+      currentTeam && prompt
+        ? {
+            lock: comment =>
+              promptService.lockPrompt(currentTeam.id, prompt.slug, comment),
+            unlock: () =>
+              promptService.unlockPrompt(currentTeam.id, prompt.slug),
+            reload: () => promptService.getPrompt(currentTeam.id, prompt.slug),
+            loadHistory: () =>
+              promptService.getPromptLockHistory(currentTeam.id, prompt.slug),
+          }
+        : null,
+    onChanged: setPrompt,
+  })
+
   const handleDelete = async () => {
     if (!prompt || !currentTeam) return
     try {
@@ -314,7 +334,9 @@ export function PromptDetail() {
       },
     },
   ]
-  if (canDeleteResource(prompt.user_id)) {
+  actions.push(...resourceLock.actions)
+  // A locked prompt cannot be deleted; Delete returns after unlock.
+  if (canDeleteResource(prompt.user_id) && !prompt.lock) {
     actions.push({
       id: 'delete',
       label: 'Delete',
@@ -353,7 +375,10 @@ export function PromptDetail() {
             projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
           />
         }
-        extraSections={promptUsedBySection(dependencies, loadingDependencies)}
+        extraSections={[
+          ...promptUsedBySection(dependencies, loadingDependencies),
+          ...resourceLock.historySection,
+        ]}
       >
         <ResourceBody
           content={renderedBody !== '' ? renderedBody : prompt.body}
@@ -371,6 +396,8 @@ export function PromptDetail() {
           }
         />
       </ResourceReadingPage>
+
+      {resourceLock.dialog}
 
       <ConfirmDialog
         open={deleteOpen}

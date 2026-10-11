@@ -317,6 +317,32 @@ describe('MemoryView', () => {
       expect(projectService.getProjects).not.toHaveBeenCalled()
     })
 
+    it('offers no lock UI: memories cannot be locked (#1291)', async () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: {
+          id: 'team-1',
+          name: 'Test Team',
+          permissions: ['resource.unlock.any', 'resource.delete.any'],
+        },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
+      renderMemoryView()
+
+      await screen.findByTestId('resource-body')
+      expect(
+        screen.queryByRole('button', { name: 'Lock' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Unlock' })
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText('Locked by')).not.toBeInTheDocument()
+      expect(screen.queryByText('Lock history')).not.toBeInTheDocument()
+    })
+
     it('renders Copy content button', async () => {
       mockUseTeam.mockReturnValue({
         currentTeam: { id: 'team-1', name: 'Test Team' },

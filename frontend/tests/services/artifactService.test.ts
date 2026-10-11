@@ -39,6 +39,7 @@ describe('ArtifactService', () => {
   const mockArtifact: Artifact = {
     lock: null,
     id: 'artifact-1',
+    lock: null,
     project_id: projectId,
     project: null,
     slug,
@@ -352,6 +353,75 @@ describe('ArtifactService', () => {
       )
 
       consoleSpy.mockRestore()
+    })
+  })
+
+  describe('resource lock (#1291)', () => {
+    const lockPath = '/api/v1/{team_id}/artifacts/{project_id}/{slug}/lock'
+    const address = { team_id: teamId, project_id: projectId, slug: slug }
+
+    it('lockArtifact posts the comment to the lock endpoint and returns the artifact', async () => {
+      mockGeneratedClient.POST.mockReturnValue(success(mockArtifact))
+
+      const result = await artifactService.lockArtifact(
+        teamId,
+        projectId,
+        slug,
+        'in use'
+      )
+
+      expect(mockGeneratedClient.POST).toHaveBeenCalledWith(lockPath, {
+        params: { path: address },
+        body: { comment: 'in use' },
+      })
+      expect(result).toEqual(mockArtifact)
+    })
+
+    it('unlockArtifact deletes the lock and returns the artifact', async () => {
+      mockGeneratedClient.DELETE.mockReturnValue(success(mockArtifact))
+
+      const result = await artifactService.unlockArtifact(
+        teamId,
+        projectId,
+        slug
+      )
+
+      expect(mockGeneratedClient.DELETE).toHaveBeenCalledWith(lockPath, {
+        params: { path: address },
+      })
+      expect(result).toEqual(mockArtifact)
+    })
+
+    it('getArtifactLockHistory unwraps the events, in the order the server sent them', async () => {
+      const events = [
+        {
+          id: 'e-2',
+          action: 'unlock',
+          actor: null,
+          comment: null,
+          created_at: '2026-10-11T11:00:00Z',
+        },
+        {
+          id: 'e-1',
+          action: 'lock',
+          actor: { user_id: 'user-1', display_name: 'Ada Lovelace' },
+          comment: 'in use',
+          created_at: '2026-10-11T10:00:00Z',
+        },
+      ]
+      mockGeneratedClient.GET.mockReturnValue(success({ events }))
+
+      const result = await artifactService.getArtifactLockHistory(
+        teamId,
+        projectId,
+        slug
+      )
+
+      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+        `${lockPath}/history`,
+        { params: { path: address } }
+      )
+      expect(result).toEqual(events)
     })
   })
 })

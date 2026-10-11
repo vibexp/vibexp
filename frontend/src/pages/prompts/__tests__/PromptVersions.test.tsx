@@ -58,6 +58,7 @@ function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
   return {
     lock: null,
     id: 'prompt-1',
+    lock: null,
     name: 'My Prompt',
     slug: 'my-prompt',
     description: 'A description',

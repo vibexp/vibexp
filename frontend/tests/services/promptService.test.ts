@@ -48,6 +48,7 @@ const slug = 'my-prompt'
 const mockPrompt: Prompt = vi.hoisted(() => ({
   lock: null,
   id: 'prompt-1',
+  lock: null,
   name: 'My Prompt',
   slug: 'my-prompt',
   description: 'A test prompt',
@@ -258,6 +259,62 @@ describe('PromptService', () => {
       const result = await promptService.getPromptDependencies(teamId, slug)
 
       expect(result).toEqual({ used_by: [], uses: [] })
+    })
+  })
+
+  describe('resource lock (#1291)', () => {
+    const lockPath = '/api/v1/{team_id}/prompts/{slug}/lock'
+    const address = { team_id: teamId, slug: slug }
+
+    it('lockPrompt posts the comment to the lock endpoint and returns the prompt', async () => {
+      mockGeneratedClient.POST.mockReturnValue(success(mockPrompt))
+
+      const result = await promptService.lockPrompt(teamId, slug, 'in use')
+
+      expect(mockGeneratedClient.POST).toHaveBeenCalledWith(lockPath, {
+        params: { path: address },
+        body: { comment: 'in use' },
+      })
+      expect(result).toEqual(mockPrompt)
+    })
+
+    it('unlockPrompt deletes the lock and returns the prompt', async () => {
+      mockGeneratedClient.DELETE.mockReturnValue(success(mockPrompt))
+
+      const result = await promptService.unlockPrompt(teamId, slug)
+
+      expect(mockGeneratedClient.DELETE).toHaveBeenCalledWith(lockPath, {
+        params: { path: address },
+      })
+      expect(result).toEqual(mockPrompt)
+    })
+
+    it('getPromptLockHistory unwraps the events, in the order the server sent them', async () => {
+      const events = [
+        {
+          id: 'e-2',
+          action: 'unlock',
+          actor: null,
+          comment: null,
+          created_at: '2026-10-11T11:00:00Z',
+        },
+        {
+          id: 'e-1',
+          action: 'lock',
+          actor: { user_id: 'user-1', display_name: 'Ada Lovelace' },
+          comment: 'in use',
+          created_at: '2026-10-11T10:00:00Z',
+        },
+      ]
+      mockGeneratedClient.GET.mockReturnValue(success({ events }))
+
+      const result = await promptService.getPromptLockHistory(teamId, slug)
+
+      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+        `${lockPath}/history`,
+        { params: { path: address } }
+      )
+      expect(result).toEqual(events)
     })
   })
 })

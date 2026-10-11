@@ -51,6 +51,7 @@ describe('usePromptSearch', () => {
     {
       lock: null,
       id: '1',
+      lock: null,
       name: 'Test Prompt 1',
       slug: 'test-prompt-1',
       description: 'A test prompt for searching',
@@ -70,6 +71,7 @@ describe('usePromptSearch', () => {
     {
       lock: null,
       id: '2',
+      lock: null,
       name: 'Test Prompt 2',
       slug: 'test-prompt-2',
       description: 'Another test prompt',

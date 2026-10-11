@@ -247,4 +247,37 @@ describe('ResourceMetadataSection', () => {
       ).toHaveTextContent('Labels')
     })
   })
+
+  describe('lock row (#1291)', () => {
+    const LOCK = {
+      locked_by: { user_id: 'u2', display_name: 'Ada Lovelace' },
+      comment: 'Used by the nightly release agent',
+      locked_at: '2026-10-11T10:15:30Z',
+    }
+
+    it.each(['prompt', 'artifact', 'blueprint'] as const)(
+      'adds a "Locked by" row after the %s descriptor rows when a lock is held',
+      kind => {
+        renderSection(kind, kind === 'prompt' ? PROMPT : ARTIFACT, {
+          lock: LOCK,
+        })
+        const labels = rowLabels()
+        expect(labels).toContain('Locked by')
+        // After every descriptor row, before the automatic Created row.
+        expect(labels.indexOf('Locked by')).toBe(labels.indexOf('Created') - 1)
+        expect(screen.getByTestId('locked-by')).toHaveTextContent(
+          'Ada Lovelace'
+        )
+      }
+    )
+
+    it('renders no lock row for an unlocked resource or when the prop is omitted', () => {
+      const { unmount } = renderSection('artifact', ARTIFACT, { lock: null })
+      expect(rowLabels()).not.toContain('Locked by')
+      unmount()
+
+      renderSection('artifact', ARTIFACT)
+      expect(rowLabels()).not.toContain('Locked by')
+    })
+  })
 })
