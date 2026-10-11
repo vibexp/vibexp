@@ -519,7 +519,7 @@ func (s *Server) handleDeletePrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.deletePromptAndEmbeddings(w, userID, teamID, promptSlug, prompt); err != nil {
+	if err := s.deletePromptAndEmbeddings(w, r, userID, teamID, promptSlug, prompt); err != nil {
 		return
 	}
 
@@ -681,12 +681,12 @@ func (s *Server) getPromptForDeletion(
 }
 
 func (s *Server) deletePromptAndEmbeddings(
-	w http.ResponseWriter,
+	w http.ResponseWriter, r *http.Request,
 	userID, teamID, promptSlug string,
 	prompt *models.Prompt,
 ) error {
 	err := s.container.PromptService().DeletePromptBySlug(userID, teamID, promptSlug)
-	if writeResourceWriteLocked(w, nil, err) {
+	if writeResourceWriteLocked(w, r, err) {
 		return err
 	}
 	if err != nil {

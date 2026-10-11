@@ -35165,7 +35165,7 @@
         ]
       },
       "ResourceWriteLockedError": {
-        "description": "RFC 9457 problem returned with `423 Locked` and code `RESOURCE_WRITE_LOCKED` when a write is refused because the prompt, blueprint or artifact is locked. A locked resource cannot be deleted, and an update may not change one of its frozen fields; content, title/name and description stay editable. Unlock the resource to make the change.",
+        "description": "RFC 9457 problem returned with `423 Locked` and code `RESOURCE_WRITE_LOCKED` when a write is refused because the prompt, blueprint or artifact is locked. A locked resource cannot be deleted, and an update may not change one of its frozen fields; content, title/name and description stay editable. Unlock the resource to make the change.\n\nFrozen fields, as `metadata.field` names them: `slug`, `status`, `project_id`, `labels` and `mcp_expose` on a prompt; `slug`, `status`, `type`, `subtype`, `project_id`, `labels`, `metadata` and `path` on a blueprint; `slug`, `status`, `type`, `project_id`, `labels` and `metadata` on an artifact. A frozen field sent with its current value is not a change.",
         "allOf": [
           {
             "$ref": "#/components/schemas/ErrorResponse"

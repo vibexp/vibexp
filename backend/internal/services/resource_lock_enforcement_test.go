@@ -192,6 +192,7 @@ func TestPromptService_Update_LockedAcceptsEditableFieldsAndUnchangedFrozenValue
 			require.NoError(t, err)
 			assert.Equal(t, lockSlug, updated.Slug)
 			assert.Equal(t, "published", updated.Status)
+			assert.Equal(t, heldLock(), updated.Lock, "the answer still shows the lock")
 		})
 	}
 }
@@ -216,6 +217,7 @@ func TestPromptService_Restore_LockedStaysAllowed(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "v2 body", restored.Body)
+	assert.Equal(t, heldLock(), restored.Lock, "the answer still shows the lock")
 }
 
 func TestPromptService_Delete_LockedRejectedForEveryRole(t *testing.T) {
@@ -373,6 +375,7 @@ func TestBlueprintService_Update_LockedAcceptsEditableFieldsAndUnchangedFrozenVa
 			require.NoError(t, err)
 			assert.Equal(t, lockSlug, updated.Slug)
 			assert.Equal(t, ".claude/doc.md", updated.Path)
+			assert.Equal(t, heldLock(), updated.Lock, "the answer still shows the lock")
 		})
 	}
 }
@@ -577,6 +580,7 @@ func TestArtifactService_Update_LockedAcceptsEditableFieldsAndUnchangedFrozenVal
 			require.NoError(t, err)
 			assert.Equal(t, lockSlug, updated.Slug)
 			assert.Equal(t, "active", updated.Status)
+			assert.Equal(t, heldLock(), updated.Lock, "the answer still shows the lock")
 		})
 	}
 }

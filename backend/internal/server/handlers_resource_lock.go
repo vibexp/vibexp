@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/url"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
@@ -111,14 +110,11 @@ func (s *Server) resourceLockError(action string, target lockTarget, err error) 
 // artifact update and delete handlers call it before their own error mapping,
 // which would otherwise turn the refusal into a 500. The lock goes out in the
 // problem's metadata; detail is the service's message, the same sentence the
-// MCP tools print. r may be nil where the caller has no request in scope.
+// MCP tools print.
 func writeResourceWriteLocked(w http.ResponseWriter, r *http.Request, err error) bool {
 	var locked *services.ResourceLockedError
 	if !errors.As(err, &locked) {
 		return false
-	}
-	if r == nil {
-		r = &http.Request{URL: &url.URL{Path: "/unknown"}}
 	}
 	apierrors.WriteJSONError(w, r, apierrors.NewResourceWriteLockedError(locked.Error(), apierrors.ResourceWriteLock{
 		ResourceType: locked.ResourceType,

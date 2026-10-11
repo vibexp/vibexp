@@ -72,6 +72,7 @@ func TestResourceLock_DeleteAnswers423(t *testing.T) {
 			specconformance.AssertConformsToSpec(t, req, w)
 			body := decodeBody(t, w)
 			assert.Equal(t, apierrors.CodeResourceWriteLocked, body["code"])
+			assert.Equal(t, f.url, body["instance"], "the problem names the request it answers")
 			assert.Contains(t, body["detail"], lockTestComment)
 			assert.Equal(t, map[string]any{
 				"resource_type": f.resourceType,

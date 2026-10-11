@@ -469,6 +469,9 @@ func buildUpdatedPrompt(existingPrompt *models.Prompt, req *models.UpdatePromptR
 		CreatedAt:   existingPrompt.CreatedAt,
 		UpdatedAt:   time.Now(),
 		Version:     existingPrompt.Version,
+		// An update never takes or releases a lock, so the answer keeps the one
+		// the row carries; without it a locked prompt would read as unlocked.
+		Lock: existingPrompt.Lock,
 	}
 
 	// Apply updates
