@@ -199,10 +199,6 @@ frontend:
   # URL in production, or to http://localhost:8080 for local evaluation
   # (docker-compose.yml already does the latter for you).
   base_url: "${FRONTEND_BASE_URL:-}"
-  site_name: "${VITE_SITE_NAME:-}"
-  site_url: "${VITE_SITE_URL:-}"
-  support_email: "${VITE_SUPPORT_EMAIL:-}"
-  brand_logo_url: "${VITE_BRAND_LOGO_URL:-}"
   mcp_endpoint: "${VITE_MCP_ENDPOINT:-}"
   gtm_id: "${VITE_GTM_ID:-}"
   ga4_measurement_id: "${VITE_GA4_MEASUREMENT_ID:-}"

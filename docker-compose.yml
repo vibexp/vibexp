@@ -127,11 +127,10 @@ services:
       # MCP_RESOURCE_URI: "https://vibexp.example.com/mcp/v1/common"
 
       # --- Frontend runtime config (served via /config.js, issue #57) -----
-      # Rebrand / configure the bundled SPA at deploy time (env var + restart, no
-      # rebuild). Empty/unset values keep the neutral built-in defaults.
-      # VITE_SITE_NAME: "VibeXP"
-      # VITE_SITE_URL: "https://example.com"
-      # VITE_SUPPORT_EMAIL: "support@example.com"
+      # Configure the bundled SPA at deploy time (env var + restart, no rebuild).
+      # Empty/unset values keep the built-in defaults. Company branding (name,
+      # logo, support and legal links) is not set here: an instance admin edits
+      # it as site info in the admin area.
       # VITE_MCP_ENDPOINT: "https://vibexp.example.com/mcp/v1/common"
       # Optional analytics (nothing loads unless VITE_GTM_ID is set):
       # VITE_GTM_ID: "GTM-XXXXXXX"

@@ -400,27 +400,6 @@
         "base_url": {
           "type": "string"
         },
-        "site_name": {
-          "type": "string"
-        },
-        "site_legal_name": {
-          "type": "string"
-        },
-        "site_url": {
-          "type": "string"
-        },
-        "terms_url": {
-          "type": "string"
-        },
-        "privacy_url": {
-          "type": "string"
-        },
-        "support_email": {
-          "type": "string"
-        },
-        "brand_logo_url": {
-          "type": "string"
-        },
         "mcp_endpoint": {
           "type": "string"
         },

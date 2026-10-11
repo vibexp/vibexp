@@ -120,13 +120,6 @@ email:
     api_key: sg-key
 frontend:
   base_url: https://app.example.com
-  site_name: VibeXP
-  site_legal_name: VibeXP Inc
-  site_url: https://app.example.com
-  terms_url: https://example.com/terms
-  privacy_url: https://example.com/privacy
-  support_email: help@example.com
-  brand_logo_url: https://example.com/logo.png
   mcp_endpoint: https://connect.example.com/mcp/v1/common
   error_type_base_uri: https://errors.example.com
   gtm_id: GTM-XXXX
@@ -388,8 +381,8 @@ func TestLoad_ParityFixture(t *testing.T) {
 
 	// Frontend.
 	assert.Equal(t, "https://app.example.com", cfg.Frontend.BaseURL)
-	assert.Equal(t, "VibeXP", cfg.Frontend.SiteName)
-	assert.Equal(t, "VibeXP Inc", cfg.Frontend.SiteLegalName)
+	assert.Equal(t, "https://connect.example.com/mcp/v1/common", cfg.Frontend.MCPEndpoint)
+	assert.Equal(t, "https://errors.example.com", cfg.Frontend.ErrorTypeBaseURI)
 	assert.Equal(t, "GTM-XXXX", cfg.Frontend.GTMID)
 	assert.Equal(t, "G-XXXX", cfg.Frontend.GA4MeasurementID)
 

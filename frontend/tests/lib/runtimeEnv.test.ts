@@ -9,8 +9,12 @@ describe('getEnv', () => {
   })
 
   it('prefers a runtime value from window.__VIBEXP_ENV__', () => {
-    window.__VIBEXP_ENV__ = { VITE_SITE_NAME: 'Runtime Brand' }
-    expect(getEnv('VITE_SITE_NAME')).toBe('Runtime Brand')
+    window.__VIBEXP_ENV__ = {
+      VITE_MCP_ENDPOINT: 'https://runtime.test/mcp/v1/common',
+    }
+    expect(getEnv('VITE_MCP_ENDPOINT')).toBe(
+      'https://runtime.test/mcp/v1/common'
+    )
   })
 
   it('falls back to build-time import.meta.env when no runtime value is set', () => {
@@ -24,6 +28,6 @@ describe('getEnv', () => {
   })
 
   it('returns undefined when neither source provides a value', () => {
-    expect(getEnv('VITE_SITE_NAME')).toBeUndefined()
+    expect(getEnv('VITE_ERROR_TYPE_BASE_URI')).toBeUndefined()
   })
 })
