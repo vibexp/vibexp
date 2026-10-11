@@ -66,9 +66,9 @@ const THEME_STORAGE_KEY = 'v2-theme'
 
 /**
  * The least two colours may differ, summed over the three channels (0..765),
- * to count as "visibly different". The mark's tile against its swatch is near
- * black on white or the reverse (about 700); the bug this guards drew the
- * tile in the swatch's own colour (under 40).
+ * to count as "visibly different". The mark's tile against its swatch, and
+ * its glyph against the tile, are near black on white or the reverse (about
+ * 700); the bug this guards drew one in the other's colour (under 40).
  */
 const MIN_COLOUR_DISTANCE = 300
 const PRODUCT_URL = 'https://vibexp.io'
@@ -170,14 +170,14 @@ async function openSignIn(
 type Rgb = [number, number, number]
 
 /**
- * The colour of the fallback mark's tile and of the swatch behind it, on one
- * preview surface. Computed colours come back in the notation they were
- * written in (`oklch(...)`, `rgb(...)`), so each is painted onto a canvas and
- * read back as RGB before comparing.
+ * The colours of the fallback mark on one preview surface: its tile, the
+ * glyph drawn on the tile, and the swatch behind both. Computed colours come
+ * back in the notation they were written in (`oklch(...)`, `rgb(...)`), so
+ * each is painted onto a canvas and read back as RGB before comparing.
  */
-async function markAndSwatchColours(
+async function markColours(
   surface: Locator
-): Promise<{ tile: Rgb; swatch: Rgb }> {
+): Promise<{ tile: Rgb; glyph: Rgb; swatch: Rgb }> {
   return surface.evaluate(element => {
     const toRgb = (colour: string): [number, number, number] => {
       const canvas = document.createElement('canvas')
@@ -187,15 +187,21 @@ async function markAndSwatchColours(
       if (!context) throw new Error('no 2d canvas context')
       context.fillStyle = colour
       context.fillRect(0, 0, 1, 1)
-      const [r, g, b] = context.getImageData(0, 0, 1, 1).data
+      const [r, g, b, alpha] = context.getImageData(0, 0, 1, 1).data
+      // A transparent or unparseable colour would otherwise read as black
+      // and be compared as if that were what is painted.
+      if (alpha !== 255) throw new Error(`colour "${colour}" is not opaque`)
       return [r, g, b]
     }
     const mark = element.querySelector('svg')
     const tile = mark?.querySelector('rect')
-    if (!mark || !tile) throw new Error('the surface shows no VibeXP mark')
+    const glyph = mark?.querySelector('path')
+    if (!tile || !glyph) throw new Error('the surface shows no VibeXP mark')
     return {
-      // The tile is `fill: currentColor`, so its paint is its computed fill.
+      // The tile is `fill: currentColor` (the theme's foreground); the glyph
+      // is stroked in the theme's background.
       tile: toRgb(getComputedStyle(tile).fill),
+      glyph: toRgb(getComputedStyle(glyph).stroke),
       swatch: toRgb(getComputedStyle(element).backgroundColor),
     }
   })
@@ -532,7 +538,7 @@ test.describe.serial('Instance site info branding', () => {
     )
     await expect(form.getByLabel('Company name')).toHaveValue('')
     // The shell lost the company in place, too.
-    await expect(adminPage).not.toHaveTitle(/Renamed/)
+    await expect(adminPage).toHaveTitle('VibeXP')
     expect((await readSiteInfo(adminPage)).version).toBeNull()
 
     try {
@@ -557,10 +563,14 @@ test.describe.serial('Instance site info branding', () => {
             `site-info-preview-${swatch}-surface`
           )
           await expect(surface.locator('svg')).toBeVisible()
-          const { tile, swatch: behind } = await markAndSwatchColours(surface)
+          const { tile, glyph, swatch: behind } = await markColours(surface)
           expect(
             colourDistance(tile, behind),
             `app in the ${theme} theme: the VibeXP mark on the ${swatch} swatch is drawn rgb(${tile.join(',')}) on rgb(${behind.join(',')}), which cannot be seen`
+          ).toBeGreaterThan(MIN_COLOUR_DISTANCE)
+          expect(
+            colourDistance(glyph, tile),
+            `app in the ${theme} theme: on the ${swatch} swatch the VibeXP glyph is drawn rgb(${glyph.join(',')}) on its rgb(${tile.join(',')}) tile, which cannot be seen`
           ).toBeGreaterThan(MIN_COLOUR_DISTANCE)
         }
       }

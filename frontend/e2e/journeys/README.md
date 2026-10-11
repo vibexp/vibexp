@@ -20,7 +20,7 @@ e2e/journeys/
 ├── admin-auth-settings.journey.spec.ts      # Admin → Settings → Authentication + first-run /setup
 ├── custom-statuses.journey.spec.ts          # Custom status: create, apply, search, filter, delete
 ├── resource-locking.journey.spec.ts         # Lock, enforcement and unlock across three users
-├── site-info.journey.spec.ts                # Company branding: sign-in, app shell, VibeXP footer mark
+├── site-info.journey.spec.ts                # Company branding: sign-in, app shell, VibeXP footer mark, admin Site info page
 └── README.md                                # This file
 ```
 
@@ -59,8 +59,9 @@ sidebar in place (a marker left on `window` proves there was no reload); and
 "Clear site info" leaves the page "Not configured". With nothing configured the
 preview shows the VibeXP mark on a fixed light and a fixed dark swatch. The
 mark paints itself from theme variables, so the step puts the app in each
-theme in turn and checks, from computed colours, that the mark's tile differs
-from the swatch behind it on both. jsdom applies no CSS and cannot see that.
+theme in turn and checks, from computed colours, that on both swatches the
+mark's tile differs from the swatch behind it and the glyph differs from the
+tile. jsdom applies no CSS and cannot see that.
 
 **The singleton.** Site info is one row shared by every spec in the run. The
 first steps set it through the admin API, which keeps what they assert
