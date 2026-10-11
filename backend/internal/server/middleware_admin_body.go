@@ -98,6 +98,12 @@ var adminGuardedBodies = []adminGuardedBody{
 		requireAll: true,
 	},
 	{
+		method:     http.MethodPut,
+		path:       regexp.MustCompile(`^/api/v1/admin/settings/site-info$`),
+		bodyType:   admingen.AdminSiteInfoUpdate{},
+		requireAll: true,
+	},
+	{
 		// No recipient field: a test message always goes to the acting admin.
 		method:   http.MethodPost,
 		path:     regexp.MustCompile(`^/api/v1/admin/settings/email/test$`),

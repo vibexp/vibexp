@@ -62,6 +62,7 @@ type adminMockContainer struct {
 	// installs them.
 	instanceSearchService    services.InstanceSearchSettingsServiceInterface
 	instanceAISummaryService services.InstanceAISummarySettingsServiceInterface
+	instanceSiteInfoService  services.InstanceSiteInfoServiceInterface
 	// Instance authentication settings (#1238). Nil unless a suite installs it.
 	instanceAuthSettingsService services.InstanceAuthSettingsServiceInterface
 	// apiKeyService lets a full-router test authenticate a caller by API key.
@@ -138,6 +139,9 @@ func (c *adminMockContainer) InstanceSearchSettingsService() services.InstanceSe
 }
 func (c *adminMockContainer) InstanceAISummarySettingsService() services.InstanceAISummarySettingsServiceInterface {
 	return c.instanceAISummaryService
+}
+func (c *adminMockContainer) InstanceSiteInfoService() services.InstanceSiteInfoServiceInterface {
+	return c.instanceSiteInfoService
 }
 func (c *adminMockContainer) InstanceAuthSettingsService() services.InstanceAuthSettingsServiceInterface {
 	return c.instanceAuthSettingsService
