@@ -1,4 +1,10 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 
@@ -217,6 +223,30 @@ describe('SetupPage', () => {
     // credit, never beside another company's logo.
     expect(banner.querySelector('span.font-bold')).toBeNull()
     expect(banner.textContent.startsWith('Setup')).toBe(true)
+  })
+
+  it('names the header VibeXP when a nameless logo fails to load', async () => {
+    setup.createSession.mockRejectedValue(problem(404, 'RESOURCE_NOT_FOUND'))
+    render(
+      <SiteInfoContext.Provider
+        value={deriveSiteInfo({
+          ...EMPTY_SITE_INFO,
+          logo_url: 'https://cdn.acme.test/logo.svg',
+        })}
+      >
+        <MemoryRouter initialEntries={['/setup?token=tok-123']}>
+          <SetupPage />
+        </MemoryRouter>
+      </SiteInfoContext.Provider>
+    )
+    await screen.findByTestId('setup-inactive')
+    const banner = screen.getByRole('banner')
+    expect(banner.querySelector('span.font-bold')).toBeNull()
+
+    fireEvent.error(within(banner).getByRole('img'))
+
+    expect(banner.querySelector('img')).toBeNull()
+    expect(banner.querySelector('span.font-bold')).toHaveTextContent('VibeXP')
   })
 
   it('shows no logo and no credit in the header when nothing is configured', async () => {

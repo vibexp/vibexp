@@ -1,9 +1,8 @@
 import { LogoMark } from '@vibexp/design-system/react'
-import { useState } from 'react'
 
-import { useResolvedTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
+import { type BrandLogoSource, useBrandLogoSource } from './useBrandLockup'
 import { useSiteInfo } from './useSiteInfo'
 
 interface BrandLogoProps {
@@ -16,6 +15,18 @@ interface BrandLogoProps {
   size?: number
   /** Extra classes for the company logo image. */
   className?: string
+  /**
+   * The logo to show, from `useBrandLockup()`. Pass it whenever a name is
+   * rendered beside the logo, so the name and the image are decided together.
+   * Without it the component chooses the logo itself.
+   */
+  source?: BrandLogoSource
+  /**
+   * Hides the fallback VibeXP mark from assistive technology, for when a name
+   * printed beside it already says the same (`useBrandLockup().markIsDecorative`).
+   * It never affects a company image, which keeps its alt text.
+   */
+  decorative?: boolean
 }
 
 /**
@@ -28,31 +39,31 @@ const COMPANY_LOGO_ALT = 'Company logo'
 const DEFAULT_SIZE = 34
 
 /**
- * The instance's logo: the company's when one is configured, the VibeXP mark
- * otherwise.
+ * The instance's logo: the company's when one is configured and loads, the
+ * VibeXP mark otherwise. Which of the two is decided by `useBrandLogoSource`
+ * (theme, load failure).
  *
- * - In dark mode the dark logo is used when set; the main logo otherwise.
- * - The image is always an `<img>`, never inlined markup, so an SVG logo
- *   cannot run script.
- * - If the image fails to load (a wrong URL, a host that is down) the VibeXP
- *   mark takes its place rather than a broken-image icon. The fallback is per
- *   URL: a new logo URL gets a fresh attempt.
+ * The image is always an `<img>`, never inlined markup, so an SVG logo cannot
+ * run script.
  */
 export function BrandLogo({
   size = DEFAULT_SIZE,
   className,
+  source,
+  decorative = false,
 }: Readonly<BrandLogoProps>) {
-  const { logo_url, logo_dark_url, company_name } = useSiteInfo()
-  const resolvedTheme = useResolvedTheme()
-  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const { company_name } = useSiteInfo()
+  // Hooks cannot be called conditionally, so the component always has a
+  // source of its own and prefers the one it was handed.
+  const ownSource = useBrandLogoSource()
+  const { src, onError } = source ?? ownSource
 
-  const src =
-    resolvedTheme === 'dark' && logo_dark_url !== null
-      ? logo_dark_url
-      : logo_url
-
-  if (src === null || src === failedSrc) {
-    return <LogoMark size={size} />
+  if (src === null) {
+    return decorative ? (
+      <LogoMark size={size} aria-hidden="true" />
+    ) : (
+      <LogoMark size={size} />
+    )
   }
 
   return (
@@ -61,9 +72,7 @@ export function BrandLogo({
       alt={company_name ?? COMPANY_LOGO_ALT}
       style={{ height: size }}
       className={cn('w-auto max-w-40 object-contain', className)}
-      onError={() => {
-        setFailedSrc(src)
-      }}
+      onError={onError}
     />
   )
 }

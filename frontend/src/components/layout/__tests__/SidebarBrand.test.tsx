@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
@@ -86,6 +86,63 @@ describe('SidebarBrand', () => {
 
       expect(link.querySelector('img')).toHaveAttribute('src', LOGO)
       expect(link).toHaveTextContent('')
+    })
+  })
+
+  // The wordmark follows what is on screen, not what is configured (#1386).
+  describe('when the VibeXP mark stands in for a company logo', () => {
+    it('shows the product wordmark and tagline after a nameless logo fails to load', () => {
+      const link = renderBrand({ logo_url: LOGO })
+      expect(link).toHaveTextContent('')
+
+      fireEvent.error(within(link).getByRole('img'))
+
+      expect(link.querySelector('img')).toBeNull()
+      expect(
+        within(link).getByText('VibeXP', { selector: 'span' })
+      ).toBeInTheDocument()
+      expect(
+        within(link).getByText("Your team's shared brain")
+      ).toBeInTheDocument()
+    })
+
+    it('shows the product wordmark for a dark-only logo in light theme', () => {
+      const link = renderBrand({
+        logo_dark_url: 'https://cdn.acme.test/dark.svg',
+      })
+
+      expect(link.querySelector('img')).toBeNull()
+      expect(
+        within(link).getByText("Your team's shared brain")
+      ).toBeInTheDocument()
+    })
+
+    it('keeps the company name, with no tagline, after a named logo fails to load', () => {
+      const link = renderBrand({ company_name: 'Acme Inc.', logo_url: LOGO })
+      fireEvent.error(within(link).getByRole('img'))
+
+      expect(within(link).getByText('Acme Inc.')).toBeInTheDocument()
+      expect(
+        within(link).queryByText("Your team's shared brain")
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('the mark and assistive technology', () => {
+    it('keeps its name in the sidebar, where the rail hides the wordmark', () => {
+      const link = renderBrand()
+
+      expect(link.querySelector('svg')).not.toHaveAttribute('aria-hidden')
+      expect(
+        within(link).getByRole('img', { name: 'VibeXP' })
+      ).toBeInTheDocument()
+    })
+
+    it('is decorative in a drawer, where the wordmark is always on screen', () => {
+      const link = renderBrand({}, { showText: true })
+
+      expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+      expect(within(link).queryByRole('img')).toBeNull()
     })
   })
 

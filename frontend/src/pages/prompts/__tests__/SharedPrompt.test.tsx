@@ -131,8 +131,12 @@ describe('SharedPrompt page (public, no auth)', () => {
     await waitFor(() => {
       expect(screen.getByText('Code Review Template')).toBeInTheDocument()
     })
-    expect(screen.getByRole('img', { name: 'VibeXP' })).toBeInTheDocument()
     const brand = container.querySelector('header a')
+    // The VibeXP mark beside the printed name is decorative (#1386): the
+    // lockup is announced as "VibeXP" once, by its text.
+    expect(brand?.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.queryByRole('img', { name: 'VibeXP' })).toBeNull()
+    expect(brand).toHaveTextContent('VibeXP')
     expect(brand).toHaveAttribute(
       'href',
       'https://vibexp.io?utm_source=prompt_shared_page'

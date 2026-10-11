@@ -3,6 +3,7 @@ import { Link, type LinkProps } from 'react-router'
 
 import { BrandLogo } from '@/features/site-info/BrandLogo'
 import { PRODUCT_NAME } from '@/features/site-info/siteInfo'
+import { useBrandLockup } from '@/features/site-info/useBrandLockup'
 import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { cn } from '@/lib/utils'
 
@@ -27,7 +28,8 @@ const LOGO_SIZE = 34
  * - With company branding (epic #1352), the logo is the company's (`BrandLogo`)
  *   and the wordmark is the company name on one line. The product tagline is
  *   VibeXP's, so it is not shown under another company's name, and a company
- *   logo configured without a name stands alone.
+ *   logo shown without a name stands alone. What is paired with what is
+ *   decided by `useBrandLockup`, from what is actually on screen.
  * - `showText` forces the wordmark on; otherwise it shows only in the
  *   expanded desktop sidebar (`expanded` + `lg+`) so the icon rail stays at
  *   its collapsed width. The logo follows the same rule for its width: in the
@@ -40,7 +42,8 @@ export const SidebarBrand = forwardRef<HTMLAnchorElement, SidebarBrandProps>(
     { showText = false, expanded = true, className, ...props },
     ref
   ) {
-    const { company_name, hasCompanyBranding } = useSiteInfo()
+    const { company_name } = useSiteInfo()
+    const { logo, name, markIsDecorative } = useBrandLockup()
 
     let wordmarkDisplay: string
     let logoWidth: string
@@ -68,18 +71,29 @@ export const SidebarBrand = forwardRef<HTMLAnchorElement, SidebarBrandProps>(
         )}
         {...props}
       >
-        <BrandLogo size={LOGO_SIZE} className={cn('shrink-0', logoWidth)} />
-        {hasCompanyBranding ? (
-          company_name !== null && (
-            <span
-              className={cn('min-w-0 flex-col leading-tight', wordmarkDisplay)}
-            >
-              <span className="truncate text-sm font-bold tracking-tight">
-                {company_name}
-              </span>
+        {/* The mark is decorative only in a drawer (`showText`), where the
+            wordmark is on screen at every size. In the rail the wordmark is
+            `display: none`, so the mark is the link's only accessible name
+            and must keep it. */}
+        <BrandLogo
+          size={LOGO_SIZE}
+          className={cn('shrink-0', logoWidth)}
+          source={logo}
+          decorative={showText && markIsDecorative}
+        />
+        {company_name !== null && (
+          <span
+            className={cn('min-w-0 flex-col leading-tight', wordmarkDisplay)}
+          >
+            <span className="truncate text-sm font-bold tracking-tight">
+              {company_name}
             </span>
-          )
-        ) : (
+          </span>
+        )}
+        {/* No company name and the VibeXP mark on screen: the product's own
+            wordmark and tagline, whether or not a company logo is configured
+            (it may be dark-only, or have failed to load). */}
+        {company_name === null && name !== null && (
           <span className={cn('flex-col leading-tight', wordmarkDisplay)}>
             <span className="text-sm font-bold tracking-tight">
               {PRODUCT_NAME}

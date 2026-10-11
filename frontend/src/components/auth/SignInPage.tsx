@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { BrandLogo } from '@/features/site-info/BrandLogo'
 import { PoweredBy } from '@/features/site-info/PoweredBy'
+import { useBrandLockup } from '@/features/site-info/useBrandLockup'
 import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { useTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
@@ -75,20 +76,17 @@ function ProviderIcon({ name }: Readonly<{ name: string }>) {
 }
 
 /**
- * The instance's lockup: its logo and name. A company logo configured without
- * a company name stands alone, so "VibeXP" is never printed beside another
- * company's logo.
+ * The instance's lockup: its logo and the name `useBrandLockup` pairs with it.
+ * A company's own logo with no company name stands alone; the VibeXP mark is
+ * always named, and hidden from assistive technology when it is.
  */
 function Brand() {
-  const { displayName, company_name, hasCompanyBranding } = useSiteInfo()
-  const logoWithoutName = hasCompanyBranding && company_name === null
+  const { logo, name, markIsDecorative } = useBrandLockup()
   return (
     <div className="inline-flex items-center gap-2.5">
-      <BrandLogo size={36} />
-      {!logoWithoutName && (
-        <span className="text-base font-bold tracking-tight">
-          {displayName}
-        </span>
+      <BrandLogo size={36} source={logo} decorative={markIsDecorative} />
+      {name !== null && (
+        <span className="text-base font-bold tracking-tight">{name}</span>
       )}
     </div>
   )

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BrandLogo } from '@/features/site-info/BrandLogo'
 import { PoweredBy } from '@/features/site-info/PoweredBy'
 import { PRODUCT_URL } from '@/features/site-info/siteInfo'
+import { useBrandLockup } from '@/features/site-info/useBrandLockup'
 import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { useAnalytics } from '@/hooks/useAnalytics'
 import type { SharedPromptResponse } from '@/services/promptShareService'
@@ -26,8 +27,8 @@ export function SharedPrompt() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const { displayName, logo_url, website, hasCompanyBranding, company_name } =
-    useSiteInfo()
+  const { displayName, logo_url, website, hasCompanyBranding } = useSiteInfo()
+  const { logo, name, markIsDecorative } = useBrandLockup()
 
   useEffect(() => {
     if (!token) return
@@ -177,12 +178,13 @@ export function SharedPrompt() {
             rel="noopener noreferrer"
             className="flex items-center gap-3 hover:opacity-80"
           >
-            <BrandLogo size={40} />
+            <BrandLogo size={40} source={logo} decorative={markIsDecorative} />
             {/* The tagline is the product's, so it is not shown under a
-                company's name; a company logo without a name stands alone. */}
-            {(!hasCompanyBranding || company_name !== null) && (
+                company's branding; a company's own logo with no name stands
+                alone (see useBrandLockup). */}
+            {name !== null && (
               <div>
-                <div className="text-lg font-semibold">{displayName}</div>
+                <div className="text-lg font-semibold">{name}</div>
                 {!hasCompanyBranding && (
                   <div className="text-muted-foreground text-xs">
                     AI-powered prompt management

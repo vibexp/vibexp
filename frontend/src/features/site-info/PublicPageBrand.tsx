@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils'
 
 import { BrandLogo } from './BrandLogo'
 import { PoweredBy } from './PoweredBy'
+import { useBrandLockup } from './useBrandLockup'
 import { useSiteInfo } from './useSiteInfo'
 
 /**
@@ -16,16 +17,15 @@ import { useSiteInfo } from './useSiteInfo'
 export function PublicPageBrand({
   className,
 }: Readonly<{ className?: string }>) {
-  const { hasCompanyBranding, company_name, website } = useSiteInfo()
+  const { hasCompanyBranding, website } = useSiteInfo()
+  const { logo, name, markIsDecorative } = useBrandLockup()
   if (!hasCompanyBranding) return null
 
   const lockup = (
     <>
-      <BrandLogo size={40} />
-      {company_name !== null && (
-        <span className="text-lg font-semibold tracking-tight">
-          {company_name}
-        </span>
+      <BrandLogo size={40} source={logo} decorative={markIsDecorative} />
+      {name !== null && (
+        <span className="text-lg font-semibold tracking-tight">{name}</span>
       )}
     </>
   )
