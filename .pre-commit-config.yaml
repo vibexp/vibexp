@@ -89,7 +89,11 @@ repos:
         name: frontend test
         entry: bash -c 'cd frontend && npm run test'
         language: system
-        files: ^frontend/
+        # Also the OpenAPI spec sources (#1329): the suite reads them off disk
+        # (`specYaml.ts`), so a spec-only commit can break it. Keep in step
+        # with the `spec` filter in ci.yml. The other frontend hooks stay on
+        # `^frontend/` — lint, type-check and build do not read the spec.
+        files: ^(frontend/|backend/openapi\.yaml$|backend/paths/|backend/schemas/)
         pass_filenames: false
 
       - id: frontend-build
