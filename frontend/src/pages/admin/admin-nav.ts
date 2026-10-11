@@ -1,4 +1,5 @@
 import {
+  Building2,
   FolderKanban,
   KeyRound,
   LayoutDashboard,
@@ -75,6 +76,14 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     href: '/admin/projects',
     icon: FolderKanban,
     description: 'Every project on this instance.',
+  },
+  {
+    label: 'Site info',
+    href: '/admin/settings/site-info',
+    icon: Building2,
+    group: 'settings',
+    description:
+      'Your company branding: the name, logo and links shown across this instance and in its emails.',
   },
   {
     label: 'Email',

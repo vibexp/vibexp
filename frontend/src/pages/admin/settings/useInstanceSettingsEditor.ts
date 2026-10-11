@@ -39,6 +39,11 @@ export interface InstanceSettingsEditorOptions<
   fields: readonly (keyof F & string)[]
   /** e.g. "search settings", for messages. */
   noun: string
+  /**
+   * The toast after a reset, for a section with no built-in defaults to fall
+   * back on. Defaults to "Instance <noun> reset to the built-in defaults".
+   */
+  resetMessage?: string
 }
 
 /**
@@ -59,8 +64,17 @@ export function useInstanceSettingsEditor<
   F extends object,
   B,
 >(options: InstanceSettingsEditorOptions<S, F, B>) {
-  const { get, update, reset, toForm, toUpdate, validate, fields, noun } =
-    options
+  const {
+    get,
+    update,
+    reset,
+    toForm,
+    toUpdate,
+    validate,
+    fields,
+    noun,
+    resetMessage,
+  } = options
   type Field = keyof F & string
 
   const [settings, setSettings] = useState<S | null>(null)
@@ -184,7 +198,9 @@ export function useInstanceSettingsEditor<
       setResetting(false)
     }
     setAuditKey(key => key + 1)
-    toast.success(`Instance ${noun} reset to the built-in defaults`)
+    toast.success(
+      resetMessage ?? `Instance ${noun} reset to the built-in defaults`
+    )
     await load()
   }
 

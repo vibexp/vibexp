@@ -106,6 +106,55 @@ export function NumberSettingField({
   )
 }
 
+interface TextSettingFieldProps {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  /** `email` and `url` only pick the keyboard; validation is the form's. */
+  type?: 'text' | 'email' | 'url'
+  hint?: ReactNode
+  error?: string
+  placeholder?: string
+  disabled?: boolean
+}
+
+export function TextSettingField({
+  id,
+  label,
+  value,
+  onChange,
+  type = 'text',
+  hint,
+  error,
+  placeholder,
+  disabled,
+}: Readonly<TextSettingFieldProps>) {
+  return (
+    <FieldFrame id={id} label={label} hint={hint} error={error}>
+      <Input
+        id={id}
+        // Always a text input: a `url`/`email` input adds the browser's own
+        // validation bubble, which would compete with the inline error.
+        type="text"
+        inputMode={type}
+        autoComplete="off"
+        autoCapitalize={type === 'text' ? undefined : 'none'}
+        autoCorrect={type === 'text' ? undefined : 'off'}
+        spellCheck={false}
+        placeholder={placeholder}
+        value={value}
+        disabled={disabled}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={fieldDescribedBy(id, hint, error)}
+        onChange={e => {
+          onChange(e.target.value)
+        }}
+      />
+    </FieldFrame>
+  )
+}
+
 interface SwitchSettingFieldProps {
   id: string
   label: string

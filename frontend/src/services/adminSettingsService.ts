@@ -14,6 +14,8 @@ export type AdminInstanceAISummarySettings =
   components['schemas']['AdminInstanceAISummarySettings']
 export type AdminInstanceAISummarySettingsUpdate =
   components['schemas']['AdminInstanceAISummarySettingsUpdate']
+export type AdminSiteInfo = components['schemas']['AdminSiteInfo']
+export type AdminSiteInfoUpdate = components['schemas']['AdminSiteInfoUpdate']
 export type AdminInstanceSettingsAuditParams = NonNullable<
   operations['listAdminSearchSettingsAudit']['parameters']['query']
 >
@@ -81,6 +83,37 @@ class AdminSettingsService {
   ): Promise<AdminInstanceSettingsAuditPage> {
     return unwrap(
       generatedClient.GET('/api/v1/admin/settings/ai-summary/audit', {
+        params: { query: params },
+      })
+    )
+  }
+
+  /** The instance's company branding as stored, its limits and metadata. */
+  async getSiteInfo(): Promise<AdminSiteInfo> {
+    return unwrap(generatedClient.GET('/api/v1/admin/settings/site-info'))
+  }
+
+  /**
+   * Replace the instance's company branding; an empty string clears a value.
+   * `expected_version` makes the save a compare-and-set, as for search.
+   */
+  async updateSiteInfo(body: AdminSiteInfoUpdate): Promise<AdminSiteInfo> {
+    return unwrap(
+      generatedClient.PUT('/api/v1/admin/settings/site-info', { body })
+    )
+  }
+
+  /** Drop the stored site info, so the instance shows no company branding. */
+  async resetSiteInfo(): Promise<void> {
+    await unwrap(generatedClient.DELETE('/api/v1/admin/settings/site-info'))
+  }
+
+  /** One page of the site info's audit log, newest first. */
+  async listSiteInfoAudit(
+    params: AdminInstanceSettingsAuditParams = {}
+  ): Promise<AdminInstanceSettingsAuditPage> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/settings/site-info/audit', {
         params: { query: params },
       })
     )

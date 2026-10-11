@@ -15,6 +15,7 @@ import type {
 import type { AdminInstanceSettingsAuditParams } from '@/services/adminSettingsService'
 
 import {
+  auditActionLabel,
   type AuditField,
   diffAuditFields,
   resettableAuditActionLabel,
@@ -27,14 +28,34 @@ import type {
 
 type AnyEnvelope = InstanceSettingsEnvelope<unknown, unknown>
 
+/**
+ * How a section with nothing to fall back on words its status and its reset:
+ * removing the stored row leaves it empty, not on "built-in defaults".
+ */
+export interface InstanceSettingsEmptyState {
+  /** The status badge while nothing is stored, e.g. "Not configured". */
+  statusLabel: string
+  /** The badge once something is stored, e.g. "Configured". */
+  storedLabel: string
+  /** The reset button and the dialog's confirm button, e.g. "Clear site info". */
+  resetLabel: string
+  resetTitle: string
+  resetDescription: string
+}
+
 /** "Using built-in defaults" / "Customized", the last change, the overrides. */
 export function InstanceSettingsStatus({
   settings,
   overrideNote,
+  emptyState,
 }: Readonly<{
   settings: AnyEnvelope
-  /** What a team override means for this section, after the count. */
-  overrideNote: string
+  /**
+   * What a team override means for this section, after the count. Omitted
+   * for a section teams cannot override: the line is then not shown at all.
+   */
+  overrideNote?: string
+  emptyState?: InstanceSettingsEmptyState
 }>) {
   const customized = settings.source === 'instance'
   const overrides = settings.teams_with_override
@@ -47,7 +68,9 @@ export function InstanceSettingsStatus({
             variant={customized ? 'default' : 'secondary'}
             data-testid="instance-settings-source"
           >
-            {customized ? 'Customized' : 'Using built-in defaults'}
+            {customized
+              ? (emptyState?.storedLabel ?? 'Customized')
+              : (emptyState?.statusLabel ?? 'Using built-in defaults')}
           </Badge>
           {settings.updated_at && (
             <span className="text-muted-foreground">
@@ -59,15 +82,17 @@ export function InstanceSettingsStatus({
             </span>
           )}
         </div>
-        <p
-          className="text-muted-foreground flex items-start gap-1"
-          data-testid="instance-settings-overrides"
-        >
-          <Users className="mt-0.5 size-4 shrink-0" />
-          {overrides === 0
-            ? 'No team overrides these settings, so a change here reaches every team.'
-            : `${String(overrides)} ${overridingTeams} these settings. ${overrideNote}`}
-        </p>
+        {overrideNote !== undefined && (
+          <p
+            className="text-muted-foreground flex items-start gap-1"
+            data-testid="instance-settings-overrides"
+          >
+            <Users className="mt-0.5 size-4 shrink-0" />
+            {overrides === 0
+              ? 'No team overrides these settings, so a change here reaches every team.'
+              : `${String(overrides)} ${overridingTeams} these settings. ${overrideNote}`}
+          </p>
+        )}
       </CardContent>
     </Card>
   )
@@ -83,9 +108,15 @@ export interface InstanceSettingsLayoutProps<
   noun: string
   /** Accessible name of the form. */
   formLabel: string
-  overrideNote: string
-  /** A one-line summary of the built-in defaults, previewed before a reset. */
-  describeDefaults: (values: S['values']) => string
+  /** Omit for a section teams cannot override (see `InstanceSettingsStatus`). */
+  overrideNote?: string
+  /**
+   * A one-line summary of the built-in defaults, previewed before a reset.
+   * Not used when `emptyState` words the reset.
+   */
+  describeDefaults?: (values: S['values']) => string
+  /** For a section with no built-in defaults (site info, #1358). */
+  emptyState?: InstanceSettingsEmptyState
   /** The form's cards, rendered from the loaded state. */
   children: (form: F, settings: S, disabled: boolean) => ReactNode
   audit: {
@@ -115,6 +146,7 @@ export function InstanceSettingsLayout<
   formLabel,
   overrideNote,
   describeDefaults,
+  emptyState,
   children,
   audit,
 }: Readonly<InstanceSettingsLayoutProps<S, F, B>>) {
@@ -141,10 +173,15 @@ export function InstanceSettingsLayout<
   }
 
   const busy = editor.saving || editor.resetting || editor.loading
+  const resetLabel = emptyState?.resetLabel ?? 'Reset to defaults'
 
   return (
     <div className="space-y-6">
-      <InstanceSettingsStatus settings={settings} overrideNote={overrideNote} />
+      <InstanceSettingsStatus
+        settings={settings}
+        overrideNote={overrideNote}
+        emptyState={emptyState}
+      />
 
       {editor.loadError && (
         <Alert variant="destructive" data-testid="instance-settings-load-error">
@@ -213,7 +250,7 @@ export function InstanceSettingsLayout<
                   }}
                 >
                   <RotateCcw className="mr-2 size-4" />
-                  Reset to defaults
+                  {resetLabel}
                 </Button>
               )}
               <Button
@@ -235,7 +272,7 @@ export function InstanceSettingsLayout<
         describeChanges={(entry: AdminInstanceSettingsAuditEntry) =>
           diffAuditFields(entry, audit.fields)
         }
-        actionLabel={resettableAuditActionLabel}
+        actionLabel={emptyState ? auditActionLabel : resettableAuditActionLabel}
         description={audit.description}
         entryTestId={audit.entryTestId}
         refreshKey={editor.auditKey}
@@ -244,9 +281,19 @@ export function InstanceSettingsLayout<
       <ConfirmDialog
         open={confirmReset}
         onOpenChange={setConfirmReset}
-        title={`Reset the ${noun} to the built-in defaults?`}
-        description={`The stored values are removed and the built-in defaults apply again: ${describeDefaults(settings.built_in_defaults)}.`}
-        confirmLabel="Reset to defaults"
+        title={
+          emptyState?.resetTitle ??
+          `Reset the ${noun} to the built-in defaults?`
+        }
+        description={
+          emptyState?.resetDescription ??
+          `The stored values are removed and the built-in defaults apply again${
+            describeDefaults
+              ? `: ${describeDefaults(settings.built_in_defaults)}`
+              : ''
+          }.`
+        }
+        confirmLabel={resetLabel}
         variant="destructive"
         loading={editor.resetting}
         onConfirm={async () => {

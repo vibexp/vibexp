@@ -94,6 +94,7 @@ it('includes a Projects entry even before #461 adds the pages', () => {
     '/admin/users',
     '/admin/teams',
     '/admin/projects',
+    '/admin/settings/site-info',
     '/admin/settings/email',
     '/admin/settings/search',
     '/admin/settings/ai-summary',
@@ -120,6 +121,11 @@ it('lists Email under a "Settings" group after the Administration items (#1191)'
   expect(
     within(settingsGroup).getAllByRole('link', { name: 'AI Summary' })[0]
   ).toHaveAttribute('href', '/admin/settings/ai-summary')
+  // Site info (#1358) leads the group.
+  expect(within(settingsGroup).getAllByRole('link')[0]).toHaveAttribute(
+    'href',
+    '/admin/settings/site-info'
+  )
   // Authentication (#1239) too.
   expect(
     within(settingsGroup).getAllByRole('link', { name: 'Authentication' })[0]

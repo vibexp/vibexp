@@ -11,6 +11,7 @@ import { AdminAISummarySettings } from '@/pages/admin/settings/ai-summary/AdminA
 import { AdminAuthSettings } from '@/pages/admin/settings/auth/AdminAuthSettings'
 import { AdminEmailSettings } from '@/pages/admin/settings/email/AdminEmailSettings'
 import { AdminSearchSettings } from '@/pages/admin/settings/search/AdminSearchSettings'
+import { AdminSiteInfoSettings } from '@/pages/admin/settings/site-info/AdminSiteInfoSettings'
 
 /**
  * Routes for the instance-admin portal, relative to the `/admin/*` mount point
@@ -23,7 +24,8 @@ import { AdminSearchSettings } from '@/pages/admin/settings/search/AdminSearchSe
  * `/admin/projects` and `/admin/projects/:id` were added in #461, completing the
  * four sections the sidebar advertises. `/admin/settings/email` (#1191) is
  * the first entry of the sidebar's "Settings" group; Search and AI Summary
- * (#1202) and Authentication (#1239) follow it.
+ * (#1202) and Authentication (#1239) follow it; Site info (#1358) leads the
+ * group.
  */
 export function AdminRoutes() {
   return (
@@ -35,6 +37,7 @@ export function AdminRoutes() {
       <Route path="teams/:id" element={<AdminTeamDetail />} />
       <Route path="projects" element={<AdminProjects />} />
       <Route path="projects/:id" element={<AdminProjectDetail />} />
+      <Route path="settings/site-info" element={<AdminSiteInfoSettings />} />
       <Route path="settings/email" element={<AdminEmailSettings />} />
       <Route path="settings/search" element={<AdminSearchSettings />} />
       <Route path="settings/ai-summary" element={<AdminAISummarySettings />} />
