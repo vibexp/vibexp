@@ -2,6 +2,7 @@ import type { AdminSiteInfo } from '@/services/adminSettingsService'
 
 import {
   EMPTY_SITE_INFO_VALUES,
+  isBareEmail,
   isHttpUrl,
   SITE_INFO_AUDIT_FIELDS,
   SITE_INFO_FORM_FIELDS,
@@ -79,8 +80,41 @@ describe('isHttpUrl', () => {
     'mailto:hello@acme.test',
     'https://',
     '',
+    // The browser's URL parser repairs these; the server refuses them.
+    'http:example.com',
+    'https:/example.com',
+    'https:///example.com',
+    'https://example.com\\a',
+    'https://example.com/%zz',
+    'https://example.com/a b',
   ])('rejects %s', url => {
     expect(isHttpUrl(url)).toBe(false)
+  })
+})
+
+describe('isBareEmail', () => {
+  // Every one of these is accepted by the server, so none may block a save.
+  it.each([
+    'hello@acme.test',
+    'info@münchen.de',
+    'jürgen@example.com',
+    'it@corp',
+    'a@localhost',
+    'a@[1.2.3.4]',
+  ])('accepts %s', email => {
+    expect(isBareEmail(email)).toBe(true)
+  })
+
+  it.each([
+    'not-an-email',
+    '@acme.test',
+    'hello@',
+    'a@b@c',
+    'a@b.test, c@d.test',
+    'Acme <hello@acme.test>',
+    'hello @acme.test',
+  ])('rejects %s', email => {
+    expect(isBareEmail(email)).toBe(false)
   })
 })
 

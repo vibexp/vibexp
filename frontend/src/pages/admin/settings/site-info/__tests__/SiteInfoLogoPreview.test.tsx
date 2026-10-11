@@ -23,6 +23,31 @@ describe('SiteInfoLogoPreview', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('pins each surface to its own theme tokens, so the mark is not drawn in the app theme', () => {
+    render(<SiteInfoLogoPreview logoUrl="" logoDarkUrl="" />)
+
+    const lightSurface = screen.getByTestId('site-info-preview-light-surface')
+    const darkSurface = screen.getByTestId('site-info-preview-dark-surface')
+    expect(lightSurface.style.getPropertyValue('--foreground')).toBe(
+      'oklch(0.145 0 0)'
+    )
+    expect(lightSurface.style.getPropertyValue('--background')).toBe(
+      'oklch(1 0 0)'
+    )
+    expect(darkSurface.style.getPropertyValue('--foreground')).toBe(
+      'oklch(0.985 0 0)'
+    )
+    expect(darkSurface.style.getPropertyValue('--background')).toBe(
+      'oklch(0.145 0 0)'
+    )
+  })
+
+  it('clamps the image width as the app does', () => {
+    render(<SiteInfoLogoPreview logoUrl={LOGO} logoDarkUrl="" />)
+
+    expect(image(light())).toHaveClass('w-auto', 'max-w-40', 'object-contain')
+  })
+
   it('shows each logo on its own surface', () => {
     render(<SiteInfoLogoPreview logoUrl={LOGO} logoDarkUrl={DARK} />)
 

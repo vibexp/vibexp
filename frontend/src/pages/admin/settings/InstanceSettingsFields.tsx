@@ -139,6 +139,8 @@ export function TextSettingField({
         type="text"
         inputMode={type}
         autoComplete="off"
+        autoCapitalize={type === 'text' ? undefined : 'none'}
+        autoCorrect={type === 'text' ? undefined : 'off'}
         spellCheck={false}
         placeholder={placeholder}
         value={value}

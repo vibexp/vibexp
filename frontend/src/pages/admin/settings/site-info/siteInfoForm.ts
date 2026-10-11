@@ -1,5 +1,3 @@
-import { z } from 'zod'
-
 import type {
   AdminSiteInfo,
   AdminSiteInfoUpdate,
@@ -89,18 +87,47 @@ export function toSiteInfoUpdate(
   }
 }
 
-/** Whether `raw` is an absolute `http`/`https` URL with a host. */
+// The server parses with Go's `url.Parse`, which refuses what the browser's
+// `URL` quietly repairs (`https:/host`, `http:host`, a backslash, a bad
+// percent escape). The raw value must therefore already have the shape.
+const HTTP_URL_PREFIX = /^https?:\/\/[^/\\?#]/i
+const hasControlOrSpace = (raw: string): boolean =>
+  Array.from(raw).some(char => {
+    const code = char.codePointAt(0) ?? 0
+    return code <= 0x20 || code === 0x7f
+  })
+const BAD_PERCENT_ESCAPE = /%(?![0-9a-f]{2})/i
+
+/**
+ * Whether `raw` is an absolute `http`/`https` URL with a host, as the server
+ * will accept it.
+ */
 export function isHttpUrl(raw: string): boolean {
-  let parsed: URL
+  if (
+    !HTTP_URL_PREFIX.test(raw) ||
+    raw.includes('\\') ||
+    hasControlOrSpace(raw) ||
+    BAD_PERCENT_ESCAPE.test(raw)
+  ) {
+    return false
+  }
   try {
-    parsed = new URL(raw)
+    return new URL(raw).hostname !== ''
   } catch {
     return false
   }
-  return (
-    (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
-    parsed.hostname !== ''
-  )
+}
+
+/**
+ * Whether `raw` has the shape of one bare address. Deliberately loose: the
+ * server (`mail.ParseAddress`) accepts international and single-label
+ * domains that a strict pattern would reject, and a client error blocks the
+ * save. Anything subtler is left to the server's field error.
+ */
+export function isBareEmail(raw: string): boolean {
+  if (/[\s<>,;()"]/.test(raw)) return false
+  const parts = raw.split('@')
+  return parts.length === 2 && parts[0] !== '' && parts[1] !== ''
 }
 
 /** Length in characters (code points), as the server counts it. */
@@ -123,7 +150,7 @@ export function validateSiteInfoForm(
   if (email !== '') {
     if (runeCount(email) > limits.company_email_max_length) {
       errors.company_email = tooLong(limits.company_email_max_length)
-    } else if (!z.email().safeParse(email).success) {
+    } else if (!isBareEmail(email)) {
       errors.company_email =
         'Enter one email address, such as hello@example.com.'
     }
