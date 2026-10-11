@@ -38,6 +38,7 @@ export function buildPromptsColumns({
   navigate,
   onDelete,
   canDelete,
+  statusLabel,
 }: {
   navigate: NavigateFunction
   onDelete: (prompt: Prompt) => void
@@ -47,6 +48,11 @@ export function buildPromptsColumns({
    * `resource.update.any`.
    */
   canDelete: (prompt: Prompt) => boolean
+  /**
+   * Display text for a status value, so a team's custom status reads by its
+   * display name (#1263). Defaults to the descriptor's own labels.
+   */
+  statusLabel?: (status: string) => string
 }): ColumnDef<Prompt>[] {
   const detailPath = (prompt: Prompt) => `/prompts/${prompt.slug}`
   return columnList<Prompt>(
@@ -62,6 +68,7 @@ export function buildPromptsColumns({
     statusColumn<Prompt>({
       field: fieldOfRole(descriptor, 'status'),
       value: prompt => prompt.status,
+      label: statusLabel,
     }),
     sharedColumn,
     taxonomyColumn<Prompt>({

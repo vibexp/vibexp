@@ -138,7 +138,6 @@ describe('usePromptSearch', () => {
         search: 'test',
         limit: 10,
         page: 1,
-        status: 'published',
       })
       expect(result.current.prompts).toEqual(mockPrompts)
       expect(result.current.error).toBeNull()
@@ -248,7 +247,6 @@ describe('usePromptSearch', () => {
         search: 'test query',
         limit: 10,
         page: 1,
-        status: 'published',
       })
     })
 
@@ -272,7 +270,6 @@ describe('usePromptSearch', () => {
         search: 'test',
         limit: 5,
         page: 1,
-        status: 'published',
       })
     })
   })
@@ -303,6 +300,36 @@ describe('usePromptSearch', () => {
       // Should only include test-prompt-2, excluding test-prompt-1
       expect(result.current.prompts).toHaveLength(1)
       expect(result.current.prompts[0].slug).toBe('test-prompt-2')
+    })
+
+    // "Not draft" rather than "published": a team's custom status (#1263) is a
+    // live prompt too. The list endpoint filters on one exact status, so the
+    // hook asks for every status and drops the drafts itself.
+    it('keeps published and custom-status prompts and drops drafts', async () => {
+      const [first, second] = mockPrompts
+      mockGetPrompts.mockResolvedValue({
+        prompts: [
+          { ...first, slug: 'a-draft', status: 'draft' },
+          { ...second, slug: 'published-one', status: 'published' },
+          { ...second, id: '3', slug: 'custom-one', status: 'in-review' },
+        ],
+        page: 1,
+        per_page: 10,
+        total_count: 3,
+        total_pages: 1,
+      })
+
+      const { result } = renderHook(() => usePromptSearch())
+
+      await act(async () => {
+        await result.current.searchPrompts('test')
+      })
+
+      expect(result.current.prompts.map(prompt => prompt.slug)).toEqual([
+        'published-one',
+        'custom-one',
+      ])
+      expect(mockGetPrompts.mock.calls[0][1]).not.toHaveProperty('status')
     })
 
     it('should handle empty prompts array', async () => {

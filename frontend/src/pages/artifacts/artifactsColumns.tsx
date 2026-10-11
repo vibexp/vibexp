@@ -32,6 +32,7 @@ export function buildArtifactsColumns({
   navigate,
   onDelete,
   canDelete,
+  statusLabel,
   typeNames,
 }: {
   navigate: NavigateFunction
@@ -42,6 +43,11 @@ export function buildArtifactsColumns({
    * `resource.update.any`.
    */
   canDelete: (artifact: Artifact) => boolean
+  /**
+   * Display text for a status value, so a team's custom status reads by its
+   * display name (#1263). Defaults to the descriptor's own labels.
+   */
+  statusLabel?: (status: string) => string
   // Maps a type slug to its display name so the badge shows the team's chosen
   // name (matching the form/filter); a Map keeps the lookup free of the
   // object-injection lint. Falls back to the humanized slug when absent.
@@ -68,6 +74,7 @@ export function buildArtifactsColumns({
     statusColumn<Artifact>({
       field: fieldOfRole(descriptor, 'status'),
       value: artifact => artifact.status,
+      label: statusLabel,
     }),
     updatedColumn<Artifact>({ value: artifact => artifact.updated_at }),
     actionsColumn<Artifact>({

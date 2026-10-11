@@ -385,7 +385,49 @@ describe('defineResource', () => {
             sortable: ['title'],
           })
         )
-      ).toThrow(/needs optionsFrom \["field","types"\], found null/)
+      ).toThrow(/needs optionsFrom \["field","types","statuses"\], found null/)
+    })
+
+    // The status vocabulary is the descriptor's system values plus the team's
+    // custom statuses, which only the catalog knows (#1263).
+    it('accepts a status filter that reads the status catalog', () => {
+      const valid = withList({
+        filters: [
+          {
+            key: 'status',
+            control: 'select',
+            label: 'Filter by status',
+            optionsFrom: 'statuses',
+          },
+        ],
+        sortable: ['title'],
+      })
+      expect(defineResource(valid)).toBe(valid)
+    })
+
+    it('throws when a filter on another field reads the status catalog', () => {
+      expect(() =>
+        defineResource(
+          descriptor(
+            [NAME, SLUG, STATUS, { key: 'type', role: 'type', label: 'Type' }],
+            {
+              list: {
+                filters: [
+                  {
+                    key: 'type',
+                    control: 'select',
+                    label: 'Filter by type',
+                    optionsFrom: 'statuses',
+                  },
+                ],
+                sortable: ['title'],
+              },
+            }
+          )
+        )
+      ).toThrow(
+        /filter 'type' reads the status catalog but its field has role 'type'/
+      )
     })
 
     it('throws when a taxonomy filter reads options from the field', () => {
@@ -643,6 +685,39 @@ describe('defineResource', () => {
           })
         )
       ).toThrow(/form field 'status' with control 'select' needs 'optionsFrom'/)
+    })
+
+    it('accepts a status select that reads the status catalog', () => {
+      const valid = withForm({
+        fields: [
+          {
+            key: 'status',
+            control: 'select',
+            section: 'details',
+            optionsFrom: 'statuses',
+          },
+        ],
+      })
+      expect(defineResource(valid)).toBe(valid)
+    })
+
+    it('throws when a select on another field reads the status catalog', () => {
+      expect(() =>
+        defineResource(
+          withForm({
+            fields: [
+              {
+                key: 'type',
+                control: 'select',
+                section: 'details',
+                optionsFrom: 'statuses',
+              },
+            ],
+          })
+        )
+      ).toThrow(
+        /form field 'type' reads the status catalog but the field has \["type"\]/
+      )
     })
 
     it('throws when a select reads options from a field that enumerates none', () => {

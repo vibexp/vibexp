@@ -11,9 +11,6 @@ import type {
 export type Memory = components['schemas']['Memory']
 export type MemoryListResponse = components['schemas']['MemoryListResponse']
 
-// Lifecycle-status union, derived from the generated `Memory` schema.
-export type MemoryStatus = Memory['status']
-
 // Request shapes are the generated bodies — the spec now carries `project_id`
 // (required on create, optional on update).
 export type CreateMemoryRequest = components['schemas']['CreateMemoryRequest']

@@ -10,22 +10,7 @@ import type {
   CreateBlueprintRequest,
 } from '@/services/blueprintService'
 
-type BlueprintStatus = Blueprint['status']
 type BlueprintType = Blueprint['type']
-
-/**
- * The statuses a blueprint can be set to.
- *
- * Two, not four: #912 hoisted every kind's status enum behind a shared
- * `ResourceStatus` vocabulary but deliberately did NOT unify the subsets, and
- * `BlueprintStatus` is still `[active, expired]` on the spec. Widening it is a
- * product decision with list-filter consequences, so the form offers exactly
- * what the API accepts.
- */
-const BLUEPRINT_STATUSES: readonly [BlueprintStatus, ...BlueprintStatus[]] = [
-  'active',
-  'expired',
-]
 
 /** The closed type enum, unlike the artifact's runtime type catalog. */
 const BLUEPRINT_TYPES: readonly [BlueprintType, ...BlueprintType[]] = [
@@ -38,7 +23,8 @@ const BLUEPRINT_TYPES: readonly [BlueprintType, ...BlueprintType[]] = [
 
 /**
  * The blueprint request body, built from a generated form's parsed values.
- * Shared by `BlueprintCreate` and `BlueprintEdit` — see `toArtifactRequest`.
+ * Shared by `BlueprintCreate` and `BlueprintEdit` — see `toArtifactRequest`,
+ * including for why `status` is sent as the form holds it.
  */
 export function toBlueprintRequest(
   values: ResourceFormValues
@@ -49,7 +35,7 @@ export function toBlueprintRequest(
     description: stringValue(values, 'description'),
     project_id: stringValue(values, 'project_id'),
     type: enumValue(values, 'type', BLUEPRINT_TYPES),
-    status: enumValue(values, 'status', BLUEPRINT_STATUSES),
+    status: stringValue(values, 'status'),
     content: stringValue(values, 'content'),
     labels: stringListValue(values, 'labels'),
     metadata: recordValue(values, 'metadata'),

@@ -86,9 +86,11 @@ export interface FieldSpec {
   /** The API marks this property optional or nullable. */
   readonly optional?: boolean
   /**
-   * For a `status` field: every value the API can return, in display order.
-   * Mirrors the per-kind enum in the OpenAPI spec until the shared
-   * `ResourceStatus` enum lands (decision F).
+   * For a `status` field: the SYSTEM status values, in display order — the
+   * baseline every team has, pinned to the spec by `resourceListSpec.test.ts`.
+   * Not the exhaustive set for a kind whose status is a team catalog (#1263):
+   * there the team's custom statuses are added at runtime, and
+   * `useStatusOptions` is the reader of the merged vocabulary.
    */
   readonly statusValues?: readonly string[]
   /**
@@ -100,7 +102,7 @@ export interface FieldSpec {
   readonly typeValues?: readonly string[]
   /**
    * For a `status` field: the badge tone per status value. Every key must be
-   * one of `statusValues`.
+   * one of `statusValues`. A custom status has no entry and reads `neutral`.
    */
   readonly tone?: Readonly<Record<string, FieldTone>>
   /**
@@ -164,12 +166,15 @@ export type FilterControl =
  * partial by design, so promoting its keys to an option set would silently
  * hide any value the server later adds without a label.
  *
- * The other two are catalogs only known at runtime. `prompt-labels` names the
- * prompt label endpoint rather than a generic "labels", because that is the
- * only taxonomy catalog that exists — a generic name would invite a descriptor
- * to declare it for a taxonomy field it does not serve.
+ * The other three are catalogs only known at runtime. `statuses` is the field's
+ * system values plus the team's custom statuses (#1263), and is only legal on
+ * the `status` field. `prompt-labels` names the prompt label endpoint rather
+ * than a generic "labels", because that is the only taxonomy catalog that
+ * exists — a generic name would invite a descriptor to declare it for a
+ * taxonomy field it does not serve.
  */
-export type FilterOptionsSource = 'field' | 'types' | 'prompt-labels'
+export type FilterOptionsSource =
+  'field' | 'types' | 'statuses' | 'prompt-labels'
 
 /** One control on a resource list's filter bar. */
 export interface FilterSpec {
@@ -247,13 +252,14 @@ export type FormSection = 'details' | 'body' | 'taxonomy'
 export type FormPattern = 'slug'
 
 /**
- * Where a `select` control's options come from — the same two sources, and the
+ * Where a `select` control's options come from — the same sources, and the
  * same reasoning, as {@link FilterOptionsSource}. `field` reads the named
  * field's exhaustive values; `types` is the team's registered type catalog,
  * only known at runtime, which is how the artifact `type` (an open string) is
- * expressible without the form page knowing what an artifact is.
+ * expressible without the form page knowing what an artifact is; `statuses` is
+ * the `status` field's system values plus the team's custom statuses.
  */
-export type FormOptionsSource = 'field' | 'types'
+export type FormOptionsSource = 'field' | 'types' | 'statuses'
 
 /** One editable field on a resource's create/edit form. */
 export interface FormFieldSpec {

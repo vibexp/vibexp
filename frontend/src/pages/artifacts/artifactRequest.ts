@@ -1,31 +1,18 @@
 import type { ResourceFormValues } from '@/components/patterns/resource'
 import {
-  enumValue,
   recordValue,
   stringListValue,
   stringValue,
 } from '@/components/patterns/resource'
-import type {
-  ArtifactStatus,
-  CreateArtifactRequest,
-} from '@/services/artifactService'
-
-/**
- * The statuses an artifact can be created or updated with.
- *
- * Typed as `ArtifactStatus` rather than inferred, so narrowing the spec enum
- * fails the build here instead of 400-ing at runtime; the descriptor declares
- * the same three values and `buildFormSchema` has already rejected anything
- * outside them by the time this runs.
- */
-const ARTIFACT_STATUSES: readonly [ArtifactStatus, ...ArtifactStatus[]] = [
-  'active',
-  'draft',
-  'archived',
-]
+import type { CreateArtifactRequest } from '@/services/artifactService'
 
 /**
  * The artifact request body, built from a generated form's parsed values.
+ *
+ * `status` is sent exactly as the form holds it: it is a system status or one
+ * of the team's custom ones (#1263), which only the server can check, so
+ * narrowing it here against a fixed list would silently swap a custom status
+ * for a default.
  *
  * Shared by `ArtifactCreate` and `ArtifactEdit` because the mapping is the same
  * for both — `UpdateArtifactRequest`'s fields are all optional, so a full
@@ -42,7 +29,7 @@ export function toArtifactRequest(
     description: stringValue(values, 'description'),
     project_id: stringValue(values, 'project_id'),
     type: stringValue(values, 'type'),
-    status: enumValue(values, 'status', ARTIFACT_STATUSES),
+    status: stringValue(values, 'status'),
     content: stringValue(values, 'content'),
     labels: stringListValue(values, 'labels'),
     metadata: recordValue(values, 'metadata'),

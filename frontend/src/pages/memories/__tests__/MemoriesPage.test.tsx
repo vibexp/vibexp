@@ -1,10 +1,21 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mock } from 'vitest'
 
 import type { Memory, MemoryListResponse } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
+
+// The team's status catalog (#1263), settable per test. Empty and answered by
+// default — a team with no custom statuses — so every other case in this file
+// sees the page exactly as the descriptor alone describes it.
+const statusCatalog = vi.hoisted(() => ({
+  statuses: [] as unknown[],
+  isLoading: false,
+}))
+vi.mock('@/hooks/useStatusCatalog', () => ({
+  useStatusCatalog: () => statusCatalog,
+}))
 
 // Mock Radix Select (MemoryFilters tag/status dropdowns) — it can loop in
 // JSDOM (same approach as Agents.test.tsx), but keep onValueChange wired so
@@ -213,8 +224,8 @@ function setTeamPermissions(permissions: string[]) {
   }
 }
 
-function renderMemories(initialEntry = '/memories') {
-  return render(
+function memoriesTree(initialEntry: string) {
+  return (
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/memories" element={<Memories />} />
@@ -233,6 +244,10 @@ function renderMemories(initialEntry = '/memories') {
       </Routes>
     </MemoryRouter>
   )
+}
+
+function renderMemories(initialEntry = '/memories') {
+  return render(memoriesTree(initialEntry))
 }
 
 describe('Memories page', () => {
@@ -990,5 +1005,134 @@ describe('Memories page — descriptor-driven sorting (#908)', () => {
     // `title` is what artifacts and blueprints call it; memories have no such
     // field and the endpoint 400s on it.
     expect(lastQuery().sort_by).toBe('updated_at')
+  })
+})
+
+describe('Memories page — custom statuses (#1263)', () => {
+  const lastQuery = () => {
+    const { calls } = (memoryService.getMemories as Mock).mock
+    return calls[calls.length - 1][1] as Record<string, unknown>
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions([])
+    mockProjectState.currentProject = null
+    mockProjectState.isLoading = false
+    ;(memoryService.getMemories as Mock).mockResolvedValue(
+      buildListResponse([])
+    )
+    ;(projectService.getProjects as Mock).mockResolvedValue({
+      projects: [],
+      total_count: 0,
+      page: 1,
+      per_page: 100,
+      total_pages: 0,
+    })
+    statusCatalog.statuses = [
+      { slug: 'in-review', name: 'In review', is_system: false },
+    ]
+    statusCatalog.isLoading = false
+  })
+
+  afterEach(() => {
+    statusCatalog.statuses = []
+    statusCatalog.isLoading = false
+  })
+
+  it('applies a custom status from the URL and sends its slug to the API', async () => {
+    renderMemories('/memories?status=in-review')
+
+    await waitFor(() => {
+      expect(memoryService.getMemories).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBe('in-review')
+  })
+
+  // A reload: the page mounts before the catalog has answered. Sending the
+  // value could 400 (it may be junk); dropping it would strip the filter the
+  // user reloaded with. So the list waits for the answer.
+  it('holds the list request for an unconfirmed status until the catalog answers, then sends it', async () => {
+    statusCatalog.statuses = []
+    statusCatalog.isLoading = true
+    const view = renderMemories('/memories?status=in-review')
+
+    // Long enough for a request that was going to fire to have fired.
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20))
+    })
+    expect(memoryService.getMemories).not.toHaveBeenCalled()
+
+    statusCatalog.statuses = [
+      { slug: 'in-review', name: 'In review', is_system: false },
+    ]
+    statusCatalog.isLoading = false
+    view.rerender(memoriesTree('/memories?status=in-review'))
+
+    await waitFor(() => {
+      expect(memoryService.getMemories).toHaveBeenCalledTimes(1)
+    })
+    expect(lastQuery().status).toBe('in-review')
+  })
+
+  it('sends no status, and never the unknown value, once the catalog answers without it', async () => {
+    statusCatalog.statuses = []
+    statusCatalog.isLoading = true
+    const view = renderMemories('/memories?status=deleted-elsewhere')
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20))
+    })
+    expect(memoryService.getMemories).not.toHaveBeenCalled()
+
+    statusCatalog.isLoading = false
+    view.rerender(memoriesTree('/memories?status=deleted-elsewhere'))
+
+    await waitFor(() => {
+      expect(memoryService.getMemories).toHaveBeenCalledTimes(1)
+    })
+    expect(lastQuery().status).toBeUndefined()
+  })
+
+  it('does not wait for the catalog to filter on a system status', async () => {
+    statusCatalog.statuses = []
+    statusCatalog.isLoading = true
+    renderMemories('/memories?status=active')
+
+    await waitFor(() => {
+      expect(memoryService.getMemories).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBe('active')
+  })
+
+  it('drops a status that is in neither the descriptor nor the answered catalog', async () => {
+    renderMemories('/memories?status=deleted-elsewhere')
+
+    await waitFor(() => {
+      expect(memoryService.getMemories).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBeUndefined()
+  })
+
+  it('shows a custom status by its display name, in a neutral badge', async () => {
+    ;(memoryService.getMemories as Mock).mockResolvedValue(
+      buildListResponse([buildMemory({ status: 'in-review' })])
+    )
+    renderMemories()
+
+    // Scoped to the table: the filter bar offers the same name as an option.
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('In review')).toHaveClass('bg-muted')
+  })
+
+  it('shows the raw slug, in a neutral badge, for a status the catalog no longer has', async () => {
+    statusCatalog.statuses = []
+    ;(memoryService.getMemories as Mock).mockResolvedValue(
+      buildListResponse([buildMemory({ status: 'in-review' })])
+    )
+    renderMemories()
+
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('in-review')).toHaveClass('bg-muted')
   })
 })

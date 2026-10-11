@@ -7,7 +7,7 @@ import type {
   FilterSpec,
   ResourceDescriptor,
 } from '@/components/patterns/resource'
-import { fieldValues } from '@/components/patterns/resource'
+import { fieldValues, useStatusOptions } from '@/components/patterns/resource'
 import { TaxonomyFilter } from '@/components/TaxonomyFilter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,8 +50,9 @@ import { FILTER_ALL, FILTER_CONTROL_WIDTH } from './filterControls'
  * The bar reads and writes the RAW URL strings the hook holds:
  * {@link FILTER_ALL} for a cleared `select`/`freshness`, `''` for a cleared
  * `taxonomy`. Coercing a value to what the API accepts stays with the page,
- * which is where the enum allowlists live — a junk `?status=bogus` must be
- * dropped from the request rather than forwarded into a 400.
+ * which is where the allowlists are applied — a junk `?status=bogus` must be
+ * dropped from the request rather than forwarded into a 400. For a status the
+ * page and the bar read one allowlist, `useStatusOptions`.
  *
  * It takes the hook's whole result rather than a dozen unpacked props: the
  * three metadata-filterable pages would otherwise repeat the same thirteen-line
@@ -153,6 +154,34 @@ function TypeCatalogFilter({
       value={value}
       onChange={onChange}
       options={types.map(type => ({ value: type.slug, label: type.name }))}
+    />
+  )
+}
+
+/**
+ * The status vocabulary: the descriptor's system values, then the team's custom
+ * statuses (#1263). Same reasoning as `TypeCatalogFilter`.
+ *
+ * The page holds its list request back for a URL value the catalog has not
+ * confirmed yet, through the same `isPending` — so until the answer arrives
+ * the control shows that value as selected (by its slug) rather than claiming
+ * "All statuses". After it, the value reads by its display name, or the page
+ * drops it and the control says "All statuses", as for any unknown value.
+ */
+function StatusCatalogFilter({
+  spec,
+  value,
+  onChange,
+  descriptor,
+}: Readonly<FilterControlProps & { descriptor: ResourceDescriptor }>) {
+  const { options, isPending } = useStatusOptions(descriptor)
+  const pending = value !== FILTER_ALL && isPending(value)
+  return (
+    <SelectFilter
+      spec={spec}
+      value={value}
+      onChange={onChange}
+      options={pending ? [...options, { value, label: value }] : [...options]}
     />
   )
 }
@@ -283,6 +312,17 @@ function ResourceFilterControl({
         value={value}
         onChange={onChange}
         resourceType={descriptor.plural}
+      />
+    )
+  }
+
+  if (spec.optionsFrom === 'statuses') {
+    return (
+      <StatusCatalogFilter
+        spec={spec}
+        value={value}
+        onChange={onChange}
+        descriptor={descriptor}
       />
     )
   }

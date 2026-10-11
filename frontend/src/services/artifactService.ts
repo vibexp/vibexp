@@ -19,10 +19,6 @@ export type CreateArtifactRequest =
 export type UpdateArtifactRequest =
   components['schemas']['UpdateArtifactRequest']
 
-// Status union, derived from the generated `Artifact` schema; `type` is the open
-// string described above, surfaced dynamically via `useTypes()`.
-export type ArtifactStatus = Artifact['status']
-
 // List query params, sourced from the generated operations (the by-project variant
 // carries `project_id` in the path, so its query omits it).
 export type ArtifactFilters = NonNullable<

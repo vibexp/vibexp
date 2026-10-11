@@ -13,8 +13,7 @@ import {
   ResourceMetadataSection,
   resourceRegistry,
   ResourceTaxonomySection,
-  statusLabel,
-  statusTone,
+  useStatusOptions,
 } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -41,6 +40,7 @@ export function ArtifactView() {
   const { project, slug } = useParams<{ project: string; slug: string }>()
   const navigate = useNavigate()
   const { currentTeam, isLoading: isLoadingTeam } = useTeam()
+  const statusOptions = useStatusOptions(resourceRegistry.artifact)
   const { canDeleteResource } = usePermissions()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
@@ -211,8 +211,8 @@ export function ArtifactView() {
       <ResourceReadingPage
         title={artifact.title}
         status={{
-          value: statusLabel('artifact', artifact.status),
-          tone: statusTone('artifact', artifact.status),
+          value: statusOptions.labelOf(artifact.status),
+          tone: statusOptions.toneOf(artifact.status),
         }}
         address={{ value: artifact.slug }}
         updatedAt={artifact.updated_at}
@@ -229,6 +229,7 @@ export function ArtifactView() {
               descriptor={resourceRegistry.artifact}
               resource={artifact}
               versionHistory={versionHistory}
+              statusLabel={statusOptions.labelOf}
               project={artifact.project}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />

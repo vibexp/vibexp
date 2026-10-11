@@ -14,7 +14,7 @@ import {
 } from '@/components/patterns/list-page'
 import {
   getResourceDescriptor,
-  roleValues,
+  useStatusOptions,
 } from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
@@ -36,11 +36,7 @@ import type {
 import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
-type PromptStatus = NonNullable<PromptFiltersType['status']>
-
 const PROMPT = getResourceDescriptor('prompt')
-
-const PROMPT_STATUSES = roleValues(PROMPT, 'status')
 
 const PAGE_SIZE = 20
 
@@ -71,16 +67,6 @@ const FILTER_DEFAULTS = {
   sort_order: 'desc',
 }
 
-/**
- * `status` is an enum the API 400s on, so whatever the URL happens to contain
- * must be validated rather than forwarded. `labels` needs no such guard: it is
- * an open list matched against the team's own labels, and an unknown label
- * simply matches nothing.
- */
-function coerceStatus(value: string): PromptStatus | undefined {
-  return PROMPT_STATUSES.has(value) ? value : undefined
-}
-
 /** The tri-state stays a string in the URL; only the request sees a boolean. */
 function coerceShared(value: string): boolean | undefined {
   if (value === 'shared') return true
@@ -96,6 +82,7 @@ function toSharedFilter(shared: boolean | undefined): SharedFilter {
 export function Prompts() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
+  const statusOptions = useStatusOptions(PROMPT)
   const { canDeleteResource } = usePermissions()
   const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
@@ -131,8 +118,17 @@ export function Prompts() {
   // Bumped after a delete to re-run the fetch effect without duplicating it.
   const [reloadToken, setReloadToken] = useState(0)
 
+  // A status is a system value or one of the team's custom statuses (#1263),
+  // which only the catalog knows. The API 400s on anything else, so an unknown
+  // URL value is dropped — but only once the catalog has answered: until then
+  // the list waits, because sending the value could 400 and dropping it would
+  // strip a custom status filter from a reloaded page.
+  const statusPending =
+    filters.status !== FILTER_ALL && statusOptions.isPending(filters.status)
   const status =
-    filters.status === FILTER_ALL ? undefined : coerceStatus(filters.status)
+    filters.status !== FILTER_ALL && statusOptions.has(filters.status)
+      ? filters.status
+      : undefined
   const labels = filters.labels || undefined
   const shared =
     filters.shared === FILTER_ALL ? undefined : coerceShared(filters.shared)
@@ -184,8 +180,9 @@ export function Prompts() {
 
   const state = useResourceListQuery({
     // Wait for a persisted project selection to restore, so the first fetch is
-    // already scoped instead of flashing unfiltered results.
-    ready: !!currentTeam && !isProjectLoading,
+    // already scoped instead of flashing unfiltered results — and for the
+    // status catalog, when the URL filters on a status only it can confirm.
+    ready: !!currentTeam && !isProjectLoading && !statusPending,
     load,
     reloadToken,
     errorFallback: 'Failed to fetch prompts',
@@ -220,8 +217,9 @@ export function Prompts() {
         navigate,
         onDelete: setPromptToDelete,
         canDelete: prompt => canDeleteResource(prompt.user_id),
+        statusLabel: statusOptions.labelOf,
       }),
-    [navigate, canDeleteResource]
+    [navigate, canDeleteResource, statusOptions.labelOf]
   )
 
   const listStatus = listPageStatus(

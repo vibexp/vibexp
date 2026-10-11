@@ -12,6 +12,21 @@ vi.mock('@/hooks/useTypes', () => ({
   }),
 }))
 
+// The team's status catalog (#1263), settable per test. Empty and answered by
+// default: a team with no custom statuses.
+const catalog = vi.hoisted(() => ({
+  statuses: [] as unknown[],
+  isLoading: false,
+}))
+vi.mock('@/hooks/useStatusCatalog', () => ({
+  useStatusCatalog: () => catalog,
+}))
+
+/** A custom status row, as the statuses endpoint returns it. */
+function customStatus(slug: string, name: string) {
+  return { slug, name, is_system: false }
+}
+
 vi.mock('@/contexts/TeamContext', () => {
   const currentTeam = { id: 'team-1', name: 'Test Team', permissions: [] }
   return {
@@ -107,6 +122,8 @@ function renderBar({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  catalog.statuses = []
+  catalog.isLoading = false
   getPromptLabels.mockResolvedValue(['api', 'review'])
 })
 
@@ -292,5 +309,71 @@ describe('ResourceFilterBar', () => {
     expect(
       within(container).getByTestId('artifact-freshness-filter')
     ).toBeInTheDocument()
+  })
+})
+
+describe('ResourceFilterBar — custom statuses', () => {
+  const kinds: ResourceKindKey[] = ['prompt', 'artifact', 'blueprint', 'memory']
+
+  it.each(kinds)(
+    'offers the %s team statuses after the system ones, by display name',
+    async kind => {
+      catalog.statuses = [customStatus('in-review', 'In review')]
+      const user = userEvent.setup()
+      renderBar({ kind })
+
+      await user.click(screen.getByLabelText('Filter by status'))
+      const options = (await screen.findAllByRole('option')).map(
+        option => option.textContent
+      )
+
+      expect(options.at(0)).toBe('All statuses')
+      expect(options.at(-1)).toBe('In review')
+      // System values first: the custom one is the only addition.
+      const system = getResourceDescriptor(kind).fields.find(
+        field => field.role === 'status'
+      )?.statusValues
+      expect(options).toHaveLength((system?.length ?? 0) + 2)
+    }
+  )
+
+  it('emits the slug, not the display name, when a custom status is picked', async () => {
+    catalog.statuses = [customStatus('in-review', 'In review')]
+    const user = userEvent.setup()
+    renderBar({ kind: 'artifact' })
+
+    await user.click(screen.getByLabelText('Filter by status'))
+    await user.click(await screen.findByRole('option', { name: 'In review' }))
+
+    expect(setFilters).toHaveBeenCalledWith({ status: 'in-review' })
+  })
+
+  it('shows a selected custom status by its display name', () => {
+    catalog.statuses = [customStatus('in-review', 'In review')]
+    renderBar({ kind: 'memory', values: { status: 'in-review' } })
+
+    expect(screen.getByLabelText('Filter by status')).toHaveTextContent(
+      'In review'
+    )
+  })
+
+  // The page keeps an unknown URL value in the request until the catalog has
+  // answered, so the control must not read "All statuses" over a filtered list.
+  it('shows an unconfirmed URL value as selected while the catalog loads', () => {
+    catalog.isLoading = true
+    renderBar({ kind: 'memory', values: { status: 'in-review' } })
+
+    expect(screen.getByLabelText('Filter by status')).toHaveTextContent(
+      'in-review'
+    )
+  })
+
+  it('shows "All statuses" for a value the answered catalog does not contain', () => {
+    catalog.statuses = [customStatus('in-review', 'In review')]
+    renderBar({ kind: 'memory', values: { status: 'deleted-elsewhere' } })
+
+    expect(screen.getByLabelText('Filter by status')).toHaveTextContent(
+      'All statuses'
+    )
   })
 })

@@ -136,7 +136,7 @@ describe('useResourceForm — controls', () => {
     )
   })
 
-  it('renders a select trigger for a field-backed status', () => {
+  it('renders a select trigger for the status, on its first system value', () => {
     renderPage(memoryDescriptor)
     expect(screen.getByTestId('memory-status-select')).toHaveTextContent(
       'Active'

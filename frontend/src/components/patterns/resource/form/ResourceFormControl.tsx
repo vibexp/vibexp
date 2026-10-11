@@ -17,7 +17,8 @@ import { cn } from '@/lib/utils'
 
 import { ResourceBodyEditor } from '../editor'
 import { fieldValues } from '../statusTone'
-import type { FieldSpec, FormFieldSpec } from '../types'
+import type { FieldSpec, FormFieldSpec, ResourceDescriptor } from '../types'
+import { useStatusOptions } from '../useStatusOptions'
 import { TaxonomyInput } from './TaxonomyInput'
 
 /** What a `body` control is handed, so a page can substitute its own editor. */
@@ -64,8 +65,11 @@ export interface ResourceFormControlProps extends SlotProps {
   /** The descriptor field the control edits — its label and value vocabulary. */
   field: FieldSpec | undefined
   label: string
-  /** The team resource type whose registered types a `types` select lists. */
-  resourceType: string
+  /**
+   * The resource the form edits — whose registered types a `types` select
+   * lists, and whose status catalog a `statuses` select lists.
+   */
+  descriptor: ResourceDescriptor
   value: unknown
   onChange: (next: unknown) => void
   disabled: boolean
@@ -219,6 +223,37 @@ function TypeCatalogSelect(
 }
 
 /**
+ * A select over the resource's status vocabulary: the descriptor's system
+ * values, then the team's custom statuses (#1263). Its own component for the
+ * same reason as `TypeCatalogSelect`.
+ *
+ * The value the form holds is always offered, even when the vocabulary does
+ * not contain it — a status deleted elsewhere, or a catalog that failed to
+ * load. Radix renders an empty trigger for a value no `SelectItem` owns, and a
+ * blank Status the user never chose would read as data loss; the raw slug is
+ * the honest thing to show, and saving it unchanged is still up to the server.
+ */
+function StatusCatalogSelect(
+  props: Readonly<
+    Omit<OptionSelectProps, 'options'> & { descriptor: ResourceDescriptor }
+  >
+) {
+  const { descriptor, ...rest } = props
+  const { options, has } = useStatusOptions(descriptor)
+  const current = rest.value
+  return (
+    <OptionSelect
+      {...rest}
+      options={
+        current === '' || has(current)
+          ? options
+          : [...options, { value: current, label: current }]
+      }
+    />
+  )
+}
+
+/**
  * One control of a generated resource form.
  *
  * Kept out of `useResourceForm` so the form stays a set of slots: the switch here is
@@ -229,7 +264,7 @@ export function ResourceFormControl({
   spec,
   field,
   label,
-  resourceType,
+  descriptor,
   value,
   onChange,
   disabled,
@@ -308,7 +343,12 @@ export function ResourceFormControl({
         variant,
       }
       if (spec.optionsFrom === 'types') {
-        return <TypeCatalogSelect {...shared} resourceType={resourceType} />
+        return (
+          <TypeCatalogSelect {...shared} resourceType={descriptor.plural} />
+        )
+      }
+      if (spec.optionsFrom === 'statuses') {
+        return <StatusCatalogSelect {...shared} descriptor={descriptor} />
       }
       const labels = new Map(Object.entries(field?.valueLabels ?? {}))
       return (

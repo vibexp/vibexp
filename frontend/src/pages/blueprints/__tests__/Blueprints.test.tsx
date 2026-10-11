@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import type { Mock } from 'vitest'
@@ -8,6 +8,17 @@ import type {
   BlueprintListResponse,
 } from '@/services/blueprintService'
 import type { Project } from '@/services/projectService'
+
+// The team's status catalog (#1263), settable per test. Empty and answered by
+// default — a team with no custom statuses — so every other case in this file
+// sees the page exactly as the descriptor alone describes it.
+const statusCatalog = vi.hoisted(() => ({
+  statuses: [] as unknown[],
+  isLoading: false,
+}))
+vi.mock('@/hooks/useStatusCatalog', () => ({
+  useStatusCatalog: () => statusCatalog,
+}))
 
 // Mock Radix Select (BlueprintFilters type dropdown) — it can loop in JSDOM.
 // onValueChange stays wired so tests can pick a type as a plain button.
@@ -1141,5 +1152,122 @@ describe('Blueprints page — status filter (#908)', () => {
       expect(lastQuery().status).toBeUndefined()
     })
     expect(currentSearch).toBe('')
+  })
+})
+
+describe('Blueprints page — custom statuses (#1263)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions([])
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
+      buildListResponse([])
+    )
+    statusCatalog.statuses = [
+      { slug: 'in-review', name: 'In review', is_system: false },
+    ]
+    statusCatalog.isLoading = false
+  })
+
+  afterEach(() => {
+    statusCatalog.statuses = []
+    statusCatalog.isLoading = false
+  })
+
+  it('applies a custom status from the URL and sends its slug to the API', async () => {
+    renderBlueprints('/blueprints?status=in-review')
+
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBe('in-review')
+  })
+
+  // A reload: the page mounts before the catalog has answered. Sending the
+  // value could 400 (it may be junk); dropping it would strip the filter the
+  // user reloaded with. So the list waits for the answer.
+  it('holds the list request for an unconfirmed status until the catalog answers, then sends it', async () => {
+    statusCatalog.statuses = []
+    statusCatalog.isLoading = true
+    const view = renderBlueprints('/blueprints?status=in-review')
+
+    // Long enough for a request that was going to fire to have fired.
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20))
+    })
+    expect(blueprintService.getBlueprints).not.toHaveBeenCalled()
+
+    statusCatalog.statuses = [
+      { slug: 'in-review', name: 'In review', is_system: false },
+    ]
+    statusCatalog.isLoading = false
+    view.rerender(blueprintsTree('/blueprints?status=in-review'))
+
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalledTimes(1)
+    })
+    expect(lastQuery().status).toBe('in-review')
+  })
+
+  it('sends no status, and never the unknown value, once the catalog answers without it', async () => {
+    statusCatalog.statuses = []
+    statusCatalog.isLoading = true
+    const view = renderBlueprints('/blueprints?status=deleted-elsewhere')
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20))
+    })
+    expect(blueprintService.getBlueprints).not.toHaveBeenCalled()
+
+    statusCatalog.isLoading = false
+    view.rerender(blueprintsTree('/blueprints?status=deleted-elsewhere'))
+
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalledTimes(1)
+    })
+    expect(lastQuery().status).toBeUndefined()
+  })
+
+  it('does not wait for the catalog to filter on a system status', async () => {
+    statusCatalog.statuses = []
+    statusCatalog.isLoading = true
+    renderBlueprints('/blueprints?status=active')
+
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBe('active')
+  })
+
+  it('drops a status that is in neither the descriptor nor the answered catalog', async () => {
+    renderBlueprints('/blueprints?status=deleted-elsewhere')
+
+    await waitFor(() => {
+      expect(blueprintService.getBlueprints).toHaveBeenCalled()
+    })
+    expect(lastQuery().status).toBeUndefined()
+  })
+
+  it('shows a custom status by its display name, in a neutral badge', async () => {
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
+      buildListResponse([buildBlueprint({ status: 'in-review' })])
+    )
+    renderBlueprints()
+
+    // Scoped to the table: the filter bar offers the same name as an option.
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('In review')).toHaveClass('bg-muted')
+  })
+
+  it('shows the raw slug, in a neutral badge, for a status the catalog no longer has', async () => {
+    statusCatalog.statuses = []
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
+      buildListResponse([buildBlueprint({ status: 'in-review' })])
+    )
+    renderBlueprints()
+
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('in-review')).toHaveClass('bg-muted')
   })
 })

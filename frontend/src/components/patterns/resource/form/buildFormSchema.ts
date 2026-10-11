@@ -108,10 +108,11 @@ function scalarSchema(spec: FormFieldSpec, label: string): z.ZodType {
 
 /**
  * A `select` over an exhaustive vocabulary is an enum, so a value the API
- * cannot accept fails here rather than in a 400. A select over the team's
- * runtime type catalog cannot be — the vocabulary is not known at build time —
- * so it degrades to "some value was chosen", which is the same guarantee the
- * hand-written artifact form gave.
+ * cannot accept fails here rather than in a 400. A select over a runtime
+ * catalog — the team's types, the team's statuses — cannot be: the vocabulary
+ * is not known at build time, so it degrades to "some value was chosen" (within
+ * the field's length cap). The server is the authority there and answers an
+ * unknown status with a 400 naming the allowed values, which the form shows.
  */
 function selectSchema(
   spec: FormFieldSpec,
@@ -182,10 +183,14 @@ function scalarDefault(
   current: unknown
 ): string {
   if (typeof current === 'string' && current !== '') return current
-  // A select over an exhaustive vocabulary opens on its first value — which is
-  // the default every hand-written form already picked (`active`, `draft`,
-  // `general`), now read off the descriptor instead of retyped per page.
-  if (spec.control === 'select' && spec.optionsFrom === 'field') {
+  // A select whose field declares values opens on the first one — which is the
+  // default every hand-written form already picked (`active`, `draft`,
+  // `general`), now read off the descriptor instead of retyped per page. For a
+  // status that is the first SYSTEM value: the catalog only adds to it.
+  if (
+    spec.control === 'select' &&
+    (spec.optionsFrom === 'field' || spec.optionsFrom === 'statuses')
+  ) {
     return fieldValues(field).at(0) ?? ''
   }
   return ''

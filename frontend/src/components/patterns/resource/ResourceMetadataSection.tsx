@@ -61,6 +61,12 @@ export interface ResourceMetadataSectionProps {
    * descriptor makes editable can go missing.
    */
   controls?: ReadonlyMap<string, ReactNode>
+  /**
+   * Display text for a status value — `useStatusOptions(descriptor).labelOf`,
+   * so a team's custom status reads by its display name (#1263). Defaults to
+   * the descriptor's own labels, which is all a closed status has.
+   */
+  statusLabel?: (value: string) => string
   className?: string
 }
 
@@ -196,6 +202,7 @@ export function ResourceMetadataSection({
   project,
   projectHref,
   controls: controlNodes,
+  statusLabel,
   className,
 }: Readonly<ResourceMetadataSectionProps>) {
   const fields = partition(descriptor)
@@ -212,7 +219,7 @@ export function ResourceMetadataSection({
     ...stringFieldRows(fields.status, resource, controls, (field, value) => (
       <MetaRow key={`status:${field.key}`} label={field.label}>
         <StatusBadge tone={fieldTone(field, value)}>
-          {fieldLabel(field, value)}
+          {statusLabel ? statusLabel(value) : fieldLabel(field, value)}
         </StatusBadge>
       </MetaRow>
     )),

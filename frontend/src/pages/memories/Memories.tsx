@@ -14,7 +14,7 @@ import {
 } from '@/components/patterns/list-page'
 import {
   getResourceDescriptor,
-  roleValues,
+  useStatusOptions,
 } from '@/components/patterns/resource'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
@@ -25,19 +25,13 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceListFilters } from '@/hooks/useResourceListFilters'
 import { useResourceListQuery } from '@/hooks/useResourceListQuery'
 import { buildMemoriesColumns } from '@/pages/memories/memoriesColumns'
-import type {
-  Memory,
-  MemoryFilters,
-  MemoryStatus,
-} from '@/services/memoryService'
+import type { Memory, MemoryFilters } from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 const MEMORY = getResourceDescriptor('memory')
-
-const MEMORY_STATUSES = roleValues(MEMORY, 'status')
 
 const PAGE_SIZE = 20
 
@@ -59,17 +53,10 @@ const FILTER_DEFAULTS = {
   sort_order: 'desc',
 }
 
-/**
- * The API rejects a `status` outside its enum with a 400, so the page must not
- * forward whatever the URL happens to contain.
- */
-function coerceStatus(value: string): MemoryStatus | undefined {
-  return MEMORY_STATUSES.has(value) ? value : undefined
-}
-
 export function Memories() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
+  const statusOptions = useStatusOptions(MEMORY)
   const { canDeleteResource } = usePermissions()
   const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
@@ -108,8 +95,17 @@ export function Memories() {
   // Bumped after a delete to re-run the fetch without duplicating it.
   const [reloadToken, setReloadToken] = useState(0)
 
+  // A status is a system value or one of the team's custom statuses (#1263),
+  // which only the catalog knows. The API 400s on anything else, so an unknown
+  // URL value is dropped — but only once the catalog has answered: until then
+  // the list waits, because sending the value could 400 and dropping it would
+  // strip a custom status filter from a reloaded page.
+  const statusPending =
+    filters.status !== FILTER_ALL && statusOptions.isPending(filters.status)
   const status =
-    filters.status === FILTER_ALL ? undefined : coerceStatus(filters.status)
+    filters.status !== FILTER_ALL && statusOptions.has(filters.status)
+      ? filters.status
+      : undefined
   // The API accepts only `stale` and 400s on anything else, so a junk URL value
   // must be dropped rather than forwarded.
   const freshness =
@@ -156,8 +152,9 @@ export function Memories() {
 
   const state = useResourceListQuery({
     // Wait for a persisted project selection to restore, so the first fetch is
-    // already scoped instead of flashing unfiltered results.
-    ready: !!currentTeam && !isProjectLoading,
+    // already scoped instead of flashing unfiltered results — and for the
+    // status catalog, when the URL filters on a status only it can confirm.
+    ready: !!currentTeam && !isProjectLoading && !statusPending,
     load,
     reloadToken,
     errorFallback: 'Failed to fetch memories',
@@ -212,8 +209,9 @@ export function Memories() {
         // which made the column flicker while paginating (#518).
         includeTags: true,
         projects,
+        statusLabel: statusOptions.labelOf,
       }),
-    [navigate, projects, canDeleteResource]
+    [navigate, projects, canDeleteResource, statusOptions.labelOf]
   )
 
   const listStatus = listPageStatus(

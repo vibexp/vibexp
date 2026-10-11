@@ -19,14 +19,17 @@ export function searchFilter(plural: string): FilterSpec {
   return { key: 'search', control: 'search', label: `Search ${plural}` }
 }
 
-/** The lifecycle badge, read off the kind's own `status` field. */
+/**
+ * The lifecycle badge: the kind's own system statuses plus the team's custom
+ * ones, which only the catalog knows (#1263).
+ */
 export function statusFilter(kind: string): FilterSpec {
   return {
     key: 'status',
     control: 'select',
     label: 'Filter by status',
     allLabel: 'All statuses',
-    optionsFrom: 'field',
+    optionsFrom: 'statuses',
     testId: `${kind}-status-filter`,
   }
 }

@@ -13,8 +13,7 @@ import {
   ResourceMetadataSection,
   resourceRegistry,
   ResourceTaxonomySection,
-  statusLabel,
-  statusTone,
+  useStatusOptions,
 } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -37,6 +36,7 @@ export function MemoryView() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { currentTeam, isLoading: isLoadingTeam } = useTeam()
+  const statusOptions = useStatusOptions(resourceRegistry.memory)
   const { canDeleteResource } = usePermissions()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
@@ -193,8 +193,8 @@ export function MemoryView() {
       <ResourceReadingPage
         title={title}
         status={{
-          value: statusLabel('memory', memory.status),
-          tone: statusTone('memory', memory.status),
+          value: statusOptions.labelOf(memory.status),
+          tone: statusOptions.toneOf(memory.status),
         }}
         updatedAt={memory.updated_at}
         actions={actions}
@@ -214,6 +214,7 @@ export function MemoryView() {
               descriptor={resourceRegistry.memory}
               resource={memory}
               versionHistory={versionHistory}
+              statusLabel={statusOptions.labelOf}
               project={memory.project}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />

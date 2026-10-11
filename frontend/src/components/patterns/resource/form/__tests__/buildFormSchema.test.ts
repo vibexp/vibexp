@@ -173,26 +173,77 @@ describe('buildFormSchema', () => {
   })
 
   describe('select fields', () => {
-    it('rejects a status value the resource cannot be in', () => {
+    it('rejects a value outside a closed vocabulary', () => {
       expect(
         errorAt(
-          memoryDescriptor,
-          { ...valid(memoryDescriptor), status: 'published' },
-          'status'
+          blueprintDescriptor,
+          { ...valid(blueprintDescriptor), type: 'not-a-blueprint-type' },
+          'type'
         )
       ).toBeDefined()
     })
 
-    it('accepts every value the descriptor enumerates', () => {
-      for (const status of ['active', 'draft', 'archived']) {
+    it('accepts every value a closed vocabulary enumerates', () => {
+      for (const type of [
+        'general',
+        'claude-code',
+        'claude',
+        'cursor',
+        'codex',
+      ]) {
         expect(
           errorAt(
-            memoryDescriptor,
-            { ...valid(memoryDescriptor), status },
-            'status'
+            blueprintDescriptor,
+            { ...valid(blueprintDescriptor), type },
+            'type'
           )
         ).toBeUndefined()
       }
+    })
+
+    // A status is a system value or one of the team's custom statuses (#1263):
+    // the vocabulary is a runtime catalog, so the schema cannot be an enum and
+    // the server is the authority on which slugs exist.
+    describe.each([
+      ['prompt', promptDescriptor],
+      ['artifact', artifactDescriptor],
+      ['blueprint', blueprintDescriptor],
+      ['memory', memoryDescriptor],
+    ])('%s status', (_kind, descriptor) => {
+      it('accepts every system status', () => {
+        const field = descriptor.fields.find(f => f.role === 'status')
+        for (const status of field?.statusValues ?? []) {
+          expect(
+            errorAt(descriptor, { ...valid(descriptor), status }, 'status')
+          ).toBeUndefined()
+        }
+      })
+
+      it('accepts a custom status slug the descriptor does not declare', () => {
+        expect(
+          errorAt(
+            descriptor,
+            { ...valid(descriptor), status: 'in-review' },
+            'status'
+          )
+        ).toBeUndefined()
+      })
+
+      it('rejects an empty status', () => {
+        expect(
+          errorAt(descriptor, { ...valid(descriptor), status: '' }, 'status')
+        ).toBe(requiredMessage('Status'))
+      })
+
+      it('rejects a status longer than a slug can be', () => {
+        expect(
+          errorAt(
+            descriptor,
+            { ...valid(descriptor), status: 'x'.repeat(51) },
+            'status'
+          )
+        ).toBe(maxLengthMessage('Status', 50))
+      })
     })
 
     it('accepts any non-empty value for a runtime type catalog', () => {
@@ -299,9 +350,20 @@ describe('defaultFormValues', () => {
   })
 
   it('opens a field-backed select on the descriptor’s first value', () => {
-    expect(defaultFormValues(memoryDescriptor).status).toBe('active')
-    expect(defaultFormValues(promptDescriptor).status).toBe('draft')
     expect(defaultFormValues(blueprintDescriptor).type).toBe('general')
+  })
+
+  it('opens a status select on the first SYSTEM status', () => {
+    expect(defaultFormValues(memoryDescriptor).status).toBe('active')
+    expect(defaultFormValues(artifactDescriptor).status).toBe('active')
+    expect(defaultFormValues(blueprintDescriptor).status).toBe('active')
+    expect(defaultFormValues(promptDescriptor).status).toBe('draft')
+  })
+
+  it('keeps a custom status the resource already carries', () => {
+    expect(
+      defaultFormValues(memoryDescriptor, { status: 'in-review' }).status
+    ).toBe('in-review')
   })
 
   it('leaves a runtime-catalog select empty — the catalog is not known yet', () => {
