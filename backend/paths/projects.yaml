@@ -411,7 +411,9 @@ api-v1-team_id-projects-slug:
     summary: Delete project
     description: |
       Deletes a project identified by its slug. The last remaining project in
-      a team cannot be deleted (returns 400).
+      a team cannot be deleted (returns 400). A project that contains a locked
+      prompt, blueprint or artifact cannot be deleted either (returns 423):
+      unlock them first.
     operationId: deleteProject
     security:
       - ApiKeyAuth: []
@@ -457,6 +459,14 @@ api-v1-team_id-projects-slug:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '423':
+        description: >-
+          The project contains a locked prompt, blueprint or artifact
+          (code `HAS_LOCKED_RESOURCES`). Nothing was changed; the locked resources are in `metadata.locked_resources`.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HasLockedResourcesError'
       '500':
         description: Internal server error
         content:
@@ -541,6 +551,9 @@ api-v1-team_id-projects-project_id-migration:
       Slug collisions are handled per the requested conflict policy
       (skip, rename, or overwrite; defaults to skip). Returns per-type
       migrated counts plus skipped/failed outcomes with a 200 status.
+      The migration is refused (423) while the source project contains a locked
+      prompt, blueprint or artifact, whether or not it was selected: unlock
+      them first.
     operationId: migrateProject
     security:
       - ApiKeyAuth: []
@@ -597,6 +610,14 @@ api-v1-team_id-projects-project_id-migration:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '423':
+        description: >-
+          The source project contains a locked prompt, blueprint or artifact
+          (code `HAS_LOCKED_RESOURCES`). Nothing was changed; the locked resources are in `metadata.locked_resources`.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HasLockedResourcesError'
       '500':
         description: Internal server error
         content:

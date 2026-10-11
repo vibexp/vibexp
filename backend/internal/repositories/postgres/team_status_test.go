@@ -10,6 +10,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -37,6 +38,23 @@ func newTeamStatusMockRepo(t *testing.T) (repositories.TeamStatusRepository, sql
 	db, mock, mockDB := newSquirrelMockRepo(t)
 	t.Cleanup(func() { closeMockDB(t, mockDB) })
 	return NewTeamStatusRepository(db), mock
+}
+
+// lockedStatusPattern matches the guard that lists a table's locked rows
+// carrying a status (issue #1290), and lockedStatusOnePattern its single-row
+// twin.
+func lockedStatusPattern(table string) string {
+	return `FROM ` + table + ` WHERE team_id = \$1 AND status = \$2 AND locked_by IS NOT NULL`
+}
+
+func lockedStatusOnePattern(table string) string {
+	return `FROM ` + table + ` WHERE team_id = \$1 AND status = \$2 AND id = \$3 AND locked_by IS NOT NULL`
+}
+
+// expectNoLockedStatusUse expects the delete's lock check on table to find
+// nothing, for the status row teamStatusRow returns.
+func expectNoLockedStatusUse(mock sqlmock.Sqlmock, table string) {
+	expectLockedResources(mock, lockedStatusPattern(table), []driver.Value{"team-1", "in-review"})
 }
 
 func teamStatusRow(createdBy any) *sqlmock.Rows {
@@ -208,6 +226,7 @@ func TestTeamStatusRepository_AuditedWrites_FailTogether(t *testing.T) {
 		"delete": {
 			change: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(teamStatusDeleteQuery).WillReturnRows(teamStatusRow(nil))
+				expectNoLockedStatusUse(mock, "artifacts")
 				mock.ExpectExec(`SELECT set_config`).WillReturnResult(sqlmock.NewResult(0, 0))
 				mock.ExpectExec(`UPDATE artifacts SET status`).WillReturnResult(sqlmock.NewResult(0, 3))
 			},
@@ -550,6 +569,7 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 		repo, mock := newTeamStatusMockRepo(t)
 		mock.ExpectBegin()
 		mock.ExpectQuery(deleteQuery).WithArgs("team-1", "status-1").WillReturnRows(teamStatusRow("user-1"))
+		expectNoLockedStatusUse(mock, "artifacts")
 		mock.ExpectExec(preserveQuery).WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectExec(reassignQuery).WithArgs("team-1", "active", "in-review").
 			WillReturnResult(sqlmock.NewResult(0, 7))
@@ -582,6 +602,10 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 				WillReturnRows(sqlmock.NewRows(teamStatusTestColumns).AddRow(
 					"status-1", "team-1", resourceType, "in-review", "In review", nil,
 					teamStatusTestNow, teamStatusTestNow))
+			// Memories cannot be locked, so their delete runs no lock check.
+			if resourceType != models.StatusResourceTypeMemory {
+				expectNoLockedStatusUse(mock, table)
+			}
 			mock.ExpectExec(preserveQuery).WillReturnResult(sqlmock.NewResult(0, 0))
 			mock.ExpectExec(`UPDATE `+table+` SET status = \$2 WHERE team_id = \$1 AND status = \$3`).
 				WithArgs("team-1", "draft", "in-review").WillReturnResult(sqlmock.NewResult(0, 1))
@@ -620,10 +644,48 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
+	// status is a frozen field of a locked resource (issue #1290). The guard
+	// runs after the DELETE and before the reassignment: no UPDATE and no audit
+	// entry are expected, and the rollback restores the status row.
+	t.Run("a locked resource carrying the status refuses the delete and rolls back", func(t *testing.T) {
+		for resourceType, table := range map[string]string{
+			models.StatusResourceTypePrompt:    "prompts",
+			models.StatusResourceTypeArtifact:  "artifacts",
+			models.StatusResourceTypeBlueprint: "blueprints",
+		} {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectBegin()
+			mock.ExpectQuery(deleteQuery).WithArgs("team-1", "status-1").
+				WillReturnRows(sqlmock.NewRows(teamStatusTestColumns).AddRow(
+					"status-1", "team-1", resourceType, "in-review", "In review", nil,
+					teamStatusTestNow, teamStatusTestNow))
+			expectLockedResources(mock, lockedStatusPattern(table),
+				[]driver.Value{"team-1", "in-review"}, lockedTestArtifact)
+			mock.ExpectRollback()
+
+			audit := &statusAuditRecorder{}
+			deleted, reassigned, err := repo.DeleteAndReassign(ctx, "team-1", "status-1", "active", audit.build)
+			assertRefusedByLock(t, err, repositories.ErrTeamStatusUsedByLockedResource, lockedTestArtifact)
+			assert.Nil(t, deleted, resourceType)
+			assert.Zero(t, reassigned, resourceType)
+			assert.Empty(t, audit.changes, resourceType)
+			assert.NoError(t, mock.ExpectationsWereMet(), resourceType)
+		}
+	})
+
 	failures := map[string]struct {
 		arrange func(mock sqlmock.Sqlmock)
 		msg     string
 	}{
+		"lock check": {
+			arrange: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectQuery(deleteQuery).WillReturnRows(teamStatusRow(nil))
+				mock.ExpectQuery(lockedStatusPattern("artifacts")).WillReturnError(errTeamStatusBoom)
+				mock.ExpectRollback()
+			},
+			msg: "failed to query locked resources",
+		},
 		"delete": {
 			arrange: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
@@ -636,6 +698,7 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 			arrange: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectQuery(deleteQuery).WillReturnRows(teamStatusRow(nil))
+				expectNoLockedStatusUse(mock, "artifacts")
 				mock.ExpectExec(preserveQuery).WillReturnError(errTeamStatusBoom)
 				mock.ExpectRollback()
 			},
@@ -645,6 +708,7 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 			arrange: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectQuery(deleteQuery).WillReturnRows(teamStatusRow(nil))
+				expectNoLockedStatusUse(mock, "artifacts")
 				mock.ExpectExec(preserveQuery).WillReturnResult(sqlmock.NewResult(0, 0))
 				mock.ExpectExec(reassignQuery).WillReturnError(errTeamStatusBoom)
 				mock.ExpectRollback()
@@ -655,6 +719,7 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 			arrange: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectQuery(deleteQuery).WillReturnRows(teamStatusRow(nil))
+				expectNoLockedStatusUse(mock, "artifacts")
 				mock.ExpectExec(preserveQuery).WillReturnResult(sqlmock.NewResult(0, 0))
 				mock.ExpectExec(reassignQuery).WillReturnResult(sqlmock.NewErrorResult(errTeamStatusBoom))
 				mock.ExpectRollback()
@@ -734,12 +799,71 @@ func TestTeamStatusRepository_ReassignResource(t *testing.T) {
 		})
 	}
 
-	// Something else already moved the resource: that is the outcome wanted.
-	t.Run("no matching row is not an error", func(t *testing.T) {
-		repo, mock := newTeamStatusMockRepo(t)
-		mock.ExpectExec(`UPDATE artifacts`).WillReturnResult(sqlmock.NewResult(0, 0))
+	lockable := map[string]string{
+		models.StatusResourceTypePrompt:    "prompts",
+		models.StatusResourceTypeArtifact:  "artifacts",
+		models.StatusResourceTypeBlueprint: "blueprints",
+	}
 
-		require.NoError(t, repo.ReassignResource(ctx, "team-1", "artifact", "resource-1", "in-review", "active"))
+	// status is a frozen field of a locked resource (issue #1290), so the
+	// repair skips a locked row in the UPDATE itself.
+	t.Run("the repair of a lockable table never matches a locked row", func(t *testing.T) {
+		for resourceType, table := range lockable {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectExec(`UPDATE `+table+` SET status = \$2 `+
+				`WHERE team_id = \$1 AND status = \$3 AND id = \$4 AND locked_by IS NULL`).
+				WithArgs("team-1", "active", "in-review", "resource-1").
+				WillReturnResult(sqlmock.NewResult(0, 1))
+
+			require.NoError(t,
+				repo.ReassignResource(ctx, "team-1", resourceType, "resource-1", "in-review", "active"), resourceType)
+			assert.NoError(t, mock.ExpectationsWereMet(), resourceType)
+		}
+	})
+
+	// Something else already moved the resource: that is the outcome wanted.
+	t.Run("no matching row that is not locked is not an error", func(t *testing.T) {
+		for resourceType, table := range lockable {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectExec(`UPDATE ` + table).WillReturnResult(sqlmock.NewResult(0, 0))
+			expectLockedResources(mock, lockedStatusOnePattern(table),
+				[]driver.Value{"team-1", "in-review", "resource-1"})
+
+			require.NoError(t,
+				repo.ReassignResource(ctx, "team-1", resourceType, "resource-1", "in-review", "active"), resourceType)
+			assert.NoError(t, mock.ExpectationsWereMet(), resourceType)
+		}
+	})
+
+	// The row still carries the deleted status and is locked: it was skipped,
+	// and the caller must not report a status it does not have.
+	t.Run("a locked row still carrying the status is reported, not moved", func(t *testing.T) {
+		for resourceType, table := range lockable {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectExec(`UPDATE ` + table).WillReturnResult(sqlmock.NewResult(0, 0))
+			expectLockedResources(mock, lockedStatusOnePattern(table),
+				[]driver.Value{"team-1", "in-review", "resource-1"}, lockedTestArtifact)
+
+			err := repo.ReassignResource(ctx, "team-1", resourceType, "resource-1", "in-review", "active")
+			assertRefusedByLock(t, err, repositories.ErrTeamStatusUsedByLockedResource, lockedTestArtifact)
+			assert.NoError(t, mock.ExpectationsWereMet(), resourceType)
+		}
+	})
+
+	t.Run("a memory that matched nothing runs no lock check", func(t *testing.T) {
+		repo, mock := newTeamStatusMockRepo(t)
+		mock.ExpectExec(`UPDATE memories`).WillReturnResult(sqlmock.NewResult(0, 0))
+
+		require.NoError(t, repo.ReassignResource(ctx, "team-1", "memory", "resource-1", "in-review", "active"))
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("an unreadable result is returned", func(t *testing.T) {
+		repo, mock := newTeamStatusMockRepo(t)
+		mock.ExpectExec(`UPDATE artifacts`).WillReturnResult(sqlmock.NewErrorResult(errTeamStatusBoom))
+
+		err := repo.ReassignResource(ctx, "team-1", "artifact", "resource-1", "in-review", "active")
+		require.ErrorIs(t, err, errTeamStatusBoom)
 	})
 
 	t.Run("an unknown resource type runs no statement", func(t *testing.T) {

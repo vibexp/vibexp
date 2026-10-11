@@ -37,6 +37,12 @@ const (
 	// what is already locked.
 	CodeResourceWriteLocked = "RESOURCE_WRITE_LOCKED"
 
+	// CodeHasLockedResources signals an indirect delete or move refused
+	// because it would remove or rewrite locked resources (#1290): deleting or
+	// migrating a project that holds them, or deleting a custom type or status
+	// they carry. It is a 423, and names the resources in its metadata.
+	CodeHasLockedResources = "HAS_LOCKED_RESOURCES"
+
 	// Rate limiting and quotas
 	CodeRateLimitExceeded     = "RATE_LIMIT_EXCEEDED"
 	CodeResourceLimitExceeded = "RESOURCE_LIMIT_EXCEEDED"
@@ -192,6 +198,9 @@ var errorTitles = map[string]string{
 	CodeResourceNotLocked: "Resource Not Locked",
 
 	CodeResourceWriteLocked: "Resource Write Locked",
+
+	// Indirect delete/move guards (#1290)
+	CodeHasLockedResources: "Has Locked Resources",
 }
 
 // GetErrorTitle returns the title for a given error code

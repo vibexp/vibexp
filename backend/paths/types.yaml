@@ -203,7 +203,9 @@ api-v1-team_id-types-id:
       Deletes a team-owned custom type. System defaults cannot be deleted (a
       delete targeting one — or another team's type — returns 404). Any
       resources still referencing the deleted type are reassigned to the
-      resource's system default in the same transaction.
+      resource's system default in the same transaction. A type used by a
+      locked artifact cannot be deleted (returns 423): unlock the artifact
+      first.
     operationId: deleteType
     security:
       - ApiKeyAuth: []
@@ -250,6 +252,14 @@ api-v1-team_id-types-id:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '423':
+        description: >-
+          A locked artifact uses the type
+          (code `HAS_LOCKED_RESOURCES`). Nothing was changed; the locked resources are in `metadata.locked_resources`.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HasLockedResourcesError'
       '500':
         description: Failed to delete type
         content:

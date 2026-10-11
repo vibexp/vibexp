@@ -10,11 +10,38 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
+
+// LockedResourcesError refuses an indirect delete or move because it would
+// remove or rewrite locked resources (issue #1290). Reason is one of
+// ErrProjectHasLockedResources, ErrTypeUsedByLockedResource and
+// ErrTeamStatusUsedByLockedResource, so callers can branch with errors.Is;
+// handlers read Resources with errors.As to tell the caller what to unlock.
+//
+// It lives here rather than in services because the project migration service
+// raises it too, and that package cannot import services (import cycle).
+type LockedResourcesError struct {
+	Reason error
+	// Resources names the locked resources, at most
+	// models.LockedResourceListLimit of them. It is never empty.
+	Resources []models.LockedResourceRef
+}
+
+// Error implements the error interface.
+func (e *LockedResourcesError) Error() string {
+	return fmt.Sprintf("%v (%d listed)", e.Reason, len(e.Resources))
+}
+
+// Unwrap returns the reason sentinel.
+func (e *LockedResourcesError) Unwrap() error {
+	return e.Reason
+}
 
 // Sentinel errors for repository operations
 var (
@@ -198,6 +225,22 @@ var (
 	// ErrResourceNotLocked is returned by ClearLock on the prompt, blueprint and
 	// artifact repositories when the resource carries no lock.
 	ErrResourceNotLocked = errors.New("resource is not locked")
+
+	// ErrProjectHasLockedResources is the reason of a LockedResourcesError
+	// raised for a project that holds a locked prompt, blueprint or artifact:
+	// deleting it would cascade the lock away, and migrating it rewrites
+	// project_id (issue #1290).
+	ErrProjectHasLockedResources = errors.New("project contains locked resources")
+
+	// ErrTypeUsedByLockedResource is the reason of a LockedResourcesError
+	// raised by TypeRepository.DeleteCustom when a locked artifact carries the
+	// type: the delete would rewrite its frozen type field.
+	ErrTypeUsedByLockedResource = errors.New("type is used by a locked resource")
+
+	// ErrTeamStatusUsedByLockedResource is the reason of a LockedResourcesError
+	// raised by TeamStatusRepository when a locked prompt, blueprint or
+	// artifact carries the status: reassigning it would rewrite a frozen field.
+	ErrTeamStatusUsedByLockedResource = errors.New("status is used by a locked resource")
 
 	// ErrInvalidResourceLockEvent is returned by
 	// ResourceLockEventRepository.Append for an event whose resource type is not
@@ -1278,6 +1321,10 @@ type AdminRepository interface {
 	// such a user would cascade that team away and take its members' data with it.
 	// Returns (blockers, true, nil) when refused (nothing deleted),
 	// (nil, true, nil) when deleted, and (nil, false, nil) for an unknown id.
+	// A delete that goes ahead releases every resource lock the user holds, and
+	// writes one unlock event with no actor to the lock history for each, in
+	// the same transaction. Locked resources the user created go with the
+	// account, as every other resource of theirs does.
 	DeleteUserIfUnblocked(
 		ctx context.Context, id string,
 	) ([]models.AdminDeleteBlocker, bool, error)
@@ -1494,6 +1541,17 @@ type ProjectRepository interface {
 	// established) and a per-user view would silently drop projects from a
 	// team-wide total.
 	ListByTeamID(ctx context.Context, teamID string) ([]models.Project, error)
+	// ListLockedResources returns the locked prompts, blueprints and artifacts
+	// of one project of the team, ordered by type then title and capped at
+	// models.LockedResourceListLimit. Empty (never nil) when nothing in the
+	// project is locked. Tenancy-only: team_id and project_id.
+	ListLockedResources(ctx context.Context, teamID, projectID string) ([]models.LockedResourceRef, error)
+	// ListLockedResourcesTx is ListLockedResources read on tx, for a caller
+	// that checks and then moves the project's resources in one transaction
+	// (project migration).
+	ListLockedResourcesTx(
+		ctx context.Context, tx *sql.Tx, teamID, projectID string,
+	) ([]models.LockedResourceRef, error)
 	// GetNamesByIDs returns a map of projectID → name for the given IDs owned by userID.
 	// Unknown or inaccessible IDs are omitted from the result.
 	GetNamesByIDs(ctx context.Context, userID string, ids []string) (map[string]string, error)
@@ -2274,7 +2332,10 @@ type TeamStatusRepository interface {
 	// entry (audit receives the count as ReassignedCount). It returns the
 	// deleted row and the number of resources moved, or ErrTeamStatusNotFound,
 	// in which case nothing changed. The moved resources keep their updated_at:
-	// a status disappearing is not an edit of the resource.
+	// a status disappearing is not an edit of the resource. While a locked
+	// prompt, blueprint or artifact carries the slug nothing changes and it
+	// returns a LockedResourcesError whose reason is
+	// ErrTeamStatusUsedByLockedResource: status is a frozen field.
 	DeleteAndReassign(
 		ctx context.Context, teamID, id, defaultStatus string, audit TeamStatusAuditBuilder,
 	) (*models.TeamStatus, int, error)
@@ -2296,6 +2357,9 @@ type TeamStatusRepository interface {
 	// which is not an error -- something else already moved it. Unlike the
 	// bulk reassignment it lets a memory's updated_at move: the row was written
 	// an instant ago. resourceType must be one of models.StatusResourceTypes.
+	// A locked resource is not moved either: when the row still carries
+	// fromSlug and is locked it returns a LockedResourcesError whose reason is
+	// ErrTeamStatusUsedByLockedResource, the rule DeleteAndReassign applies.
 	ReassignResource(
 		ctx context.Context, teamID, resourceType, resourceID, fromSlug, toStatus string,
 	) error
@@ -2322,7 +2386,9 @@ type TypeRepository interface {
 	// is_system = false, and atomically reassigns any resource rows that
 	// reference its slug to fallbackSlug (artifacts only today). It returns
 	// ErrTypeNotFound when no deletable row matched (missing, system default, or
-	// another team's), leaving all rows untouched.
+	// another team's), leaving all rows untouched. While a locked artifact
+	// carries the type it changes nothing and returns a LockedResourcesError
+	// whose reason is ErrTypeUsedByLockedResource: type is a frozen field.
 	DeleteCustom(ctx context.Context, teamID, id, fallbackSlug string) error
 }
 

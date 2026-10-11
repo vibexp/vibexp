@@ -112,6 +112,32 @@ func NewResourceWriteLockedError(detail string, lock ResourceWriteLock) *APIErro
 	return err
 }
 
+// LockedResource names one locked resource in a NewHasLockedResourcesError.
+type LockedResource struct {
+	// ResourceType is "prompt", "blueprint" or "artifact".
+	ResourceType string `json:"resource_type"`
+	ID           string `json:"id"`
+	Slug         string `json:"slug"`
+	// Title is the artifact or blueprint title, or the prompt name.
+	Title string `json:"title"`
+}
+
+// NewHasLockedResourcesError reports an indirect delete or move refused
+// because it would remove or rewrite locked resources (#1290). The resources
+// are carried in the problem's metadata as locked_resources, so a client can
+// list what has to be unlocked first without parsing detail. A nil slice is
+// sent as an empty array, never null.
+func NewHasLockedResourcesError(detail string, resources []LockedResource) *APIError {
+	if resources == nil {
+		resources = []LockedResource{}
+	}
+	err := NewAPIError(
+		CodeHasLockedResources, GetErrorTitle(CodeHasLockedResources), detail, http.StatusLocked,
+	)
+	err.Metadata = map[string]any{"locked_resources": resources}
+	return err
+}
+
 // NewInternalError creates an internal server error
 func NewInternalError(detail string) *APIError {
 	if detail == "" {

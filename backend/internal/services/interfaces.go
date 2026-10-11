@@ -218,7 +218,8 @@ type TypeServiceInterface interface {
 	// Delete removes a team-owned custom type by id and atomically reassigns the
 	// resources that referenced it to the resource's system default. It returns
 	// repositories.ErrTypeNotFound when the id does not match a deletable
-	// (non-system, team-owned) row.
+	// (non-system, team-owned) row, and a *repositories.LockedResourcesError,
+	// changing nothing, while a locked artifact uses the type.
 	Delete(ctx context.Context, teamID, id string) error
 	// ValidateType reports whether (resourceType, slug) is a type visible to the
 	// team — a global default or one of the team's custom types.
@@ -696,6 +697,9 @@ type ProjectServiceInterface interface {
 	GetProjectBySlugOrID(teamID, userID, ref string) (*models.Project, error)
 	ListProjects(userID string, filters ProjectFilters) (*models.ProjectListResponse, error)
 	UpdateProject(teamID, userID, slug string, req *models.UpdateProjectRequest) (*models.Project, error)
+	// DeleteProject deletes the project and, by cascade, every resource in it.
+	// It returns a *repositories.LockedResourcesError, deleting nothing, while
+	// the project holds a locked prompt, blueprint or artifact.
 	DeleteProject(teamID, userID, slug string) error
 	// GetProjectStats returns resource counts for the project identified by teamID + slug.
 	GetProjectStats(teamID, userID, slug string) (*models.ProjectStatsResponse, error)

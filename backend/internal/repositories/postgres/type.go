@@ -141,6 +141,13 @@ func (r *TypeRepository) DeleteCustom(
 	// artifacts consume types today; other resource types will be added here as
 	// they adopt the customizable-types system.
 	if resourceType == "artifacts" {
+		// type is a frozen field of a locked artifact (issue #1290). Refusing
+		// here, after the DELETE, lets the deferred rollback restore the type
+		// row, so nothing changes.
+		if err := refuseIfLocked(ctx, tx, repositories.ErrTypeUsedByLockedResource,
+			typeLockedArtifactsSQL, teamID, deletedSlug); err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx,
 			"UPDATE artifacts SET type = $1, updated_at = now() WHERE team_id = $2 AND type = $3",
 			fallbackSlug, teamID, deletedSlug,

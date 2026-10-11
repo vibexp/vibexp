@@ -423,3 +423,65 @@ ResourceLockHistoryResponse:
         $ref: '#/ResourceLockEvent'
   required:
     - events
+
+LockedResourceRef:
+  type: object
+  description: >-
+    One locked prompt, blueprint or artifact that stands in the way of an
+    indirect delete or move.
+  properties:
+    resource_type:
+      type: string
+      enum: [prompt, blueprint, artifact]
+      x-enum-varnames:
+        - LockedResourceRefResourceTypePrompt
+        - LockedResourceRefResourceTypeBlueprint
+        - LockedResourceRefResourceTypeArtifact
+      description: The kind of resource that is locked.
+      example: "artifact"
+    id:
+      type: string
+      format: uuid
+      description: ID of the locked resource.
+      example: "123e4567-e89b-12d3-a456-426614174000"
+    slug:
+      type: string
+      description: Slug of the locked resource.
+      example: "release-checklist"
+    title:
+      type: string
+      description: The artifact or blueprint title, or the prompt name.
+      example: "Release checklist"
+  required:
+    - resource_type
+    - id
+    - slug
+    - title
+
+HasLockedResourcesError:
+  description: >-
+    RFC 9457 problem returned with `423 Locked` and code `HAS_LOCKED_RESOURCES`
+    when a delete or move is refused because it would remove or rewrite locked
+    prompts, blueprints or artifacts: deleting or migrating a project that
+    holds them, or deleting a custom type or status they carry. Nothing was
+    changed. Unlock the listed resources and repeat the request.
+  allOf:
+    - $ref: '#/ErrorResponse'
+    - type: object
+      properties:
+        metadata:
+          type: object
+          description: What has to be unlocked first.
+          properties:
+            locked_resources:
+              type: array
+              description: >-
+                The locked resources, ordered by type then title. At most 100
+                are listed; when more are locked the request is refused again
+                until none remain.
+              items:
+                $ref: '#/LockedResourceRef'
+          required:
+            - locked_resources
+      required:
+        - metadata

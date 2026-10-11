@@ -135,7 +135,22 @@ func queryAdminRows[T any](
 	ctx context.Context, db *database.DB, what string, scan func(*sql.Rows) (T, error),
 	query string, args ...any,
 ) ([]T, error) {
-	rows, err := db.QueryContext(ctx, query, args...)
+	return queryRows(ctx, db, what, scan, query, args...)
+}
+
+// rowsQuerier is the QueryContext half shared by *database.DB and *sql.Tx, so a
+// list read can run on its own or inside the transaction that acts on it.
+type rowsQuerier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+// queryRows is queryAdminRows over anything that can run a query, so the same
+// loop serves a read made inside a transaction.
+func queryRows[T any](
+	ctx context.Context, q rowsQuerier, what string, scan func(*sql.Rows) (T, error),
+	query string, args ...any,
+) ([]T, error) {
+	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query %s: %w", what, err)
 	}

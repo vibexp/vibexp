@@ -172,6 +172,8 @@ func TestProjectService_DeleteProject_RoleMatrix(t *testing.T) {
 			if tc.allowed {
 				// Two projects, so the last-project guard does not fire.
 				repo.EXPECT().CountByTeamID(mock.Anything, projRBACTeamID).Return(2, nil).Once()
+				repo.EXPECT().ListLockedResources(mock.Anything, projRBACTeamID, "project-1").
+					Return([]models.LockedResourceRef{}, nil).Once()
 				repo.EXPECT().Delete(mock.Anything, projRBACTeamID, projRBACUserID, projRBACSlug).
 					Return(nil).Once()
 			}

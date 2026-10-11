@@ -139,6 +139,9 @@ func (t *typesStrictServer) DeleteType(
 		if errors.Is(err, repositories.ErrTypeNotFound) {
 			return nil, apierrors.NewResourceNotFoundError("type", "Type not found")
 		}
+		if lockedErr := lockedResourcesProblem(err); lockedErr != nil {
+			return nil, lockedErr
+		}
 		t.s.logger.With(
 			"handler", "DeleteType",
 			"team_id", teamID,

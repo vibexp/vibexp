@@ -384,7 +384,38 @@ func (s *ProjectService) GetProjectResourceCreationMetrics(
 	return counts, nil
 }
 
-// DeleteProject deletes a project by team ID, user ID, and slug
+// refuseLockedProject returns a repositories.LockedResourcesError naming the
+// locked prompts, blueprints and artifacts of the project, or nil when it holds
+// none (issue #1290). Deleting the project cascades to every resource in it,
+// which would remove a locked one without ever reaching the resource services'
+// own lock check.
+//
+// The check and the delete are two statements: a lock taken in between is
+// cascaded away with the project. That window is accepted, as it is for a
+// direct delete of a resource (#1289).
+func (s *ProjectService) refuseLockedProject(ctx context.Context, teamID, projectID string) error {
+	locked, err := s.repo.ListLockedResources(ctx, teamID, projectID)
+	if err != nil {
+		s.logger.With(
+			"service", "project",
+			"team_id", teamID,
+			"project_id", projectID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to check the project for locked resources")
+		return fmt.Errorf("failed to check the project for locked resources: %w", err)
+	}
+	if len(locked) > 0 {
+		return &repositories.LockedResourcesError{
+			Reason:    repositories.ErrProjectHasLockedResources,
+			Resources: locked,
+		}
+	}
+	return nil
+}
+
+// DeleteProject deletes a project by team ID, user ID, and slug. It refuses,
+// with a repositories.LockedResourcesError, while the project holds a locked
+// prompt, blueprint or artifact.
 func (s *ProjectService) DeleteProject(teamID, userID, slug string) error {
 	// First get the project to get its ID for event publishing
 	project, err := s.GetProjectBySlug(teamID, userID, slug)
@@ -416,6 +447,10 @@ func (s *ProjectService) DeleteProject(teamID, userID, slug string) error {
 
 	if projectCount <= 1 {
 		return NewCannotDeleteLastProjectError(teamID, slug)
+	}
+
+	if lockedErr := s.refuseLockedProject(ctx, teamID, project.ID); lockedErr != nil {
+		return lockedErr
 	}
 
 	err = s.repo.Delete(ctx, teamID, userID, slug)

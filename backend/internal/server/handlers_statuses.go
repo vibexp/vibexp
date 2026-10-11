@@ -175,7 +175,7 @@ func statusesClientError(err error) *apierrors.APIError {
 	case isStatusValidationError(err):
 		return apierrors.NewBadRequestError(err.Error())
 	}
-	return nil
+	return lockedResourcesProblem(err)
 }
 
 // isStatusValidationError reports whether err is one of the status input

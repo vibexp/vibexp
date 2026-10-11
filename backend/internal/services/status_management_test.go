@@ -541,6 +541,31 @@ func TestStatusManagementService_Delete(t *testing.T) {
 		assert.Empty(t, h.recorded)
 	})
 
+	// status is a frozen field of a locked resource (issue #1290): the
+	// repository's refusal reaches the caller as it is, so the handler can
+	// name what to unlock, and nothing is audited.
+	t.Run("a delete refused by a locked resource is passed through and writes no audit", func(t *testing.T) {
+		h := newStatusManagementHarness(t).as(models.TeamMemberRoleOwner)
+		stored := customStatus(testStatusRowID, models.StatusResourceTypeArtifact, "in-review", "In review")
+		refusal := &repositories.LockedResourcesError{
+			Reason: repositories.ErrTeamStatusUsedByLockedResource,
+			Resources: []models.LockedResourceRef{
+				{ResourceType: models.RelationResourceTypeArtifact, ID: "artifact-1", Slug: "runbook", Title: "Runbook"},
+			},
+		}
+		h.repo.EXPECT().GetByID(mock.Anything, testStatusTeamID, testStatusRowID).Return(&stored, nil)
+		h.repo.EXPECT().
+			DeleteAndReassign(mock.Anything, testStatusTeamID, testStatusRowID, models.StatusActive, mock.Anything).
+			Return(nil, 0, refusal).Once()
+
+		got, err := h.svc.Delete(context.Background(), params)
+		assert.Nil(t, got)
+		var locked *repositories.LockedResourcesError
+		require.ErrorAs(t, err, &locked)
+		assert.Equal(t, refusal.Resources, locked.Resources)
+		assert.Empty(t, h.recorded)
+	})
+
 	t.Run("a failed delete writes no audit", func(t *testing.T) {
 		h := newStatusManagementHarness(t).as(models.TeamMemberRoleAdmin)
 		stored := customStatus(testStatusRowID, models.StatusResourceTypeArtifact, "in-review", "In review")

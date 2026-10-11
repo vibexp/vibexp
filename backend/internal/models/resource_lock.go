@@ -93,3 +93,23 @@ func IsLockableResourceType(t string) bool {
 func IsValidLockAction(a string) bool {
 	return a == LockActionLock || a == LockActionUnlock
 }
+
+// LockedResourceListLimit caps how many locked resources a refused delete or
+// move names. A project, type or status can carry any number of them; the
+// first hundred are enough to start unlocking, and the request is refused
+// again while any remain.
+const LockedResourceListLimit = 100
+
+// LockedResourceRef names one locked prompt, blueprint or artifact that
+// refused an indirect delete or move (issue #1290): deleting the project that
+// holds it, migrating that project, or deleting the custom type or status it
+// carries. It is enough for a client to list what has to be unlocked first.
+type LockedResourceRef struct {
+	// ResourceType is the RelationResourceType* value: prompt, blueprint or
+	// artifact.
+	ResourceType string `json:"resource_type"`
+	ID           string `json:"id"`
+	Slug         string `json:"slug"`
+	// Title is the artifact or blueprint title, or the prompt name.
+	Title string `json:"title"`
+}

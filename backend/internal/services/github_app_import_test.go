@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -154,6 +155,20 @@ func (m *MockProjectRepository) ListByTeamID(ctx context.Context, teamID string)
 	}
 	projects, _ := args.Get(0).([]models.Project)
 	return projects, args.Error(1)
+}
+
+// The GitHub import never deletes or migrates a project, so the fake reports no
+// locked resources.
+func (m *MockProjectRepository) ListLockedResources(
+	_ context.Context, _, _ string,
+) ([]models.LockedResourceRef, error) {
+	return []models.LockedResourceRef{}, nil
+}
+
+func (m *MockProjectRepository) ListLockedResourcesTx(
+	_ context.Context, _ *sql.Tx, _, _ string,
+) ([]models.LockedResourceRef, error) {
+	return []models.LockedResourceRef{}, nil
 }
 
 func (m *MockProjectRepository) CountByTeamID(ctx context.Context, teamID string) (int, error) {

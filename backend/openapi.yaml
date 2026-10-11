@@ -410,6 +410,10 @@ components:
       $ref: "./schemas/common.yaml#/ResourceLockEvent"
     ResourceLockHistoryResponse:
       $ref: "./schemas/common.yaml#/ResourceLockHistoryResponse"
+    LockedResourceRef:
+      $ref: "./schemas/common.yaml#/LockedResourceRef"
+    HasLockedResourcesError:
+      $ref: "./schemas/common.yaml#/HasLockedResourcesError"
     CreateProjectRequest:
       $ref: "./schemas/projects.yaml#/CreateProjectRequest"
     UpdateProjectRequest:

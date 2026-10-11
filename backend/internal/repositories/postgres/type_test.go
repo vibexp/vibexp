@@ -287,7 +287,15 @@ const (
 	typeDeletePattern = `DELETE FROM types WHERE id = \$1 AND team_id = \$2 AND is_system = FALSE ` +
 		`RETURNING slug, resource_type`
 	typeReassignPattern = `UPDATE artifacts SET type = \$1, updated_at = now\(\) WHERE team_id = \$2 AND type = \$3`
+	// typeLockedPattern is the guard of issue #1290: locked artifacts of the
+	// team carrying the deleted type.
+	typeLockedPattern = `FROM artifacts WHERE team_id = \$1 AND type = \$2 AND locked_by IS NOT NULL`
 )
+
+// expectNoLockedTypeUse expects the locked-artifact guard to find nothing.
+func expectNoLockedTypeUse(mock sqlmock.Sqlmock) {
+	expectLockedResources(mock, typeLockedPattern, []driver.Value{"team-1", "old-slug"})
+}
 
 // expectTypeDeleteRow expects the transactional DELETE ... RETURNING to hit
 // and hand back the deleted row's slug plus the given resource_type.
@@ -302,6 +310,8 @@ type typeDeleteScenario struct {
 	setup   func(mock sqlmock.Sqlmock)
 	wantIs  error
 	wantSub string
+	// wantLocked is what a LockedResourcesError must name, when one is wanted.
+	wantLocked []models.LockedResourceRef
 }
 
 func runTypeDeleteScenario(t *testing.T, sc typeDeleteScenario) {
@@ -312,6 +322,9 @@ func runTypeDeleteScenario(t *testing.T, sc typeDeleteScenario) {
 
 	err := repo.DeleteCustom(context.Background(), "team-1", "type-1", "general")
 	assertTypeError(t, err, sc.wantIs, sc.wantSub)
+	if sc.wantLocked != nil {
+		assertRefusedByLock(t, err, sc.wantIs, sc.wantLocked...)
+	}
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -322,6 +335,7 @@ func TestTypeRepository_DeleteCustom(t *testing.T) {
 			setup: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				expectTypeDeleteRow(mock, "artifacts")
+				expectNoLockedTypeUse(mock)
 				mock.ExpectExec(typeReassignPattern).
 					WithArgs("general", "team-1", "old-slug").
 					WillReturnResult(sqlmock.NewResult(0, 4))
@@ -352,6 +366,7 @@ func TestTypeRepository_DeleteCustom(t *testing.T) {
 			setup: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				expectTypeDeleteRow(mock, "artifacts")
+				expectNoLockedTypeUse(mock)
 				mock.ExpectExec(typeReassignPattern).
 					WithArgs("general", "team-1", "old-slug").
 					WillReturnError(sql.ErrConnDone)
@@ -359,6 +374,31 @@ func TestTypeRepository_DeleteCustom(t *testing.T) {
 			},
 			wantIs:  sql.ErrConnDone,
 			wantSub: "failed to reassign artifacts after type delete",
+		},
+		{
+			// The guard runs after the DELETE and before the reassignment: no
+			// UPDATE is expected, and the rollback restores the type row.
+			name: "a locked artifact using the type refuses the delete and rolls back",
+			setup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				expectTypeDeleteRow(mock, "artifacts")
+				expectLockedResources(mock, typeLockedPattern,
+					[]driver.Value{"team-1", "old-slug"}, lockedTestArtifact)
+				mock.ExpectRollback()
+			},
+			wantIs:     repositories.ErrTypeUsedByLockedResource,
+			wantLocked: []models.LockedResourceRef{lockedTestArtifact},
+		},
+		{
+			name: "a failing lock check rolls back",
+			setup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				expectTypeDeleteRow(mock, "artifacts")
+				mock.ExpectQuery(typeLockedPattern).WillReturnError(sql.ErrConnDone)
+				mock.ExpectRollback()
+			},
+			wantIs:  sql.ErrConnDone,
+			wantSub: "failed to query locked resources",
 		},
 		{
 			name: "begin error is wrapped",

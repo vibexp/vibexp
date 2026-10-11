@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
@@ -625,6 +626,8 @@ func TestProjectService_DeleteProject(t *testing.T) {
 					Return(project, nil).
 					Once()
 				mockRepo.EXPECT().CountByTeamID(mock.Anything, "team-123").Return(2, nil).Once()
+				mockRepo.EXPECT().ListLockedResources(mock.Anything, "team-123", project.ID).
+					Return([]models.LockedResourceRef{}, nil).Once()
 				mockRepo.EXPECT().Delete(mock.Anything, "team-123", "user-123", "test-project").Return(nil).Once()
 			},
 			expectErr: false,
@@ -687,6 +690,8 @@ func TestProjectService_DeleteProject(t *testing.T) {
 					Return(project, nil).
 					Once()
 				mockRepo.EXPECT().CountByTeamID(mock.Anything, "team-123").Return(2, nil).Once()
+				mockRepo.EXPECT().ListLockedResources(mock.Anything, "team-123", project.ID).
+					Return([]models.LockedResourceRef{}, nil).Once()
 				mockRepo.EXPECT().Delete(mock.Anything, "team-123", "user-123", "test-project").
 					Return(fmt.Errorf("database error")).Once()
 			},
@@ -733,6 +738,48 @@ func TestProjectService_DeleteProject_LastProjectError(t *testing.T) {
 	assert.ErrorAs(t, err, &lastProjectErr)
 	assert.Equal(t, "team-123", lastProjectErr.TeamID)
 	assert.Equal(t, "last-project", lastProjectErr.ProjectSlug)
+}
+
+// TestProjectService_DeleteProject_RefusedWhileLocked pins the guard of issue
+// #1290: a project holding a locked resource is not deleted, and the error
+// names what is locked. The repository mock has no Delete expectation, so a
+// service that deleted anyway fails the test.
+func TestProjectService_DeleteProject_RefusedWhileLocked(t *testing.T) {
+	mockRepo := mocks.NewMockProjectRepository(t)
+	project := createTestProject()
+	locked := []models.LockedResourceRef{
+		{ResourceType: models.RelationResourceTypeArtifact, ID: "artifact-1", Slug: "runbook", Title: "Runbook"},
+		{ResourceType: models.RelationResourceTypePrompt, ID: "prompt-1", Slug: "triage", Title: "Triage"},
+	}
+
+	mockRepo.EXPECT().GetBySlug(mock.Anything, "team-123", "user-123", "test-project").Return(project, nil).Once()
+	mockRepo.EXPECT().CountByTeamID(mock.Anything, "team-123").Return(2, nil).Once()
+	mockRepo.EXPECT().ListLockedResources(mock.Anything, "team-123", project.ID).Return(locked, nil).Once()
+
+	err := createTestProjectService(mockRepo).DeleteProject("team-123", "user-123", "test-project")
+
+	var lockedErr *repositories.LockedResourcesError
+	require.ErrorAs(t, err, &lockedErr)
+	assert.ErrorIs(t, err, repositories.ErrProjectHasLockedResources)
+	assert.Equal(t, locked, lockedErr.Resources)
+}
+
+// TestProjectService_DeleteProject_LockedLookupFails pins that the guard fails
+// closed: when the locked-resource lookup errors, nothing is deleted.
+func TestProjectService_DeleteProject_LockedLookupFails(t *testing.T) {
+	mockRepo := mocks.NewMockProjectRepository(t)
+	project := createTestProject()
+
+	mockRepo.EXPECT().GetBySlug(mock.Anything, "team-123", "user-123", "test-project").Return(project, nil).Once()
+	mockRepo.EXPECT().CountByTeamID(mock.Anything, "team-123").Return(2, nil).Once()
+	mockRepo.EXPECT().ListLockedResources(mock.Anything, "team-123", project.ID).
+		Return(nil, fmt.Errorf("database error")).Once()
+
+	err := createTestProjectService(mockRepo).DeleteProject("team-123", "user-123", "test-project")
+
+	require.ErrorContains(t, err, "failed to check the project for locked resources")
+	var lockedErr *repositories.LockedResourcesError
+	assert.NotErrorAs(t, err, &lockedErr)
 }
 
 func TestProjectService_ListProjects_Pagination(t *testing.T) {

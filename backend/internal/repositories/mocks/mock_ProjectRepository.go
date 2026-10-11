@@ -10,6 +10,8 @@ import (
 
 	repositories "github.com/vibexp/vibexp/internal/repositories"
 
+	sql "database/sql"
+
 	time "time"
 )
 
@@ -785,6 +787,127 @@ func (_c *MockProjectRepository_ListGitURLToSlugByTeam_Call) Return(_a0 map[stri
 }
 
 func (_c *MockProjectRepository_ListGitURLToSlugByTeam_Call) RunAndReturn(run func(context.Context, string, string) (map[string]string, error)) *MockProjectRepository_ListGitURLToSlugByTeam_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListLockedResources provides a mock function with given fields: ctx, teamID, projectID
+func (_m *MockProjectRepository) ListLockedResources(ctx context.Context, teamID string, projectID string) ([]models.LockedResourceRef, error) {
+	ret := _m.Called(ctx, teamID, projectID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListLockedResources")
+	}
+
+	var r0 []models.LockedResourceRef
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]models.LockedResourceRef, error)); ok {
+		return rf(ctx, teamID, projectID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) []models.LockedResourceRef); ok {
+		r0 = rf(ctx, teamID, projectID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.LockedResourceRef)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, teamID, projectID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProjectRepository_ListLockedResources_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListLockedResources'
+type MockProjectRepository_ListLockedResources_Call struct {
+	*mock.Call
+}
+
+// ListLockedResources is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - projectID string
+func (_e *MockProjectRepository_Expecter) ListLockedResources(ctx interface{}, teamID interface{}, projectID interface{}) *MockProjectRepository_ListLockedResources_Call {
+	return &MockProjectRepository_ListLockedResources_Call{Call: _e.mock.On("ListLockedResources", ctx, teamID, projectID)}
+}
+
+func (_c *MockProjectRepository_ListLockedResources_Call) Run(run func(ctx context.Context, teamID string, projectID string)) *MockProjectRepository_ListLockedResources_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockProjectRepository_ListLockedResources_Call) Return(_a0 []models.LockedResourceRef, _a1 error) *MockProjectRepository_ListLockedResources_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProjectRepository_ListLockedResources_Call) RunAndReturn(run func(context.Context, string, string) ([]models.LockedResourceRef, error)) *MockProjectRepository_ListLockedResources_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListLockedResourcesTx provides a mock function with given fields: ctx, tx, teamID, projectID
+func (_m *MockProjectRepository) ListLockedResourcesTx(ctx context.Context, tx *sql.Tx, teamID string, projectID string) ([]models.LockedResourceRef, error) {
+	ret := _m.Called(ctx, tx, teamID, projectID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListLockedResourcesTx")
+	}
+
+	var r0 []models.LockedResourceRef
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *sql.Tx, string, string) ([]models.LockedResourceRef, error)); ok {
+		return rf(ctx, tx, teamID, projectID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *sql.Tx, string, string) []models.LockedResourceRef); ok {
+		r0 = rf(ctx, tx, teamID, projectID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.LockedResourceRef)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *sql.Tx, string, string) error); ok {
+		r1 = rf(ctx, tx, teamID, projectID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProjectRepository_ListLockedResourcesTx_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListLockedResourcesTx'
+type MockProjectRepository_ListLockedResourcesTx_Call struct {
+	*mock.Call
+}
+
+// ListLockedResourcesTx is a helper method to define mock.On call
+//   - ctx context.Context
+//   - tx *sql.Tx
+//   - teamID string
+//   - projectID string
+func (_e *MockProjectRepository_Expecter) ListLockedResourcesTx(ctx interface{}, tx interface{}, teamID interface{}, projectID interface{}) *MockProjectRepository_ListLockedResourcesTx_Call {
+	return &MockProjectRepository_ListLockedResourcesTx_Call{Call: _e.mock.On("ListLockedResourcesTx", ctx, tx, teamID, projectID)}
+}
+
+func (_c *MockProjectRepository_ListLockedResourcesTx_Call) Run(run func(ctx context.Context, tx *sql.Tx, teamID string, projectID string)) *MockProjectRepository_ListLockedResourcesTx_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*sql.Tx), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockProjectRepository_ListLockedResourcesTx_Call) Return(_a0 []models.LockedResourceRef, _a1 error) *MockProjectRepository_ListLockedResourcesTx_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProjectRepository_ListLockedResourcesTx_Call) RunAndReturn(run func(context.Context, *sql.Tx, string, string) ([]models.LockedResourceRef, error)) *MockProjectRepository_ListLockedResourcesTx_Call {
 	_c.Call.Return(run)
 	return _c
 }
