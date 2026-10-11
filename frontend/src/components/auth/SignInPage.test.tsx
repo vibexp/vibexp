@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import React from 'react'
 import { MemoryRouter } from 'react-router'
 
@@ -67,6 +73,13 @@ vi.mock('../../services/authService', () => ({
 // Mock theme hook
 vi.mock('@/lib/theme', () => ({
   useTheme: () => ({ resolvedTheme: 'light', setTheme: vi.fn() }),
+}))
+
+// The VibeXP mark, as a node the lockup and credit assertions can find
+vi.mock('@vibexp/design-system/react', () => ({
+  LogoMark: ({ size }: { size?: number }) => (
+    <span data-testid="vibexp-mark" data-size={size} />
+  ),
 }))
 
 // Mock DevLogin to avoid import.meta.env dependency in Jest
@@ -349,8 +362,8 @@ describe('SignInPage — site info branding', () => {
       await screen.findByRole('heading', { name: 'Sign in to VibeXP' })
     ).toBeInTheDocument()
     expect(
-      screen.getByText(`© ${new Date().getFullYear()} VibeXP`)
-    ).toBeInTheDocument()
+      screen.getAllByText(`© ${new Date().getFullYear()} VibeXP`)
+    ).toHaveLength(2)
     expect(container.innerHTML).not.toContain('example.com')
     expect(container.querySelector('a[href^="mailto:"]')).toBeNull()
     expect(screen.queryByText('support')).not.toBeInTheDocument()
@@ -371,17 +384,20 @@ describe('SignInPage — site info branding', () => {
     expect(
       await screen.findByRole('heading', { name: 'Sign in to Acme Inc.' })
     ).toBeInTheDocument()
+    // The footer row is rendered twice: in the pitch panel and under the card.
     expect(
-      screen.getByText(`© ${new Date().getFullYear()} Acme Inc.`)
-    ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'www.acme.test' })).toHaveAttribute(
-      'href',
-      'https://www.acme.test/about'
-    )
-    expect(screen.getByRole('link', { name: 'support' })).toHaveAttribute(
-      'href',
-      'https://acme.test/help'
-    )
+      screen.getAllByText(`© ${new Date().getFullYear()} Acme Inc.`)
+    ).toHaveLength(2)
+    const siteLinks = screen.getAllByRole('link', { name: 'www.acme.test' })
+    expect(siteLinks).toHaveLength(2)
+    for (const link of siteLinks) {
+      expect(link).toHaveAttribute('href', 'https://www.acme.test/about')
+    }
+    const supportLinks = screen.getAllByRole('link', { name: 'support' })
+    expect(supportLinks).toHaveLength(2)
+    for (const link of supportLinks) {
+      expect(link).toHaveAttribute('href', 'https://acme.test/help')
+    }
     expect(screen.getByRole('link', { name: 'Terms' })).toHaveAttribute(
       'href',
       'https://acme.test/terms'
@@ -399,9 +415,11 @@ describe('SignInPage — site info branding', () => {
   it('falls back to a mailto for support when only an email is configured', async () => {
     renderBranded({ company_email: 'hello@acme.test' })
 
-    expect(
-      await screen.findByRole('link', { name: 'support' })
-    ).toHaveAttribute('href', 'mailto:hello@acme.test')
+    const supportLinks = await screen.findAllByRole('link', { name: 'support' })
+    expect(supportLinks).toHaveLength(2)
+    for (const link of supportLinks) {
+      expect(link).toHaveAttribute('href', 'mailto:hello@acme.test')
+    }
   })
 
   it.each([
@@ -423,4 +441,151 @@ describe('SignInPage — site info branding', () => {
       ).toHaveTextContent(sentence)
     }
   )
+})
+
+// ---------------------------------------------------------------------------
+// Logo, "Powered by VibeXP" and the small-screen footer (#1359)
+//
+// jsdom has no layout, so breakpoint visibility is asserted structurally: by
+// the `lg:hidden` class and by which panel an element sits in.
+// ---------------------------------------------------------------------------
+
+const LOGO = 'https://cdn.acme.test/logo.svg'
+const LOGO_DARK = 'https://cdn.acme.test/logo-dark.svg'
+
+async function cardBrand() {
+  await screen.findByRole('heading', { name: /^Sign in to / })
+  return screen.getByTestId('sign-in-card-brand')
+}
+
+/** The two footer rows: the pitch panel's, and the one under the card. */
+function footers() {
+  const pitch = screen.getByTestId('sign-in-pitch')
+  const rows = screen.getAllByTestId('sign-in-footer')
+  expect(rows).toHaveLength(2)
+  const inPitch = rows.filter(row => pitch.contains(row))
+  const underCard = rows.filter(row => !pitch.contains(row))
+  expect(inPitch).toHaveLength(1)
+  expect(underCard).toHaveLength(1)
+  return { pitch, inPitch: inPitch[0], underCard: underCard[0] }
+}
+
+/**
+ * Asserts the credit is shown exactly once per breakpoint: at the top of the
+ * pitch panel (large screens) and in the under-card footer (small screens).
+ */
+function expectCredited() {
+  const { pitch, inPitch, underCard } = footers()
+  const credits = screen.getAllByRole('link', { name: 'Powered by VibeXP' })
+  expect(credits).toHaveLength(2)
+  for (const credit of credits) {
+    expect(credit).toHaveAttribute('href', 'https://vibexp.io')
+    expect(credit).toHaveAttribute('target', '_blank')
+    expect(credit).toHaveAttribute('rel', 'noopener noreferrer')
+  }
+  expect(
+    within(pitch).getAllByRole('link', { name: 'Powered by VibeXP' })
+  ).toHaveLength(1)
+  expect(
+    within(inPitch).queryByRole('link', { name: 'Powered by VibeXP' })
+  ).toBeNull()
+  expect(
+    within(underCard).getByRole('link', { name: 'Powered by VibeXP' })
+  ).toBeInTheDocument()
+}
+
+describe('SignInPage — logo, credit and small-screen footer (#1359)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetProviders.mockResolvedValue(PROVIDERS)
+    mockGetSetupStatus.mockResolvedValue({ setup_required: false })
+  })
+
+  it('keeps the VibeXP lockup and shows no credit when nothing is configured', async () => {
+    renderSignInPage()
+
+    const brand = await cardBrand()
+    // The pitch panel carries the lockup on large screens.
+    expect(brand).toHaveClass('lg:hidden')
+    expect(within(brand).getByTestId('vibexp-mark')).toBeInTheDocument()
+    expect(brand).toHaveTextContent('VibeXP')
+
+    const { pitch } = footers()
+    expect(within(pitch).getByTestId('vibexp-mark')).toBeInTheDocument()
+    expect(screen.queryByText(/powered by/i)).toBeNull()
+    expect(screen.queryByRole('img')).toBeNull()
+  })
+
+  it('renders the footer row under the card for screens without the pitch panel', async () => {
+    renderBranded({ company_email: 'hello@acme.test' })
+    await cardBrand()
+
+    const { inPitch, underCard } = footers()
+    expect(underCard).toHaveClass('lg:hidden')
+    expect(inPitch).not.toHaveClass('lg:hidden')
+    for (const row of [inPitch, underCard]) {
+      expect(row).toHaveTextContent(`© ${new Date().getFullYear()} VibeXP`)
+      expect(
+        within(row).getByRole('link', { name: 'support' })
+      ).toHaveAttribute('href', 'mailto:hello@acme.test')
+    }
+  })
+
+  it('shows the VibeXP mark beside the company name when there is no logo', async () => {
+    renderBranded({ company_name: 'Acme Inc.' })
+
+    const brand = await cardBrand()
+    expect(brand).not.toHaveClass('lg:hidden')
+    expect(within(brand).getByTestId('vibexp-mark')).toBeInTheDocument()
+    expect(brand).toHaveTextContent('Acme Inc.')
+    expect(within(brand).queryByRole('img')).toBeNull()
+    expectCredited()
+  })
+
+  it('leads the card with the company logo and name at every breakpoint', async () => {
+    renderBranded({ company_name: 'Acme Inc.', logo_url: LOGO })
+
+    const brand = await cardBrand()
+    expect(brand).not.toHaveClass('lg:hidden')
+    expect(
+      within(brand).getByRole('img', { name: 'Acme Inc.' })
+    ).toHaveAttribute('src', LOGO)
+    expect(brand).toHaveTextContent('Acme Inc.')
+    expect(within(brand).queryByTestId('vibexp-mark')).toBeNull()
+    // The company's lockup is not repeated in the product pitch.
+    expect(screen.getAllByRole('img')).toHaveLength(1)
+    expectCredited()
+  })
+
+  it('shows a logo configured without a name on its own, never beside "VibeXP"', async () => {
+    renderBranded({ logo_url: LOGO })
+
+    const brand = await cardBrand()
+    expect(brand).not.toHaveClass('lg:hidden')
+    expect(within(brand).getByRole('img')).toHaveAttribute('src', LOGO)
+    expect(brand.textContent).toBe('')
+    expectCredited()
+  })
+
+  it('falls back to the VibeXP mark, still without a name, when the logo fails to load', async () => {
+    renderBranded({ logo_url: LOGO })
+
+    const brand = await cardBrand()
+    fireEvent.error(within(brand).getByRole('img'))
+
+    expect(within(brand).getByTestId('vibexp-mark')).toBeInTheDocument()
+    expect(brand.textContent).toBe('')
+    expectCredited()
+  })
+
+  it('counts a dark-only logo as company branding', async () => {
+    renderBranded({ logo_dark_url: LOGO_DARK })
+
+    const brand = await cardBrand()
+    expect(brand).not.toHaveClass('lg:hidden')
+    // Light theme: the dark logo is not shown, and no name is printed.
+    expect(within(brand).queryByRole('img')).toBeNull()
+    expect(brand.textContent).toBe('')
+    expectCredited()
+  })
 })
