@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 
-import type { ResourceLock } from '../LockIndicator'
+import type { ResourceLock } from '@/types/resourceLock'
+
 import { LockIndicator } from '../LockIndicator'
 
 const lock: ResourceLock = {

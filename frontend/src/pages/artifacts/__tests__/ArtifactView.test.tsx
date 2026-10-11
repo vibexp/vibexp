@@ -95,7 +95,6 @@ import { ArtifactView } from '../ArtifactView'
 const mockArtifact: Artifact = vi.hoisted(() => ({
   lock: null,
   id: 'artifact-1',
-  lock: null,
   project_id: 'my-project',
   project: { id: 'my-project', name: 'My Project', slug: 'my-project-slug' },
   slug: 'my-artifact',

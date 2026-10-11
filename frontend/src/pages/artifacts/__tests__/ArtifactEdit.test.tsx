@@ -41,7 +41,6 @@ import { ArtifactEdit } from '../ArtifactEdit'
 const mockArtifact: Artifact = {
   lock: null,
   id: 'artifact-1',
-  lock: null,
   project_id: 'my-project',
   project: null,
   slug: 'my-artifact',

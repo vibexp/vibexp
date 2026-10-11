@@ -63,7 +63,6 @@ beforeAll(() => {
 const created: Blueprint = {
   lock: null,
   id: 'bp-1',
-  lock: null,
   project_id: 'project-1',
   project: null,
   slug: 'my-blueprint',

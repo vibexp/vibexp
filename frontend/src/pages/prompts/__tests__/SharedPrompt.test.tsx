@@ -38,7 +38,6 @@ function buildSharedResponse(
     prompt: {
       lock: null,
       id: 'prompt-1',
-      lock: null,
       name: 'Code Review Template',
       slug: 'code-review-template',
       description: 'Template for conducting code reviews',

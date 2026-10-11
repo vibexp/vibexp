@@ -49,7 +49,6 @@ import { BlueprintEdit } from '../BlueprintEdit'
 const mockBlueprint: Blueprint = {
   lock: null,
   id: 'blueprint-1',
-  lock: null,
   project_id: 'my-project',
   project: null,
   slug: 'my-blueprint',

@@ -39,7 +39,6 @@ describe('BlueprintService', () => {
   const mockBlueprint: Blueprint = {
     lock: null,
     id: 'spec-123',
-    lock: null,
     project_id: 'my-project',
     project: null,
     slug: 'api-spec',

@@ -48,7 +48,6 @@ const slug = 'my-prompt'
 const mockPrompt: Prompt = vi.hoisted(() => ({
   lock: null,
   id: 'prompt-1',
-  lock: null,
   name: 'My Prompt',
   slug: 'my-prompt',
   description: 'A test prompt',

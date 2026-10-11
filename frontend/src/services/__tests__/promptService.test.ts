@@ -48,7 +48,6 @@ describe('PromptService', () => {
   const mockPrompt: Prompt = {
     lock: null,
     id: 'prompt-1',
-    lock: null,
     name: 'My Prompt',
     slug: 'my-prompt',
     description: 'A test prompt',

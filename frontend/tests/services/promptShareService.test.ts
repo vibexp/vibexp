@@ -165,7 +165,6 @@ describe('PromptShareService', () => {
         prompt: {
           lock: null,
           id: 'prompt-123',
-          lock: null,
           name: 'Shared Prompt',
           slug: mockSlug,
           description: 'A shared prompt',
