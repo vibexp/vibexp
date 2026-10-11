@@ -4,8 +4,11 @@ import { useSearchParams } from 'react-router'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { BrandLogo } from '@/features/site-info/BrandLogo'
+import { PoweredBy } from '@/features/site-info/PoweredBy'
 import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { useTheme } from '@/lib/theme'
+import { cn } from '@/lib/utils'
 
 import { STORAGE_KEYS } from '../../constants/storageKeys'
 import { useAuth } from '../../contexts/AuthContext'
@@ -71,32 +74,22 @@ function ProviderIcon({ name }: Readonly<{ name: string }>) {
   return <KeyRound className="h-4 w-4" />
 }
 
-function VibeXPMark() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-    </svg>
-  )
-}
-
+/**
+ * The instance's lockup: its logo and name. A company logo configured without
+ * a company name stands alone, so "VibeXP" is never printed beside another
+ * company's logo.
+ */
 function Brand() {
-  const { displayName } = useSiteInfo()
+  const { displayName, company_name, hasCompanyBranding } = useSiteInfo()
+  const logoWithoutName = hasCompanyBranding && company_name === null
   return (
     <div className="inline-flex items-center gap-2.5">
-      <div className="bg-primary text-primary-foreground grid h-9 w-9 place-items-center rounded-lg">
-        <VibeXPMark />
-      </div>
-      <span className="text-base font-bold tracking-tight">{displayName}</span>
+      <BrandLogo size={36} />
+      {!logoWithoutName && (
+        <span className="text-base font-bold tracking-tight">
+          {displayName}
+        </span>
+      )}
     </div>
   )
 }
@@ -191,10 +184,54 @@ function LegalLine() {
   )
 }
 
-function PitchPanel() {
+interface SignInFooterProps {
+  className?: string
+  /** Also credit the product, where the pitch panel's own credit is hidden. */
+  showPoweredBy?: boolean
+}
+
+/** The copyright / website / support row. */
+function SignInFooter({
+  className,
+  showPoweredBy = false,
+}: Readonly<SignInFooterProps>) {
   const { displayName, website, supportHref } = useSiteInfo()
   return (
-    <div className="bg-muted relative hidden flex-col justify-between overflow-hidden border-r p-10 lg:flex lg:p-14">
+    <div
+      data-testid="sign-in-footer"
+      className={cn(
+        'text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-2 text-xs',
+        className
+      )}
+    >
+      <span>
+        © {CURRENT_YEAR} {displayName}
+      </span>
+      {website !== null && (
+        <a href={website} className="hover:text-foreground transition-colors">
+          {hostOf(website)}
+        </a>
+      )}
+      {supportHref !== null && (
+        <a
+          href={supportHref}
+          className="hover:text-foreground transition-colors"
+        >
+          support
+        </a>
+      )}
+      {showPoweredBy && <PoweredBy />}
+    </div>
+  )
+}
+
+function PitchPanel() {
+  const { hasCompanyBranding } = useSiteInfo()
+  return (
+    <div
+      data-testid="sign-in-pitch"
+      className="bg-muted relative hidden flex-col justify-between overflow-hidden border-r p-10 lg:flex lg:p-14"
+    >
       {/* Subtle dot grid backdrop */}
       <div
         aria-hidden="true"
@@ -211,7 +248,9 @@ function PitchPanel() {
       />
 
       <div className="relative z-10 max-w-md">
-        <Brand />
+        {/* The pitch below is VibeXP's own, so on a branded instance the
+            company leads from the card and the product is credited here. */}
+        {hasCompanyBranding ? <PoweredBy /> : <Brand />}
         <h2 className="mt-6 text-3xl leading-tight font-bold tracking-tight">
           One shared brain for all your AI.
         </h2>
@@ -237,24 +276,7 @@ function PitchPanel() {
         </div>
       </div>
 
-      <div className="text-muted-foreground relative z-10 flex gap-4 text-xs">
-        <span>
-          © {CURRENT_YEAR} {displayName}
-        </span>
-        {website !== null && (
-          <a href={website} className="hover:text-foreground transition-colors">
-            {hostOf(website)}
-          </a>
-        )}
-        {supportHref !== null && (
-          <a
-            href={supportHref}
-            className="hover:text-foreground transition-colors"
-          >
-            support
-          </a>
-        )}
-      </div>
+      <SignInFooter className="relative z-10" />
     </div>
   )
 }
@@ -271,7 +293,7 @@ export function SignInPage() {
   const [setupRequired, setSetupRequired] = useState(false)
 
   const { login } = useAuth()
-  const { displayName } = useSiteInfo()
+  const { displayName, hasCompanyBranding } = useSiteInfo()
   const { trackAuth } = useAnalytics()
   const [searchParams] = useSearchParams()
   // Where to send the user after login (e.g. back to an OAuth consent page).
@@ -377,82 +399,97 @@ export function SignInPage() {
             }}
           />
 
-          <div className="bg-card border-border relative z-10 w-full max-w-sm rounded-2xl border p-8 shadow-sm">
-            {/* Brand only on small screens (pitch panel hidden) */}
-            <div className="mb-5 lg:hidden">
-              <Brand />
-            </div>
+          <div className="relative z-10 w-full max-w-sm">
+            <div className="bg-card border-border rounded-2xl border p-8 shadow-sm">
+              {/* A company's lockup leads the card at every size. VibeXP's own
+                is here only on small screens: the pitch panel carries it on
+                large ones. */}
+              <div
+                data-testid="sign-in-card-brand"
+                className={hasCompanyBranding ? 'mb-5' : 'mb-5 lg:hidden'}
+              >
+                <Brand />
+              </div>
 
-            <h1 className="text-2xl font-bold tracking-tight">
-              Sign in to {displayName}
-            </h1>
-            <p className="text-muted-foreground mt-1.5 text-sm">
-              Your team&apos;s shared brain. Pick up where you left off.
-            </p>
+              <h1 className="text-2xl font-bold tracking-tight">
+                Sign in to {displayName}
+              </h1>
+              <p className="text-muted-foreground mt-1.5 text-sm">
+                Your team&apos;s shared brain. Pick up where you left off.
+              </p>
 
-            {(error || providersError) && (
-              <Alert variant="destructive" className="mt-5">
-                <AlertTitle>Sign in error</AlertTitle>
-                <AlertDescription>{error || providersError}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="mt-6 flex flex-col gap-2">
-              {providers === null && (
-                <Button disabled className="w-full">
-                  <span className="border-primary-foreground/40 border-r-primary-foreground inline-block h-4 w-4 animate-spin rounded-full border-2" />
-                  <span>Loading sign-in options…</span>
-                </Button>
-              )}
-              {providers?.length === 0 && !providersError && (
-                <p className="text-muted-foreground text-sm">
-                  No login providers are configured for this deployment.
-                </p>
-              )}
-              {noProviders && setupRequired && (
-                <Alert data-testid="setup-required-hint">
-                  <AlertTitle>This instance is waiting to be set up</AlertTitle>
-                  <AlertDescription>
-                    Look for the line starting with{' '}
-                    <code className="font-mono">SETUP URL</code> in the server
-                    logs and open that link to add a sign-in provider.
-                  </AlertDescription>
+              {(error || providersError) && (
+                <Alert variant="destructive" className="mt-5">
+                  <AlertTitle>Sign in error</AlertTitle>
+                  <AlertDescription>{error || providersError}</AlertDescription>
                 </Alert>
               )}
-              {providers?.map(provider => (
-                <Button
-                  key={provider.name}
-                  onClick={() => {
-                    void handleSignIn(provider)
-                  }}
-                  disabled={signingIn !== null}
-                  className="w-full"
-                >
-                  {signingIn === provider.name ? (
-                    <>
-                      <span className="border-primary-foreground/40 border-r-primary-foreground inline-block h-4 w-4 animate-spin rounded-full border-2" />
-                      <span>Signing you in…</span>
-                    </>
-                  ) : (
-                    <>
-                      <ProviderIcon name={provider.name} />
-                      <span>Continue with {provider.display_name}</span>
-                    </>
-                  )}
-                </Button>
-              ))}
+
+              <div className="mt-6 flex flex-col gap-2">
+                {providers === null && (
+                  <Button disabled className="w-full">
+                    <span className="border-primary-foreground/40 border-r-primary-foreground inline-block h-4 w-4 animate-spin rounded-full border-2" />
+                    <span>Loading sign-in options…</span>
+                  </Button>
+                )}
+                {providers?.length === 0 && !providersError && (
+                  <p className="text-muted-foreground text-sm">
+                    No login providers are configured for this deployment.
+                  </p>
+                )}
+                {noProviders && setupRequired && (
+                  <Alert data-testid="setup-required-hint">
+                    <AlertTitle>
+                      This instance is waiting to be set up
+                    </AlertTitle>
+                    <AlertDescription>
+                      Look for the line starting with{' '}
+                      <code className="font-mono">SETUP URL</code> in the server
+                      logs and open that link to add a sign-in provider.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {providers?.map(provider => (
+                  <Button
+                    key={provider.name}
+                    onClick={() => {
+                      void handleSignIn(provider)
+                    }}
+                    disabled={signingIn !== null}
+                    className="w-full"
+                  >
+                    {signingIn === provider.name ? (
+                      <>
+                        <span className="border-primary-foreground/40 border-r-primary-foreground inline-block h-4 w-4 animate-spin rounded-full border-2" />
+                        <span>Signing you in…</span>
+                      </>
+                    ) : (
+                      <>
+                        <ProviderIcon name={provider.name} />
+                        <span>Continue with {provider.display_name}</span>
+                      </>
+                    )}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Divider */}
+              <div className="text-muted-foreground my-5 flex items-center gap-3 text-xs tracking-wider uppercase">
+                <div className="bg-border h-px flex-1" />
+                <span>or</span>
+                <div className="bg-border h-px flex-1" />
+              </div>
+
+              <DevLogin returnTo={returnTo} onError={setError} />
+
+              <LegalLine />
             </div>
 
-            {/* Divider */}
-            <div className="text-muted-foreground my-5 flex items-center gap-3 text-xs tracking-wider uppercase">
-              <div className="bg-border h-px flex-1" />
-              <span>or</span>
-              <div className="bg-border h-px flex-1" />
-            </div>
-
-            <DevLogin returnTo={returnTo} onError={setError} />
-
-            <LegalLine />
+            {/* The pitch panel holds this row on large screens */}
+            <SignInFooter
+              className="mt-6 justify-center lg:hidden"
+              showPoweredBy={hasCompanyBranding}
+            />
           </div>
         </div>
       </div>

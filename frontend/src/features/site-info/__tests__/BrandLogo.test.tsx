@@ -54,10 +54,13 @@ describe('BrandLogo', () => {
     expect(screen.queryByTestId('vibexp-mark')).not.toBeInTheDocument()
   })
 
-  it('falls back to the product name for the alt text', () => {
+  it('never names a company logo after the product', () => {
     render(tree({ logo_url: LIGHT }))
 
-    expect(screen.getByRole('img', { name: 'VibeXP' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: 'Company logo' })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'VibeXP' })).toBeNull()
   })
 
   it('uses the main logo in light mode even when a dark one is set', () => {
