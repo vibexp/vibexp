@@ -243,7 +243,7 @@ function assertFieldOptions(
 }
 
 /**
- * `search`, `freshness` and `metadata` are list-level controls: they name no
+ * `search`, `freshness`, `lock` and `metadata` are list-level controls: they name no
  * field and have no option catalog. `select` and `taxonomy` need both.
  */
 function assertFilter(

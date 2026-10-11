@@ -9,6 +9,7 @@ import {
   ListPage,
   listPageStatus,
   ListTable,
+  lockedParam,
   ResourceFilterBar,
   useResourceListSort,
 } from '@/components/patterns/list-page'
@@ -48,6 +49,7 @@ const FILTER_DEFAULTS = {
   type: FILTER_ALL,
   status: FILTER_ALL,
   freshness: FILTER_ALL,
+  locked: FILTER_ALL,
   metadata: '',
   sort_by: 'updated_at',
   sort_order: 'desc',
@@ -74,7 +76,7 @@ export function Artifacts() {
 
   const listFilters = useResourceListFilters({
     defaults: FILTER_DEFAULTS,
-    filterKeys: ['type', 'status', 'freshness'],
+    filterKeys: ['type', 'status', 'freshness', 'locked'],
     projectId,
     isProjectLoading,
   })
@@ -118,6 +120,9 @@ export function Artifacts() {
   // must be dropped rather than forwarded.
   const freshness =
     filters.freshness === 'stale' ? ('stale' as const) : undefined
+  // "Locked only" or nothing: the URL holds `locked=locked`, the request
+  // `locked=true`, and any other URL value is not a filter.
+  const locked = lockedParam(filters.locked)
 
   const { sortableKeys, sortKey, onSortChange } = useResourceListSort({
     descriptor: ARTIFACT,
@@ -136,6 +141,7 @@ export function Artifacts() {
       status,
       metadata: metadataParam,
       freshness,
+      locked,
       project_id: projectId,
       // Safe by construction: the descriptor's sortable keys are pinned to
       // this endpoint's `sort_by` enum by `resourceListSpec.test.ts`.
@@ -155,6 +161,7 @@ export function Artifacts() {
     status,
     metadataParam,
     freshness,
+    locked,
     projectId,
     sortKey,
     sortOrder,
@@ -258,7 +265,7 @@ export function Artifacts() {
               <EmptyState
                 icon={Package}
                 title="No artifacts match your filters"
-                description="Try different search, type, status or metadata settings."
+                description="Try different search, type, status, lock or metadata settings."
                 actions={
                   <Button variant="outline" onClick={handleClear}>
                     Clear filters

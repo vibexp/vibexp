@@ -49,6 +49,7 @@ vi.spyOn(TeamContextModule, 'useTeam').mockReturnValue(mockTeamContext)
 describe('usePromptSearch', () => {
   const mockPrompts: Prompt[] = [
     {
+      lock: null,
       id: '1',
       name: 'Test Prompt 1',
       slug: 'test-prompt-1',
@@ -67,6 +68,7 @@ describe('usePromptSearch', () => {
       version: 1,
     },
     {
+      lock: null,
       id: '2',
       name: 'Test Prompt 2',
       slug: 'test-prompt-2',

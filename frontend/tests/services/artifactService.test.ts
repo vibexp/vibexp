@@ -37,6 +37,7 @@ describe('ArtifactService', () => {
   const slug = 'api-docs'
 
   const mockArtifact: Artifact = {
+    lock: null,
     id: 'artifact-1',
     project_id: projectId,
     project: null,

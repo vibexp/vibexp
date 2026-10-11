@@ -3,6 +3,7 @@ import { Eye, Pencil, Share2, Trash2 } from 'lucide-react'
 import type { NavigateFunction } from 'react-router'
 
 import { FreshnessBadge } from '@/components/FreshnessBadge'
+import { LockIndicator } from '@/components/LockIndicator'
 import {
   actionsColumn,
   columnList,
@@ -62,8 +63,14 @@ export function buildPromptsColumns({
       to: detailPath,
       navigate,
       summary: prompt => prompt.description,
-      // Renders nothing when the resource is fresh.
-      adornment: prompt => <FreshnessBadge freshness={prompt.freshness} />,
+      // Each renders nothing by itself: the badge when the resource is fresh,
+      // the icon when it is unlocked, so a plain row pays no layout for either.
+      adornment: prompt => (
+        <>
+          <FreshnessBadge freshness={prompt.freshness} />
+          <LockIndicator lock={prompt.lock} />
+        </>
+      ),
     }),
     statusColumn<Prompt>({
       field: fieldOfRole(descriptor, 'status'),
@@ -101,7 +108,9 @@ export function buildPromptsColumns({
           label: 'Delete',
           icon: Trash2,
           onSelect: onDelete,
-          visible: canDelete,
+          // A locked resource cannot be deleted by anyone, owners and admins
+          // included: the server answers 423, so the action is not offered.
+          visible: prompt => canDelete(prompt) && !prompt.lock,
         },
       ],
     })

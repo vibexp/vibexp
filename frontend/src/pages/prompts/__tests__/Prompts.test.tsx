@@ -125,6 +125,7 @@ import { Prompts } from '../Prompts'
 
 function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
   return {
+    lock: null,
     id: 'prompt-1',
     name: 'Code Review Template',
     slug: 'code-review-template',
@@ -958,5 +959,126 @@ describe('Prompts page — custom statuses (#1263)', () => {
 
     const table = await screen.findByRole('table')
     expect(within(table).getByText('in-review')).toHaveClass('bg-muted')
+  })
+})
+
+describe('Prompts page — lock state (#1292)', () => {
+  const lock = {
+    locked_by: { user_id: 'user-2', display_name: 'Ada Lovelace' },
+    comment: 'Used by the nightly release agent',
+    locked_at: '2026-10-11T10:15:30Z',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setTeamPermissions(['resource.delete.any'])
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
+    ;(promptService.getPrompts as Mock).mockResolvedValue(buildListResponse([]))
+  })
+
+  it('shows the lock icon, naming the locker, on a locked row only', async () => {
+    ;(promptService.getPrompts as Mock).mockResolvedValue(
+      buildListResponse([
+        buildPrompt({ id: 'p-1', name: 'Locked Prompt', slug: 'locked', lock }),
+        buildPrompt({ id: 'p-2', name: 'Open Prompt', slug: 'open' }),
+      ])
+    )
+    renderPrompts()
+
+    const lockedRow = (await screen.findByText('Locked Prompt')).closest('tr')
+    const openRow = screen.getByText('Open Prompt').closest('tr')
+    expect(
+      within(lockedRow as HTMLElement).getByRole('img', {
+        name: 'Locked by Ada Lovelace',
+      })
+    ).toBeInTheDocument()
+    expect(
+      within(openRow as HTMLElement).queryByTestId('lock-indicator')
+    ).not.toBeInTheDocument()
+  })
+
+  it('offers no Delete on a locked row, even with resource.delete.any', async () => {
+    ;(promptService.getPrompts as Mock).mockResolvedValue(
+      buildListResponse([
+        buildPrompt({ id: 'p-1', name: 'Locked Prompt', slug: 'locked', lock }),
+        buildPrompt({ id: 'p-2', name: 'Open Prompt', slug: 'open' }),
+      ])
+    )
+    renderPrompts()
+
+    const lockedRow = (await screen.findByText('Locked Prompt')).closest('tr')
+    const openRow = screen.getByText('Open Prompt').closest('tr')
+    expect(
+      within(lockedRow as HTMLElement).queryByTestId('delete-prompt-button')
+    ).not.toBeInTheDocument()
+    // The other row actions are untouched, and so is an unlocked row's Delete.
+    expect(
+      within(lockedRow as HTMLElement).getByLabelText('Edit')
+    ).toBeInTheDocument()
+    expect(
+      within(openRow as HTMLElement).getByTestId('delete-prompt-button')
+    ).toBeInTheDocument()
+  })
+
+  it('sends no locked param by default', async () => {
+    renderPrompts()
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    expect(lastQuery().locked).toBeUndefined()
+    expect(currentSearch).toBe('')
+  })
+
+  it('forwards ?locked=locked to the API as locked: true', async () => {
+    renderPrompts('/prompts?locked=locked')
+
+    await waitFor(() => {
+      expect(lastQuery().locked).toBe(true)
+    })
+  })
+
+  it('drops a junk locked value rather than forwarding it', async () => {
+    renderPrompts('/prompts?locked=bogus')
+
+    await waitFor(() => {
+      expect(promptService.getPrompts).toHaveBeenCalled()
+    })
+    expect(lastQuery().locked).toBeUndefined()
+  })
+
+  it('keeps the filter in the request and the URL across pagination', async () => {
+    ;(promptService.getPrompts as Mock).mockResolvedValue({
+      ...buildListResponse([buildPrompt({ lock })]),
+      total_count: 25,
+      total_pages: 2,
+    })
+    renderPrompts('/prompts?locked=locked')
+    await screen.findByText('Code Review Template')
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+
+    await waitFor(() => {
+      expect(lastQuery().page).toBe(2)
+    })
+    expect(lastQuery().locked).toBe(true)
+    expect(currentSearch).toContain('locked=locked')
+    expect(currentSearch).toContain('page=2')
+  })
+
+  it('counts as an active filter, and Clear filters drops it', async () => {
+    renderPrompts('/prompts?locked=locked')
+    await screen.findByText('No prompts match your filters')
+
+    const user = userEvent.setup()
+    const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
+    await user.click(clear)
+
+    await waitFor(() => {
+      expect(lastQuery().locked).toBeUndefined()
+    })
+    expect(currentSearch).not.toContain('locked')
   })
 })

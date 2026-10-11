@@ -129,10 +129,10 @@ beforeEach(() => {
 
 describe('ResourceFilterBar', () => {
   it.each([
-    ['artifact', 5],
-    ['blueprint', 5],
+    ['artifact', 6],
+    ['blueprint', 6],
     ['memory', 4],
-    ['prompt', 4],
+    ['prompt', 5],
   ] as [ResourceKindKey, number][])(
     'renders one control per %s filter spec',
     (kind, expected) => {
@@ -209,6 +209,59 @@ describe('ResourceFilterBar', () => {
       await screen.findByRole('option', { name: 'All freshness' })
     )
     expect(setFilters).toHaveBeenCalledWith({ freshness: 'all' })
+  })
+
+  it.each([
+    ['prompt', 'prompts'],
+    ['blueprint', 'blueprints'],
+    ['artifact', 'artifacts'],
+  ] as [ResourceKindKey, string][])(
+    'offers "all" and "Locked only" on the %s lock filter',
+    async (kind, plural) => {
+      const user = userEvent.setup()
+      renderBar({ kind })
+      await user.click(screen.getByLabelText(`Filter ${plural} by lock state`))
+      const options = (await screen.findAllByRole('option')).map(
+        option => option.textContent
+      )
+      expect(options).toEqual(['All lock states', 'Locked only'])
+    }
+  )
+
+  it('emits the raw `locked` value when "Locked only" is picked', async () => {
+    const user = userEvent.setup()
+    renderBar({ kind: 'prompt' })
+    await user.click(screen.getByTestId('prompt-lock-filter'))
+    await user.click(await screen.findByRole('option', { name: 'Locked only' }))
+    expect(setFilters).toHaveBeenCalledWith({ locked: 'locked' })
+  })
+
+  it('shows the committed lock filter, and clears it back to the sentinel', async () => {
+    const user = userEvent.setup()
+    renderBar({ values: { locked: 'locked' } })
+    const trigger = screen.getByLabelText('Filter artifacts by lock state')
+    expect(trigger).toHaveTextContent('Locked only')
+    await user.click(trigger)
+    await user.click(
+      await screen.findByRole('option', { name: 'All lock states' })
+    )
+    expect(setFilters).toHaveBeenCalledWith({ locked: 'all' })
+  })
+
+  it('shows "All lock states" for a junk lock value in the URL', () => {
+    // The page drops it from the request; the control must agree.
+    renderBar({ values: { locked: 'false' } })
+    expect(
+      screen.getByLabelText('Filter artifacts by lock state')
+    ).toHaveTextContent('All lock states')
+  })
+
+  it('renders no lock control on the memories bar', () => {
+    // Memories cannot be locked (#1285): no filter, and no `locked` parameter
+    // on that endpoint to drive.
+    renderBar({ kind: 'memory' })
+    expect(screen.queryByLabelText(/by lock state/)).not.toBeInTheDocument()
+    expect(screen.queryByTestId('memory-lock-filter')).not.toBeInTheDocument()
   })
 
   it('loads the label catalog only when the taxonomy popover opens', async () => {

@@ -46,6 +46,7 @@ const teamId = 'team-123'
 const slug = 'my-prompt'
 
 const mockPrompt: Prompt = vi.hoisted(() => ({
+  lock: null,
   id: 'prompt-1',
   name: 'My Prompt',
   slug: 'my-prompt',

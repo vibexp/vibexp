@@ -44,6 +44,21 @@ export function freshnessFilter(kind: string, plural: string): FilterSpec {
   }
 }
 
+/**
+ * "Locked only" (#1285). Not backed by a field: `lock` is who holds the
+ * resource, not a value the resource has. Declared only by the kinds that can
+ * be locked — prompts, blueprints and artifacts, never memories.
+ */
+export function lockFilter(kind: string, plural: string): FilterSpec {
+  return {
+    key: 'locked',
+    control: 'lock',
+    label: `Filter ${plural} by lock state`,
+    allLabel: 'All lock states',
+    testId: `${kind}-lock-filter`,
+  }
+}
+
 /** The free-form key/value bag. Not backed by a field the bar can enumerate. */
 export function metadataFilter(plural: string): FilterSpec {
   return {

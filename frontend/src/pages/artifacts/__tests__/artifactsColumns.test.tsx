@@ -102,3 +102,88 @@ describe('artifactsColumns — stale badge (#738)', () => {
     expect(screen.getByRole('button', { name: 'Runbook' })).toBeInTheDocument()
   })
 })
+
+const lock = {
+  locked_by: { user_id: 'user-2', display_name: 'Ada Lovelace' },
+  comment: 'Used by the nightly release agent',
+  locked_at: '2026-10-11T10:15:30Z',
+}
+
+describe('artifactsColumns — lock icon (#1292)', () => {
+  it('shows the icon, naming the locker, for a locked artifact', () => {
+    renderTitleCell({ lock })
+    expect(
+      screen.getByRole('img', { name: 'Locked by Ada Lovelace' })
+    ).toBeInTheDocument()
+  })
+
+  it('shows no icon for an unlocked artifact', () => {
+    renderTitleCell({ lock: null })
+    expect(screen.queryByTestId('lock-indicator')).not.toBeInTheDocument()
+  })
+
+  it('shows the stale badge and the lock icon together', () => {
+    renderTitleCell({
+      lock,
+      freshness: {
+        status: 'stale',
+        since: '2026-08-01T00:00:00Z',
+        matched_rule_ids: ['r1'],
+        reason: 'rule_run',
+      },
+    })
+    expect(screen.getByTestId('freshness-badge')).toBeInTheDocument()
+    expect(screen.getByTestId('lock-indicator')).toBeInTheDocument()
+    // The name is still the row's link.
+    expect(screen.getByRole('button', { name: 'Runbook' })).toBeInTheDocument()
+  })
+})
+
+function renderActionsCell(
+  artifact: Partial<Artifact>,
+  canDelete: (artifact: Artifact) => boolean = () => true
+) {
+  const columns = buildArtifactsColumns({
+    navigate: vi.fn(),
+    onDelete: vi.fn(),
+    canDelete,
+  })
+  const actionsCol = columns.find(col => col.id === 'actions')
+  if (!actionsCol?.cell || typeof actionsCol.cell !== 'function') {
+    throw new Error('Actions column cell renderer not found')
+  }
+  const cell = actionsCol.cell as (ctx: { row: Row<Artifact> }) => ReactNode
+  const row = {
+    original: {
+      title: 'Runbook',
+      slug: 'runbook',
+      project_id: 'p1',
+      ...artifact,
+    },
+  } as Row<Artifact>
+  return render(<>{cell({ row })}</>)
+}
+
+describe('artifactsColumns — Delete on a locked row (#1292)', () => {
+  it('offers Delete on an unlocked row the user may delete', () => {
+    renderActionsCell({ lock: null })
+    expect(screen.getByTestId('delete-artifact-button')).toBeInTheDocument()
+  })
+
+  it('offers no Delete on a locked row, whatever the permission says', () => {
+    renderActionsCell({ lock })
+    expect(
+      screen.queryByTestId('delete-artifact-button')
+    ).not.toBeInTheDocument()
+    // View and Edit are not gated by the lock here.
+    expect(screen.getByTestId('view-artifact-button')).toBeInTheDocument()
+    expect(screen.getByTestId('edit-artifact-button')).toBeInTheDocument()
+  })
+
+  it('still hides Delete on an unlocked row the user may not delete', () => {
+    renderActionsCell({ lock: null }, () => false)
+    expect(
+      screen.queryByTestId('delete-artifact-button')
+    ).not.toBeInTheDocument()
+  })
+})

@@ -213,6 +213,7 @@ import { PromptEditor } from '../PromptEditor'
 
 function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
   return {
+    lock: null,
     id: 'prompt-1',
     name: 'My Prompt',
     slug: 'my-prompt',

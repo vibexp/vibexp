@@ -729,3 +729,121 @@ describe('Artifacts page — custom statuses (#1263)', () => {
     expect(within(table).getByText('in-review')).toHaveClass('bg-muted')
   })
 })
+
+describe('Artifacts page — lock filter (#1292)', () => {
+  const lockedArtifact = {
+    id: 'artifact-1',
+    project_id: 'proj-1',
+    project: null,
+    slug: 'sprint-report',
+    user_id: 'user-1',
+    title: 'Sprint Report',
+    description: '',
+    content: '',
+    type: 'general',
+    status: 'active',
+    metadata: {},
+    labels: [],
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-02T00:00:00Z',
+    lock: {
+      locked_by: { user_id: 'user-2', display_name: 'Ada Lovelace' },
+      comment: 'Used by the nightly release agent',
+      locked_at: '2026-10-11T10:15:30Z',
+    },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
+    ;(artifactService.getArtifacts as Mock).mockResolvedValue(emptyResponse)
+    ;(metadataService.listKeys as Mock).mockResolvedValue({
+      keys: [],
+      truncated: false,
+    })
+    ;(metadataService.listValues as Mock).mockResolvedValue({
+      values: [],
+      truncated: false,
+    })
+  })
+
+  it('sends no locked param by default', async () => {
+    renderArtifacts()
+
+    await waitFor(() => {
+      expect(artifactService.getArtifacts).toHaveBeenCalled()
+    })
+    expect(lastQuery().locked).toBeUndefined()
+    expect(currentSearch).toBe('')
+  })
+
+  it('forwards ?locked=locked to the API as locked: true', async () => {
+    renderArtifacts('/artifacts?locked=locked')
+
+    await waitFor(() => {
+      expect(lastQuery().locked).toBe(true)
+    })
+  })
+
+  it('drops a junk locked value rather than forwarding it', async () => {
+    renderArtifacts('/artifacts?locked=bogus')
+
+    await waitFor(() => {
+      expect(artifactService.getArtifacts).toHaveBeenCalled()
+    })
+    expect(lastQuery().locked).toBeUndefined()
+  })
+
+  it('shows the lock icon on a locked row, through the real columns', async () => {
+    ;(artifactService.getArtifacts as Mock).mockResolvedValue({
+      ...emptyResponse,
+      artifacts: [lockedArtifact],
+      total_count: 1,
+      total_pages: 1,
+    })
+    renderArtifacts()
+
+    const table = await screen.findByRole('table')
+    expect(
+      within(table).getByRole('img', { name: 'Locked by Ada Lovelace' })
+    ).toBeInTheDocument()
+  })
+
+  it('keeps the filter in the request and the URL across pagination', async () => {
+    ;(artifactService.getArtifacts as Mock).mockResolvedValue({
+      ...emptyResponse,
+      artifacts: [lockedArtifact],
+      total_count: 25,
+      total_pages: 2,
+    })
+    renderArtifacts('/artifacts?locked=locked')
+    await screen.findByText('Sprint Report')
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+
+    await waitFor(() => {
+      expect(lastQuery().page).toBe(2)
+    })
+    expect(lastQuery().locked).toBe(true)
+    expect(currentSearch).toContain('locked=locked')
+    expect(currentSearch).toContain('page=2')
+  })
+
+  it('counts as an active filter, and Clear filters drops it', async () => {
+    renderArtifacts('/artifacts?locked=locked')
+    await waitFor(() => {
+      expect(lastQuery().locked).toBe(true)
+    })
+
+    const user = userEvent.setup()
+    const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
+    await user.click(clear)
+
+    await waitFor(() => {
+      expect(lastQuery().locked).toBeUndefined()
+    })
+    expect(currentSearch).not.toContain('locked')
+  })
+})

@@ -3,6 +3,7 @@ import { formatDate } from '@/lib/time'
 import { defineResource } from '../defineResource'
 import {
   freshnessFilter,
+  lockFilter,
   metadataFilter,
   searchFilter,
   statusFilter,
@@ -140,6 +141,7 @@ export const blueprintDescriptor = defineResource({
       },
       statusFilter('blueprint'),
       freshnessFilter('blueprint', 'blueprints'),
+      lockFilter('blueprint', 'blueprints'),
       metadataFilter('blueprints'),
     ],
     // The list endpoint's `sort_by` enum is [created_at, updated_at, title]

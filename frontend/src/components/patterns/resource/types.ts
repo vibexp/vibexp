@@ -148,14 +148,15 @@ export type ResourceAddressShape =
 /**
  * Which control a list filter renders as.
  *
- * `search`, `freshness` and `metadata` are list-level controls with no field
- * of their own — every resource searches over its own text, freshness is a
- * property of the freshness rules and `metadata` is the free-form blob — so
+ * `search`, `freshness`, `lock` and `metadata` are list-level controls with no
+ * field of their own — every resource searches over its own text, freshness is
+ * a property of the freshness rules, a lock is held on the resource rather than
+ * being one of its values (#1285) and `metadata` is the free-form blob — so
  * they name no `FieldSpec`. `select` and `taxonomy` do, and `defineResource`
  * enforces it.
  */
 export type FilterControl =
-  'search' | 'select' | 'freshness' | 'metadata' | 'taxonomy'
+  'search' | 'select' | 'freshness' | 'lock' | 'metadata' | 'taxonomy'
 
 /**
  * Where a `select`/`taxonomy` filter's options come from.
@@ -186,7 +187,7 @@ export interface FilterSpec {
   readonly control: FilterControl
   /** Accessible name for the control ("Filter by status"). */
   readonly label: string
-  /** Text of the "no filter" option ("All statuses"). `select` only. */
+  /** Text of the "no filter" option ("All statuses"). `select` and `lock`. */
   readonly allLabel?: string
   /** Required on `select` and `taxonomy`, forbidden on the other controls. */
   readonly optionsFrom?: FilterOptionsSource
