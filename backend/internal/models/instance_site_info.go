@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+	"unicode"
+)
 
 // Length caps for the instance site info values, counted in characters. They
 // live here, in the leaf models package, because they are shared by the service
@@ -68,4 +72,69 @@ type InstanceSiteInfoView struct {
 	UpdatedAt *time.Time
 	UpdatedBy *string
 	Version   *int64
+}
+
+// The product's own identity. It is what an instance shows when no company
+// branding is configured, and it stays visible next to company branding as
+// "Powered by VibeXP": no setting can remove it (epic #1352, decision 5).
+const (
+	// ProductName is the product's name.
+	ProductName = "VibeXP"
+	// ProductURL is where "Powered by VibeXP" links.
+	ProductURL = "https://vibexp.io"
+	// ProductLogoURL is the product logo emails use when no company logo is
+	// configured.
+	ProductLogoURL = "https://vibexp.io/logo.png"
+)
+
+// EmailBranding is the site info as an email needs it: every fallback already
+// applied, so templates only print.
+type EmailBranding struct {
+	// DisplayName is the company name on a single line, or ProductName when
+	// none is configured. It is safe to put in a subject: line breaks and
+	// other control characters never survive into it.
+	DisplayName string
+	// HasCompany reports whether DisplayName is a configured company name
+	// rather than the product's.
+	HasCompany bool
+	// LogoURL is the company's main logo, or ProductLogoURL. The dark-mode
+	// logo is never used: a mail client cannot switch on theme.
+	LogoURL string
+	// SupportHref is support_url, else a mailto: for company_email, else
+	// empty (no support link).
+	SupportHref string
+	// TermsURL and PrivacyURL are empty when not configured.
+	TermsURL   string
+	PrivacyURL string
+}
+
+// EmailBranding derives what emails show from the site info values.
+func (v InstanceSiteInfoValues) EmailBranding() EmailBranding {
+	branding := EmailBranding{
+		DisplayName: singleLine(v.CompanyName),
+		LogoURL:     v.LogoURL,
+		SupportHref: v.SupportURL,
+		TermsURL:    v.TermsURL,
+		PrivacyURL:  v.PrivacyURL,
+	}
+	branding.HasCompany = branding.DisplayName != ""
+	if !branding.HasCompany {
+		branding.DisplayName = ProductName
+	}
+	if branding.LogoURL == "" {
+		branding.LogoURL = ProductLogoURL
+	}
+	if branding.SupportHref == "" && v.CompanyEmail != "" {
+		branding.SupportHref = "mailto:" + v.CompanyEmail
+	}
+	return branding
+}
+
+// singleLine collapses every run of whitespace and control characters to one
+// space and trims the ends. The company name is only length-capped when it is
+// stored, so this is what keeps a line break in it out of an email subject.
+func singleLine(s string) string {
+	return strings.Join(strings.FieldsFunc(s, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r)
+	}), " ")
 }

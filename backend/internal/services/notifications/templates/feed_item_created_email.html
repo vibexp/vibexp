@@ -21,6 +21,7 @@
   </p>
   {{end}}
   <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
-  <p style="font-size:12px;color:#999">You are receiving this because you are a member of this team on VibeXP.</p>
+  <p style="font-size:12px;color:#999">You are receiving this because you are a member of this team on {{(index . "footer").Brand.DisplayName}}.</p>
+  <p style="font-size:12px;color:#999">Powered by <a href="{{(index . "footer").ProductURL}}" style="color:#999">{{(index . "footer").ProductName}}</a></p>
 </body>
 </html>

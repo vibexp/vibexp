@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"html/template"
@@ -25,7 +26,21 @@ type RenderedContent struct {
 
 // ContentRenderer defines the contract for rendering notification content
 type ContentRenderer interface {
-	Render(notifType NotificationType, data map[string]interface{}) (*RenderedContent, error)
+	Render(ctx context.Context, notifType NotificationType, data map[string]interface{}) (*RenderedContent, error)
+}
+
+// SiteInfoSource supplies the instance's company branding for rendered emails.
+// services.InstanceSiteInfoResolver satisfies it; its Resolve fails open, so a
+// branding read never fails a render.
+type SiteInfoSource interface {
+	Resolve(ctx context.Context) models.InstanceSiteInfoValues
+}
+
+// emailFooter is the branding every notification email's footer prints.
+type emailFooter struct {
+	Brand       models.EmailBranding
+	ProductName string
+	ProductURL  string
 }
 
 // TemplateRenderer renders notification content using embedded templates
@@ -35,25 +50,40 @@ type TemplateRenderer struct {
 	// email's "manage preferences" link). No tenant-specific domain is baked
 	// into the templates.
 	appBaseURL string
+	// siteInfo is read on every render, so a branding change shows in the
+	// next email with no restart.
+	siteInfo SiteInfoSource
 }
 
 // NewTemplateRenderer creates a new TemplateRenderer. appBaseURL is the
 // frontend base URL used to build app-facing links in rendered emails; any
-// trailing slash is trimmed.
-func NewTemplateRenderer(appBaseURL string) *TemplateRenderer {
+// trailing slash is trimmed. siteInfo supplies the company branding the email
+// footers show.
+func NewTemplateRenderer(appBaseURL string, siteInfo SiteInfoSource) *TemplateRenderer {
 	return &TemplateRenderer{
 		appBaseURL: strings.TrimRight(appBaseURL, "/"),
+		siteInfo:   siteInfo,
+	}
+}
+
+// footer resolves the branding for one rendered email.
+func (t *TemplateRenderer) footer(ctx context.Context) emailFooter {
+	return emailFooter{
+		Brand:       t.siteInfo.Resolve(ctx).EmailBranding(),
+		ProductName: models.ProductName,
+		ProductURL:  models.ProductURL,
 	}
 }
 
 // Render generates notification content for the given type and data
 func (t *TemplateRenderer) Render(
+	ctx context.Context,
 	notifType NotificationType,
 	data map[string]interface{},
 ) (*RenderedContent, error) {
 	switch notifType {
 	case "feed.item.created":
-		return t.renderFeedItemCreated(data)
+		return t.renderFeedItemCreated(ctx, data)
 	default:
 		return &RenderedContent{
 			InAppTitle:    fmt.Sprintf("New notification: %s", notifType),
@@ -64,14 +94,23 @@ func (t *TemplateRenderer) Render(
 	}
 }
 
-func (t *TemplateRenderer) renderFeedItemCreated(data map[string]interface{}) (*RenderedContent, error) {
+func (t *TemplateRenderer) renderFeedItemCreated(
+	ctx context.Context, data map[string]interface{},
+) (*RenderedContent, error) {
 	actorName, _ := data["actor_name"].(string)
 	title, _ := data["title"].(string)
 
 	inAppTitle := fmt.Sprintf("%s posted to the team feed", actorName)
 	inAppBody := title
 
-	emailHTML, err := t.renderHTMLTemplate("templates/feed_item_created_email.html", data)
+	// The caller's map is left untouched: the footer rides on a copy.
+	emailData := make(map[string]interface{}, len(data)+1)
+	for k, v := range data {
+		emailData[k] = v
+	}
+	emailData["footer"] = t.footer(ctx)
+
+	emailHTML, err := t.renderHTMLTemplate("templates/feed_item_created_email.html", emailData)
 	if err != nil {
 		return nil, fmt.Errorf("render feed_item_created email template: %w", err)
 	}
@@ -111,6 +150,7 @@ type digestEmailData struct {
 	UserName   string
 	Groups     []digestEmailGroup
 	AppBaseURL string
+	Footer     emailFooter
 }
 
 // digestEmailGroup groups notifications by team for the digest email.
@@ -129,20 +169,24 @@ type digestEmailNotif struct {
 // RenderDigestEmail renders the digest email template for the given user and notifications.
 // Notifications are grouped by TeamID; the TeamID value is used as the group label.
 // For proper team name resolution, prefer RenderDigestEmailWithTeamNames.
-func (t *TemplateRenderer) RenderDigestEmail(user *models.User, notifs []*models.Notification) (string, error) {
-	return t.RenderDigestEmailWithTeamNames(user, notifs, nil)
+func (t *TemplateRenderer) RenderDigestEmail(
+	ctx context.Context, user *models.User, notifs []*models.Notification,
+) (string, error) {
+	return t.RenderDigestEmailWithTeamNames(ctx, user, notifs, nil)
 }
 
 // RenderDigestEmailWithTeamNames renders the digest email template, resolving team IDs to
 // display names using the provided teamNames map. When a team ID is absent from the map
 // the team ID itself is used as a fallback so the email always renders.
 func (t *TemplateRenderer) RenderDigestEmailWithTeamNames(
+	ctx context.Context,
 	user *models.User,
 	notifs []*models.Notification,
 	teamNames map[string]string,
 ) (string, error) {
 	data := buildDigestEmailData(user, notifs, teamNames)
 	data.AppBaseURL = t.appBaseURL
+	data.Footer = t.footer(ctx)
 	return t.renderHTMLTemplate("templates/digest_email.html", data)
 }
 

@@ -283,7 +283,7 @@ func (d *DigestRunner) sendTeamDigestEmail(
 	now time.Time,
 ) {
 	teamNames := d.resolveTeamNames(ctx, group.notifs)
-	htmlBody, err := d.renderer.RenderDigestEmailWithTeamNames(user, group.notifs, teamNames)
+	htmlBody, err := d.renderer.RenderDigestEmailWithTeamNames(ctx, user, group.notifs, teamNames)
 	if err != nil {
 		d.logger.With(
 			"user_id", user.ID,

@@ -30,16 +30,61 @@ type EmailService struct {
 	// no directly injected provider any more — every send goes through here, so a
 	// team's configuration cannot be bypassed.
 	resolver EmailSenderResolver
+	// siteInfo supplies the instance's company branding per send. Its Resolve
+	// fails open, so a branding read can never fail a send: the email goes out
+	// with the product's own branding instead.
+	siteInfo InstanceSiteInfoResolver
 	cfg      *config.Config
 }
 
 // Ensure EmailService implements EmailServiceInterface
 var _ EmailServiceInterface = (*EmailService)(nil)
 
-func NewEmailService(resolver EmailSenderResolver, cfg *config.Config) *EmailService {
+func NewEmailService(
+	resolver EmailSenderResolver, siteInfo InstanceSiteInfoResolver, cfg *config.Config,
+) *EmailService {
 	return &EmailService{
 		resolver: resolver,
+		siteInfo: siteInfo,
 		cfg:      cfg,
+	}
+}
+
+// emailLayoutData is what the shared base layout and the text footers read. It
+// is embedded in every email's template data, so its fields are addressed
+// directly ({{.Year}}, {{.Brand.DisplayName}}).
+type emailLayoutData struct {
+	Year       int
+	AppBaseURL string
+	// PrivacyPolicyURL is the footer's privacy link, empty for none: the site
+	// info's privacy URL when one is configured, otherwise the one stored with
+	// the email settings.
+	PrivacyPolicyURL string
+	// Brand is the instance's company branding with every fallback applied.
+	// Its values are admin-entered text: the HTML templates here render
+	// through text/template, which does not escape, so each use passes
+	// through the `html` function.
+	Brand models.EmailBranding
+	// ProductName and ProductURL back the "Powered by" line every email
+	// carries.
+	ProductName string
+	ProductURL  string
+}
+
+// layoutData builds the shared template data for one send.
+func (es *EmailService) layoutData(ctx context.Context, year int, identity InstanceEmailIdentity) emailLayoutData {
+	brand := es.siteInfo.Resolve(ctx).EmailBranding()
+	privacyURL := brand.PrivacyURL
+	if privacyURL == "" {
+		privacyURL = identity.PrivacyPolicyURL
+	}
+	return emailLayoutData{
+		Year:             year,
+		AppBaseURL:       es.appBaseURL(),
+		PrivacyPolicyURL: privacyURL,
+		Brand:            brand,
+		ProductName:      models.ProductName,
+		ProductURL:       models.ProductURL,
 	}
 }
 
@@ -55,7 +100,8 @@ func adminRecipient(identity InstanceEmailIdentity) string {
 }
 
 // instanceIdentity reads the instance's mail identity per send. Templates
-// render before the sender is resolved, so the privacy URL needs its own read.
+// render before the sender is resolved, so the email settings' privacy URL (the
+// footer's fallback, see layoutData) needs its own read.
 // A failed read fails the send loudly rather than rendering a blank footer or
 // delivering to the wrong mailbox.
 func (es *EmailService) instanceIdentity(ctx context.Context) (InstanceEmailIdentity, error) {
@@ -187,25 +233,21 @@ func (es *EmailService) sendSupportNotificationToAdmin(
 
 	// Prepare template data
 	data := struct {
+		emailLayoutData
 		UserName           string
 		UserEmail          string
 		Text               string
 		Acknowledgement    bool
 		AdditionalInfoHTML string
 		AdditionalInfoText string
-		Year               int
-		AppBaseURL         string
-		PrivacyPolicyURL   string
 	}{
+		emailLayoutData:    es.layoutData(ctx, 2025, identity),
 		UserName:           userName,
 		UserEmail:          userEmail,
 		Text:               req.Text,
 		Acknowledgement:    req.Acknowledgement,
 		AdditionalInfoHTML: additionalInfoHTML,
 		AdditionalInfoText: additionalInfoText,
-		Year:               2025,
-		AppBaseURL:         es.appBaseURL(),
-		PrivacyPolicyURL:   identity.PrivacyPolicyURL,
 	}
 
 	// Render HTML template
@@ -234,8 +276,6 @@ func (es *EmailService) sendSupportNotificationToAdmin(
 func (es *EmailService) sendSupportAcknowledgement(
 	ctx context.Context, userName, userEmail string, req *models.SupportRequest,
 ) error {
-	subject := "Thank you for contacting VibeXP Support"
-
 	// Extract first name from full name
 	firstName := es.extractFirstName(userName)
 
@@ -246,18 +286,15 @@ func (es *EmailService) sendSupportAcknowledgement(
 
 	// Prepare template data
 	data := struct {
-		FirstName        string
-		Text             string
-		Year             int
-		AppBaseURL       string
-		PrivacyPolicyURL string
+		emailLayoutData
+		FirstName string
+		Text      string
 	}{
-		FirstName:        firstName,
-		Text:             req.Text,
-		Year:             2025,
-		AppBaseURL:       es.appBaseURL(),
-		PrivacyPolicyURL: identity.PrivacyPolicyURL,
+		emailLayoutData: es.layoutData(ctx, 2025, identity),
+		FirstName:       firstName,
+		Text:            req.Text,
 	}
+	subject := fmt.Sprintf("Thank you for contacting %s Support", data.Brand.DisplayName)
 
 	// Render HTML template
 	htmlBody, err := es.renderTemplateFromFS(
@@ -293,8 +330,6 @@ func (es *EmailService) SendNotificationEmail(ctx context.Context, teamID, to, s
 func (es *EmailService) SendTeamInvitation(
 	ctx context.Context, teamID string, invitation *models.TeamInvitation, teamName, inviterName string,
 ) error {
-	subject := fmt.Sprintf("You have been invited to join %s on VibeXP", teamName)
-
 	identity, err := es.instanceIdentity(ctx)
 	if err != nil {
 		return err
@@ -305,24 +340,21 @@ func (es *EmailService) SendTeamInvitation(
 
 	// Prepare template data
 	data := struct {
-		TeamName         string
-		InviterName      string
-		Role             string
-		AcceptURL        string
-		ExpiryDate       string
-		Year             int
-		AppBaseURL       string
-		PrivacyPolicyURL string
+		emailLayoutData
+		TeamName    string
+		InviterName string
+		Role        string
+		AcceptURL   string
+		ExpiryDate  string
 	}{
-		TeamName:         teamName,
-		InviterName:      inviterName,
-		Role:             string(invitation.Role),
-		AcceptURL:        acceptURL,
-		ExpiryDate:       invitation.ExpiresAt.Format("January 2, 2006"),
-		Year:             time.Now().Year(),
-		AppBaseURL:       es.appBaseURL(),
-		PrivacyPolicyURL: identity.PrivacyPolicyURL,
+		emailLayoutData: es.layoutData(ctx, time.Now().Year(), identity),
+		TeamName:        teamName,
+		InviterName:     inviterName,
+		Role:            string(invitation.Role),
+		AcceptURL:       acceptURL,
+		ExpiryDate:      invitation.ExpiresAt.Format("January 2, 2006"),
 	}
+	subject := fmt.Sprintf("You have been invited to join %s on %s", teamName, data.Brand.DisplayName)
 
 	// Render HTML template
 	htmlBody, err := es.renderTemplateFromFS(

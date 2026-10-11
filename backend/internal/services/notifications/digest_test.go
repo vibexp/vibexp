@@ -82,7 +82,7 @@ func newDigestRunner(
 		TeamRepo:   teamRepo,
 		PrefRepo:   prefRepo,
 		EmailSvc:   emailSvc,
-		Renderer:   notifications.NewTemplateRenderer("https://app.example.com"),
+		Renderer:   notifications.NewTemplateRenderer("https://app.example.com", noSiteInfo{}),
 		AppMetrics: nil,
 		Logger:     logger,
 	})
@@ -517,7 +517,7 @@ func TestDigestRunner_Run_NotificationsDeleted(t *testing.T) {
 // --------------------------------------------------------------------------
 
 func TestTemplateRenderer_RenderDigestEmail(t *testing.T) {
-	renderer := notifications.NewTemplateRenderer("https://app.example.com")
+	renderer := notifications.NewTemplateRenderer("https://app.example.com", noSiteInfo{})
 
 	user := &models.User{Name: "Frank", Email: "frank@example.com"}
 	notifs := []*models.Notification{
@@ -525,7 +525,7 @@ func TestTemplateRenderer_RenderDigestEmail(t *testing.T) {
 		{Title: "Post beta"},
 	}
 
-	html, err := renderer.RenderDigestEmail(user, notifs)
+	html, err := renderer.RenderDigestEmail(context.Background(), user, notifs)
 
 	require.NoError(t, err)
 	assert.Contains(t, html, "Frank")
@@ -541,10 +541,10 @@ func TestTemplateRenderer_RenderDigestEmail(t *testing.T) {
 // --------------------------------------------------------------------------
 
 func TestTemplateRenderer_RenderDigestEmail_EmptyNotifications(t *testing.T) {
-	renderer := notifications.NewTemplateRenderer("https://app.example.com")
+	renderer := notifications.NewTemplateRenderer("https://app.example.com", noSiteInfo{})
 	user := &models.User{Name: "Grace"}
 
-	html, err := renderer.RenderDigestEmail(user, []*models.Notification{})
+	html, err := renderer.RenderDigestEmail(context.Background(), user, []*models.Notification{})
 
 	require.NoError(t, err)
 	assert.Contains(t, html, "Grace")
@@ -556,7 +556,7 @@ func TestTemplateRenderer_RenderDigestEmail_EmptyNotifications(t *testing.T) {
 // --------------------------------------------------------------------------
 
 func TestTemplateRenderer_RenderDigestEmail_TeamGrouping(t *testing.T) {
-	renderer := notifications.NewTemplateRenderer("https://app.example.com")
+	renderer := notifications.NewTemplateRenderer("https://app.example.com", noSiteInfo{})
 	user := &models.User{Name: "Hank"}
 	notifs := []*models.Notification{
 		{TeamID: "team-a", Title: "A post"},
@@ -564,7 +564,7 @@ func TestTemplateRenderer_RenderDigestEmail_TeamGrouping(t *testing.T) {
 		{TeamID: "team-a", Title: "Another A post"},
 	}
 
-	html, err := renderer.RenderDigestEmail(user, notifs)
+	html, err := renderer.RenderDigestEmail(context.Background(), user, notifs)
 
 	require.NoError(t, err)
 	assert.Contains(t, html, "team-a")
@@ -578,7 +578,7 @@ func TestTemplateRenderer_RenderDigestEmail_TeamGrouping(t *testing.T) {
 // --------------------------------------------------------------------------
 
 func TestTemplateRenderer_RenderDigestEmailWithTeamNames(t *testing.T) {
-	renderer := notifications.NewTemplateRenderer("https://app.example.com")
+	renderer := notifications.NewTemplateRenderer("https://app.example.com", noSiteInfo{})
 	user := &models.User{Name: "Ivy"}
 	notifs := []*models.Notification{
 		{TeamID: "tid-1", Title: "Post from Engineering"},
@@ -589,7 +589,7 @@ func TestTemplateRenderer_RenderDigestEmailWithTeamNames(t *testing.T) {
 		"tid-2": "Design",
 	}
 
-	html, err := renderer.RenderDigestEmailWithTeamNames(user, notifs, teamNames)
+	html, err := renderer.RenderDigestEmailWithTeamNames(context.Background(), user, notifs, teamNames)
 
 	require.NoError(t, err)
 	assert.Contains(t, html, "Engineering")
@@ -709,7 +709,7 @@ func TestDigestRunner_Run_RenderError(t *testing.T) {
 		TeamRepo:   teamRepo,
 		PrefRepo:   prefRepo,
 		EmailSvc:   emailSvc,
-		Renderer:   notifications.NewTemplateRenderer("https://app.example.com"),
+		Renderer:   notifications.NewTemplateRenderer("https://app.example.com", noSiteInfo{}),
 		AppMetrics: nil,
 		Logger:     logger,
 	})
@@ -1044,4 +1044,74 @@ func TestDigestRunner_Run_SingleTeamStillOneEmail(t *testing.T) {
 
 	assert.Equal(t, 1, emailSvc.calls, "one team means one email, as before")
 	assert.Equal(t, "team-a", emailSvc.lastTeamID)
+}
+
+// ---------------------------------------------------------------------------
+// Company branding in notification emails (#1362)
+// ---------------------------------------------------------------------------
+
+// noSiteInfo is an instance with nothing configured.
+type noSiteInfo struct{}
+
+func (noSiteInfo) Resolve(context.Context) models.InstanceSiteInfoValues {
+	return models.InstanceSiteInfoValues{}
+}
+
+// acmeSiteInfo is an instance with a company name configured.
+type acmeSiteInfo struct{}
+
+func (acmeSiteInfo) Resolve(context.Context) models.InstanceSiteInfoValues {
+	return models.InstanceSiteInfoValues{CompanyName: `Acme <b>Inc.</b>`}
+}
+
+const notificationPoweredBy = `Powered by <a href="https://vibexp.io" style="color:#999">VibeXP</a>`
+
+func TestTemplateRenderer_DigestEmail_Branding(t *testing.T) {
+	user := &models.User{ID: "u1", Name: "Ada"}
+
+	t.Run("unconfigured", func(t *testing.T) {
+		html, err := notifications.NewTemplateRenderer("https://app.example.com", noSiteInfo{}).
+			RenderDigestEmail(context.Background(), user, nil)
+
+		require.NoError(t, err)
+		assert.Contains(t, html, "<title>Your VibeXP digest</title>")
+		assert.Contains(t, html, notificationPoweredBy)
+	})
+
+	t.Run("configured, with the name escaped", func(t *testing.T) {
+		html, err := notifications.NewTemplateRenderer("https://app.example.com", acmeSiteInfo{}).
+			RenderDigestEmail(context.Background(), user, nil)
+
+		require.NoError(t, err)
+		assert.Contains(t, html, "Your Acme &lt;b&gt;Inc.&lt;/b&gt; digest")
+		assert.NotContains(t, html, "<b>Inc.</b>")
+		assert.Contains(t, html, notificationPoweredBy)
+	})
+}
+
+func TestTemplateRenderer_FeedItemEmail_Branding(t *testing.T) {
+	data := func() map[string]interface{} {
+		return map[string]interface{}{"actor_name": "Ada", "title": "Hello", "item_id": "item-1"}
+	}
+
+	t.Run("unconfigured", func(t *testing.T) {
+		in := data()
+		rendered, err := notifications.NewTemplateRenderer("https://app.example.com", noSiteInfo{}).
+			Render(context.Background(), "feed.item.created", in)
+
+		require.NoError(t, err)
+		assert.Contains(t, rendered.EmailBodyHTML, "a member of this team on VibeXP.")
+		assert.Contains(t, rendered.EmailBodyHTML, notificationPoweredBy)
+		assert.NotContains(t, in, "footer", "the caller's data map is not modified")
+	})
+
+	t.Run("configured, with the name escaped", func(t *testing.T) {
+		rendered, err := notifications.NewTemplateRenderer("https://app.example.com", acmeSiteInfo{}).
+			Render(context.Background(), "feed.item.created", data())
+
+		require.NoError(t, err)
+		assert.Contains(t, rendered.EmailBodyHTML, "a member of this team on Acme &lt;b&gt;Inc.&lt;/b&gt;.")
+		assert.NotContains(t, rendered.EmailBodyHTML, "<b>Inc.</b>")
+		assert.Contains(t, rendered.EmailBodyHTML, notificationPoweredBy)
+	})
 }
