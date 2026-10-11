@@ -152,13 +152,20 @@ describe('SettingsAudit permission gate', () => {
 })
 
 describe('SettingsAudit content', () => {
-  it('shows the empty state when nothing has been copied in', async () => {
+  it('shows the empty state when nothing has been recorded', async () => {
     mocked.getAudit.mockResolvedValue(page([]))
 
     render(<SettingsAudit team={ownerTeam} />)
 
+    // The log holds copies and custom status changes (#1265); the empty state
+    // and the header name both, so neither reads as "copies only".
+    expect(await screen.findByTestId('settings-audit-empty')).toHaveTextContent(
+      'Configuration copied into this team from another one, and changes to its custom statuses, will be recorded here.'
+    )
     expect(
-      await screen.findByTestId('settings-audit-empty')
+      screen.getByText(
+        'Configuration copied into this team from another one, and changes to its custom statuses, newest first.'
+      )
     ).toBeInTheDocument()
     expect(screen.queryByTestId('settings-audit-row')).not.toBeInTheDocument()
   })

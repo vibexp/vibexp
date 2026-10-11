@@ -113,8 +113,8 @@ function Pager({
 }
 
 /**
- * The team's settings audit log — configuration copied in from other teams —
- * newest first, 20 per page (read-only).
+ * The team's settings audit log — configuration copied in from other teams,
+ * and changes to its custom statuses — newest first, 20 per page (read-only).
  *
  * The pager sits outside the panel so a failed later page still offers a way
  * back rather than stranding the admin on an error.
@@ -139,7 +139,7 @@ export function TeamSettingsAuditTab({ teamId }: Readonly<{ teamId: string }>) {
         error={error}
         errorTitle="Failed to load the settings audit log"
         empty={data?.entries.length === 0 && page === 1}
-        emptyMessage="Nothing has been copied into this team from another one."
+        emptyMessage="Nothing has been copied into this team, and none of its custom statuses have changed."
       >
         {data && (
           <Card className="overflow-hidden">

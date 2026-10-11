@@ -106,8 +106,8 @@ function EmptyLog() {
         className="text-muted-foreground p-8 text-center text-sm"
         data-testid="settings-audit-empty"
       >
-        Nothing copied in yet. Whenever configuration is copied into this team
-        from another one, it will be recorded here.
+        Nothing recorded yet. Configuration copied into this team from another
+        one, and changes to its custom statuses, will be recorded here.
       </CardContent>
     </Card>
   )
@@ -172,7 +172,7 @@ export function SettingsAudit({ team }: Readonly<{ team: Team }>) {
   const header = (
     <PageHeader
       title="Audit"
-      description="Configuration copied into this team from another one, newest first."
+      description="Configuration copied into this team from another one, and changes to its custom statuses, newest first."
     />
   )
 

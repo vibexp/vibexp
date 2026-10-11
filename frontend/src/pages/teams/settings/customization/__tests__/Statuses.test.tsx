@@ -413,7 +413,7 @@ describe('Statuses — rename', () => {
     expect(mockHandleError).not.toHaveBeenCalled()
   })
 
-  it('hands any other failure to the shared error handler', async () => {
+  it('hands any other failure to the shared error handler, closes and reloads', async () => {
     const user = userEvent.setup()
     const failure = apiError(404, 'No custom status with this id')
     mocked.rename.mockRejectedValue(failure)
@@ -428,6 +428,11 @@ describe('Statuses — rename', () => {
         'Failed to rename status'
       )
     })
+    // A 404 means the status is gone: the dialog closes and the list reloads.
+    await waitFor(() => {
+      expect(screen.queryByTestId('status-form')).not.toBeInTheDocument()
+    })
+    expect(mocked.list).toHaveBeenCalledTimes(2)
   })
 })
 

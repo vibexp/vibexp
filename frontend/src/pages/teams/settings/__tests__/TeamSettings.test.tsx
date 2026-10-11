@@ -135,7 +135,8 @@ describe('TeamSettings', () => {
       },
       {
         title: 'Audit',
-        description: 'See what configuration was copied in, and by whom.',
+        description:
+          'See what configuration was copied in or changed, and by whom.',
         icon: History,
         href: '/teams/:id/settings/audit',
         permission: 'team.settings.update',

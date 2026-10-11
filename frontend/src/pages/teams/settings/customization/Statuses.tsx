@@ -222,6 +222,10 @@ function StatusPanel({
     } catch (err) {
       if (!showWriteError(err, setError)) {
         handleError(err, 'Failed to rename status')
+        // Nothing the form can correct — typically a 404 for a status someone
+        // else just deleted. Close it and show the list as it now is.
+        setRenameTarget(null)
+        reload()
       }
     } finally {
       setSubmitting(false)

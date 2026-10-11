@@ -69,11 +69,11 @@ export function isCopyEntry(
   return entry.surface !== 'custom_statuses'
 }
 
-const STATUS_RESOURCE_WORDS = new Map([
-  ['prompt', 'prompt'],
-  ['artifact', 'artifact'],
-  ['blueprint', 'blueprint'],
-  ['memory', 'memory'],
+const STATUS_RESOURCE_TYPES = new Set([
+  'prompt',
+  'artifact',
+  'blueprint',
+  'memory',
 ])
 
 /**
@@ -85,10 +85,11 @@ const STATUS_RESOURCE_WORDS = new Map([
  * change was made, so a since-deleted status still reads correctly.
  */
 function describeStatusChange(detail: Detail): string {
-  const resource = STATUS_RESOURCE_WORDS.get(
-    detailString(detail, 'resource_type') ?? ''
-  )
-  const what = resource ? `${resource} status` : 'status'
+  const resource = detailString(detail, 'resource_type')
+  const what =
+    resource && STATUS_RESOURCE_TYPES.has(resource)
+      ? `${resource} status`
+      : 'status'
   const name =
     detailString(detail, 'name') ?? detailString(detail, 'slug') ?? 'Unnamed'
   switch (detailString(detail, 'action')) {

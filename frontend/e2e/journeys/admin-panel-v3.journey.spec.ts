@@ -613,10 +613,11 @@ test.describe.serial('Admin panel v3 journey', () => {
     ).toBeVisible({ timeout: UI_TIMEOUT })
     await snapshot(page)
 
-    // Alpha was configured directly, never copied into, so the log is empty.
+    // Alpha was configured directly: nothing was copied into it and it has no
+    // custom status changes, so the log is empty.
     await openTab('Settings audit', 'settings-audit')
     await expect(page.getByTestId('config-empty')).toContainText(
-      'Nothing has been copied into this team from another one.',
+      'Nothing has been copied into this team, and none of its custom statuses have changed.',
       { timeout: UI_TIMEOUT }
     )
     await snapshot(page)

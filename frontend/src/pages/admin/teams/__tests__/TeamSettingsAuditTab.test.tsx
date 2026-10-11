@@ -38,7 +38,9 @@ it('shows the empty state', async () => {
     auditPage({ entries: [], total_count: 0, total_pages: 0 })
   )
   render(<TeamSettingsAuditTab teamId="t1" />)
-  expect(await screen.findByTestId('config-empty')).toBeInTheDocument()
+  expect(await screen.findByTestId('config-empty')).toHaveTextContent(
+    'Nothing has been copied into this team, and none of its custom statuses have changed.'
+  )
 })
 
 it('renders allowlisted detail fields only, never raw detail', async () => {

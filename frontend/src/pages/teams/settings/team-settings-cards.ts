@@ -99,9 +99,11 @@ export function teamSettingsCardsFor(teamId: string): TeamSettingsCard[] {
       // can arrive from outside the team, so its owners need to see what came
       // in and who brought it. Owner/admin only, matching the endpoint's own
       // `team.settings.update` gate (#832) — the hub hides the card, and the
-      // page repeats the check for anyone deep-linking straight to it.
+      // page repeats the check for anyone deep-linking straight to it. The log
+      // also records custom status changes (#1265), hence "or changed".
       title: 'Audit',
-      description: 'See what configuration was copied in, and by whom.',
+      description:
+        'See what configuration was copied in or changed, and by whom.',
       icon: History,
       href: `${base}/audit`,
       permission: 'team.settings.update',
