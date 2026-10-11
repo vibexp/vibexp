@@ -32,6 +32,7 @@ describe('getToolKind', () => {
     expect(getToolKind(makeTool('vibexp_io_upload_attachment'))).toBe('write')
     expect(getToolKind(makeTool('vibexp_io_delete_attachment'))).toBe('write')
     expect(getToolKind(makeTool('vibexp_io_delete_resource'))).toBe('write')
+    expect(getToolKind(makeTool('vibexp_io_lock_resource'))).toBe('write')
   })
 
   it('classifies render_prompt and list_attachments as reads', () => {
@@ -123,6 +124,7 @@ describe('groupTools', () => {
     expect(idOf('vibexp_io_upload_attachment')).toBe('attachments')
     expect(idOf('vibexp_io_delete_attachment')).toBe('attachments')
     expect(idOf('vibexp_io_delete_resource')).toBe('resources')
+    expect(idOf('vibexp_io_lock_resource')).toBe('resources')
     // No `_resource` in its name: matched explicitly, or it would fall through
     // to the catch-all (#1268).
     expect(idOf('vibexp_io_list_statuses')).toBe('resources')
@@ -145,6 +147,7 @@ describe('groupTools', () => {
       'vibexp_io_get_resource',
       'vibexp_io_list_resources',
       'vibexp_io_delete_resource',
+      'vibexp_io_lock_resource',
       'vibexp_io_list_statuses',
       'vibexp_io_list_resource_metadata',
       'vibexp_io_link_resources',

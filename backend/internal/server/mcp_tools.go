@@ -24,7 +24,10 @@ const mcpServerInstructions = "VibeXP MCP server. Most tools are team-scoped and
 	"(workspace discovery). Before setting or filtering by a `status`, call vibexp_io_list_statuses: a team " +
 	"can have custom statuses beyond the system ones. As you work, record how resources relate with " +
 	"vibexp_io_link_resources (governed-by, supersedes, built-from, explained-by); every " +
-	"vibexp_io_get_resource returns the resource's typed neighborhood in its `related` array."
+	"vibexp_io_get_resource returns the resource's typed neighborhood in its `related` array. To protect a " +
+	"prompt, blueprint or artifact your workflow depends on, lock it with vibexp_io_lock_resource and a " +
+	"comment saying why; a locked resource cannot be deleted, renamed or moved, its content stays editable, " +
+	"and only a human can unlock it."
 
 // MCPToolsManager manages all MCP tools and provides better organization
 type MCPToolsManager struct {
@@ -61,6 +64,7 @@ func (m *MCPToolsManager) AddAllTools(mcpServer *mcp.Server, userID string) {
 	m.addAttachmentTools(mcpServer, userID)
 	m.addLinkTools(mcpServer, userID)
 	m.addDeleteTools(mcpServer, userID)
+	m.addLockTools(mcpServer, userID)
 
 	slog.With(
 		"user_id", userID,
@@ -219,6 +223,20 @@ func (m *MCPToolsManager) addDeleteTools(mcpServer *mcp.Server, userID string) {
 		ctx context.Context, req *mcp.CallToolRequest, params *DeleteResourceParams,
 	) (*mcp.CallToolResult, any, error) {
 		return m.server.deleteResource(ctx, req, params, userID)
+	})
+}
+
+// addLockTools adds the single generic resource-lock tool (#1296). One tool
+// covers prompt, blueprint and artifact (keyed by resource_type). No unlock
+// tool is registered: unlocking is left to a person.
+func (m *MCPToolsManager) addLockTools(mcpServer *mcp.Server, userID string) {
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        lockResourceToolName,
+		Description: lockResourceToolDescription,
+	}, func(
+		ctx context.Context, req *mcp.CallToolRequest, params *LockResourceParams,
+	) (*mcp.CallToolResult, any, error) {
+		return m.server.lockResourceTool(ctx, req, params, userID)
 	})
 }
 

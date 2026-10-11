@@ -21,6 +21,7 @@ const EXPECTED_TOOL_NAMES = new Set([
   'vibexp_io_list_resource_metadata',
   'vibexp_io_list_statuses',
   'vibexp_io_delete_resource',
+  'vibexp_io_lock_resource',
   'vibexp_io_upload_attachment',
   'vibexp_io_list_attachments',
   'vibexp_io_delete_attachment',
@@ -38,7 +39,7 @@ const EXPECTED_TOOL_NAMES = new Set([
 ])
 
 describe('mcpTools catalog', () => {
-  it('contains exactly the 28 expected tool names', () => {
+  it('contains exactly the 29 expected tool names', () => {
     const actualNames = new Set(mcpTools.map(t => t.name))
     expect(actualNames).toEqual(EXPECTED_TOOL_NAMES)
   })
@@ -109,6 +110,26 @@ describe('mcpTools catalog', () => {
         `${tool.name}.status does not mention vibexp_io_list_statuses`
       ).toContain('vibexp_io_list_statuses')
     }
+  })
+
+  it('documents the lock tool with a required comment and no unlock counterpart', () => {
+    const tool = mcpTools.find(t => t.name === 'vibexp_io_lock_resource')
+    expect(tool?.inputSchema.required).toEqual([
+      'team_id',
+      'resource_type',
+      'slug',
+      'comment',
+    ])
+    expect(Object.keys(tool?.inputSchema.properties ?? {})).toEqual([
+      'team_id',
+      'resource_type',
+      'project_id',
+      'slug',
+      'comment',
+    ])
+    expect(tool?.description).toContain('There is no unlock tool')
+    // Agents lock, people unlock (#1296): the catalog must never list one.
+    expect(mcpTools.filter(t => t.name.includes('unlock'))).toEqual([])
   })
 
   it('documents the status discovery tool with an optional resource_type', () => {
