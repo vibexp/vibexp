@@ -57,19 +57,22 @@ func TestArtifactRepository_TeamMember_CanListOtherMembersArtifacts(t *testing.T
 		WithArgs(teamID, teamID, bobUserID, teamID, bobUserID, "archived").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
-	// Mock list query - no DISTINCT or JOINs needed with EXISTS subqueries
+	// Mock list query - no DISTINCT needed with EXISTS subqueries; the only JOIN
+	// resolves the locker's name
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
-		`a\.description, a\.status, a\.type, a\.metadata, a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE`
+		`a\.description, a\.status, a\.type, a\.metadata, a\.created_at, a\.updated_at, a\.labels,\s+` +
+		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name\s+` +
+		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+WHERE`
 	mock.ExpectQuery(listQuery).
 		WithArgs(teamID, teamID, bobUserID, teamID, bobUserID, "archived").
-		WillReturnRows(sqlmock.NewRows([]string{
+		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"status", "type", "metadata", "created_at", "updated_at", "labels",
-		}).AddRow(
+		)).AddRow(postgres.UnlockedRow(
 			aliceArtifactID, "project-123", "design-doc", aliceUserID, teamID,
 			"System Design Document", "Architecture design",
 			"active", "work_reports", []byte("{}"), now, now, pq.StringArray{},
-		))
+		)...))
 
 	// Bob lists artifacts
 	artifacts, total, err := repo.List(ctx, bobUserID, filters)
@@ -111,14 +114,14 @@ func TestArtifactRepository_TeamMember_CanGetOtherMembersArtifacts(t *testing.T)
 	getQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title`
 	mock.ExpectQuery(getQuery).
 		WithArgs(aliceArtifactID, teamID, bobUserID).
-		WillReturnRows(sqlmock.NewRows([]string{
+		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"content", "status", "type", "metadata", "created_at", "updated_at", "version", "labels",
-		}).AddRow(
+		)).AddRow(postgres.UnlockedRow(
 			aliceArtifactID, "project-123", "design-doc", aliceUserID, teamID,
 			"System Design Document", "Architecture design", "Content here",
 			"active", "work_reports", []byte("{}"), now, now, 1, pq.StringArray{},
-		))
+		)...))
 
 	// Bob gets Alice's artifact
 	artifact, err := repo.GetByID(ctx, bobUserID, teamID, aliceArtifactID)
@@ -343,17 +346,19 @@ func TestArtifactRepository_ListCrossTeam_ReturnsArtifactsFromMultipleTeams(t *t
 	// LIST query must include a.user_id = $1 to prove creator-ownership scoping
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id,` +
 		` a\.title, a\.description, a\.status, a\.type, a\.metadata,` +
-		` a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
+		` a\.created_at, a\.updated_at, a\.labels,\s+` +
+		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name\s+` +
+		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, "archived").
-		WillReturnRows(sqlmock.NewRows([]string{
+		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"status", "type", "metadata", "created_at", "updated_at", "labels",
-		}).
-			AddRow(artifactAID, "project-1", "slug-a", aliceUserID, teamAID,
-				"Artifact A", "Desc A", "active", "general", []byte("{}"), now, now, pq.StringArray{}).
-			AddRow(artifactBID, "project-2", "slug-b", aliceUserID, teamBID,
-				"Artifact B", "Desc B", "active", "work_reports", []byte("{}"), now, now, pq.StringArray{}))
+		)).
+			AddRow(postgres.UnlockedRow(artifactAID, "project-1", "slug-a", aliceUserID, teamAID,
+				"Artifact A", "Desc A", "active", "general", []byte("{}"), now, now, pq.StringArray{})...).
+			AddRow(postgres.UnlockedRow(artifactBID, "project-2", "slug-b", aliceUserID, teamBID,
+				"Artifact B", "Desc B", "active", "work_reports", []byte("{}"), now, now, pq.StringArray{})...))
 
 	artifacts, total, err := repo.ListCrossTeam(ctx, aliceUserID, filters)
 
@@ -404,16 +409,18 @@ func TestArtifactRepository_ListCrossTeam_ExcludesOtherUsersArtifacts(t *testing
 
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
-		` a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
+		` a\.created_at, a\.updated_at, a\.labels,\s+` +
+		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name\s+` +
+		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, "archived").
-		WillReturnRows(sqlmock.NewRows([]string{
+		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"status", "type", "metadata", "created_at", "updated_at", "labels",
-		}).AddRow(
+		)).AddRow(postgres.UnlockedRow(
 			aliceArtifactID, "project-1", "slug-alice", aliceUserID, "team-1",
 			"Alice's Artifact", "", "active", "general", []byte("{}"), now, now, pq.StringArray{},
-		))
+		)...))
 
 	artifacts, total, err := repo.ListCrossTeam(ctx, aliceUserID, filters)
 
@@ -460,16 +467,18 @@ func TestArtifactRepository_ListCrossTeam_HonoursProjectFilter(t *testing.T) {
 
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
-		` a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
+		` a\.created_at, a\.updated_at, a\.labels,\s+` +
+		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name\s+` +
+		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, projectID, "archived").
-		WillReturnRows(sqlmock.NewRows([]string{
+		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"status", "type", "metadata", "created_at", "updated_at", "labels",
-		}).AddRow(
+		)).AddRow(postgres.UnlockedRow(
 			artifactID, projectID, "slug-1", aliceUserID, "team-1",
 			"Project Artifact", "", "active", "general", []byte("{}"), now, now, pq.StringArray{},
-		))
+		)...))
 
 	artifacts, total, err := repo.ListCrossTeam(ctx, aliceUserID, filters)
 
@@ -516,16 +525,18 @@ func TestArtifactRepository_ListCrossTeam_HonoursStatusAndTypeFilter(t *testing.
 
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
-		` a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
+		` a\.created_at, a\.updated_at, a\.labels,\s+` +
+		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name\s+` +
+		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, typeStr, statusStr).
-		WillReturnRows(sqlmock.NewRows([]string{
+		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"status", "type", "metadata", "created_at", "updated_at", "labels",
-		}).AddRow(
+		)).AddRow(postgres.UnlockedRow(
 			artifactID, "project-1", "slug-work", aliceUserID, "team-1",
 			"Work Report", "", "active", "work_reports", []byte("{}"), now, now, pq.StringArray{},
-		))
+		)...))
 
 	artifacts, total, err := repo.ListCrossTeam(ctx, aliceUserID, filters)
 
@@ -571,16 +582,18 @@ func TestArtifactRepository_ListCrossTeam_HonoursSearchFilter(t *testing.T) {
 
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
-		` a\.created_at, a\.updated_at, a\.labels\s+FROM artifacts a\s+WHERE.*a\.user_id = \$1`
+		` a\.created_at, a\.updated_at, a\.labels,\s+` +
+		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name\s+` +
+		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, "draft", "archived", "%design%", "%design%", "%design%").
-		WillReturnRows(sqlmock.NewRows([]string{
+		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"status", "type", "metadata", "created_at", "updated_at", "labels",
-		}).AddRow(
+		)).AddRow(postgres.UnlockedRow(
 			artifactID, "project-1", "slug-design", aliceUserID, "team-1",
 			"System Design Document", "", "active", "general", []byte("{}"), now, now, pq.StringArray{},
-		))
+		)...))
 
 	artifacts, total, err := repo.ListCrossTeam(ctx, aliceUserID, filters)
 

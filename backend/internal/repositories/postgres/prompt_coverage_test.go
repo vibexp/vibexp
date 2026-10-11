@@ -21,19 +21,20 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// promptCrossTeamColumns mirrors the 15-column projection of the cross-team
-// getters (includes version; is_shared is computed).
-var promptCrossTeamColumns = []string{
+// promptCrossTeamColumns mirrors the 19-column projection of the cross-team
+// getters: 15 prompt columns (includes version; is_shared is computed)
+// followed by the four lock columns.
+var promptCrossTeamColumns = withLockColumns(
 	"id", "name", "slug", "description", "body", "user_id", "team_id",
 	"project_id", "status", "mcp_expose", "labels", "created_at", "updated_at",
 	"version", "is_shared",
-}
+)
 
 func promptCrossTeamRow(now time.Time) *sqlmock.Rows {
-	return sqlmock.NewRows(promptCrossTeamColumns).AddRow(
+	return sqlmock.NewRows(promptCrossTeamColumns).AddRow(unlockedRow(
 		"prompt-1", "Prompt 1", "prompt-1", "Desc", "Body", "user-1", "team-9",
 		"project-1", "published", true, "{}", now, now, int64(2), false,
-	)
+	)...)
 }
 
 func TestPromptRepository_GetByIDCrossTeam(t *testing.T) {

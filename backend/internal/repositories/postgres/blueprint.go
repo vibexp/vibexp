@@ -173,8 +173,10 @@ func (r *BlueprintRepository) GetByID(
 		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
 		s.path, s.path_derived, s.raw_content, s.content_sha,
 		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at,
-		s.labels
+		s.labels,
+		s.locked_by::text, s.locked_at, s.lock_comment, lock_u.name
 		FROM blueprints s
+		LEFT JOIN users lock_u ON lock_u.id = s.locked_by
 		WHERE s.id = $1
 			AND s.team_id = $2
 			AND (
@@ -186,6 +188,7 @@ func (r *BlueprintRepository) GetByID(
 	var blueprint models.Blueprint
 	var metadataJSON []byte
 	var sync blueprintSyncScan
+	var lock resourceLockScan
 	err := r.db.QueryRowContext(ctx, query, blueprintID, teamID, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
@@ -194,12 +197,14 @@ func (r *BlueprintRepository) GetByID(
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 		&blueprint.Labels,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get blueprint by ID: %w", err), repositories.ErrBlueprintNotFound)
 	}
 	sync.apply(&blueprint)
+	blueprint.Lock = lock.value()
 
 	// Initialize metadata if JSON is nil or empty
 	if len(metadataJSON) == 0 {
@@ -224,8 +229,10 @@ func (r *BlueprintRepository) GetByProjectIDAndPath(
 		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
 		s.path, s.path_derived, s.raw_content, s.content_sha,
 		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at,
-		s.labels
+		s.labels,
+		s.locked_by::text, s.locked_at, s.lock_comment, lock_u.name
 		FROM blueprints s
+		LEFT JOIN users lock_u ON lock_u.id = s.locked_by
 		WHERE s.project_id = $1
 			AND s.path = $2
 			AND s.team_id = $3
@@ -238,6 +245,7 @@ func (r *BlueprintRepository) GetByProjectIDAndPath(
 	var blueprint models.Blueprint
 	var metadataJSON []byte
 	var sync blueprintSyncScan
+	var lock resourceLockScan
 	err := r.db.QueryRowContext(ctx, query, projectID, path, teamID, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
@@ -246,6 +254,7 @@ func (r *BlueprintRepository) GetByProjectIDAndPath(
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 		&blueprint.Labels,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 	)
 	if err != nil {
 		return nil, mapNoRows(
@@ -254,6 +263,7 @@ func (r *BlueprintRepository) GetByProjectIDAndPath(
 		)
 	}
 	sync.apply(&blueprint)
+	blueprint.Lock = lock.value()
 	if len(metadataJSON) == 0 {
 		blueprint.Metadata = make(map[string]interface{})
 	} else if err := json.Unmarshal(metadataJSON, &blueprint.Metadata); err != nil {
@@ -273,8 +283,10 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 		s.path, s.path_derived, s.raw_content, s.content_sha,
 		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at,
 		s.labels,
-		` + projectSummaryProjection + `
+		` + projectSummaryProjection + `,
+		s.locked_by::text, s.locked_at, s.lock_comment, lock_u.name
 		FROM blueprints s` + projectSummaryJoin("s") + `
+		LEFT JOIN users lock_u ON lock_u.id = s.locked_by
 		WHERE s.project_id = $1
 			AND s.slug = $2
 			AND s.team_id = $3
@@ -288,6 +300,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 	var metadataJSON []byte
 	var sync blueprintSyncScan
 	var project projectSummaryScan
+	var lock resourceLockScan
 	err := r.db.QueryRowContext(ctx, query, projectID, slug, teamID, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
@@ -297,6 +310,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 		&blueprint.Labels,
 		&project.id, &project.name, &project.slug,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 	)
 
 	if err != nil {
@@ -306,6 +320,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 		)
 	}
 	sync.apply(&blueprint)
+	blueprint.Lock = lock.value()
 	blueprint.Project = project.value()
 
 	// Initialize metadata if JSON is nil or empty
@@ -325,17 +340,21 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 	ctx context.Context, userID, blueprintID string,
 ) (*models.Blueprint, error) {
 	query := `
-		SELECT id, project_id, slug, user_id, team_id, title, description, content, status,
-		type, subtype, metadata, created_at, updated_at, version,
-		path, path_derived, raw_content, content_sha,
-		source_repo, source_commit_sha, source_blob_sha, source_content_sha, imported_at, labels
-		FROM blueprints
-		WHERE id = $1 AND user_id = $2
+		SELECT s.id, s.project_id, s.slug, s.user_id, s.team_id, s.title, s.description, s.content, s.status,
+		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
+		s.path, s.path_derived, s.raw_content, s.content_sha,
+		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at,
+		s.labels,
+		s.locked_by::text, s.locked_at, s.lock_comment, lock_u.name
+		FROM blueprints s
+		LEFT JOIN users lock_u ON lock_u.id = s.locked_by
+		WHERE s.id = $1 AND s.user_id = $2
 	`
 
 	var blueprint models.Blueprint
 	var metadataJSON []byte
 	var sync blueprintSyncScan
+	var lock resourceLockScan
 	err := r.db.QueryRowContext(ctx, query, blueprintID, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
@@ -344,6 +363,7 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
 		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 		&blueprint.Labels,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 	)
 
 	if err != nil {
@@ -353,6 +373,7 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 		)
 	}
 	sync.apply(&blueprint)
+	blueprint.Lock = lock.value()
 
 	// Initialize metadata if JSON is nil or empty
 	if len(metadataJSON) == 0 {
@@ -422,6 +443,8 @@ func applyBlueprintFilters(
 	}
 
 	where = applyLabelsFilter(where, "s.labels", filters.Labels)
+
+	where = applyLockedFilter(where, "s", filters.Locked)
 
 	return where
 }
@@ -530,9 +553,13 @@ func (r *BlueprintRepository) queryList(
 ) ([]models.Blueprint, error) {
 	limit, offset := clampBlueprintPaging(filters)
 
+	// The locker join is on the page query only: the count needs lock STATE,
+	// which is on the row, not the locker's name.
 	query, args, err := psql.
 		Select(blueprintListColumns...).
+		Columns(resourceLockColumns("s")...).
 		From("blueprints s").
+		LeftJoin(resourceLockJoin("s")).
 		Where(where).
 		OrderBy(buildBlueprintListOrderByClause(filters)).
 		Limit(limit).
@@ -565,7 +592,7 @@ func (r *BlueprintRepository) queryList(
 }
 
 // scanBlueprintListRows scans the blueprint list projection (content and
-// raw_content excluded; see blueprintListColumns). An empty/NULL metadata column
+// raw_content excluded; see blueprintListColumns) followed by the lock columns. An empty/NULL metadata column
 // initializes an empty map without unmarshalling; a non-empty malformed payload
 // returns an error.
 func scanBlueprintListRows(rows *sql.Rows) ([]models.Blueprint, error) {
@@ -574,6 +601,7 @@ func scanBlueprintListRows(rows *sql.Rows) ([]models.Blueprint, error) {
 		var blueprint models.Blueprint
 		var metadataJSON []byte
 		var sync blueprintSyncScan
+		var lock resourceLockScan
 		scanErr := rows.Scan(
 			&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 			&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
@@ -582,6 +610,7 @@ func scanBlueprintListRows(rows *sql.Rows) ([]models.Blueprint, error) {
 			&blueprint.Path, &blueprint.PathDerived, &sync.contentSHA,
 			&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
 			&blueprint.Labels,
+			&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
 		)
 		if scanErr != nil {
 			return nil, fmt.Errorf("failed to scan blueprint: %w", scanErr)
@@ -599,6 +628,7 @@ func scanBlueprintListRows(rows *sql.Rows) ([]models.Blueprint, error) {
 		// raw_content is not selected by List; apply the rest (content_sha,
 		// provenance). rawContent stays empty and is omitted from the response.
 		sync.apply(&blueprint)
+		blueprint.Lock = lock.value()
 		blueprints = append(blueprints, blueprint)
 	}
 
@@ -714,6 +744,18 @@ func (r *BlueprintRepository) UpdateOnReimport(ctx context.Context, blueprint *m
 		)
 	}
 	return nil
+}
+
+// SetLock locks a blueprint. See repositories.BlueprintRepository.
+func (r *BlueprintRepository) SetLock(ctx context.Context, teamID, blueprintID, lockerID, comment string) error {
+	return setResourceLock(
+		ctx, r.db, blueprintSetLockSQL, r.validateBlueprintInTeam, teamID, blueprintID, lockerID, comment,
+	)
+}
+
+// ClearLock unlocks a blueprint. See repositories.BlueprintRepository.
+func (r *BlueprintRepository) ClearLock(ctx context.Context, teamID, blueprintID string) error {
+	return clearResourceLock(ctx, r.db, blueprintClearLockSQL, r.validateBlueprintInTeam, teamID, blueprintID)
 }
 
 // Delete deletes a blueprint entry

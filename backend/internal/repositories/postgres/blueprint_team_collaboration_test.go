@@ -57,25 +57,27 @@ func TestBlueprintRepository_TeamMember_CanListOtherMembersSpecs(t *testing.T) {
 		WithArgs(teamID, teamID, bobUserID, teamID, bobUserID).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
-	// Mock list query - no DISTINCT or JOINs needed with EXISTS subqueries
+	// Mock list query - no DISTINCT needed with EXISTS subqueries; the only JOIN
+	// resolves the locker's name
 	listQuery := `SELECT s\.id, s\.project_id, s\.slug, s\.user_id, s\.team_id, s\.title, ` +
 		`s\.description, s\.status, s\.type, s\.subtype, s\.metadata, s\.created_at, s\.updated_at, ` +
 		`s\.path, s\.path_derived, s\.content_sha, s\.source_repo, s\.source_commit_sha, ` +
-		`s\.source_blob_sha, s\.imported_at, s\.labels ` +
-		`FROM blueprints s WHERE`
+		`s\.source_blob_sha, s\.imported_at, s\.labels, ` +
+		`s\.locked_by::text, s\.locked_at, s\.lock_comment, lock_u\.name ` +
+		`FROM blueprints s LEFT JOIN users lock_u ON lock_u\.id = s\.locked_by WHERE`
 	mock.ExpectQuery(listQuery).
 		WithArgs(teamID, teamID, bobUserID, teamID, bobUserID).
-		WillReturnRows(sqlmock.NewRows([]string{
+		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"status", "type", "subtype", "metadata", "created_at", "updated_at",
 			"path", "path_derived", "content_sha",
 			"source_repo", "source_commit_sha", "source_blob_sha", "imported_at", "labels",
-		}).AddRow(
+		)).AddRow(postgres.UnlockedRow(
 			aliceSpecID, "project-123", "api-spec", aliceUserID, teamID,
 			"API Specification", "REST API spec",
 			"active", "api", "openapi", []byte("{}"), now, now,
 			"api-spec.md", true, nil, nil, nil, nil, nil, pq.StringArray{},
-		))
+		)...))
 
 	// Bob lists specs
 	specs, total, err := repo.List(ctx, bobUserID, filters)
@@ -114,26 +116,28 @@ func TestBlueprintRepository_TeamMember_CanGetOtherMembersSpecs(t *testing.T) {
 	aliceUserID := "user-alice"
 	aliceSpecID := "spec-alice"
 
-	// Mock get query with EXISTS subqueries (no JOINs) - note alias is 's'
+	// Mock get query with EXISTS subqueries (the only JOIN resolves the locker's
+	// name) - note alias is 's'
 	getQuery := `SELECT s\.id, s\.project_id, s\.slug, s\.user_id, s\.team_id, s\.title, s\.description, ` +
 		`s\.content, s\.status, s\.type, s\.subtype, s\.metadata, s\.created_at, s\.updated_at, s\.version,\s+` +
 		`s\.path, s\.path_derived, s\.raw_content, s\.content_sha, s\.source_repo, s\.source_commit_sha, ` +
-		`s\.source_blob_sha, s\.source_content_sha, s\.imported_at,\s+s\.labels\s+` +
-		`FROM blueprints s\s+WHERE.*`
+		`s\.source_blob_sha, s\.source_content_sha, s\.imported_at,\s+s\.labels,\s+` +
+		`s\.locked_by::text, s\.locked_at, s\.lock_comment, lock_u\.name\s+` +
+		`FROM blueprints s\s+LEFT JOIN users lock_u ON lock_u\.id = s\.locked_by\s+WHERE.*`
 	mock.ExpectQuery(getQuery).
 		WithArgs(aliceSpecID, teamID, bobUserID).
-		WillReturnRows(sqlmock.NewRows([]string{
+		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 			"path", "path_derived", "raw_content", "content_sha",
 			"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
 			"labels",
-		}).AddRow(
+		)).AddRow(postgres.UnlockedRow(
 			aliceSpecID, "project-123", "api-spec", aliceUserID, teamID,
 			"API Specification", "REST API spec", "OpenAPI content",
 			"active", "api", "openapi", []byte("{}"), now, now, 1,
 			"api-spec.md", true, nil, nil, nil, nil, nil, nil, nil, pq.StringArray{},
-		))
+		)...))
 
 	// Bob gets Alice's spec
 	spec, err := repo.GetByID(ctx, bobUserID, teamID, aliceSpecID)

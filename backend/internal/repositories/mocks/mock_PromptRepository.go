@@ -24,6 +24,54 @@ func (_m *MockPromptRepository) EXPECT() *MockPromptRepository_Expecter {
 	return &MockPromptRepository_Expecter{mock: &_m.Mock}
 }
 
+// ClearLock provides a mock function with given fields: ctx, teamID, promptID
+func (_m *MockPromptRepository) ClearLock(ctx context.Context, teamID string, promptID string) error {
+	ret := _m.Called(ctx, teamID, promptID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClearLock")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, teamID, promptID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockPromptRepository_ClearLock_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearLock'
+type MockPromptRepository_ClearLock_Call struct {
+	*mock.Call
+}
+
+// ClearLock is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - promptID string
+func (_e *MockPromptRepository_Expecter) ClearLock(ctx interface{}, teamID interface{}, promptID interface{}) *MockPromptRepository_ClearLock_Call {
+	return &MockPromptRepository_ClearLock_Call{Call: _e.mock.On("ClearLock", ctx, teamID, promptID)}
+}
+
+func (_c *MockPromptRepository_ClearLock_Call) Run(run func(ctx context.Context, teamID string, promptID string)) *MockPromptRepository_ClearLock_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockPromptRepository_ClearLock_Call) Return(_a0 error) *MockPromptRepository_ClearLock_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockPromptRepository_ClearLock_Call) RunAndReturn(run func(context.Context, string, string) error) *MockPromptRepository_ClearLock_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CountByStatus provides a mock function with given fields: ctx, userID, status
 func (_m *MockPromptRepository) CountByStatus(ctx context.Context, userID string, status string) (int, error) {
 	ret := _m.Called(ctx, userID, status)
@@ -602,6 +650,56 @@ func (_c *MockPromptRepository_List_Call) Return(_a0 []models.Prompt, _a1 int, _
 }
 
 func (_c *MockPromptRepository_List_Call) RunAndReturn(run func(context.Context, string, repositories.PromptFilters) ([]models.Prompt, int, error)) *MockPromptRepository_List_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SetLock provides a mock function with given fields: ctx, teamID, promptID, lockerID, comment
+func (_m *MockPromptRepository) SetLock(ctx context.Context, teamID string, promptID string, lockerID string, comment string) error {
+	ret := _m.Called(ctx, teamID, promptID, lockerID, comment)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetLock")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) error); ok {
+		r0 = rf(ctx, teamID, promptID, lockerID, comment)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockPromptRepository_SetLock_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetLock'
+type MockPromptRepository_SetLock_Call struct {
+	*mock.Call
+}
+
+// SetLock is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - promptID string
+//   - lockerID string
+//   - comment string
+func (_e *MockPromptRepository_Expecter) SetLock(ctx interface{}, teamID interface{}, promptID interface{}, lockerID interface{}, comment interface{}) *MockPromptRepository_SetLock_Call {
+	return &MockPromptRepository_SetLock_Call{Call: _e.mock.On("SetLock", ctx, teamID, promptID, lockerID, comment)}
+}
+
+func (_c *MockPromptRepository_SetLock_Call) Run(run func(ctx context.Context, teamID string, promptID string, lockerID string, comment string)) *MockPromptRepository_SetLock_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *MockPromptRepository_SetLock_Call) Return(_a0 error) *MockPromptRepository_SetLock_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockPromptRepository_SetLock_Call) RunAndReturn(run func(context.Context, string, string, string, string) error) *MockPromptRepository_SetLock_Call {
 	_c.Call.Return(run)
 	return _c
 }

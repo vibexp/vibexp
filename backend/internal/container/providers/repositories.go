@@ -93,6 +93,11 @@ func ProvideTeamSettingsAuditRepository(db *database.DB) repositories.TeamSettin
 	return postgres.NewTeamSettingsAuditRepository(db)
 }
 
+// ProvideResourceLockEventRepository creates a new ResourceLockEventRepository
+func ProvideResourceLockEventRepository(db *database.DB) repositories.ResourceLockEventRepository {
+	return postgres.NewResourceLockEventRepository(db)
+}
+
 // ProvideInstanceSettingsAuditRepository creates a new InstanceSettingsAuditRepository
 func ProvideInstanceSettingsAuditRepository(db *database.DB) repositories.InstanceSettingsAuditRepository {
 	return postgres.NewInstanceSettingsAuditRepository(db)

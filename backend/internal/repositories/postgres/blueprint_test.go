@@ -38,20 +38,20 @@ func TestGetByID_NilMetadata(t *testing.T) {
 	userID := "user-123"
 	blueprintID := "spec-lib-456"
 
-	rows := sqlmock.NewRows([]string{
+	rows := sqlmock.NewRows(withLockColumns(
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 		"path", "path_derived", "raw_content", "content_sha",
 		"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
 		"labels",
-	}).AddRow(
+	)).AddRow(unlockedRow(
 		blueprintID, "550e8400-e29b-41d4-a716-446655440000", "test-slug",
 		userID, "team-123", "Test Title", "Test Description",
 		"Test Content", "active", "general", nil, nil, // NULL subtype and metadata
 		time.Now(), time.Now(), 1,
 		"test.md", true, nil, nil, nil, nil, nil, nil, nil, // path, path_derived, NULL sync+source_content_sha/provenance
 		pq.StringArray{},
-	)
+	)...)
 
 	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*").
 		WithArgs(blueprintID, "team-123", userID).
@@ -79,7 +79,7 @@ func TestGetByProjectIDAndSlug_NilMetadata(t *testing.T) {
 	projectID := "550e8400-e29b-41d4-a716-446655440000"
 	slug := "test-slug"
 
-	rows := sqlmock.NewRows([]string{
+	rows := sqlmock.NewRows(withLockColumns(
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 		"path", "path_derived", "raw_content", "content_sha",
@@ -88,14 +88,14 @@ func TestGetByProjectIDAndSlug_NilMetadata(t *testing.T) {
 		// The #929 project LEFT JOIN: NULL here stands for a resource whose
 		// project row is gone, which must still return the blueprint.
 		"proj_id", "proj_name", "proj_slug",
-	}).AddRow(
+	)).AddRow(unlockedRow(
 		"spec-lib-456", projectID, slug, userID, "team-123", "Test Title", "Test Description",
 		"Test Content", "active", "general", nil, nil, // NULL subtype and metadata
 		time.Now(), time.Now(), 1,
 		"test.md", true, nil, nil, nil, nil, nil, nil, nil, // path, path_derived, NULL sync+source_content_sha/provenance
 		pq.StringArray{},
 		nil, nil, nil,
-	)
+	)...)
 
 	query := "SELECT (.+) FROM blueprints s.*"
 	mock.ExpectQuery(query).
@@ -114,17 +114,17 @@ func TestGetByProjectIDAndSlug_NilMetadata(t *testing.T) {
 // blueprintDetailRow builds a full detail row (with the #339 sync columns) for
 // the cross-team read tests.
 func blueprintDetailRow() *sqlmock.Rows {
-	return sqlmock.NewRows([]string{
+	return sqlmock.NewRows(withLockColumns(
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 		"path", "path_derived", "raw_content", "content_sha",
 		"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
 		"labels",
-	}).AddRow(
+	)).AddRow(unlockedRow(
 		"bp-1", "proj-1", "slug", "user-1", "team-1", "T", "D",
 		"body", "active", "general", nil, nil, time.Now(), time.Now(), 1,
 		"slug.md", true, "raw", "sha", nil, nil, nil, nil, nil, pq.StringArray{},
-	)
+	)...)
 }
 
 // TestGetByIDCrossTeam_ReadsSyncColumns covers the cross-team detail read's new
@@ -254,12 +254,12 @@ func TestList_EmptyMetadataFilter(t *testing.T) {
 		WithArgs(teamID, teamID, userID, teamID, userID).
 		WillReturnRows(countRows)
 
-	dataRows := sqlmock.NewRows([]string{
+	dataRows := sqlmock.NewRows(withLockColumns(
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"status", "type", "subtype", "metadata", "created_at", "updated_at",
 		"path", "path_derived", "content_sha",
 		"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
-	})
+	))
 	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*").
 		WillReturnRows(dataRows)
 

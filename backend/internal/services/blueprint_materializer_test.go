@@ -208,6 +208,12 @@ func (r *inMemoryBlueprintRepo) List(
 
 func (r *inMemoryBlueprintRepo) Delete(context.Context, string, string, string) error { return nil }
 
+func (r *inMemoryBlueprintRepo) SetLock(context.Context, string, string, string, string) error {
+	return nil
+}
+
+func (r *inMemoryBlueprintRepo) ClearLock(context.Context, string, string) error { return nil }
+
 func (r *inMemoryBlueprintRepo) GetStats(context.Context, string) (*models.BlueprintStatsResponse, error) {
 	return &models.BlueprintStatsResponse{}, nil
 }

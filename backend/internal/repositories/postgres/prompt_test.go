@@ -111,13 +111,13 @@ func TestPromptRepository_GetByID_WithMCPExposeTrue(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	rows := sqlmock.NewRows([]string{
+	rows := sqlmock.NewRows(withLockColumns(
 		"id", "name", "slug", "description", "body", "user_id", "team_id", "project_id", "status", "mcp_expose",
 		"labels", "created_at", "updated_at", "version", "is_shared",
-	}).AddRow(
+	)).AddRow(unlockedRow(
 		"prompt-123", "Test Prompt", "test-prompt", "Test description",
 		"Test body", "user-123", "team-123", "project-123", "published", true, "{}", now, now, 1, false,
-	)
+	)...)
 
 	mock.ExpectQuery("SELECT (.+) FROM prompts p(.+)EXISTS.*teams").
 		WithArgs("prompt-123", "team-123", "user-123").
@@ -144,13 +144,13 @@ func TestPromptRepository_GetByID_WithMCPExposeFalse(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	rows := sqlmock.NewRows([]string{
+	rows := sqlmock.NewRows(withLockColumns(
 		"id", "name", "slug", "description", "body", "user_id", "team_id", "project_id", "status", "mcp_expose",
 		"labels", "created_at", "updated_at", "version", "is_shared",
-	}).AddRow(
+	)).AddRow(unlockedRow(
 		"prompt-456", "Private Prompt", "private-prompt", "Private description",
 		"Private body", "user-123", "team-123", "project-123", "published", false, "{}", now, now, 1, false,
-	)
+	)...)
 
 	mock.ExpectQuery("SELECT (.+) FROM prompts p(.+)EXISTS.*teams").
 		WithArgs("prompt-456", "team-123", "user-123").
@@ -287,18 +287,18 @@ func TestPromptRepository_List_FilterByMCPExposeTrue(t *testing.T) {
 		WithArgs("team-123", "team-123", "user-123", "team-123", "user-123", true).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 
-	rows := sqlmock.NewRows([]string{
+	rows := sqlmock.NewRows(withLockColumns(
 		"id", "name", "slug", "description", "body", "user_id", "team_id", "project_id", "status", "mcp_expose",
 		"labels", "created_at", "updated_at", "is_shared",
-	}).
-		AddRow(
+	)).
+		AddRow(unlockedRow(
 			"prompt-1", "Prompt 1", "prompt-1", "Desc 1", "Body 1", "user-123", "team-123",
 			"project-123", "published", true, "{}", now, now, false,
-		).
-		AddRow(
+		)...).
+		AddRow(unlockedRow(
 			"prompt-2", "Prompt 2", "prompt-2", "Desc 2", "Body 2", "user-123", "team-123",
 			"project-123", "published", true, "{}", now, now, false,
-		)
+		)...)
 
 	mock.ExpectQuery("SELECT (.+) FROM prompts p.*EXISTS.*teams").
 		WithArgs("team-123", "team-123", "user-123", "team-123", "user-123", true).
@@ -338,14 +338,14 @@ func TestPromptRepository_List_FilterByMCPExposeFalse(t *testing.T) {
 		WithArgs("team-123", "team-123", "user-123", "team-123", "user-123", false).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
-	rows := sqlmock.NewRows([]string{
+	rows := sqlmock.NewRows(withLockColumns(
 		"id", "name", "slug", "description", "body", "user_id", "team_id", "project_id", "status", "mcp_expose",
 		"labels", "created_at", "updated_at", "is_shared",
-	}).
-		AddRow(
+	)).
+		AddRow(unlockedRow(
 			"prompt-3", "Prompt 3", "prompt-3", "Desc 3", "Body 3", "user-123", "team-123",
 			"project-123", "published", false, "{}", now, now, false,
-		)
+		)...)
 
 	mock.ExpectQuery("SELECT (.+) FROM prompts p.*EXISTS.*teams").
 		WithArgs("team-123", "team-123", "user-123", "team-123", "user-123", false).
@@ -382,22 +382,22 @@ func TestPromptRepository_List_WithoutMCPExposeFilter(t *testing.T) {
 		WithArgs("team-123", "team-123", "user-123", "team-123", "user-123").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
 
-	rows := sqlmock.NewRows([]string{
+	rows := sqlmock.NewRows(withLockColumns(
 		"id", "name", "slug", "description", "body", "user_id", "team_id", "project_id", "status", "mcp_expose",
 		"labels", "created_at", "updated_at", "is_shared",
-	}).
-		AddRow(
+	)).
+		AddRow(unlockedRow(
 			"prompt-1", "Prompt 1", "prompt-1", "Desc 1", "Body 1", "user-123", "team-123",
 			"project-123", "published", true, "{}", now, now, false,
-		).
-		AddRow(
+		)...).
+		AddRow(unlockedRow(
 			"prompt-2", "Prompt 2", "prompt-2", "Desc 2", "Body 2", "user-123", "team-123",
 			"project-123", "published", true, "{}", now, now, false,
-		).
-		AddRow(
+		)...).
+		AddRow(unlockedRow(
 			"prompt-3", "Prompt 3", "prompt-3", "Desc 3", "Body 3", "user-123", "team-123",
 			"project-123", "published", false, "{}", now, now, false,
-		)
+		)...)
 
 	mock.ExpectQuery("SELECT (.+) FROM prompts p.*EXISTS.*teams").
 		WithArgs("team-123", "team-123", "user-123", "team-123", "user-123").
@@ -425,15 +425,15 @@ func TestPromptRepository_GetBySlug(t *testing.T) {
 	now := time.Now()
 
 	t.Run("Get prompt by slug includes mcp_expose", func(t *testing.T) {
-		rows := sqlmock.NewRows([]string{
+		rows := sqlmock.NewRows(withLockColumns(
 			"id", "name", "slug", "description", "body", "user_id", "team_id", "project_id", "status", "mcp_expose",
 			"labels", "created_at", "updated_at", "version", "is_shared",
 			"proj_id", "proj_name", "proj_slug",
-		}).AddRow(
+		)).AddRow(unlockedRow(
 			"prompt-123", "Test Prompt", "test-prompt", "Test description",
 			"Test body", "user-123", "team-123", "project-123", "published", true, "{}", now, now, int64(1), false,
 			"project-123", "Test Project", "test-project",
-		)
+		)...)
 
 		mock.ExpectQuery("SELECT (.+) FROM prompts p.*EXISTS.*teams").
 			WithArgs("test-prompt", "team-123", "user-123").

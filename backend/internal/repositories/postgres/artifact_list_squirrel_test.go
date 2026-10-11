@@ -16,12 +16,13 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// artifactListColumnsTest mirrors the 13 columns scanned by List and
-// ListCrossTeam (content excluded from list operations).
-var artifactListColumnsTest = []string{
+// artifactListColumnsTest mirrors the 17 columns scanned by List and
+// ListCrossTeam: the 13 artifact columns (content excluded from list
+// operations) followed by the four lock columns.
+var artifactListColumnsTest = withLockColumns(
 	"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 	"status", "type", "metadata", "created_at", "updated_at", "labels",
-}
+)
 
 // setupArtifactListTest builds an ArtifactRepository backed by a sqlmock
 // connection.
@@ -58,17 +59,18 @@ func artifactCrossTeamDefaultArgs() []driver.Value {
 }
 
 func artifactListOneRow(now time.Time) *sqlmock.Rows {
-	return sqlmock.NewRows(artifactListColumnsTest).AddRow(
+	return sqlmock.NewRows(artifactListColumnsTest).AddRow(unlockedRow(
 		"artifact-1", "project-1", "slug-1", "user-123", "team-123",
 		"Title", "Description", "active", "general",
 		[]byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
-	)
+	)...)
 }
 
 //nolint:funlen // table-driven test with multiple filter scenarios for both list methods
 func TestArtifactRepository_ListSquirrel(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
+	locked, unlocked := true, false
 	projectID := "project-x"
 
 	tests := []struct {
@@ -366,6 +368,35 @@ func TestArtifactRepository_ListSquirrel(t *testing.T) {
 			expectTotal: 2,
 			expectCount: 0,
 		},
+		{
+			name:    "List locked=true narrows count and page to locked rows, binding no extra arg",
+			filters: repositories.ArtifactFilters{TeamID: "team-123", Locked: &locked, Page: 1, Limit: 10},
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a WHERE .*a\.locked_by IS NOT NULL AND a\.status <> `).
+					WithArgs(artifactListDefaultArgs()...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM artifacts a LEFT JOIN users lock_u .*a\.locked_by IS NOT NULL AND a\.status <> `).
+					WithArgs(artifactListDefaultArgs()...).
+					WillReturnRows(artifactListOneRow(now))
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
+			name:      "ListCrossTeam locked=false narrows count and page to unlocked rows",
+			filters:   repositories.ArtifactFilters{Locked: &unlocked, Page: 1, Limit: 10},
+			crossTeam: true,
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a WHERE .*a\.locked_by IS NULL AND a\.status <> `).
+					WithArgs(artifactCrossTeamDefaultArgs()...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM artifacts a LEFT JOIN users lock_u .*a\.locked_by IS NULL AND a\.status <> `).
+					WithArgs(artifactCrossTeamDefaultArgs()...).
+					WillReturnRows(artifactListOneRow(now))
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -394,8 +425,9 @@ func TestArtifactRepository_ListSquirrel(t *testing.T) {
 	}
 }
 
-// TestArtifactRepository_List_ExplicitProjection pins the full 13-column
-// projection (content excluded) for the default List path. A `.+` matcher would
+// TestArtifactRepository_List_ExplicitProjection pins the full 17-column
+// projection (content excluded; the four lock columns last) and the locker
+// join for the default List path. A `.+` matcher would
 // not catch column drift, so the projection is asserted verbatim.
 func TestArtifactRepository_List_ExplicitProjection(t *testing.T) {
 	repo, mock, mockDB := setupArtifactListTest(t)
@@ -416,7 +448,9 @@ func TestArtifactRepository_List_ExplicitProjection(t *testing.T) {
 	mock.ExpectQuery(
 		`SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, ` +
 			`a\.title, a\.description, a\.status, a\.type, a\.metadata, ` +
-			`a\.created_at, a\.updated_at, a\.labels FROM artifacts a WHERE`,
+			`a\.created_at, a\.updated_at, a\.labels, ` +
+			`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name ` +
+			`FROM artifacts a LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by WHERE`,
 	).
 		WithArgs(artifactListDefaultArgs()...).
 		WillReturnRows(artifactListOneRow(now))
@@ -431,7 +465,7 @@ func TestArtifactRepository_List_ExplicitProjection(t *testing.T) {
 }
 
 // TestArtifactRepository_ListCrossTeam_ExplicitProjection pins the full
-// 13-column projection for the default ListCrossTeam path.
+// 17-column projection and the locker join for the default ListCrossTeam path.
 func TestArtifactRepository_ListCrossTeam_ExplicitProjection(t *testing.T) {
 	repo, mock, mockDB := setupArtifactListTest(t)
 	defer func() {
@@ -451,7 +485,9 @@ func TestArtifactRepository_ListCrossTeam_ExplicitProjection(t *testing.T) {
 	mock.ExpectQuery(
 		`SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, ` +
 			`a\.title, a\.description, a\.status, a\.type, a\.metadata, ` +
-			`a\.created_at, a\.updated_at, a\.labels FROM artifacts a WHERE`,
+			`a\.created_at, a\.updated_at, a\.labels, ` +
+			`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name ` +
+			`FROM artifacts a LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by WHERE`,
 	).
 		WithArgs(artifactCrossTeamDefaultArgs()...).
 		WillReturnRows(artifactListOneRow(now))
@@ -501,11 +537,11 @@ func TestArtifactRepository_ListSquirrel_ErrorPaths(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM artifacts a`).
 					WithArgs(artifactListDefaultArgs()...).
-					WillReturnRows(sqlmock.NewRows(artifactListColumnsTest).AddRow(
+					WillReturnRows(sqlmock.NewRows(artifactListColumnsTest).AddRow(unlockedRow(
 						"artifact-1", "project-1", "slug-1", "user-123", "team-123",
 						"Title", "Description", "active", "general",
 						[]byte(`{not valid json`), now, now, pq.StringArray{},
-					))
+					)...))
 			},
 			wantErr: "failed to unmarshal metadata",
 		},
@@ -518,11 +554,11 @@ func TestArtifactRepository_ListSquirrel_ErrorPaths(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM artifacts a`).
 					WithArgs(artifactCrossTeamDefaultArgs()...).
-					WillReturnRows(sqlmock.NewRows(artifactListColumnsTest).AddRow(
+					WillReturnRows(sqlmock.NewRows(artifactListColumnsTest).AddRow(unlockedRow(
 						"artifact-1", "project-1", "slug-1", "user-123", "team-123",
 						"Title", "Description", "active", "general",
 						[]byte(`{not valid json`), now, now, pq.StringArray{},
-					))
+					)...))
 			},
 			wantErr: "failed to unmarshal metadata (cross-team)",
 		},

@@ -49,6 +49,12 @@ type Prompt struct {
 	// carries NO omitempty because the spec declares it required+nullable, i.e.
 	// the key is always present and `null` when the project is unknown.
 	Project *ProjectSummary `json:"project" db:"-"`
+	// Lock is the lock held on the resource, or nil when it is unlocked (issue
+	// #1286). It is read from the row's locked_by / locked_at / lock_comment
+	// columns by every repository read. Not serialized yet (json:"-"): #1288
+	// exposes it together with the spec change, so no response body changes
+	// here.
+	Lock *ResourceLock `json:"-" db:"-"`
 }
 
 type CreatePromptRequest struct {

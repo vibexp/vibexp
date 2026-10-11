@@ -24,6 +24,54 @@ func (_m *MockBlueprintRepository) EXPECT() *MockBlueprintRepository_Expecter {
 	return &MockBlueprintRepository_Expecter{mock: &_m.Mock}
 }
 
+// ClearLock provides a mock function with given fields: ctx, teamID, blueprintID
+func (_m *MockBlueprintRepository) ClearLock(ctx context.Context, teamID string, blueprintID string) error {
+	ret := _m.Called(ctx, teamID, blueprintID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClearLock")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, teamID, blueprintID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockBlueprintRepository_ClearLock_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearLock'
+type MockBlueprintRepository_ClearLock_Call struct {
+	*mock.Call
+}
+
+// ClearLock is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - blueprintID string
+func (_e *MockBlueprintRepository_Expecter) ClearLock(ctx interface{}, teamID interface{}, blueprintID interface{}) *MockBlueprintRepository_ClearLock_Call {
+	return &MockBlueprintRepository_ClearLock_Call{Call: _e.mock.On("ClearLock", ctx, teamID, blueprintID)}
+}
+
+func (_c *MockBlueprintRepository_ClearLock_Call) Run(run func(ctx context.Context, teamID string, blueprintID string)) *MockBlueprintRepository_ClearLock_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockBlueprintRepository_ClearLock_Call) Return(_a0 error) *MockBlueprintRepository_ClearLock_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockBlueprintRepository_ClearLock_Call) RunAndReturn(run func(context.Context, string, string) error) *MockBlueprintRepository_ClearLock_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Create provides a mock function with given fields: ctx, blueprint
 func (_m *MockBlueprintRepository) Create(ctx context.Context, blueprint *models.Blueprint) error {
 	ret := _m.Called(ctx, blueprint)
@@ -547,6 +595,56 @@ func (_c *MockBlueprintRepository_List_Call) Return(_a0 []models.Blueprint, _a1 
 }
 
 func (_c *MockBlueprintRepository_List_Call) RunAndReturn(run func(context.Context, string, repositories.BlueprintFilters) ([]models.Blueprint, int, error)) *MockBlueprintRepository_List_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SetLock provides a mock function with given fields: ctx, teamID, blueprintID, lockerID, comment
+func (_m *MockBlueprintRepository) SetLock(ctx context.Context, teamID string, blueprintID string, lockerID string, comment string) error {
+	ret := _m.Called(ctx, teamID, blueprintID, lockerID, comment)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetLock")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) error); ok {
+		r0 = rf(ctx, teamID, blueprintID, lockerID, comment)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockBlueprintRepository_SetLock_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetLock'
+type MockBlueprintRepository_SetLock_Call struct {
+	*mock.Call
+}
+
+// SetLock is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - blueprintID string
+//   - lockerID string
+//   - comment string
+func (_e *MockBlueprintRepository_Expecter) SetLock(ctx interface{}, teamID interface{}, blueprintID interface{}, lockerID interface{}, comment interface{}) *MockBlueprintRepository_SetLock_Call {
+	return &MockBlueprintRepository_SetLock_Call{Call: _e.mock.On("SetLock", ctx, teamID, blueprintID, lockerID, comment)}
+}
+
+func (_c *MockBlueprintRepository_SetLock_Call) Run(run func(ctx context.Context, teamID string, blueprintID string, lockerID string, comment string)) *MockBlueprintRepository_SetLock_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *MockBlueprintRepository_SetLock_Call) Return(_a0 error) *MockBlueprintRepository_SetLock_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockBlueprintRepository_SetLock_Call) RunAndReturn(run func(context.Context, string, string, string, string) error) *MockBlueprintRepository_SetLock_Call {
 	_c.Call.Return(run)
 	return _c
 }

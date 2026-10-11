@@ -21,18 +21,19 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// artifactCrossTeamColumns mirrors the 14-column projection of the cross-team getters.
-var artifactCrossTeamColumns = []string{
+// artifactCrossTeamColumns mirrors the 19-column projection of the cross-team
+// getters: the 15 artifact columns followed by the four lock columns.
+var artifactCrossTeamColumns = withLockColumns(
 	"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 	"content", "status", "type", "metadata", "created_at", "updated_at", "version", "labels",
-}
+)
 
 func artifactCrossTeamRow(now time.Time) *sqlmock.Rows {
-	return sqlmock.NewRows(artifactCrossTeamColumns).AddRow(
+	return sqlmock.NewRows(artifactCrossTeamColumns).AddRow(unlockedRow(
 		"art-1", "proj-1", "my-slug", "user-1", "team-9", "Title", "Desc",
 		"content", "published", "document", []byte(`{"k":"v"}`), now, now, int64(2),
 		pq.StringArray{"onboarding"},
-	)
+	)...)
 }
 
 func TestArtifactRepository_GetByIDCrossTeam(t *testing.T) {
@@ -43,7 +44,10 @@ func TestArtifactRepository_GetByIDCrossTeam(t *testing.T) {
 		repo, mock, mockDB := setupArtifactListTest(t)
 		defer closeMockDB(t, mockDB)
 
-		mock.ExpectQuery(`FROM artifacts\s+WHERE id = \$1 AND user_id = \$2`).
+		mock.ExpectQuery(
+			`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+`+
+				`WHERE a\.id = \$1 AND a\.user_id = \$2`,
+		).
 			WithArgs("art-1", "user-1").
 			WillReturnRows(artifactCrossTeamRow(now))
 
@@ -77,7 +81,7 @@ func TestArtifactRepository_GetByProjectIDAndSlugCrossTeam(t *testing.T) {
 		repo, mock, mockDB := setupArtifactListTest(t)
 		defer closeMockDB(t, mockDB)
 
-		mock.ExpectQuery(`WHERE project_id = \$1 AND slug = \$2 AND user_id = \$3`).
+		mock.ExpectQuery(`WHERE a\.project_id = \$1 AND a\.slug = \$2 AND a\.user_id = \$3`).
 			WithArgs("proj-1", "my-slug", "user-1").
 			WillReturnRows(artifactCrossTeamRow(now))
 

@@ -93,13 +93,14 @@ func TestPromptGetBySlug_ProjectSummary(t *testing.T) {
 			db, mock := projectSummaryMockDB(t)
 			repo := NewPromptRepository(db)
 
-			cols := append([]string{
+			cols := withLockColumns(append([]string{
 				"id", "name", "slug", "description", "body", "user_id", "team_id", "project_id",
 				"status", "mcp_expose", "labels", "created_at", "updated_at", "version", "is_shared",
-			}, projectSummaryColumns()...)
+			}, projectSummaryColumns()...)...)
+			row := unlockedRow(append(append([]driverValue{}, base...), tc.tail...)...)
 			mock.ExpectQuery("SELECT (.+) FROM prompts p.*LEFT JOIN projects proj").
 				WithArgs("test-prompt", projSumTeamID, projSumUserID).
-				WillReturnRows(sqlmock.NewRows(cols).AddRow(append(append([]driverValue{}, base...), tc.tail...)...))
+				WillReturnRows(sqlmock.NewRows(cols).AddRow(row...))
 
 			got, err := repo.GetBySlug(context.Background(), projSumUserID, projSumTeamID, "test-prompt")
 			require.NoError(t, err)
@@ -129,13 +130,14 @@ func TestArtifactGetByProjectIDAndSlug_ProjectSummary(t *testing.T) {
 			db, mock := projectSummaryMockDB(t)
 			repo := NewArtifactRepository(db)
 
-			cols := append([]string{
+			cols := withLockColumns(append([]string{
 				"id", "project_id", "slug", "user_id", "team_id", "title", "description", "content",
 				"status", "type", "metadata", "created_at", "updated_at", "version", "labels",
-			}, projectSummaryColumns()...)
+			}, projectSummaryColumns()...)...)
+			row := unlockedRow(append(append([]driverValue{}, base...), tc.tail...)...)
 			mock.ExpectQuery("SELECT (.+) FROM artifacts a.*LEFT JOIN projects proj").
 				WithArgs(projSumProjectID, "test-slug", projSumTeamID, projSumUserID).
-				WillReturnRows(sqlmock.NewRows(cols).AddRow(append(append([]driverValue{}, base...), tc.tail...)...))
+				WillReturnRows(sqlmock.NewRows(cols).AddRow(row...))
 
 			got, err := repo.GetByProjectIDAndSlug(
 				context.Background(), projSumUserID, projSumTeamID, projSumProjectID, "test-slug")
@@ -167,16 +169,17 @@ func TestBlueprintGetByProjectIDAndSlug_ProjectSummary(t *testing.T) {
 			db, mock := projectSummaryMockDB(t)
 			repo := NewBlueprintRepository(db)
 
-			cols := append([]string{
+			cols := withLockColumns(append([]string{
 				"id", "project_id", "slug", "user_id", "team_id", "title", "description", "content",
 				"status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 				"path", "path_derived", "raw_content", "content_sha",
 				"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
 				"labels",
-			}, projectSummaryColumns()...)
+			}, projectSummaryColumns()...)...)
+			row := unlockedRow(append(append([]driverValue{}, base...), tc.tail...)...)
 			mock.ExpectQuery("SELECT (.+) FROM blueprints s.*LEFT JOIN projects proj").
 				WithArgs(projSumProjectID, "test-slug", projSumTeamID, projSumUserID).
-				WillReturnRows(sqlmock.NewRows(cols).AddRow(append(append([]driverValue{}, base...), tc.tail...)...))
+				WillReturnRows(sqlmock.NewRows(cols).AddRow(row...))
 
 			got, err := repo.GetByProjectIDAndSlug(
 				context.Background(), projSumUserID, projSumTeamID, projSumProjectID, "test-slug")

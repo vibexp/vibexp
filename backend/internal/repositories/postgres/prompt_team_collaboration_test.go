@@ -60,14 +60,14 @@ func TestPromptRepository_TeamMember_CanListOtherMembersPrompts(t *testing.T) {
 	listQuery := `SELECT p\.id, p\.name, p\.slug, p\.description, p\.body, p\.user_id, p\.team_id, p\.project_id`
 	mock.ExpectQuery(listQuery).
 		WithArgs(teamID, teamID, bobUserID, teamID, bobUserID).
-		WillReturnRows(sqlmock.NewRows([]string{
+		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
 			"id", "name", "slug", "description", "body", "user_id", "team_id",
 			"project_id", "status", "mcp_expose", "labels", "created_at", "updated_at", "is_shared",
-		}).AddRow(
+		)).AddRow(postgres.UnlockedRow(
 			alicePromptID, "Campaign Ideas", "campaign-ideas", "Marketing campaign ideas",
 			"Generate creative campaign ideas", aliceUserID, teamID, "project-123",
 			"published", false, []byte("{}"), now, now, false,
-		))
+		)...))
 
 	// Bob lists prompts in the team
 	prompts, total, err := repo.List(ctx, bobUserID, filters)
@@ -110,14 +110,14 @@ func TestPromptRepository_TeamMember_CanGetOtherMembersPrompts(t *testing.T) {
 	getQuery := `SELECT p\.id, p\.name, p\.slug, p\.description, p\.body, p\.user_id, p\.team_id, p\.project_id`
 	mock.ExpectQuery(getQuery).
 		WithArgs(alicePromptID, teamID, bobUserID).
-		WillReturnRows(sqlmock.NewRows([]string{
+		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
 			"id", "name", "slug", "description", "body", "user_id", "team_id",
 			"project_id", "status", "mcp_expose", "labels", "created_at", "updated_at", "version", "is_shared",
-		}).AddRow(
+		)).AddRow(postgres.UnlockedRow(
 			alicePromptID, "Campaign Ideas", "campaign-ideas", "Marketing campaign ideas",
 			"Generate creative campaign ideas", aliceUserID, teamID, "project-123",
 			"published", false, []byte("{}"), now, now, 1, false,
-		))
+		)...))
 
 	// Bob gets Alice's prompt
 	prompt, err := repo.GetByID(ctx, bobUserID, teamID, alicePromptID)
