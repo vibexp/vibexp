@@ -29,11 +29,9 @@ type InstanceEmailProvider struct {
 	FromAddress     string          `json:"from_address" db:"from_address"`
 	FromName        *string         `json:"from_name,omitempty" db:"from_name"`
 	ReplyTo         *string         `json:"reply_to,omitempty" db:"reply_to"`
-	// ContactRecipientAddress and PrivacyPolicyURL are instance-only: where the
-	// contact form delivers and the privacy policy linked from outbound mail.
-	// Nil means "fall back".
+	// ContactRecipientAddress is instance-only: where the contact form
+	// delivers. Nil means "fall back to the from address".
 	ContactRecipientAddress *string `json:"contact_recipient_address,omitempty" db:"contact_recipient_address"`
-	PrivacyPolicyURL        *string `json:"privacy_policy_url,omitempty" db:"privacy_policy_url"`
 	// LastSuccessAt, LastError and LastErrorAt are delivery health, written by
 	// RecordSuccess / RecordError. See IsHealthy.
 	LastSuccessAt *time.Time `json:"last_success_at,omitempty" db:"last_success_at"`
@@ -60,16 +58,14 @@ func (p *InstanceEmailProvider) IsHealthy() bool {
 }
 
 // UpsertInstanceEmailProviderRequest is the payload for configuring the
-// instance's email provider (#1188). It is the team request plus the two
-// instance-only fields, so both paths share one validation of the provider
+// instance's email provider (#1188). It is the team request plus the one
+// instance-only field, so both paths share one validation of the provider
 // settings, the sender identity and the secret.
 type UpsertInstanceEmailProviderRequest struct {
 	UpsertTeamEmailProviderRequest
 	// ContactRecipientAddress is where the contact form delivers; empty falls
 	// back to the from-address.
 	ContactRecipientAddress *string `json:"contact_recipient_address,omitempty" validate:"omitempty,email"`
-	// PrivacyPolicyURL is the absolute http(s) URL linked from outbound mail.
-	PrivacyPolicyURL *string `json:"privacy_policy_url,omitempty"`
 }
 
 // TestInstanceEmailProviderRequest is the payload for an instance test send.
@@ -103,7 +99,6 @@ type InstanceEmailProviderEffective struct {
 	FromName                *string                    `json:"from_name,omitempty"`
 	ReplyTo                 *string                    `json:"reply_to,omitempty"`
 	ContactRecipientAddress *string                    `json:"contact_recipient_address,omitempty"`
-	PrivacyPolicyURL        *string                    `json:"privacy_policy_url,omitempty"`
 	IsHealthy               *bool                      `json:"is_healthy,omitempty"`
 	LastSuccessAt           *time.Time                 `json:"last_success_at,omitempty"`
 	LastError               *string                    `json:"last_error,omitempty"`
@@ -136,7 +131,6 @@ func NewInstanceEmailProviderEffective(
 		FromName:                row.FromName,
 		ReplyTo:                 row.ReplyTo,
 		ContactRecipientAddress: row.ContactRecipientAddress,
-		PrivacyPolicyURL:        row.PrivacyPolicyURL,
 		IsHealthy:               &healthy,
 		LastSuccessAt:           row.LastSuccessAt,
 		LastError:               row.LastError,

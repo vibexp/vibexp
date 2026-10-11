@@ -30,7 +30,7 @@ func NewInstanceEmailProviderRepository(db *database.DB) repositories.InstanceEm
 // instanceEmailProviderColumns is the full projection, shared by every read so
 // a column added to one query can never be forgotten in another.
 const instanceEmailProviderColumns = `provider_type, settings, secret_encrypted,
-	from_address, from_name, reply_to, contact_recipient_address, privacy_policy_url,
+	from_address, from_name, reply_to, contact_recipient_address,
 	last_success_at, last_error, last_error_at, created_at, updated_at, updated_by, version`
 
 // instanceEmailProviderInsert is the column list and values shared by Upsert
@@ -39,8 +39,8 @@ const instanceEmailProviderColumns = `provider_type, settings, secret_encrypted,
 const instanceEmailProviderInsert = `
 	INSERT INTO instance_email_provider
 	(provider_type, settings, secret_encrypted, from_address, from_name, reply_to,
-	contact_recipient_address, privacy_policy_url, updated_by)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	contact_recipient_address, updated_by)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 // scanInstanceEmailProvider reads one row in instanceEmailProviderColumns order.
 func scanInstanceEmailProvider(row rowScanner) (*models.InstanceEmailProvider, error) {
@@ -48,7 +48,7 @@ func scanInstanceEmailProvider(row rowScanner) (*models.InstanceEmailProvider, e
 	err := row.Scan(
 		&provider.ProviderType, &provider.Settings, &provider.SecretEncrypted,
 		&provider.FromAddress, &provider.FromName, &provider.ReplyTo,
-		&provider.ContactRecipientAddress, &provider.PrivacyPolicyURL,
+		&provider.ContactRecipientAddress,
 		&provider.LastSuccessAt, &provider.LastError, &provider.LastErrorAt,
 		&provider.CreatedAt, &provider.UpdatedAt, &provider.UpdatedBy, &provider.Version,
 	)
@@ -70,7 +70,7 @@ func instanceEmailProviderArgs(provider *models.InstanceEmailProvider) []any {
 	return []any{
 		provider.ProviderType, provider.Settings, provider.SecretEncrypted,
 		provider.FromAddress, provider.FromName, provider.ReplyTo,
-		provider.ContactRecipientAddress, provider.PrivacyPolicyURL, provider.UpdatedBy,
+		provider.ContactRecipientAddress, provider.UpdatedBy,
 	}
 }
 
@@ -109,7 +109,6 @@ func (r *InstanceEmailProviderRepository) Upsert(
 			from_name = EXCLUDED.from_name,
 			reply_to = EXCLUDED.reply_to,
 			contact_recipient_address = EXCLUDED.contact_recipient_address,
-			privacy_policy_url = EXCLUDED.privacy_policy_url,
 			updated_by = EXCLUDED.updated_by,
 			updated_at = CURRENT_TIMESTAMP,
 			version = instance_email_provider.version + 1

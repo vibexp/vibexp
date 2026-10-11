@@ -17,30 +17,19 @@ import type {
  *
  * The provider/sender part is the shared email-provider form
  * (`features/email-provider`), so the four-way provider switch lives in one
- * place. The instance adds two fields the team form does not have, and its
- * test send follows a different secret rule (`instanceSecretError`).
+ * place. The instance adds one field the team form does not have (the contact
+ * recipient), and its test send follows a different secret rule
+ * (`instanceSecretError`). The privacy policy URL used to live here too; it is
+ * part of the instance's site info now (#1363).
  *
  * A data module rather than consts in a `.tsx` for the same reason as
  * `emailProviderForm.ts` (#587).
  */
 
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value)
-    return (
-      (url.protocol === 'http:' || url.protocol === 'https:') &&
-      url.hostname !== ''
-    )
-  } catch {
-    return false
-  }
-}
-
 export const instanceEmailSchema = z
   .object({
     ...emailProviderShape,
     contact_recipient_address: z.string().trim().optional(),
-    privacy_policy_url: z.string().trim().optional(),
   })
   .superRefine((values, ctx) => {
     refineEmailProvider(values, ctx)
@@ -51,15 +40,6 @@ export const instanceEmailSchema = z
         code: 'custom',
         path: ['contact_recipient_address'],
         message: 'Enter a valid email address',
-      })
-    }
-
-    const privacy = values.privacy_policy_url
-    if (privacy && !isHttpUrl(privacy)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['privacy_policy_url'],
-        message: 'Enter an absolute http(s) URL',
       })
     }
   })
@@ -77,9 +57,6 @@ export function toInstanceFormValues(
     ...toFormValues(settings),
     contact_recipient_address: settings.configured
       ? (settings.contact_recipient_address ?? '')
-      : '',
-    privacy_policy_url: settings.configured
-      ? (settings.privacy_policy_url ?? '')
       : '',
   }
 }
@@ -104,7 +81,6 @@ export function toInstanceRequest(
     from_name: blankToNull(values.from_name),
     reply_to: blankToNull(values.reply_to),
     contact_recipient_address: blankToNull(values.contact_recipient_address),
-    privacy_policy_url: blankToNull(values.privacy_policy_url),
   }
 }
 
@@ -256,7 +232,6 @@ const SERVER_FIELD_TO_FORM: Record<string, keyof InstanceEmailFormValues> = {
   from_name: 'from_name',
   reply_to: 'reply_to',
   contact_recipient_address: 'contact_recipient_address',
-  privacy_policy_url: 'privacy_policy_url',
   'settings.smtp.host': 'smtp_host',
   'settings.smtp.port': 'smtp_port',
   'settings.smtp.username': 'smtp_username',

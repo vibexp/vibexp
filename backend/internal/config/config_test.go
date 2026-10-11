@@ -104,7 +104,6 @@ email:
   provider: mailgun
   from_address: noreply@example.com
   contact_recipient_address: support@example.com
-  privacy_policy_url: https://example.com/privacy-policy
   smtp:
     host: smtp.example.com
     port: "2525"
@@ -378,7 +377,6 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, "mailgun", cfg.LegacyEmail.Provider)
 	assert.Equal(t, "noreply@example.com", cfg.LegacyEmail.FromAddress)
 	assert.Equal(t, "support@example.com", cfg.LegacyEmail.ContactRecipientAddress)
-	assert.Equal(t, "https://example.com/privacy-policy", cfg.LegacyEmail.PrivacyPolicyURL)
 	assert.Equal(t, "smtp.example.com", cfg.LegacyEmail.SMTP.Host)
 	assert.Equal(t, "2525", cfg.LegacyEmail.SMTP.Port)
 	assert.Equal(t, "smtppass", cfg.LegacyEmail.SMTP.Password)

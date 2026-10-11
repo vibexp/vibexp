@@ -560,8 +560,6 @@ type LegacyEmailConfig struct {
 	// ContactRecipientAddress is the destination for contact/support notification
 	// emails; when empty it falls back to FromAddress, then SMTP.Username.
 	ContactRecipientAddress string `koanf:"contact_recipient_address"`
-	// PrivacyPolicyURL is the privacy-policy link in transactional email footers.
-	PrivacyPolicyURL string `koanf:"privacy_policy_url"`
 
 	SMTP     SMTPConfig     `koanf:"smtp"`
 	Mailgun  MailgunConfig  `koanf:"mailgun"`
@@ -1386,9 +1384,8 @@ func IsDefaultAuthRedirectURI(uri string) bool {
 // chose: koanf merges defaults() into the loaded struct, so an unset key and a
 // default are indistinguishable after Load.
 const (
-	DefaultLegacySMTPHost         = "smtp.gmail.com"
-	DefaultLegacySMTPPort         = "587"
-	DefaultLegacyPrivacyPolicyURL = "https://example.com/privacy-policy"
+	DefaultLegacySMTPHost = "smtp.gmail.com"
+	DefaultLegacySMTPPort = "587"
 )
 
 // defaults returns the code-level configuration defaults as flat, dot-delimited
@@ -1411,7 +1408,6 @@ func defaults() map[string]any {
 		"auth.oauth_as.key_rotation_interval": "720h",
 		"auth.oauth_as.cleanup_interval":      "1h",
 		"email.provider":                      "smtp",
-		"email.privacy_policy_url":            DefaultLegacyPrivacyPolicyURL,
 		"email.smtp.host":                     DefaultLegacySMTPHost,
 		"email.smtp.port":                     DefaultLegacySMTPPort,
 		"email.postmark.message_stream":       "outbound",
@@ -1672,6 +1668,9 @@ var removedConfigKeys = []removedConfigKey{
 		"(open the team, then Settings → GitHub Integration), not instance-wide. " +
 		"Delete the `github:` section from your config.yaml and re-register the App on each team. " +
 		"Note this is NOT `auth.github` (the web-login OAuth client), which is unaffected."},
+	{path: "email.privacy_policy_url", mode: removalWarn, guidance: "the privacy policy URL is part of the " +
+		"instance's site info now, stored in the database and managed in the admin area. This key is ignored: " +
+		"it is not imported. Delete it from your config.yaml and set the URL in site info instead."},
 	{path: "auth.providers", mode: removalWarn, guidance: legacyAuthKeyGuidance},
 	{path: "auth.provider", mode: removalWarn, guidance: legacyAuthKeyGuidance},
 	{path: "auth.access_allowlist", mode: removalWarn, guidance: legacyAuthKeyGuidance},

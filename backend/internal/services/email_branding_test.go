@@ -47,14 +47,6 @@ func acmeSiteInfo() fixedSiteInfo {
 	}
 }
 
-// identityResolver is instanceResolver plus a stored email-settings privacy
-// URL, the footer's fallback.
-func identityResolver(provider external.EmailProvider, privacyURL string) *stubSenderResolver {
-	r := instanceResolver(provider)
-	r.identity = InstanceEmailIdentity{FromAddress: "test@example.com", PrivacyPolicyURL: privacyURL}
-	return r
-}
-
 // capturedEmail records the one message a send produced.
 type capturedEmail struct {
 	subject, html, text string
@@ -63,8 +55,7 @@ type capturedEmail struct {
 // sendWith runs send against an EmailService over siteInfo and returns the
 // message it handed to the provider.
 func sendWith(
-	t *testing.T, siteInfo InstanceSiteInfoResolver, identityPrivacyURL string,
-	send func(es *EmailService) error,
+	t *testing.T, siteInfo InstanceSiteInfoResolver, send func(es *EmailService) error,
 ) capturedEmail {
 	t.Helper()
 	provider := new(MockEmailProvider)
@@ -76,7 +67,9 @@ func sendWith(
 		}
 	}).Return(nil)
 
-	es := NewEmailService(identityResolver(provider, identityPrivacyURL), siteInfo,
+	resolver := instanceResolver(provider)
+	resolver.identity = InstanceEmailIdentity{FromAddress: "test@example.com"}
+	es := NewEmailService(resolver, siteInfo,
 		&config.Config{Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"}})
 	require.NoError(t, send(es))
 	provider.AssertNumberOfCalls(t, "SendEmail", 1)
@@ -99,7 +92,7 @@ func sendAcknowledgement(es *EmailService) error {
 const poweredByHTML = `Powered by <a href="https://vibexp.io" rel="nofollow">VibeXP</a>`
 
 func TestEmailBranding_ConfiguredLayout(t *testing.T) {
-	got := sendWith(t, acmeSiteInfo(), "https://settings.example/privacy", sendInvitation)
+	got := sendWith(t, acmeSiteInfo(), sendInvitation)
 
 	assert.Contains(t, got.html, `<img src="https://cdn.acme.test/logo.png"`)
 	assert.Contains(t, got.html, `alt="Acme Inc."`)
@@ -107,9 +100,8 @@ func TestEmailBranding_ConfiguredLayout(t *testing.T) {
 	assert.Contains(t, got.html, "Acme Inc.. All rights reserved.")
 	assert.Contains(t, got.html, `<a href="https://acme.test/help" rel="nofollow">Support</a>`)
 	assert.Contains(t, got.html, `<a href="https://acme.test/terms" rel="nofollow">Terms of Service</a>`)
-	assert.Contains(t, got.html, `<a href="https://acme.test/privacy?utm_source=email`,
-		"the site info privacy URL wins over the email settings one")
-	assert.NotContains(t, got.html, "settings.example")
+	assert.Contains(t, got.html, `<a href="https://acme.test/privacy" rel="nofollow">Privacy Policy</a>`,
+		"the privacy link is the site info URL exactly as stored")
 	assert.Contains(t, got.html, poweredByHTML)
 
 	assert.Equal(t, "You have been invited to join Platform on Acme Inc.", got.subject)
@@ -120,7 +112,7 @@ func TestEmailBranding_ConfiguredLayout(t *testing.T) {
 }
 
 func TestEmailBranding_UnconfiguredLayoutFallsBackToVibeXP(t *testing.T) {
-	got := sendWith(t, noSiteInfo{}, "", sendInvitation)
+	got := sendWith(t, noSiteInfo{}, sendInvitation)
 
 	assert.Contains(t, got.html, `<img src="https://vibexp.io/logo.png"`)
 	assert.Contains(t, got.html, `alt="VibeXP"`)
@@ -140,17 +132,18 @@ func TestEmailBranding_UnconfiguredLayoutFallsBackToVibeXP(t *testing.T) {
 func TestEmailBranding_FooterLinksAreIndependent(t *testing.T) {
 	t.Run("support by email, terms only", func(t *testing.T) {
 		got := sendWith(t, fixedSiteInfo{CompanyEmail: "hello@acme.test", TermsURL: "https://acme.test/terms"},
-			"", sendInvitation)
+			sendInvitation)
 
 		assert.Contains(t, got.html, `<a href="mailto:hello@acme.test" rel="nofollow">Support</a>`)
 		assert.Contains(t, got.html, "Terms of Service")
 		assert.NotContains(t, got.html, "Privacy Policy")
 	})
 
-	t.Run("privacy falls back to the email settings value", func(t *testing.T) {
-		got := sendWith(t, fixedSiteInfo{CompanyName: "Acme Inc."}, "https://settings.example/privacy", sendInvitation)
+	t.Run("privacy only, with a query string of its own", func(t *testing.T) {
+		got := sendWith(t, fixedSiteInfo{PrivacyURL: "https://acme.test/legal?doc=privacy"}, sendInvitation)
 
-		assert.Contains(t, got.html, `<a href="https://settings.example/privacy?utm_source=email`)
+		assert.Contains(t, got.html, `<a href="https://acme.test/legal?doc=privacy" rel="nofollow">Privacy Policy</a>`,
+			"nothing is appended to the stored URL")
 		assert.NotContains(t, got.html, "Terms of Service")
 		assert.NotContains(t, got.html, ">Support</a>")
 	})
@@ -158,7 +151,7 @@ func TestEmailBranding_FooterLinksAreIndependent(t *testing.T) {
 
 func TestEmailBranding_SupportAcknowledgement(t *testing.T) {
 	t.Run("configured", func(t *testing.T) {
-		got := sendWith(t, acmeSiteInfo(), "", sendAcknowledgement)
+		got := sendWith(t, acmeSiteInfo(), sendAcknowledgement)
 
 		assert.Equal(t, "Thank you for contacting Acme Inc. Support", got.subject)
 		assert.Contains(t, got.html, "Thank you for contacting Acme Inc. Support!")
@@ -169,7 +162,7 @@ func TestEmailBranding_SupportAcknowledgement(t *testing.T) {
 	})
 
 	t.Run("unconfigured", func(t *testing.T) {
-		got := sendWith(t, noSiteInfo{}, "", sendAcknowledgement)
+		got := sendWith(t, noSiteInfo{}, sendAcknowledgement)
 
 		assert.Equal(t, "Thank you for contacting VibeXP Support", got.subject)
 		assert.Contains(t, got.html, "Thank you for contacting VibeXP Support!")
@@ -179,7 +172,7 @@ func TestEmailBranding_SupportAcknowledgement(t *testing.T) {
 
 // The operator-facing support notification carries the same layout.
 func TestEmailBranding_SupportNotification(t *testing.T) {
-	got := sendWith(t, acmeSiteInfo(), "", func(es *EmailService) error {
+	got := sendWith(t, acmeSiteInfo(), func(es *EmailService) error {
 		return es.sendSupportNotificationToAdmin(context.Background(), "Ada", "ada@example.com",
 			&models.SupportRequest{Text: "Help"})
 	})
@@ -204,7 +197,7 @@ func TestEmailBranding_CompanyValuesAreHTMLEscaped(t *testing.T) {
 		"invitation": sendInvitation, "acknowledgement": sendAcknowledgement,
 	} {
 		t.Run(name, func(t *testing.T) {
-			got := sendWith(t, hostile, "", send)
+			got := sendWith(t, hostile, send)
 
 			assert.NotContains(t, got.html, "<script>alert(1)</script>")
 			assert.Contains(t, got.html, "Acme &lt;script&gt;alert(1)&lt;/script&gt; &#34;Inc&#34;")
@@ -225,7 +218,7 @@ func TestEmailBranding_SubjectIsASingleLine(t *testing.T) {
 		"invitation": sendInvitation, "acknowledgement": sendAcknowledgement,
 	} {
 		t.Run(name, func(t *testing.T) {
-			got := sendWith(t, injected, "", send)
+			got := sendWith(t, injected, send)
 
 			assert.False(t, strings.ContainsAny(got.subject, "\r\n"), "subject: %q", got.subject)
 			assert.Contains(t, got.subject, "Acme Bcc: evil@example.com")
@@ -247,7 +240,7 @@ func (failingSiteInfoRepo) Get(context.Context) (*models.InstanceSiteInfo, error
 func TestEmailBranding_SiteInfoReadFailureStillSends(t *testing.T) {
 	siteInfo := NewInstanceSiteInfoService(failingSiteInfoRepo{}, slog.New(slog.DiscardHandler))
 
-	got := sendWith(t, siteInfo, "", sendInvitation)
+	got := sendWith(t, siteInfo, sendInvitation)
 
 	assert.Equal(t, "You have been invited to join Platform on VibeXP", got.subject)
 	assert.Contains(t, got.html, `alt="VibeXP"`)

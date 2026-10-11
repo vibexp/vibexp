@@ -47,11 +47,11 @@ func TestInstanceEmailProviderRepository_Get(t *testing.T) {
 	mock.ExpectQuery("SELECT (.+) FROM instance_email_provider").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"provider_type", "settings", "secret_encrypted", "from_address", "from_name", "reply_to",
-			"contact_recipient_address", "privacy_policy_url", "last_success_at", "last_error",
+			"contact_recipient_address", "last_success_at", "last_error",
 			"last_error_at", "created_at", "updated_at", "updated_by", "version",
 		}).AddRow(
 			"smtp", []byte(`{"host":"smtp.example.com"}`), nil, "noreply@example.com", nil, nil,
-			"contact@example.com", nil, nil, nil, nil, now, now, nil, int64(3),
+			"contact@example.com", nil, nil, nil, now, now, nil, int64(3),
 		))
 
 	got, err := repo.Get(context.Background())
@@ -92,7 +92,7 @@ func TestInstanceEmailProviderRepository_Upsert_NormalisesEmptySettings(t *testi
 
 	mock.ExpectQuery("INSERT INTO instance_email_provider (.+) ON CONFLICT \\(id\\) DO UPDATE").
 		WithArgs("sendgrid", json.RawMessage(`{}`), sqlmock.AnyArg(), "noreply@example.com",
-			nil, nil, nil, nil, nil).
+			nil, nil, nil, nil).
 		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at", "version"}).
 			AddRow(now, now, int64(2)))
 

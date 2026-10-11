@@ -30,10 +30,9 @@ const legacyImportSecret = "legacy-import-sentinel-5c1e"
 // an install that never configured mail.
 func dockerDefaultsLegacyEmail() config.LegacyEmailConfig {
 	return config.LegacyEmailConfig{
-		Provider:         EmailProviderTypeSMTP,
-		PrivacyPolicyURL: config.DefaultLegacyPrivacyPolicyURL,
-		SMTP:             config.SMTPConfig{Host: config.DefaultLegacySMTPHost, Port: config.DefaultLegacySMTPPort},
-		Postmark:         config.PostmarkConfig{MessageStream: "outbound"},
+		Provider: EmailProviderTypeSMTP,
+		SMTP:     config.SMTPConfig{Host: config.DefaultLegacySMTPHost, Port: config.DefaultLegacySMTPPort},
+		Postmark: config.PostmarkConfig{MessageStream: "outbound"},
 	}
 }
 
@@ -264,7 +263,6 @@ func TestImportLegacyEmailConfig_ImportsPopulatedSMTPBlock(t *testing.T) {
 	assert.JSONEq(t, `{"host":"mail.legacy.test","port":"2525","username":"relay"}`, string(row.Settings))
 	assert.Equal(t, "noreply@legacy.test", row.FromAddress)
 	assert.Equal(t, "ops@legacy.test", derefOrEmpty(row.ContactRecipientAddress))
-	assert.Nil(t, row.PrivacyPolicyURL, "the defaults() placeholder was never chosen by the operator")
 	assert.Nil(t, row.UpdatedBy)
 	require.NotNil(t, row.SecretEncrypted)
 	assert.NotEqual(t, legacyImportSecret, *row.SecretEncrypted)
@@ -302,11 +300,9 @@ func TestImportLegacyEmailConfig_ImportsRelayWithoutSecret(t *testing.T) {
 
 	legacy := populatedLegacySMTP()
 	legacy.SMTP.Password = ""
-	legacy.PrivacyPolicyURL = "https://legacy.test/privacy"
 
 	assert.True(t, f.run(legacy).Imported)
 	assert.Nil(t, row.SecretEncrypted)
-	assert.Equal(t, "https://legacy.test/privacy", derefOrEmpty(row.PrivacyPolicyURL))
 
 	var after map[string]any
 	require.NoError(t, json.Unmarshal(entry.After, &after))

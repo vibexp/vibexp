@@ -305,14 +305,11 @@ func TestInstanceEmailProvider_Upsert_ValidatesInstanceOnlyFields(t *testing.T) 
 	tests := []struct {
 		name      string
 		contact   string
-		privacy   string
 		wantField string
 	}{
 		{name: "contact is not an address", contact: "not-an-address", wantField: "contact_recipient_address"},
 		{name: "contact carries a display name", contact: "Ops <ops@instance.test>",
 			wantField: "contact_recipient_address"},
-		{name: "privacy url is relative", privacy: "/privacy", wantField: "privacy_policy_url"},
-		{name: "privacy url is not http", privacy: "ftp://instance.test/privacy", wantField: "privacy_policy_url"},
 	}
 
 	for _, tc := range tests {
@@ -323,9 +320,6 @@ func TestInstanceEmailProvider_Upsert_ValidatesInstanceOnlyFields(t *testing.T) 
 			req := validInstanceSMTPRequest()
 			if tc.contact != "" {
 				req.ContactRecipientAddress = &tc.contact
-			}
-			if tc.privacy != "" {
-				req.PrivacyPolicyURL = &tc.privacy
 			}
 
 			_, err := f.svc.Upsert(context.Background(), testProviderUserID, req)
@@ -343,10 +337,10 @@ func TestInstanceEmailProvider_Upsert_ReportsAllFieldErrorsTogether(t *testing.T
 	f := newInstanceProviderFixture(t)
 	f.repo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
 
-	privacy := "not a url"
+	contact := "not-an-address"
 	req := validInstanceSMTPRequest()
 	req.FromAddress = ""
-	req.PrivacyPolicyURL = &privacy
+	req.ContactRecipientAddress = &contact
 
 	_, err := f.svc.Upsert(context.Background(), testProviderUserID, req)
 
@@ -356,23 +350,23 @@ func TestInstanceEmailProvider_Upsert_ReportsAllFieldErrorsTogether(t *testing.T
 	for _, field := range verr.Fields {
 		fields = append(fields, field.Field)
 	}
-	assert.ElementsMatch(t, []string{"from_address", "privacy_policy_url"}, fields)
+	assert.ElementsMatch(t, []string{"from_address", "contact_recipient_address"}, fields)
 }
 
-func TestInstanceEmailProvider_Upsert_AcceptsAValidPrivacyURL(t *testing.T) {
+func TestInstanceEmailProvider_Upsert_AcceptsAValidContactRecipient(t *testing.T) {
 	f := newInstanceProviderFixture(t)
 	f.repo.On("Get", mock.Anything).Return(nil, repositories.ErrInstanceEmailProviderNotFound)
 	f.repo.On("Upsert", mock.Anything, mock.Anything).Return(nil).Once()
 	f.captureAppend()
 
-	privacy := "https://instance.test/privacy"
+	contact := "ops@instance.test"
 	req := validInstanceSMTPRequest()
-	req.PrivacyPolicyURL = &privacy
+	req.ContactRecipientAddress = &contact
 
 	effective, err := f.svc.Upsert(context.Background(), testProviderUserID, req)
 
 	require.NoError(t, err)
-	assert.Equal(t, privacy, *effective.PrivacyPolicyURL)
+	assert.Equal(t, contact, *effective.ContactRecipientAddress)
 }
 
 // The row is written before the audit entry; an append failure is surfaced,

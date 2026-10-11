@@ -34,7 +34,6 @@ const storedSMTP = (
   from_name: 'Acme',
   reply_to: null,
   contact_recipient_address: 'hello@acme.test',
-  privacy_policy_url: 'https://acme.test/privacy',
   is_healthy: true,
   ...overrides,
 })
@@ -61,7 +60,7 @@ const values = (
 })
 
 describe('toInstanceFormValues', () => {
-  it('seeds the shared fields and both instance-only fields, never the secret', () => {
+  it('seeds the shared fields and the instance-only field, never the secret', () => {
     expect(toInstanceFormValues(storedSMTP())).toEqual({
       ...EMPTY_FORM,
       provider_type: 'smtp',
@@ -73,29 +72,32 @@ describe('toInstanceFormValues', () => {
       smtp_port: '587',
       smtp_username: 'mailer',
       contact_recipient_address: 'hello@acme.test',
-      privacy_policy_url: 'https://acme.test/privacy',
     })
   })
 
-  it('maps null instance-only fields to blank inputs', () => {
+  it('maps a null instance-only field to a blank input', () => {
     const form = toInstanceFormValues(
-      storedSMTP({ contact_recipient_address: null, privacy_policy_url: null })
+      storedSMTP({ contact_recipient_address: null })
     )
     expect(form.contact_recipient_address).toBe('')
-    expect(form.privacy_policy_url).toBe('')
+  })
+
+  it('has no privacy policy field: that URL is site info now', () => {
+    expect(toInstanceFormValues(storedSMTP())).not.toHaveProperty(
+      'privacy_policy_url'
+    )
   })
 
   it('gives an unconfigured instance the empty form', () => {
     expect(toInstanceFormValues(unconfigured)).toEqual({
       ...EMPTY_FORM,
       contact_recipient_address: '',
-      privacy_policy_url: '',
     })
   })
 })
 
 describe('toInstanceRequest', () => {
-  it('nests the settings and carries both instance-only fields', () => {
+  it('nests the settings and carries the instance-only field', () => {
     expect(toInstanceRequest(values({ secret: ' pw ' }))).toEqual({
       provider_type: 'smtp',
       from_address: 'noreply@acme.test',
@@ -106,8 +108,11 @@ describe('toInstanceRequest', () => {
         smtp: { host: 'smtp.acme.test', port: '587', username: 'mailer' },
       },
       contact_recipient_address: 'hello@acme.test',
-      privacy_policy_url: 'https://acme.test/privacy',
     })
+  })
+
+  it('never sends privacy_policy_url, which the API now rejects as unknown', () => {
+    expect(toInstanceRequest(values())).not.toHaveProperty('privacy_policy_url')
   })
 
   it('clears blank optional fields with an explicit null', () => {
@@ -116,13 +121,11 @@ describe('toInstanceRequest', () => {
         from_name: '  ',
         reply_to: '',
         contact_recipient_address: '',
-        privacy_policy_url: '   ',
       })
     )
     expect(request.from_name).toBeNull()
     expect(request.reply_to).toBeNull()
     expect(request.contact_recipient_address).toBeNull()
-    expect(request.privacy_policy_url).toBeNull()
   })
 
   it('omits a blank secret rather than sending an empty string', () => {
@@ -152,21 +155,10 @@ describe('instanceEmailSchema', () => {
     expect(result.error?.issues[0]?.path).toEqual(['contact_recipient_address'])
   })
 
-  it.each(['acme.test/privacy', 'ftp://acme.test/privacy', 'javascript:x'])(
-    'rejects the non-http(s) or relative privacy URL %s',
-    url => {
-      const result = instanceEmailSchema.safeParse(
-        values({ privacy_policy_url: url })
-      )
-      expect(result.error?.issues[0]?.path).toEqual(['privacy_policy_url'])
-    }
-  )
-
-  it('accepts both instance-only fields blank', () => {
+  it('accepts the instance-only field blank', () => {
     expect(
-      instanceEmailSchema.safeParse(
-        values({ contact_recipient_address: '', privacy_policy_url: '' })
-      ).success
+      instanceEmailSchema.safeParse(values({ contact_recipient_address: '' }))
+        .success
     ).toBe(true)
   })
 })
@@ -388,7 +380,6 @@ describe('formFieldForServerField', () => {
     ['settings.smtp.port', 'smtp_port'],
     ['settings.mailgun.domain', 'mailgun_domain'],
     ['contact_recipient_address', 'contact_recipient_address'],
-    ['privacy_policy_url', 'privacy_policy_url'],
     ['secret', 'secret'],
   ])('maps %s onto the %s input', (server, formField) => {
     expect(formFieldForServerField(server)).toBe(formField)
@@ -407,7 +398,10 @@ describe('formMatchesStored', () => {
   it.each([
     ['a changed field', { from_name: 'Other' }],
     ['a typed secret', { secret: 'pw' }],
-    ['a changed instance-only field', { privacy_policy_url: 'https://x.test' }],
+    [
+      'a changed instance-only field',
+      { contact_recipient_address: 'other@acme.test' },
+    ],
   ])('is false for %s', (_, change) => {
     expect(formMatchesStored(storedSMTP(), values(change))).toBe(false)
   })
