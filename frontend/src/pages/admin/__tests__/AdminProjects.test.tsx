@@ -400,7 +400,9 @@ describe('the team filter', () => {
     const list = input
       .closest('[cmdk-root]')!
       .querySelector<HTMLElement>('[cmdk-list]')!
-    expect(within(list).getByText('Engineering')).toBeInTheDocument()
+    // Awaited: the input renders with the popover, the rows only once the
+    // team page has loaded.
+    expect(await within(list).findByText('Engineering')).toBeInTheDocument()
 
     // jsdom reports every element as zero-height, so the scroll geometry has to
     // be stubbed for the near-the-bottom check to mean anything.
