@@ -718,6 +718,21 @@ func scanIDNameRows(rows interface {
 	return result, nil
 }
 
+// ListLockedResources lists the locked prompts, blueprints and artifacts of
+// one project (issue #1290).
+func (r *ProjectRepository) ListLockedResources(
+	ctx context.Context, teamID, projectID string,
+) ([]models.LockedResourceRef, error) {
+	return listLockedResources(ctx, r.db, projectLockedResourcesSQL, teamID, projectID)
+}
+
+// ListLockedResourcesTx is ListLockedResources read on tx.
+func (r *ProjectRepository) ListLockedResourcesTx(
+	ctx context.Context, tx *sql.Tx, teamID, projectID string,
+) ([]models.LockedResourceRef, error) {
+	return listLockedResources(ctx, tx, projectLockedResourcesSQL, teamID, projectID)
+}
+
 // ListByTeamID returns every project in the team, ordered by name.
 //
 // Tenancy-only: no userID predicate. The callers are team-wide reports whose

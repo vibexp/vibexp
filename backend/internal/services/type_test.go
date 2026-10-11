@@ -115,6 +115,24 @@ func TestTypeService_Delete_DelegatesWithGeneralFallback(t *testing.T) {
 	require.NoError(t, svc.Delete(context.Background(), testTypeTeamID, "type-1"))
 }
 
+// type is a frozen field of a locked artifact (issue #1290): the repository's
+// refusal reaches the caller as it is, so the handler can name what to unlock.
+func TestTypeService_Delete_PassesALockedRefusalThrough(t *testing.T) {
+	svc, repo := newTypeService(t)
+	refusal := &repositories.LockedResourcesError{
+		Reason: repositories.ErrTypeUsedByLockedResource,
+		Resources: []models.LockedResourceRef{
+			{ResourceType: models.RelationResourceTypeArtifact, ID: "artifact-1", Slug: "runbook", Title: "Runbook"},
+		},
+	}
+	repo.EXPECT().DeleteCustom(mock.Anything, testTypeTeamID, "type-1", "general").Return(refusal)
+
+	err := svc.Delete(context.Background(), testTypeTeamID, "type-1")
+	var locked *repositories.LockedResourcesError
+	require.ErrorAs(t, err, &locked)
+	assert.Equal(t, refusal.Resources, locked.Resources)
+}
+
 func TestTypeService_ValidateType(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		svc, repo := newTypeService(t)

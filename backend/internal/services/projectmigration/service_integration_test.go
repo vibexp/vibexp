@@ -10,6 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 // migrationFixture is the common seed for the migration integration tests:
@@ -390,4 +393,135 @@ func TestIntegrationMigrate_Guards(t *testing.T) {
 			assert.Equal(t, fx.srcID, projectIDOf(t, "prompts", promptID))
 		})
 	}
+}
+
+// setTestLock locks (lockerID set) or unlocks (empty) one resource row.
+func setTestLock(t *testing.T, table, id, lockerID string) {
+	t.Helper()
+	query := "UPDATE " + table + " SET locked_by = NULL, locked_at = NULL, lock_comment = NULL WHERE id = $1"
+	args := []any{id}
+	if lockerID != "" {
+		query = "UPDATE " + table + " SET locked_by = $2, locked_at = now(), lock_comment = 'freeze' WHERE id = $1"
+		args = append(args, lockerID)
+	}
+	_, err := integrationDB.ExecContext(context.Background(), query, args...)
+	require.NoError(t, err)
+}
+
+// A migration rewrites project_id, a frozen field of a locked resource (issue
+// #1290). While the source project holds a locked prompt, blueprint or
+// artifact the migration is refused with the error that names it, and nothing
+// moves -- not the locked resource, not the unlocked ones, and not when the
+// locked resource was left out of the selection. After the unlock it runs.
+func TestIntegrationMigrate_RefusedWhileSourceHoldsALockedResource(t *testing.T) {
+	ctx := context.Background()
+	lockable := []struct {
+		resourceType, table, title string
+		insert                     func(t *testing.T, fx migrationFixture, slug string) string
+	}{
+		{models.RelationResourceTypePrompt, "prompts", "name",
+			func(t *testing.T, fx migrationFixture, slug string) string {
+				return insertTestPrompt(t, fx.userID, fx.teamID, fx.srcID, slug)
+			}},
+		{models.RelationResourceTypeArtifact, "artifacts", "title",
+			func(t *testing.T, fx migrationFixture, slug string) string {
+				return insertTestArtifact(t, fx.userID, fx.teamID, fx.srcID, slug)
+			}},
+		{models.RelationResourceTypeBlueprint, "blueprints", "title",
+			func(t *testing.T, fx migrationFixture, slug string) string {
+				return insertTestBlueprint(t, fx.userID, fx.teamID, fx.srcID, slug, 1)
+			}},
+	}
+
+	for _, lockedType := range lockable {
+		t.Run(lockedType.resourceType, func(t *testing.T) {
+			fx := newMigrationFixture(t)
+			svc := newIntegrationService()
+
+			// One resource of every type in the source, plus a feed item.
+			ids := make(map[string]string, len(lockable))
+			for _, resource := range lockable {
+				ids[resource.table] = resource.insert(t, fx, "mig-"+resource.resourceType)
+			}
+			feedID := insertTestFeed(t, fx.teamID, fx.userID)
+			feedItem := insertTestFeedItem(t, fx.teamID, feedID, fx.srcID, fx.userID, "Feed item")
+
+			lockedID := ids[lockedType.table]
+			setTestLock(t, lockedType.table, lockedID, fx.userID)
+			want := models.LockedResourceRef{ResourceType: lockedType.resourceType, ID: lockedID}
+			require.NoError(t, integrationDB.QueryRowContext(ctx,
+				"SELECT slug, "+lockedType.title+" FROM "+lockedType.table+" WHERE id = $1", lockedID).
+				Scan(&want.Slug, &want.Title))
+
+			requests := map[string]ResourceSelections{
+				"everything selected": allResources(),
+				// The locked resource's own type is left out entirely.
+				"the locked resource not selected": func() ResourceSelections {
+					sel := allResources()
+					switch lockedType.table {
+					case "prompts":
+						sel.Prompts = ResourceSelection{}
+					case "artifacts":
+						sel.Artifacts = ResourceSelection{}
+					case "blueprints":
+						sel.Blueprints = ResourceSelection{}
+					}
+					return sel
+				}(),
+			}
+			for name, selection := range requests {
+				result, err := svc.Migrate(ctx, fx.userID, fx.teamID, fx.srcID, &MigrationRequest{
+					DestinationProjectID: fx.dstID,
+					Resources:            selection,
+					ConflictPolicy:       ConflictPolicySkip,
+				})
+				assert.Nil(t, result, name)
+				var locked *repositories.LockedResourcesError
+				require.ErrorAs(t, err, &locked, name)
+				require.ErrorIs(t, err, repositories.ErrProjectHasLockedResources, name)
+				assert.Equal(t, []models.LockedResourceRef{want}, locked.Resources, name)
+
+				for table, id := range ids {
+					assert.Equal(t, fx.srcID, projectIDOf(t, table, id), "%s: %s must not move", name, table)
+				}
+				assert.Equal(t, fx.srcID, projectIDOf(t, "feed_items", feedItem), name)
+				for _, table := range []string{"prompts", "artifacts", "blueprints", "feed_items"} {
+					assert.Zero(t, countInProject(t, table, fx.dstID), "%s: destination must stay empty of %s", name, table)
+				}
+			}
+
+			setTestLock(t, lockedType.table, lockedID, "")
+			result, err := svc.Migrate(ctx, fx.userID, fx.teamID, fx.srcID, &MigrationRequest{
+				DestinationProjectID: fx.dstID,
+				Resources:            allResources(),
+				ConflictPolicy:       ConflictPolicySkip,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, ResourceMigrationCounts{Prompts: 1, Artifacts: 1, Blueprints: 1, FeedItems: 1}, result.Migrated)
+			for table, id := range ids {
+				assert.Equal(t, fx.dstID, projectIDOf(t, table, id), table)
+			}
+		})
+	}
+}
+
+// A locked resource in the DESTINATION project, or in a bystander project, is
+// not being moved and does not refuse the migration.
+func TestIntegrationMigrate_LockedResourceElsewhereDoesNotRefuse(t *testing.T) {
+	ctx := context.Background()
+	fx := newMigrationFixture(t)
+	svc := newIntegrationService()
+
+	moving := insertTestArtifact(t, fx.userID, fx.teamID, fx.srcID, "mig-moving")
+	inDestination := insertTestArtifact(t, fx.userID, fx.teamID, fx.dstID, "mig-locked-in-destination")
+	setTestLock(t, "artifacts", inDestination, fx.userID)
+
+	result, err := svc.Migrate(ctx, fx.userID, fx.teamID, fx.srcID, &MigrationRequest{
+		DestinationProjectID: fx.dstID,
+		Resources:            allResources(),
+		ConflictPolicy:       ConflictPolicySkip,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Migrated.Artifacts)
+	assert.Equal(t, fx.dstID, projectIDOf(t, "artifacts", moving))
 }

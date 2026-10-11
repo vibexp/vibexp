@@ -132,7 +132,9 @@ type StatusManagementServiceInterface interface {
 	Rename(ctx context.Context, params RenameStatusParams) (*ManagedStatus, error)
 	// Delete removes a custom status and moves every resource carrying it to
 	// the resource type's default system status, atomically. It returns
-	// repositories.ErrTeamStatusNotFound for an id the team does not have.
+	// repositories.ErrTeamStatusNotFound for an id the team does not have, and
+	// a *repositories.LockedResourcesError, changing nothing, while a locked
+	// prompt, blueprint or artifact carries the status.
 	Delete(ctx context.Context, params DeleteStatusParams) (*StatusDeletion, error)
 }
 

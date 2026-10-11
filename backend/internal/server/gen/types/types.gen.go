@@ -22,6 +22,27 @@ const (
 	CookieAuthScopes cookieAuthContextKey = "CookieAuth.Scopes"
 )
 
+// Defines values for LockedResourceRefResourceType.
+const (
+	LockedResourceRefResourceTypeArtifact  LockedResourceRefResourceType = "artifact"
+	LockedResourceRefResourceTypeBlueprint LockedResourceRefResourceType = "blueprint"
+	LockedResourceRefResourceTypePrompt    LockedResourceRefResourceType = "prompt"
+)
+
+// Valid indicates whether the value is a known member of the LockedResourceRefResourceType enum.
+func (e LockedResourceRefResourceType) Valid() bool {
+	switch e {
+	case LockedResourceRefResourceTypeArtifact:
+		return true
+	case LockedResourceRefResourceTypeBlueprint:
+		return true
+	case LockedResourceRefResourceTypePrompt:
+		return true
+	default:
+		return false
+	}
+}
+
 // CopyTypesRequest Request body for copying another team's custom types into this one. The destination is the `{team_id}` path parameter; only the source is carried here.
 type CopyTypesRequest struct {
 	// SourceTeamId Team to copy the custom types from. The caller must belong to it, and it must differ from the destination team.
@@ -84,6 +105,60 @@ type ErrorResponse struct {
 	// ValidationErrors Field-level validation errors (present for validation failures)
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
 }
+
+// HasLockedResourcesError defines model for HasLockedResourcesError.
+type HasLockedResourcesError struct {
+	// Code Application-specific error code
+	Code string `json:"code"`
+
+	// Detail Human-readable explanation specific to this occurrence
+	Detail string `json:"detail"`
+
+	// Instance URI reference that identifies the specific occurrence
+	Instance *string `json:"instance,omitempty"`
+
+	// Metadata What has to be unlocked first.
+	Metadata struct {
+		// LockedResources The locked resources, ordered by type then title. At most 100 are listed; when more are locked the request is refused again until none remain.
+		LockedResources []LockedResourceRef `json:"locked_resources"`
+	} `json:"metadata"`
+
+	// RequestId Unique request identifier for tracking and debugging
+	RequestId string `json:"request_id"`
+
+	// Status HTTP status code
+	Status int `json:"status"`
+
+	// Timestamp Timestamp when the error occurred (RFC3339)
+	Timestamp time.Time `json:"timestamp"`
+
+	// Title Short, human-readable summary of the problem type
+	Title string `json:"title"`
+
+	// Type URI reference that identifies the problem type
+	Type string `json:"type"`
+
+	// ValidationErrors Field-level validation errors (present for validation failures)
+	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
+}
+
+// LockedResourceRef One locked prompt, blueprint or artifact that stands in the way of an indirect delete or move.
+type LockedResourceRef struct {
+	// Id ID of the locked resource.
+	Id openapi_types.UUID `json:"id"`
+
+	// ResourceType The kind of resource that is locked.
+	ResourceType LockedResourceRefResourceType `json:"resource_type"`
+
+	// Slug Slug of the locked resource.
+	Slug string `json:"slug"`
+
+	// Title The artifact or blueprint title, or the prompt name.
+	Title string `json:"title"`
+}
+
+// LockedResourceRefResourceType The kind of resource that is locked.
+type LockedResourceRefResourceType string
 
 // SkippedType A source type that was not copied because the destination already has a type with the same slug for that resource. A skip is a normal outcome, never an error.
 type SkippedType struct {
@@ -829,6 +904,20 @@ func (response DeleteType404ApplicationProblemPlusJSONResponse) VisitDeleteTypeR
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteType423ApplicationProblemPlusJSONResponse HasLockedResourcesError
+
+func (response DeleteType423ApplicationProblemPlusJSONResponse) VisitDeleteTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(423)
 	_, err := buf.WriteTo(w)
 	return err
 }

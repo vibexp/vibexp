@@ -97,8 +97,15 @@ type teamStatusResourceSQL struct {
 	// list it appears in.
 	reassign string
 	// reassignOne is reassign for the single row $4: the repair of a resource
-	// whose write landed after reassign had already run.
+	// whose write landed after reassign had already run. On a lockable table
+	// it skips a locked row, whose status is frozen.
 	reassignOne string
+	// locked lists the team's locked rows carrying status $2, and lockedOne
+	// does so for the single row $3. Both are empty for memories, which
+	// cannot be locked. status is a frozen field of a locked resource, so
+	// neither reassignment may rewrite one (issue #1290).
+	locked    string
+	lockedOne string
 }
 
 // teamStatusResourceTables maps a status resource type to the statements for
@@ -108,19 +115,40 @@ type teamStatusResourceSQL struct {
 // tables that filter by team_id first.
 var teamStatusResourceTables = map[string]teamStatusResourceSQL{
 	models.StatusResourceTypePrompt: {
-		usage:       `SELECT status, count(*) FROM prompts WHERE team_id = $1 GROUP BY status`,
-		reassign:    `UPDATE prompts SET status = $2 WHERE team_id = $1 AND status = $3`,
-		reassignOne: `UPDATE prompts SET status = $2 WHERE team_id = $1 AND status = $3 AND id = $4`,
+		usage:    `SELECT status, count(*) FROM prompts WHERE team_id = $1 GROUP BY status`,
+		reassign: `UPDATE prompts SET status = $2 WHERE team_id = $1 AND status = $3`,
+		reassignOne: `UPDATE prompts SET status = $2
+			WHERE team_id = $1 AND status = $3 AND id = $4 AND locked_by IS NULL`,
+		locked: `SELECT 'prompt', id::text, slug, name FROM prompts
+			WHERE team_id = $1 AND status = $2 AND locked_by IS NOT NULL
+			ORDER BY name, id LIMIT $3`,
+		lockedOne: `SELECT 'prompt', id::text, slug, name FROM prompts
+			WHERE team_id = $1 AND status = $2 AND id = $3 AND locked_by IS NOT NULL
+			LIMIT $4`,
 	},
 	models.StatusResourceTypeArtifact: {
-		usage:       `SELECT status, count(*) FROM artifacts WHERE team_id = $1 GROUP BY status`,
-		reassign:    `UPDATE artifacts SET status = $2 WHERE team_id = $1 AND status = $3`,
-		reassignOne: `UPDATE artifacts SET status = $2 WHERE team_id = $1 AND status = $3 AND id = $4`,
+		usage:    `SELECT status, count(*) FROM artifacts WHERE team_id = $1 GROUP BY status`,
+		reassign: `UPDATE artifacts SET status = $2 WHERE team_id = $1 AND status = $3`,
+		reassignOne: `UPDATE artifacts SET status = $2
+			WHERE team_id = $1 AND status = $3 AND id = $4 AND locked_by IS NULL`,
+		locked: `SELECT 'artifact', id::text, slug, title FROM artifacts
+			WHERE team_id = $1 AND status = $2 AND locked_by IS NOT NULL
+			ORDER BY title, id LIMIT $3`,
+		lockedOne: `SELECT 'artifact', id::text, slug, title FROM artifacts
+			WHERE team_id = $1 AND status = $2 AND id = $3 AND locked_by IS NOT NULL
+			LIMIT $4`,
 	},
 	models.StatusResourceTypeBlueprint: {
-		usage:       `SELECT status, count(*) FROM blueprints WHERE team_id = $1 GROUP BY status`,
-		reassign:    `UPDATE blueprints SET status = $2 WHERE team_id = $1 AND status = $3`,
-		reassignOne: `UPDATE blueprints SET status = $2 WHERE team_id = $1 AND status = $3 AND id = $4`,
+		usage:    `SELECT status, count(*) FROM blueprints WHERE team_id = $1 GROUP BY status`,
+		reassign: `UPDATE blueprints SET status = $2 WHERE team_id = $1 AND status = $3`,
+		reassignOne: `UPDATE blueprints SET status = $2
+			WHERE team_id = $1 AND status = $3 AND id = $4 AND locked_by IS NULL`,
+		locked: `SELECT 'blueprint', id::text, slug, title FROM blueprints
+			WHERE team_id = $1 AND status = $2 AND locked_by IS NOT NULL
+			ORDER BY title, id LIMIT $3`,
+		lockedOne: `SELECT 'blueprint', id::text, slug, title FROM blueprints
+			WHERE team_id = $1 AND status = $2 AND id = $3 AND locked_by IS NOT NULL
+			LIMIT $4`,
 	},
 	models.StatusResourceTypeMemory: {
 		usage:       `SELECT status, count(*) FROM memories WHERE team_id = $1 GROUP BY status`,
@@ -345,6 +373,14 @@ func deleteAndReassignTeamStatus(
 	if !ok {
 		return none, fmt.Errorf("%w: %q", errTeamStatusResourceTypeUnknown, deleted.ResourceType)
 	}
+	// Refusing after the DELETE lets the transaction's rollback restore the
+	// status row, so nothing changes.
+	if table.locked != "" {
+		if err = refuseIfLocked(ctx, tx, repositories.ErrTeamStatusUsedByLockedResource,
+			table.locked, teamID, deleted.Slug); err != nil {
+			return none, err
+		}
+	}
 	if _, err = tx.ExecContext(ctx, teamStatusPreserveUpdatedAtSQL); err != nil {
 		return none, fmt.Errorf("failed to preserve updated_at for status reassignment: %w", err)
 	}
@@ -381,10 +417,21 @@ func (r *TeamStatusRepository) ReassignResource(
 	if !ok {
 		return fmt.Errorf("%w: %q", errTeamStatusResourceTypeUnknown, resourceType)
 	}
-	if _, err := r.db.ExecContext(ctx, table.reassignOne, teamID, toStatus, fromSlug, resourceID); err != nil {
+	result, err := r.db.ExecContext(ctx, table.reassignOne, teamID, toStatus, fromSlug, resourceID)
+	if err != nil {
 		return fmt.Errorf("failed to reassign %s %s after status delete: %w", resourceType, resourceID, err)
 	}
-	return nil
+	if table.lockedOne == "" {
+		return nil
+	}
+	// Nothing moved: either the row no longer carries fromSlug, which is fine,
+	// or it is locked and was skipped, which the caller has to hear about --
+	// the resource still carries a status the catalog no longer lists.
+	if moved, rowsErr := result.RowsAffected(); rowsErr != nil || moved > 0 {
+		return rowsErr
+	}
+	return refuseIfLocked(ctx, r.db, repositories.ErrTeamStatusUsedByLockedResource,
+		table.lockedOne, teamID, fromSlug, resourceID)
 }
 
 // scanTeamStatus scans one team_statuses row, from a single-row lookup or a

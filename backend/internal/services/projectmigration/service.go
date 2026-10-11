@@ -136,6 +136,8 @@ func (s *Service) queryInventoryItems(
 // Migrate moves the selected resources from sourceProjectID to req.DestinationProjectID.
 // Both projects must belong to the same team and be accessible to userID.
 // All UPDATEs run in a single transaction; any DB error rolls back the entire migration.
+// It is refused, with a repositories.LockedResourcesError, while the source
+// project holds a locked prompt, blueprint or artifact.
 func (s *Service) Migrate(
 	ctx context.Context,
 	userID, teamID, sourceProjectID string,
@@ -163,6 +165,10 @@ func (s *Service) Migrate(
 		}
 	}()
 
+	if err := s.refuseLockedSource(ctx, tx, srcProject); err != nil {
+		return nil, err
+	}
+
 	if err := s.migratePrompts(ctx, tx, sourceProjectID, req, result); err != nil {
 		return nil, fmt.Errorf("Migrate: prompts: %w", err)
 	}
@@ -181,6 +187,29 @@ func (s *Service) Migrate(
 	}
 
 	return result, nil
+}
+
+// refuseLockedSource returns a repositories.LockedResourcesError naming the
+// locked prompts, blueprints and artifacts of the source project, or nil when
+// it holds none (issue #1290). A migration rewrites project_id, a frozen field
+// of a locked resource.
+//
+// It looks at the whole source project, not at req.Resources: a migration is
+// refused while anything in the project is locked, whether or not the locked
+// resource was selected. It reads on the migration's own transaction, before
+// the first move, so a refusal moves nothing.
+func (s *Service) refuseLockedSource(ctx context.Context, tx *sql.Tx, src *models.Project) error {
+	locked, err := s.projectRepo.ListLockedResourcesTx(ctx, tx, src.TeamID, src.ID)
+	if err != nil {
+		return fmt.Errorf("Migrate: locked resources: %w", err)
+	}
+	if len(locked) > 0 {
+		return fmt.Errorf("Migrate: %w", &repositories.LockedResourcesError{
+			Reason:    repositories.ErrProjectHasLockedResources,
+			Resources: locked,
+		})
+	}
+	return nil
 }
 
 // validateMigrationProjects loads and validates both source and destination projects.

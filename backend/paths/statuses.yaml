@@ -206,7 +206,8 @@ api-v1-team_id-statuses-id:
       `active` otherwise) in the same transaction, and the response reports how
       many were moved. Moving a resource this way does not change its
       `updated_at`. Requires the `team.settings.update` permission (team owners
-      and admins).
+      and admins). A status carried by a locked prompt, blueprint or artifact
+      cannot be deleted (returns 423): unlock the resource first.
     operationId: deleteStatus
     security:
       - ApiKeyAuth: []
@@ -257,6 +258,14 @@ api-v1-team_id-statuses-id:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '423':
+        description: >-
+          A locked prompt, blueprint or artifact carries the status
+          (code `HAS_LOCKED_RESOURCES`). Nothing was changed; the locked resources are in `metadata.locked_resources`.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HasLockedResourcesError'
       '500':
         description: Failed to delete status
         content:

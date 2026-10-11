@@ -979,6 +979,14 @@ func TestAdminRepository_DeleteUserIfUnblocked_RefusesAndDeletesNothing(t *testi
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+// expectAdminUserUnlockEvents expects the three statements that record the
+// locks a deleted user held (issue #1290), each writing nothing.
+func expectAdminUserUnlockEvents(mock sqlmock.Sqlmock) {
+	for range 3 {
+		mock.ExpectExec(`INSERT INTO resource_lock_events`).WillReturnResult(sqlmock.NewResult(0, 0))
+	}
+}
+
 // TestAdminRepository_DeleteUserIfUnblocked_DeletesWhenClear covers the allowed
 // path, and pins that the check and the delete share ONE transaction — a member
 // joining between them is exactly the race that would destroy their data.
@@ -994,6 +1002,15 @@ func TestAdminRepository_DeleteUserIfUnblocked_DeletesWhenClear(t *testing.T) {
 	mock.ExpectQuery(`FROM teams t`).
 		WithArgs("u1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "count"}))
+	// One unlock event per lock the user holds, per lockable table, written
+	// before the delete on the same transaction (issue #1290): no actor, and
+	// scoped to the rows this user locked.
+	for _, resource := range [][2]string{{"prompt", "prompts"}, {"blueprint", "blueprints"}, {"artifact", "artifacts"}} {
+		mock.ExpectExec(`INSERT INTO resource_lock_events \(team_id, resource_type, resource_id, action\) ` +
+			`SELECT team_id, '` + resource[0] + `', id, 'unlock' FROM ` + resource[1] + ` WHERE locked_by = \$1`).
+			WithArgs("u1").
+			WillReturnResult(sqlmock.NewResult(0, 2))
+	}
 	mock.ExpectExec(`DELETE FROM users WHERE id = \$1`).
 		WithArgs("u1").
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -1019,6 +1036,7 @@ func TestAdminRepository_DeleteUserIfUnblocked_UnknownUser(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectQuery(`FROM teams t`).WithArgs("gone").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "count"}))
+	expectAdminUserUnlockEvents(mock)
 	mock.ExpectExec(`DELETE FROM users`).WithArgs("gone").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
@@ -1056,7 +1074,20 @@ func TestAdminRepository_DeleteUserIfUnblocked_Errors(t *testing.T) {
 				m.ExpectBegin()
 				m.ExpectQuery(`FROM teams t`).
 					WillReturnRows(sqlmock.NewRows([]string{"id", "name", "count"}))
+				expectAdminUserUnlockEvents(m)
 				m.ExpectExec(`DELETE FROM users`).WillReturnError(errors.New("boom"))
+				m.ExpectRollback()
+			},
+		},
+		{
+			// An unlock event that cannot be written must not let the delete
+			// go ahead and release the lock unrecorded.
+			name: "recording the unlock events fails",
+			setup: func(m sqlmock.Sqlmock) {
+				m.ExpectBegin()
+				m.ExpectQuery(`FROM teams t`).
+					WillReturnRows(sqlmock.NewRows([]string{"id", "name", "count"}))
+				m.ExpectExec(`INSERT INTO resource_lock_events`).WillReturnError(errors.New("boom"))
 				m.ExpectRollback()
 			},
 		},
@@ -1066,6 +1097,7 @@ func TestAdminRepository_DeleteUserIfUnblocked_Errors(t *testing.T) {
 				m.ExpectBegin()
 				m.ExpectQuery(`FROM teams t`).
 					WillReturnRows(sqlmock.NewRows([]string{"id", "name", "count"}))
+				expectAdminUserUnlockEvents(m)
 				m.ExpectExec(`DELETE FROM users`).WillReturnResult(sqlmock.NewResult(0, 1))
 				m.ExpectCommit().WillReturnError(errors.New("serialization failure"))
 			},

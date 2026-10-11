@@ -242,6 +242,9 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 
 	err := s.container.ProjectService().DeleteProject(teamID, userID, decodedSlug)
 	if err != nil {
+		if writeLockedResources(w, r, err) {
+			return
+		}
 		s.handleDeleteProjectError(w, r, userID, decodedSlug, err)
 		return
 	}

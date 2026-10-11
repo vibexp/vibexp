@@ -9256,7 +9256,7 @@ paths:
     delete:
       summary: Delete a custom type
       description: |
-        Deletes a team-owned custom type. System defaults cannot be deleted (a delete targeting one — or another team's type — returns 404). Any resources still referencing the deleted type are reassigned to the resource's system default in the same transaction.
+        Deletes a team-owned custom type. System defaults cannot be deleted (a delete targeting one — or another team's type — returns 404). Any resources still referencing the deleted type are reassigned to the resource's system default in the same transaction. A type used by a locked artifact cannot be deleted (returns 423): unlock the artifact first.
       operationId: deleteType
       security:
         - ApiKeyAuth: []
@@ -9303,6 +9303,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '423':
+          description: A locked artifact uses the type (code `HAS_LOCKED_RESOURCES`). Nothing was changed; the locked resources are in `metadata.locked_resources`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/HasLockedResourcesError'
         '500':
           description: Failed to delete type
           content:
@@ -9558,7 +9564,7 @@ paths:
     delete:
       summary: Delete a custom status
       description: |
-        Deletes a custom status. Every resource of the team that carries it is moved to the resource type's default system status (`draft` for prompts, `active` otherwise) in the same transaction, and the response reports how many were moved. Moving a resource this way does not change its `updated_at`. Requires the `team.settings.update` permission (team owners and admins).
+        Deletes a custom status. Every resource of the team that carries it is moved to the resource type's default system status (`draft` for prompts, `active` otherwise) in the same transaction, and the response reports how many were moved. Moving a resource this way does not change its `updated_at`. Requires the `team.settings.update` permission (team owners and admins). A status carried by a locked prompt, blueprint or artifact cannot be deleted (returns 423): unlock the resource first.
       operationId: deleteStatus
       security:
         - ApiKeyAuth: []
@@ -9609,6 +9615,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '423':
+          description: A locked prompt, blueprint or artifact carries the status (code `HAS_LOCKED_RESOURCES`). Nothing was changed; the locked resources are in `metadata.locked_resources`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/HasLockedResourcesError'
         '500':
           description: Failed to delete status
           content:
@@ -19604,7 +19616,9 @@ paths:
       summary: Delete project
       description: |
         Deletes a project identified by its slug. The last remaining project in
-        a team cannot be deleted (returns 400).
+        a team cannot be deleted (returns 400). A project that contains a locked
+        prompt, blueprint or artifact cannot be deleted either (returns 423):
+        unlock them first.
       operationId: deleteProject
       security:
         - ApiKeyAuth: []
@@ -19650,6 +19664,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '423':
+          description: The project contains a locked prompt, blueprint or artifact (code `HAS_LOCKED_RESOURCES`). Nothing was changed; the locked resources are in `metadata.locked_resources`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/HasLockedResourcesError'
         '500':
           description: Internal server error
           content:
@@ -19732,6 +19752,9 @@ paths:
         Slug collisions are handled per the requested conflict policy
         (skip, rename, or overwrite; defaults to skip). Returns per-type
         migrated counts plus skipped/failed outcomes with a 200 status.
+        The migration is refused (423) while the source project contains a locked
+        prompt, blueprint or artifact, whether or not it was selected: unlock
+        them first.
       operationId: migrateProject
       security:
         - ApiKeyAuth: []
@@ -19788,6 +19811,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '423':
+          description: The source project contains a locked prompt, blueprint or artifact (code `HAS_LOCKED_RESOURCES`). Nothing was changed; the locked resources are in `metadata.locked_resources`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/HasLockedResourcesError'
         '500':
           description: Internal server error
           content:
@@ -24065,6 +24094,59 @@ components:
             $ref: '#/components/schemas/ResourceLockEvent'
       required:
         - events
+    LockedResourceRef:
+      type: object
+      description: One locked prompt, blueprint or artifact that stands in the way of an indirect delete or move.
+      properties:
+        resource_type:
+          type: string
+          enum:
+            - prompt
+            - blueprint
+            - artifact
+          x-enum-varnames:
+            - LockedResourceRefResourceTypePrompt
+            - LockedResourceRefResourceTypeBlueprint
+            - LockedResourceRefResourceTypeArtifact
+          description: The kind of resource that is locked.
+          example: artifact
+        id:
+          type: string
+          format: uuid
+          description: ID of the locked resource.
+          example: 123e4567-e89b-12d3-a456-426614174000
+        slug:
+          type: string
+          description: Slug of the locked resource.
+          example: release-checklist
+        title:
+          type: string
+          description: The artifact or blueprint title, or the prompt name.
+          example: Release checklist
+      required:
+        - resource_type
+        - id
+        - slug
+        - title
+    HasLockedResourcesError:
+      description: 'RFC 9457 problem returned with `423 Locked` and code `HAS_LOCKED_RESOURCES` when a delete or move is refused because it would remove or rewrite locked prompts, blueprints or artifacts: deleting or migrating a project that holds them, or deleting a custom type or status they carry. Nothing was changed. Unlock the listed resources and repeat the request.'
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            metadata:
+              type: object
+              description: What has to be unlocked first.
+              properties:
+                locked_resources:
+                  type: array
+                  description: The locked resources, ordered by type then title. At most 100 are listed; when more are locked the request is refused again until none remain.
+                  items:
+                    $ref: '#/components/schemas/LockedResourceRef'
+              required:
+                - locked_resources
+          required:
+            - metadata
     CreateProjectRequest:
       type: object
       properties:

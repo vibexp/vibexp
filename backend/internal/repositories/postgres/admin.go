@@ -697,6 +697,10 @@ func (r *AdminRepository) DeleteUserIfUnblocked(
 		return blockers, true, nil
 	}
 
+	if err = recordUnlocksForDeletedUser(ctx, tx, id); err != nil {
+		return nil, false, err
+	}
+
 	result, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = $1", id)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to delete user: %w", err)
@@ -713,6 +717,44 @@ func (r *AdminRepository) DeleteUserIfUnblocked(
 		return nil, false, fmt.Errorf("failed to commit user delete: %w", commitErr)
 	}
 	return nil, true, nil
+}
+
+// The three statements that write the lock history of an account deletion
+// (issue #1290), one whole literal per lockable table. Deleting a user releases
+// every lock they hold -- locked_by is ON DELETE SET NULL -- and each of these
+// records that release as an unlock event first, so the history does not show
+// a lock that silently stopped existing. actor_user_id stays NULL: nobody
+// unlocked the resource, and the foreign key would null the deleted account's
+// id anyway.
+const (
+	adminUserDeletePromptUnlocksSQL = `
+		INSERT INTO resource_lock_events (team_id, resource_type, resource_id, action)
+		SELECT team_id, 'prompt', id, 'unlock' FROM prompts WHERE locked_by = $1`
+
+	adminUserDeleteBlueprintUnlocksSQL = `
+		INSERT INTO resource_lock_events (team_id, resource_type, resource_id, action)
+		SELECT team_id, 'blueprint', id, 'unlock' FROM blueprints WHERE locked_by = $1`
+
+	adminUserDeleteArtifactUnlocksSQL = `
+		INSERT INTO resource_lock_events (team_id, resource_type, resource_id, action)
+		SELECT team_id, 'artifact', id, 'unlock' FROM artifacts WHERE locked_by = $1`
+)
+
+// recordUnlocksForDeletedUser writes one unlock event per lock the user holds,
+// on the transaction that is about to delete the account. A resource the same
+// delete then cascades away keeps its event: the history is built to outlive
+// its resource, and goes only with the team.
+func recordUnlocksForDeletedUser(ctx context.Context, tx *sql.Tx, userID string) error {
+	for _, query := range []string{
+		adminUserDeletePromptUnlocksSQL,
+		adminUserDeleteBlueprintUnlocksSQL,
+		adminUserDeleteArtifactUnlocksSQL,
+	} {
+		if _, err := tx.ExecContext(ctx, query, userID); err != nil {
+			return fmt.Errorf("failed to record unlock events for deleted user: %w", err)
+		}
+	}
+	return nil
 }
 
 // scanDeleteBlockers runs the blocker query on the supplied executor.

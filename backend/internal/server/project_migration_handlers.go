@@ -72,6 +72,9 @@ func (s *Server) handleMigrateProject(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.container.ProjectMigrationService().Migrate(r.Context(), userID, teamID, projectID, req)
 	if err != nil {
+		if writeLockedResources(w, r, err) {
+			return
+		}
 		s.handleMigrationError(w, "handleMigrateProject", userID, projectID, err)
 		return
 	}
