@@ -291,6 +291,11 @@ var (
 	// ordinary state, not a fault: the built-in defaults are in effect (#1197).
 	ErrInstanceAISummarySettingsNotFound = errors.New("instance AI summary settings not found")
 
+	// ErrInstanceSiteInfoNotFound is returned by InstanceSiteInfoRepository.Get
+	// when no row exists. This is an ordinary state, not a fault: nothing is
+	// configured (#1353).
+	ErrInstanceSiteInfoNotFound = errors.New("instance site info not found")
+
 	// ErrInstanceSettingsVersionConflict is returned by an instance settings
 	// repository's UpsertAudited when the caller's expected version does not
 	// match the stored state: a positive version that is not the stored row's
@@ -1807,6 +1812,46 @@ type InstanceSearchSettingsRepository interface {
 // only persists what it returns.
 type InstanceSearchSettingsAuditFunc func(
 	before, after *models.InstanceSearchSettings,
+) (*models.InstanceSettingsAuditEntry, error)
+
+// InstanceSiteInfoRepository defines the data access operations for the
+// instance's company branding (#1353, epic #1352).
+//
+// It has the same singleton contract as InstanceSearchSettingsRepository: no
+// method takes a key, there are no team or role predicates, and Get returns
+// ErrInstanceSiteInfoNotFound on a miss. Every write is audited, and there is
+// no insert-if-absent: these values have no config.yaml source to import.
+type InstanceSiteInfoRepository interface {
+	// Get returns the stored site info, or ErrInstanceSiteInfoNotFound when
+	// none is stored.
+	Get(ctx context.Context) (*models.InstanceSiteInfo, error)
+	// UpsertAudited creates or replaces the site info and appends one
+	// instance_settings_audit entry, in one transaction, bumping Version and
+	// refreshing CreatedAt/UpdatedAt/Version on the passed struct. A
+	// table-level write lock serializes audited writers; before is the row
+	// read under it (nil when none was stored), and an audit error rolls the
+	// upsert back.
+	//
+	// A non-nil expectedVersion makes the write a compare-and-set against the
+	// row read under the lock, by the InstanceSettingsVersionConflicts rule;
+	// a mismatch returns ErrInstanceSettingsVersionConflict and writes
+	// nothing. nil is last-write-wins.
+	UpsertAudited(
+		ctx context.Context, info *models.InstanceSiteInfo, expectedVersion *int64,
+		audit InstanceSiteInfoAuditFunc,
+	) error
+	// DeleteAudited removes the site info and appends one
+	// instance_settings_audit entry, in one transaction. It reports whether a
+	// row was deleted; when none was stored it writes nothing and audit is not
+	// called.
+	DeleteAudited(ctx context.Context, audit InstanceSiteInfoAuditFunc) (deleted bool, err error)
+}
+
+// InstanceSiteInfoAuditFunc builds the audit entry for one change to the
+// instance site info. before is the row read inside the change's transaction
+// (nil when none was stored); after is the row as written (nil for a delete).
+type InstanceSiteInfoAuditFunc func(
+	before, after *models.InstanceSiteInfo,
 ) (*models.InstanceSettingsAuditEntry, error)
 
 // InstanceAISummarySettingsRepository defines the data access operations for

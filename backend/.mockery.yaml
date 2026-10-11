@@ -81,6 +81,8 @@ packages:
       InstanceAuthSettingsServiceInterface:
       FreshnessServiceInterface:
       InstanceSearchSettingsResolver:
+      InstanceSiteInfoResolver:
+      InstanceSiteInfoServiceInterface:
       InstanceAISummarySettingsResolver:
       InstanceAISummarySettingsServiceInterface:
       InstanceSearchSettingsServiceInterface:
@@ -137,6 +139,7 @@ packages:
       InstanceEmailProviderRepository:
       InstanceSearchSettingsRepository:
       InstanceSettingsAuditRepository:
+      InstanceSiteInfoRepository:
       MemoryRepository:
       MetadataCatalogRepository:
       ModelProviderRepository:

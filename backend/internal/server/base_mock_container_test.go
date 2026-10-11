@@ -443,6 +443,11 @@ func (b *BaseMockContainer) InstanceAuthSettingsService() services.InstanceAuthS
 	return nil
 }
 
+// InstanceSiteInfoService returns nil; suites that exercise it install their own.
+func (b *BaseMockContainer) InstanceSiteInfoService() services.InstanceSiteInfoServiceInterface {
+	return nil
+}
+
 // InstanceSearchSettingsService returns nil; suites that exercise it install their own.
 func (b *BaseMockContainer) InstanceSearchSettingsService() services.InstanceSearchSettingsServiceInterface {
 	return nil

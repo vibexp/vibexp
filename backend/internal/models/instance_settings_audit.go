@@ -31,6 +31,9 @@ const (
 	// InstanceSettingAuthSetup is the first-run authentication setup (epic
 	// #1230). Declared with the other auth settings; written by #1236.
 	InstanceSettingAuthSetup = "auth_setup"
+	// InstanceSettingSiteInfo is the instance's company branding (table
+	// instance_site_info, #1353).
+	InstanceSettingSiteInfo = "site_info"
 )
 
 // Actions an instance settings audit entry records. Unlike the setting, the

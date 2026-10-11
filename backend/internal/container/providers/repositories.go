@@ -219,6 +219,11 @@ func ProvideInstanceEmailProviderRepository(db *database.DB) repositories.Instan
 	return postgres.NewInstanceEmailProviderRepository(db)
 }
 
+// ProvideInstanceSiteInfoRepository creates a new InstanceSiteInfoRepository
+func ProvideInstanceSiteInfoRepository(db *database.DB) repositories.InstanceSiteInfoRepository {
+	return postgres.NewInstanceSiteInfoRepository(db)
+}
+
 // ProvideInstanceSearchSettingsRepository creates a new InstanceSearchSettingsRepository
 func ProvideInstanceSearchSettingsRepository(db *database.DB) repositories.InstanceSearchSettingsRepository {
 	return postgres.NewInstanceSearchSettingsRepository(db)

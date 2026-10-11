@@ -128,6 +128,9 @@ type WireContainer struct {
 	instanceSearchSettingsService    services.InstanceSearchSettingsServiceInterface
 	instanceAISummarySettingsService services.InstanceAISummarySettingsServiceInterface
 
+	// Instance site info: company branding (#1353)
+	instanceSiteInfoService services.InstanceSiteInfoServiceInterface
+
 	// Legacy config.yaml search:/ai_summary: imports run at boot (#1201)
 	instanceSearchSettingsRepo    repositories.InstanceSearchSettingsRepository
 	instanceAISummarySettingsRepo repositories.InstanceAISummarySettingsRepository
@@ -435,6 +438,11 @@ func (c *WireContainer) InstanceEmailProviderService() services.InstanceEmailPro
 // InstanceAuthSettingsService returns the instance authentication settings service.
 func (c *WireContainer) InstanceAuthSettingsService() services.InstanceAuthSettingsServiceInterface {
 	return c.instanceAuthSettingsService
+}
+
+// InstanceSiteInfoService returns the instance site info service.
+func (c *WireContainer) InstanceSiteInfoService() services.InstanceSiteInfoServiceInterface {
+	return c.instanceSiteInfoService
 }
 
 // InstanceSearchSettingsService returns the instance search settings service.

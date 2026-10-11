@@ -120,6 +120,8 @@ type Container interface {
 	// the instance-admin search and AI summary settings API (#1200).
 	InstanceSearchSettingsService() services.InstanceSearchSettingsServiceInterface
 	InstanceAISummarySettingsService() services.InstanceAISummarySettingsServiceInterface
+	// InstanceSiteInfoService serves the instance's company branding (#1353).
+	InstanceSiteInfoService() services.InstanceSiteInfoServiceInterface
 	EmailSenderResolver() services.EmailSenderResolver
 	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface
 	// TeamAISummarySettingsService serves the team AI summary settings API
