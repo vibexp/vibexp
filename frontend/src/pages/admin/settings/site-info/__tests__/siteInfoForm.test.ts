@@ -64,12 +64,19 @@ describe('toSiteInfoForm / toSiteInfoUpdate', () => {
 })
 
 describe('isHttpUrl', () => {
-  it.each(['https://acme.test', 'http://localhost:3000/logo.png'])(
-    'accepts %s',
-    url => {
-      expect(isHttpUrl(url)).toBe(true)
-    }
-  )
+  it.each([
+    'https://acme.test',
+    'http://localhost:3000/logo.png',
+    // The server accepts these, so the form must not block them.
+    'https://cdn.acme.test/My Logo.png',
+    'https://acme.test/?q=a b',
+    'https://acme.test/?q=100%',
+    'https://acme.test/?q=%zz',
+    'https://acme.test/a\\b',
+    'https://acme.test/#a b',
+  ])('accepts %s', url => {
+    expect(isHttpUrl(url)).toBe(true)
+  })
 
   it.each([
     'acme.test',
@@ -86,7 +93,9 @@ describe('isHttpUrl', () => {
     'https:///example.com',
     'https://example.com\\a',
     'https://example.com/%zz',
-    'https://example.com/a b',
+    'https://example.com/#%zz',
+    'https://example.com/a\tb',
+    'https://example.com/a\nb',
   ])('rejects %s', url => {
     expect(isHttpUrl(url)).toBe(false)
   })

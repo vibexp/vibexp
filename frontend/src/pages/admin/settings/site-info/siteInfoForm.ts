@@ -88,26 +88,39 @@ export function toSiteInfoUpdate(
 }
 
 // The server parses with Go's `url.Parse`, which refuses what the browser's
-// `URL` quietly repairs (`https:/host`, `http:host`, a backslash, a bad
-// percent escape). The raw value must therefore already have the shape.
+// `URL` quietly repairs (`https:/host`, `http:host`, a backslash in the host,
+// a bad percent escape in the path). The raw value must therefore already
+// have the shape. Go is lenient elsewhere, and so is this: a space or a
+// backslash in the path, and anything in the query, are accepted.
 const HTTP_URL_PREFIX = /^https?:\/\/[^/\\?#]/i
-const hasControlOrSpace = (raw: string): boolean =>
+const BAD_PERCENT_ESCAPE = /%(?![0-9a-f]{2})/i
+const hasControl = (raw: string): boolean =>
   Array.from(raw).some(char => {
     const code = char.codePointAt(0) ?? 0
-    return code <= 0x20 || code === 0x7f
+    return code < 0x20 || code === 0x7f
   })
-const BAD_PERCENT_ESCAPE = /%(?![0-9a-f]{2})/i
 
 /**
  * Whether `raw` is an absolute `http`/`https` URL with a host, as the server
- * will accept it.
+ * will accept it. It must never refuse a usable URL the server accepts, since
+ * a client error blocks the save. The one deliberate exception is a host the
+ * browser itself cannot parse (a port above 65535, `256.1.1.1`): the server
+ * lets those through, but nothing could ever load them.
  */
 export function isHttpUrl(raw: string): boolean {
+  if (!HTTP_URL_PREFIX.test(raw) || hasControl(raw)) return false
+  const hashAt = raw.indexOf('#')
+  const head = hashAt === -1 ? raw : raw.slice(0, hashAt)
+  const fragment = hashAt === -1 ? '' : raw.slice(hashAt)
+  const queryAt = head.indexOf('?')
+  const beforeQuery = queryAt === -1 ? head : head.slice(0, queryAt)
+  const authority = beforeQuery
+    .slice(beforeQuery.indexOf('//') + 2)
+    .split('/', 1)[0]
   if (
-    !HTTP_URL_PREFIX.test(raw) ||
-    raw.includes('\\') ||
-    hasControlOrSpace(raw) ||
-    BAD_PERCENT_ESCAPE.test(raw)
+    authority.includes('\\') ||
+    BAD_PERCENT_ESCAPE.test(beforeQuery) ||
+    BAD_PERCENT_ESCAPE.test(fragment)
   ) {
     return false
   }
@@ -125,7 +138,7 @@ export function isHttpUrl(raw: string): boolean {
  * save. Anything subtler is left to the server's field error.
  */
 export function isBareEmail(raw: string): boolean {
-  if (/[\s<>,;()"]/.test(raw)) return false
+  if (/[ \t\r\n<>,;()"]/.test(raw)) return false
   const parts = raw.split('@')
   return parts.length === 2 && parts[0] !== '' && parts[1] !== ''
 }
