@@ -171,6 +171,8 @@ components:
       $ref: "./schemas/setup.yaml#/CreateSetupSessionRequest"
     SetupSessionResponse:
       $ref: "./schemas/setup.yaml#/SetupSessionResponse"
+    SiteInfoResponse:
+      $ref: "./schemas/siteinfo.yaml#/SiteInfoResponse"
     DevLoginRequest:
       $ref: "./schemas/auth.yaml#/DevLoginRequest"
 
@@ -1210,6 +1212,8 @@ paths:
     $ref: "./paths/auth.yaml#/api-v1-auth-dev-login"
   /api/v1/auth/me:
     $ref: "./paths/auth.yaml#/api-v1-auth-me"
+  /api/v1/site-info:
+    $ref: "./paths/siteinfo.yaml#/api-v1-site-info"
   /api/v1/setup/status:
     $ref: "./paths/setup.yaml#/api-v1-setup-status"
   /api/v1/setup/session:
@@ -1738,6 +1742,8 @@ tags:
     description: Team-level configuration, starting with per-team search ranking settings
   - name: Freshness
     description: Per-team resource freshness rules, evaluation settings, analytics and audit log (epic #726)
+  - name: SiteInfo
+    description: The instance's company branding, readable without authentication. REST-only, no MCP.
   - name: Setup
     description: First-run authentication setup — the public setup status and the setup-token exchange. REST-only, no MCP.
   - name: Admin

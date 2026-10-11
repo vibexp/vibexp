@@ -142,13 +142,23 @@ func setSPACacheHeaders(w http.ResponseWriter, reqPath string) {
 	w.Header().Set(spaHeaderCacheControl, spaCacheNoCache)
 }
 
-// handleConfigJS renders /config.js: the deploy-time frontend configuration as
-// `window.__VIBEXP_ENV__`, read by the SPA's getEnv() before its module bundle
-// runs (issue #57). Served no-cache so an operator's env change takes effect on
-// the next load after a restart, with no rebuild.
+// handleConfigJS renders /config.js, read by the SPA before its module bundle
+// runs. It makes two assignments:
+//
+//   - `window.__VIBEXP_ENV__`: the deploy-time frontend configuration, read by
+//     the SPA's getEnv() (issue #57).
+//   - `window.__VIBEXP_SITE_INFO__`: the instance's company branding (#1355),
+//     in the shape GET /api/v1/site-info returns, so the first paint is already
+//     branded. It fails open to "nothing configured" (see publicSiteInfo), so a
+//     database problem never stops the app from loading.
+//
+// Served no-cache so an operator's env change (after a restart) or an admin's
+// branding change takes effect on the next load, with no rebuild.
 func (s *Server) handleConfigJS(w http.ResponseWriter, r *http.Request) {
 	// json.Marshal HTML-escapes <, > and & (e.g. a value containing
-	// "</script>"), so the result is safe to inline in a <script> element.
+	// "</script>") and escapes U+2028/U+2029, so both results are safe to
+	// inline in a <script> element. The site info is admin-entered text, so
+	// this escaping is what keeps a stored value from breaking out.
 	payload, err := json.Marshal(s.config.RuntimeFrontendEnv())
 	if err != nil {
 		contextkeys.GetLoggerFromContext(r.Context()).
@@ -156,10 +166,20 @@ func (s *Server) handleConfigJS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "config unavailable", http.StatusInternalServerError)
 		return
 	}
+	siteInfo, err := json.Marshal(s.publicSiteInfo(r.Context()))
+	if err != nil {
+		contextkeys.GetLoggerFromContext(r.Context()).
+			Error("failed to marshal site info for config.js", "error", err)
+		http.Error(w, "config unavailable", http.StatusInternalServerError)
+		return
+	}
 
-	body := make([]byte, 0, len(payload)+32)
+	body := make([]byte, 0, len(payload)+len(siteInfo)+64)
 	body = append(body, "window.__VIBEXP_ENV__ = "...)
 	body = append(body, payload...)
+	body = append(body, ";\n"...)
+	body = append(body, "window.__VIBEXP_SITE_INFO__ = "...)
+	body = append(body, siteInfo...)
 	body = append(body, ";\n"...)
 
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
