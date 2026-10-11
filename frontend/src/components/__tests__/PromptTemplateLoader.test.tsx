@@ -82,6 +82,25 @@ function renderLoader(
   )
 }
 
+// The component focuses the search input 100 ms after it opens. Focusing a
+// card before that timer fires races it: under load the timer wins, focus
+// moves to the input and the key press never reaches the card. Let the
+// autofocus settle first, then take focus.
+async function focusCard(name: string) {
+  const input = screen.getByPlaceholderText(
+    'Search prompts by name or content...'
+  )
+  await waitFor(() => {
+    expect(input).toHaveFocus()
+  })
+
+  const card = screen.getByRole('button', { name })
+  card.focus()
+  expect(card).toHaveFocus()
+
+  return card
+}
+
 describe('PromptTemplateLoader', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -317,9 +336,7 @@ describe('PromptTemplateLoader', () => {
 
       renderLoader()
 
-      screen
-        .getByRole('button', { name: 'Load prompt: Code Review Template' })
-        .focus()
+      await focusCard('Load prompt: Code Review Template')
       const user = userEvent.setup()
       await user.keyboard('{Enter}')
 
@@ -331,9 +348,7 @@ describe('PromptTemplateLoader', () => {
 
       renderLoader()
 
-      screen
-        .getByRole('button', { name: 'Load prompt: Code Review Template' })
-        .focus()
+      await focusCard('Load prompt: Code Review Template')
       const user = userEvent.setup()
       await user.keyboard('{ArrowDown}')
 
@@ -346,9 +361,7 @@ describe('PromptTemplateLoader', () => {
 
       renderLoader()
 
-      screen
-        .getByRole('button', { name: 'Load prompt: Code Review Template' })
-        .focus()
+      await focusCard('Load prompt: Code Review Template')
       const user = userEvent.setup()
       await user.keyboard(' ')
 
