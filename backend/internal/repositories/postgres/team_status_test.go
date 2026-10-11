@@ -439,3 +439,86 @@ func TestTeamStatusRepository_DeleteAndReassign(t *testing.T) {
 		})
 	}
 }
+
+func TestTeamStatusRepository_ConfirmSlug(t *testing.T) {
+	// FOR KEY SHARE is the whole point of the statement: without it the read
+	// would not wait for a concurrent delete and would see its row (#1332).
+	const confirmQuery = `SELECT 1 FROM team_statuses ` +
+		`WHERE team_id = \$1 AND resource_type = \$2 AND slug = \$3 FOR KEY SHARE`
+	ctx := context.Background()
+
+	t.Run("a row is a confirmation", func(t *testing.T) {
+		repo, mock := newTeamStatusMockRepo(t)
+		mock.ExpectQuery(confirmQuery).WithArgs("team-1", "artifact", "in-review").
+			WillReturnRows(sqlmock.NewRows([]string{"?column?"}).AddRow(1))
+
+		confirmed, err := repo.ConfirmSlug(ctx, "team-1", "artifact", "in-review")
+		require.NoError(t, err)
+		assert.True(t, confirmed)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("no row is an answer, not an error", func(t *testing.T) {
+		repo, mock := newTeamStatusMockRepo(t)
+		mock.ExpectQuery(confirmQuery).WithArgs("team-1", "artifact", "in-review").
+			WillReturnError(sql.ErrNoRows)
+
+		confirmed, err := repo.ConfirmSlug(ctx, "team-1", "artifact", "in-review")
+		require.NoError(t, err)
+		assert.False(t, confirmed)
+	})
+
+	t.Run("a query error is wrapped and confirms nothing", func(t *testing.T) {
+		repo, mock := newTeamStatusMockRepo(t)
+		mock.ExpectQuery(confirmQuery).WillReturnError(errTeamStatusBoom)
+
+		confirmed, err := repo.ConfirmSlug(ctx, "team-1", "artifact", "in-review")
+		assertTypeError(t, err, errTeamStatusBoom, "failed to confirm team status")
+		assert.False(t, confirmed)
+	})
+}
+
+func TestTeamStatusRepository_ReassignResource(t *testing.T) {
+	ctx := context.Background()
+
+	for resourceType, table := range map[string]string{
+		models.StatusResourceTypePrompt:    "prompts",
+		models.StatusResourceTypeArtifact:  "artifacts",
+		models.StatusResourceTypeBlueprint: "blueprints",
+		models.StatusResourceTypeMemory:    "memories",
+	} {
+		t.Run(resourceType+" moves the one row, scoped to the team and the old status", func(t *testing.T) {
+			repo, mock := newTeamStatusMockRepo(t)
+			mock.ExpectExec(`UPDATE `+table+` SET status = \$2 WHERE team_id = \$1 AND status = \$3 AND id = \$4`).
+				WithArgs("team-1", "active", "in-review", "resource-1").
+				WillReturnResult(sqlmock.NewResult(0, 1))
+
+			require.NoError(t, repo.ReassignResource(ctx, "team-1", resourceType, "resource-1", "in-review", "active"))
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+
+	// Something else already moved the resource: that is the outcome wanted.
+	t.Run("no matching row is not an error", func(t *testing.T) {
+		repo, mock := newTeamStatusMockRepo(t)
+		mock.ExpectExec(`UPDATE artifacts`).WillReturnResult(sqlmock.NewResult(0, 0))
+
+		require.NoError(t, repo.ReassignResource(ctx, "team-1", "artifact", "resource-1", "in-review", "active"))
+	})
+
+	t.Run("an unknown resource type runs no statement", func(t *testing.T) {
+		repo, mock := newTeamStatusMockRepo(t)
+
+		err := repo.ReassignResource(ctx, "team-1", "widget", "resource-1", "in-review", "active")
+		require.ErrorIs(t, err, errTeamStatusResourceTypeUnknown)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("a statement error is wrapped with the resource", func(t *testing.T) {
+		repo, mock := newTeamStatusMockRepo(t)
+		mock.ExpectExec(`UPDATE memories`).WillReturnError(errTeamStatusBoom)
+
+		err := repo.ReassignResource(ctx, "team-1", "memory", "resource-1", "in-review", "active")
+		assertTypeError(t, err, errTeamStatusBoom, "failed to reassign memory resource-1 after status delete")
+	})
+}

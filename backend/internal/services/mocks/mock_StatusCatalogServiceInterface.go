@@ -82,6 +82,65 @@ func (_c *MockStatusCatalogServiceInterface_AllowedSlugs_Call) RunAndReturn(run 
 	return _c
 }
 
+// ConfirmCustom provides a mock function with given fields: ctx, teamID, resourceType, status
+func (_m *MockStatusCatalogServiceInterface) ConfirmCustom(ctx context.Context, teamID string, resourceType string, status string) (bool, error) {
+	ret := _m.Called(ctx, teamID, resourceType, status)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ConfirmCustom")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (bool, error)); ok {
+		return rf(ctx, teamID, resourceType, status)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) bool); ok {
+		r0 = rf(ctx, teamID, resourceType, status)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
+		r1 = rf(ctx, teamID, resourceType, status)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStatusCatalogServiceInterface_ConfirmCustom_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ConfirmCustom'
+type MockStatusCatalogServiceInterface_ConfirmCustom_Call struct {
+	*mock.Call
+}
+
+// ConfirmCustom is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - resourceType string
+//   - status string
+func (_e *MockStatusCatalogServiceInterface_Expecter) ConfirmCustom(ctx interface{}, teamID interface{}, resourceType interface{}, status interface{}) *MockStatusCatalogServiceInterface_ConfirmCustom_Call {
+	return &MockStatusCatalogServiceInterface_ConfirmCustom_Call{Call: _e.mock.On("ConfirmCustom", ctx, teamID, resourceType, status)}
+}
+
+func (_c *MockStatusCatalogServiceInterface_ConfirmCustom_Call) Run(run func(ctx context.Context, teamID string, resourceType string, status string)) *MockStatusCatalogServiceInterface_ConfirmCustom_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockStatusCatalogServiceInterface_ConfirmCustom_Call) Return(_a0 bool, _a1 error) *MockStatusCatalogServiceInterface_ConfirmCustom_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStatusCatalogServiceInterface_ConfirmCustom_Call) RunAndReturn(run func(context.Context, string, string, string) (bool, error)) *MockStatusCatalogServiceInterface_ConfirmCustom_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // IsAllowed provides a mock function with given fields: ctx, teamID, resourceType, status
 func (_m *MockStatusCatalogServiceInterface) IsAllowed(ctx context.Context, teamID string, resourceType string, status string) (bool, error) {
 	ret := _m.Called(ctx, teamID, resourceType, status)
@@ -197,6 +256,66 @@ func (_c *MockStatusCatalogServiceInterface_List_Call) Return(_a0 []services.Cat
 }
 
 func (_c *MockStatusCatalogServiceInterface_List_Call) RunAndReturn(run func(context.Context, string, string) ([]services.CatalogStatus, error)) *MockStatusCatalogServiceInterface_List_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ReassignDeleted provides a mock function with given fields: ctx, teamID, resourceType, resourceID, status
+func (_m *MockStatusCatalogServiceInterface) ReassignDeleted(ctx context.Context, teamID string, resourceType string, resourceID string, status string) (string, error) {
+	ret := _m.Called(ctx, teamID, resourceType, resourceID, status)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReassignDeleted")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) (string, error)); ok {
+		return rf(ctx, teamID, resourceType, resourceID, status)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) string); ok {
+		r0 = rf(ctx, teamID, resourceType, resourceID, status)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string) error); ok {
+		r1 = rf(ctx, teamID, resourceType, resourceID, status)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStatusCatalogServiceInterface_ReassignDeleted_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReassignDeleted'
+type MockStatusCatalogServiceInterface_ReassignDeleted_Call struct {
+	*mock.Call
+}
+
+// ReassignDeleted is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - resourceType string
+//   - resourceID string
+//   - status string
+func (_e *MockStatusCatalogServiceInterface_Expecter) ReassignDeleted(ctx interface{}, teamID interface{}, resourceType interface{}, resourceID interface{}, status interface{}) *MockStatusCatalogServiceInterface_ReassignDeleted_Call {
+	return &MockStatusCatalogServiceInterface_ReassignDeleted_Call{Call: _e.mock.On("ReassignDeleted", ctx, teamID, resourceType, resourceID, status)}
+}
+
+func (_c *MockStatusCatalogServiceInterface_ReassignDeleted_Call) Run(run func(ctx context.Context, teamID string, resourceType string, resourceID string, status string)) *MockStatusCatalogServiceInterface_ReassignDeleted_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *MockStatusCatalogServiceInterface_ReassignDeleted_Call) Return(_a0 string, _a1 error) *MockStatusCatalogServiceInterface_ReassignDeleted_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStatusCatalogServiceInterface_ReassignDeleted_Call) RunAndReturn(run func(context.Context, string, string, string, string) (string, error)) *MockStatusCatalogServiceInterface_ReassignDeleted_Call {
 	_c.Call.Return(run)
 	return _c
 }

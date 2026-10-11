@@ -186,8 +186,7 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 		memory.Metadata = make(map[string]interface{})
 	}
 
-	err := s.repo.Create(ctx, memory)
-	if err != nil {
+	if err := s.writeMemory(ctx, memory, s.repo.Create); err != nil {
 		return nil, err
 	}
 
@@ -374,7 +373,7 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 		}
 	}
 
-	if err := s.repo.Update(ctx, memory); err != nil {
+	if err := s.writeMemory(ctx, memory, s.repo.Update); err != nil {
 		return nil, err
 	}
 
@@ -535,4 +534,19 @@ func (s *MemoryService) deleteMemoryFreshness(ctx context.Context, teamID, memor
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to clear freshness state for deleted memory")
 	}
+}
+
+// writeMemory runs the repository's Create or Update and then confirms the
+// status the memory now carries: a custom status deleted while the write was
+// in flight is replaced by the default, in the row and in memory (#1332). An
+// update rewrites the whole row, so this applies whether or not the request
+// set the status.
+func (s *MemoryService) writeMemory(
+	ctx context.Context, memory *models.Memory, write func(context.Context, *models.Memory) error,
+) error {
+	if err := write(ctx, memory); err != nil {
+		return err
+	}
+	return s.statuses.ConfirmAfterWrite(
+		ctx, s.logger, memory.TeamID, models.StatusResourceTypeMemory, memory.ID, &memory.Status)
 }

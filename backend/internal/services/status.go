@@ -4,11 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
+
+// statusConfirmTimeout bounds ConfirmAfterWrite: the locking read waits for a
+// concurrent delete of the status to commit, and the write paths that call it
+// run on a context with no deadline of their own. A delete is one DELETE and
+// one UPDATE filtered by team, so it normally commits in milliseconds; this
+// only stops a stuck one from pinning a connection per waiting write.
+const statusConfirmTimeout = 15 * time.Second
 
 // ErrInvalidStatus is returned by a create, an update or a list when the caller
 // supplied a status the resource's team does not have for that resource type:
@@ -78,4 +87,73 @@ func (v statusValidator) ValidateOptional(
 		return nil
 	}
 	return v.Validate(ctx, teamID, resourceType, *status)
+}
+
+// ConfirmAfterWrite closes the window Validate leaves open (#1332). Validate
+// reads the catalog before the write and holds nothing, so a delete of a
+// custom status can commit between the two: its reassignment moved the
+// resources it could see, and the write then stored the slug again. Called
+// after the write with the status the resource now carries, it leaves *status
+// as the status that is stored once it is done -- unchanged, or the default of
+// the resource type when the status was deleted and the resource had to be
+// moved off it, exactly as the delete would have moved it. Nothing else the
+// write stored is touched.
+//
+// It has to run after EVERY write of a resource that carries a custom status,
+// not only one that set the status: all four repositories rewrite the whole
+// row, so an update that leaves the status alone still stores the slug it
+// loaded, which may have been deleted since.
+//
+// A system status is confirmed without a query, so the common write still
+// costs none. A validator without a catalog only ever admitted system
+// statuses and confirms whatever it is given.
+//
+// The confirmation and the repair together get statusConfirmTimeout, whatever
+// ctx allows: the service write paths pass a context without a deadline, and
+// the wait is on somebody else's transaction.
+//
+// An error -- that timeout included -- means the resource may still carry a
+// deleted status. It is logged here with the resource id, and callers fail the
+// request rather than report a status the catalog does not list.
+func (v statusValidator) ConfirmAfterWrite(
+	ctx context.Context, logger *slog.Logger, teamID, resourceType, resourceID string, status *string,
+) error {
+	if v.catalog == nil || slices.Contains(models.SystemStatusesFor(resourceType), *status) {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, statusConfirmTimeout)
+	defer cancel()
+	stored, err := v.confirmCustom(ctx, teamID, resourceType, resourceID, *status)
+	if err != nil {
+		logger.With(
+			"team_id", teamID,
+			"resource_type", resourceType,
+			"resource_id", resourceID,
+			"status", *status,
+			"error", err,
+		).Error("Failed to confirm a resource's status after its write")
+		return err
+	}
+	*status = stored
+	return nil
+}
+
+// confirmCustom is ConfirmAfterWrite for a status already known not to be a
+// system one. It returns the status the resource carries afterwards.
+func (v statusValidator) confirmCustom(
+	ctx context.Context, teamID, resourceType, resourceID, status string,
+) (string, error) {
+	confirmed, err := v.catalog.ConfirmCustom(ctx, teamID, resourceType, status)
+	if err != nil {
+		return "", fmt.Errorf("failed to confirm the status of %s %s: %w", resourceType, resourceID, err)
+	}
+	if confirmed {
+		return status, nil
+	}
+	fallback, err := v.catalog.ReassignDeleted(ctx, teamID, resourceType, resourceID, status)
+	if err != nil {
+		return "", fmt.Errorf("failed to move %s %s off deleted status %q: %w",
+			resourceType, resourceID, status, err)
+	}
+	return fallback, nil
 }

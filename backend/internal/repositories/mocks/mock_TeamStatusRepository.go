@@ -22,6 +22,65 @@ func (_m *MockTeamStatusRepository) EXPECT() *MockTeamStatusRepository_Expecter 
 	return &MockTeamStatusRepository_Expecter{mock: &_m.Mock}
 }
 
+// ConfirmSlug provides a mock function with given fields: ctx, teamID, resourceType, slug
+func (_m *MockTeamStatusRepository) ConfirmSlug(ctx context.Context, teamID string, resourceType string, slug string) (bool, error) {
+	ret := _m.Called(ctx, teamID, resourceType, slug)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ConfirmSlug")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (bool, error)); ok {
+		return rf(ctx, teamID, resourceType, slug)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) bool); ok {
+		r0 = rf(ctx, teamID, resourceType, slug)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
+		r1 = rf(ctx, teamID, resourceType, slug)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTeamStatusRepository_ConfirmSlug_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ConfirmSlug'
+type MockTeamStatusRepository_ConfirmSlug_Call struct {
+	*mock.Call
+}
+
+// ConfirmSlug is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - resourceType string
+//   - slug string
+func (_e *MockTeamStatusRepository_Expecter) ConfirmSlug(ctx interface{}, teamID interface{}, resourceType interface{}, slug interface{}) *MockTeamStatusRepository_ConfirmSlug_Call {
+	return &MockTeamStatusRepository_ConfirmSlug_Call{Call: _e.mock.On("ConfirmSlug", ctx, teamID, resourceType, slug)}
+}
+
+func (_c *MockTeamStatusRepository_ConfirmSlug_Call) Run(run func(ctx context.Context, teamID string, resourceType string, slug string)) *MockTeamStatusRepository_ConfirmSlug_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockTeamStatusRepository_ConfirmSlug_Call) Return(_a0 bool, _a1 error) *MockTeamStatusRepository_ConfirmSlug_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTeamStatusRepository_ConfirmSlug_Call) RunAndReturn(run func(context.Context, string, string, string) (bool, error)) *MockTeamStatusRepository_ConfirmSlug_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Count provides a mock function with given fields: ctx, teamID, resourceType
 func (_m *MockTeamStatusRepository) Count(ctx context.Context, teamID string, resourceType string) (int, error) {
 	ret := _m.Called(ctx, teamID, resourceType)
@@ -311,6 +370,57 @@ func (_c *MockTeamStatusRepository_List_Call) Return(_a0 []models.TeamStatus, _a
 }
 
 func (_c *MockTeamStatusRepository_List_Call) RunAndReturn(run func(context.Context, string, string) ([]models.TeamStatus, error)) *MockTeamStatusRepository_List_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ReassignResource provides a mock function with given fields: ctx, teamID, resourceType, resourceID, fromSlug, toStatus
+func (_m *MockTeamStatusRepository) ReassignResource(ctx context.Context, teamID string, resourceType string, resourceID string, fromSlug string, toStatus string) error {
+	ret := _m.Called(ctx, teamID, resourceType, resourceID, fromSlug, toStatus)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReassignResource")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, string) error); ok {
+		r0 = rf(ctx, teamID, resourceType, resourceID, fromSlug, toStatus)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockTeamStatusRepository_ReassignResource_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReassignResource'
+type MockTeamStatusRepository_ReassignResource_Call struct {
+	*mock.Call
+}
+
+// ReassignResource is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - resourceType string
+//   - resourceID string
+//   - fromSlug string
+//   - toStatus string
+func (_e *MockTeamStatusRepository_Expecter) ReassignResource(ctx interface{}, teamID interface{}, resourceType interface{}, resourceID interface{}, fromSlug interface{}, toStatus interface{}) *MockTeamStatusRepository_ReassignResource_Call {
+	return &MockTeamStatusRepository_ReassignResource_Call{Call: _e.mock.On("ReassignResource", ctx, teamID, resourceType, resourceID, fromSlug, toStatus)}
+}
+
+func (_c *MockTeamStatusRepository_ReassignResource_Call) Run(run func(ctx context.Context, teamID string, resourceType string, resourceID string, fromSlug string, toStatus string)) *MockTeamStatusRepository_ReassignResource_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string), args[5].(string))
+	})
+	return _c
+}
+
+func (_c *MockTeamStatusRepository_ReassignResource_Call) Return(_a0 error) *MockTeamStatusRepository_ReassignResource_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockTeamStatusRepository_ReassignResource_Call) RunAndReturn(run func(context.Context, string, string, string, string, string) error) *MockTeamStatusRepository_ReassignResource_Call {
 	_c.Call.Return(run)
 	return _c
 }

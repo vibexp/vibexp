@@ -58,6 +58,15 @@ const (
 		 WHERE team_id = $1 AND id = $2
 		RETURNING id, team_id, resource_type, slug, name, created_by, created_at, updated_at`
 
+	// teamStatusConfirmSlugSQL takes FOR KEY SHARE on the status row, which
+	// conflicts with the lock DeleteAndReassign's DELETE holds until it commits:
+	// the statement waits a concurrent delete out and then finds no row.
+	teamStatusConfirmSlugSQL = `
+		SELECT 1
+		  FROM team_statuses
+		 WHERE team_id = $1 AND resource_type = $2 AND slug = $3
+		   FOR KEY SHARE`
+
 	// teamStatusPreserveUpdatedAtSQL switches off, for the current transaction
 	// only, the trigger that stamps memories.updated_at on every update
 	// (migration 026). The other three resource tables have no such trigger.
@@ -75,6 +84,9 @@ type teamStatusResourceSQL struct {
 	// and moving the timestamp would reset its freshness and reorder every
 	// list it appears in.
 	reassign string
+	// reassignOne is reassign for the single row $4: the repair of a resource
+	// whose write landed after reassign had already run.
+	reassignOne string
 }
 
 // teamStatusResourceTables maps a status resource type to the statements for
@@ -84,20 +96,24 @@ type teamStatusResourceSQL struct {
 // tables that filter by team_id first.
 var teamStatusResourceTables = map[string]teamStatusResourceSQL{
 	models.StatusResourceTypePrompt: {
-		usage:    `SELECT status, count(*) FROM prompts WHERE team_id = $1 GROUP BY status`,
-		reassign: `UPDATE prompts SET status = $2 WHERE team_id = $1 AND status = $3`,
+		usage:       `SELECT status, count(*) FROM prompts WHERE team_id = $1 GROUP BY status`,
+		reassign:    `UPDATE prompts SET status = $2 WHERE team_id = $1 AND status = $3`,
+		reassignOne: `UPDATE prompts SET status = $2 WHERE team_id = $1 AND status = $3 AND id = $4`,
 	},
 	models.StatusResourceTypeArtifact: {
-		usage:    `SELECT status, count(*) FROM artifacts WHERE team_id = $1 GROUP BY status`,
-		reassign: `UPDATE artifacts SET status = $2 WHERE team_id = $1 AND status = $3`,
+		usage:       `SELECT status, count(*) FROM artifacts WHERE team_id = $1 GROUP BY status`,
+		reassign:    `UPDATE artifacts SET status = $2 WHERE team_id = $1 AND status = $3`,
+		reassignOne: `UPDATE artifacts SET status = $2 WHERE team_id = $1 AND status = $3 AND id = $4`,
 	},
 	models.StatusResourceTypeBlueprint: {
-		usage:    `SELECT status, count(*) FROM blueprints WHERE team_id = $1 GROUP BY status`,
-		reassign: `UPDATE blueprints SET status = $2 WHERE team_id = $1 AND status = $3`,
+		usage:       `SELECT status, count(*) FROM blueprints WHERE team_id = $1 GROUP BY status`,
+		reassign:    `UPDATE blueprints SET status = $2 WHERE team_id = $1 AND status = $3`,
+		reassignOne: `UPDATE blueprints SET status = $2 WHERE team_id = $1 AND status = $3 AND id = $4`,
 	},
 	models.StatusResourceTypeMemory: {
-		usage:    `SELECT status, count(*) FROM memories WHERE team_id = $1 GROUP BY status`,
-		reassign: `UPDATE memories SET status = $2 WHERE team_id = $1 AND status = $3`,
+		usage:       `SELECT status, count(*) FROM memories WHERE team_id = $1 GROUP BY status`,
+		reassign:    `UPDATE memories SET status = $2 WHERE team_id = $1 AND status = $3`,
+		reassignOne: `UPDATE memories SET status = $2 WHERE team_id = $1 AND status = $3 AND id = $4`,
 	},
 }
 
@@ -245,6 +261,33 @@ func (r *TeamStatusRepository) DeleteAndReassign(
 	}
 	committed = true
 	return &deleted, int(reassigned), nil
+}
+
+func (r *TeamStatusRepository) ConfirmSlug(
+	ctx context.Context, teamID, resourceType, slug string,
+) (bool, error) {
+	var one int
+	err := r.db.QueryRowContext(ctx, teamStatusConfirmSlugSQL, teamID, resourceType, slug).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to confirm team status: %w", err)
+	}
+	return true, nil
+}
+
+func (r *TeamStatusRepository) ReassignResource(
+	ctx context.Context, teamID, resourceType, resourceID, fromSlug, toStatus string,
+) error {
+	table, ok := teamStatusResourceTables[resourceType]
+	if !ok {
+		return fmt.Errorf("%w: %q", errTeamStatusResourceTypeUnknown, resourceType)
+	}
+	if _, err := r.db.ExecContext(ctx, table.reassignOne, teamID, toStatus, fromSlug, resourceID); err != nil {
+		return fmt.Errorf("failed to reassign %s %s after status delete: %w", resourceType, resourceID, err)
+	}
+	return nil
 }
 
 // scanTeamStatus scans one team_statuses row, from a single-row lookup or a

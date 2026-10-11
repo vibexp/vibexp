@@ -219,8 +219,7 @@ func (s *PromptService) CreatePrompt(userID, teamID string, req *models.CreatePr
 		UpdatedAt:   time.Now(),
 	}
 
-	if err := s.repo.Create(ctx, prompt); err != nil {
-		s.logger.With("error", err).Error("Failed to create prompt")
+	if err := s.writePrompt(ctx, prompt, s.repo.Create, "Failed to create prompt"); err != nil {
 		return nil, err
 	}
 
@@ -409,9 +408,7 @@ func (s *PromptService) updatePromptInternal(
 
 	s.snapshotPromptBody(ctx, userID, existingPrompt, updatedPrompt, actorType, changeSummary)
 
-	err = s.repo.Update(ctx, updatedPrompt)
-	if err != nil {
-		s.logger.With("error", err).Error("Failed to update prompt")
+	if err = s.writePrompt(ctx, updatedPrompt, s.repo.Update, "Failed to update prompt"); err != nil {
 		return nil, err
 	}
 
@@ -1154,4 +1151,21 @@ func (s *PromptService) validateProjectOwnership(ctx context.Context, userID, pr
 	}
 
 	return nil
+}
+
+// writePrompt runs the repository's Create or Update, logging failure under
+// the given message, and then confirms the status the prompt now carries: a
+// custom status deleted while the write was in flight is replaced by the
+// default, in the row and in prompt (#1332). An update rewrites the whole row,
+// so this applies whether or not the request set the status.
+func (s *PromptService) writePrompt(
+	ctx context.Context, prompt *models.Prompt,
+	write func(context.Context, *models.Prompt) error, failure string,
+) error {
+	if err := write(ctx, prompt); err != nil {
+		s.logger.With("error", err).Error(failure)
+		return err
+	}
+	return s.statuses.ConfirmAfterWrite(
+		ctx, s.logger, prompt.TeamID, models.StatusResourceTypePrompt, prompt.ID, &prompt.Status)
 }
