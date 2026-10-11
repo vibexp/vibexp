@@ -1,7 +1,7 @@
 import { LogoMark } from '@vibexp/design-system/react'
 import { useState } from 'react'
 
-import { useTheme } from '@/lib/theme'
+import { useResolvedTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
 import { useSiteInfo } from './useSiteInfo'
@@ -43,7 +43,7 @@ export function BrandLogo({
   className,
 }: Readonly<BrandLogoProps>) {
   const { logo_url, logo_dark_url, company_name } = useSiteInfo()
-  const { resolvedTheme } = useTheme()
+  const resolvedTheme = useResolvedTheme()
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
 
   const src =

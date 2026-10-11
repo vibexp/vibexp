@@ -5,6 +5,7 @@ import { NAV_GROUPS, type NavItem } from '@/components/layout/nav-items'
 import { ProjectSwitcher } from '@/components/layout/ProjectSwitcher'
 import { SearchModal } from '@/components/layout/SearchModal'
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
+import { SidebarProductMark } from '@/components/layout/SidebarProductMark'
 import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { useNavLinkActive } from '@/components/layout/useNavLinkActive'
@@ -171,6 +172,7 @@ export function MobileSidebar() {
         <SearchModal />
         <ThemeToggle />
       </div>
+      <SidebarProductMark showText />
     </div>
   )
 }

@@ -16,6 +16,7 @@ import { ProjectProvider } from '@/contexts/ProjectContext'
 import { TeamProvider } from '@/contexts/TeamContext'
 import { useAuth } from '@/contexts/useAuth'
 import { SiteInfoProvider } from '@/features/site-info/SiteInfoProvider'
+import { SiteInfoTitle } from '@/features/site-info/SiteInfoTitle'
 import { usePageTracking } from '@/hooks'
 import { ThemeProvider } from '@/lib/theme'
 import { AdminRoutes } from '@/pages/admin/AdminRoutes'
@@ -109,6 +110,7 @@ function App() {
       <HelmetProvider>
         <AuthProvider>
           <SiteInfoProvider>
+            <SiteInfoTitle />
             <AlertProvider>
               <ThemeProvider defaultTheme="system">
                 <Router>

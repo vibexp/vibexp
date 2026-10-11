@@ -100,6 +100,24 @@ describe('Sidebar', () => {
   // item to show up; the guard for it lives in `AdminSidebar.test.tsx`, whose
   // Dashboard row is the only one that sets `end`.)
   // ---------------------------------------------------------------------------
+  // The product's mark is part of the shell in both forms (#1360).
+  describe('product mark in the footer', () => {
+    it.each([
+      ['the collapsed rail', false],
+      ['the expanded sidebar', true],
+    ])('ends %s with the VibeXP link', (_, expanded) => {
+      renderRail('/', expanded)
+
+      const mark = screen.getByTestId('sidebar-product-mark')
+      const link = mark.querySelector('a')
+      expect(link).toHaveAttribute('href', 'https://vibexp.io')
+      expect(link).toHaveAttribute('target', '_blank')
+      // It follows the navigation, at the foot of the sidebar.
+      const sidebar = screen.getByTestId('app-sidebar')
+      expect(sidebar.lastElementChild).toBe(mark)
+    })
+  })
+
   describe('active-route highlighting parity', () => {
     // `classList.contains` and not a substring check: the INACTIVE class list
     // carries `hover:bg-sidebar-accent/50`, which contains the active class as

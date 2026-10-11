@@ -80,10 +80,25 @@ describe('MobileSidebar', () => {
   // -------------------------------------------------------------------------
   // Fix 1: brand logo
   // -------------------------------------------------------------------------
+  // The product's mark closes the drawer too, with its label visible (#1360).
+  describe('product mark in the footer', () => {
+    it('ends the drawer with the labelled VibeXP link', () => {
+      renderWithRouter()
+
+      const mark = screen.getByTestId('sidebar-product-mark')
+      const link = within(mark).getByRole('link', { name: 'VibeXP' })
+      expect(link).toHaveAttribute('href', 'https://vibexp.io')
+      expect(link).toHaveAttribute('target', '_blank')
+      expect(link.querySelector('span')).toHaveClass('inline')
+    })
+  })
+
   describe('brand header', () => {
     it('renders the design-system logo brand link navigating to /', () => {
       renderWithRouter()
-      const homeLink = screen.getByRole('link', { name: /VibeXP/i })
+      // By its tagline: the footer's product mark is also a link named
+      // "VibeXP" (#1360), but only the brand carries the tagline.
+      const homeLink = screen.getByRole('link', { name: /shared brain/i })
       expect(homeLink).toBeInTheDocument()
       expect(homeLink).toHaveAttribute('href', '/')
       // Brand renders the design-system LogoMark component (#921), an inline
@@ -314,7 +329,7 @@ describe('MobileSidebar', () => {
       const user = userEvent.setup()
       renderWithRouter(['/settings'])
 
-      await user.click(screen.getByRole('link', { name: /VibeXP/i }))
+      await user.click(screen.getByRole('link', { name: /shared brain/i }))
 
       expect(mockSheetClose).toHaveBeenCalled()
     })

@@ -12,7 +12,7 @@ const { theme } = vi.hoisted(
 )
 
 vi.mock('@/lib/theme', () => ({
-  useTheme: () => ({ ...theme, theme: theme.resolvedTheme, setTheme: vi.fn() }),
+  useResolvedTheme: () => theme.resolvedTheme,
 }))
 
 vi.mock('@vibexp/design-system/react', () => ({
