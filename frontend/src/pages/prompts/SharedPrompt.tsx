@@ -9,6 +9,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { BrandLogo } from '@/features/site-info/BrandLogo'
+import { PoweredBy } from '@/features/site-info/PoweredBy'
 import { PRODUCT_URL } from '@/features/site-info/siteInfo'
 import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { useAnalytics } from '@/hooks/useAnalytics'
@@ -24,7 +26,8 @@ export function SharedPrompt() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const { displayName, logo_url, website } = useSiteInfo()
+  const { displayName, logo_url, website, hasCompanyBranding, company_name } =
+    useSiteInfo()
 
   useEffect(() => {
     if (!token) return
@@ -174,17 +177,19 @@ export function SharedPrompt() {
             rel="noopener noreferrer"
             className="flex items-center gap-3 hover:opacity-80"
           >
-            <img
-              src="/logo_rounded.png"
-              alt={displayName}
-              className="h-10 w-10"
-            />
-            <div>
-              <div className="text-lg font-semibold">{displayName}</div>
-              <div className="text-muted-foreground text-xs">
-                AI-powered prompt management
+            <BrandLogo size={40} />
+            {/* The tagline is the product's, so it is not shown under a
+                company's name; a company logo without a name stands alone. */}
+            {(!hasCompanyBranding || company_name !== null) && (
+              <div>
+                <div className="text-lg font-semibold">{displayName}</div>
+                {!hasCompanyBranding && (
+                  <div className="text-muted-foreground text-xs">
+                    AI-powered prompt management
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </a>
           <a href={brandLink} target="_blank" rel="noopener noreferrer">
             <Button
@@ -250,6 +255,12 @@ export function SharedPrompt() {
           </CardContent>
         </Card>
       </main>
+
+      {hasCompanyBranding && (
+        <div className="mx-auto flex max-w-4xl justify-center px-4 pb-8">
+          <PoweredBy />
+        </div>
+      )}
     </div>
   )
 }

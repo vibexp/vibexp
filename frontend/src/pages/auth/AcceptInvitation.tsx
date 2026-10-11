@@ -14,6 +14,8 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import { useAuth } from '@/contexts/useAuth'
+import { PublicCardPage } from '@/features/site-info/PublicPageBrand'
+import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import type { TeamInvitation } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
 import {
@@ -41,6 +43,7 @@ export function AcceptInvitation() {
   const [loading, setLoading] = useState(true)
   const [errorView, setErrorView] = useState<InvitationErrorView | null>(null)
   const [processing, setProcessing] = useState(false)
+  const { displayName } = useSiteInfo()
 
   useEffect(() => {
     const fetchInvitation = async () => {
@@ -125,18 +128,18 @@ export function AcceptInvitation() {
 
   if (loading || authLoading) {
     return (
-      <div className="bg-background flex min-h-screen items-center justify-center p-4">
+      <PublicCardPage>
         <div className="flex flex-col items-center gap-3 text-center">
           <Loader2 className="text-primary size-10 animate-spin" />
           <p className="text-muted-foreground text-sm">Loading invitation…</p>
         </div>
-      </div>
+      </PublicCardPage>
     )
   }
 
   if (errorView) {
     return (
-      <div className="bg-background flex min-h-screen items-center justify-center p-4">
+      <PublicCardPage>
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col gap-4 p-6">
             <Alert variant="destructive">
@@ -153,7 +156,7 @@ export function AcceptInvitation() {
             </Button>
           </CardContent>
         </Card>
-      </div>
+      </PublicCardPage>
     )
   }
 
@@ -162,7 +165,7 @@ export function AcceptInvitation() {
   }
 
   return (
-    <div className="bg-background flex min-h-screen items-center justify-center p-4">
+    <PublicCardPage>
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
           <div className="bg-primary text-primary-foreground mx-auto mb-2 flex size-12 items-center justify-center rounded-full">
@@ -170,7 +173,7 @@ export function AcceptInvitation() {
           </div>
           <CardTitle>Team invitation</CardTitle>
           <CardDescription>
-            You&apos;ve been invited to join a team on VibeXP.
+            You&apos;ve been invited to join a team on {displayName}.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -237,7 +240,7 @@ export function AcceptInvitation() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </PublicCardPage>
   )
 }
 

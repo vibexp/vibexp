@@ -138,6 +138,11 @@ describe('SharedPrompt page (public, no auth)', () => {
       'https://vibexp.io?utm_source=prompt_shared_page'
     )
     expect(container.innerHTML).not.toContain('example.com')
+    // Unbranded: the product tagline shows, the bundled PNG is not used as
+    // the header logo any more, and there is no "Powered by" credit (#1361).
+    expect(screen.getByText('AI-powered prompt management')).toBeInTheDocument()
+    expect(container.querySelector('header img')).toBeNull()
+    expect(screen.queryByText(/powered by/i)).not.toBeInTheDocument()
     await waitFor(() => {
       expect(document.title).toBe(
         'Code Review Template | Shared Prompt | VibeXP'
@@ -175,7 +180,19 @@ describe('SharedPrompt page (public, no auth)', () => {
     await waitFor(() => {
       expect(screen.getByText('Code Review Template')).toBeInTheDocument()
     })
-    expect(screen.getByRole('img', { name: 'Acme Inc.' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Acme Inc.' })).toHaveAttribute(
+      'src',
+      'https://cdn.acme.test/logo.png'
+    )
+    // The tagline is VibeXP's own, so it is not shown under a company's name;
+    // VibeXP is credited instead (#1361).
+    expect(
+      screen.queryByText('AI-powered prompt management')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /powered by vibexp/i })
+    ).toHaveAttribute('href', 'https://vibexp.io')
+    expect(container.innerHTML).not.toContain('logo_rounded.png')
     expect(container.querySelector('header a')).toHaveAttribute(
       'href',
       'https://acme.test/?ref=home'

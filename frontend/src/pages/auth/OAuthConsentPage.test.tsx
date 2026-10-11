@@ -43,6 +43,13 @@ vi.mock('@/utils/navigation', () => ({
 // Imports after mocks
 // ---------------------------------------------------------------------------
 
+import {
+  deriveSiteInfo,
+  EMPTY_SITE_INFO,
+  type SiteInfo,
+} from '@/features/site-info/siteInfo'
+import { SiteInfoContext } from '@/features/site-info/SiteInfoContext'
+
 import { OAuthConsentPage } from './OAuthConsentPage'
 
 // ---------------------------------------------------------------------------
@@ -253,5 +260,87 @@ describe('OAuthConsentPage', () => {
 
     await screen.findByRole('button', { name: /approve/i })
     expect(screen.queryByText('Requested access')).not.toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Company branding from site info (#1361)
+// ---------------------------------------------------------------------------
+
+function renderBranded(info: Partial<SiteInfo>) {
+  return render(
+    <SiteInfoContext.Provider
+      value={deriveSiteInfo({ ...EMPTY_SITE_INFO, ...info })}
+    >
+      <MemoryRouter>
+        <OAuthConsentPage />
+      </MemoryRouter>
+    </SiteInfoContext.Provider>
+  )
+}
+
+describe('OAuthConsentPage — site info branding', () => {
+  let consoleErrorSpy: MockInstance
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockLogin = 'login-abc'
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('shows no lockup and no credit, and names VibeXP, when nothing is configured', async () => {
+    mockGetConsent.mockResolvedValueOnce(buildDetails())
+
+    renderPage()
+
+    await screen.findByRole('button', { name: /approve/i })
+    expect(
+      screen.getByText(/requesting access to your VibeXP account/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/access your VibeXP account on\s+your behalf/i)
+    ).toBeInTheDocument()
+    expect(screen.queryByTestId('public-page-brand')).not.toBeInTheDocument()
+    expect(screen.queryByText(/powered by/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the company lockup, names the company and credits VibeXP when branded', async () => {
+    mockGetConsent.mockResolvedValueOnce(buildDetails())
+
+    renderBranded({
+      company_name: 'Acme Inc.',
+      logo_url: 'https://cdn.acme.test/logo.svg',
+    })
+
+    await screen.findByRole('button', { name: /approve/i })
+    expect(
+      screen.getByText(/requesting access to your Acme Inc\. account/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/access your Acme Inc\. account on\s+your behalf/i)
+    ).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Acme Inc.' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /powered by vibexp/i })
+    ).toHaveAttribute('href', 'https://vibexp.io')
+    // The decision buttons are untouched by the branding.
+    expect(screen.getByRole('button', { name: /deny/i })).toBeInTheDocument()
+  })
+
+  it('keeps the branding on the error state', async () => {
+    mockGetConsent.mockRejectedValueOnce(new Error('expired'))
+
+    renderBranded({ company_name: 'Acme Inc.' })
+
+    expect(
+      await screen.findByText(/expired or is no longer valid/i)
+    ).toBeInTheDocument()
+    expect(screen.getByTestId('public-page-brand')).toHaveTextContent(
+      'Acme Inc.'
+    )
   })
 })
