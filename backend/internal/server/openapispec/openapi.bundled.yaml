@@ -121,6 +121,8 @@ tags:
     description: Team-level configuration, starting with per-team search ranking settings
   - name: Freshness
     description: Per-team resource freshness rules, evaluation settings, analytics and audit log (epic
+  - name: SiteInfo
+    description: The instance's company branding, readable without authentication. REST-only, no MCP.
   - name: Setup
     description: First-run authentication setup — the public setup status and the setup-token exchange. REST-only, no MCP.
   - name: Admin
@@ -430,6 +432,35 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Authentication
+  /api/v1/site-info:
+    get:
+      summary: Get the instance's company branding
+      description: |
+        Returns the company branding an instance admin configured: name, contact
+        address, links and logos. Public, because the sign-in page shows it
+        before anyone is authenticated, and limited to these non-secret values.
+
+        A value that is not configured is null. The endpoint never fails on a
+        storage error: if the values cannot be read it answers 200 with every
+        value null, so a database problem cannot block sign-in. Rate-limited per
+        client IP.
+      operationId: getSiteInfo
+      security: []
+      responses:
+        '200':
+          description: The instance's company branding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteInfoResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - SiteInfo
   /api/v1/setup/status:
     get:
       summary: Report whether the instance needs authentication setup
@@ -20955,6 +20986,61 @@ components:
           format: date-time
           description: When the setup session stops being valid.
           example: '2026-10-02T13:00:00Z'
+    SiteInfoResponse:
+      type: object
+      description: |
+        The instance's company branding, as shown on the sign-in page, in the app shell and in emails. The endpoint is public, so this carries only these eight non-secret values: no version, editor or timestamps. Every value is null when it is not configured, and the surface that would show it is hidden. Each URL is an absolute `http` or `https` URL.
+      additionalProperties: false
+      required:
+        - company_name
+        - company_email
+        - website
+        - support_url
+        - terms_url
+        - privacy_url
+        - logo_url
+        - logo_dark_url
+      properties:
+        company_name:
+          type: string
+          nullable: true
+          description: The company name.
+          example: Acme Inc.
+        company_email:
+          type: string
+          nullable: true
+          description: The company contact address. The support link falls back to it when `support_url` is null.
+          example: hello@acme.example.com
+        website:
+          type: string
+          nullable: true
+          description: The company website; the logo and name link to it.
+          example: https://acme.example.com
+        support_url:
+          type: string
+          nullable: true
+          description: Where the Support link points.
+          example: https://acme.example.com/help
+        terms_url:
+          type: string
+          nullable: true
+          description: The terms of service page.
+          example: https://acme.example.com/terms
+        privacy_url:
+          type: string
+          nullable: true
+          description: The privacy policy page.
+          example: https://acme.example.com/privacy
+        logo_url:
+          type: string
+          nullable: true
+          description: The company logo image.
+          example: https://cdn.acme.example.com/logo.svg
+        logo_dark_url:
+          type: string
+          nullable: true
+          description: The dark-mode logo image; use `logo_url` when it is null.
+          example: https://cdn.acme.example.com/logo-dark.svg
     DevLoginRequest:
       type: object
       description: Request body for POST /api/v1/auth/dev/login (development environment only)

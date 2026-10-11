@@ -177,7 +177,10 @@ func TestHandleConfigJS_EmptyConfigIsEmptyObject(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("GET /config.js: got %d, want 200", rr.Code)
 	}
-	if got := strings.TrimSpace(rr.Body.String()); got != "window.__VIBEXP_ENV__ = {};" {
-		t.Errorf("empty config.js = %q, want window.__VIBEXP_ENV__ = {};", got)
+	// The env assignment comes first; the site info assignment (#1355) follows
+	// on its own line and is covered in site_info_handlers_test.go.
+	first, _, _ := strings.Cut(rr.Body.String(), "\n")
+	if first != "window.__VIBEXP_ENV__ = {};" {
+		t.Errorf("empty config.js first line = %q, want window.__VIBEXP_ENV__ = {};", first)
 	}
 }

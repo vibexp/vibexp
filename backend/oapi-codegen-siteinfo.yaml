@@ -1,0 +1,18 @@
+# oapi-codegen configuration for the SiteInfo domain (#1355): the public read of
+# the instance's company branding.
+#
+# Its own package under internal/server/gen/siteinfo, like every other
+# spec-first domain (see oapi-codegen-types.yaml for the rationale), so it mounts
+# independently and carries a single, self-contained StrictServerInterface.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: siteinfogen
+output: internal/server/gen/siteinfo/siteinfo.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-tags:
+    - SiteInfo

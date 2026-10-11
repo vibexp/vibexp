@@ -1,0 +1,32 @@
+# Public instance site info path items (#1355, epic #1352) — referenced from
+# ../openapi.yaml.
+
+api-v1-site-info:
+  get:
+    summary: Get the instance's company branding
+    description: |
+      Returns the company branding an instance admin configured: name, contact
+      address, links and logos. Public, because the sign-in page shows it
+      before anyone is authenticated, and limited to these non-secret values.
+
+      A value that is not configured is null. The endpoint never fails on a
+      storage error: if the values cannot be read it answers 200 with every
+      value null, so a database problem cannot block sign-in. Rate-limited per
+      client IP.
+    operationId: getSiteInfo
+    security: []  # No authentication required
+    responses:
+      '200':
+        description: The instance's company branding
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/SiteInfoResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - SiteInfo
