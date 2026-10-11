@@ -107,15 +107,18 @@ type StatusDeletion struct {
 // the URL's team is what teamValidationMiddleware establishes. Create, Rename
 // and Delete each require authz.TeamSettingsUpdate and return an
 // ErrPermissionDenied-wrapped error without it. Each successful write appends
-// one team settings audit entry on the custom_statuses surface; the entry is
-// written after the change, and a failure to write it is returned to the
-// caller even though the change itself has been stored.
+// one team settings audit entry on the custom_statuses surface, in the same
+// transaction as the change (#1333): when the entry cannot be built or stored
+// the change is rolled back and the error returned, so an error from a write
+// always means nothing was stored and the request can be retried as it is.
 type StatusManagementServiceInterface interface {
 	// List returns the catalog for (teamID, resourceType) with usage counts:
 	// system statuses first, then the team's custom ones. It returns
 	// ErrStatusResourceTypeUnsupported for an unknown resource type.
 	List(ctx context.Context, teamID, resourceType string) ([]ManagedStatus, error)
-	// Create validates and stores a custom status. It returns
+	// Create validates and stores a custom status. The returned UsageCount is
+	// always 0 and costs no query: a status that did not exist a moment ago is
+	// on no resource. It returns
 	// ErrStatusResourceTypeUnsupported or an ErrStatus* validation sentinel for
 	// bad input, ErrStatusReserved for a built-in slug,
 	// ErrStatusLimitReached at the cap, and repositories.ErrTeamStatusExists
@@ -123,7 +126,9 @@ type StatusManagementServiceInterface interface {
 	Create(ctx context.Context, params CreateStatusParams) (*ManagedStatus, error)
 	// Rename changes a custom status's display name; the slug is immutable. It
 	// returns repositories.ErrTeamStatusNotFound for an id the team does not
-	// have.
+	// have. The usage count is read after the rename has committed, so a
+	// failure to read it is logged and reported as UsageCount 0 rather than
+	// failing a rename that is already stored; List is the exact figure.
 	Rename(ctx context.Context, params RenameStatusParams) (*ManagedStatus, error)
 	// Delete removes a custom status and moves every resource carrying it to
 	// the resource type's default system status, atomically. It returns
@@ -210,16 +215,12 @@ func (s *StatusManagementService) Create(
 		Name:         name,
 		CreatedBy:    optionalID(params.UserID),
 	}
-	if err := s.repo.Create(ctx, row); err != nil {
+	if err := s.repo.Create(ctx, row, s.auditBuilder(params.UserID, statusAuditActionCreated, "")); err != nil {
 		return nil, err
 	}
-
-	if err := s.recordAudit(ctx, params.UserID, row, row.ID, map[string]interface{}{
-		"action": statusAuditActionCreated,
-	}); err != nil {
-		return nil, err
-	}
-	return s.managed(ctx, row)
+	// A status that did not exist until this insert is on no resource, so the
+	// count is known without a query that could fail after the write.
+	return managedStatus(row, 0), nil
 }
 
 func (s *StatusManagementService) Rename(
@@ -233,25 +234,12 @@ func (s *StatusManagementService) Rename(
 		return nil, err
 	}
 
-	// Read the row first for the name the audit entry records as replaced. A
-	// rename racing this one can make that name stale; the entry still names
-	// the status and its new name correctly.
-	previous, err := s.repo.GetByID(ctx, params.TeamID, params.ID)
+	row, err := s.repo.UpdateName(ctx, params.TeamID, params.ID, name,
+		s.auditBuilder(params.UserID, statusAuditActionRenamed, ""))
 	if err != nil {
 		return nil, err
 	}
-	row, err := s.repo.UpdateName(ctx, params.TeamID, params.ID, name)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.recordAudit(ctx, params.UserID, row, "", map[string]interface{}{
-		"action":        statusAuditActionRenamed,
-		"previous_name": previous.Name,
-	}); err != nil {
-		return nil, err
-	}
-	return s.managed(ctx, row)
+	return managedStatus(row, s.usageCountOrZero(ctx, row)), nil
 }
 
 func (s *StatusManagementService) Delete(
@@ -273,16 +261,9 @@ func (s *StatusManagementService) Delete(
 		return nil, fmt.Errorf("%w: %q", ErrStatusResourceTypeUnsupported, existing.ResourceType)
 	}
 
-	deleted, reassigned, err := s.repo.DeleteAndReassign(ctx, params.TeamID, params.ID, reassignTo)
+	_, reassigned, err := s.repo.DeleteAndReassign(ctx, params.TeamID, params.ID, reassignTo,
+		s.auditBuilder(params.UserID, statusAuditActionDeleted, reassignTo))
 	if err != nil {
-		return nil, err
-	}
-
-	if err := s.recordAudit(ctx, params.UserID, deleted, "", map[string]interface{}{
-		"action":           statusAuditActionDeleted,
-		"reassigned_count": reassigned,
-		"reassigned_to":    reassignTo,
-	}); err != nil {
 		return nil, err
 	}
 	return &StatusDeletion{ReassignedCount: reassigned, ReassignedTo: reassignTo}, nil
@@ -294,44 +275,62 @@ func (s *StatusManagementService) authorizeWrite(ctx context.Context, userID, te
 	return err
 }
 
-// recordAudit appends the custom_statuses entry for a write that has already
-// been stored. Every entry names the status by resource type, slug and name;
-// extra adds the action and what is specific to it.
-func (s *StatusManagementService) recordAudit(
-	ctx context.Context, userID string, row *models.TeamStatus, createdID string,
-	extra map[string]interface{},
-) error {
-	detail := map[string]interface{}{
-		"resource_type": row.ResourceType,
-		"slug":          row.Slug,
-		"name":          row.Name,
-	}
-	for key, value := range extra {
-		detail[key] = value
-	}
+// auditBuilder returns the builder the repository calls inside the write's
+// transaction to get the custom_statuses entry to store with it. Every entry
+// names the status by resource type, slug and name, plus the action and what is
+// specific to it: the created row's id, the name a rename replaced, or how many
+// resources a delete moved and where to (reassignTo, used by a delete only).
+//
+// The builder does no I/O -- TeamSettingsAuditServiceInterface.Build is pure --
+// which is what makes it safe to run while the transaction is open.
+func (s *StatusManagementService) auditBuilder(
+	userID, action, reassignTo string,
+) repositories.TeamStatusAuditBuilder {
+	return func(change repositories.TeamStatusChange) (*models.TeamSettingsAudit, error) {
+		row := change.Status
+		detail := map[string]interface{}{
+			"action":        action,
+			"resource_type": row.ResourceType,
+			"slug":          row.Slug,
+			"name":          row.Name,
+		}
+		createdID := ""
+		switch action {
+		case statusAuditActionCreated:
+			createdID = row.ID
+		case statusAuditActionRenamed:
+			detail["previous_name"] = change.PreviousName
+		case statusAuditActionDeleted:
+			detail["reassigned_count"] = change.ReassignedCount
+			detail["reassigned_to"] = reassignTo
+		}
 
-	if _, err := s.audit.Record(ctx, TeamSettingsAuditRecord{
-		TeamID:            row.TeamID,
-		ActorUserID:       userID,
-		Surface:           models.SettingsAuditSurfaceCustomStatuses,
-		CreatedResourceID: createdID,
-		Detail:            detail,
-	}); err != nil {
-		s.logger.Error("Custom status change was stored but its audit entry was not",
-			"team_id", row.TeamID, "status_id", row.ID, "action", extra["action"], "error", err)
-		return fmt.Errorf("failed to audit custom status change: %w", err)
+		return s.audit.Build(TeamSettingsAuditRecord{
+			TeamID:            row.TeamID,
+			ActorUserID:       userID,
+			Surface:           models.SettingsAuditSurfaceCustomStatuses,
+			CreatedResourceID: createdID,
+			Detail:            detail,
+		})
 	}
-	return nil
 }
 
-// managed renders a stored row as the API's view of it, with its usage count.
-func (s *StatusManagementService) managed(
-	ctx context.Context, row *models.TeamStatus,
-) (*ManagedStatus, error) {
+// usageCountOrZero reads how many resources carry a status that has just been
+// renamed. The rename and its audit entry are already committed, so a failed
+// read is logged and answered with 0 instead of turning a stored write into an
+// error: the count is advisory on this response, and List reports it exactly.
+func (s *StatusManagementService) usageCountOrZero(ctx context.Context, row *models.TeamStatus) int {
 	counts, err := s.repo.UsageCounts(ctx, row.TeamID, row.ResourceType)
 	if err != nil {
-		return nil, fmt.Errorf("failed to count status usage: %w", err)
+		s.logger.Error("Custom status was renamed but its usage count could not be read",
+			"team_id", row.TeamID, "status_id", row.ID, "resource_type", row.ResourceType, "error", err)
+		return 0
 	}
+	return counts[row.Slug]
+}
+
+// managedStatus renders a stored row as the API's view of it.
+func managedStatus(row *models.TeamStatus, usageCount int) *ManagedStatus {
 	createdAt, updatedAt := row.CreatedAt, row.UpdatedAt
 	return &ManagedStatus{
 		CatalogStatus: CatalogStatus{
@@ -343,8 +342,8 @@ func (s *StatusManagementService) managed(
 			UpdatedAt: &updatedAt,
 		},
 		ResourceType: row.ResourceType,
-		UsageCount:   counts[row.Slug],
-	}, nil
+		UsageCount:   usageCount,
+	}
 }
 
 // validateStatusSlug applies the slug rules in order: length, shape, then the

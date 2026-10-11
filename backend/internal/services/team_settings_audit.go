@@ -49,8 +49,8 @@ type TeamSettingsAuditRecord struct {
 // TeamSettingsAuditServiceInterface is the team settings audit log (epic #827,
 // decision 8): an unauthorized write path and an authorized read path.
 //
-// Record carries no permission check of its own, and that is deliberate: an
-// entry is written as part of an already-authorized change — a copy, which has
+// Record and Build carry no permission check of their own, and that is
+// deliberate: an entry is written as part of an already-authorized change — a copy, which has
 // checked both the source and the destination team, or a custom-status write,
 // which has checked authz.TeamSettingsUpdate. Re-checking there would only be
 // able to re-derive that answer, while making the audit write fail for an actor
@@ -67,6 +67,18 @@ type TeamSettingsAuditServiceInterface interface {
 	// credential's use into a different set of members, so a change whose audit
 	// did not land must not report success.
 	Record(ctx context.Context, record TeamSettingsAuditRecord) (*models.TeamSettingsAudit, error)
+
+	// Build validates a settings event and renders it as the entry to store,
+	// without storing it. It is Record's first half, for a writer whose
+	// repository inserts the entry in the same transaction as the change it
+	// records (the custom-status writes, #1333), so the two commit or fail
+	// together. It applies exactly Record's validation and returns the same
+	// ErrInvalidSettingsAudit-wrapped errors.
+	//
+	// Build is pure -- validation and JSON encoding, no I/O -- which is what
+	// lets a repository call it while it holds a transaction open. The
+	// returned entry has no ID or CreatedAt: the insert assigns them.
+	Build(record TeamSettingsAuditRecord) (*models.TeamSettingsAudit, error)
 
 	// ListAudit returns one page of the team's settings audit log, newest
 	// first, with the actor and source-team display names resolved.
@@ -120,6 +132,26 @@ func NewTeamSettingsAuditService(
 func (s *TeamSettingsAuditService) Record(
 	ctx context.Context, record TeamSettingsAuditRecord,
 ) (*models.TeamSettingsAudit, error) {
+	entry, err := s.Build(record)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.Append(ctx, entry); err != nil {
+		return nil, fmt.Errorf("failed to record team settings audit entry: %w", err)
+	}
+
+	s.logger.Info("Recorded team settings audit entry",
+		"team_id", entry.TeamID, "source_team_id", record.SourceTeamID,
+		"surface", entry.Surface, "actor_user_id", record.ActorUserID,
+	)
+	return entry, nil
+}
+
+// Build validates one settings event and renders the entry to store.
+func (s *TeamSettingsAuditService) Build(
+	record TeamSettingsAuditRecord,
+) (*models.TeamSettingsAudit, error) {
 	if record.TeamID == "" {
 		return nil, fmt.Errorf("%w: team is required", ErrInvalidSettingsAudit)
 	}
@@ -147,7 +179,7 @@ func (s *TeamSettingsAuditService) Record(
 		return nil, fmt.Errorf("%w: %w", ErrInvalidSettingsAudit, err)
 	}
 
-	entry := &models.TeamSettingsAudit{
+	return &models.TeamSettingsAudit{
 		TeamID:            record.TeamID,
 		ActorUserID:       optionalID(record.ActorUserID),
 		Surface:           record.Surface,
@@ -155,17 +187,7 @@ func (s *TeamSettingsAuditService) Record(
 		SourceResourceID:  optionalID(record.SourceResourceID),
 		CreatedResourceID: optionalID(record.CreatedResourceID),
 		Detail:            detail,
-	}
-
-	if err := s.repo.Append(ctx, entry); err != nil {
-		return nil, fmt.Errorf("failed to record team settings audit entry: %w", err)
-	}
-
-	s.logger.Info("Recorded team settings audit entry",
-		"team_id", entry.TeamID, "source_team_id", record.SourceTeamID,
-		"surface", entry.Surface, "actor_user_id", record.ActorUserID,
-	)
-	return entry, nil
+	}, nil
 }
 
 // marshalAuditDetail renders the per-surface context as jsonb. A nil or empty

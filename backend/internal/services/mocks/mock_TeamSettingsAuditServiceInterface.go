@@ -24,6 +24,64 @@ func (_m *MockTeamSettingsAuditServiceInterface) EXPECT() *MockTeamSettingsAudit
 	return &MockTeamSettingsAuditServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// Build provides a mock function with given fields: record
+func (_m *MockTeamSettingsAuditServiceInterface) Build(record services.TeamSettingsAuditRecord) (*models.TeamSettingsAudit, error) {
+	ret := _m.Called(record)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Build")
+	}
+
+	var r0 *models.TeamSettingsAudit
+	var r1 error
+	if rf, ok := ret.Get(0).(func(services.TeamSettingsAuditRecord) (*models.TeamSettingsAudit, error)); ok {
+		return rf(record)
+	}
+	if rf, ok := ret.Get(0).(func(services.TeamSettingsAuditRecord) *models.TeamSettingsAudit); ok {
+		r0 = rf(record)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.TeamSettingsAudit)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(services.TeamSettingsAuditRecord) error); ok {
+		r1 = rf(record)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTeamSettingsAuditServiceInterface_Build_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Build'
+type MockTeamSettingsAuditServiceInterface_Build_Call struct {
+	*mock.Call
+}
+
+// Build is a helper method to define mock.On call
+//   - record services.TeamSettingsAuditRecord
+func (_e *MockTeamSettingsAuditServiceInterface_Expecter) Build(record interface{}) *MockTeamSettingsAuditServiceInterface_Build_Call {
+	return &MockTeamSettingsAuditServiceInterface_Build_Call{Call: _e.mock.On("Build", record)}
+}
+
+func (_c *MockTeamSettingsAuditServiceInterface_Build_Call) Run(run func(record services.TeamSettingsAuditRecord)) *MockTeamSettingsAuditServiceInterface_Build_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(services.TeamSettingsAuditRecord))
+	})
+	return _c
+}
+
+func (_c *MockTeamSettingsAuditServiceInterface_Build_Call) Return(_a0 *models.TeamSettingsAudit, _a1 error) *MockTeamSettingsAuditServiceInterface_Build_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTeamSettingsAuditServiceInterface_Build_Call) RunAndReturn(run func(services.TeamSettingsAuditRecord) (*models.TeamSettingsAudit, error)) *MockTeamSettingsAuditServiceInterface_Build_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListAudit provides a mock function with given fields: ctx, userID, teamID, page, limit
 func (_m *MockTeamSettingsAuditServiceInterface) ListAudit(ctx context.Context, userID string, teamID string, page int, limit int) (*models.TeamSettingsAuditPage, error) {
 	ret := _m.Called(ctx, userID, teamID, page, limit)

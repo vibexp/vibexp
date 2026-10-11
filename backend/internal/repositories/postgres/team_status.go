@@ -47,6 +47,18 @@ const (
 	teamStatusCountSQL = `
 		SELECT count(*) FROM team_statuses WHERE team_id = $1 AND resource_type = $2`
 
+	// teamStatusLockNameSQL reads the name a rename is about to replace and
+	// locks the row until the rename commits, so a concurrent rename waits and
+	// then reads the name this one stored. FOR NO KEY UPDATE is the lock the
+	// rename's own UPDATE takes (name is not a key column): unlike FOR UPDATE
+	// it does not conflict with ConfirmSlug's FOR KEY SHARE, so a resource
+	// write confirming its status never waits for a rename.
+	teamStatusLockNameSQL = `
+		SELECT name
+		  FROM team_statuses
+		 WHERE team_id = $1 AND id = $2
+		   FOR NO KEY UPDATE`
+
 	teamStatusUpdateNameSQL = `
 		UPDATE team_statuses
 		   SET name = $3, updated_at = now()
@@ -122,20 +134,93 @@ var teamStatusResourceTables = map[string]teamStatusResourceSQL{
 // reaching it means a row or a caller carries a type this build does not know.
 var errTeamStatusResourceTypeUnknown = errors.New("resource type has no status table")
 
-func (r *TeamStatusRepository) Create(ctx context.Context, status *models.TeamStatus) error {
-	err := r.db.QueryRowContext(ctx, teamStatusInsertSQL,
-		status.TeamID, status.ResourceType, status.Slug, status.Name, status.CreatedBy,
-	).Scan(&status.ID, &status.CreatedAt, &status.UpdatedAt)
-	if err != nil {
-		if uniqueViolation(err) != nil {
-			return repositories.ErrTeamStatusExists
-		}
-		if isFKViolation(err) {
-			return fmt.Errorf("team or creator not found for team status: %w", err)
-		}
-		return fmt.Errorf("failed to create team status: %w", err)
+// errTeamStatusAuditRequired is returned by a write called without an audit
+// builder, or whose builder returned no entry. Every custom-status change is
+// audited in its own transaction, so a write with nothing to record is a
+// programming error: a missing builder is refused before the database is
+// touched, and a missing entry rolls the change back.
+var errTeamStatusAuditRequired = errors.New("team status write requires an audit builder")
+
+// runAuditedTx is the one transaction shape behind the three custom-status
+// writes (#1333): run change, build the audit entry from what it did, insert
+// that entry, commit. Any failure -- including the builder's -- rolls
+// everything back, so a change is never stored without its audit entry and an
+// audit entry never describes a change that did not happen. op names the write
+// in error messages.
+func (r *TeamStatusRepository) runAuditedTx(
+	ctx context.Context, op string, audit repositories.TeamStatusAuditBuilder,
+	change func(tx *sql.Tx) (repositories.TeamStatusChange, error),
+) (repositories.TeamStatusChange, error) {
+	var none repositories.TeamStatusChange
+	if audit == nil {
+		return none, fmt.Errorf("team status %s: %w", op, errTeamStatusAuditRequired)
 	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return none, fmt.Errorf("failed to begin team status %s: %w", op, err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			slog.Error("Failed to roll back team status write", "op", op, "error", rbErr)
+		}
+	}()
+
+	done, err := change(tx)
+	if err != nil {
+		return none, err
+	}
+
+	entry, err := audit(done)
+	if err != nil {
+		return none, fmt.Errorf("failed to build team status %s audit entry: %w", op, err)
+	}
+	if entry == nil {
+		return none, fmt.Errorf("team status %s: builder returned no entry: %w", op, errTeamStatusAuditRequired)
+	}
+	if err = appendTeamSettingsAudit(ctx, tx, entry); err != nil {
+		return none, fmt.Errorf("failed to audit team status %s: %w", op, err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return none, fmt.Errorf("failed to commit team status %s: %w", op, err)
+	}
+	return done, nil
+}
+
+func (r *TeamStatusRepository) Create(
+	ctx context.Context, status *models.TeamStatus, audit repositories.TeamStatusAuditBuilder,
+) error {
+	done, err := r.runAuditedTx(ctx, "create", audit,
+		func(tx *sql.Tx) (repositories.TeamStatusChange, error) {
+			// The insert fills a copy: the caller's model is only populated
+			// once the row and its audit entry are both committed.
+			created := *status
+			err := tx.QueryRowContext(ctx, teamStatusInsertSQL,
+				created.TeamID, created.ResourceType, created.Slug, created.Name, created.CreatedBy,
+			).Scan(&created.ID, &created.CreatedAt, &created.UpdatedAt)
+			if err != nil {
+				return repositories.TeamStatusChange{}, mapTeamStatusInsertError(err)
+			}
+			return repositories.TeamStatusChange{Status: &created}, nil
+		})
+	if err != nil {
+		return err
+	}
+	*status = *done.Status
 	return nil
+}
+
+// mapTeamStatusInsertError names the two constraint failures an insert into
+// team_statuses can hit.
+func mapTeamStatusInsertError(err error) error {
+	if uniqueViolation(err) != nil {
+		return repositories.ErrTeamStatusExists
+	}
+	if isFKViolation(err) {
+		return fmt.Errorf("team or creator not found for team status: %w", err)
+	}
+	return fmt.Errorf("failed to create team status: %w", err)
 }
 
 func (r *TeamStatusRepository) GetByID(
@@ -170,16 +255,30 @@ func (r *TeamStatusRepository) Count(
 }
 
 func (r *TeamStatusRepository) UpdateName(
-	ctx context.Context, teamID, id, name string,
+	ctx context.Context, teamID, id, name string, audit repositories.TeamStatusAuditBuilder,
 ) (*models.TeamStatus, error) {
-	status, err := scanTeamStatus(r.db.QueryRowContext(ctx, teamStatusUpdateNameSQL, teamID, id, name))
+	done, err := r.runAuditedTx(ctx, "rename", audit,
+		func(tx *sql.Tx) (repositories.TeamStatusChange, error) {
+			var previous string
+			if err := tx.QueryRowContext(ctx, teamStatusLockNameSQL, teamID, id).Scan(&previous); err != nil {
+				return repositories.TeamStatusChange{}, mapNoRows(
+					fmt.Errorf("failed to read team status for rename: %w", err),
+					repositories.ErrTeamStatusNotFound,
+				)
+			}
+			renamed, err := scanTeamStatus(tx.QueryRowContext(ctx, teamStatusUpdateNameSQL, teamID, id, name))
+			if err != nil {
+				return repositories.TeamStatusChange{}, mapNoRows(
+					fmt.Errorf("failed to rename team status: %w", err),
+					repositories.ErrTeamStatusNotFound,
+				)
+			}
+			return repositories.TeamStatusChange{Status: &renamed, PreviousName: previous}, nil
+		})
 	if err != nil {
-		return nil, mapNoRows(
-			fmt.Errorf("failed to rename team status: %w", err),
-			repositories.ErrTeamStatusNotFound,
-		)
+		return nil, err
 	}
-	return &status, nil
+	return done.Status, nil
 }
 
 func (r *TeamStatusRepository) UsageCounts(
@@ -213,27 +312,30 @@ func (r *TeamStatusRepository) UsageCounts(
 }
 
 func (r *TeamStatusRepository) DeleteAndReassign(
-	ctx context.Context, teamID, id, defaultStatus string,
+	ctx context.Context, teamID, id, defaultStatus string, audit repositories.TeamStatusAuditBuilder,
 ) (*models.TeamStatus, int, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
+	done, err := r.runAuditedTx(ctx, "delete", audit,
+		func(tx *sql.Tx) (repositories.TeamStatusChange, error) {
+			return deleteAndReassignTeamStatus(ctx, tx, teamID, id, defaultStatus)
+		})
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to begin team status delete: %w", err)
+		return nil, 0, err
 	}
-	committed := false
-	defer func() {
-		if committed {
-			return
-		}
-		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			slog.Error("Failed to roll back team status delete", "error", rbErr)
-		}
-	}()
+	return done.Status, done.ReassignedCount, nil
+}
+
+// deleteAndReassignTeamStatus removes the status row and moves the resources
+// carrying its slug to defaultStatus, on tx.
+func deleteAndReassignTeamStatus(
+	ctx context.Context, tx *sql.Tx, teamID, id, defaultStatus string,
+) (repositories.TeamStatusChange, error) {
+	var none repositories.TeamStatusChange
 
 	// Deleting first takes the row lock, so two concurrent deletes of one
 	// status cannot both reassign: the second finds no row.
 	deleted, err := scanTeamStatus(tx.QueryRowContext(ctx, teamStatusDeleteReturningSQL, teamID, id))
 	if err != nil {
-		return nil, 0, mapNoRows(
+		return none, mapNoRows(
 			fmt.Errorf("failed to delete team status: %w", err),
 			repositories.ErrTeamStatusNotFound,
 		)
@@ -241,26 +343,21 @@ func (r *TeamStatusRepository) DeleteAndReassign(
 
 	table, ok := teamStatusResourceTables[deleted.ResourceType]
 	if !ok {
-		return nil, 0, fmt.Errorf("%w: %q", errTeamStatusResourceTypeUnknown, deleted.ResourceType)
+		return none, fmt.Errorf("%w: %q", errTeamStatusResourceTypeUnknown, deleted.ResourceType)
 	}
 	if _, err = tx.ExecContext(ctx, teamStatusPreserveUpdatedAtSQL); err != nil {
-		return nil, 0, fmt.Errorf("failed to preserve updated_at for status reassignment: %w", err)
+		return none, fmt.Errorf("failed to preserve updated_at for status reassignment: %w", err)
 	}
 	result, err := tx.ExecContext(ctx, table.reassign, teamID, defaultStatus, deleted.Slug)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to reassign %s resources after status delete: %w",
+		return none, fmt.Errorf("failed to reassign %s resources after status delete: %w",
 			deleted.ResourceType, err)
 	}
 	reassigned, err := result.RowsAffected()
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to read status reassignment result: %w", err)
+		return none, fmt.Errorf("failed to read status reassignment result: %w", err)
 	}
-
-	if err = tx.Commit(); err != nil {
-		return nil, 0, fmt.Errorf("failed to commit team status delete: %w", err)
-	}
-	committed = true
-	return &deleted, int(reassigned), nil
+	return repositories.TeamStatusChange{Status: &deleted, ReassignedCount: int(reassigned)}, nil
 }
 
 func (r *TeamStatusRepository) ConfirmSlug(

@@ -38,6 +38,12 @@ func (r *recordingAuditService) Record(
 	return &models.TeamSettingsAudit{TeamID: record.TeamID, Surface: record.Surface}, nil
 }
 
+// Build satisfies the interface's build-without-storing half. No copy service
+// uses it: a copy records its entry with Record, after the copy.
+func (r *recordingAuditService) Build(TeamSettingsAuditRecord) (*models.TeamSettingsAudit, error) {
+	panic("recordingAuditService: unexpected Build call from a copy service")
+}
+
 // ListAudit satisfies the read half of the interface. Every user of this double
 // is a COPY test exercising the write path, so a call here means a copy service
 // grew a read it should not have — fail loudly rather than return an empty page.

@@ -389,89 +389,115 @@ func TestDeleteStatus_Errors(t *testing.T) {
 // authorization and audit services: a member is refused on all three writes
 // with nothing stored and nothing audited, while an owner and an admin succeed
 // and leave exactly one audit entry each.
+//
+// The entry is stored by the status repository in the transaction of the
+// change (#1333), so the mocked writes do what the real one does with the
+// builder they are handed -- run it -- and the test counts the entries built.
+// The audit repository mock carries no expectation: nothing appends on its own.
 func TestStatusesWrites_RoleMatrixThroughTheRealServices(t *testing.T) {
 	stored := models.TeamStatus{
 		ID: testStatusesRowID, TeamID: testStatusesTeamID, ResourceType: models.StatusResourceTypeArtifact,
 		Slug: "in-review", Name: "In review", CreatedAt: testStatusesNow, UpdatedAt: testStatusesNow,
 	}
+	type auditedWrite func(build repositories.TeamStatusAuditBuilder, change repositories.TeamStatusChange) error
 	writes := []struct {
 		name, method, path, body string
 		want                     int
-		arrange                  func(repo *repomocks.MockTeamStatusRepository)
+		arrange                  func(repo *repomocks.MockTeamStatusRepository, audited auditedWrite)
 	}{
 		{
 			name: "create", method: http.MethodPost, path: testStatusesBase, want: http.StatusCreated,
 			body: `{"resource_type":"artifact","slug":"in-review","name":"In review"}`,
-			arrange: func(repo *repomocks.MockTeamStatusRepository) {
+			arrange: func(repo *repomocks.MockTeamStatusRepository, audited auditedWrite) {
 				repo.EXPECT().Count(mock.Anything, testStatusesTeamID, models.StatusResourceTypeArtifact).Return(0, nil)
-				repo.EXPECT().Create(mock.Anything, mock.Anything).
-					RunAndReturn(func(_ context.Context, row *models.TeamStatus) error {
+				repo.EXPECT().Create(mock.Anything, mock.Anything, mock.Anything).
+					RunAndReturn(func(
+						_ context.Context, row *models.TeamStatus, build repositories.TeamStatusAuditBuilder,
+					) error {
 						row.ID, row.CreatedAt, row.UpdatedAt = stored.ID, stored.CreatedAt, stored.UpdatedAt
-						return nil
+						return audited(build, repositories.TeamStatusChange{Status: row})
 					})
-				repo.EXPECT().UsageCounts(mock.Anything, mock.Anything, mock.Anything).Return(map[string]int{}, nil)
 			},
 		},
 		{
 			name: "rename", method: http.MethodPatch, path: testStatusesByID, want: http.StatusOK,
 			body: `{"name":"Under review"}`,
-			arrange: func(repo *repomocks.MockTeamStatusRepository) {
+			arrange: func(repo *repomocks.MockTeamStatusRepository, audited auditedWrite) {
 				renamed := stored
 				renamed.Name = "Under review"
-				repo.EXPECT().GetByID(mock.Anything, testStatusesTeamID, testStatusesRowID).Return(&stored, nil)
-				repo.EXPECT().UpdateName(mock.Anything, testStatusesTeamID, testStatusesRowID, "Under review").
-					Return(&renamed, nil)
+				repo.EXPECT().
+					UpdateName(mock.Anything, testStatusesTeamID, testStatusesRowID, "Under review", mock.Anything).
+					RunAndReturn(func(
+						_ context.Context, _, _, _ string, build repositories.TeamStatusAuditBuilder,
+					) (*models.TeamStatus, error) {
+						change := repositories.TeamStatusChange{Status: &renamed, PreviousName: stored.Name}
+						return &renamed, audited(build, change)
+					})
 				repo.EXPECT().UsageCounts(mock.Anything, mock.Anything, mock.Anything).Return(map[string]int{}, nil)
 			},
 		},
 		{
 			name: "delete", method: http.MethodDelete, path: testStatusesByID, want: http.StatusOK,
-			arrange: func(repo *repomocks.MockTeamStatusRepository) {
+			arrange: func(repo *repomocks.MockTeamStatusRepository, audited auditedWrite) {
 				repo.EXPECT().GetByID(mock.Anything, testStatusesTeamID, testStatusesRowID).Return(&stored, nil)
-				repo.EXPECT().DeleteAndReassign(mock.Anything, testStatusesTeamID, testStatusesRowID, "active").
-					Return(&stored, 4, nil)
+				repo.EXPECT().
+					DeleteAndReassign(mock.Anything, testStatusesTeamID, testStatusesRowID, "active", mock.Anything).
+					RunAndReturn(func(
+						_ context.Context, _, _, _ string, build repositories.TeamStatusAuditBuilder,
+					) (*models.TeamStatus, int, error) {
+						change := repositories.TeamStatusChange{Status: &stored, ReassignedCount: 4}
+						return &stored, 4, audited(build, change)
+					})
 			},
 		},
 	}
 
-	build := func(t *testing.T, role models.TeamMemberRole) (*Server, *repomocks.MockTeamStatusRepository, *int) {
+	build := func(t *testing.T, role models.TeamMemberRole) (*Server, *repomocks.MockTeamStatusRepository) {
 		t.Helper()
 		logger := slog.New(slog.DiscardHandler)
 		repo := repomocks.NewMockTeamStatusRepository(t)
 		members := repomocks.NewMockTeamMemberRepository(t)
 		members.EXPECT().GetByTeamAndUser(mock.Anything, testStatusesTeamID, testStatusesUserID).
 			Return(&models.TeamMember{Role: role}, nil)
-		audits := repomocks.NewMockTeamSettingsAuditRepository(t)
-		appended := 0
-		audits.EXPECT().Append(mock.Anything, mock.MatchedBy(func(entry *models.TeamSettingsAudit) bool {
-			return entry.Surface == models.SettingsAuditSurfaceCustomStatuses && entry.TeamID == testStatusesTeamID
-		})).Run(func(context.Context, *models.TeamSettingsAudit) { appended++ }).Return(nil).Maybe()
 
 		authorizer := services.NewAuthorizationService(members, logger)
-		audit := services.NewTeamSettingsAuditService(audits, authorizer,
+		audit := services.NewTeamSettingsAuditService(repomocks.NewMockTeamSettingsAuditRepository(t), authorizer,
 			repomocks.NewMockUserRepository(t), repomocks.NewMockTeamRepository(t), logger)
 		svc := services.NewStatusManagementService(
 			repo, services.NewStatusCatalogService(repo), authorizer, audit, logger)
-		return newStatusesTestServer(svc), repo, &appended
+		return newStatusesTestServer(svc), repo
 	}
 
 	for _, write := range writes {
 		t.Run("a member cannot "+write.name, func(t *testing.T) {
 			// The status repository carries no expectation: nothing is read or
-			// written for a caller who may not change team settings.
-			srv, _, appended := build(t, models.TeamMemberRoleMember)
+			// written -- and so nothing audited -- for a caller who may not
+			// change team settings.
+			srv, _ := build(t, models.TeamMemberRoleMember)
 			w := serveStatuses(t, srv, write.method, write.path, write.body)
 			assert.Equal(t, statusesMsgForbidden, requireStatusesProblem(t, w, http.StatusForbidden, "FORBIDDEN"))
-			assert.Zero(t, *appended, "a refused write appends no audit entry")
 		})
 
 		for _, role := range []models.TeamMemberRole{models.TeamMemberRoleOwner, models.TeamMemberRoleAdmin} {
 			t.Run("an "+string(role)+" can "+write.name, func(t *testing.T) {
-				srv, repo, appended := build(t, role)
-				write.arrange(repo)
+				srv, repo := build(t, role)
+				var entries []*models.TeamSettingsAudit
+				write.arrange(repo, func(
+					buildEntry repositories.TeamStatusAuditBuilder, change repositories.TeamStatusChange,
+				) error {
+					entry, err := buildEntry(change)
+					if err != nil {
+						return err
+					}
+					entries = append(entries, entry)
+					return nil
+				})
+
 				w := serveStatuses(t, srv, write.method, write.path, write.body)
 				require.Equal(t, write.want, w.Code, w.Body.String())
-				assert.Equal(t, 1, *appended, "each successful write appends exactly one audit entry")
+				require.Len(t, entries, 1, "each successful write stores exactly one audit entry")
+				assert.Equal(t, models.SettingsAuditSurfaceCustomStatuses, entries[0].Surface)
+				assert.Equal(t, testStatusesTeamID, entries[0].TeamID)
 			})
 		}
 	}
