@@ -109,13 +109,17 @@ func getHTMLBody() string {
 //
 // siteName is the instance's display name (the company name from site info, or
 // the product name) and imageURL the logo link previews show. Both can be
-// admin-entered text, and the prompt name and description are user-entered, so
-// all four are HTML-escaped here before they reach an attribute or text node.
+// admin-entered text, the prompt name and description are user-entered, and
+// shareURL is built from the request's Host header, so all five are
+// HTML-escaped here before they reach an attribute, a text node or the inline
+// redirect script. Escaping turns a quote into an entity, which a script does
+// not decode, so a hostile host cannot close the redirect's string literal.
 func generateSharedPromptHTML(name, description, shareURL, imageURL, siteName string) string {
 	safeName := html.EscapeString(name)
 	safeDescription := html.EscapeString(description)
 	safeSiteName := html.EscapeString(siteName)
 	safeImageURL := html.EscapeString(imageURL)
+	safeShareURL := html.EscapeString(shareURL)
 
 	fullDescription := safeDescription
 	if fullDescription == "" {
@@ -130,13 +134,13 @@ func generateSharedPromptHTML(name, description, shareURL, imageURL, siteName st
 		fullDescription, // meta description
 		safeName,        // og:title
 		fullDescription, // og:description
-		shareURL,        // og:url
+		safeShareURL,    // og:url
 		safeSiteName,    // og:site_name
 		safeImageURL,    // og:image
 		safeName,        // twitter:title
 		fullDescription, // twitter:description
 		safeImageURL,    // twitter:image
-		shareURL,        // JavaScript redirect
+		safeShareURL,    // JavaScript redirect
 	)
 
 	body := fmt.Sprintf(
@@ -145,7 +149,7 @@ func generateSharedPromptHTML(name, description, shareURL, imageURL, siteName st
 		safeSiteName,    // noscript logo alt
 		safeName,        // noscript h1
 		fullDescription, // noscript description
-		shareURL,        // noscript link
+		safeShareURL,    // noscript link
 	)
 
 	return head + getHTMLStyles() + body

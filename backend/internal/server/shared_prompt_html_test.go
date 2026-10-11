@@ -143,3 +143,21 @@ func TestGenerateSharedPromptHTML_EscapesSiteInfo(t *testing.T) {
 	assert.Contains(t, got, "Acme &#34;Inc&#34; &lt;script&gt;alert(1)&lt;/script&gt;")
 	assert.Contains(t, got, "logo.png?v=&#34;1&#34;&gt;&lt;script&gt;alert(2)&lt;/script&gt;")
 }
+
+// The share URL is built from the request's Host header, which may carry
+// quotes and parentheses. It must not be able to close the redirect script's
+// string literal or an attribute.
+func TestGenerateSharedPromptHTML_EscapesShareURL(t *testing.T) {
+	const hostile = `https://a';alert(1);'"><script>alert(2)</script>/shared/prompts/tok`
+
+	got := generateSharedPromptHTML("Prompt", "Description", hostile, "https://vibexp.io/logo.png", "VibeXP")
+
+	assert.NotContains(t, got, "';alert(1);'")
+	assert.NotContains(t, got, "<script>alert(2)</script>")
+	assert.NotContains(t, got, `'">`)
+	// Escaped in all three slots: og:url, the redirect script and the link.
+	const escaped = "https://a&#39;;alert(1);&#39;&#34;&gt;&lt;script&gt;alert(2)&lt;/script&gt;/shared/prompts/tok"
+	assert.Contains(t, got, `property="og:url" content="`+escaped+`"`)
+	assert.Contains(t, got, "window.location.href = '"+escaped+"'")
+	assert.Contains(t, got, `<a href="`+escaped+`" class="redirect-link">`)
+}
