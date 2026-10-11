@@ -65,6 +65,13 @@ vi.mock('@/utils/storage', () => ({
 // Imports after mocks
 // ---------------------------------------------------------------------------
 
+import {
+  deriveSiteInfo,
+  EMPTY_SITE_INFO,
+  type SiteInfo,
+} from '@/features/site-info/siteInfo'
+import { SiteInfoContext } from '@/features/site-info/SiteInfoContext'
+
 import { AcceptInvitation } from './AcceptInvitation'
 
 // ---------------------------------------------------------------------------
@@ -461,5 +468,92 @@ describe('AcceptInvitation', () => {
     await user.click(goButton)
 
     expect(mockNavigate).toHaveBeenCalledWith('/')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Company branding from site info (#1361)
+// ---------------------------------------------------------------------------
+
+function renderBranded(info: Partial<SiteInfo>) {
+  return render(
+    <SiteInfoContext.Provider
+      value={deriveSiteInfo({ ...EMPTY_SITE_INFO, ...info })}
+    >
+      <MemoryRouter>
+        <AcceptInvitation />
+      </MemoryRouter>
+    </SiteInfoContext.Provider>
+  )
+}
+
+describe('AcceptInvitation — site info branding', () => {
+  let consoleErrorSpy: MockInstance
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockIsAuthenticated = true
+    mockAuthLoading = false
+    mockTokenParam = 'token-abc'
+    mockCheckPendingInvitation.mockReturnValue(null)
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('shows no lockup and no credit, and names VibeXP, when nothing is configured', async () => {
+    mockGetInvitationByToken.mockResolvedValueOnce({
+      invitation: buildInvitation(),
+    })
+
+    renderPage()
+
+    expect(
+      await screen.findByText("You've been invited to join a team on VibeXP.")
+    ).toBeInTheDocument()
+    expect(screen.queryByTestId('public-page-brand')).not.toBeInTheDocument()
+    expect(screen.queryByText(/powered by/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the company lockup, names the company and credits VibeXP when branded', async () => {
+    mockGetInvitationByToken.mockResolvedValueOnce({
+      invitation: buildInvitation(),
+    })
+
+    renderBranded({
+      company_name: 'Acme Inc.',
+      logo_url: 'https://cdn.acme.test/logo.svg',
+    })
+
+    expect(
+      await screen.findByText(
+        "You've been invited to join a team on Acme Inc.."
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Acme Inc.' })).toHaveAttribute(
+      'src',
+      'https://cdn.acme.test/logo.svg'
+    )
+    expect(
+      screen.getByRole('link', { name: /powered by vibexp/i })
+    ).toHaveAttribute('href', 'https://vibexp.io')
+  })
+
+  it('keeps the branding on the error state', async () => {
+    mockGetInvitationByToken.mockRejectedValueOnce(
+      buildApiError(410, { title: 'Invitation Expired' })
+    )
+
+    renderBranded({ company_name: 'Acme Inc.' })
+
+    expect(await screen.findByText(/invitation expired/i)).toBeInTheDocument()
+    expect(screen.getByTestId('public-page-brand')).toHaveTextContent(
+      'Acme Inc.'
+    )
+    expect(
+      screen.getByRole('link', { name: /powered by vibexp/i })
+    ).toBeInTheDocument()
   })
 })

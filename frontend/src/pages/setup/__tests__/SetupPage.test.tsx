@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 
@@ -183,8 +183,51 @@ describe('SetupPage', () => {
       </SiteInfoContext.Provider>
     )
     await screen.findByTestId('setup-inactive')
-    expect(screen.getByRole('banner')).toHaveTextContent('Acme Inc.')
-    expect(screen.getByRole('banner')).not.toHaveTextContent('VibeXP')
+    const banner = screen.getByRole('banner')
+    expect(banner).toHaveTextContent('Acme Inc.')
+    // No logo configured: the VibeXP mark stands in beside the company name,
+    // and VibeXP is credited in the header (#1361).
+    expect(banner.querySelector('img')).toBeNull()
+    expect(
+      within(banner).getByRole('link', { name: /powered by vibexp/i })
+    ).toHaveAttribute('href', 'https://vibexp.io')
+  })
+
+  it('shows the company logo in the header, alone when there is no name', async () => {
+    setup.createSession.mockRejectedValue(problem(404, 'RESOURCE_NOT_FOUND'))
+    render(
+      <SiteInfoContext.Provider
+        value={deriveSiteInfo({
+          ...EMPTY_SITE_INFO,
+          logo_url: 'https://cdn.acme.test/logo.svg',
+        })}
+      >
+        <MemoryRouter initialEntries={['/setup?token=tok-123']}>
+          <SetupPage />
+        </MemoryRouter>
+      </SiteInfoContext.Provider>
+    )
+    await screen.findByTestId('setup-inactive')
+    const banner = screen.getByRole('banner')
+    expect(banner.querySelector('img')).toHaveAttribute(
+      'src',
+      'https://cdn.acme.test/logo.svg'
+    )
+    // The page's own name is not printed: "VibeXP" appears only in the
+    // credit, never beside another company's logo.
+    expect(banner.querySelector('span.font-bold')).toBeNull()
+    expect(banner.textContent.startsWith('Setup')).toBe(true)
+  })
+
+  it('shows no logo and no credit in the header when nothing is configured', async () => {
+    setup.createSession.mockRejectedValue(problem(404, 'RESOURCE_NOT_FOUND'))
+    renderAt('/setup?token=tok-123')
+    await screen.findByTestId('setup-inactive')
+    const banner = screen.getByRole('banner')
+    expect(banner).toHaveTextContent(/^VibeXPSetup$/)
+    expect(banner.querySelector('img')).toBeNull()
+    expect(banner.querySelector('svg')).toBeNull()
+    expect(within(banner).queryByRole('link')).toBeNull()
   })
 
   it('renders a terminal state when the instance is not in setup mode (404)', async () => {

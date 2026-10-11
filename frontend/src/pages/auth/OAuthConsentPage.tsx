@@ -12,6 +12,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { PublicCardPage } from '@/features/site-info/PublicPageBrand'
+import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { oauthService } from '@/services/oauthService'
 import { ApiError } from '@/types/errors'
 import type { OAuthConsentAction, OAuthConsentDetails } from '@/types/oauth'
@@ -47,6 +49,7 @@ export function OAuthConsentPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
+  const { displayName } = useSiteInfo()
 
   useEffect(() => {
     let cancelled = false
@@ -117,20 +120,20 @@ export function OAuthConsentPage() {
 
   if (loading) {
     return (
-      <div className="bg-background flex min-h-screen items-center justify-center p-4">
+      <PublicCardPage>
         <div className="flex flex-col items-center gap-3 text-center">
           <Loader2 className="text-primary size-10 animate-spin" />
           <p className="text-muted-foreground text-sm">
             Loading authorization request…
           </p>
         </div>
-      </div>
+      </PublicCardPage>
     )
   }
 
   if (error) {
     return (
-      <div className="bg-background flex min-h-screen items-center justify-center p-4">
+      <PublicCardPage>
         <Card className="w-full max-w-md">
           <CardContent className="p-6">
             <Alert variant="destructive">
@@ -140,7 +143,7 @@ export function OAuthConsentPage() {
             </Alert>
           </CardContent>
         </Card>
-      </div>
+      </PublicCardPage>
     )
   }
 
@@ -149,7 +152,7 @@ export function OAuthConsentPage() {
   }
 
   return (
-    <div className="bg-background flex min-h-screen items-center justify-center p-4">
+    <PublicCardPage>
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
           <div className="bg-primary text-primary-foreground mx-auto mb-2 flex size-12 items-center justify-center rounded-full">
@@ -158,7 +161,7 @@ export function OAuthConsentPage() {
           <CardTitle>Authorize access</CardTitle>
           <CardDescription>
             <span className="font-medium">{details.client_name}</span> is
-            requesting access to your VibeXP account.
+            requesting access to your {displayName} account.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -215,12 +218,12 @@ export function OAuthConsentPage() {
           </div>
 
           <p className="text-muted-foreground text-center text-xs">
-            Approving lets this application access your VibeXP account on your
-            behalf. You can revoke access at any time.
+            Approving lets this application access your {displayName} account on
+            your behalf. You can revoke access at any time.
           </p>
         </CardContent>
       </Card>
-    </div>
+    </PublicCardPage>
   )
 }
 

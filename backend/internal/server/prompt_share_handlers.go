@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -165,6 +166,27 @@ func (s *Server) handleSharedPromptError(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// sharedPromptBranding returns the site name and preview image a shared
+// prompt's server-rendered page shows (#1361): the company name and logo from
+// site info when configured, the product name and the bundled logo otherwise.
+// publicSiteInfo fails open, so a link preview never depends on the branding
+// read.
+func (s *Server) sharedPromptBranding(ctx context.Context) (siteName, imageURL string) {
+	siteInfo := s.publicSiteInfo(ctx)
+
+	siteName = models.ProductName
+	if siteInfo.CompanyName != nil {
+		siteName = *siteInfo.CompanyName
+	}
+
+	// The bundled logo is a static asset served from the frontend base URL.
+	imageURL = fmt.Sprintf("%s/logo_rounded.png", s.config.Frontend.BaseURL)
+	if siteInfo.LogoUrl != nil {
+		imageURL = *siteInfo.LogoUrl
+	}
+	return siteName, imageURL
+}
+
 // handleGetSharedPrompt retrieves a shared prompt by token (public endpoint)
 func (s *Server) handleGetSharedPrompt(w http.ResponseWriter, r *http.Request) {
 	// Decode the path parameter: chi routes on the encoded RawPath, so a token
@@ -207,8 +229,7 @@ func (s *Server) handleGetSharedPrompt(w http.ResponseWriter, r *http.Request) {
 		host := r.Host
 		shareURL := fmt.Sprintf("%s://%s/shared/prompts/%s", scheme, host, shareToken)
 
-		// Use frontend base URL for static assets like logo
-		imageURL := fmt.Sprintf("%s/logo_rounded.png", s.config.Frontend.BaseURL)
+		siteName, imageURL := s.sharedPromptBranding(r.Context())
 
 		description := sharedPrompt.Prompt.Description
 		if description == "" {
@@ -220,6 +241,7 @@ func (s *Server) handleGetSharedPrompt(w http.ResponseWriter, r *http.Request) {
 			description,
 			shareURL,
 			imageURL,
+			siteName,
 		)
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

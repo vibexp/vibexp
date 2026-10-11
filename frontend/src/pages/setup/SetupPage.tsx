@@ -11,6 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { BrandLogo } from '@/features/site-info/BrandLogo'
+import { PoweredBy } from '@/features/site-info/PoweredBy'
 import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 import { AllowlistSection } from '@/pages/admin/settings/auth/AllowlistSection'
 import { ProvidersSection } from '@/pages/admin/settings/auth/ProvidersSection'
@@ -76,14 +78,21 @@ function startFailure(err: unknown, resume: boolean): SetupState {
 }
 
 function SetupFrame({ children }: Readonly<{ children: React.ReactNode }>) {
-  const { displayName } = useSiteInfo()
+  const { displayName, hasCompanyBranding, company_name } = useSiteInfo()
+  // A company logo configured without a name stands alone: "VibeXP" is never
+  // printed beside another company's logo.
+  const showName = !hasCompanyBranding || company_name !== null
   return (
     <div className="bg-background text-foreground min-h-screen">
-      <header className="border-b px-4 py-3 md:px-6">
-        <span className="text-base font-bold tracking-tight">
-          {displayName}
-        </span>
-        <span className="text-muted-foreground ml-2 text-sm">Setup</span>
+      <header className="flex items-center gap-2 border-b px-4 py-3 md:px-6">
+        {hasCompanyBranding && <BrandLogo size={24} />}
+        {showName && (
+          <span className="text-base font-bold tracking-tight">
+            {displayName}
+          </span>
+        )}
+        <span className="text-muted-foreground text-sm">Setup</span>
+        {hasCompanyBranding && <PoweredBy className="ml-auto" />}
       </header>
       <main className="mx-auto w-full max-w-screen-lg space-y-6 px-4 py-6 md:px-6">
         {children}

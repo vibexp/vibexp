@@ -23,7 +23,7 @@ func TestGenerateSharedPromptHTML_EmbedsMetadata(t *testing.T) {
 		imageURL    = "https://vibexp.io/assets/og-image.png"
 	)
 
-	got := generateSharedPromptHTML(name, description, shareURL, imageURL)
+	got := generateSharedPromptHTML(name, description, shareURL, imageURL, "VibeXP")
 
 	require.NotEmpty(t, got)
 	// Structural skeleton from the three template helpers.
@@ -32,7 +32,9 @@ func TestGenerateSharedPromptHTML_EmbedsMetadata(t *testing.T) {
 	assert.Contains(t, got, "<style>", "styles must be spliced between head and body")
 
 	// <title> and description carry the prompt name.
-	assert.Contains(t, got, "<title>"+name+" | Shared Prompt | VibeXP.io</title>")
+	assert.Contains(t, got, "<title>"+name+" | Shared Prompt | VibeXP</title>")
+	assert.Contains(t, got, `property="og:site_name" content="VibeXP"`)
+	assert.Contains(t, got, `<img src="`+imageURL+`" alt="VibeXP" class="logo">`)
 	assert.Contains(t, got, `content="`+description+`"`)
 
 	// OpenGraph markers a crawler reads.
@@ -56,6 +58,7 @@ func TestGenerateSharedPromptHTML_EscapesUserContent(t *testing.T) {
 		`"quoted" & <b>bold</b>`,
 		"https://vibexp.io/shared/prompts/tok-xss",
 		"https://vibexp.io/assets/og-image.png",
+		"VibeXP",
 	)
 
 	// The raw injection must never survive into the rendered page.
@@ -71,6 +74,7 @@ func TestGenerateSharedPromptHTML_EmptyDescriptionFallsBack(t *testing.T) {
 		"",
 		"https://vibexp.io/shared/prompts/tok-empty",
 		"https://vibexp.io/assets/og-image.png",
+		"VibeXP",
 	)
 
 	// Empty description collapses to the "Shared prompt" default in every slot.
@@ -100,4 +104,60 @@ func TestIsCrawlerUserAgent(t *testing.T) {
 			assert.Equal(t, tt.want, isCrawlerUserAgent(tt.userAgent))
 		})
 	}
+}
+
+// With company branding configured, the preview is the company's: its name in
+// the title, og:site_name and the no-script logo's alt text, its logo as the
+// preview image.
+func TestGenerateSharedPromptHTML_UsesCompanyBranding(t *testing.T) {
+	got := generateSharedPromptHTML(
+		"Release Notes Writer",
+		"Drafts release notes",
+		"https://app.acme.test/shared/prompts/tok-123",
+		"https://cdn.acme.test/logo.png",
+		"Acme Inc.",
+	)
+
+	assert.Contains(t, got, "<title>Release Notes Writer | Shared Prompt | Acme Inc.</title>")
+	assert.Contains(t, got, `property="og:site_name" content="Acme Inc."`)
+	assert.Contains(t, got, `property="og:image" content="https://cdn.acme.test/logo.png"`)
+	assert.Contains(t, got, `name="twitter:image" content="https://cdn.acme.test/logo.png"`)
+	assert.Contains(t, got, `<img src="https://cdn.acme.test/logo.png" alt="Acme Inc." class="logo">`)
+	assert.NotContains(t, got, "VibeXP")
+}
+
+// The company name and logo URL are admin-entered: neither may break out of
+// the attribute or text node it lands in.
+func TestGenerateSharedPromptHTML_EscapesSiteInfo(t *testing.T) {
+	got := generateSharedPromptHTML(
+		"Prompt",
+		"Description",
+		"https://app.acme.test/shared/prompts/tok-123",
+		`https://cdn.acme.test/logo.png?v="1"><script>alert(2)</script>`,
+		`Acme "Inc" <script>alert(1)</script>`,
+	)
+
+	assert.NotContains(t, got, "<script>alert(1)</script>")
+	assert.NotContains(t, got, "<script>alert(2)</script>")
+	assert.NotContains(t, got, `v="1">`)
+	assert.Contains(t, got, "Acme &#34;Inc&#34; &lt;script&gt;alert(1)&lt;/script&gt;")
+	assert.Contains(t, got, "logo.png?v=&#34;1&#34;&gt;&lt;script&gt;alert(2)&lt;/script&gt;")
+}
+
+// The share URL is built from the request's Host header, which may carry
+// quotes and parentheses. It must not be able to close the redirect script's
+// string literal or an attribute.
+func TestGenerateSharedPromptHTML_EscapesShareURL(t *testing.T) {
+	const hostile = `https://a';alert(1);'"><script>alert(2)</script>/shared/prompts/tok`
+
+	got := generateSharedPromptHTML("Prompt", "Description", hostile, "https://vibexp.io/logo.png", "VibeXP")
+
+	assert.NotContains(t, got, "';alert(1);'")
+	assert.NotContains(t, got, "<script>alert(2)</script>")
+	assert.NotContains(t, got, `'">`)
+	// Escaped in all three slots: og:url, the redirect script and the link.
+	const escaped = "https://a&#39;;alert(1);&#39;&#34;&gt;&lt;script&gt;alert(2)&lt;/script&gt;/shared/prompts/tok"
+	assert.Contains(t, got, `property="og:url" content="`+escaped+`"`)
+	assert.Contains(t, got, "window.location.href = '"+escaped+"'")
+	assert.Contains(t, got, `<a href="`+escaped+`" class="redirect-link">`)
 }

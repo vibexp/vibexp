@@ -21,7 +21,7 @@ func getHTMLHead() string {
     <meta property="og:title" content="%s">
     <meta property="og:description" content="%s">
     <meta property="og:url" content="%s">
-    <meta property="og:site_name" content="VibeXP.io">
+    <meta property="og:site_name" content="%s">
     <meta property="og:image" content="%s">
 
     <!-- Twitter Card Meta Tags -->
@@ -93,7 +93,7 @@ func getHTMLBody() string {
 <body>
     <noscript>
         <div class="header">
-            <img src="%s" alt="VibeXP" class="logo">
+            <img src="%s" alt="%s" class="logo">
             <h1>%s</h1>
             <p class="description">%s</p>
         </div>
@@ -105,17 +105,28 @@ func getHTMLBody() string {
 </html>`
 }
 
-// generateSharedPromptHTML generates the complete HTML for a shared prompt
-func generateSharedPromptHTML(name, description, shareURL, imageURL string) string {
+// generateSharedPromptHTML generates the complete HTML for a shared prompt.
+//
+// siteName is the instance's display name (the company name from site info, or
+// the product name) and imageURL the logo link previews show. Both can be
+// admin-entered text, the prompt name and description are user-entered, and
+// shareURL is built from the request's Host header, so all five are
+// HTML-escaped here before they reach an attribute, a text node or the inline
+// redirect script. Escaping turns a quote into an entity, which a script does
+// not decode, so a hostile host cannot close the redirect's string literal.
+func generateSharedPromptHTML(name, description, shareURL, imageURL, siteName string) string {
 	safeName := html.EscapeString(name)
 	safeDescription := html.EscapeString(description)
+	safeSiteName := html.EscapeString(siteName)
+	safeImageURL := html.EscapeString(imageURL)
+	safeShareURL := html.EscapeString(shareURL)
 
 	fullDescription := safeDescription
 	if fullDescription == "" {
 		fullDescription = "Shared prompt"
 	}
 
-	pageTitle := fmt.Sprintf("%s | Shared Prompt | VibeXP.io", safeName)
+	pageTitle := fmt.Sprintf("%s | Shared Prompt | %s", safeName, safeSiteName)
 
 	head := fmt.Sprintf(
 		getHTMLHead(),
@@ -123,20 +134,22 @@ func generateSharedPromptHTML(name, description, shareURL, imageURL string) stri
 		fullDescription, // meta description
 		safeName,        // og:title
 		fullDescription, // og:description
-		shareURL,        // og:url
-		imageURL,        // og:image
+		safeShareURL,    // og:url
+		safeSiteName,    // og:site_name
+		safeImageURL,    // og:image
 		safeName,        // twitter:title
 		fullDescription, // twitter:description
-		imageURL,        // twitter:image
-		shareURL,        // JavaScript redirect
+		safeImageURL,    // twitter:image
+		safeShareURL,    // JavaScript redirect
 	)
 
 	body := fmt.Sprintf(
 		getHTMLBody(),
-		imageURL,        // noscript logo
+		safeImageURL,    // noscript logo
+		safeSiteName,    // noscript logo alt
 		safeName,        // noscript h1
 		fullDescription, // noscript description
-		shareURL,        // noscript link
+		safeShareURL,    // noscript link
 	)
 
 	return head + getHTMLStyles() + body
