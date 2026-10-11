@@ -273,6 +273,7 @@ it.each([
   // #456 added the Projects nav entry, which rendered the in-shell 404 until
   // #461 added the route it points at.
   ['/admin/projects', 'Projects'],
+  ['/admin/settings/site-info', 'Site info'],
   ['/admin/settings/email', 'Email'],
   ['/admin/settings/search', 'Search'],
   ['/admin/settings/ai-summary', 'AI Summary'],
