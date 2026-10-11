@@ -622,6 +622,21 @@ func ProvideInstanceSearchSettingsService(
 	return services.NewInstanceSearchSettingsService(repo, logger)
 }
 
+// ProvideInstanceSiteInfoService creates the instance site info service
+// (#1353): the fail-open resolver of the instance's company branding and the
+// surface an instance admin edits it through.
+//
+// It returns the CONCRETE type because the service satisfies two interfaces,
+// InstanceSiteInfoResolver (the fail-open read) and
+// InstanceSiteInfoServiceInterface (the admin read + writes). wire.Bind in
+// wire.go maps it to both.
+func ProvideInstanceSiteInfoService(
+	repo repositories.InstanceSiteInfoRepository,
+	logger *slog.Logger,
+) *services.InstanceSiteInfoService {
+	return services.NewInstanceSiteInfoService(repo, logger)
+}
+
 // ProvideTeamSearchSettingsService creates the team search settings service.
 // The instance reader supplies, per request, both the fallback for a team with
 // no stored profile and the instance_defaults reported on every read; the
