@@ -1076,6 +1076,7 @@ func TestTemplateRenderer_DigestEmail_Branding(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, html, "<title>Your VibeXP digest</title>")
 		assert.Contains(t, html, notificationPoweredBy)
+		assert.NotContains(t, html, "Sent by", "no company line when none is configured")
 	})
 
 	t.Run("configured, with the name escaped", func(t *testing.T) {
@@ -1084,6 +1085,7 @@ func TestTemplateRenderer_DigestEmail_Branding(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Contains(t, html, "Your Acme &lt;b&gt;Inc.&lt;/b&gt; digest")
+		assert.Contains(t, html, "Sent by Acme &lt;b&gt;Inc.&lt;/b&gt;.", "the company name is visible in the body")
 		assert.NotContains(t, html, "<b>Inc.</b>")
 		assert.Contains(t, html, notificationPoweredBy)
 	})
