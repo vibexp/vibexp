@@ -19,8 +19,55 @@ e2e/journeys/
 ├── instance-settings.journey.spec.ts        # Admin → Settings → Search defaults reach a team; reset
 ├── admin-auth-settings.journey.spec.ts      # Admin → Settings → Authentication + first-run /setup
 ├── custom-statuses.journey.spec.ts          # Custom status: create, apply, search, filter, delete
+├── resource-locking.journey.spec.ts         # Lock, enforcement and unlock across three users
 └── README.md                                # This file
 ```
+
+## Resource locking (`resource-locking.journey.spec.ts`)
+
+The ship gate for epic #1285, with three users in three browser contexts: the
+team **owner**, member **A** who places the lock, and member **B** who created
+the artifact. A locks the artifact from its detail page with a comment; B is
+offered neither Unlock nor Delete and is refused both by the server, then edits
+the content while status, type, project, labels and metadata are disabled; the
+list marks the row and "Locked only" finds it; deleting the containing project
+answers 423 `HAS_LOCKED_RESOURCES`; the owner unlocks, the Lock history lists
+both events, and Delete works again. A prompt and a blueprint get a shorter
+pass: lock, refused delete, unlock by the locker, delete.
+
+Two of its assertions are the reason this is an e2e at all:
+
+- **One lock, three sets of rights.** Each sub-issue is tested with a mock at
+  its boundary; none can show a lock placed in one session being respected in a
+  second and released from a third. The owner is the journey's "admin": A is
+  the locker and B has to be a plain member, so the owner is the one actor who
+  can prove `resource.unlock.any` — the permission both members are asserted
+  not to hold.
+- **The comment tooltip is anchored on its trigger.** jsdom has no layout
+  engine, so a "Locked by" trigger that lost its box (#891: a `display:
+contents` wrapper, bubble at the viewport origin) is invisible to the unit
+  suite. The expected position is derived from the trigger's own box, never
+  from a constant. Wrapping the trigger in a `display: contents` span turns
+  this test red (the gap went from under 12px to over 1500px when tried).
+
+Every "is not offered" has a positive beside it that fails if the page or the
+rule were simply missing. B created both artifacts and is offered Lock and
+Delete on the unlocked control, so their absence on the locked one — and the
+423 `RESOURCE_WRITE_LOCKED` on B's own `DELETE` — can only be about the lock;
+B's unlock attempt is a 403. The control row is what the list filter has to
+drop. And the project delete that was refused is repeated as the last step,
+when nothing in the project is locked any more, and goes through.
+
+State is confirmed twice where it matters: what the page shows, and what the
+API stores (`lock` on the resource, `GET …/lock/history`).
+
+**What it cannot cover.** The SPA has no page message for
+`HAS_LOCKED_RESOURCES`, and a locked resource has no Delete button, so the
+refused project delete and the refused prompt/blueprint deletes are asserted on
+the API response. The frozen-field matrix per type, a lock that arrives after
+the edit page loaded, the project-migration and type/status-delete guards and
+the MCP lock tool are covered by the unit and integration tests of #1289–#1296.
+Memories cannot be locked.
 
 ## Custom statuses (`custom-statuses.journey.spec.ts`)
 
