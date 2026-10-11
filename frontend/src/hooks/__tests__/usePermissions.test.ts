@@ -197,4 +197,62 @@ describe('usePermissions', () => {
       expect(result.current.canDeleteFeedContent('user-2')).toBe(true)
     })
   })
+
+  describe('canUnlockResource() (#1291)', () => {
+    it('lets the locker unlock without resource.unlock.any', () => {
+      mockUseTeam.mockReturnValue({ currentTeam: makeTeam(MEMBER_PERMISSIONS) })
+
+      const { result } = renderHook(() => usePermissions())
+
+      expect(result.current.canUnlockResource('user-1')).toBe(true)
+    })
+
+    it("stops another member unlocking someone else's lock", () => {
+      mockUseTeam.mockReturnValue({ currentTeam: makeTeam(MEMBER_PERMISSIONS) })
+
+      const { result } = renderHook(() => usePermissions())
+
+      expect(result.current.canUnlockResource('user-2')).toBe(false)
+    })
+
+    it("lets a holder of resource.unlock.any unlock someone else's lock", () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: makeTeam([...MEMBER_PERMISSIONS, 'resource.unlock.any']),
+      })
+
+      const { result } = renderHook(() => usePermissions())
+
+      expect(result.current.canUnlockResource('user-2')).toBe(true)
+      // The locker's account may be gone (the lock outlives it server-side).
+      expect(result.current.canUnlockResource(undefined)).toBe(true)
+    })
+
+    it('does not read it off the delete permissions', () => {
+      // resource.delete.any is a different grant: an admin-like set without
+      // resource.unlock.any may not release someone else's lock.
+      mockUseTeam.mockReturnValue({ currentTeam: makeTeam(ADMIN_PERMISSIONS) })
+
+      const { result } = renderHook(() => usePermissions())
+
+      expect(result.current.canUnlockResource('user-2')).toBe(false)
+    })
+
+    it('permits nothing without a signed-in user or a team', () => {
+      mockUseAuth.mockReturnValue({ user: null })
+      mockUseTeam.mockReturnValue({ currentTeam: makeTeam(MEMBER_PERMISSIONS) })
+      expect(
+        renderHook(() => usePermissions()).result.current.canUnlockResource(
+          undefined
+        )
+      ).toBe(false)
+
+      mockUseAuth.mockReturnValue({ user: { id: 'user-1' } })
+      mockUseTeam.mockReturnValue({ currentTeam: null })
+      expect(
+        renderHook(() => usePermissions()).result.current.canUnlockResource(
+          'user-2'
+        )
+      ).toBe(false)
+    })
+  })
 })

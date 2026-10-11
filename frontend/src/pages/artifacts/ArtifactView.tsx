@@ -16,6 +16,7 @@ import {
   useStatusOptions,
 } from '@/components/patterns/resource'
 import { ResourceReadingPage } from '@/components/resource-detail/ResourceReadingPage'
+import { useResourceLock } from '@/components/resource-lock/useResourceLock'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
@@ -135,6 +136,43 @@ export function ArtifactView() {
     deps: [isLoadingTeam, currentTeam?.id, project, slug],
   })
 
+  // Lock / Unlock, the lock dialog and the lock history (epic #1285).
+  const resourceLock = useResourceLock<Artifact>({
+    kind: 'artifact',
+    resource: artifact,
+    ops:
+      currentTeam && artifact
+        ? {
+            lock: comment =>
+              artifactService.lockArtifact(
+                currentTeam.id,
+                artifact.project_id,
+                artifact.slug,
+                comment
+              ),
+            unlock: () =>
+              artifactService.unlockArtifact(
+                currentTeam.id,
+                artifact.project_id,
+                artifact.slug
+              ),
+            reload: () =>
+              artifactService.getArtifact(
+                currentTeam.id,
+                artifact.project_id,
+                artifact.slug
+              ),
+            loadHistory: () =>
+              artifactService.getArtifactLockHistory(
+                currentTeam.id,
+                artifact.project_id,
+                artifact.slug
+              ),
+          }
+        : null,
+    onChanged: setArtifact,
+  })
+
   const handleDelete = async () => {
     if (!artifact || !currentTeam) return
     try {
@@ -193,7 +231,9 @@ export function ArtifactView() {
       },
     },
   ]
-  if (canDeleteResource(artifact.user_id)) {
+  actions.push(...resourceLock.actions)
+  // A locked artifact cannot be deleted; Delete returns after unlock.
+  if (canDeleteResource(artifact.user_id) && !artifact.lock) {
     actions.push({
       id: 'delete',
       label: 'Delete',
@@ -218,6 +258,7 @@ export function ArtifactView() {
         updatedAt={artifact.updated_at}
         summary={artifact.description}
         actions={actions}
+        extraSections={resourceLock.historySection}
         resource={
           currentTeam
             ? { kind: 'artifact', id: artifact.id, teamId: currentTeam.id }
@@ -230,6 +271,7 @@ export function ArtifactView() {
               resource={artifact}
               versionHistory={versionHistory}
               statusLabel={statusOptions.labelOf}
+              lock={artifact.lock}
               project={artifact.project}
               projectHref={p => buildProjectEditUrl(currentTeam?.id, p.slug)}
             />
@@ -242,6 +284,8 @@ export function ArtifactView() {
       >
         <ResourceBody content={artifact.content ?? ''} />
       </ResourceReadingPage>
+
+      {resourceLock.dialog}
 
       <ConfirmDialog
         open={deleteOpen}

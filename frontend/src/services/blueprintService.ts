@@ -1,6 +1,7 @@
 import type { components, operations } from '@vibexp/api-client'
 
 import { generatedClient, unwrap } from '../lib/apiClientGenerated'
+import type { ResourceLockEvent } from '../types/resourceLock'
 import type {
   ResourceVersion,
   ResourceVersionListResponse,
@@ -185,6 +186,52 @@ class BlueprintService {
         { params: { path: { team_id: teamId, project_id: projectId, slug } } }
       )
     )
+  }
+
+  /** Locks the blueprint; the comment is required (1-500 characters, trimmed). */
+  async lockBlueprint(
+    teamId: string,
+    projectId: string,
+    slug: string,
+    comment: string
+  ): Promise<Blueprint> {
+    return unwrap(
+      generatedClient.POST(
+        '/api/v1/{team_id}/blueprints/{project_id}/{slug}/lock',
+        {
+          params: { path: { team_id: teamId, project_id: projectId, slug } },
+          body: { comment },
+        }
+      )
+    )
+  }
+
+  async unlockBlueprint(
+    teamId: string,
+    projectId: string,
+    slug: string
+  ): Promise<Blueprint> {
+    return unwrap(
+      generatedClient.DELETE(
+        '/api/v1/{team_id}/blueprints/{project_id}/{slug}/lock',
+        { params: { path: { team_id: teamId, project_id: projectId, slug } } }
+      )
+    )
+  }
+
+  /** Lock and unlock events, newest first (the server caps the list at 100). */
+  async getBlueprintLockHistory(
+    teamId: string,
+    projectId: string,
+    slug: string
+  ): Promise<ResourceLockEvent[]> {
+    const history = await unwrap(
+      generatedClient.GET(
+        '/api/v1/{team_id}/blueprints/{project_id}/{slug}/lock/history',
+        { params: { path: { team_id: teamId, project_id: projectId, slug } } }
+      )
+    )
+    return history.events
   }
 
   async getBlueprintStats(teamId: string): Promise<BlueprintStatsResponse> {

@@ -1,6 +1,7 @@
 import type { components, operations } from '@vibexp/api-client'
 
 import { generatedClient, unwrap } from '../lib/apiClientGenerated'
+import type { ResourceLockEvent } from '../types/resourceLock'
 import type {
   ResourceVersion,
   ResourceVersionListResponse,
@@ -176,6 +177,52 @@ class ArtifactService {
         }
       )
     )
+  }
+
+  /** Locks the artifact; the comment is required (1-500 characters, trimmed). */
+  async lockArtifact(
+    teamId: string,
+    projectId: string,
+    slug: string,
+    comment: string
+  ): Promise<Artifact> {
+    return unwrap(
+      generatedClient.POST(
+        '/api/v1/{team_id}/artifacts/{project_id}/{slug}/lock',
+        {
+          params: { path: { team_id: teamId, project_id: projectId, slug } },
+          body: { comment },
+        }
+      )
+    )
+  }
+
+  async unlockArtifact(
+    teamId: string,
+    projectId: string,
+    slug: string
+  ): Promise<Artifact> {
+    return unwrap(
+      generatedClient.DELETE(
+        '/api/v1/{team_id}/artifacts/{project_id}/{slug}/lock',
+        { params: { path: { team_id: teamId, project_id: projectId, slug } } }
+      )
+    )
+  }
+
+  /** Lock and unlock events, newest first (the server caps the list at 100). */
+  async getArtifactLockHistory(
+    teamId: string,
+    projectId: string,
+    slug: string
+  ): Promise<ResourceLockEvent[]> {
+    const history = await unwrap(
+      generatedClient.GET(
+        '/api/v1/{team_id}/artifacts/{project_id}/{slug}/lock/history',
+        { params: { path: { team_id: teamId, project_id: projectId, slug } } }
+      )
+    )
+    return history.events
   }
 
   async getArtifactStats(teamId: string): Promise<ArtifactStatsResponse> {

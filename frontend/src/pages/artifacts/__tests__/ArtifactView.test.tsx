@@ -42,6 +42,9 @@ vi.mock('@/services/artifactService', () => ({
     getArtifact: vi.fn(),
     getArtifactVersions: vi.fn().mockResolvedValue({ versions: [] }),
     deleteArtifact: vi.fn(),
+    lockArtifact: vi.fn(),
+    unlockArtifact: vi.fn(),
+    getArtifactLockHistory: vi.fn().mockResolvedValue([]),
   },
 }))
 
@@ -515,6 +518,188 @@ describe('ArtifactView', () => {
 
       await screen.findByTestId('resource-body')
       expect(screen.queryByText('Labels & metadata')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('resource lock (#1291)', () => {
+    const setTeam = (permissions: string[]) => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team', permissions },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+    }
+    const mockGet = (value: Artifact) => {
+      ;(artifactService.getArtifact as Mock).mockResolvedValue(value)
+    }
+    beforeEach(() => {
+      ;(artifactService.getArtifactLockHistory as Mock).mockResolvedValue([])
+    })
+
+    const lockedBy = (userId: string) => ({
+      locked_by: { user_id: userId, display_name: 'Ada Lovelace' },
+      comment: 'Used by the nightly release agent',
+      locked_at: '2026-10-11T10:15:30Z',
+    })
+
+    it('offers Lock and Delete on an unlocked artifact, with no lock row', async () => {
+      setTeam(['resource.delete.own'])
+      mockGet(mockArtifact)
+
+      renderArtifactView()
+
+      await screen.findByTestId('resource-body')
+      expect(screen.getByTestId('lock-artifact-button')).toBeInTheDocument()
+      expect(screen.getByTestId('delete-artifact-button')).toBeInTheDocument()
+      expect(
+        screen.queryByTestId('unlock-artifact-button')
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText('Locked by')).not.toBeInTheDocument()
+    })
+
+    it('shows who locked it and hides Lock, Unlock and Delete from another member', async () => {
+      // The reader created the artifact and may delete their own, so only the
+      // lock is hiding Delete here.
+      setTeam(['resource.delete.own'])
+      mockGet({ ...mockArtifact, lock: lockedBy('user-2') })
+
+      renderArtifactView()
+
+      expect(await screen.findByTestId('locked-by')).toHaveTextContent(
+        'Ada Lovelace'
+      )
+      expect(screen.getByText('Locked by')).toBeInTheDocument()
+      expect(
+        screen.queryByTestId('lock-artifact-button')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId('unlock-artifact-button')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId('delete-artifact-button')
+      ).not.toBeInTheDocument()
+    })
+
+    it('offers Unlock to the locker, still without Delete', async () => {
+      setTeam(['resource.delete.own'])
+      mockGet({ ...mockArtifact, lock: lockedBy('user-1') })
+
+      renderArtifactView()
+
+      expect(
+        await screen.findByTestId('unlock-artifact-button')
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByTestId('delete-artifact-button')
+      ).not.toBeInTheDocument()
+    })
+
+    it("offers Unlock on someone else's lock to a holder of resource.unlock.any, read from permissions", async () => {
+      setTeam(['resource.unlock.any', 'resource.delete.any'])
+      mockGet({ ...mockArtifact, lock: lockedBy('user-2') })
+
+      renderArtifactView()
+
+      expect(
+        await screen.findByTestId('unlock-artifact-button')
+      ).toBeInTheDocument()
+      // Not even resource.delete.any deletes a locked artifact.
+      expect(
+        screen.queryByTestId('delete-artifact-button')
+      ).not.toBeInTheDocument()
+    })
+
+    it('locks from the dialog and shows the lock without refetching; Delete returns after unlock', async () => {
+      const user = userEvent.setup()
+      setTeam(['resource.delete.own'])
+      mockGet(mockArtifact)
+      ;(artifactService.lockArtifact as Mock).mockResolvedValue({
+        ...mockArtifact,
+        lock: lockedBy('user-1'),
+      })
+      ;(artifactService.unlockArtifact as Mock).mockResolvedValue(mockArtifact)
+
+      renderArtifactView()
+
+      await user.click(await screen.findByTestId('lock-artifact-button'))
+      // The dialog does not submit without a comment.
+      expect(screen.getByTestId('confirm-lock-button')).toBeDisabled()
+      await user.type(
+        screen.getByTestId('lock-comment-input'),
+        'Used by the nightly release agent'
+      )
+      await user.click(screen.getByTestId('confirm-lock-button'))
+
+      expect(await screen.findByTestId('locked-by')).toHaveTextContent(
+        'Ada Lovelace'
+      )
+      expect(artifactService.lockArtifact).toHaveBeenCalledWith(
+        'team-1',
+        'my-project',
+        'my-artifact',
+        'Used by the nightly release agent'
+      )
+      expect(
+        screen.queryByTestId('delete-artifact-button')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId('lock-artifact-button')
+      ).not.toBeInTheDocument()
+      expect(artifactService.getArtifact).toHaveBeenCalledTimes(1)
+
+      await user.click(screen.getByTestId('unlock-artifact-button'))
+
+      expect(
+        await screen.findByTestId('delete-artifact-button')
+      ).toBeInTheDocument()
+      expect(artifactService.unlockArtifact).toHaveBeenCalledWith(
+        'team-1',
+        'my-project',
+        'my-artifact'
+      )
+      expect(screen.queryByText('Locked by')).not.toBeInTheDocument()
+      expect(artifactService.getArtifact).toHaveBeenCalledTimes(1)
+    })
+
+    it('lists the lock history in its own section', async () => {
+      setTeam([])
+      mockGet({ ...mockArtifact, lock: lockedBy('user-2') })
+      ;(artifactService.getArtifactLockHistory as Mock).mockResolvedValue([
+        {
+          id: 'e-2',
+          action: 'lock',
+          actor: { user_id: 'user-2', display_name: 'Ada Lovelace' },
+          comment: 'Used by the nightly release agent',
+          created_at: '2026-10-11T10:15:30Z',
+        },
+        {
+          id: 'e-1',
+          action: 'unlock',
+          actor: null,
+          comment: null,
+          created_at: '2026-10-10T10:15:30Z',
+        },
+      ])
+
+      renderArtifactView()
+
+      const events = await screen.findAllByTestId('lock-history-event')
+      expect(artifactService.getArtifactLockHistory).toHaveBeenCalledWith(
+        'team-1',
+        'my-project',
+        'my-artifact'
+      )
+      expect(events.map(event => event.dataset.action)).toEqual([
+        'lock',
+        'unlock',
+      ])
+      expect(events[0]).toHaveTextContent(/Ada Lovelace\s*locked/)
+      expect(events[1]).toHaveTextContent(/Deleted user\s*unlocked/)
+      expect(
+        within(screen.getByTestId('lock-history')).getByText('Lock history')
+      ).toBeInTheDocument()
     })
   })
 })

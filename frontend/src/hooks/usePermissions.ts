@@ -33,6 +33,11 @@ export interface UsePermissionsResult {
    * there is no `feed.delete.own`.
    */
   canDeleteFeedContent: (createdByUserId: string | undefined) => boolean
+  /**
+   * Whether the user may unlock a resource locked by `lockedByUserId` (epic
+   * #1285): the locker always may, anyone else needs `resource.unlock.any`.
+   */
+  canUnlockResource: (lockedByUserId: string | undefined) => boolean
 }
 
 /**
@@ -92,5 +97,13 @@ export function usePermissions(team?: Team | null): UsePermissionsResult {
     [granted, userId]
   )
 
-  return { can, canDeleteResource, canDeleteFeedContent }
+  const canUnlockResource = useCallback(
+    (lockedByUserId: string | undefined) => {
+      if (granted.has('resource.unlock.any')) return true
+      return !!lockedByUserId && !!userId && lockedByUserId === userId
+    },
+    [granted, userId]
+  )
+
+  return { can, canDeleteResource, canDeleteFeedContent, canUnlockResource }
 }

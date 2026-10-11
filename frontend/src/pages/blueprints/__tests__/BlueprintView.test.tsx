@@ -42,6 +42,9 @@ vi.mock('@/services/blueprintService', () => ({
     getBlueprint: vi.fn(),
     getBlueprintVersions: vi.fn().mockResolvedValue({ versions: [] }),
     deleteBlueprint: vi.fn(),
+    lockBlueprint: vi.fn(),
+    unlockBlueprint: vi.fn(),
+    getBlueprintLockHistory: vi.fn().mockResolvedValue([]),
   },
 }))
 
@@ -575,6 +578,190 @@ describe('BlueprintView', () => {
       await screen.findByTestId('resource-body')
       expect(screen.queryByText('Labels & metadata')).not.toBeInTheDocument()
       expect(screen.queryByText('Subtype')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('resource lock (#1291)', () => {
+    const setTeam = (permissions: string[]) => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team', permissions },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+    }
+    const mockGet = (value: Blueprint) => {
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValue(value)
+    }
+    beforeEach(() => {
+      ;(blueprintService.getBlueprintLockHistory as Mock).mockResolvedValue([])
+    })
+
+    const lockedBy = (userId: string) => ({
+      locked_by: { user_id: userId, display_name: 'Ada Lovelace' },
+      comment: 'Used by the nightly release agent',
+      locked_at: '2026-10-11T10:15:30Z',
+    })
+
+    it('offers Lock and Delete on an unlocked blueprint, with no lock row', async () => {
+      setTeam(['resource.delete.own'])
+      mockGet(mockBlueprint)
+
+      renderBlueprintView()
+
+      await screen.findByTestId('resource-body')
+      expect(screen.getByTestId('lock-blueprint-button')).toBeInTheDocument()
+      expect(screen.getByTestId('delete-blueprint-button')).toBeInTheDocument()
+      expect(
+        screen.queryByTestId('unlock-blueprint-button')
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText('Locked by')).not.toBeInTheDocument()
+    })
+
+    it('shows who locked it and hides Lock, Unlock and Delete from another member', async () => {
+      // The reader created the blueprint and may delete their own, so only the
+      // lock is hiding Delete here.
+      setTeam(['resource.delete.own'])
+      mockGet({ ...mockBlueprint, lock: lockedBy('user-2') })
+
+      renderBlueprintView()
+
+      expect(await screen.findByTestId('locked-by')).toHaveTextContent(
+        'Ada Lovelace'
+      )
+      expect(screen.getByText('Locked by')).toBeInTheDocument()
+      expect(
+        screen.queryByTestId('lock-blueprint-button')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId('unlock-blueprint-button')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId('delete-blueprint-button')
+      ).not.toBeInTheDocument()
+    })
+
+    it('offers Unlock to the locker, still without Delete', async () => {
+      setTeam(['resource.delete.own'])
+      mockGet({ ...mockBlueprint, lock: lockedBy('user-1') })
+
+      renderBlueprintView()
+
+      expect(
+        await screen.findByTestId('unlock-blueprint-button')
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByTestId('delete-blueprint-button')
+      ).not.toBeInTheDocument()
+    })
+
+    it("offers Unlock on someone else's lock to a holder of resource.unlock.any, read from permissions", async () => {
+      setTeam(['resource.unlock.any', 'resource.delete.any'])
+      mockGet({ ...mockBlueprint, lock: lockedBy('user-2') })
+
+      renderBlueprintView()
+
+      expect(
+        await screen.findByTestId('unlock-blueprint-button')
+      ).toBeInTheDocument()
+      // Not even resource.delete.any deletes a locked blueprint.
+      expect(
+        screen.queryByTestId('delete-blueprint-button')
+      ).not.toBeInTheDocument()
+    })
+
+    it('locks from the dialog and shows the lock without refetching; Delete returns after unlock', async () => {
+      const user = userEvent.setup()
+      setTeam(['resource.delete.own'])
+      mockGet(mockBlueprint)
+      ;(blueprintService.lockBlueprint as Mock).mockResolvedValue({
+        ...mockBlueprint,
+        lock: lockedBy('user-1'),
+      })
+      ;(blueprintService.unlockBlueprint as Mock).mockResolvedValue(
+        mockBlueprint
+      )
+
+      renderBlueprintView()
+
+      await user.click(await screen.findByTestId('lock-blueprint-button'))
+      // The dialog does not submit without a comment.
+      expect(screen.getByTestId('confirm-lock-button')).toBeDisabled()
+      await user.type(
+        screen.getByTestId('lock-comment-input'),
+        'Used by the nightly release agent'
+      )
+      await user.click(screen.getByTestId('confirm-lock-button'))
+
+      expect(await screen.findByTestId('locked-by')).toHaveTextContent(
+        'Ada Lovelace'
+      )
+      expect(blueprintService.lockBlueprint).toHaveBeenCalledWith(
+        'team-1',
+        'my-project',
+        'my-blueprint',
+        'Used by the nightly release agent'
+      )
+      expect(
+        screen.queryByTestId('delete-blueprint-button')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId('lock-blueprint-button')
+      ).not.toBeInTheDocument()
+      expect(blueprintService.getBlueprint).toHaveBeenCalledTimes(1)
+
+      await user.click(screen.getByTestId('unlock-blueprint-button'))
+
+      expect(
+        await screen.findByTestId('delete-blueprint-button')
+      ).toBeInTheDocument()
+      expect(blueprintService.unlockBlueprint).toHaveBeenCalledWith(
+        'team-1',
+        'my-project',
+        'my-blueprint'
+      )
+      expect(screen.queryByText('Locked by')).not.toBeInTheDocument()
+      expect(blueprintService.getBlueprint).toHaveBeenCalledTimes(1)
+    })
+
+    it('lists the lock history in its own section', async () => {
+      setTeam([])
+      mockGet({ ...mockBlueprint, lock: lockedBy('user-2') })
+      ;(blueprintService.getBlueprintLockHistory as Mock).mockResolvedValue([
+        {
+          id: 'e-2',
+          action: 'lock',
+          actor: { user_id: 'user-2', display_name: 'Ada Lovelace' },
+          comment: 'Used by the nightly release agent',
+          created_at: '2026-10-11T10:15:30Z',
+        },
+        {
+          id: 'e-1',
+          action: 'unlock',
+          actor: null,
+          comment: null,
+          created_at: '2026-10-10T10:15:30Z',
+        },
+      ])
+
+      renderBlueprintView()
+
+      const events = await screen.findAllByTestId('lock-history-event')
+      expect(blueprintService.getBlueprintLockHistory).toHaveBeenCalledWith(
+        'team-1',
+        'my-project',
+        'my-blueprint'
+      )
+      expect(events.map(event => event.dataset.action)).toEqual([
+        'lock',
+        'unlock',
+      ])
+      expect(events[0]).toHaveTextContent(/Ada Lovelace\s*locked/)
+      expect(events[1]).toHaveTextContent(/Deleted user\s*unlocked/)
+      expect(
+        within(screen.getByTestId('lock-history')).getByText('Lock history')
+      ).toBeInTheDocument()
     })
   })
 })

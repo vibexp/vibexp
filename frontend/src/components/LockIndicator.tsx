@@ -1,9 +1,7 @@
-import type { components } from '@vibexp/api-client'
 import { Lock } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-
-export type ResourceLock = components['schemas']['ResourceLock']
+import type { ResourceLock } from '@/types/resourceLock'
 
 /**
  * The lock marker on prompt, blueprint and artifact rows (#1285).
