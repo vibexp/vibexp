@@ -1,25 +1,14 @@
 import {
-  Activity as ActivityIcon,
   BookOpen,
   Brain,
   ChevronRight,
   FileText,
   type LucideIcon,
-  MessageSquare,
   Sparkles,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { buildResourceUrl } from '@/lib/resourceUrl'
 import { formatRelativeTime } from '@/lib/time'
@@ -43,90 +32,73 @@ export function getActivitySubtitle(activity: ActivityType): string {
   return parts.join(' · ') || activity.activity_type
 }
 
-interface ListCardProps {
-  title: string
-  count: number
-  countLabel: string
+interface ListBodyProps {
   loading: boolean
   error: string | null
   isEmpty: boolean
-  emptyIcon: LucideIcon
   emptyMessage: string
-  /** Omit to render no "See more" footer (e.g. the recent-comments card, v1). */
-  onViewAll?: () => void
+  /** Where "See all" goes; omit for a list with no fuller page (comments). */
+  viewAllTo?: string
   children: ReactNode
 }
 
-/** Shared shell for the two Activity lists: header + count, loading skeletons,
- * error/empty states, and a centered "See more" footer. The two lists differ
- * only in their row markup, supplied as children. */
-function ListCard({
-  title,
-  count,
-  countLabel,
+/** Row classes shared by every list in the "What changed" block. */
+export const LIST_ROW_CLASS = 'flex items-center gap-3 px-4 py-2.5'
+export const LIST_ROW_LINK_CLASS = `${LIST_ROW_CLASS} hover:bg-muted/40 transition-colors`
+
+/**
+ * Shared body for the lists inside the "What changed" block: loading
+ * skeletons sized like the rows they stand in for, an error or empty line,
+ * and an optional "See all" link. It draws no card of its own — the block
+ * around it is the one bordered group, and the lists differ only in their
+ * row markup, supplied as children.
+ */
+export function ListBody({
   loading,
   error,
   isEmpty,
-  emptyIcon: EmptyIcon,
   emptyMessage,
-  onViewAll,
+  viewAllTo,
   children,
-}: Readonly<ListCardProps>) {
-  // Loading / error / empty pre-empt the list rows supplied as children.
-  let body: ReactNode = children
+}: Readonly<ListBodyProps>) {
   if (loading) {
-    body = (
-      <div className="space-y-3">
+    return (
+      <ul className="divide-y" aria-busy="true">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 py-2">
-            <Skeleton className="size-9 rounded-md" />
+          <li key={i} className={LIST_ROW_CLASS}>
+            <Skeleton className="size-7 rounded-md" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-4 w-2/3" />
               <Skeleton className="h-3 w-1/3" />
             </div>
             <Skeleton className="h-3 w-12" />
-          </div>
+          </li>
         ))}
-      </div>
-    )
-  } else if (error) {
-    body = (
-      <div className="text-muted-foreground flex h-32 items-center justify-center text-sm">
-        {error}
-      </div>
-    )
-  } else if (isEmpty) {
-    body = (
-      <div className="text-muted-foreground flex h-32 flex-col items-center justify-center gap-2 text-center text-sm">
-        <EmptyIcon className="size-5" />
-        {emptyMessage}
-      </div>
+      </ul>
     )
   }
-
+  if (error || isEmpty) {
+    return (
+      <p className="text-muted-foreground px-4 py-6 text-sm">
+        {error ?? emptyMessage}
+      </p>
+    )
+  }
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">{title}</CardTitle>
-        {!loading && !error && count > 0 && (
-          <span className="text-muted-foreground text-xs">
-            {count} {countLabel}
-          </span>
-        )}
-      </CardHeader>
-      <CardContent className="flex-1">{body}</CardContent>
-      {!loading && !error && onViewAll && (
-        <>
-          <Separator />
-          <CardFooter className="justify-center pt-4">
-            <Button variant="ghost" size="sm" onClick={onViewAll}>
-              See more
-              <ChevronRight className="ml-1 size-4" />
-            </Button>
-          </CardFooter>
-        </>
+    <>
+      {children}
+      {viewAllTo && (
+        <div className="border-t px-4 py-2">
+          <Link
+            to={viewAllTo}
+            className="text-muted-foreground hover:text-foreground inline-flex items-center text-xs hover:underline"
+          >
+            See all
+            <ChevronRight className="ml-0.5 size-3.5" aria-hidden="true" />
+          </Link>
+        </div>
       )}
-    </Card>
+    </>
   )
 }
 
@@ -134,34 +106,28 @@ export function RecentFeedList({
   items,
   loading,
   error,
-  onViewAll,
 }: Readonly<{
-  items: FeedItem[]
+  items: readonly FeedItem[]
   loading: boolean
   error: string | null
-  onViewAll: () => void
 }>) {
   return (
-    <ListCard
-      title="Recent AI feed"
-      count={items.length}
-      countLabel="updates"
+    <ListBody
       loading={loading}
       error={error}
       isEmpty={items.length === 0}
-      emptyIcon={Sparkles}
       emptyMessage="Recent AI feed items for your team will appear here."
-      onViewAll={onViewAll}
+      viewAllTo="/feeds"
     >
       <ul className="divide-y">
-        {items.slice(0, 8).map(item => (
+        {items.slice(0, 6).map(item => (
           <li key={item.id}>
             <Link
               to={`/feeds/items/${encodeURIComponent(item.id)}`}
-              className="hover:bg-muted/40 -mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors"
+              className={LIST_ROW_LINK_CLASS}
             >
-              <div className="bg-muted text-foreground flex size-9 shrink-0 items-center justify-center rounded-md">
-                <Sparkles className="size-4" />
+              <div className="bg-muted text-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
+                <Sparkles className="size-3.5" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{item.title}</p>
@@ -178,7 +144,7 @@ export function RecentFeedList({
           </li>
         ))}
       </ul>
-    </ListCard>
+    </ListBody>
   )
 }
 
@@ -203,18 +169,14 @@ export function RecentCommentsList({
   error: string | null
 }>) {
   return (
-    <ListCard
-      title="Recent comments"
-      count={comments.length}
-      countLabel="comments"
+    <ListBody
       loading={loading}
       error={error}
       isEmpty={comments.length === 0}
-      emptyIcon={MessageSquare}
       emptyMessage="No comments yet in this team."
     >
       <ul className="divide-y">
-        {comments.slice(0, 8).map(comment => {
+        {comments.slice(0, 6).map(comment => {
           const actor = resolveFeedActor(
             { posted_by_user_id: comment.user_id },
             members.get(comment.user_id)
@@ -256,22 +218,17 @@ export function RecentCommentsList({
           return (
             <li key={key}>
               {url ? (
-                <Link
-                  to={url}
-                  className="hover:bg-muted/40 -mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors"
-                >
+                <Link to={url} className={LIST_ROW_LINK_CLASS}>
                   {row}
                 </Link>
               ) : (
-                <div className="-mx-2 flex items-center gap-3 rounded-md px-2 py-3">
-                  {row}
-                </div>
+                <div className={LIST_ROW_CLASS}>{row}</div>
               )}
             </li>
           )
         })}
       </ul>
-    </ListCard>
+    </ListBody>
   )
 }
 
@@ -279,38 +236,29 @@ export function RecentActivityList({
   activities,
   loading,
   error,
-  onViewAll,
 }: Readonly<{
-  activities: ActivityType[]
+  activities: readonly ActivityType[]
   loading: boolean
   error: string | null
-  onViewAll: () => void
 }>) {
   return (
-    <ListCard
-      title="Recent activity"
-      count={activities.length}
-      countLabel="events"
+    <ListBody
       loading={loading}
       error={error}
       isEmpty={activities.length === 0}
-      emptyIcon={ActivityIcon}
       emptyMessage="Your recent platform usage will appear here."
-      onViewAll={onViewAll}
+      viewAllTo="/settings/activities"
     >
       <ul className="divide-y">
-        {activities.slice(0, 8).map(activity => {
+        {activities.slice(0, 6).map(activity => {
           const Icon = getActivityIcon(
             activity.activity_type,
             activity.entity_type
           )
           return (
-            <li
-              key={activity.id}
-              className="hover:bg-muted/40 -mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors"
-            >
-              <div className="bg-muted text-foreground flex size-9 shrink-0 items-center justify-center rounded-md">
-                <Icon className="size-4" />
+            <li key={activity.id} className={LIST_ROW_CLASS}>
+              <div className="bg-muted text-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
+                <Icon className="size-3.5" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">
@@ -327,6 +275,6 @@ export function RecentActivityList({
           )
         })}
       </ul>
-    </ListCard>
+    </ListBody>
   )
 }
