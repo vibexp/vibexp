@@ -60,11 +60,10 @@ export function useRenderPreview({
     try {
       setIsRendering(true)
       setRenderError(null)
-      const response = await promptService.renderPrompt(
-        teamId,
-        prompt.slug,
-        placeholderValues
-      )
+      // No values are sent: the server expands the @references and leaves
+      // every {{placeholder}} in place, and the Render tab substitutes them on
+      // screen so that an unfilled one stays visible instead of vanishing.
+      const response = await promptService.renderPrompt(teamId, prompt.slug, {})
       setRenderedBody(response.rendered_body)
     } catch (error) {
       setRenderError(getErrorMessage(error, 'Failed to render prompt'))
@@ -72,7 +71,7 @@ export function useRenderPreview({
     } finally {
       setIsRendering(false)
     }
-  }, [isEditing, prompt, placeholderValues, teamId])
+  }, [isEditing, prompt, teamId])
 
   useEffect(() => {
     if (view !== 'render' || !isEditing || !prompt) return
@@ -82,7 +81,7 @@ export function useRenderPreview({
     return () => {
       clearTimeout(timeoutId)
     }
-  }, [view, placeholderValues, isEditing, prompt, renderPrompt])
+  }, [view, isEditing, prompt, renderPrompt])
 
   const setPlaceholderValue = useCallback(
     (placeholder: string, value: string) => {

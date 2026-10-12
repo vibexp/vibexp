@@ -86,6 +86,11 @@ export interface BodyEditorRenderExtension {
 export interface ResourceBodyEditorExtensions {
   mentions?: BodyEditorMentionsExtension
   render?: BodyEditorRenderExtension
+  /**
+   * Renders `{{placeholders}}` in the Rendered pane as chips (or as these
+   * values, where one is given) instead of as literal text.
+   */
+  placeholders?: Record<string, string>
   /** Called by a "Load template" button rendered beside the switch. */
   templates?: () => void
 }
@@ -304,6 +309,7 @@ export const ResourceBodyEditor = forwardRef<
           <div className={BODY_EDITOR_MIN_HEIGHT}>
             <MarkdownRenderer
               content={value || 'Nothing to preview yet…'}
+              placeholders={extensions?.placeholders}
               syntaxTheme="auto"
               className="reading-body"
             />

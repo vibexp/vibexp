@@ -299,7 +299,7 @@ describe('useRenderPreview', () => {
 
   it('renders the prompt (debounced) when the render view opens', async () => {
     ;(promptService.renderPrompt as Mock).mockResolvedValue({
-      rendered_body: 'Hello Ada',
+      rendered_body: 'Hello {{name}}',
     })
     const { result, rerender } = renderPreviewHook(editingProps)
 
@@ -309,14 +309,16 @@ describe('useRenderPreview', () => {
     rerender({ ...editingProps, view: 'render' })
 
     await waitFor(() => {
+      // Values are never sent: the server leaves every {{placeholder}} in
+      // place and the Render tab substitutes them on screen.
       expect(promptService.renderPrompt).toHaveBeenCalledWith(
         'team-1',
         'my-prompt',
-        { name: 'Ada' }
+        {}
       )
     })
     await waitFor(() => {
-      expect(result.current.renderedBody).toBe('Hello Ada')
+      expect(result.current.renderedBody).toBe('Hello {{name}}')
     })
     expect(result.current.renderError).toBeNull()
   })

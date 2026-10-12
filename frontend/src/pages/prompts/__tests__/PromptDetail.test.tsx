@@ -22,8 +22,19 @@ afterEach(() => {
 
 // Mock MarkdownRenderer to avoid marked/DOMPurify JSDOM issues
 vi.mock('@/components/MarkdownRenderer', () => ({
-  MarkdownRenderer: ({ content }: { content: string }) => (
-    <div data-testid="markdown-renderer">{content}</div>
+  MarkdownRenderer: ({
+    content,
+    placeholders,
+  }: {
+    content: string
+    placeholders?: Record<string, string>
+  }) => (
+    <div
+      data-testid="markdown-renderer"
+      data-placeholders={JSON.stringify(placeholders)}
+    >
+      {content}
+    </div>
   ),
 }))
 
@@ -585,6 +596,30 @@ describe('PromptDetail page', () => {
         screen.queryByPlaceholderText('Enter criteria')
       ).not.toBeInTheDocument()
       expect(screen.queryByText('Render error')).not.toBeInTheDocument()
+    })
+
+    it('asks the server to keep every placeholder and substitutes the values on screen', async () => {
+      mockRenderer.allPlaceholders = ['criteria']
+      mockRenderer.placeholderValues = { criteria: 'security' }
+      mockRenderer.fetchPlaceholders.mockResolvedValue(undefined)
+
+      renderPromptDetail()
+      await screen.findByText('Code Review Template')
+
+      // An empty value sent to the server would erase the placeholder from the
+      // body, so none are sent at all…
+      await waitFor(() => {
+        expect(mockRenderer.renderPrompt).toHaveBeenCalledWith(
+          'code-review-template',
+          'team-1',
+          {}
+        )
+      })
+      // …and the values reach the markdown renderer instead.
+      expect(screen.getByTestId('markdown-renderer')).toHaveAttribute(
+        'data-placeholders',
+        JSON.stringify({ criteria: 'security' })
+      )
     })
 
     it('forwards placeholder edits to the renderer', async () => {

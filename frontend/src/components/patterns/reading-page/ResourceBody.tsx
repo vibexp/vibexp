@@ -30,6 +30,12 @@ interface ResourceBodyBaseProps {
   format?: BodyFormat
   /** Rendered-mode-only slot above the body (the prompt's placeholder inputs). */
   renderedExtra?: ReactNode
+  /**
+   * Values for the `{{placeholders}}` in `content`; passing it (even empty)
+   * makes the rendered view show each one as a chip or as its marked value.
+   * See `MarkdownRenderer`'s prop of the same name.
+   */
+  placeholders?: Record<string, string>
   /** Replaces the rendered body with a spinner while it is being produced. */
   isLoading?: boolean
   loadingLabel?: string
@@ -65,6 +71,7 @@ export function ResourceBody({
   content,
   rawContent,
   renderedExtra,
+  placeholders,
   isLoading = false,
   loadingLabel = 'Rendering…',
   mode,
@@ -107,6 +114,7 @@ export function ResourceBody({
             ) : (
               <MarkdownRenderer
                 content={content}
+                placeholders={placeholders}
                 syntaxTheme="auto"
                 className="reading-body"
               />

@@ -70,6 +70,7 @@ export function RenderTab({
               renderedBody ||
               'Enter placeholder values above to see the rendered prompt…'
             }
+            placeholders={placeholderValues}
             enableCodeCopy={true}
             enableMermaid={true}
           />

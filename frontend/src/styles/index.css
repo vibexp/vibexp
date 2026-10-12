@@ -494,3 +494,32 @@ body {
   height: 1px;
   background: var(--border);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Prompt {{placeholders}} in rendered markdown (see markdownPlaceholders.ts). */
+/* One without a value is a monospace chip naming the variable; one with a     */
+/* value keeps the prose's own type and is only tinted, so substituted text    */
+/* reads as part of the sentence while staying distinguishable from it.        */
+/* -------------------------------------------------------------------------- */
+.markdown-renderer .prompt-placeholder {
+  border: 1px dashed color-mix(in oklab, var(--info) 55%, transparent);
+  border-radius: 0.25rem;
+  background-color: var(--info-subtle);
+  padding: 0.05em 0.35em;
+  color: var(--info);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.875em;
+  font-weight: 500;
+  font-style: normal;
+  white-space: nowrap;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.markdown-renderer .prompt-placeholder-filled {
+  border-color: transparent;
+  padding-inline: 0.2em;
+  color: inherit;
+  font: inherit;
+  white-space: pre-wrap;
+}

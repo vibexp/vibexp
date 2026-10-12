@@ -1,12 +1,17 @@
 import DOMPurify from 'dompurify'
 import { AlertTriangle } from 'lucide-react'
-import { marked, Renderer } from 'marked'
+import { Marked, marked, Renderer } from 'marked'
 import mermaid from 'mermaid'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Root } from 'react-dom/client'
 
 import { cn } from '@/lib/utils'
 import Prism from '@/utils/prism-config'
+
+import {
+  promptPlaceholderExtension,
+  substituteFilledPlaceholders,
+} from './markdownPlaceholders'
 
 /**
  * Escapes HTML special characters in a string to prevent attribute breakage
@@ -74,6 +79,14 @@ export interface MarkdownRendererProps {
    * intentionally out of scope.
    */
   linkTarget?: '_blank' | '_self'
+  /**
+   * Opts the content into prompt `{{placeholder}}` treatment: a placeholder
+   * with no (or an empty) value here renders as a chip naming the variable, one
+   * with a value renders as that value, lightly marked. Pass `{}` to show every
+   * placeholder as a chip. Left out, `{{…}}` is ordinary text. Keep the object
+   * referentially stable — a new one re-renders the markdown.
+   */
+  placeholders?: Record<string, string>
   onError?: (error: Error, context: string) => void
 }
 
@@ -194,6 +207,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   enableMermaid = true,
   enableCodeCopy = true,
   linkTarget = '_blank',
+  placeholders,
   onError,
 }) => {
   const [renderedContent, setRenderedContent] = useState('')
@@ -283,7 +297,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
             (_match: string, code: string) => {
               const randomStr = Math.random().toString(36).substring(2, 11)
               const id = `mermaid-${String(Date.now())}-${randomStr}`
-              diagrams.push({ id, code: code.trim() })
+              diagrams.push({
+                id,
+                code: placeholders
+                  ? substituteFilledPlaceholders(code.trim(), placeholders)
+                  : code.trim(),
+              })
               // Surrounding blank lines keep this a top-level HTML block, so
               // marked emits it verbatim instead of wrapping it in a <p>.
               return `\n\n<div data-mermaid-id="${id}"></div>\n\n`
@@ -293,7 +312,14 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           setMermaidDiagrams(diagrams)
         }
 
-        let html = await marked(source, options)
+        // A private instance, so the placeholder extension never leaks into
+        // the shared `marked` every other markdown surface renders with.
+        let html = placeholders
+          ? await new Marked(promptPlaceholderExtension(placeholders)).parse(
+              source,
+              options
+            )
+          : await marked(source, options)
 
         // Apply syntax highlighting and add copy buttons to code blocks in the HTML string
         let copyButtonCounter = 0
@@ -396,7 +422,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     }
     // onError intentionally omitted from deps - we use onErrorRef to avoid
     // re-render loops when callers pass inline callbacks (VIBEXP-FRONTEND-JS-3).
-  }, [content, configureMarked, enableMermaid, enableCodeCopy])
+  }, [content, configureMarked, enableMermaid, enableCodeCopy, placeholders])
 
   // Attach copy button click listeners via event delegation on the container.
   // This avoids cloneNode/replaceChild which conflicts with React's virtual DOM

@@ -44,6 +44,13 @@ interface PrefilledPrompt {
   description?: string
 }
 
+/**
+ * The Rendered pane has no placeholder inputs, so every {{placeholder}} shows
+ * as a chip. Module-level so the object the markdown renderer keys its render
+ * on never changes identity.
+ */
+const NO_PLACEHOLDER_VALUES: Record<string, string> = {}
+
 function prefilledValues(prefilled: PrefilledPrompt | null) {
   if (!prefilled) return {}
   return {
@@ -275,6 +282,7 @@ export function PromptEditor() {
   // both tabs come and go, and the editor tolerates that by construction.
   const bodyExtensions: ResourceBodyEditorExtensions = {
     mentions: { excludeCurrentPrompt: prompt?.slug },
+    placeholders: NO_PLACEHOLDER_VALUES,
     render: isEditing
       ? {
           disabled: isLoadingPlaceholders,

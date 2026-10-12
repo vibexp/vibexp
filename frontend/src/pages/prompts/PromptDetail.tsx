@@ -41,8 +41,18 @@ import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { SharedBadge } from './SharedBadge'
 
 /**
+ * The server is asked to render with NO values: it expands the @references and
+ * leaves every {{placeholder}} in place. The values are then substituted on
+ * screen by the markdown renderer, which is what keeps an unfilled placeholder
+ * visible as a chip (an empty value sent to the server would erase it) and
+ * makes typing a value update the body without a round trip.
+ */
+const NO_PLACEHOLDER_VALUES: Record<string, string> = {}
+
+/**
  * The prompt's rendered-mode-only affordances — the placeholder inputs whose
- * values drive the server render, and the render error when one comes back.
+ * values are substituted into the body, and the render error when one comes
+ * back.
  * Slotted into `ResourceBody`'s `renderedExtra`, which is what keeps that
  * shared component domain-free (#901).
  */
@@ -192,7 +202,6 @@ export function PromptDetail() {
   })
 
   const loadedRef = useRef<string | null>(null)
-  const prevValuesRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
     if (!prompt?.slug || tab !== 'rendered' || !currentTeam) return
@@ -200,11 +209,11 @@ export function PromptDetail() {
       loadedRef.current = prompt.slug
       void fetchPlaceholders(prompt.slug, currentTeam.id).then(() => {
         setTimeout(() => {
-          void renderPrompt(prompt.slug, currentTeam.id)
+          void renderPrompt(prompt.slug, currentTeam.id, NO_PLACEHOLDER_VALUES)
         }, 100)
       })
     } else if (!isLoadingPlaceholders) {
-      void renderPrompt(prompt.slug, currentTeam.id)
+      void renderPrompt(prompt.slug, currentTeam.id, NO_PLACEHOLDER_VALUES)
     }
   }, [
     prompt?.slug,
@@ -213,40 +222,6 @@ export function PromptDetail() {
     fetchPlaceholders,
     renderPrompt,
     isLoadingPlaceholders,
-  ])
-
-  useEffect(() => {
-    const prev = prevValuesRef.current
-    const changed = Object.keys(placeholderValues).some(
-      key => placeholderValues[key] !== prev[key]
-    )
-    if (
-      !changed ||
-      !prompt?.slug ||
-      !currentTeam ||
-      tab !== 'rendered' ||
-      isLoadingPlaceholders ||
-      loadedRef.current !== prompt.slug ||
-      allPlaceholders.length === 0
-    ) {
-      prevValuesRef.current = placeholderValues
-      return
-    }
-    const t = setTimeout(() => {
-      void renderPrompt(prompt.slug, currentTeam.id)
-      prevValuesRef.current = placeholderValues
-    }, 500)
-    return () => {
-      clearTimeout(t)
-    }
-  }, [
-    placeholderValues,
-    prompt?.slug,
-    tab,
-    currentTeam,
-    isLoadingPlaceholders,
-    allPlaceholders.length,
-    renderPrompt,
   ])
 
   // Lock / Unlock, the lock dialog and the lock history (epic #1285).
@@ -383,6 +358,7 @@ export function PromptDetail() {
         <ResourceBody
           content={renderedBody !== '' ? renderedBody : prompt.body}
           rawContent={prompt.body}
+          placeholders={placeholderValues}
           mode={tab}
           onModeChange={setTab}
           isLoading={isRendering || isLoadingPlaceholders}
