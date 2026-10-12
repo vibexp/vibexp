@@ -22,7 +22,7 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceVersions } from '@/hooks/useResourceVersions'
-import { deriveMemoryTitle } from '@/lib/memoryTitle'
+import { memoryDisplayName } from '@/lib/memoryTitle'
 import {
   buildProjectEditUrl,
   buildResourceVersionsUrl,
@@ -99,12 +99,12 @@ export function MemoryView() {
     void fetchMemory()
   }, [id, currentTeam, isLoadingTeam, handleError, trackEvent])
 
-  // Memories carry no title, so it is derived from the body — memoised because
-  // that scans the whole (unbounded) text and this page re-renders on dialog
-  // and view-mode state.
-  const title = useMemo(
-    () => deriveMemoryTitle(memory?.text ?? ''),
-    [memory?.text]
+  // The memory's title, or a name derived from its body when it has none —
+  // memoised because deriving scans the whole (unbounded) text and this page
+  // re-renders on dialog and view-mode state.
+  const { name: title, isFallback: titleIsFallback } = useMemo(
+    () => memoryDisplayName({ title: memory?.title, text: memory?.text ?? '' }),
+    [memory?.title, memory?.text]
   )
 
   // Version history powers the Metadata panel's footer link + count chip.
@@ -192,6 +192,7 @@ export function MemoryView() {
     <>
       <ResourceReadingPage
         title={title}
+        titleSubdued={titleIsFallback}
         status={{
           value: statusOptions.labelOf(memory.status),
           tone: statusOptions.toneOf(memory.status),

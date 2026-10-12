@@ -8,6 +8,7 @@
  */
 
 import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
 
 import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
@@ -138,22 +139,35 @@ describe('the Content column cell', () => {
       throw new Error('the Content column has no cell renderer')
     }
     render(
-      <>
+      <MemoryRouter>
         {renderCell({
           row: { original: memory },
         } as Parameters<typeof renderCell>[0])}
-      </>
+      </MemoryRouter>
     )
   }
 
-  it('renders the memory body as plain text, not raw markdown', () => {
+  it('renders an untitled memory by a body-derived name, as plain text', () => {
+    renderContentCell(makeMemory({ text: '**bold** body with `code`' }))
+
+    const cell = screen.getByText(/bold/)
+    expect(cell.textContent).toBe('bold body with code')
+    // Subdued: a stand-in, not a title someone chose.
+    expect(cell).toHaveClass('text-muted-foreground')
+  })
+
+  it('names an untitled memory by its first heading, as the detail page does', () => {
     renderContentCell(makeMemory({ text: '## Heading\n\n**bold** body' }))
 
-    const cell = screen.getByText(/Heading/)
-    expect(cell).toBeInTheDocument()
-    expect(cell.textContent).toBe('Heading bold body')
-    expect(cell.textContent).not.toContain('#')
-    expect(cell.textContent).not.toContain('*')
+    expect(screen.getByRole('link', { name: 'Heading' })).toBeInTheDocument()
+  })
+
+  it('links the name to the memory (a real href, not a scripted button)', () => {
+    renderContentCell(makeMemory({ id: 'mem-9', title: 'Deploy checklist' }))
+
+    expect(
+      screen.getByRole('link', { name: 'Deploy checklist' })
+    ).toHaveAttribute('href', '/memories/mem-9')
   })
 
   it('shows the title when the memory has one (#911)', () => {
@@ -161,7 +175,8 @@ describe('the Content column cell', () => {
       makeMemory({ title: 'Deploy checklist', text: 'Drain the node first.' })
     )
 
-    expect(screen.getByText('Deploy checklist')).toBeInTheDocument()
+    const cell = screen.getByText('Deploy checklist')
+    expect(cell).not.toHaveClass('text-muted-foreground')
     expect(screen.queryByText(/Drain the node/)).not.toBeInTheDocument()
   })
 
@@ -176,10 +191,14 @@ describe('the Content column cell', () => {
     }
   )
 
-  it('renders an empty cell rather than an ellipsis for a blank memory', () => {
+  it('names a blank memory "Untitled memory" rather than an ellipsis', () => {
     renderContentCell(makeMemory({ id: 'mem-blank', text: '   \n  ' }))
 
     expect(screen.queryByText('…')).not.toBeInTheDocument()
+    // Still a link, so even a blank memory can be opened from the list.
+    expect(
+      screen.getByRole('link', { name: 'Untitled memory' })
+    ).toHaveAttribute('href', '/memories/mem-blank')
   })
 })
 

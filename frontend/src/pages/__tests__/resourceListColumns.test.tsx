@@ -1,5 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { render, screen } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { MemoryRouter } from 'react-router'
 
 import { ListTable } from '@/components/patterns/list-page'
 import { buildAgentsColumns } from '@/pages/agents/agentsColumns'
@@ -111,8 +113,12 @@ function listCases(): ListCase[] {
   ]
 }
 
+/** In a router: a list's name cell is a real link (react-router Link). */
+const renderInRouter = (ui: ReactElement) =>
+  render(<MemoryRouter>{ui}</MemoryRouter>)
+
 function renderList(testCase: ListCase) {
-  return render(
+  return renderInRouter(
     <ListTable
       rows={[testCase.row as { id: string }]}
       columns={testCase.columns}
@@ -211,12 +217,7 @@ describe('custom status labels', () => {
   it.each(cases)(
     'the $list list shows the display name, in a neutral badge',
     ({ build, row }) => {
-      render(
-        <ListTable
-          rows={[row as { id: string }]}
-          columns={build(statusLabel)}
-        />
-      )
+      renderInRouter(<ListTable rows={[row]} columns={build(statusLabel)} />)
       expect(screen.getByText('In review')).toHaveClass('bg-muted')
     }
   )
@@ -224,7 +225,7 @@ describe('custom status labels', () => {
   it.each(cases)(
     'the $list list falls back to the raw slug with no label',
     ({ build, row }) => {
-      render(<ListTable rows={[row as { id: string }]} columns={build()} />)
+      renderInRouter(<ListTable rows={[row]} columns={build()} />)
       expect(screen.getByText('in-review')).toHaveClass('bg-muted')
     }
   )

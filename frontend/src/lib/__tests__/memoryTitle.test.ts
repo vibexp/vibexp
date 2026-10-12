@@ -1,4 +1,4 @@
-import { deriveMemoryTitle } from '../memoryTitle'
+import { deriveMemoryTitle, memoryDisplayName } from '../memoryTitle'
 
 describe('deriveMemoryTitle', () => {
   it('uses the first markdown heading when there is one', () => {
@@ -136,5 +136,44 @@ describe('deriveMemoryTitle', () => {
 
   it('skips an empty heading and uses the body instead', () => {
     expect(deriveMemoryTitle('#\nActual content')).toBe('Actual content')
+  })
+})
+
+describe('memoryDisplayName', () => {
+  it('is the title when the memory has one', () => {
+    expect(
+      memoryDisplayName({ title: 'Deploy checklist', text: '# Other\n\nBody' })
+    ).toEqual({ name: 'Deploy checklist', isFallback: false })
+  })
+
+  it.each([[null], [undefined], [''], ['   ']])(
+    'derives the name from the body for a title of %j, flagged as a fallback',
+    title => {
+      expect(
+        memoryDisplayName({ title, text: 'Drain the node first.' })
+      ).toEqual({ name: 'Drain the node first.', isFallback: true })
+    }
+  )
+
+  it('prefers the body\u2019s first heading over an excerpt', () => {
+    expect(
+      memoryDisplayName({ text: '## Runbook\n\nDrain the node first.' }).name
+    ).toBe('Runbook')
+  })
+
+  it('only moves where an excerpt is cut, never which text is chosen', () => {
+    const text = 'word '.repeat(60).trim()
+    const short = memoryDisplayName({ text }).name
+    const long = memoryDisplayName({ text }, 140).name
+
+    expect(long.length).toBeGreaterThan(short.length)
+    expect(long.startsWith(short.replace(/…$/, ''))).toBe(true)
+  })
+
+  it('names a blank memory "Untitled memory"', () => {
+    expect(memoryDisplayName({ text: '  \n ' })).toEqual({
+      name: 'Untitled memory',
+      isFallback: true,
+    })
   })
 })

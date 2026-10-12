@@ -61,7 +61,6 @@ export function buildPromptsColumns({
       field: fieldOfRole(descriptor, 'name'),
       value: prompt => prompt.name,
       to: detailPath,
-      navigate,
       summary: prompt => prompt.description,
       // Each renders nothing by itself: the badge when the resource is fresh,
       // the icon when it is unlocked, so a plain row pays no layout for either.

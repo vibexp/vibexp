@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { useAlerts } from '@/hooks'
+import { memoryDisplayName } from '@/lib/memoryTitle'
 import { artifactService } from '@/services/artifactService'
 import { blueprintService } from '@/services/blueprintService'
 import { memoryService } from '@/services/memoryService'
@@ -43,7 +44,7 @@ async function listTargetsForType(
       const res = await memoryService.getMemories(teamId, {})
       return res.memories.map(m => ({
         id: m.id,
-        label: m.text.slice(0, 60) || 'Untitled memory',
+        label: memoryDisplayName(m).name,
       }))
     }
   }

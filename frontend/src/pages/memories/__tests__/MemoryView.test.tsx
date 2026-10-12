@@ -296,6 +296,36 @@ describe('MemoryView', () => {
           screen.getByRole('heading', { level: 1, name: 'Deployment runbook' })
         ).toBeInTheDocument()
       })
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Deployment runbook' })
+      ).toHaveClass('text-muted-foreground')
+    })
+
+    it('shows the memory\u2019s own title, not a body-derived one, when it has one', async () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
+      })
+      ;(memoryService.getMemory as Mock).mockResolvedValue({
+        ...mockMemory,
+        title: 'chi path params',
+        text: '# Deployment runbook\n\nDrain the node first.',
+      })
+
+      renderMemoryView()
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { level: 1, name: 'chi path params' })
+        ).toBeInTheDocument()
+      })
+      // A chosen title is drawn at full strength; a stand-in is subdued.
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'chi path params' })
+      ).not.toHaveClass('text-muted-foreground')
     })
 
     it('links the Project row from the payload summary without listing projects (#956)', async () => {

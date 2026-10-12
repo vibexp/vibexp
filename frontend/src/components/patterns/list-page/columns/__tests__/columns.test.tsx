@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { MemoryRouter } from 'react-router'
 
 import {
   fieldOfRole,
@@ -57,7 +58,12 @@ function renderCell(col: ColumnDef<TestRow> | undefined, item: TestRow) {
     throw new Error('column has no cell renderer')
   }
   const cell = col.cell as (ctx: { row: Row<TestRow> }) => ReactNode
-  return render(<>{cell({ row: { original: item } as Row<TestRow> })}</>)
+  // In a router because a linked name is a real `<a href>` (react-router Link).
+  return render(
+    <MemoryRouter>
+      {cell({ row: { original: item } as Row<TestRow> })}
+    </MemoryRouter>
+  )
 }
 
 describe('columnList', () => {
@@ -85,17 +91,37 @@ describe('nameColumn', () => {
     expect(col).toMatchObject({ header: 'Content' })
   })
 
-  it('renders a link that navigates to the row when `to` is given', async () => {
-    const navigate = vi.fn()
+  it('renders a real link to the row when `to` is given', () => {
     const col = nameColumn<TestRow>({
       field: fieldOfRole(prompt, 'name'),
       value: r => r.name,
       to: r => `/prompts/${r.id}`,
-      navigate,
     })
     renderCell(col, row())
-    await userEvent.click(screen.getByRole('button', { name: 'Runbook' }))
-    expect(navigate.mock.calls).toEqual([['/prompts/r1']])
+    // An anchor with an href — not a scripted button — is what makes
+    // middle-click, Ctrl/Cmd-click and "open in new tab" work.
+    expect(screen.getByRole('link', { name: 'Runbook' })).toHaveAttribute(
+      'href',
+      '/prompts/r1'
+    )
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('draws a stand-in name subdued', () => {
+    const col = nameColumn<TestRow>({
+      field: fieldOfRole(prompt, 'name'),
+      value: r => r.name,
+      to: r => `/prompts/${r.id}`,
+      subdued: r => r.id === 'r2',
+    })
+    renderCell(col, row())
+    expect(screen.getByRole('link', { name: 'Runbook' })).not.toHaveClass(
+      'text-muted-foreground'
+    )
+    renderCell(col, row({ id: 'r2', name: 'Stand-in' }))
+    expect(screen.getByRole('link', { name: 'Stand-in' })).toHaveClass(
+      'text-muted-foreground'
+    )
   })
 
   it('renders plain text when no route is given', () => {
@@ -105,7 +131,7 @@ describe('nameColumn', () => {
     })
     renderCell(col, row())
     expect(screen.getByText('Runbook')).toBeInTheDocument()
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
   it('renders the summary line and the per-resource adornment', () => {

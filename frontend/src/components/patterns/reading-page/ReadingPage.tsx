@@ -51,6 +51,11 @@ export interface ReadingPageProps {
    */
   title: string
   /**
+   * Draws the `<h1>` subdued: the title is a stand-in (an untitled memory's
+   * body excerpt), not a name someone chose.
+   */
+  titleSubdued?: boolean
+  /**
    * Replaces the `<h1>` — an edit page's inline title input (#1179). The node
    * owns its own heading semantics.
    */
@@ -94,6 +99,7 @@ export interface ReadingPageProps {
  */
 export function ReadingPage({
   title,
+  titleSubdued = false,
   heading,
   description,
   actions = [],
@@ -195,7 +201,14 @@ export function ReadingPage({
         >
           <header className="mb-8">
             {heading ?? (
-              <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+              <h1
+                className={cn(
+                  'text-2xl font-semibold tracking-tight',
+                  titleSubdued && 'text-muted-foreground font-medium'
+                )}
+              >
+                {title}
+              </h1>
             )}
             {description && (
               // A lead paragraph is prose: capped at a prose measure even in

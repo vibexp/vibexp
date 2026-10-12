@@ -1,5 +1,6 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 
 import type { FieldSpec } from '@/components/patterns/resource'
 import { cn } from '@/lib/utils'
@@ -11,14 +12,18 @@ export interface NameColumnOptions<T> {
   value: (row: T) => string
   /** Header override for a list whose column is titled differently (memory: "Content"). */
   header?: string
-  /** Detail route for the row. Renders the name as a link when given with `navigate`. */
+  /**
+   * Detail route for the row. Renders the name as a real link to it — an
+   * anchor with an `href`, so middle-click, Ctrl/Cmd-click and "open in new
+   * tab" work and the URL shows on hover, none of which a scripted button
+   * gives.
+   */
   to?: (row: T) => string
   /**
-   * `useNavigate()`'s function. Typed loosely on the return so react-router's
-   * `void | Promise<void>` signature does not trip `no-misused-promises` at
-   * every call site.
+   * Rows whose name is a stand-in rather than a chosen one (an untitled
+   * memory's body excerpt). Rendered subdued.
    */
-  navigate?: (to: string) => unknown
+  subdued?: (row: T) => boolean
   /** One-line description under the name. Falsy renders nothing. */
   summary?: (row: T) => string | null | undefined
   /** Per-resource cell rendered beside the name: `<FreshnessBadge>`, `<LockIndicator>`. */
@@ -43,15 +48,14 @@ export function nameColumn<T>({
   value,
   header,
   to,
-  navigate,
+  subdued,
   summary,
   adornment,
   className,
   multiline,
 }: NameColumnOptions<T>): ColumnDef<T> | undefined {
   if (!field) return undefined
-  const linked = to !== undefined && navigate !== undefined
-  const textClass = cn(
+  const baseTextClass = cn(
     'block min-w-0 flex-1 text-left text-sm font-medium',
     multiline ? 'leading-relaxed' : 'truncate'
   )
@@ -61,22 +65,23 @@ export function nameColumn<T>({
     cell: ({ row }) => {
       const item = row.original
       const description = summary?.(item)
+      const textClass = cn(
+        baseTextClass,
+        subdued?.(item) && 'text-muted-foreground font-normal'
+      )
       return (
         <div className={cn('min-w-0 max-w-md space-y-0.5', className)}>
           <div className="flex min-w-0 items-center gap-2">
-            {linked ? (
-              <button
-                type="button"
+            {to ? (
+              <Link
+                to={to(item)}
                 className={cn(
                   textClass,
                   'hover:text-primary underline-offset-2 hover:underline'
                 )}
-                onClick={() => {
-                  void navigate(to(item))
-                }}
               >
                 {value(item)}
-              </button>
+              </Link>
             ) : (
               <span className={textClass}>{value(item)}</span>
             )}
