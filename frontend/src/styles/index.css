@@ -255,22 +255,27 @@
 
 .v2-root
   .reading-body
-  > :is(pre, .markdown-table-wrapper, p:has(> img:only-child)) {
+  > :is(
+    pre,
+    .markdown-table-wrapper,
+    [data-mermaid-id],
+    p:has(> img:only-child)
+  ) {
   margin-inline: auto;
   width: fit-content;
   min-width: calc(100% - 2 * var(--reading-bleed));
   max-width: 100%;
 }
 
-/* A mermaid diagram is an SVG at `width: 100%` with its natural width as an
-   inline `max-width`, so `fit-content` cannot see how wide it wants to be.
-   The placeholder takes the whole widened box instead and the SVG centres
-   itself in it, capped by its own natural width. */
-.v2-root .reading-body > [data-mermaid-id] {
-  margin-inline: 0;
+/* A mermaid diagram is pinned to its natural width (see `MermaidDiagram`), so
+   in the reading body it is a wide block like any other, above. Everywhere it
+   is centred while it fits, and scrolls inside its own container when it does
+   not — it never shrinks its text and never pushes the page. */
+.markdown-renderer .mermaid-container {
+  overflow-x: auto;
 }
 
-.v2-root .reading-body > [data-mermaid-id] svg {
+.markdown-renderer .mermaid-container svg {
   display: block;
   margin-inline: auto;
 }

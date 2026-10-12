@@ -12,6 +12,7 @@ import {
   promptPlaceholderExtension,
   substituteFilledPlaceholders,
 } from './markdownPlaceholders'
+import { readMermaidTheme } from './mermaidTheme'
 
 /**
  * Escapes HTML special characters in a string to prevent attribute breakage
@@ -101,6 +102,35 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
   const elementRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  // Bumped when the colour tokens change under a rendered diagram (a theme
+  // switch), which re-runs the render effect. The diagram's colours are baked
+  // into the SVG, so nothing short of drawing it again can follow the theme.
+  const [themeVersion, setThemeVersion] = useState(0)
+  const renderedThemeRef = useRef('')
+
+  useEffect(() => {
+    const element = elementRef.current
+    if (!element) return
+
+    const observer = new MutationObserver(() => {
+      const current = JSON.stringify(readMermaidTheme(element))
+      if (current !== renderedThemeRef.current) {
+        setThemeVersion(version => version + 1)
+      }
+    })
+    // The theme is a class on the app root (and on <html> for some embeds).
+    // This component lives in its own React root, out of reach of the theme
+    // context, so the class is watched directly.
+    const targets = new Set<Element>([document.documentElement])
+    const appRoot = element.closest('.v2-root')
+    if (appRoot) targets.add(appRoot)
+    targets.forEach(target => {
+      observer.observe(target, { attributes: true, attributeFilter: ['class'] })
+    })
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     const renderDiagram = async () => {
@@ -108,8 +138,13 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
       if (!element) return
 
       try {
-        setIsLoading(true)
+        // A diagram that is being redrawn for a theme switch stays on screen
+        // until its replacement is ready, instead of flashing the spinner.
+        setIsLoading(element.childElementCount === 0)
         setError(null)
+
+        const theme = readMermaidTheme(element)
+        renderedThemeRef.current = JSON.stringify(theme)
 
         // Initialize mermaid.
         //
@@ -124,9 +159,15 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
         // For the same reason, diagram labels are kept in the SVG namespace
         // DELIBERATELY (`htmlLabels: false`, see below): the sanitize profile
         // below stays SVG-only and needs no widening.
+        //
+        // `base` is the one theme that honours `themeVariables`; they are read
+        // from the app's colour tokens so the diagram matches the active theme
+        // (see `mermaidTheme.ts`).
         mermaid.initialize({
           startOnLoad: false,
-          theme: 'default',
+          theme: 'base',
+          darkMode: theme.darkMode,
+          themeVariables: theme.themeVariables,
           securityLevel: 'strict',
           fontFamily: 'inherit',
           // Emit labels as native SVG `<text>` instead of HTML inside a
@@ -150,6 +191,20 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
         element.innerHTML = DOMPurify.sanitize(svg, {
           USE_PROFILES: { svg: true, svgFilters: true },
         })
+
+        // Mermaid emits `width: 100%` capped by an inline `max-width` holding
+        // the diagram's natural width, which shrinks a wide diagram to fit —
+        // text included. Pin the natural width instead: the container centres
+        // a narrow diagram and scrolls a wide one (see `.mermaid-container`).
+        const drawn = element.querySelector('svg')
+        if (drawn?.style.maxWidth) drawn.style.width = drawn.style.maxWidth
+
+        // Scrolling is the only way to reach the off-screen part of a diagram
+        // wider than its container, so that container must be reachable by
+        // keyboard (WCAG 2.1.1, the table wrapper's contract, #884) — but only
+        // then: a diagram that fits should not add a tab stop.
+        if (element.scrollWidth > element.clientWidth) element.tabIndex = 0
+        else element.removeAttribute('tabindex')
       } catch (err) {
         const error = err as Error
         console.error('Mermaid rendering error:', error)
@@ -161,7 +216,7 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
     }
 
     void renderDiagram()
-  }, [code, onError])
+  }, [code, onError, themeVersion])
 
   // The container MUST stay mounted in every state. It used to be returned only
   // in the success branch, which deadlocked the component: the render effect
@@ -189,7 +244,12 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
         </div>
       )}
 
-      <div ref={elementRef} className="mermaid-container" />
+      <div
+        ref={elementRef}
+        className="mermaid-container"
+        role="region"
+        aria-label="Diagram"
+      />
     </>
   )
 }

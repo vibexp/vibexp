@@ -23,6 +23,20 @@ vi.mock('mermaid', () => {
   return { ...mermaid, default: mermaid }
 })
 
+// The theme is read from CSS colour tokens through a canvas, neither of which
+// jsdom has; the reader is stubbed so a test can switch the theme under a
+// rendered diagram. Its own logic is covered in `mermaidTheme.test.ts`.
+const mockTheme = vi.hoisted(() => {
+  const current: {
+    darkMode: boolean
+    themeVariables: Record<string, string>
+  } = { darkMode: false, themeVariables: {} }
+  return { current }
+})
+vi.mock('./mermaidTheme', () => ({
+  readMermaidTheme: () => mockTheme.current,
+}))
+
 // Records every React root created through `react-dom/client` so the mermaid
 // lifecycle tests can find the diagram roots (those mounted inside a
 // `[data-mermaid-id]` placeholder) and assert they are unmounted (#1109).
@@ -618,6 +632,50 @@ describe('MarkdownRenderer', () => {
 
     afterEach(() => {
       vi.mocked(marked).mockResolvedValue('<p>mocked content</p>')
+    })
+
+    it('draws the diagram from the app colour tokens and redraws it on a theme switch', async () => {
+      const light = {
+        darkMode: false,
+        themeVariables: { lineColor: 'rgb(10, 10, 10)' },
+      }
+      const dark = {
+        darkMode: true,
+        themeVariables: { lineColor: 'rgb(250, 250, 250)' },
+      }
+      mockTheme.current = light
+      vi.mocked(mermaid.render).mockClear()
+      vi.mocked(mermaid.initialize).mockClear()
+
+      const { container } = render(<MarkdownRenderer content={FENCE_A} />)
+      await waitFor(() => {
+        expect(diagramSvg(container)).toBeInTheDocument()
+      })
+      expect(vi.mocked(mermaid.initialize)).toHaveBeenLastCalledWith(
+        expect.objectContaining({ theme: 'base', ...light })
+      )
+      expect(vi.mocked(mermaid.render)).toHaveBeenCalledTimes(1)
+
+      // A class change that leaves the tokens as they were redraws nothing.
+      document.documentElement.classList.add('unrelated')
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 20))
+      })
+      expect(vi.mocked(mermaid.render)).toHaveBeenCalledTimes(1)
+
+      mockTheme.current = dark
+      document.documentElement.classList.add('dark')
+      await waitFor(() => {
+        expect(vi.mocked(mermaid.render)).toHaveBeenCalledTimes(2)
+      })
+      expect(vi.mocked(mermaid.initialize)).toHaveBeenLastCalledWith(
+        expect.objectContaining({ theme: 'base', ...dark })
+      )
+      // The old diagram is replaced in place, never by the spinner.
+      expect(container.querySelector('.animate-spin')).not.toBeInTheDocument()
+
+      document.documentElement.classList.remove('dark', 'unrelated')
+      mockTheme.current = { darkMode: false, themeVariables: {} }
     })
 
     it('keeps the diagram after a parent re-render that does not change content', async () => {
