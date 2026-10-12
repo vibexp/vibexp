@@ -4,10 +4,7 @@ import { forwardRef, useState } from 'react'
 
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import type { BodyFormat } from '@/components/patterns/reading-page'
-import {
-  RAW_BODY_CLASS,
-  useBodyViewMode,
-} from '@/components/patterns/reading-page'
+import { RAW_BODY_CLASS } from '@/components/patterns/reading-page'
 import { PromptMentionTextarea } from '@/components/PromptMentionTextarea'
 import type { SegmentedOption } from '@/components/SegmentedControl'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -144,9 +141,9 @@ export type ResourceBodyEditorProps = ResourceBodyEditorBaseProps &
  * switching View → Edit moves nothing.
  *
  * The public view names predate that and stay (`write` is Raw, `preview` is
- * Rendered) so a controlled caller is unaffected. Edit always opens on Raw;
- * choosing Raw or Rendered here writes the shared reading preference, so the
- * next reading page opens the way the user last looked at the body.
+ * Rendered) so a controlled caller is unaffected. Edit always opens on Raw, and
+ * what is chosen here stays here: it never changes how a reading page opens
+ * (those always open on Rendered).
  *
  * It is the editing counterpart of `ResourceBody` (#901) and, like it, is
  * domain-free: the prompt's `@` mentions, its Render tab and its template
@@ -186,7 +183,6 @@ export const ResourceBodyEditor = forwardRef<
   ref
 ) {
   const [ownView, setOwnView] = useState<BodyEditorView>('write')
-  const [, setStoredMode] = useBodyViewMode()
   const requested = view ?? ownView
   // A Render option that is not offered must never be the active one — an
   // extension can be withdrawn (the prompt offers it only while editing) long
@@ -196,11 +192,6 @@ export const ResourceBodyEditor = forwardRef<
 
   const handleViewChange = (next: string) => {
     const nextView = next as BodyEditorView
-    // Render is the prompt's own view, not a way of reading a body: it is
-    // never stored.
-    if (nextView !== 'render') {
-      setStoredMode(nextView === 'write' ? 'raw' : 'rendered')
-    }
     if (onViewChange) onViewChange(nextView)
     else setOwnView(nextView)
   }

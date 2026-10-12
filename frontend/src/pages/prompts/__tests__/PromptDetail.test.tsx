@@ -551,7 +551,7 @@ describe('PromptDetail page', () => {
   })
 
   describe('body view switch (#901)', () => {
-    it('shows the raw source in the Raw view and remembers the choice', async () => {
+    it('shows the raw source in the Raw view, and opens on Rendered again next time', async () => {
       const user = userEvent.setup()
       const first = renderPromptDetail()
       await screen.findByText('Code Review Template')
@@ -568,12 +568,13 @@ describe('PromptDetail page', () => {
       )
       expect(screen.queryByTestId('markdown-renderer')).not.toBeInTheDocument()
 
-      // The page owns the mode (its render effects key off it) but persists it
-      // under the same shared key, so a remount comes back in Raw.
+      // Raw lasts for that page view only: the next visit opens on Rendered,
+      // with the placeholder treatment the Rendered view carries.
       first.unmount()
       renderPromptDetail()
       await screen.findByText('Code Review Template')
-      expect(screen.getByTestId('resource-body-raw')).toBeInTheDocument()
+      expect(screen.queryByTestId('resource-body-raw')).not.toBeInTheDocument()
+      expect(screen.getByTestId('markdown-renderer')).toBeInTheDocument()
     })
 
     it('renders the placeholder inputs and render error through the rendered-only slot', async () => {

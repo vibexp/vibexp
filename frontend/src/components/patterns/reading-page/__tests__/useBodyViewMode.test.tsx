@@ -1,48 +1,68 @@
 import { act, renderHook } from '@testing-library/react'
 
-import { STORAGE_KEYS } from '@/constants/storageKeys'
-import { storage } from '@/utils/storage'
-
 import { useBodyViewMode } from '../useBodyViewMode'
 
 describe('useBodyViewMode', () => {
   beforeEach(() => {
-    storage.clear()
+    globalThis.localStorage.clear()
+    window.history.replaceState(null, '', '/artifacts/p1/one')
   })
 
-  it('defaults to rendered when nothing is stored', () => {
+  it('opens on rendered', () => {
     const { result } = renderHook(() => useBodyViewMode())
     expect(result.current[0]).toBe('rendered')
   })
 
-  it('round-trips the choice through localStorage', () => {
-    const { result, unmount } = renderHook(() => useBodyViewMode())
+  it('switches to raw and back for the current page view', () => {
+    const { result } = renderHook(() => useBodyViewMode())
 
     act(() => {
       result.current[1]('raw')
     })
     expect(result.current[0]).toBe('raw')
-    unmount()
-
-    // The regression guard for the reason this is a boolean: `storage.set`
-    // writes a string value verbatim and `storage.getJSON` always JSON.parses,
-    // so persisting the mode STRING silently resets on every remount.
-    const remounted = renderHook(() => useBodyViewMode())
-    expect(remounted.result.current[0]).toBe('raw')
-  })
-
-  it('stores a boolean under the shared key', () => {
-    const { result } = renderHook(() => useBodyViewMode())
-
-    act(() => {
-      result.current[1]('raw')
-    })
-    expect(storage.get(STORAGE_KEYS.BODY_VIEW_RAW)).toBe('true')
 
     act(() => {
       result.current[1]('rendered')
     })
-    expect(storage.get(STORAGE_KEYS.BODY_VIEW_RAW)).toBe('false')
+    expect(result.current[0]).toBe('rendered')
+  })
+
+  it('does not remember raw across a remount (a reload, or another page)', () => {
+    const { result, unmount } = renderHook(() => useBodyViewMode())
+    act(() => {
+      result.current[1]('raw')
+    })
+    unmount()
+
+    const remounted = renderHook(() => useBodyViewMode())
+    expect(remounted.result.current[0]).toBe('rendered')
+  })
+
+  it('stores nothing, and ignores a stale key left by an older build', () => {
+    globalThis.localStorage.setItem('vx_body_view_raw', 'true')
+    const { result } = renderHook(() => useBodyViewMode())
+    expect(result.current[0]).toBe('rendered')
+
+    globalThis.localStorage.clear()
+    act(() => {
+      result.current[1]('raw')
+    })
+    expect(globalThis.localStorage.length).toBe(0)
+  })
+
+  it('returns to rendered when the reader navigates to another resource in the same mounted page', () => {
+    // Navigating between two resources of one kind keeps the page component
+    // mounted, so unmounting alone cannot be what resets the view.
+    const { result, rerender } = renderHook(() => useBodyViewMode())
+    act(() => {
+      result.current[1]('raw')
+    })
+    expect(result.current[0]).toBe('raw')
+
+    window.history.pushState(null, '', '/artifacts/p1/two')
+    rerender()
+
+    expect(result.current[0]).toBe('rendered')
   })
 
   it('keeps a stable setter so callers may list it in effect deps', () => {

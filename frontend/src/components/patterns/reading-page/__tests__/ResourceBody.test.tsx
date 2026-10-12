@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 
-import { STORAGE_KEYS } from '@/constants/storageKeys'
 import { storage } from '@/utils/storage'
 
 import { RAW_BODY_CLASS, ResourceBody } from '../ResourceBody'
@@ -83,19 +82,20 @@ describe('ResourceBody', () => {
     expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
   })
 
-  it('persists the chosen mode and rehydrates it on the next mount', async () => {
+  it('opens the next resource on Rendered after Raw was chosen on this one', async () => {
     const user = userEvent.setup()
     const { unmount } = render(<ResourceBody content={RENDERED} />)
 
     await user.click(screen.getByRole('tab', { name: 'Raw' }))
-    expect(storage.get(STORAGE_KEYS.BODY_VIEW_RAW)).toBe('true')
+    expect(screen.getByTestId('resource-body-raw')).toBeInTheDocument()
+    // Raw is for this page view only: nothing is written anywhere.
+    expect(globalThis.localStorage.length).toBe(0)
 
     unmount()
-    // A different resource entirely — the preference is shared, not per-body.
     render(<ResourceBody content="Another resource" />)
 
-    expect(screen.getByTestId('resource-body-raw')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Raw' })).toHaveAttribute(
+    expect(screen.getByTestId('markdown-renderer')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Rendered' })).toHaveAttribute(
       'aria-selected',
       'true'
     )
@@ -172,7 +172,7 @@ describe('ResourceBody', () => {
       expect(screen.getByTestId('markdown-renderer')).toBeInTheDocument()
     })
 
-    it('leaves persistence to the owner rather than writing the key twice', async () => {
+    it('reports the change to the owner and stores nothing', async () => {
       const user = userEvent.setup()
       const onModeChange = vi.fn()
       render(
@@ -186,7 +186,7 @@ describe('ResourceBody', () => {
       await user.click(screen.getByRole('tab', { name: 'Raw' }))
 
       expect(onModeChange).toHaveBeenCalledWith('raw')
-      expect(storage.get(STORAGE_KEYS.BODY_VIEW_RAW)).toBeNull()
+      expect(globalThis.localStorage.length).toBe(0)
     })
   })
 })

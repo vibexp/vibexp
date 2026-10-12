@@ -7,6 +7,14 @@ import { storageUtils } from '../storage'
 const rawLocal = globalThis.localStorage
 
 describe('storageUtils.migrateStorageKeys', () => {
+  it('removes the retired body-view preference', () => {
+    globalThis.localStorage.setItem('vx_body_view_raw', 'true')
+
+    storageUtils.migrateStorageKeys()
+
+    expect(globalThis.localStorage.getItem('vx_body_view_raw')).toBeNull()
+  })
+
   beforeEach(() => {
     globalThis.localStorage.clear()
     globalThis.sessionStorage.clear()

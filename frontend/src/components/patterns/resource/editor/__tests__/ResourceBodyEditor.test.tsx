@@ -1,4 +1,4 @@
-import { act, render, renderHook, screen } from '@testing-library/react'
+import { render, renderHook, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRef, forwardRef, useState } from 'react'
 
@@ -6,8 +6,6 @@ import {
   RAW_BODY_CLASS,
   useBodyViewMode,
 } from '@/components/patterns/reading-page'
-import { STORAGE_KEYS } from '@/constants/storageKeys'
-import { storage } from '@/utils/storage'
 
 import type { BodyEditorView } from '../ResourceBodyEditor'
 import {
@@ -111,12 +109,13 @@ function writeArea() {
   return screen.getByRole('textbox')
 }
 
-function storedMode() {
+/** The mode a reading page would open in right now. */
+function readingMode() {
   return renderHook(() => useBodyViewMode()).result.current[0]
 }
 
 beforeEach(() => {
-  storage.remove(STORAGE_KEYS.BODY_VIEW_RAW)
+  globalThis.localStorage.clear()
 })
 
 describe('ResourceBodyEditor', () => {
@@ -587,9 +586,7 @@ describe('ResourceBodyEditor', () => {
       expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
     })
 
-    it('opens on Raw even when the stored preference is Rendered', () => {
-      expect(storedMode()).toBe('rendered')
-
+    it('opens on Raw', () => {
       render(<ResourceBodyEditor value={BODY} onChange={vi.fn()} />)
 
       expect(screen.getByRole('tab', { name: 'Raw' })).toHaveAttribute(
@@ -599,51 +596,16 @@ describe('ResourceBodyEditor', () => {
       expect(writeArea()).toHaveValue(BODY)
     })
 
-    it('writes Rendered and Raw through to the shared reading preference', async () => {
+    it('keeps its view to itself: a reading page still opens on Rendered', async () => {
       const user = userEvent.setup()
       render(<ResourceBodyEditor value={BODY} onChange={vi.fn()} />)
 
-      await user.click(screen.getByRole('tab', { name: 'Raw' }))
-      expect(storedMode()).toBe('raw')
-
       await user.click(screen.getByRole('tab', { name: 'Rendered' }))
-      expect(storedMode()).toBe('rendered')
-    })
-
-    it('writes the preference through for a controlled caller too', async () => {
-      const user = userEvent.setup()
-      const onViewChange = vi.fn()
-      render(
-        <ResourceBodyEditor
-          value={BODY}
-          onChange={vi.fn()}
-          view="preview"
-          onViewChange={onViewChange}
-        />
-      )
-
       await user.click(screen.getByRole('tab', { name: 'Raw' }))
 
-      expect(onViewChange).toHaveBeenCalledWith('write')
-      expect(storedMode()).toBe('raw')
-    })
-
-    it('never stores Render', async () => {
-      const user = userEvent.setup()
-      act(() => {
-        storage.set(STORAGE_KEYS.BODY_VIEW_RAW, 'true')
-      })
-      render(
-        <ResourceBodyEditor
-          value={BODY}
-          onChange={vi.fn()}
-          extensions={{ render: { content: <p>out</p> } }}
-        />
-      )
-
-      await user.click(screen.getByRole('tab', { name: 'Render' }))
-
-      expect(storedMode()).toBe('raw')
+      // Nothing is stored, and a reading body mounted afterwards is unaffected.
+      expect(globalThis.localStorage.length).toBe(0)
+      expect(readingMode()).toBe('rendered')
     })
 
     it('puts the shortcut badge and template button left of the switch', () => {

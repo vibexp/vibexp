@@ -387,5 +387,15 @@ export const storageUtils = {
     } catch {
       // Ignore storage errors - storage may be unavailable
     }
+
+    // The Rendered/Raw body view is no longer remembered: a reading page
+    // always opens on Rendered (see `useBodyViewMode`). The key is pure
+    // cleanup, so a returning browser is not left carrying dead state. The
+    // literal is not in STORAGE_KEYS any more.
+    try {
+      localStorage.removeItem('vx_body_view_raw')
+    } catch {
+      // Ignore storage errors - storage may be unavailable
+    }
   },
 }

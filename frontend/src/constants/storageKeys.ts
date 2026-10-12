@@ -80,22 +80,13 @@ export const STORAGE_KEYS = {
    * details live in a sheet that always starts closed).
    */
   DETAILS_COLLAPSED: 'vx_details_collapsed',
-  /**
-   * `true` when the reader last chose the Raw view of a resource body (#901).
-   * One shared key across every resource type: picking Raw on an artifact is
-   * a statement about how you read bodies, not about that artifact.
-   *
-   * Stored as a BOOLEAN, like `DETAILS_COLLAPSED` — `storage.set` writes
-   * strings verbatim while `storage.getJSON` always `JSON.parse`s, so a
-   * `'rendered' | 'raw'` string would never survive a reload. Read it through
-   * `useBodyViewMode` rather than directly.
-   */
-  BODY_VIEW_RAW: 'vx_body_view_raw',
 
   // Search (#1078)
   /**
    * `true` when the user left the search page's AI Summary section expanded.
-   * Stored as a BOOLEAN (see `BODY_VIEW_RAW`). An expanded section generates
+   * Stored as a BOOLEAN, like `DETAILS_COLLAPSED` — `storage.set` writes
+   * strings verbatim while `storage.getJSON` always `JSON.parse`s, so a string
+   * value would not survive a reload. An expanded section generates
    * a summary for each new search the user runs — one request per search.
    */
   SEARCH_AI_SUMMARY_EXPANDED: 'vx_search_ai_summary_expanded',
@@ -154,7 +145,6 @@ export const LOCAL_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([
   STORAGE_KEYS.CURRENT_PROJECT_ID,
   STORAGE_KEYS.NAV_COLLAPSED,
   STORAGE_KEYS.DETAILS_COLLAPSED,
-  STORAGE_KEYS.BODY_VIEW_RAW,
 ])
 
 export const SESSION_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([

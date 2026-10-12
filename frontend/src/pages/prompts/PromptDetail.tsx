@@ -118,8 +118,8 @@ export function PromptDetail() {
     useState<PromptDependenciesResponse | null>(null)
   const [loadingDependencies, setLoadingDependencies] = useState(false)
   // Owned here rather than by `ResourceBody` because the render and
-  // placeholder effects below key off it; persisted under the same shared
-  // key so the choice follows the reader across resources (#901).
+  // placeholder effects below key off it. Same rule as every reading page:
+  // opens on Rendered, and Raw lasts for this page view only.
   const [tab, setTab] = useBodyViewMode()
 
   const {

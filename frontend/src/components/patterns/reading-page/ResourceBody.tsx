@@ -59,8 +59,8 @@ export type ResourceBodyProps = ResourceBodyBaseProps & ResourceBodyModeProps
  *
  * A bare article — no card chrome (epic #899 decision A) — with a Rendered /
  * Raw switch above it, so every resource offers the source text a user is
- * about to paste into a tool. The chosen mode is remembered per browser under
- * a single shared key, following the details-column collapse precedent.
+ * about to paste into a tool. It always opens on Rendered; Raw lasts for the
+ * current page view only and is stored nowhere (see `useBodyViewMode`).
  *
  * Domain-free like the rest of this package: the prompt's placeholder and
  * render machinery stays in `PromptDetail` and arrives through `renderedExtra`
@@ -78,13 +78,13 @@ export function ResourceBody({
   onModeChange,
   className,
 }: Readonly<ResourceBodyProps>) {
-  const [storedMode, setStoredMode] = useBodyViewMode()
-  const activeMode = mode ?? storedMode
+  const [ownMode, setOwnMode] = useBodyViewMode()
+  const activeMode = mode ?? ownMode
 
   const handleChange = (value: string) => {
     const next = value as BodyViewMode
     if (onModeChange) onModeChange(next)
-    else setStoredMode(next)
+    else setOwnMode(next)
   }
 
   return (
