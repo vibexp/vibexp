@@ -109,13 +109,13 @@ func (r *CommentRepository) ListByResource(
 
 // recentCommentsQuery resolves each comment's resource title and link fields at
 // query time via a per-type LEFT JOIN (the same title expressions search.go
-// uses: artifact/blueprint -> title, prompt -> name, memory -> LEFT(text,100)).
+// uses: artifact/blueprint -> title, prompt -> name, memory -> memoryDisplayNameExpr).
 // A comment whose resource has vanished has all four joins NULL and is excluded
 // by the WHERE clause, so no dangling row is returned. Ordering is by latest
 // activity so an edited comment resurfaces.
-const recentCommentsQuery = `
+var recentCommentsQuery = `
 	SELECT c.id, c.team_id, c.resource_type, c.resource_id, c.user_id, c.content, c.created_at, c.updated_at,
-		COALESCE(a.title, b.title, p.name, LEFT(m.text, 100)) AS resource_title,
+		COALESCE(a.title, b.title, p.name, ` + memoryDisplayNameExpr("m") + `) AS resource_title,
 		COALESCE(a.project_id, b.project_id, p.project_id, m.project_id) AS project_id,
 		COALESCE(a.slug, b.slug, p.slug) AS slug
 	FROM comments c

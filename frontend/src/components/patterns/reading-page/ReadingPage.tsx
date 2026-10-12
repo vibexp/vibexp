@@ -204,7 +204,9 @@ export function ReadingPage({
               <h1
                 className={cn(
                   'text-2xl font-semibold tracking-tight',
-                  titleSubdued && 'text-muted-foreground font-medium'
+                  // A stand-in can be a long excerpt: two lines at most.
+                  titleSubdued &&
+                    'text-muted-foreground line-clamp-2 font-medium'
                 )}
               >
                 {title}

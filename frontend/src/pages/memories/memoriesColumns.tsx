@@ -23,9 +23,6 @@ import type { Project } from '@/services/projectService'
 
 const descriptor = getResourceDescriptor('memory')
 
-/** Longest excerpt shown in the list's Content cell. */
-const MEMORY_EXCERPT_LENGTH = 140
-
 /**
  * Memory declares no `taxonomy` field: its tags are lifted out of the free-form
  * `metadata` bag, exactly as `ResourceTaxonomySection` does on the detail page
@@ -33,14 +30,6 @@ const MEMORY_EXCERPT_LENGTH = 140
  * the descriptor.
  */
 const tagsField: FieldSpec = { key: 'tags', role: 'taxonomy', label: 'Tags' }
-
-/**
- * What the primary column shows: the name the memory goes by everywhere — its
- * title, or a name derived from the body, cut later here than in a heading
- * because the cell wraps.
- */
-const displayName = (memory: Memory) =>
-  memoryDisplayName(memory, MEMORY_EXCERPT_LENGTH)
 
 export function buildMemoriesColumns({
   navigate,
@@ -99,8 +88,8 @@ export function buildMemoriesColumns({
       // plain text, not markdown, because the raw body puts `#` and `**` in
       // the memory's only identifying cell (#909) — shown subdued so it does
       // not read as a title someone chose.
-      value: memory => displayName(memory).name,
-      subdued: memory => displayName(memory).isFallback,
+      value: memory => memoryDisplayName(memory).name,
+      subdued: memory => memoryDisplayName(memory).isFallback,
       to: memory => `/memories/${memory.id}`,
       multiline: true,
       className: 'max-w-xl',

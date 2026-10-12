@@ -208,9 +208,9 @@ func (r *EmbeddingRepository) DeleteByTeam(ctx context.Context, teamID string) (
 // expressions search.go uses) and dropping orphan chunks whose source row is
 // gone. The query vector is a bound parameter, so the HNSW index accelerates it.
 // $2 team_id, $3 model_id, $4/$5 the self (type,id) to exclude, $6 limit.
-const similarInTeamQuery = `
+var similarInTeamQuery = `
 	SELECT e.entity_type, e.entity_id,
-		COALESCE(a.title, b.title, p.name, LEFT(m.text, 100), '') AS title,
+		COALESCE(a.title, b.title, p.name, ` + memoryDisplayNameExpr("m") + `, '') AS title,
 		(1 - (e.vector_embeddings <=> $1)) AS score
 	FROM embeddings e
 	LEFT JOIN artifacts  a ON e.entity_type = 'artifact'  AND a.id = e.entity_id AND a.team_id = $2

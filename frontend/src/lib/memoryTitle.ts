@@ -10,8 +10,13 @@
 
 import { contentLines, markdownToExcerpt } from '@/lib/markdownExcerpt'
 
-/** Longest excerpt used when the body carries no heading. */
-const MAX_EXCERPT_LENGTH = 60
+/**
+ * Longest excerpt used when the body carries no heading. One length for every
+ * surface (and the same as the backend's `memoryDisplayNameExpr`), so an
+ * untitled memory reads the same in a list, a heading and a picker; a surface
+ * short on room truncates it with CSS rather than deriving a shorter one.
+ */
+const MAX_EXCERPT_LENGTH = 120
 
 /** Shown for an empty or whitespace-only memory. */
 const FALLBACK_TITLE = 'Untitled memory'
@@ -62,14 +67,11 @@ function firstHeading(lines: readonly string[]): string | undefined {
  * otherwise a word-boundary excerpt of the plain-text body, otherwise
  * `'Untitled memory'`.
  */
-export function deriveMemoryTitle(
-  text: string,
-  excerptLength = MAX_EXCERPT_LENGTH
-): string {
+export function deriveMemoryTitle(text: string): string {
   const heading = firstHeading(contentLines(text))
   if (heading !== undefined && heading !== '') return heading
 
-  return markdownToExcerpt(text, excerptLength) || FALLBACK_TITLE
+  return markdownToExcerpt(text, MAX_EXCERPT_LENGTH) || FALLBACK_TITLE
 }
 
 export interface MemoryDisplayName {
@@ -90,18 +92,15 @@ export interface MemoryDisplayName {
  * `title` (`backend/schemas/memories.yaml`), so a memory written through the
  * API or MCP can carry `""` — and treating only `null` as absent would render
  * an empty name, which is the #909 failure over again.
- *
- * `excerptLength` only moves where a body excerpt is cut (a list cell has room
- * for more than a heading does); it never changes which text is chosen.
  */
-export function memoryDisplayName(
-  memory: { title?: string | null; text: string },
-  excerptLength = MAX_EXCERPT_LENGTH
-): MemoryDisplayName {
+export function memoryDisplayName(memory: {
+  title?: string | null
+  text: string
+}): MemoryDisplayName {
   const title = memory.title?.trim() ?? ''
   if (title !== '') return { name: title, isFallback: false }
   return {
-    name: deriveMemoryTitle(memory.text, excerptLength),
+    name: deriveMemoryTitle(memory.text),
     isFallback: true,
   }
 }

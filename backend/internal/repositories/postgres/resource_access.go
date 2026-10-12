@@ -248,14 +248,14 @@ func buildTopAccessedQuery(teamID string, since time.Time, source string, limit 
 			ranked.resource_type,
 			ranked.resource_id::text,
 			ranked.access_count,
-			COALESCE(p.name, a.title, b.title, LEFT(m.text, 120), pr.name, '') AS name
+			COALESCE(p.name, a.title, b.title, %s, pr.name, '') AS name
 		FROM ranked
 		LEFT JOIN prompts p     ON ranked.resource_type = 'prompt'    AND p.id = ranked.resource_id
 		LEFT JOIN artifacts a   ON ranked.resource_type = 'artifact'  AND a.id = ranked.resource_id
 		LEFT JOIN blueprints b  ON ranked.resource_type = 'blueprint' AND b.id = ranked.resource_id
 		LEFT JOIN memories m    ON ranked.resource_type = 'memory'    AND m.id = ranked.resource_id
 		LEFT JOIN projects pr   ON ranked.resource_type = 'project'   AND pr.id = ranked.resource_id
-		ORDER BY ranked.access_count DESC, ranked.resource_id`, sourceFilter, limitPlaceholder)
+		ORDER BY ranked.access_count DESC, ranked.resource_id`, sourceFilter, limitPlaceholder, memoryDisplayNameExpr("m"))
 
 	return query, args
 }

@@ -125,13 +125,13 @@ describe('Search page', () => {
     expect(mockSearch).not.toHaveBeenCalled()
   })
 
-  it('renders the type label as the title for memory results', async () => {
+  it('titles a memory result with the name the server returns', async () => {
     mockSearch.mockResolvedValue(
       makeResponse([
         makeItem({
           type: 'memory',
           id: 'mem-1',
-          title: 'unused',
+          title: 'Vitest mock hoisting trap',
           chunk_id: 'chunk-mem',
         }),
       ])
@@ -140,7 +140,7 @@ describe('Search page', () => {
     renderSearch('/search?q=foo')
 
     expect(
-      await screen.findByRole('heading', { name: 'Memory' })
+      await screen.findByRole('heading', { name: 'Vitest mock hoisting trap' })
     ).toBeInTheDocument()
     expect(mockSearch).toHaveBeenCalledWith('team-1', {
       query: 'foo',
@@ -432,7 +432,12 @@ describe('Search page', () => {
     ): SearchResultsResponse {
       return {
         ...makeResponse([
-          makeItem({ type: 'memory', id: 'mem-1', chunk_id: 'c-mem' }),
+          makeItem({
+            type: 'memory',
+            id: 'mem-1',
+            chunk_id: 'c-mem',
+            title: 'A memory',
+          }),
         ]),
         ai_summary: aiSummary,
         ...overrides,
@@ -550,7 +555,7 @@ describe('Search page', () => {
       renderSearch('/search?q=foo')
 
       expect(
-        await screen.findByRole('heading', { name: 'Memory' })
+        await screen.findByRole('heading', { name: 'A memory' })
       ).toBeVisible()
       expect(
         screen.queryByRole('button', { name: /AI Summary/ })

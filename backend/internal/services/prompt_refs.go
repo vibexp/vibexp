@@ -55,10 +55,11 @@ type promptRef struct {
 // a reference. A legacy match never overlaps an explicit one: the bare
 // "@prompt" prefix of an explicit reference is not itself a reference.
 func parsePromptReferences(body string) []promptRef {
-	var refs []promptRef
+	explicit := explicitRefRegex.FindAllStringSubmatchIndex(body, -1)
+	refs := make([]promptRef, 0, len(explicit))
 	claimed := make(map[int]bool)
 
-	for _, m := range explicitRefRegex.FindAllStringSubmatchIndex(body, -1) {
+	for _, m := range explicit {
 		if m[0] > 0 && isRefWordByte(body[m[0]-1]) {
 			continue // mail@prompt:x is literal text, not a reference
 		}
@@ -73,6 +74,9 @@ func parsePromptReferences(body string) []promptRef {
 		refs = append(refs, promptRef{Start: m[0], End: m[1], Slug: body[m[2]:m[3]]})
 	}
 
+	if len(refs) == 0 {
+		return nil // no references is a nil slice, as before the pre-allocation
+	}
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Start < refs[j].Start })
 	return refs
 }

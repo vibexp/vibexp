@@ -14,12 +14,12 @@ export const TYPE_LABEL: Record<SearchResultType, string> = {
 }
 
 /**
- * Human-readable title for a result. Memory results have no meaningful title,
- * so they show the type label instead.
+ * Human-readable title for a result: the name the server returns — for a
+ * memory, its title or a body-derived stand-in. The type label is only the
+ * last resort, for a result that comes back with no name at all.
  */
 export function displayTitle(item: SearchResultItem): string {
-  if (item.type === 'memory') return TYPE_LABEL.memory
-  return item.title
+  return item.title.trim() || TYPE_LABEL[item.type] || item.type
 }
 
 /**

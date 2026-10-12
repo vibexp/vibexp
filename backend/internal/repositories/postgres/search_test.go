@@ -87,7 +87,9 @@ func buildBranchCases() []buildBranchCase {
 			mustContain: append([]string{
 				"src.status NOT IN ('draft', 'archived')",
 				"JOIN memories src",
-				"LEFT(src.text, 100) AS title",
+				// Labelled by the shared title-else-excerpt rule, not the matched
+				// LEFT(text, 100) expression the indexes mirror.
+				memoryDisplayNameExpr("src") + " AS title",
 				"src.text AS source_body",
 				// Memory routes by id, so its own slug is an empty literal.
 				"'' AS slug",
@@ -395,7 +397,9 @@ func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 			mustContain: append([]string{
 				"src.status NOT IN ('draft', 'archived')",
 				"FROM memories src",
-				"LEFT(src.text, 100) AS title",
+				// Labelled by the shared title-else-excerpt rule, not the matched
+				// LEFT(text, 100) expression the indexes mirror.
+				memoryDisplayNameExpr("src") + " AS title",
 				"src.text AS source_body",
 				"'' AS slug",
 			}, commonFragments...),
@@ -415,7 +419,9 @@ func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 			// The strict branch must not carry the AND->OR relaxation or the old
 			// plainto_tsquery: those belong only to the relaxed fallback pass.
 			assert.NotContains(t, sqlText, "plainto_tsquery")
-			assert.NotContains(t, sqlText, "replace(")
+			// Anchored on the rewrite itself: the memory branch's display title
+			// legitimately uses regexp_replace(.
+			assert.NotContains(t, sqlText, "replace(websearch_to_tsquery")
 		})
 	}
 }

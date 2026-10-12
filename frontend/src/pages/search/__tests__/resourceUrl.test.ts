@@ -19,8 +19,14 @@ function makeItem(overrides: Partial<SearchResultItem>): SearchResultItem {
 }
 
 describe('displayTitle', () => {
-  it('returns the type label for memory results', () => {
-    expect(displayTitle(makeItem({ type: 'memory', title: 'ignored' }))).toBe(
+  it('returns the name the server gives a memory result', () => {
+    expect(
+      displayTitle(makeItem({ type: 'memory', title: 'Vitest hoisting trap' }))
+    ).toBe('Vitest hoisting trap')
+  })
+
+  it('falls back to the type label for a result with no name', () => {
+    expect(displayTitle(makeItem({ type: 'memory', title: '  ' }))).toBe(
       'Memory'
     )
   })
