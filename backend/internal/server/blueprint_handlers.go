@@ -15,6 +15,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
+	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
 const (
@@ -63,6 +64,7 @@ func (s *Server) handleCreateBlueprint(w http.ResponseWriter, r *http.Request) {
 		s.metrics.RecordBlueprintCreated(r.Context())
 	}
 
+	s.recordResourceWrite(r.Context(), userID, models.WriteActionCreate, writtenBlueprint(teamID, blueprint))
 	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
 		userID: userID, activityType: activities.ActivityTypeBlueprintCreated, blueprintID: blueprint.ID,
 		projectID: req.ProjectID, slug: req.Slug, description: "Created new blueprint: " + req.Title,
@@ -113,6 +115,7 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
 	blueprint, err := s.container.BlueprintService().UpdateBlueprintByProjectIDAndSlugInTeam(
 		userID, teamID, decodedProjectID, decodedSlug, &req,
 	)
@@ -124,6 +127,7 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenBlueprint(teamID, blueprint))
 	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
 		userID: userID, activityType: activities.ActivityTypeBlueprintUpdated, blueprintID: blueprint.ID,
 		projectID: decodedProjectID, slug: decodedSlug, description: "Updated blueprint: " + blueprint.Title,

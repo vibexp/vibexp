@@ -10,6 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
 // Memory Tool Parameters
@@ -76,10 +77,11 @@ type UpdateMemoryParams struct {
 //nolint:funlen // structured slog attributes are marginally more verbose than the prior logrus WithFields calls
 func (s *Server) storeMemory(
 	ctx context.Context,
-	_ *mcp.CallToolRequest,
+	req *mcp.CallToolRequest,
 	params *StoreMemoryParams,
 	userID string,
 ) (*mcp.CallToolResult, any, error) {
+	ctx = withMCPWriteOrigin(ctx, req)
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
@@ -128,6 +130,8 @@ func (s *Server) storeMemory(
 			IsError: true,
 		}, nil, nil
 	}
+
+	s.recordResourceWrite(ctx, userID, models.WriteActionCreate, writtenMemory(teamID, memory))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPCreateMemory(ctx)
@@ -207,10 +211,11 @@ func buildMemoryUpdateRequest(params *UpdateMemoryParams, statusPtr *string) *mo
 // updateMemory implements the tool that updates a specific memory in the resolved team.
 func (s *Server) updateMemory(
 	ctx context.Context,
-	_ *mcp.CallToolRequest,
+	req *mcp.CallToolRequest,
 	params *UpdateMemoryParams,
 	userID string,
 ) (*mcp.CallToolResult, any, error) {
+	ctx = withMCPWriteOrigin(ctx, req)
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
@@ -220,8 +225,10 @@ func (s *Server) updateMemory(
 	// service's question (#1266).
 	statusPtr := optionalString(params.Status)
 
-	memory, err := s.container.MemoryService().UpdateMemory(
-		userID, teamID, params.MemoryID, buildMemoryUpdateRequest(params, statusPtr))
+	updateReq := buildMemoryUpdateRequest(params, statusPtr)
+	updateReq.WriteOrigin = resourceaccess.WriteOriginFromContext(ctx)
+
+	memory, err := s.container.MemoryService().UpdateMemory(userID, teamID, params.MemoryID, updateReq)
 	if err != nil {
 		slog.Error(
 			"Failed to update memory via MCP",
@@ -239,6 +246,8 @@ func (s *Server) updateMemory(
 			IsError: true,
 		}, nil, nil
 	}
+
+	s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, writtenMemory(teamID, memory))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPUpdateMemory(ctx)

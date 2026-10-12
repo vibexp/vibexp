@@ -78,6 +78,7 @@ type WireContainer struct {
 	emailService                 services.EmailServiceInterface
 	activityService              activities.ActivityService
 	resourceAccessService        resourceaccess.ResourceAccessService
+	resourceWriteService         resourceaccess.ResourceWriteService
 	agentService                 services.AgentServiceInterface
 	agentCardFetcher             services.CardFetcher
 	agentInvocationService       services.AgentInvocationServiceInterface
@@ -408,6 +409,10 @@ func (c *WireContainer) ActivityService() activities.ActivityService {
 
 func (c *WireContainer) ResourceAccessService() resourceaccess.ResourceAccessService {
 	return c.resourceAccessService
+}
+
+func (c *WireContainer) ResourceWriteService() resourceaccess.ResourceWriteService {
+	return c.resourceWriteService
 }
 
 func (c *WireContainer) AgentService() services.AgentServiceInterface {

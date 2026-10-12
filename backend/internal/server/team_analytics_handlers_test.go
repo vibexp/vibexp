@@ -59,7 +59,6 @@ func createTestTeamAnalyticsServer(c *mockTeamAnalyticsContainer) *Server {
 
 	r.Route("/api/v1/teams", func(r chi.Router) {
 		r.Get("/{id}/stats", srv.handleGetTeamStats)
-		r.Get("/{id}/resource-creation-metrics", srv.handleGetTeamResourceCreationMetrics)
 		r.Get("/{id}/resource-access-metrics", srv.handleGetTeamResourceAccessMetrics)
 		r.Get("/{id}/feed-creation-metrics", srv.handleGetTeamFeedCreationMetrics)
 		r.Get("/{id}/top-accessed-resources", srv.handleGetTeamTopAccessedResources)
@@ -153,67 +152,6 @@ func TestHandleGetTeamStats_InvalidTeamID(t *testing.T) {
 	teamSvc.AssertNotCalled(t, "GetTeamStats")
 }
 
-func TestHandleGetTeamResourceCreationMetrics_Success(t *testing.T) {
-	teamSvc := svcmocks.NewMockTeamServiceInterface(t)
-	teamSvc.EXPECT().
-		IsUserMemberOfTeam(mock.Anything, testTeamAnalyticsUserID, testTeamAnalyticsTeamID).
-		Return(true, nil).Once()
-
-	today := time.Now().UTC().Format("2006-01-02")
-	rows := []models.TeamResourceCreationCount{
-		{Date: today, ResourceType: "prompts", Count: 3},
-		{Date: today, ResourceType: "projects", Count: 1},
-		{Date: today, ResourceType: "memories", Count: 2},
-	}
-	teamSvc.EXPECT().
-		GetTeamResourceCreationMetrics(mock.Anything, testTeamAnalyticsTeamID, mock.Anything).
-		Return(rows, nil).Once()
-
-	srv := createTestTeamAnalyticsServer(&mockTeamAnalyticsContainer{teamService: teamSvc})
-	req := teamAnalyticsRequest(testTeamAnalyticsTeamID, "/resource-creation-metrics", "range=7d")
-	w := httptest.NewRecorder()
-
-	srv.ServeHTTP(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	specconformance.AssertConformsToSpec(t, req, w)
-
-	var resp struct {
-		Status string                          `json:"status"`
-		Data   teamResourceCreationMetricsData `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "success", resp.Status)
-	assert.Equal(t, "7d", resp.Data.Range)
-	assert.Equal(t, 6, resp.Data.TotalCreated)
-	require.Len(t, resp.Data.Counts, 8) // 7-day window inclusive of both ends.
-
-	last := resp.Data.Counts[len(resp.Data.Counts)-1]
-	assert.Equal(t, today, last.Date)
-	assert.Equal(t, 3, last.Prompts)
-	assert.Equal(t, 1, last.Projects)
-	assert.Equal(t, 2, last.Memories)
-	assert.Equal(t, 6, last.Total)
-	assert.Equal(t, 0, resp.Data.Counts[0].Total) // gap-free zero-fill.
-	teamSvc.AssertExpectations(t)
-}
-
-func TestHandleGetTeamResourceCreationMetrics_InvalidRange(t *testing.T) {
-	teamSvc := svcmocks.NewMockTeamServiceInterface(t)
-	teamSvc.EXPECT().
-		IsUserMemberOfTeam(mock.Anything, testTeamAnalyticsUserID, testTeamAnalyticsTeamID).
-		Return(true, nil).Once()
-
-	srv := createTestTeamAnalyticsServer(&mockTeamAnalyticsContainer{teamService: teamSvc})
-	req := teamAnalyticsRequest(testTeamAnalyticsTeamID, "/resource-creation-metrics", "range=999d")
-	w := httptest.NewRecorder()
-
-	srv.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	teamSvc.AssertNotCalled(t, "GetTeamResourceCreationMetrics")
-}
-
 func TestHandleGetTeamResourceAccessMetrics_Success(t *testing.T) {
 	teamSvc := svcmocks.NewMockTeamServiceInterface(t)
 	teamSvc.EXPECT().
@@ -282,36 +220,6 @@ func TestHandleGetTeamResourceAccessMetrics_InvalidRange(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	raSvc.AssertNotCalled(t, "GetTeamMetrics")
-}
-
-// TestHandleGetTeamResourceCreationMetrics_ExtendedRange covers the new 180d
-// (6-month) range option on the shared range map: the window must zero-fill to
-// 181 inclusive days.
-func TestHandleGetTeamResourceCreationMetrics_ExtendedRange(t *testing.T) {
-	teamSvc := svcmocks.NewMockTeamServiceInterface(t)
-	teamSvc.EXPECT().
-		IsUserMemberOfTeam(mock.Anything, testTeamAnalyticsUserID, testTeamAnalyticsTeamID).
-		Return(true, nil).Once()
-	teamSvc.EXPECT().
-		GetTeamResourceCreationMetrics(mock.Anything, testTeamAnalyticsTeamID, mock.Anything).
-		Return([]models.TeamResourceCreationCount{}, nil).Once()
-
-	srv := createTestTeamAnalyticsServer(&mockTeamAnalyticsContainer{teamService: teamSvc})
-	req := teamAnalyticsRequest(testTeamAnalyticsTeamID, "/resource-creation-metrics", "range=180d")
-	w := httptest.NewRecorder()
-
-	srv.ServeHTTP(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	specconformance.AssertConformsToSpec(t, req, w)
-
-	var resp struct {
-		Data teamResourceCreationMetricsData `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "180d", resp.Data.Range)
-	require.Len(t, resp.Data.Counts, 181) // 180-day window inclusive of both ends.
-	teamSvc.AssertExpectations(t)
 }
 
 // TestHandleGetTeamResourceAccessMetrics_ExtendedRange covers the new 60d

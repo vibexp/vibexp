@@ -60,11 +60,13 @@ func TestContentVersionRepository_Create_Success(t *testing.T) {
 		CreatedBy:    &createdBy,
 	}
 
-	// Args: team_id, resource_type, resource_id, content, raw_content, change_summary, actor_type, created_by.
-	// actor_type defaults to "human" when unset; nullable raw_content/change_summary/created_by are AnyArg.
+	// Args: team_id, resource_type, resource_id, content, raw_content, change_summary, actor_type,
+	// created_by, source, assistant_name. actor_type defaults to "human" when unset; nullable
+	// raw_content/change_summary/created_by are AnyArg. A version with no write origin stores
+	// NULL for both source and assistant_name, never a guessed channel.
 	dbMock.ExpectQuery(`INSERT INTO content_versions`).
 		WithArgs(v.TeamID, v.ResourceType, v.ResourceID, v.Content,
-			sqlmock.AnyArg(), sqlmock.AnyArg(), "human", sqlmock.AnyArg()).
+			sqlmock.AnyArg(), sqlmock.AnyArg(), "human", sqlmock.AnyArg(), nil, nil).
 		WillReturnRows(
 			sqlmock.NewRows([]string{"id", "version_number", "created_at"}).AddRow("gen-id", 3, now),
 		)
@@ -76,6 +78,39 @@ func TestContentVersionRepository_Create_Success(t *testing.T) {
 	assert.Equal(t, 3, v.VersionNumber)
 	assert.Equal(t, now, v.CreatedAt)
 	assert.Equal(t, models.ActorTypeHuman, v.ActorType) // default backfilled onto the model
+	assert.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+// A version written through a known channel stores that channel and, for MCP,
+// the assistant name the client reported.
+func TestContentVersionRepository_Create_StoresWriteOrigin(t *testing.T) {
+	t.Parallel()
+
+	repo, dbMock, mockDB := setupContentVersionRepoTest(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	source, assistant := "mcp", "claude-code"
+	v := &models.ContentVersion{
+		TeamID:        "team-1",
+		ResourceType:  "memory",
+		ResourceID:    "res-1",
+		Content:       "old content",
+		Source:        &source,
+		AssistantName: &assistant,
+	}
+
+	dbMock.ExpectQuery(`INSERT INTO content_versions`).
+		WithArgs(v.TeamID, v.ResourceType, v.ResourceID, v.Content,
+			sqlmock.AnyArg(), sqlmock.AnyArg(), "human", sqlmock.AnyArg(), "mcp", "claude-code").
+		WillReturnRows(
+			sqlmock.NewRows([]string{"id", "version_number", "created_at"}).AddRow("gen-id", 1, time.Now().UTC()),
+		)
+
+	require.NoError(t, repo.Create(context.Background(), v))
 	assert.NoError(t, dbMock.ExpectationsWereMet())
 }
 
@@ -93,11 +128,12 @@ func TestContentVersionRepository_ListByResource_Success(t *testing.T) {
 	rows := sqlmock.NewRows(
 		[]string{
 			"id", "team_id", "resource_type", "resource_id", "version_number", "content", "raw_content",
-			"change_summary", "actor_type", "created_by", "created_at",
+			"change_summary", "actor_type", "created_by", "source", "assistant_name", "created_at",
 		},
 	).
-		AddRow("v2", "team-1", "artifact", "res-1", 2, "content-2", nil, "Tightened wording", "human", "user-1", now).
-		AddRow("v1", "team-1", "artifact", "res-1", 1, "content-1", nil, nil, "system", nil, now)
+		AddRow("v2", "team-1", "artifact", "res-1", 2, "content-2", nil, "Tightened wording", "human", "user-1",
+			"mcp", "claude-code", now).
+		AddRow("v1", "team-1", "artifact", "res-1", 1, "content-1", nil, nil, "system", nil, nil, nil, now)
 
 	dbMock.ExpectQuery(`SELECT .* FROM content_versions`).
 		WithArgs("team-1", "artifact", "res-1").
@@ -116,6 +152,14 @@ func TestContentVersionRepository_ListByResource_Success(t *testing.T) {
 	assert.Nil(t, versions[1].CreatedBy)     // NULL created_by decodes to nil
 	assert.Nil(t, versions[1].ChangeSummary) // NULL change_summary decodes to nil
 	assert.Equal(t, models.ActorTypeSystem, versions[1].ActorType)
+	require.NotNil(t, versions[0].Source)
+	assert.Equal(t, "mcp", *versions[0].Source)
+	require.NotNil(t, versions[0].AssistantName)
+	assert.Equal(t, "claude-code", *versions[0].AssistantName)
+	// NULL source / assistant_name decode to nil: a version with no recorded
+	// channel reads back as unknown, never as a default channel.
+	assert.Nil(t, versions[1].Source)
+	assert.Nil(t, versions[1].AssistantName)
 	assert.NoError(t, dbMock.ExpectationsWereMet())
 }
 
@@ -156,9 +200,10 @@ func TestContentVersionRepository_GetByVersionNumber_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows(
 			[]string{
 				"id", "team_id", "resource_type", "resource_id", "version_number", "content", "raw_content",
-				"change_summary", "actor_type", "created_by", "created_at",
+				"change_summary", "actor_type", "created_by", "source", "assistant_name", "created_at",
 			},
-		).AddRow("v2", "team-1", "artifact", "res-1", 2, "content-2", "raw-2", "Tightened wording", "human", "user-1", now))
+		).AddRow("v2", "team-1", "artifact", "res-1", 2, "content-2", "raw-2", "Tightened wording", "human", "user-1",
+			"web", nil, now))
 
 	v, err := repo.GetByVersionNumber(context.Background(), "team-1", "artifact", "res-1", 2)
 
@@ -168,6 +213,9 @@ func TestContentVersionRepository_GetByVersionNumber_Success(t *testing.T) {
 	require.NotNil(t, v.ChangeSummary)
 	assert.Equal(t, "Tightened wording", *v.ChangeSummary)
 	assert.Equal(t, models.ActorTypeHuman, v.ActorType)
+	require.NotNil(t, v.Source)
+	assert.Equal(t, "web", *v.Source)
+	assert.Nil(t, v.AssistantName)
 	assert.NoError(t, dbMock.ExpectationsWereMet())
 }
 

@@ -66,7 +66,8 @@ func TestBlueprintService_UpdateSnapshotsOldContent(t *testing.T) {
 								req.OldContent == tt.oldContent &&
 								req.NewContent == tt.newContent &&
 								req.ActorType == models.ActorTypeHuman &&
-								req.ChangeSummary == nil
+								req.ChangeSummary == nil &&
+								originMatches(req.Origin)
 						}),
 					).
 					Return(nil).
@@ -85,7 +86,7 @@ func TestBlueprintService_UpdateSnapshotsOldContent(t *testing.T) {
 
 			content := tt.newContent
 			_, err := svc.UpdateBlueprintByProjectIDAndSlugInTeam(
-				userID, teamID, projectID, slug, &models.UpdateBlueprintRequest{Content: &content},
+				userID, teamID, projectID, slug, &models.UpdateBlueprintRequest{Content: &content, WriteOrigin: testWriteOrigin()},
 			)
 			require.NoError(t, err)
 		})
@@ -126,7 +127,9 @@ func TestBlueprintService_RestoreSnapshotsAsSystem(t *testing.T) {
 				return req.OldContent == "live-content" && // pre-restore content snapshotted (non-destructive)
 					req.NewContent == "v2-content" &&
 					req.ActorType == models.ActorTypeSystem &&
-					req.ChangeSummary != nil && *req.ChangeSummary == "Restored Version 2"
+					req.ChangeSummary != nil && *req.ChangeSummary == "Restored Version 2" &&
+					// A restore is a system action: it records no write channel.
+					req.Origin == nil
 			}),
 		).
 		Return(nil).

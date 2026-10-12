@@ -153,6 +153,11 @@ func ProvideResourceAccessRepository(db *database.DB) repositories.ResourceAcces
 	return postgres.NewResourceAccessRepository(db)
 }
 
+// ProvideResourceWriteEventRepository creates a new ResourceWriteEventRepository
+func ProvideResourceWriteEventRepository(db *database.DB) repositories.ResourceWriteEventRepository {
+	return postgres.NewResourceWriteEventRepository(db)
+}
+
 // ProvideAgentRepository creates a new AgentRepository
 func ProvideAgentRepository(db *database.DB) repositories.AgentRepository {
 	return postgres.NewAgentRepository(db)

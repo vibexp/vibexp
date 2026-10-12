@@ -87,6 +87,7 @@ type Container interface {
 	EmailService() services.EmailServiceInterface
 	ActivityService() activities.ActivityService
 	ResourceAccessService() resourceaccess.ResourceAccessService
+	ResourceWriteService() resourceaccess.ResourceWriteService
 	AgentService() services.AgentServiceInterface
 	AgentCardFetcher() services.CardFetcher
 	AgentInvocationService() services.AgentInvocationServiceInterface

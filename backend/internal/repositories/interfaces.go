@@ -864,6 +864,37 @@ type ResourceAccessRepository interface {
 	DeleteOlderThan(ctx context.Context, before time.Time) (int64, error)
 }
 
+// ResourceWriteEventRepository stores the append-only log of resource writes
+// (#1392) and answers the per-channel questions the creation metrics ask of it.
+// It is tenancy-only: every read is scoped to a team, and authorization is the
+// caller's job.
+type ResourceWriteEventRepository interface {
+	// Create persists a write event, populating its ID and CreatedAt.
+	Create(ctx context.Context, event *models.ResourceWriteEvent) error
+	// GetTeamCreationCountsBySource returns, per resource type, how many of the
+	// team's resources created at or after since arrived through each channel.
+	// A resource with no create event is counted under "unknown", so the
+	// sources of a type sum to that type's creation total.
+	GetTeamCreationCountsBySource(
+		ctx context.Context, teamID string, since time.Time,
+	) ([]models.ResourceCreationSourceCount, error)
+	// GetProjectCreationCountsBySource is GetTeamCreationCountsBySource for one
+	// project of the team, identified by its slug.
+	GetProjectCreationCountsBySource(
+		ctx context.Context, teamID, projectSlug string, since time.Time,
+	) ([]models.ResourceCreationSourceCount, error)
+	// GetTeamWriteCountsBySource returns how many write events (creates and
+	// updates) the team recorded per channel at or after since.
+	GetTeamWriteCountsBySource(
+		ctx context.Context, teamID string, since time.Time,
+	) ([]models.ResourceWriteSourceCount, error)
+	// GetProjectWriteCountsBySource is GetTeamWriteCountsBySource for one
+	// project of the team, identified by its slug.
+	GetProjectWriteCountsBySource(
+		ctx context.Context, teamID, projectSlug string, since time.Time,
+	) ([]models.ResourceWriteSourceCount, error)
+}
+
 // ContentVersionRepository defines the data-access contract for the polymorphic
 // content-version history. Snapshots are keyed by (resource_type, resource_id) so
 // any resource type can be versioned without a schema change.

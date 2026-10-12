@@ -14,6 +14,7 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
+	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
 const (
@@ -100,6 +101,7 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.recordResourceWrite(r.Context(), userID, models.WriteActionCreate, writtenMemory(teamID, memory))
 	s.recordMemoryActivity(r.Context(), userID, activities.ActivityTypeMemoryCreated, memory.ID, "Created new memory", r)
 
 	// Record metrics
@@ -158,12 +160,14 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
 	memory, err := s.container.MemoryService().UpdateMemory(userID, teamID, memoryID, &req)
 	if err != nil {
 		s.handleUpdateMemoryError(w, userID, memoryID, err)
 		return
 	}
 
+	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenMemory(teamID, memory))
 	s.recordMemoryActivity(r.Context(), userID, activities.ActivityTypeMemoryUpdated, memoryID, "Updated memory", r)
 
 	writeOK(w, memory, s.logger)

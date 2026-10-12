@@ -418,7 +418,7 @@ func (s *PromptService) updatePromptInternal(
 
 	updatedPrompt := buildUpdatedPrompt(existingPrompt, req)
 
-	s.snapshotPromptBody(ctx, userID, existingPrompt, updatedPrompt, actorType, changeSummary)
+	s.snapshotPromptBody(ctx, userID, existingPrompt, updatedPrompt, actorType, changeSummary, req.WriteOrigin)
 
 	if err = s.writePrompt(ctx, updatedPrompt, s.repo.Update, "Failed to update prompt"); err != nil {
 		return nil, err
@@ -517,7 +517,7 @@ func buildUpdatedPrompt(existingPrompt *models.Prompt, req *models.UpdatePromptR
 func (s *PromptService) snapshotPromptBody(
 	ctx context.Context, userID string,
 	existingPrompt, updatedPrompt *models.Prompt,
-	actorType string, changeSummary *string,
+	actorType string, changeSummary *string, origin *models.WriteOrigin,
 ) {
 	if s.contentVersionSvc == nil || existingPrompt.Body == updatedPrompt.Body {
 		return
@@ -531,6 +531,7 @@ func (s *PromptService) snapshotPromptBody(
 		NewContent:    updatedPrompt.Body,
 		ChangeSummary: changeSummary,
 		ActorType:     actorType,
+		Origin:        origin,
 	}); snapErr != nil {
 		s.logger.With("error", snapErr).Warn("Failed to snapshot prompt content version")
 	}

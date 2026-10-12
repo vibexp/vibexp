@@ -524,7 +524,7 @@ func (s *BlueprintService) UpdateBlueprintByProjectIDAndSlugInTeam(
 // update (mirrors event publishing).
 func (s *BlueprintService) snapshotBlueprintContent(
 	ctx context.Context, userID string, blueprint *models.Blueprint,
-	oldContent, oldRawContent, actorType string, changeSummary *string,
+	oldContent, oldRawContent, actorType string, changeSummary *string, origin *models.WriteOrigin,
 ) {
 	if s.contentVersionSvc == nil || oldContent == blueprint.Content {
 		return
@@ -539,6 +539,7 @@ func (s *BlueprintService) snapshotBlueprintContent(
 		OldRawContent: oldRawContent,
 		ChangeSummary: changeSummary,
 		ActorType:     actorType,
+		Origin:        origin,
 	}); err != nil {
 		s.logger.With("error", err).Warn("Failed to snapshot blueprint content version")
 	}
@@ -612,7 +613,9 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 		blueprint.RawContent, blueprint.ContentSHA = s.regenerateRaw(blueprint)
 	}
 
-	s.snapshotBlueprintContent(ctx, userID, blueprint, oldContent, oldRawContent, actorType, changeSummary)
+	s.snapshotBlueprintContent(
+		ctx, userID, blueprint, oldContent, oldRawContent, actorType, changeSummary, req.WriteOrigin,
+	)
 
 	if err := s.saveBlueprint(ctx, userID, blueprint); err != nil {
 		return nil, err
