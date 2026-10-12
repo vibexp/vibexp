@@ -56,9 +56,16 @@ CREATE UNIQUE INDEX idx_resource_write_events_create
     ON resource_write_events (resource_type, resource_id)
     WHERE action = 'create';
 
--- The same two facts on a version snapshot, for the version history. Both are
--- nullable with no DEFAULT, so the ALTER is a catalog-only change and every
--- version written before this migration reads NULL (unknown), never 'web'.
+-- The same two facts on a version snapshot, for the version history. Both
+-- columns are nullable with no DEFAULT, so adding them rewrites nothing and
+-- every version written before this migration reads NULL (unknown), never
+-- 'web'.
+--
+-- The CHECK is not free: Postgres validates it by scanning content_versions
+-- once, under the ALTER's ACCESS EXCLUSIVE lock. Every existing row has a NULL
+-- source and passes. It is a read of a table whose rows are pruned to a
+-- per-resource retention cap, not a rewrite, so it is added in one step
+-- instead of as NOT VALID followed by a separate VALIDATE.
 ALTER TABLE content_versions
     ADD COLUMN source text,
     ADD COLUMN assistant_name varchar(30),
