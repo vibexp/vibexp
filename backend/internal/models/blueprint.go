@@ -125,6 +125,10 @@ type UpdateBlueprintRequest struct {
 	// Traversal-validated.
 	Path   *string  `json:"path,omitempty" validate:"omitempty,max=1024"`
 	Labels []string `json:"labels,omitempty" validate:"omitempty,max=10,dive,max=50"`
+	// WriteOrigin is how this write arrived (channel and, for MCP, the client's
+	// name). The server sets it from the authenticated request; it is never
+	// decoded from the body. Nil for internal callers, which record no origin.
+	WriteOrigin *WriteOrigin `json:"-"`
 }
 
 type BlueprintListResponse struct {

@@ -342,6 +342,42 @@ ContentVersion:
       example: "01234567-89ab-cdef-0123-456789abcdef"
     author:
       $ref: '#/VersionAuthor'
+    source:
+      type: string
+      nullable: true
+      description: >-
+        The channel the write that produced this version arrived through: the
+        web app, the CLI, the MCP server, or any other API client. The server
+        derives it from how the request was authenticated and routed; a client
+        cannot set it. Null when it is not known: the version was written
+        before write sources were recorded, or a system action such as a
+        restore produced it.
+      enum:
+        - web
+        - cli
+        - mcp
+        - api
+        - null
+      # Fully prefixed names: the Go client generates the whole spec into one
+      # package, where an unprefixed Web/Cli/Mcp/Api would collide with the
+      # access-source enums and make oapi-codegen rename existing constants.
+      x-enum-varnames:
+        - ContentVersionSourceWeb
+        - ContentVersionSourceCLI
+        - ContentVersionSourceMCP
+        - ContentVersionSourceAPI
+        - ContentVersionSourceNone
+      example: "mcp"
+    assistant_name:
+      type: string
+      nullable: true
+      maxLength: 30
+      description: >-
+        The name the MCP client reported for itself (its clientInfo.name),
+        trimmed and capped at 30 characters. It is a label the client chose,
+        not a verified identity. Null unless source is mcp and the client
+        reported a name.
+      example: "claude-code"
     created_at:
       type: string
       format: date-time
@@ -358,6 +394,8 @@ ContentVersion:
     - actor_type
     - created_by
     - author
+    - source
+    - assistant_name
     - created_at
 
 # Resolved author attribution for a content version, populated server-side so clients

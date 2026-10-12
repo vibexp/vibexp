@@ -43,6 +43,14 @@ type ContentVersion struct {
 	// ActorType is ActorTypeHuman or ActorTypeSystem.
 	ActorType string  `json:"actor_type" db:"actor_type"`
 	CreatedBy *string `json:"created_by" db:"created_by"`
+	// Source is the channel the write that produced this version arrived through
+	// (web, cli, mcp or api). Nil when it is not known: the version predates
+	// write-source recording (#1392), or an internal caller such as a restore
+	// produced it.
+	Source *string `json:"source" db:"source"`
+	// AssistantName is the name the MCP client reported for itself, when Source is
+	// mcp and the client reported one. Nil otherwise.
+	AssistantName *string `json:"assistant_name" db:"assistant_name"`
 	// Author is the resolved attribution for CreatedBy, populated server-side on read.
 	// It is not persisted; nil when there is no resolvable author.
 	Author    *VersionAuthor `json:"author"`

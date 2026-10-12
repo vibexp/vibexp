@@ -464,11 +464,14 @@ TeamResourceCreationDailyCount:
 
 TeamResourceCreationMetricsData:
   type: object
-  required: [total_created, range, counts]
+  required: [total_created, range, counts, by_source, writes_by_source]
   properties:
     total_created:
       type: integer
-      description: Sum of every creation count across the whole window.
+      description: >-
+        Sum of every creation count across the whole window, projects included.
+        The by_source totals sum to this minus the projects created in the
+        window, because projects are not broken down by channel.
       example: 142
     range:
       type: string
@@ -478,6 +481,80 @@ TeamResourceCreationMetricsData:
       type: array
       items:
         $ref: '#/TeamResourceCreationDailyCount'
+    by_source:
+      $ref: '#/ResourceCreationBySource'
+    writes_by_source:
+      $ref: '#/ResourceWritesBySource'
+
+ResourceCreationSourceCounts:
+  type: object
+  description: >-
+    Resources created through one channel over the whole window, per resource
+    type. total is the sum of the four.
+  required: [prompts, artifacts, blueprints, memories, total]
+  properties:
+    prompts:
+      type: integer
+      example: 4
+    artifacts:
+      type: integer
+      example: 6
+    blueprints:
+      type: integer
+      example: 0
+    memories:
+      type: integer
+      example: 12
+    total:
+      type: integer
+      description: prompts + artifacts + blueprints + memories for this channel.
+      example: 22
+
+ResourceCreationBySource:
+  type: object
+  description: >-
+    The window's creations broken down by the channel each resource was created
+    through: the web app, the CLI, the MCP server, or any other API client. All
+    five keys are always present. For each of prompts, artifacts, blueprints
+    and memories, the five channels sum to that type's total across counts.
+    unknown holds resources with no recorded channel: those created before
+    write sources were recorded, and those created by the system rather than
+    through a request (for example an import). Projects are not broken down by
+    channel.
+  required: [web, cli, mcp, api, unknown]
+  properties:
+    web:
+      $ref: '#/ResourceCreationSourceCounts'
+    cli:
+      $ref: '#/ResourceCreationSourceCounts'
+    mcp:
+      $ref: '#/ResourceCreationSourceCounts'
+    api:
+      $ref: '#/ResourceCreationSourceCounts'
+    unknown:
+      $ref: '#/ResourceCreationSourceCounts'
+
+ResourceWritesBySource:
+  type: object
+  description: >-
+    Writes (creates and updates of prompts, artifacts, blueprints and memories)
+    recorded per channel over the same window. All four keys are always
+    present. There is no unknown key: a write with no recorded channel is not
+    counted, so these totals start when write sources began to be recorded.
+  required: [web, cli, mcp, api]
+  properties:
+    web:
+      type: integer
+      example: 31
+    cli:
+      type: integer
+      example: 3
+    mcp:
+      type: integer
+      example: 48
+    api:
+      type: integer
+      example: 0
 
 TeamResourceCreationMetricsResponse:
   type: object

@@ -54,12 +54,12 @@ func (r *contentVersionRepository) Create(ctx context.Context, v *models.Content
 	query := `
 		INSERT INTO content_versions
 			(team_id, resource_type, resource_id, version_number, content, raw_content,
-			change_summary, actor_type, created_by)
+			change_summary, actor_type, created_by, source, assistant_name)
 		VALUES (
 			$1, $2, $3,
 			(SELECT COALESCE(MAX(version_number), 0) + 1 FROM content_versions
 				WHERE resource_type = $2 AND resource_id = $3),
-			$4, $5, $6, $7, $8
+			$4, $5, $6, $7, $8, $9, $10
 		)
 		RETURNING id, version_number, created_at`
 
@@ -72,6 +72,10 @@ func (r *contentVersionRepository) Create(ctx context.Context, v *models.Content
 		changeSummary,
 		actorType,
 		createdBy,
+		// Both are *string: a nil pointer is stored as NULL, which is how a
+		// version with no known write source reads back (#1392).
+		v.Source,
+		v.AssistantName,
 	).Scan(&v.ID, &v.VersionNumber, &v.CreatedAt)
 	if err != nil {
 		slog.Error("Failed to create content version", "error", err)
@@ -93,7 +97,7 @@ func (r *contentVersionRepository) ListByResource(
 
 	query := `
 		SELECT id, team_id, resource_type, resource_id, version_number, content, raw_content,
-			change_summary, actor_type, created_by, created_at
+			change_summary, actor_type, created_by, source, assistant_name, created_at
 		FROM content_versions
 		WHERE team_id = $1 AND resource_type = $2 AND resource_id = $3
 		ORDER BY version_number DESC`
@@ -137,7 +141,7 @@ func (r *contentVersionRepository) GetByVersionNumber(
 
 	query := `
 		SELECT id, team_id, resource_type, resource_id, version_number, content, raw_content,
-			change_summary, actor_type, created_by, created_at
+			change_summary, actor_type, created_by, source, assistant_name, created_at
 		FROM content_versions
 		WHERE team_id = $1 AND resource_type = $2 AND resource_id = $3 AND version_number = $4`
 
@@ -181,7 +185,7 @@ func (r *contentVersionRepository) PruneToCap(
 // created_by into the model's *string.
 func scanContentVersion(s rowScanner) (*models.ContentVersion, error) {
 	var v models.ContentVersion
-	var createdBy, changeSummary, rawContent sql.NullString
+	var createdBy, changeSummary, rawContent, source, assistantName sql.NullString
 	if err := s.Scan(
 		&v.ID,
 		&v.TeamID,
@@ -193,6 +197,8 @@ func scanContentVersion(s rowScanner) (*models.ContentVersion, error) {
 		&changeSummary,
 		&v.ActorType,
 		&createdBy,
+		&source,
+		&assistantName,
 		&v.CreatedAt,
 	); err != nil {
 		return nil, err
@@ -203,6 +209,12 @@ func scanContentVersion(s rowScanner) (*models.ContentVersion, error) {
 	}
 	if createdBy.Valid {
 		v.CreatedBy = &createdBy.String
+	}
+	if source.Valid {
+		v.Source = &source.String
+	}
+	if assistantName.Valid {
+		v.AssistantName = &assistantName.String
 	}
 	return &v, nil
 }

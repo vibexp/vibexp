@@ -42,6 +42,9 @@ type SnapshotRequest struct {
 	ChangeSummary *string
 	// ActorType is ActorTypeHuman or ActorTypeSystem; empty defaults to human.
 	ActorType string
+	// Origin is how the write that triggered this snapshot arrived (#1392). Nil
+	// for internal callers such as a restore; the version then stores no source.
+	Origin *models.WriteOrigin
 }
 
 // ContentVersionServiceInterface is the business contract for the generic
@@ -137,6 +140,11 @@ func (s *ContentVersionService) SnapshotIfChanged(ctx context.Context, req Snaps
 		ChangeSummary: req.ChangeSummary,
 		ActorType:     actorType,
 		CreatedBy:     createdBy,
+	}
+	if req.Origin != nil && req.Origin.Source != "" {
+		source := req.Origin.Source
+		version.Source = &source
+		version.AssistantName = req.Origin.AssistantName
 	}
 	if err := s.repo.Create(ctx, version); err != nil {
 		return fmt.Errorf("ContentVersionService.SnapshotIfChanged: %w", err)

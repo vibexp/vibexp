@@ -266,11 +266,13 @@ ProjectResourceCreationDailyCount:
       example: 6
 ProjectResourceCreationMetricsData:
   type: object
-  required: [total_created, range, counts]
+  required: [total_created, range, counts, by_source, writes_by_source]
   properties:
     total_created:
       type: integer
-      description: Sum of every creation count across the whole window.
+      description: >-
+        Sum of every creation count across the whole window. The by_source
+        totals sum to this.
       example: 142
     range:
       type: string
@@ -280,6 +282,10 @@ ProjectResourceCreationMetricsData:
       type: array
       items:
         $ref: '#/ProjectResourceCreationDailyCount'
+    by_source:
+      $ref: './teams.yaml#/ResourceCreationBySource'
+    writes_by_source:
+      $ref: './teams.yaml#/ResourceWritesBySource'
 ProjectResourceCreationMetricsResponse:
   type: object
   required: [status, message, data]

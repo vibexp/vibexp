@@ -20,27 +20,6 @@ const (
 	teamAnalyticsMsgInvalidRange = "range is invalid"
 )
 
-// dailyTeamCreationCount is the flattened per-day creation count returned to the
-// client for the team analytics page. It mirrors dailyCreationCount but adds a
-// projects series, since projects belong to a team (not a project).
-type dailyTeamCreationCount struct {
-	Date       string `json:"date"`
-	Prompts    int    `json:"prompts"`
-	Artifacts  int    `json:"artifacts"`
-	Blueprints int    `json:"blueprints"`
-	Memories   int    `json:"memories"`
-	Projects   int    `json:"projects"`
-	Total      int    `json:"total"`
-}
-
-// teamResourceCreationMetricsData is the data payload of the team
-// resource-creation-metrics response.
-type teamResourceCreationMetricsData struct {
-	TotalCreated int                      `json:"total_created"`
-	Range        string                   `json:"range"`
-	Counts       []dailyTeamCreationCount `json:"counts"`
-}
-
 // validateTeamAnalyticsRequest extracts and authorizes the team for an analytics
 // request. The team analytics routes live under /api/v1/teams/{id}, whose path
 // param is {id}; teamValidationMiddleware reads {team_id} and cannot mount here
@@ -102,63 +81,6 @@ func (s *Server) handleGetTeamStats(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, stats, s.logger)
 }
 
-// handleGetTeamResourceCreationMetrics returns a zero-filled daily creation
-// timeseries (prompts, artifacts, blueprints, memories, projects) scoped to a
-// team. Reuses the shared range definitions (resourceAccessRanges /
-// defaultResourceAccessRange).
-func (s *Server) handleGetTeamResourceCreationMetrics(w http.ResponseWriter, r *http.Request) {
-	teamID, ok := s.validateTeamAnalyticsRequest(w, r, "handleGetTeamResourceCreationMetrics")
-	if !ok {
-		return
-	}
-
-	rangeStr := r.URL.Query().Get("range")
-	if rangeStr == "" {
-		rangeStr = defaultResourceAccessRange
-	}
-	rangeDays, ok := resourceAccessRanges[rangeStr]
-	if !ok {
-		writeErrorResponse(w, r, "validation_error", teamAnalyticsMsgInvalidRange, http.StatusBadRequest)
-		return
-	}
-
-	s.logger.With(
-		"service", serverLogServiceName,
-		"handler", "handleGetTeamResourceCreationMetrics",
-		"team_id", teamID,
-		"range", rangeStr,
-	).Info("Get team resource creation metrics request received")
-
-	// Align the SQL window start with the zero-filled series start by truncating to
-	// UTC midnight (see handleGetProjectResourceCreationMetrics for why).
-	now := time.Now().UTC()
-	start := now.AddDate(0, 0, -rangeDays)
-	since := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
-
-	counts, err := s.container.TeamService().GetTeamResourceCreationMetrics(r.Context(), teamID, since)
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleGetTeamResourceCreationMetrics",
-			"team_id", teamID,
-			"error", err.Error(),
-		).Error("Failed to get team resource creation metrics")
-		writeErrorResponse(
-			w, r, "internal_error",
-			"Failed to get team resource creation metrics", http.StatusInternalServerError,
-		)
-		return
-	}
-
-	data := buildTeamResourceCreationMetricsData(counts, rangeStr, since, rangeDays)
-
-	writeOK(w, map[string]interface{}{
-		"status":  "success",
-		"message": "Team resource creation metrics retrieved successfully",
-		"data":    data,
-	}, s.logger)
-}
-
 // dailyTeamFeedCreationCount is the flattened per-day feed-creation count returned
 // to the client. feed_items (AI updates) is the primary series the dashboard chart
 // renders; feeds (channels) is included for completeness.
@@ -205,7 +127,7 @@ func (s *Server) handleGetTeamFeedCreationMetrics(w http.ResponseWriter, r *http
 	).Info("Get team feed creation metrics request received")
 
 	// Align the SQL window start with the zero-filled series start by truncating to
-	// UTC midnight (see handleGetTeamResourceCreationMetrics for why).
+	// UTC midnight (see resolveCreationMetricsWindow for why).
 	now := time.Now().UTC()
 	start := now.AddDate(0, 0, -rangeDays)
 	since := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
@@ -284,50 +206,6 @@ func (s *Server) handleGetTeamResourceAccessMetrics(w http.ResponseWriter, r *ht
 		"message": "Team resource access metrics retrieved successfully",
 		"data":    data,
 	}, s.logger)
-}
-
-// buildTeamResourceCreationMetricsData zero-fills the sparse per-day/per-type
-// counts into a contiguous daily series — every day from `since` through today,
-// each carrying all five resource types (zero when absent) — and computes per-day
-// and grand totals.
-func buildTeamResourceCreationMetricsData(
-	counts []models.TeamResourceCreationCount,
-	rangeStr string,
-	since time.Time,
-	rangeDays int,
-) teamResourceCreationMetricsData {
-	// date -> resourceType -> count
-	byDay := make(map[string]map[string]int, len(counts))
-	for _, c := range counts {
-		if byDay[c.Date] == nil {
-			byDay[c.Date] = make(map[string]int, 5)
-		}
-		byDay[c.Date][c.ResourceType] += c.Count
-	}
-
-	series := make([]dailyTeamCreationCount, 0, rangeDays+1)
-	totalCreated := 0
-	for offset := 0; offset <= rangeDays; offset++ {
-		date := since.AddDate(0, 0, offset).Format("2006-01-02")
-		day := byDay[date]
-		count := dailyTeamCreationCount{
-			Date:       date,
-			Prompts:    day["prompts"],
-			Artifacts:  day["artifacts"],
-			Blueprints: day["blueprints"],
-			Memories:   day["memories"],
-			Projects:   day["projects"],
-		}
-		count.Total = count.Prompts + count.Artifacts + count.Blueprints + count.Memories + count.Projects
-		totalCreated += count.Total
-		series = append(series, count)
-	}
-
-	return teamResourceCreationMetricsData{
-		TotalCreated: totalCreated,
-		Range:        rangeStr,
-		Counts:       series,
-	}
 }
 
 // buildTeamFeedCreationMetricsData zero-fills the sparse per-day feed/feed_item

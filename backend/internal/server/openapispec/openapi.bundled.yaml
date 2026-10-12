@@ -23851,6 +23851,29 @@ components:
           example: 01234567-89ab-cdef-0123-456789abcdef
         author:
           $ref: '#/components/schemas/VersionAuthor'
+        source:
+          type: string
+          nullable: true
+          description: 'The channel the write that produced this version arrived through: the web app, the CLI, the MCP server, or any other API client. The server derives it from how the request was authenticated and routed; a client cannot set it. Null when it is not known: the version was written before write sources were recorded, or a system action such as a restore produced it.'
+          enum:
+            - web
+            - cli
+            - mcp
+            - api
+            - null
+          x-enum-varnames:
+            - ContentVersionSourceWeb
+            - ContentVersionSourceCLI
+            - ContentVersionSourceMCP
+            - ContentVersionSourceAPI
+            - ContentVersionSourceNone
+          example: mcp
+        assistant_name:
+          type: string
+          nullable: true
+          maxLength: 30
+          description: The name the MCP client reported for itself (its clientInfo.name), trimmed and capped at 30 characters. It is a label the client chose, not a verified identity. Null unless source is mcp and the client reported a name.
+          example: claude-code
         created_at:
           type: string
           format: date-time
@@ -23867,6 +23890,8 @@ components:
         - actor_type
         - created_by
         - author
+        - source
+        - assistant_name
         - created_at
     ArtifactVersionListResponse:
       type: object
@@ -32954,16 +32979,85 @@ components:
         total:
           type: integer
           example: 6
+    ResourceCreationSourceCounts:
+      type: object
+      description: Resources created through one channel over the whole window, per resource type. total is the sum of the four.
+      required:
+        - prompts
+        - artifacts
+        - blueprints
+        - memories
+        - total
+      properties:
+        prompts:
+          type: integer
+          example: 4
+        artifacts:
+          type: integer
+          example: 6
+        blueprints:
+          type: integer
+          example: 0
+        memories:
+          type: integer
+          example: 12
+        total:
+          type: integer
+          description: prompts + artifacts + blueprints + memories for this channel.
+          example: 22
+    ResourceCreationBySource:
+      type: object
+      description: 'The window''s creations broken down by the channel each resource was created through: the web app, the CLI, the MCP server, or any other API client. All five keys are always present. For each of prompts, artifacts, blueprints and memories, the five channels sum to that type''s total across counts. unknown holds resources with no recorded channel: those created before write sources were recorded, and those created by the system rather than through a request (for example an import). Projects are not broken down by channel.'
+      required:
+        - web
+        - cli
+        - mcp
+        - api
+        - unknown
+      properties:
+        web:
+          $ref: '#/components/schemas/ResourceCreationSourceCounts'
+        cli:
+          $ref: '#/components/schemas/ResourceCreationSourceCounts'
+        mcp:
+          $ref: '#/components/schemas/ResourceCreationSourceCounts'
+        api:
+          $ref: '#/components/schemas/ResourceCreationSourceCounts'
+        unknown:
+          $ref: '#/components/schemas/ResourceCreationSourceCounts'
+    ResourceWritesBySource:
+      type: object
+      description: 'Writes (creates and updates of prompts, artifacts, blueprints and memories) recorded per channel over the same window. All four keys are always present. There is no unknown key: a write with no recorded channel is not counted, so these totals start when write sources began to be recorded.'
+      required:
+        - web
+        - cli
+        - mcp
+        - api
+      properties:
+        web:
+          type: integer
+          example: 31
+        cli:
+          type: integer
+          example: 3
+        mcp:
+          type: integer
+          example: 48
+        api:
+          type: integer
+          example: 0
     ProjectResourceCreationMetricsData:
       type: object
       required:
         - total_created
         - range
         - counts
+        - by_source
+        - writes_by_source
       properties:
         total_created:
           type: integer
-          description: Sum of every creation count across the whole window.
+          description: Sum of every creation count across the whole window. The by_source totals sum to this.
           example: 142
         range:
           type: string
@@ -32979,6 +33073,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ProjectResourceCreationDailyCount'
+        by_source:
+          $ref: '#/components/schemas/ResourceCreationBySource'
+        writes_by_source:
+          $ref: '#/components/schemas/ResourceWritesBySource'
     CredentialRequest:
       type: object
       properties:
@@ -33093,10 +33191,12 @@ components:
         - total_created
         - range
         - counts
+        - by_source
+        - writes_by_source
       properties:
         total_created:
           type: integer
-          description: Sum of every creation count across the whole window.
+          description: Sum of every creation count across the whole window, projects included. The by_source totals sum to this minus the projects created in the window, because projects are not broken down by channel.
           example: 142
         range:
           type: string
@@ -33112,6 +33212,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TeamResourceCreationDailyCount'
+        by_source:
+          $ref: '#/components/schemas/ResourceCreationBySource'
+        writes_by_source:
+          $ref: '#/components/schemas/ResourceWritesBySource'
     TeamFeedCreationDailyCount:
       type: object
       description: Per-feed-entity creation counts for a single calendar day (UTC), zero-filled.

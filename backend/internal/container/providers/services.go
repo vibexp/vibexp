@@ -326,6 +326,17 @@ func ProvideResourceAccessService(
 	return resourceaccess.NewService(repo, lastAccessed, clearer, pool, logger, cfg.Retention.AccessEventDays)
 }
 
+// ProvideResourceWriteService creates a new ResourceWriteService. It shares the
+// resource-access worker pool: recording a write is the same kind of
+// off-request-path event write as recording a read.
+func ProvideResourceWriteService(
+	repo repositories.ResourceWriteEventRepository,
+	pool *events.WorkerPool,
+	logger *slog.Logger,
+) resourceaccess.ResourceWriteService {
+	return resourceaccess.NewWriteService(repo, pool, logger)
+}
+
 // ProvideEncryptionService creates a new EncryptionService
 func ProvideEncryptionService(cfg *config.Config) (services.EncryptionServiceInterface, error) {
 	if cfg.Security.EncryptionKey == "" {

@@ -29,11 +29,13 @@ func TestHandleListMemoryVersions_Success(t *testing.T) {
 	summary := "Reworded the note"
 	created := "Created the memory"
 	avatar := "https://example.com/a.png"
+	source, assistant := "mcp", "claude-code"
 	versions := []*models.ContentVersion{
 		{
 			ID: "ver-2", TeamID: versionTeamID, ResourceType: "memory", ResourceID: versionMemoryID,
 			VersionNumber: 2, Content: "v2", ChangeSummary: &summary, ActorType: models.ActorTypeHuman,
 			CreatedBy: &createdBy, CreatedAt: time.Now(),
+			Source: &source, AssistantName: &assistant,
 			Author: &models.VersionAuthor{
 				ID: createdBy, DisplayName: "Ada Lovelace", AvatarURL: &avatar, Initials: "AL",
 			},
@@ -70,6 +72,26 @@ func TestHandleListMemoryVersions_Success(t *testing.T) {
 	assert.Equal(t, "AL", response.Versions[0].Author.Initials)
 	assert.Equal(t, models.ActorTypeSystem, response.Versions[1].ActorType)
 	assert.Nil(t, response.Versions[1].Author)
+
+	// The write channel of a version (#1392): the value when it is known, and an
+	// explicit null -- never an absent key, never a default channel -- when it
+	// is not. Both shapes are validated against the spec below.
+	require.NotNil(t, response.Versions[0].Source)
+	assert.Equal(t, "mcp", *response.Versions[0].Source)
+	require.NotNil(t, response.Versions[0].AssistantName)
+	assert.Equal(t, "claude-code", *response.Versions[0].AssistantName)
+	assert.Nil(t, response.Versions[1].Source)
+	assert.Nil(t, response.Versions[1].AssistantName)
+
+	var raw struct {
+		Versions []map[string]json.RawMessage `json:"versions"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &raw))
+	require.Len(t, raw.Versions, 2)
+	assert.JSONEq(t, `"mcp"`, string(raw.Versions[0]["source"]))
+	assert.JSONEq(t, `"claude-code"`, string(raw.Versions[0]["assistant_name"]))
+	assert.JSONEq(t, `null`, string(raw.Versions[1]["source"]))
+	assert.JSONEq(t, `null`, string(raw.Versions[1]["assistant_name"]))
 
 	specconformance.AssertConformsToSpec(t, req, rr)
 	mockContainer.memoryService.AssertExpectations(t)

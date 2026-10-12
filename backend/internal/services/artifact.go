@@ -539,6 +539,7 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 			NewContent:    artifact.Content,
 			ChangeSummary: req.ChangeSummary,
 			ActorType:     actorType,
+			Origin:        req.WriteOrigin,
 		}); err != nil {
 			s.logger.With("error", err).Warn("Failed to snapshot artifact content version")
 		}

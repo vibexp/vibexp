@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
 // Artifact Tool Parameters
@@ -94,8 +95,9 @@ func buildArtifactURL(baseURL, projectID, slug string) string {
 //
 //nolint:funlen // structured slog attributes are marginally more verbose than the prior logrus WithFields calls
 func (s *Server) createArtifact(
-	ctx context.Context, _ *mcp.CallToolRequest, params *CreateArtifactParams, userID string,
+	ctx context.Context, req *mcp.CallToolRequest, params *CreateArtifactParams, userID string,
 ) (*mcp.CallToolResult, any, error) {
+	ctx = withMCPWriteOrigin(ctx, req)
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
@@ -137,6 +139,8 @@ func (s *Server) createArtifact(
 			IsError: true,
 		}, nil, nil
 	}
+
+	s.recordResourceWrite(ctx, userID, models.WriteActionCreate, writtenArtifact(teamID, artifact))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPCreateArtifact(context.Background())
@@ -213,10 +217,11 @@ func buildArtifactUpdateRequest(params *UpdateArtifactParams) *models.UpdateArti
 //nolint:funlen // Must resolve team, validate project, build update request, call service, and marshal
 func (s *Server) updateArtifact(
 	ctx context.Context,
-	_ *mcp.CallToolRequest,
+	req *mcp.CallToolRequest,
 	params *UpdateArtifactParams,
 	userID string,
 ) (*mcp.CallToolResult, any, error) {
+	ctx = withMCPWriteOrigin(ctx, req)
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
@@ -235,6 +240,7 @@ func (s *Server) updateArtifact(
 
 	updateReq := buildArtifactUpdateRequest(params)
 
+	updateReq.WriteOrigin = resourceaccess.WriteOriginFromContext(ctx)
 	artifact, err := s.container.ArtifactService().UpdateArtifactByProjectIDAndSlugInTeam(
 		userID, teamID, params.ProjectID, params.Slug, updateReq,
 	)
@@ -256,6 +262,8 @@ func (s *Server) updateArtifact(
 			IsError: true,
 		}, nil, nil
 	}
+
+	s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, writtenArtifact(teamID, artifact))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPUpdateArtifact(context.Background())

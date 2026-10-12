@@ -13,6 +13,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
 // Prompt Tool Parameters
@@ -83,8 +84,9 @@ func buildPromptURL(baseURL, slug string) string {
 
 // createPrompt implements the tool that creates a new prompt in the resolved team.
 func (s *Server) createPrompt(
-	ctx context.Context, _ *mcp.CallToolRequest, params *CreatePromptParams, userID string,
+	ctx context.Context, req *mcp.CallToolRequest, params *CreatePromptParams, userID string,
 ) (*mcp.CallToolResult, any, error) {
+	ctx = withMCPWriteOrigin(ctx, req)
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
@@ -123,6 +125,8 @@ func (s *Server) createPrompt(
 		}, nil, nil
 	}
 
+	s.recordResourceWrite(ctx, userID, models.WriteActionCreate, writtenPrompt(teamID, prompt))
+
 	if s.metrics != nil {
 		s.metrics.RecordMCPCreatePrompt(context.Background())
 	}
@@ -159,8 +163,9 @@ func buildPromptUpdateRequest(params *UpdatePromptParams) *models.UpdatePromptRe
 
 // updatePrompt implements the tool that updates a specific prompt (by slug) in the resolved team.
 func (s *Server) updatePrompt(
-	ctx context.Context, _ *mcp.CallToolRequest, params *UpdatePromptParams, userID string,
+	ctx context.Context, req *mcp.CallToolRequest, params *UpdatePromptParams, userID string,
 ) (*mcp.CallToolResult, any, error) {
+	ctx = withMCPWriteOrigin(ctx, req)
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
@@ -168,6 +173,7 @@ func (s *Server) updatePrompt(
 
 	updateReq := buildPromptUpdateRequest(params)
 
+	updateReq.WriteOrigin = resourceaccess.WriteOriginFromContext(ctx)
 	prompt, err := s.container.PromptService().UpdatePromptBySlug(userID, teamID, params.Slug, updateReq)
 	if err != nil {
 		slog.With(
@@ -183,6 +189,8 @@ func (s *Server) updatePrompt(
 			IsError: true,
 		}, nil, nil
 	}
+
+	s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, writtenPrompt(teamID, prompt))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPUpdatePrompt(context.Background())
