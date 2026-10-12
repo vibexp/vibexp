@@ -255,29 +255,43 @@
 
 .v2-root
   .reading-body
-  > :is(
-    pre,
-    .markdown-table-wrapper,
-    [data-mermaid-id],
-    p:has(> img:only-child)
-  ) {
+  > :is(pre, .markdown-table-wrapper, p:has(> img:only-child)) {
   margin-inline: auto;
   width: fit-content;
   min-width: calc(100% - 2 * var(--reading-bleed));
   max-width: 100%;
 }
 
-/* A mermaid diagram is pinned to its natural width (see `MermaidDiagram`), so
-   in the reading body it is a wide block like any other, above. Everywhere it
-   is centred while it fits, and scrolls inside its own container when it does
-   not — it never shrinks its text and never pushes the page. */
+/* A mermaid diagram is a wide block too, but it cannot use `fit-content`: its
+   SVG is sized from its container, so the container needs a definite width.
+   `MermaidDiagram` publishes the diagram's natural width as a custom property
+   on the placeholder, and the block is that wide — at least the prose column,
+   at most the whole widened box. */
+.v2-root .reading-body > [data-mermaid-id] {
+  margin-inline: auto;
+  width: var(--mermaid-natural-width, auto);
+  min-width: calc(100% - 2 * var(--reading-bleed));
+  max-width: 100%;
+}
+
+/* Everywhere, the diagram is drawn at its natural size while it fits (never
+   upscaled), scaled down with its container to a floor that keeps node text
+   readable, and below that held at the floor and scrolled inside its own
+   container — it never pushes the page. Where the natural width is unknown
+   the declaration is invalid and mermaid's own `width: 100%` stands. */
 .markdown-renderer .mermaid-container {
+  --mermaid-min-scale: 0.7;
   overflow-x: auto;
 }
 
 .markdown-renderer .mermaid-container svg {
   display: block;
   margin-inline: auto;
+  width: clamp(
+    var(--mermaid-natural-width) * var(--mermaid-min-scale),
+    100%,
+    var(--mermaid-natural-width)
+  );
 }
 
 /* -------------------------------------------------------------------------- */

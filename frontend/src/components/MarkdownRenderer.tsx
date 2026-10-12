@@ -98,6 +98,17 @@ interface MermaidDiagramProps {
   onError?: (error: Error) => void
 }
 
+/**
+ * Scrolling is the only way to reach the off-screen part of a diagram wider
+ * than its container, so that container must be reachable by keyboard (WCAG
+ * 2.1.1, the table wrapper's contract, #884) — but only then: a diagram that
+ * fits should not add a tab stop.
+ */
+function syncScrollFocus(container: HTMLElement): void {
+  if (container.scrollWidth > container.clientWidth) container.tabIndex = 0
+  else container.removeAttribute('tabindex')
+}
+
 const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
   const elementRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
@@ -127,8 +138,15 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
     targets.forEach(target => {
       observer.observe(target, { attributes: true, attributeFilter: ['class'] })
     })
+    // The container resizes with the window and with either sidebar, and
+    // whether the diagram overflows it changes with it.
+    const resizeObserver = new ResizeObserver(() => {
+      syncScrollFocus(element)
+    })
+    resizeObserver.observe(element)
     return () => {
       observer.disconnect()
+      resizeObserver.disconnect()
     }
   }, [])
 
@@ -193,18 +211,17 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
         })
 
         // Mermaid emits `width: 100%` capped by an inline `max-width` holding
-        // the diagram's natural width, which shrinks a wide diagram to fit —
-        // text included. Pin the natural width instead: the container centres
-        // a narrow diagram and scrolls a wide one (see `.mermaid-container`).
-        const drawn = element.querySelector('svg')
-        if (drawn?.style.maxWidth) drawn.style.width = drawn.style.maxWidth
-
-        // Scrolling is the only way to reach the off-screen part of a diagram
-        // wider than its container, so that container must be reachable by
-        // keyboard (WCAG 2.1.1, the table wrapper's contract, #884) — but only
-        // then: a diagram that fits should not add a tab stop.
-        if (element.scrollWidth > element.clientWidth) element.tabIndex = 0
-        else element.removeAttribute('tabindex')
+        // the diagram's natural width. That width is handed to CSS as a custom
+        // property on the placeholder, which sizes both the wide block and the
+        // SVG from it (see `.mermaid-container` in index.css): natural size
+        // while it fits, scaled down to a floor, scrolled below that. Sizing in
+        // CSS is what lets the fit follow the container without a redraw.
+        const natural = element.querySelector('svg')?.style.maxWidth
+        const placeholder = element.closest<HTMLElement>('[data-mermaid-id]')
+        if (natural && placeholder) {
+          placeholder.style.setProperty('--mermaid-natural-width', natural)
+        }
+        syncScrollFocus(element)
       } catch (err) {
         const error = err as Error
         console.error('Mermaid rendering error:', error)
