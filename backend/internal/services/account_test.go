@@ -408,12 +408,25 @@ func TestAccountService_DisconnectIdentity(t *testing.T) {
 // the service cannot say what would remain usable.
 func TestAccountService_RemovalsFailClosedWhenUsableMethodsAreUnknown(t *testing.T) {
 	ctx := context.Background()
-	f := newAccountFixture(t, fixedAuthPolicy{err: errors.New("pq: down")}) // a strict mock: nothing is asked of the repository
+	for name, arrange := range map[string]func(t *testing.T) *accountFixture{
+		"the policy cannot be read": func(t *testing.T) *accountFixture {
+			return newAccountFixture(t, fixedAuthPolicy{err: errors.New("pq: down")})
+		},
+		"the providers cannot be read": func(t *testing.T) *accountFixture {
+			f := newAccountFixture(t, passwordLoginOn)
+			f.svc.providers = staticIDPResolver{err: errors.New("pq: down")}
+			return f
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := arrange(t) // the repository is a strict mock: nothing is asked of it
 
-	require.Error(t, f.svc.RemovePassword(ctx, accountTestUser, true))
-	_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, "identity-google", true)
-	require.Error(t, err)
-	assert.Empty(t, f.notifier.notified)
+			require.Error(t, f.svc.RemovePassword(ctx, accountTestUser, true))
+			_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, "identity-google", true)
+			require.Error(t, err)
+			assert.Empty(t, f.notifier.notified)
+		})
+	}
 }
 
 func TestAccountService_RevokeAPIAccess(t *testing.T) {

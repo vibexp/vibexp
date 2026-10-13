@@ -14,10 +14,6 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// signInMethodLockNamespace keeps this lock's keys apart from every other
-// advisory lock in the database.
-const signInMethodLockNamespace = "sign-in-methods:"
-
 // SignInMethodRepository implements repositories.SignInMethodRepository for
 // PostgreSQL. Every statement is keyed by the user id: a sign-in method belongs
 // to one user and to no team.
@@ -48,10 +44,8 @@ func (r *SignInMethodRepository) locked(ctx context.Context, userID string, fn f
 		}
 	}()
 
-	_, err = tx.ExecContext(ctx,
-		`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, signInMethodLockNamespace+userID)
-	if err != nil {
-		return fmt.Errorf("failed to take the sign-in method lock: %w", err)
+	if err = lockUserSignInMethods(ctx, tx, userID); err != nil {
+		return err
 	}
 	if err = fn(tx); err != nil {
 		return err
@@ -71,8 +65,9 @@ func (r *SignInMethodRepository) RemovePassword(
 		var identities int
 		err := tx.QueryRowContext(ctx, `
 			SELECT EXISTS (SELECT 1 FROM user_credentials WHERE user_id = $1),
-			       (SELECT count(*) FROM user_identities WHERE user_id = $1 AND provider = ANY($2))`,
-			userID, pq.Array(usable.Providers)).Scan(&has, &identities)
+			       (SELECT count(*) FROM user_identities
+			         WHERE user_id = $1 AND provider = ANY($2) AND provider <> ALL($3))`,
+			userID, pq.Array(usable.Providers), pq.Array(internalIdentityProviders)).Scan(&has, &identities)
 		if err != nil {
 			return fmt.Errorf("failed to read the account's sign-in methods: %w", err)
 		}
@@ -99,8 +94,7 @@ func (r *SignInMethodRepository) RemoveIdentity(
 		err := tx.QueryRowContext(ctx, `
 			SELECT provider FROM user_identities
 			WHERE id = $2 AND user_id = $1 AND provider <> ALL($3)`,
-			userID, identityID,
-			pq.Array([]string{models.LegacyGoogleIdentityProvider, internalDevIdentityProvider})).Scan(&provider)
+			userID, identityID, pq.Array(internalIdentityProviders)).Scan(&provider)
 		if errors.Is(err, sql.ErrNoRows) {
 			return repositories.ErrUserIdentityNotFound
 		}
@@ -112,9 +106,10 @@ func (r *SignInMethodRepository) RemoveIdentity(
 		var usablePassword bool
 		err = tx.QueryRowContext(ctx, `
 			SELECT (SELECT count(*) FROM user_identities
-			         WHERE user_id = $1 AND id <> $2 AND provider = ANY($3)),
+			         WHERE user_id = $1 AND id <> $2 AND provider = ANY($3) AND provider <> ALL($5)),
 			       $4 AND EXISTS (SELECT 1 FROM user_credentials WHERE user_id = $1 AND disabled_at IS NULL)`,
-			userID, identityID, pq.Array(usable.Providers), usable.PasswordLogin).
+			userID, identityID, pq.Array(usable.Providers), usable.PasswordLogin,
+			pq.Array(internalIdentityProviders)).
 			Scan(&otherIdentities, &usablePassword)
 		if err != nil {
 			return fmt.Errorf("failed to read the account's sign-in methods: %w", err)
@@ -143,5 +138,9 @@ func (r *SignInMethodRepository) RemoveIdentity(
 	return provider, nil
 }
 
-// internalDevIdentityProvider is the provider of the localhost-only dev login.
-const internalDevIdentityProvider = "dev"
+// internalIdentityProviders are the user_identities.provider values that are
+// bookkeeping, not sign-in methods their owner manages: the legacy Google alias
+// of another identity and the localhost-only dev login. They are never a
+// target and never count as what remains, even if a real provider is later
+// given the slug "dev".
+var internalIdentityProviders = []string{models.LegacyGoogleIdentityProvider, "dev"}

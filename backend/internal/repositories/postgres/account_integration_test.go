@@ -4,7 +4,9 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -338,18 +341,43 @@ func TestIntegrationSignInMethod_ConcurrentRemovalsKeepOneMethod(t *testing.T) {
 	}
 }
 
+// productionMaxOpenConns is the connection cap of the server's pool
+// (database.NewConnection).
+const productionMaxOpenConns = 25
+
+// openCappedDB opens a SECOND pool to the test database with the production
+// connection cap. The shared integrationDB has no cap, so a test of pool
+// starvation on it could never fail.
+func openCappedDB(t *testing.T) *database.DB {
+	t.Helper()
+	dsn, ok := os.LookupEnv("POSTGRES_TEST_DSN")
+	if !ok || dsn == "" {
+		dsn = defaultTestDSN
+	}
+	db, err := sql.Open("postgres", dsn)
+	require.NoError(t, err)
+	db.SetMaxOpenConns(productionMaxOpenConns)
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close the capped database: %v", closeErr)
+		}
+	})
+	return &database.DB{DB: db}
+}
+
 // More callers than the pool has connections, all for one user: each waits for
 // the lock holding ONE connection, and the holder needs no second one, so they
-// finish one after another and the pool stays usable. (A lock held on one
-// connection while the work ran on others starved the pool here.)
+// finish one after another and the pool stays usable. A lock held on one
+// connection while the work ran on others starved the pool: with the
+// production cap every caller failed at its deadline and unrelated queries
+// timed out. This runs on a pool with that cap, so it would fail the same way.
 func TestIntegrationSignInMethod_ManyCallersDoNotStarveThePool(t *testing.T) {
 	f := newSignInMethodFixture(t)
 	userID := f.user(true, "google", "github")
 	identityID := f.identityID(userID, "google")
-	callers := 2*integrationDB.Stats().MaxOpenConnections + 10
-	if callers < 60 {
-		callers = 60 // an unlimited test pool: still far more than run at once
-	}
+	capped := openCappedDB(t)
+	methods := NewSignInMethodRepository(capped)
+	const callers = 4 * productionMaxOpenConns
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
@@ -357,7 +385,7 @@ func TestIntegrationSignInMethod_ManyCallersDoNotStarveThePool(t *testing.T) {
 	var wg sync.WaitGroup
 	for range callers {
 		wg.Go(func() {
-			_, err := f.methods.RemoveIdentity(ctx, userID, identityID, usableMethods(true))
+			_, err := methods.RemoveIdentity(ctx, userID, identityID, usableMethods(true))
 			switch {
 			case err == nil:
 				removed.Add(1)
@@ -368,12 +396,39 @@ func TestIntegrationSignInMethod_ManyCallersDoNotStarveThePool(t *testing.T) {
 			}
 		})
 	}
+	// An unrelated query on the same pool, while the callers are in flight.
+	var one int
+	bystander, bystanderCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer bystanderCancel()
+	require.NoError(t, capped.QueryRowContext(bystander, "SELECT 1").Scan(&one), "the pool still answers")
 	wg.Wait()
 
 	assert.EqualValues(t, 1, removed.Load(), "the identity is removed once")
 	assert.EqualValues(t, callers-1, notFound.Load(), "everyone else finds it gone")
-	var one int
-	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT 1").Scan(&one), "the pool still answers")
+}
+
+// The internal rows never count as what remains, even on an instance that
+// gives a real provider the slug "dev".
+func TestIntegrationSignInMethod_InternalRowsNeverCountAsRemaining(t *testing.T) {
+	ctx := context.Background()
+	withDevProvider := repositories.UsableSignInMethods{Providers: []string{"dev", "github"}, PasswordLogin: true}
+
+	t.Run("removing the password", func(t *testing.T) {
+		f := newSignInMethodFixture(t)
+		userID := f.user(true, "dev")
+
+		require.ErrorIs(t, f.methods.RemovePassword(ctx, userID, withDevProvider), repositories.ErrLastSignInMethod)
+		assert.True(t, f.hasPassword(userID))
+	})
+
+	t.Run("disconnecting an identity", func(t *testing.T) {
+		f := newSignInMethodFixture(t)
+		userID := f.user(false, "github", "dev")
+
+		_, err := f.methods.RemoveIdentity(ctx, userID, f.identityID(userID, "github"), withDevProvider)
+
+		require.ErrorIs(t, err, repositories.ErrLastSignInMethod)
+	})
 }
 
 func TestIntegrationUser_UpdateName(t *testing.T) {
