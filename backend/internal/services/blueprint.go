@@ -512,21 +512,23 @@ func (s *BlueprintService) UpdateBlueprintByProjectIDAndSlugInTeam(
 	return s.applyAndPersistBlueprintUpdate(userID, blueprint, req, models.ActorTypeHuman, nil, nil)
 }
 
-// applyAndPersistBlueprintUpdate applies the update request to an already-loaded blueprint,
-// snapshots the pre-update content when it changed, persists the blueprint, and publishes the
-// updated event. The blueprint must already have been loaded through an authorization-enforcing
-// lookup. actorType and changeSummary describe the content-version snapshot: human edits pass
-// (ActorTypeHuman, nil); a restore passes (ActorTypeSystem, "Restored Version N"). changeSummary
-// is an internal snapshot attribute only — it is never read from UpdateBlueprintRequest, so the
-// blueprint update API exposes no user-facing change-summary field (parity with artifacts).
+// blueprintSnapshot carries the attributes of one content-version snapshot: the
+// pre-update content, and who or what made the change.
+type blueprintSnapshot struct {
+	oldContent    string
+	oldRawContent string
+	actorType     string
+	changeSummary *string
+	origin        *models.WriteOrigin
+}
+
 // snapshotBlueprintContent records a best-effort content-version snapshot of the
 // pre-update content when it changed. A snapshot failure must not fail the
 // update (mirrors event publishing).
 func (s *BlueprintService) snapshotBlueprintContent(
-	ctx context.Context, userID string, blueprint *models.Blueprint,
-	oldContent, oldRawContent, actorType string, changeSummary *string, origin *models.WriteOrigin,
+	ctx context.Context, userID string, blueprint *models.Blueprint, snap blueprintSnapshot,
 ) {
-	if s.contentVersionSvc == nil || oldContent == blueprint.Content {
+	if s.contentVersionSvc == nil || snap.oldContent == blueprint.Content {
 		return
 	}
 	if err := s.contentVersionSvc.SnapshotIfChanged(ctx, SnapshotRequest{
@@ -534,17 +536,24 @@ func (s *BlueprintService) snapshotBlueprintContent(
 		ResourceID:    blueprint.ID,
 		TeamID:        blueprint.TeamID,
 		UserID:        userID,
-		OldContent:    oldContent,
+		OldContent:    snap.oldContent,
 		NewContent:    blueprint.Content,
-		OldRawContent: oldRawContent,
-		ChangeSummary: changeSummary,
-		ActorType:     actorType,
-		Origin:        origin,
+		OldRawContent: snap.oldRawContent,
+		ChangeSummary: snap.changeSummary,
+		ActorType:     snap.actorType,
+		Origin:        snap.origin,
 	}); err != nil {
 		s.logger.With("error", err).Warn("Failed to snapshot blueprint content version")
 	}
 }
 
+// applyAndPersistBlueprintUpdate applies the update request to an already-loaded blueprint,
+// snapshots the pre-update content when it changed, persists the blueprint, and publishes the
+// updated event. The blueprint must already have been loaded through an authorization-enforcing
+// lookup. actorType and changeSummary describe the content-version snapshot: human edits pass
+// (ActorTypeHuman, nil); a restore passes (ActorTypeSystem, "Restored Version N"). changeSummary
+// is an internal snapshot attribute only — it is never read from UpdateBlueprintRequest, so the
+// blueprint update API exposes no user-facing change-summary field (parity with artifacts).
 func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 	userID string, blueprint *models.Blueprint, req *models.UpdateBlueprintRequest,
 	actorType string, changeSummary *string, rawOverride *string,
@@ -584,8 +593,10 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 
 	// Snapshot the prior content + raw before the update mutates them, so a
 	// version history is built whenever the content actually changes.
-	oldContent := blueprint.Content
-	oldRawContent := blueprint.RawContent
+	snap := blueprintSnapshot{
+		oldContent: blueprint.Content, oldRawContent: blueprint.RawContent,
+		actorType: actorType, changeSummary: changeSummary, origin: req.WriteOrigin,
+	}
 
 	// Apply updates
 	applyBlueprintUpdates(blueprint, req)
@@ -613,9 +624,7 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 		blueprint.RawContent, blueprint.ContentSHA = s.regenerateRaw(blueprint)
 	}
 
-	s.snapshotBlueprintContent(
-		ctx, userID, blueprint, oldContent, oldRawContent, actorType, changeSummary, req.WriteOrigin,
-	)
+	s.snapshotBlueprintContent(ctx, userID, blueprint, snap)
 
 	if err := s.saveBlueprint(ctx, userID, blueprint); err != nil {
 		return nil, err
