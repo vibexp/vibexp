@@ -425,7 +425,7 @@
             }
           },
           "503": {
-            "description": "The enabled providers or the authentication policy could not be read",
+            "description": "The enabled providers could not be read",
             "content": {
               "application/problem+json": {
                 "schema": {

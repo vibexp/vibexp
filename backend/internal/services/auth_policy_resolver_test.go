@@ -20,7 +20,6 @@ import (
 // tests can prove what the resolver did and did not touch.
 type fakeAuthPolicyStore struct {
 	repositories.InstanceAuthPolicyRepository
-	repositories.InstanceEmailProviderRepository
 
 	mu           sync.Mutex
 	row          *models.InstanceAuthPolicy

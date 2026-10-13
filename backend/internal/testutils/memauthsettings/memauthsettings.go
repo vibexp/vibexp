@@ -399,8 +399,6 @@ func (r allowlistRepo) CountUsersOutside(
 	return count, sample, nil
 }
 
-// --- version ------------------------------------------------------------------
-
 // --- policy -------------------------------------------------------------------
 
 type policyRepo struct{ s *Store }
@@ -451,6 +449,8 @@ func (r policyRepo) UpsertAudited(
 		beforeDoc, snapshot(&stored, nil))
 	return nil
 }
+
+// --- version ------------------------------------------------------------------
 
 type versionRepo struct{ s *Store }
 
