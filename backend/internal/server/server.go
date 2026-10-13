@@ -530,6 +530,7 @@ func (s *Server) setupRoutes() {
 	s.setupBackofficeRoutes()
 	s.setupAuthRoutes()
 	s.setupSetupRoutes()
+	s.setupPasswordAuthRoutes()
 	s.setupSiteInfoRoutes()
 	s.setupProtectedRoutes()
 	s.setupAdminRoutes()

@@ -37,6 +37,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideUserRepository,
 	providers.ProvideUserIdentityRepository,
 	providers.ProvideAPIAccessRepository,
+	providers.ProvideUserCredentialRepository,
 	providers.ProvideAPIKeyRepository,
 	providers.ProvidePromptRepository,
 	providers.ProvidePromptReferenceRepository,
@@ -118,6 +119,7 @@ var ProviderSet = wire.NewSet(
 	wire.Struct(new(providers.EmbeddingServiceDeps), "*"),
 	wire.Struct(new(providers.NotificationServiceDeps), "*"),
 	wire.Struct(new(providers.DigestRunnerDeps), "*"),
+	wire.Struct(new(providers.AuthServiceDeps), "*"),
 	wire.Struct(new(providers.InstanceAuthSettingsServiceDeps), "*"),
 
 	// Services
@@ -178,6 +180,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideInstanceAdminResolver,
 	providers.ProvideAccessAllowlistResolver,
 	providers.ProvideAuthPolicyResolver,
+	providers.ProvidePasswordAuthService,
 	providers.ProvideSetupModeService,
 	providers.ProvideIdentityProviderResolver,
 	providers.ProvideInstanceAuthSettingsService,

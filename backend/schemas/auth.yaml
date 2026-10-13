@@ -197,6 +197,30 @@ PasswordLogin:
     - enabled
     - reset
 
+PasswordLoginRequest:
+  type: object
+  description: Request body for POST /api/v1/auth/password/login.
+  additionalProperties: false
+  properties:
+    email:
+      type: string
+      format: email
+      maxLength: 320
+      description: The account's email address. Letter case and surrounding spaces are ignored.
+      example: "ada@example.com"
+    password:
+      type: string
+      format: password
+      minLength: 1
+      maxLength: 1024
+      description: |
+        The account's password, exactly as typed: it is not trimmed. The limit
+        here only bounds the request; the password policy applies when a
+        password is set, not when one is checked.
+  required:
+    - email
+    - password
+
 DevLoginRequest:
   type: object
   description: Request body for POST /api/v1/auth/dev/login (development environment only)

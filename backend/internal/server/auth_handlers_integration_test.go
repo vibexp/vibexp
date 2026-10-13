@@ -46,6 +46,13 @@ type MockAuthContainer struct {
 	// authPolicy overrides the base container's default authentication policy
 	// (password login off, resets by an administrator) when a test sets it.
 	authPolicy services.AuthPolicyResolver
+	// passwordAuth is the password sign-in service, for the suites that mount
+	// its routes.
+	passwordAuth services.PasswordAuthServiceInterface
+}
+
+func (m *MockAuthContainer) PasswordAuthService() services.PasswordAuthServiceInterface {
+	return m.passwordAuth
 }
 
 func (m *MockAuthContainer) AuthPolicyResolver() services.AuthPolicyResolver {

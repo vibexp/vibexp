@@ -413,6 +413,12 @@ func (b *BaseMockContainer) AuthPolicyResolver() services.AuthPolicyResolver {
 	return staticAuthPolicy{policy: models.DefaultInstanceAuthPolicy(), reset: services.PasswordResetByAdmin}
 }
 
+// PasswordAuthService returns nil; suites that exercise password sign-in
+// install their own.
+func (b *BaseMockContainer) PasswordAuthService() services.PasswordAuthServiceInterface {
+	return nil
+}
+
 // noSetupMode is a SetupModeService for an instance that is not, and never
 // was, in authentication setup mode.
 type noSetupMode struct{}
