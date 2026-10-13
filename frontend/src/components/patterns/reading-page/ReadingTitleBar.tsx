@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 
+import { headerHeightPx } from './headerHeight'
 import type { BodyViewHandle } from './readingChrome'
 import { READING_META_ROW_CLASS, READING_TITLE_CLASS } from './readingHeader'
 import { ReadingToolbar } from './ReadingToolbar'
@@ -57,8 +58,9 @@ export function ReadingTitleBar({
       ([entry]) => {
         setStuck(!entry.isIntersecting)
       },
-      // The app header covers the top 3.5rem of the viewport.
-      { rootMargin: '-57px 0px 0px 0px' }
+      // The app header covers the top of the viewport; one pixel past it is
+      // where the bar starts to stick.
+      { rootMargin: `-${String(headerHeightPx() + 1)}px 0px 0px 0px` }
     )
     observer.observe(sentinel)
     return () => {
@@ -73,7 +75,7 @@ export function ReadingTitleBar({
         data-testid="reading-title-bar"
         data-stuck={stuck ? 'true' : 'false'}
         className={cn(
-          'bg-background sticky top-14 z-20',
+          'bg-background sticky top-header z-20',
           stuck && 'flex items-center gap-4 border-b py-2'
         )}
       >

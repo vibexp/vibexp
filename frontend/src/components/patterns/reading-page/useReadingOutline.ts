@@ -1,5 +1,6 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 
+import { headerHeightPx, TITLE_BAR_HEIGHT_PX } from './headerHeight'
 import {
   buildOutline,
   createJumpPin,
@@ -10,11 +11,15 @@ import {
 /**
  * How far below the top of the viewport the "reading line" sits: just under
  * the app header and the sticky title bar. It is the headings'
- * `scroll-margin-top` (7.5rem = 120px, index.css) plus a few pixels, so the
- * heading a reader jumps to — which lands exactly on the scroll margin — is at
- * or above the line and is the one marked current.
+ * `scroll-margin-top` (the header plus the title bar, index.css) plus a few
+ * pixels, so the heading a reader jumps to — which lands exactly on the scroll
+ * margin — is at or above the line and is the one marked current.
  */
-const READING_LINE_PX = 128
+const READING_LINE_SLACK_PX = 8
+
+function readingLinePx(): number {
+  return headerHeightPx() + TITLE_BAR_HEIGHT_PX + READING_LINE_SLACK_PX
+}
 
 /** What a reader does to scroll by hand, as opposed to a jump we started. */
 const MANUAL_SCROLL_EVENTS = ['wheel', 'touchmove', 'keydown'] as const
@@ -136,6 +141,7 @@ export function useReadingOutline(
       const el = document.getElementById(entry.id)
       return el && article.contains(el) ? [el] : []
     })
+    const readingLine = readingLinePx()
     const update = () => {
       setActiveId(
         pin.current() ??
@@ -144,7 +150,7 @@ export function useReadingOutline(
               id: el.id,
               top: el.getBoundingClientRect().top,
             })),
-            READING_LINE_PX
+            readingLine
           )
       )
     }
@@ -184,7 +190,7 @@ export function useReadingOutline(
     // (the current section changes) or the bottom edge, so the observer fires
     // while the reader scrolls without a scroll listener.
     const observer = new IntersectionObserver(update, {
-      rootMargin: `-${String(READING_LINE_PX)}px 0px 0px 0px`,
+      rootMargin: `-${String(readingLine)}px 0px 0px 0px`,
     })
     // A jump (or a fling across a section taller than the viewport) can move
     // headings past the line without any of them ever being inside that

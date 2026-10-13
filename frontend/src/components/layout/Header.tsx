@@ -71,7 +71,7 @@ export function Header() {
   }
 
   return (
-    <header className="bg-background sticky top-0 z-30 flex h-14 items-center gap-2 border-b px-4 md:px-6">
+    <header className="bg-background sticky top-0 z-30 flex h-header items-center gap-2 border-b px-4 md:px-6">
       {!isTablet && (
         <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
           <SheetTrigger asChild>

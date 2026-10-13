@@ -78,7 +78,7 @@ function LoopRow({
     >
       <div className="sm:w-52 sm:shrink-0">
         <p className="text-muted-foreground text-xs">{label}</p>
-        <p className="mt-0.5 flex items-baseline gap-1.5">
+        <div className="mt-0.5 flex items-baseline gap-1.5">
           <span className="text-2xl font-semibold tabular-nums">
             {figure(counts?.aiTools, 'h-8 w-12')}
           </span>
@@ -87,7 +87,7 @@ function LoopRow({
               of {counts.total.toLocaleString()} {noun}
             </span>
           )}
-        </p>
+        </div>
       </div>
       <dl className="grid flex-1 grid-cols-4 gap-x-4">
         {CHANNELS.map(channel => (

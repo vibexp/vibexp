@@ -36,11 +36,11 @@ import { useReadingOutline } from './useReadingOutline'
 /**
  * The article's reading measure. Fixed (not "whatever is left") so folding
  * either side column never stretches lines. The value itself
- * (`--reading-measure`) lives in `styles/index.css` beside the bleed it is
+ * (`--measure-article`) is a design-system token, shared with the bleed it is
  * computed against, so the column and the wide-block breakout can never
  * disagree about where the column ends.
  */
-const READING_MEASURE = 'max-w-(--reading-measure)'
+const READING_MEASURE = 'max-w-measure-article'
 
 /**
  * How the article is being consumed. `editing` is the same shell — same

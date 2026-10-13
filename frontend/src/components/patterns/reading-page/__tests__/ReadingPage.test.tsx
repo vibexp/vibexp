@@ -164,7 +164,7 @@ describe('ReadingPage', () => {
       )
       expect(article()).toHaveClass(
         'mx-auto',
-        'max-w-(--reading-measure)',
+        'max-w-measure-article',
         'w-full'
       )
     })
@@ -182,7 +182,7 @@ describe('ReadingPage', () => {
       )
       expect(article()).toHaveClass(
         'mx-auto',
-        'max-w-(--reading-measure)',
+        'max-w-measure-article',
         'w-full'
       )
     })
@@ -192,7 +192,7 @@ describe('ReadingPage', () => {
       expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
       expect(article()).toHaveClass(
         'mx-auto',
-        'max-w-(--reading-measure)',
+        'max-w-measure-article',
         'w-full'
       )
     })
@@ -207,7 +207,7 @@ describe('ReadingPage', () => {
       expect(screen.queryByTestId('reading-details')).not.toBeInTheDocument()
       expect(article()).toHaveClass(
         'mx-auto',
-        'max-w-(--reading-measure)',
+        'max-w-measure-article',
         'w-full'
       )
     })
@@ -238,7 +238,7 @@ describe('ReadingPage', () => {
       expect(article().className).toBe(readingClasses)
       expect(article()).toHaveClass(
         'mx-auto',
-        'max-w-(--reading-measure)',
+        'max-w-measure-article',
         'w-full'
       )
     })

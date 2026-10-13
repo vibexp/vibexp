@@ -91,7 +91,7 @@ export function ReadingRail({
       data-state={open ? 'open' : 'collapsed'}
       onTransitionEnd={handleTransitionEnd}
       className={cn(
-        'scrollbar-hover bg-background sticky top-14 h-[calc(100dvh-3.5rem)] shrink-0 overflow-y-auto overflow-x-hidden border-l transition-[width] duration-200',
+        'scrollbar-hover bg-background sticky top-header h-[calc(100dvh-var(--header-height))] shrink-0 overflow-y-auto overflow-x-hidden border-l transition-[width] duration-200',
         open ? 'w-details-column' : 'w-12'
       )}
     >
