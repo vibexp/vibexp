@@ -121,10 +121,19 @@ type PasswordAuthServiceInterface interface {
 	Login(ctx context.Context, email, plaintext string) (*models.User, error)
 	// SetPassword gives the user a password, replacing any they had, after
 	// checking it against the password policy (a *password.PolicyError when it
-	// fails). It is the one way a password is ever stored. A new password
+	// fails). Besides the completion of a one-time account link, which stores
+	// the hash HashNewPassword made inside its own transaction, it is the one
+	// way a password is stored. A new password
 	// clears the sign-in throttle and a disabled mark. An unknown user returns
 	// repositories.ErrUserNotFound.
 	SetPassword(ctx context.Context, userID, plaintext string) error
+	// HashNewPassword checks plaintext against the password policy for an
+	// account with email and returns its encoded hash, storing nothing. It is
+	// for a caller that must write the credential as part of a larger
+	// statement or transaction (the completion of a one-time account link,
+	// #1462); every other caller uses SetPassword. A password that breaks the
+	// policy is a *password.PolicyError.
+	HashNewPassword(ctx context.Context, plaintext, email string) (string, error)
 	// RemovePassword deletes the user's password and reports whether they had
 	// one.
 	RemovePassword(ctx context.Context, userID string) (removed bool, err error)
@@ -366,18 +375,27 @@ func (s *PasswordAuthService) SetPassword(ctx context.Context, userID, plaintext
 	if err != nil {
 		return fmt.Errorf("load the account to set its password: %w", err)
 	}
-	if err = password.Validate(plaintext, user.Email); err != nil {
-		return err
-	}
-	hash, err := s.hasher.Hash(ctx, plaintext)
+	hash, err := s.HashNewPassword(ctx, plaintext, user.Email)
 	if err != nil {
-		return fmt.Errorf("hash the password: %w", err)
+		return err
 	}
 	if err = s.credentials.Upsert(ctx, userID, hash); err != nil {
 		return fmt.Errorf("store the password credential: %w", err)
 	}
 	s.logger.With("user_id", userID).Info("Password set")
 	return nil
+}
+
+// HashNewPassword implements PasswordAuthServiceInterface.
+func (s *PasswordAuthService) HashNewPassword(ctx context.Context, plaintext, email string) (string, error) {
+	if err := password.Validate(plaintext, email); err != nil {
+		return "", err
+	}
+	hash, err := s.hasher.Hash(ctx, plaintext)
+	if err != nil {
+		return "", fmt.Errorf("hash the password: %w", err)
+	}
+	return hash, nil
 }
 
 // RemovePassword implements PasswordAuthServiceInterface.
@@ -408,61 +426,54 @@ func (s *PasswordAuthService) HasPassword(ctx context.Context, userID string) (b
 // with password sign-in (#1430, #1431). When a sign-in provider's VERIFIED
 // email claims an account whose own email was never verified, whatever the
 // holder of that account's one-time link set up before the mailbox's real owner
-// arrived has to go. AuthService ends the account's cookie sessions itself,
-// right after the hook; this removes the three things it does not know about:
-// the account's outstanding one-time links (#1432), which would let their
-// holder set a password again; the password; and every API key and MCP/OAuth
-// grant (#1449), which the link's holder could have minted while signed in.
+// arrived has to go: the account's outstanding one-time links (#1432), which
+// would let their holder set a password again; the password; its sessions; and
+// every API key and MCP/OAuth grant (#1449), which the link's holder could
+// have minted while signed in.
 type UnverifiedAccountCleanup struct {
-	tokens      repositories.AccountTokenRepository
-	credentials repositories.UserCredentialRepository
-	apiAccess   APIAccessServiceInterface
-	logger      *slog.Logger
+	tokens    repositories.AccountTokenRepository
+	apiAccess APIAccessServiceInterface
+	logger    *slog.Logger
 }
 
 var _ UnverifiedAccountClaimHook = (*UnverifiedAccountCleanup)(nil)
 
 // NewUnverifiedAccountCleanup creates the cleanup.
 func NewUnverifiedAccountCleanup(
-	tokens repositories.AccountTokenRepository,
-	credentials repositories.UserCredentialRepository,
-	apiAccess APIAccessServiceInterface,
-	logger *slog.Logger,
+	tokens repositories.AccountTokenRepository, apiAccess APIAccessServiceInterface, logger *slog.Logger,
 ) *UnverifiedAccountCleanup {
-	return &UnverifiedAccountCleanup{tokens: tokens, credentials: credentials, apiAccess: apiAccess, logger: logger}
+	return &UnverifiedAccountCleanup{tokens: tokens, apiAccess: apiAccess, logger: logger}
 }
 
-// OnUnverifiedAccountClaimed deletes the account's one-time links, removes its
-// password, then revokes its API access. The order closes each way back in
-// before removing what it could create: without a link no new password can be
-// set, and without a password nobody can sign in with one to mint a new key
-// or grant. A browser session that is still open could mint one until the
-// caller ends the account's sessions, which it does immediately after this
-// returns; the revocation is complete only from that point.
+// OnUnverifiedAccountClaimed deletes the account's one-time links and its
+// password and ends its sessions, in one transaction, then revokes its API
+// access.
+//
+// The transaction holds the lock the completion of a one-time link holds
+// (#1462), so the two cannot interleave: a link completed before it has its
+// password removed here, and one completed after it finds the link gone and
+// sets nothing. Ending the sessions in the same transaction is what makes the
+// revocation that follows complete: once it commits, nobody can sign in with
+// the password, set a new one from a link, or use an open browser session to
+// mint a new key or grant. (AuthService bumps the session epoch once more
+// after the hook; that is harmless and keeps it correct with any hook.)
 //
 // Both steps are idempotent, as the hook's contract requires: a second run on
-// an account already cleaned up changes nothing. A failed step is returned and
-// aborts the sign-in, because linking the new owner to an account its previous
-// holder can still enter would defeat the point.
+// an account already cleaned up changes nothing but the session epoch. A
+// failed step is returned and aborts the sign-in, because linking the new
+// owner to an account its previous holder can still enter would defeat the
+// point.
 func (c *UnverifiedAccountCleanup) OnUnverifiedAccountClaimed(ctx context.Context, userID string) error {
-	links, err := c.tokens.DeleteForUser(ctx, userID)
+	cleared, err := c.tokens.ClearForClaim(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("delete the one-time links of a claimed account: %w", err)
-	}
-	if links > 0 {
-		c.logger.With("user_id", userID, "links", links).
-			Warn("Deleted the one-time links of an unverified account claimed by a verified sign-in")
-	}
-	removed, err := c.credentials.Delete(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("remove the password of a claimed account: %w", err)
+		return fmt.Errorf("remove the one-time links and the password of a claimed account: %w", err)
 	}
 	if _, err := c.apiAccess.RevokeAPIAccess(ctx, userID); err != nil {
 		return fmt.Errorf("revoke the API access of a claimed account: %w", err)
 	}
-	if removed {
-		c.logger.With("user_id", userID).
-			Warn("Removed the password of an unverified account claimed by a verified sign-in")
+	if cleared.Links > 0 || cleared.HadPassword {
+		c.logger.With("user_id", userID, "links", cleared.Links, "had_password", cleared.HadPassword).
+			Warn("Removed the one-time links and the password of an unverified account claimed by a verified sign-in")
 	}
 	return nil
 }

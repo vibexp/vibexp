@@ -685,8 +685,11 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: |
-            The request failed after the link was used up. The link no longer
-            works and trying again cannot succeed: a new link is needed.
+            The request failed after the link was used up: the password WAS
+            changed and the account's other sessions were ended, but the
+            request could not be finished (for a reset, the requested revocation
+            of API access did not happen). The link no longer works and trying
+            again cannot succeed. Sign in with the new password.
           content:
             application/problem+json:
               schema:
@@ -782,8 +785,11 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: |
-            The request failed after the link was used up. The link no longer
-            works and trying again cannot succeed: a new link is needed.
+            The request failed after the link was used up: the password WAS
+            changed and the account's other sessions were ended, but the
+            request could not be finished (for a reset, the requested revocation
+            of API access did not happen). The link no longer works and trying
+            again cannot succeed. Sign in with the new password.
           content:
             application/problem+json:
               schema:

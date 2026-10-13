@@ -32,7 +32,7 @@ var linkTestNow = time.Date(2026, 10, 14, 9, 0, 0, 0, time.UTC)
 
 // memAccountTokens is an in-memory AccountTokenRepository with the semantics of
 // the PostgreSQL one: one live link per user, purpose and delivery, and a
-// consume that ends every other live link of the same user.
+// completion that ends every other live link of the same user.
 type memAccountTokens struct {
 	mu     sync.Mutex
 	rows   []*models.AccountToken
@@ -40,8 +40,13 @@ type memAccountTokens struct {
 	// failing, when set, is returned by every method named in failOn.
 	failing error
 	failOn  map[string]bool
-	// afterConsume, when set, runs once a link has been consumed.
-	afterConsume func()
+	// apply stands in for the user and credential writes of a completion and
+	// returns what the repository would.
+	apply func(consumed *models.AccountToken, c repositories.AccountLinkCompletion) *repositories.CompletedAccountLink
+	// completions records what each completion was asked to store.
+	completions []repositories.AccountLinkCompletion
+	// afterComplete, when set, runs once a link has been completed.
+	afterComplete func()
 }
 
 func (m *memAccountTokens) fail(method string) error {
@@ -87,21 +92,24 @@ func (m *memAccountTokens) GetLive(_ context.Context, hash []byte, now time.Time
 	return nil, repositories.ErrAccountTokenNotFound
 }
 
-func (m *memAccountTokens) Consume(_ context.Context, hash []byte, now time.Time) (*models.AccountToken, error) {
+func (m *memAccountTokens) Complete(
+	_ context.Context, c repositories.AccountLinkCompletion,
+) (*repositories.CompletedAccountLink, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := m.fail("Consume"); err != nil {
+	if err := m.fail("Complete"); err != nil {
 		return nil, err
 	}
 	var won *models.AccountToken
 	for _, row := range m.rows {
-		if bytes.Equal(row.TokenHash, hash) && row.IsLiveAt(now) {
+		if bytes.Equal(row.TokenHash, c.TokenHash) && row.IsLiveAt(c.Now) {
 			won = row
 		}
 	}
 	if won == nil {
 		return nil, repositories.ErrAccountTokenNotFound
 	}
+	now := c.Now
 	won.ConsumedAt = &now
 	kept := m.rows[:0]
 	for _, row := range m.rows {
@@ -111,14 +119,27 @@ func (m *memAccountTokens) Consume(_ context.Context, hash []byte, now time.Time
 		}
 	}
 	m.rows = kept
+	m.completions = append(m.completions, c)
 	if m.events != nil {
-		*m.events = append(*m.events, "link consumed")
-	}
-	if m.afterConsume != nil {
-		m.afterConsume()
+		*m.events = append(*m.events, "link completed")
 	}
 	consumed := *won
-	return &consumed, nil
+	done := m.apply(&consumed, c)
+	if m.afterComplete != nil {
+		m.afterComplete()
+	}
+	return done, nil
+}
+
+func (m *memAccountTokens) ClearForClaim(context.Context, string) (*repositories.ClearedAccountClaim, error) {
+	return &repositories.ClearedAccountClaim{}, nil
+}
+
+// completed returns what every completion stored.
+func (m *memAccountTokens) completed() []repositories.AccountLinkCompletion {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]repositories.AccountLinkCompletion(nil), m.completions...)
 }
 
 func (m *memAccountTokens) Delete(_ context.Context, hash []byte) (bool, error) {
@@ -134,22 +155,6 @@ func (m *memAccountTokens) Delete(_ context.Context, hash []byte) (bool, error) 
 		}
 	}
 	return false, nil
-}
-
-func (m *memAccountTokens) DeleteForUser(_ context.Context, userID string) (int64, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	var removed int64
-	kept := m.rows[:0]
-	for _, row := range m.rows {
-		if row.UserID == userID {
-			removed++
-			continue
-		}
-		kept = append(kept, row)
-	}
-	m.rows = kept
-	return removed, nil
 }
 
 func (m *memAccountTokens) DeleteDead(_ context.Context, now time.Time) (int64, error) {
@@ -184,38 +189,48 @@ func (m *memAccountTokens) all() []models.AccountToken {
 
 var _ repositories.AccountTokenRepository = (*memAccountTokens)(nil)
 
-// linkPasswords is a PasswordAuthServiceInterface that records the passwords
-// it was asked to set. (The generated mock lives in a package that imports this
-// one.) err, when set, fails SetPassword.
+// linkPasswords is a PasswordAuthServiceInterface that applies the real
+// password policy and returns a recognizable stand-in for the hash. (The
+// generated mock lives in a package that imports this one.) err, when set,
+// fails HashNewPassword.
 type linkPasswords struct {
 	PasswordAuthServiceInterface
 	mu     sync.Mutex
-	set    []string
 	events *[]string
 	err    error
 }
 
-func (p *linkPasswords) SetPassword(ctx context.Context, userID, plaintext string) error {
+func (p *linkPasswords) HashNewPassword(ctx context.Context, plaintext, email string) (string, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	// Like the real service, which gives up hashing when its context ends.
 	if err := ctx.Err(); err != nil {
-		return err
+		return "", err
 	}
 	if p.err != nil {
-		return p.err
+		return "", p.err
 	}
-	p.set = append(p.set, userID+":"+plaintext)
+	if err := password.Validate(plaintext, email); err != nil {
+		return "", err
+	}
 	if p.events != nil {
-		*p.events = append(*p.events, "password set")
+		*p.events = append(*p.events, "password hashed")
 	}
-	return nil
+	return "hash-of:" + plaintext, nil
 }
 
-func (p *linkPasswords) count() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return len(p.set)
+// revocations is an APIAccessServiceInterface that records, for each call,
+// whether its context was still alive.
+type revocations struct {
+	mu    sync.Mutex
+	alive []bool
+}
+
+func (r *revocations) RevokeAPIAccess(ctx context.Context, _ string) (*models.APIAccessRevocation, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.alive = append(r.alive, ctx.Err() == nil)
+	return &models.APIAccessRevocation{}, nil
 }
 
 // accountLinkFixture is an AccountTokenService over an in-memory link store, mocks of
@@ -231,8 +246,9 @@ type accountLinkFixture struct {
 	user      *models.User
 	now       time.Time
 	events    []string
-	// saved is the user as last written by Update.
-	saved *models.User
+	// userMu guards user: the fake repository writes it while the user mock
+	// reads it.
+	userMu sync.Mutex
 }
 
 func newAccountLinkFixture(t *testing.T, allowedEmails ...string) *accountLinkFixture {
@@ -247,8 +263,11 @@ func newAccountLinkFixture(t *testing.T, allowedEmails ...string) *accountLinkFi
 	f.tokens = &memAccountTokens{events: &f.events}
 	f.passwords = &linkPasswords{events: &f.events}
 	f.apiAccess = &recordingAPIAccess{events: &f.events}
+	f.tokens.apply = f.applyCompletion
 	f.users.On("GetByID", mock.Anything, pwTestUserID).
 		Return(func(context.Context, string) (*models.User, error) {
+			f.userMu.Lock()
+			defer f.userMu.Unlock()
 			if f.user == nil {
 				return nil, repositories.ErrUserNotFound
 			}
@@ -268,16 +287,26 @@ func newAccountLinkFixture(t *testing.T, allowedEmails ...string) *accountLinkFi
 	return f
 }
 
-// expectCompletion sets up the writes of a completion that goes through.
-func (f *accountLinkFixture) expectCompletion() {
-	f.users.On("BumpSessionEpoch", mock.Anything, pwTestUserID).
-		Run(func(mock.Arguments) { f.events = append(f.events, "sessions ended") }).Return(int64(7), nil).Once()
-	f.users.On("Update", mock.Anything, mock.Anything).
-		Run(func(args mock.Arguments) {
-			u := *args.Get(1).(*models.User)
-			f.saved = &u
-			f.events = append(f.events, "account updated")
-		}).Return(nil).Maybe()
+// applyCompletion does to the fixture's user what the repository's one
+// transaction does to the stored one.
+func (f *accountLinkFixture) applyCompletion(
+	consumed *models.AccountToken, c repositories.AccountLinkCompletion,
+) *repositories.CompletedAccountLink {
+	f.userMu.Lock()
+	defer f.userMu.Unlock()
+	f.user.SessionEpoch = 7
+	f.user.Version++
+	if consumed.ProvesMailbox() && f.user.EmailVerifiedAt == nil {
+		now := c.Now
+		f.user.EmailVerifiedAt = &now
+	}
+	if c.Name != "" {
+		f.user.Name = c.Name
+	}
+	return &repositories.CompletedAccountLink{
+		Token: consumed, SessionEpoch: f.user.SessionEpoch, Name: f.user.Name,
+		EmailVerifiedAt: f.user.EmailVerifiedAt, UpdatedAt: c.Now, Version: f.user.Version,
+	}
 }
 
 // tokenIn returns the token a link carries.
@@ -579,10 +608,9 @@ func TestAccountTokenService_Preview(t *testing.T) {
 func TestAccountTokenService_CompleteSetup(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("sets the password, ends other sessions and returns the user under the new epoch", func(t *testing.T) {
+	t.Run("stores the password, the name and the new epoch in one completion", func(t *testing.T) {
 		f := newAccountLinkFixture(t)
 		token := f.copied(t, models.AccountTokenPurposeSetup)
-		f.expectCompletion()
 
 		user, err := f.svc.CompleteSetup(ctx, token, linkTestNewPass, "  Ada Lovelace ")
 
@@ -590,17 +618,21 @@ func TestAccountTokenService_CompleteSetup(t *testing.T) {
 		assert.Equal(t, pwTestUserID, user.ID)
 		assert.Equal(t, int64(7), user.SessionEpoch, "the epoch a new cookie must carry")
 		assert.Equal(t, "Ada Lovelace", user.Name)
-		assert.Equal(t, []string{"link consumed", "password set", "sessions ended", "account updated"}, f.events)
+		assert.Nil(t, user.EmailVerifiedAt, "a copied link proves nothing about the mailbox")
+		assert.Equal(t, []string{"password hashed", "link completed"}, f.events,
+			"the password is hashed before the one transaction, and nothing is written after it")
 		assert.Empty(t, f.apiAccess.revoked, "API keys and grants are kept")
-		require.NotNil(t, f.saved)
-		assert.Equal(t, "Ada Lovelace", f.saved.Name)
-		assert.Nil(t, f.saved.EmailVerifiedAt, "a copied link proves nothing about the mailbox")
+		completions := f.tokens.completed()
+		require.Len(t, completions, 1)
+		assert.Equal(t, repositories.AccountLinkCompletion{
+			TokenHash: hashAccountToken(token), Now: linkTestNow,
+			PasswordHash: "hash-of:" + linkTestNewPass, Name: "Ada Lovelace",
+		}, completions[0])
 	})
 
 	t.Run("works once", func(t *testing.T) {
 		f := newAccountLinkFixture(t)
 		token := f.copied(t, models.AccountTokenPurposeSetup)
-		f.expectCompletion()
 		_, err := f.svc.CompleteSetup(ctx, token, linkTestNewPass, "")
 		require.NoError(t, err)
 
@@ -609,34 +641,33 @@ func TestAccountTokenService_CompleteSetup(t *testing.T) {
 		require.ErrorIs(t, err, ErrAccountTokenInvalid)
 		_, err = f.svc.Preview(ctx, token)
 		require.ErrorIs(t, err, ErrAccountTokenInvalid)
+		assert.Len(t, f.tokens.completed(), 1)
 	})
 
 	t.Run("an emailed link verifies the address; no name leaves the name alone", func(t *testing.T) {
 		f := newAccountLinkFixture(t)
 		token := f.emailed(t, models.AccountTokenPurposeSetup)
-		f.expectCompletion()
 
 		user, err := f.svc.CompleteSetup(ctx, token, linkTestNewPass, "")
 
 		require.NoError(t, err)
-		require.NotNil(t, f.saved)
-		require.NotNil(t, f.saved.EmailVerifiedAt)
-		assert.Equal(t, linkTestNow, *f.saved.EmailVerifiedAt)
-		assert.Equal(t, "Ada", f.saved.Name)
-		assert.NotNil(t, user.EmailVerifiedAt)
+		require.NotNil(t, user.EmailVerifiedAt)
+		assert.Equal(t, linkTestNow, *user.EmailVerifiedAt)
+		assert.Equal(t, "Ada", user.Name)
+		assert.Empty(t, f.tokens.completed()[0].Name)
 	})
 
-	t.Run("an address that is already verified keeps its date, and nothing is written", func(t *testing.T) {
+	t.Run("an address that is already verified keeps its date", func(t *testing.T) {
 		f := newAccountLinkFixture(t)
 		verifiedAt := linkTestNow.Add(-48 * time.Hour)
 		f.user.EmailVerifiedAt = &verifiedAt
 		token := f.emailed(t, models.AccountTokenPurposeSetup)
-		f.expectCompletion()
 
-		_, err := f.svc.CompleteSetup(ctx, token, linkTestNewPass, "Ada")
+		user, err := f.svc.CompleteSetup(ctx, token, linkTestNewPass, "Ada")
 
 		require.NoError(t, err)
-		assert.Nil(t, f.saved, "the same name and an already verified address need no write")
+		require.NotNil(t, user.EmailVerifiedAt)
+		assert.Equal(t, verifiedAt, *user.EmailVerifiedAt)
 	})
 
 	t.Run("a name that is too long is refused and the link stays usable", func(t *testing.T) {
@@ -645,8 +676,8 @@ func TestAccountTokenService_CompleteSetup(t *testing.T) {
 
 		_, err := f.svc.CompleteSetup(ctx, token, linkTestNewPass, strings.Repeat("é", maxAccountNameLength+1))
 		require.ErrorIs(t, err, ErrInvalidAccountName)
+		assert.Empty(t, f.events)
 
-		f.expectCompletion()
 		_, err = f.svc.CompleteSetup(ctx, token, linkTestNewPass, strings.Repeat("é", maxAccountNameLength))
 		require.NoError(t, err, "the limit is in characters, not bytes")
 	})
@@ -658,7 +689,7 @@ func TestAccountTokenService_CompleteSetup(t *testing.T) {
 		_, err := f.svc.CompleteSetup(ctx, token, linkTestNewPass, "")
 
 		require.Equal(t, ErrAccountTokenInvalid, err)
-		assert.Empty(t, f.events)
+		assert.Empty(t, f.events, "not even hashed")
 		_, err = f.svc.Preview(ctx, token)
 		require.NoError(t, err, "and is not used up by the attempt")
 	})
@@ -670,30 +701,28 @@ func TestAccountTokenService_CompleteReset(t *testing.T) {
 	t.Run("replaces the password and keeps API access unless asked", func(t *testing.T) {
 		f := newAccountLinkFixture(t)
 		token := f.copied(t, models.AccountTokenPurposeReset)
-		f.expectCompletion()
 
 		user, err := f.svc.CompleteReset(ctx, token, linkTestNewPass, false)
 
 		require.NoError(t, err)
 		assert.Equal(t, int64(7), user.SessionEpoch)
-		assert.Equal(t, []string{"link consumed", "password set", "sessions ended"}, f.events)
+		assert.Equal(t, "Ada", user.Name)
+		assert.Nil(t, user.EmailVerifiedAt, "a copied reset link verifies nothing")
+		assert.Equal(t, []string{"password hashed", "link completed"}, f.events)
 		assert.Empty(t, f.apiAccess.revoked)
-		assert.Nil(t, f.saved, "a copied reset link changes nothing on the profile")
+		assert.Empty(t, f.tokens.completed()[0].Name, "a reset never sets the name")
 	})
 
-	t.Run("revokes API access when asked, after the sessions end", func(t *testing.T) {
+	t.Run("revokes API access when asked, after the completion", func(t *testing.T) {
 		f := newAccountLinkFixture(t)
 		token := f.emailed(t, models.AccountTokenPurposeReset)
-		f.expectCompletion()
 
-		_, err := f.svc.CompleteReset(ctx, token, linkTestNewPass, true)
+		user, err := f.svc.CompleteReset(ctx, token, linkTestNewPass, true)
 
 		require.NoError(t, err)
 		assert.Equal(t, []string{pwTestUserID}, f.apiAccess.revoked)
-		assert.Equal(t,
-			[]string{"link consumed", "password set", "sessions ended", "API access revoked", "account updated"},
-			f.events)
-		require.NotNil(t, f.saved.EmailVerifiedAt, "an emailed reset link verifies the address")
+		assert.Equal(t, []string{"password hashed", "link completed", "API access revoked"}, f.events)
+		require.NotNil(t, user.EmailVerifiedAt, "an emailed reset link verifies the address")
 	})
 
 	t.Run("completing any link ends every other link of the account", func(t *testing.T) {
@@ -701,7 +730,6 @@ func TestAccountTokenService_CompleteReset(t *testing.T) {
 		emailed := f.emailed(t, models.AccountTokenPurposeReset)
 		copied := f.copied(t, models.AccountTokenPurposeReset)
 		setup := f.copied(t, models.AccountTokenPurposeSetup)
-		f.expectCompletion()
 
 		_, err := f.svc.CompleteReset(ctx, copied, linkTestNewPass, false)
 		require.NoError(t, err)
@@ -714,7 +742,7 @@ func TestAccountTokenService_CompleteReset(t *testing.T) {
 		require.ErrorIs(t, err, ErrAccountTokenInvalid, "a setup link is no way back in after a reset")
 		_, err = f.svc.CompleteSetup(ctx, setup, "another long enough passphrase", "")
 		require.ErrorIs(t, err, ErrAccountTokenInvalid)
-		assert.Equal(t, 1, f.passwords.count(), "one password was set, by the reset")
+		assert.Len(t, f.tokens.completed(), 1, "one password was stored, by the reset")
 	})
 
 	t.Run("a setup link does not complete a reset", func(t *testing.T) {
@@ -736,9 +764,8 @@ func TestAccountTokenService_CompleteReset(t *testing.T) {
 			var policy *password.PolicyError
 			require.ErrorAs(t, err, &policy, weak)
 		}
-		assert.Empty(t, f.events, "nothing was consumed or written")
+		assert.Empty(t, f.events, "nothing was hashed, consumed or written")
 
-		f.expectCompletion()
 		_, err := f.svc.CompleteReset(ctx, token, linkTestNewPass, false)
 		require.NoError(t, err)
 	})
@@ -771,7 +798,6 @@ func TestAccountTokenService_CompleteReset(t *testing.T) {
 		f := newAccountLinkFixture(t)
 		f.tokens.events, f.passwords.events = nil, nil // appended from many goroutines otherwise
 		token := f.copied(t, models.AccountTokenPurposeReset)
-		f.users.On("BumpSessionEpoch", mock.Anything, pwTestUserID).Return(int64(7), nil).Once()
 
 		const callers = 40
 		results := make(chan error, callers)
@@ -795,89 +821,80 @@ func TestAccountTokenService_CompleteReset(t *testing.T) {
 			}
 		}
 		assert.Equal(t, 1, won)
-		assert.Equal(t, 1, f.passwords.count(), "exactly one password was set")
+		assert.Len(t, f.tokens.completed(), 1, "exactly one password was stored")
 	})
 
-	t.Run("a failure after the link is consumed is an error, and the link is spent", func(t *testing.T) {
+	// The completion is all or nothing in the repository, so when it fails
+	// nothing was written and the same link can be used again.
+	t.Run("a completion that fails writes nothing and leaves the link usable", func(t *testing.T) {
+		f := newAccountLinkFixture(t)
+		token := f.copied(t, models.AccountTokenPurposeReset)
 		boom := errors.New("connection refused")
-		steps := map[string]func(f *accountLinkFixture){
-			"setting the password": func(f *accountLinkFixture) {
-				f.passwords.err = boom
-			},
-			"ending the sessions": func(f *accountLinkFixture) {
-				f.users.On("BumpSessionEpoch", mock.Anything, pwTestUserID).Return(int64(0), boom).Once()
-			},
-			"revoking API access": func(f *accountLinkFixture) {
-				f.users.On("BumpSessionEpoch", mock.Anything, pwTestUserID).Return(int64(7), nil).Once()
-				f.apiAccess.err = boom
-			},
-			"updating the account": func(f *accountLinkFixture) {
-				f.users.On("BumpSessionEpoch", mock.Anything, pwTestUserID).Return(int64(7), nil).Once()
-				f.users.On("Update", mock.Anything, mock.Anything).Return(boom).Once()
-			},
-		}
-		for name, arrange := range steps {
-			t.Run(name, func(t *testing.T) {
-				f := newAccountLinkFixture(t)
-				token := f.emailed(t, models.AccountTokenPurposeReset)
-				arrange(f)
+		f.tokens.failing, f.tokens.failOn = boom, map[string]bool{"Complete": true}
 
-				user, err := f.svc.CompleteReset(ctx, token, linkTestNewPass, true)
+		user, err := f.svc.CompleteReset(ctx, token, linkTestNewPass, true)
 
-				assert.Nil(t, user, "nobody is signed in by a completion that failed")
-				require.ErrorIs(t, err, boom)
-				require.ErrorIs(t, err, ErrAccountLinkSpent, "the caller can tell the link is used up")
-				require.NotErrorIs(t, err, ErrAccountTokenInvalid)
-				assert.Contains(t, f.logs.LastEntry().Message, "consumed but could not be completed")
-				_, err = f.svc.Preview(ctx, token)
-				require.ErrorIs(t, err, ErrAccountTokenInvalid, "the link is spent")
-			})
-		}
+		assert.Nil(t, user)
+		require.ErrorIs(t, err, boom)
+		require.NotErrorIs(t, err, ErrAccountTokenInvalid, "a store failure is not a bad link")
+		require.NotErrorIs(t, err, ErrAccountLinkSpent, "and the link is not spent")
+		assert.Empty(t, f.apiAccess.revoked, "nothing is revoked for a completion that did not happen")
+
+		f.tokens.failing = nil
+		_, err = f.svc.CompleteReset(ctx, token, linkTestNewPass, false)
+		require.NoError(t, err, "the same link completes on the next try")
 	})
 
-	// The moment after the consume is the one place an abandoned request
-	// would cost the person their link, so the writes do not follow the
-	// request's context.
-	t.Run("a request abandoned right after the consume still completes", func(t *testing.T) {
+	t.Run("a request abandoned while it waits to hash spends nothing", func(t *testing.T) {
 		f := newAccountLinkFixture(t)
 		token := f.copied(t, models.AccountTokenPurposeReset)
-		requestCtx, abandon := context.WithCancel(ctx)
-		defer abandon()
-		f.tokens.afterConsume = abandon
-		f.users.On("BumpSessionEpoch", mock.MatchedBy(func(c context.Context) bool { return c.Err() == nil }),
-			pwTestUserID).Return(int64(7), nil).Once()
+		abandoned, cancel := context.WithCancel(ctx)
+		cancel()
 
-		user, err := f.svc.CompleteReset(requestCtx, token, linkTestNewPass, false)
-
-		require.NoError(t, err)
-		require.Error(t, requestCtx.Err(), "the request really was abandoned")
-		assert.Equal(t, int64(7), user.SessionEpoch)
-		assert.Equal(t, 1, f.passwords.count(), "the password was stored")
-	})
-
-	t.Run("a request abandoned before the consume spends nothing", func(t *testing.T) {
-		f := newAccountLinkFixture(t)
-		token := f.copied(t, models.AccountTokenPurposeReset)
-		f.tokens.failing, f.tokens.failOn = context.Canceled, map[string]bool{"Consume": true}
-
-		_, err := f.svc.CompleteReset(ctx, token, linkTestNewPass, false)
+		_, err := f.svc.CompleteReset(abandoned, token, linkTestNewPass, false)
 
 		require.ErrorIs(t, err, context.Canceled)
 		require.NotErrorIs(t, err, ErrAccountLinkSpent)
+		assert.Empty(t, f.tokens.completed())
 		_, err = f.svc.Preview(ctx, token)
 		require.NoError(t, err, "the link is still usable")
 	})
 
-	t.Run("a store failure while consuming is not reported as a bad link", func(t *testing.T) {
+	// The one write after the completion is the revocation. It must not be
+	// skipped because the browser went away in that moment, and if it fails the
+	// caller has to know the link is used up.
+	t.Run("a request abandoned right after the completion still revokes API access", func(t *testing.T) {
 		f := newAccountLinkFixture(t)
 		token := f.copied(t, models.AccountTokenPurposeReset)
+		revoked := &revocations{}
+		f.svc.apiAccess = revoked
+		requestCtx, abandon := context.WithCancel(ctx)
+		defer abandon()
+		f.tokens.afterComplete = abandon
+
+		user, err := f.svc.CompleteReset(requestCtx, token, linkTestNewPass, true)
+
+		require.NoError(t, err)
+		require.Error(t, requestCtx.Err(), "the request really was abandoned")
+		assert.Equal(t, int64(7), user.SessionEpoch)
+		assert.Equal(t, []bool{true}, revoked.alive, "the revocation ran on a context that was still alive")
+	})
+
+	t.Run("a revocation that fails after the completion says the link is spent", func(t *testing.T) {
+		f := newAccountLinkFixture(t)
+		token := f.emailed(t, models.AccountTokenPurposeReset)
 		boom := errors.New("connection refused")
-		f.tokens.failing, f.tokens.failOn = boom, map[string]bool{"Consume": true}
+		f.apiAccess.err = boom
 
-		_, err := f.svc.CompleteReset(ctx, token, linkTestNewPass, false)
+		user, err := f.svc.CompleteReset(ctx, token, linkTestNewPass, true)
 
+		assert.Nil(t, user, "nobody is signed in by a request that failed")
 		require.ErrorIs(t, err, boom)
-		require.NotErrorIs(t, err, ErrAccountTokenInvalid)
+		require.ErrorIs(t, err, ErrAccountLinkSpent, "the caller can tell the link is used up")
+		assert.Contains(t, f.logs.LastEntry().Message, "API access could not be revoked")
+		assert.Len(t, f.tokens.completed(), 1, "the password was stored")
+		_, err = f.svc.Preview(ctx, token)
+		require.ErrorIs(t, err, ErrAccountTokenInvalid, "the link is spent")
 	})
 }
 

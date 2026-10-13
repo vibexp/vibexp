@@ -81,6 +81,64 @@ func (_c *MockPasswordAuthServiceInterface_HasPassword_Call) RunAndReturn(run fu
 	return _c
 }
 
+// HashNewPassword provides a mock function with given fields: ctx, plaintext, email
+func (_m *MockPasswordAuthServiceInterface) HashNewPassword(ctx context.Context, plaintext string, email string) (string, error) {
+	ret := _m.Called(ctx, plaintext, email)
+
+	if len(ret) == 0 {
+		panic("no return value specified for HashNewPassword")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (string, error)); ok {
+		return rf(ctx, plaintext, email)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) string); ok {
+		r0 = rf(ctx, plaintext, email)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, plaintext, email)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockPasswordAuthServiceInterface_HashNewPassword_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HashNewPassword'
+type MockPasswordAuthServiceInterface_HashNewPassword_Call struct {
+	*mock.Call
+}
+
+// HashNewPassword is a helper method to define mock.On call
+//   - ctx context.Context
+//   - plaintext string
+//   - email string
+func (_e *MockPasswordAuthServiceInterface_Expecter) HashNewPassword(ctx interface{}, plaintext interface{}, email interface{}) *MockPasswordAuthServiceInterface_HashNewPassword_Call {
+	return &MockPasswordAuthServiceInterface_HashNewPassword_Call{Call: _e.mock.On("HashNewPassword", ctx, plaintext, email)}
+}
+
+func (_c *MockPasswordAuthServiceInterface_HashNewPassword_Call) Run(run func(ctx context.Context, plaintext string, email string)) *MockPasswordAuthServiceInterface_HashNewPassword_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockPasswordAuthServiceInterface_HashNewPassword_Call) Return(_a0 string, _a1 error) *MockPasswordAuthServiceInterface_HashNewPassword_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockPasswordAuthServiceInterface_HashNewPassword_Call) RunAndReturn(run func(context.Context, string, string) (string, error)) *MockPasswordAuthServiceInterface_HashNewPassword_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Login provides a mock function with given fields: ctx, email, plaintext
 func (_m *MockPasswordAuthServiceInterface) Login(ctx context.Context, email string, plaintext string) (*models.User, error) {
 	ret := _m.Called(ctx, email, plaintext)

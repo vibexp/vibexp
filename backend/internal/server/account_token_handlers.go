@@ -34,8 +34,12 @@ const (
 	// used. It must not vary with the reason.
 	accountLinkInvalidDetail = "This link is invalid or has expired"
 	// accountLinkSpentDetail answers a completion that failed after the link
-	// was used up. Trying again with the same link cannot work.
-	accountLinkSpentDetail = "The request could not be completed and this link can no longer be used. Ask for a new link."
+	// was used up. By then the new password is stored and the earlier sessions
+	// are ended; what failed is the requested revocation of API access, or
+	// issuing the session. Trying again with the same link cannot work, and the
+	// person must be told the password did change.
+	accountLinkSpentDetail = "Your password was changed, but the request could not be finished, " +
+		"and this link can no longer be used. Sign in with your new password."
 	// accountLinkUnavailableDetail answers a request that could not be decided
 	// because the allowlist or the database was unreadable.
 	accountLinkUnavailableDetail = "This is temporarily unavailable. Try again shortly."

@@ -792,65 +792,37 @@ func TestUnverifiedAccountCleanup(t *testing.T) {
 	ctx := context.Background()
 	boom := errors.New("connection refused")
 	type fixture struct {
-		cleanup     *UnverifiedAccountCleanup
-		tokens      *repo_mocks.MockAccountTokenRepository
-		credentials *repo_mocks.MockUserCredentialRepository
-		apiAccess   *recordingAPIAccess
-		logs        *logtest.Recorder
+		cleanup   *UnverifiedAccountCleanup
+		tokens    *repo_mocks.MockAccountTokenRepository
+		apiAccess *recordingAPIAccess
+		logs      *logtest.Recorder
 	}
 	newFixture := func(t *testing.T) fixture {
 		logger, logs := logtest.New()
 		tokens := repo_mocks.NewMockAccountTokenRepository(t)
-		credentials := repo_mocks.NewMockUserCredentialRepository(t)
 		apiAccess := &recordingAPIAccess{}
-		return fixture{
-			NewUnverifiedAccountCleanup(tokens, credentials, apiAccess, logger), tokens, credentials, apiAccess, logs,
-		}
-	}
-	// noLinks is an account with no one-time link outstanding.
-	noLinks := func(f fixture) {
-		f.tokens.On("DeleteForUser", ctx, pwTestUserID).Return(int64(0), nil)
+		return fixture{NewUnverifiedAccountCleanup(tokens, apiAccess, logger), tokens, apiAccess, logs}
 	}
 
-	t.Run("deletes the account's one-time links first, and says so", func(t *testing.T) {
+	t.Run("clears the account in one step, revokes API access, and says what it removed", func(t *testing.T) {
 		f := newFixture(t)
-		f.tokens.On("DeleteForUser", ctx, pwTestUserID).Return(int64(2), nil).Once()
-		f.credentials.On("Delete", ctx, pwTestUserID).Return(false, nil).Once()
+		f.tokens.On("ClearForClaim", ctx, pwTestUserID).
+			Return(&repositories.ClearedAccountClaim{Links: 2, HadPassword: true, SessionEpoch: 4}, nil).Once()
 
 		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID))
 
+		assert.Equal(t, []string{pwTestUserID}, f.apiAccess.revoked)
 		require.Len(t, f.logs.AllEntries(), 1)
-		assert.Equal(t, int64(2), f.logs.LastEntry().Data["links"])
-		assert.Equal(t, []string{pwTestUserID}, f.apiAccess.revoked)
+		entry := f.logs.LastEntry()
+		assert.Equal(t, pwTestUserID, entry.Data["user_id"])
+		assert.Equal(t, int64(2), entry.Data["links"])
+		assert.Equal(t, true, entry.Data["had_password"])
 	})
 
-	t.Run("links that cannot be deleted stop the claim before anything else is touched", func(t *testing.T) {
+	t.Run("is idempotent: an account with nothing to remove still has its API access revoked, each time", func(t *testing.T) {
 		f := newFixture(t)
-		f.tokens.On("DeleteForUser", ctx, pwTestUserID).Return(int64(0), boom).Once()
-
-		err := f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID)
-
-		require.ErrorIs(t, err, boom)
-		f.credentials.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
-		assert.Empty(t, f.apiAccess.revoked)
-	})
-
-	t.Run("removes the password, revokes API access, and says so", func(t *testing.T) {
-		f := newFixture(t)
-		noLinks(f)
-		f.credentials.On("Delete", ctx, pwTestUserID).Return(true, nil).Once()
-
-		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID))
-
-		assert.Equal(t, []string{pwTestUserID}, f.apiAccess.revoked)
-		require.NotNil(t, f.logs.LastEntry())
-		assert.Equal(t, pwTestUserID, f.logs.LastEntry().Data["user_id"])
-	})
-
-	t.Run("is idempotent: an account with no password still has its API access revoked, each time", func(t *testing.T) {
-		f := newFixture(t)
-		noLinks(f)
-		f.credentials.On("Delete", ctx, pwTestUserID).Return(false, nil).Twice()
+		f.tokens.On("ClearForClaim", ctx, pwTestUserID).
+			Return(&repositories.ClearedAccountClaim{SessionEpoch: 4}, nil).Twice()
 
 		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID))
 		require.NoError(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID))
@@ -859,10 +831,9 @@ func TestUnverifiedAccountCleanup(t *testing.T) {
 		assert.Empty(t, f.logs.AllEntries())
 	})
 
-	t.Run("a password that cannot be removed stops the claim before API access is touched", func(t *testing.T) {
+	t.Run("an account that cannot be cleared stops the claim before API access is touched", func(t *testing.T) {
 		f := newFixture(t)
-		noLinks(f)
-		f.credentials.On("Delete", ctx, pwTestUserID).Return(false, boom).Once()
+		f.tokens.On("ClearForClaim", ctx, pwTestUserID).Return(nil, boom).Once()
 
 		require.ErrorIs(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID), boom)
 		assert.Empty(t, f.apiAccess.revoked)
@@ -870,38 +841,12 @@ func TestUnverifiedAccountCleanup(t *testing.T) {
 
 	t.Run("API access that cannot be revoked stops the claim", func(t *testing.T) {
 		f := newFixture(t)
-		noLinks(f)
 		f.apiAccess.err = boom
-		f.credentials.On("Delete", ctx, pwTestUserID).Return(true, nil).Once()
+		f.tokens.On("ClearForClaim", ctx, pwTestUserID).
+			Return(&repositories.ClearedAccountClaim{HadPassword: true}, nil).Once()
 
 		require.ErrorIs(t, f.cleanup.OnUnverifiedAccountClaimed(ctx, pwTestUserID), boom)
 	})
-}
-
-// oneCredentialStore is a credential store holding at most one user's password,
-// enough to watch it being removed.
-type oneCredentialStore struct {
-	repositories.UserCredentialRepository
-	mu     sync.Mutex
-	userID string
-	events *[]string
-}
-
-func (s *oneCredentialStore) Delete(_ context.Context, userID string) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.userID != userID {
-		return false, nil
-	}
-	s.userID = ""
-	*s.events = append(*s.events, "password removed")
-	return true, nil
-}
-
-func (s *oneCredentialStore) has(userID string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.userID != "" && s.userID == userID
 }
 
 // TestAuthService_VerifiedSignInClaimsAPasswordAccount is the pre-hijack
@@ -916,7 +861,6 @@ func TestAuthService_VerifiedSignInClaimsAPasswordAccount(t *testing.T) {
 	logger, _ := logtest.New()
 	var events []string
 	account := &models.User{ID: "invited-1", Email: "ada@example.com", Status: models.UserStatusActive}
-	credentials := &oneCredentialStore{userID: account.ID, events: &events}
 	apiAccess := &recordingAPIAccess{events: &events}
 
 	users := repo_mocks.NewMockUserRepository(t)
@@ -925,8 +869,9 @@ func TestAuthService_VerifiedSignInClaimsAPasswordAccount(t *testing.T) {
 	users.On("GetByEmail", ctx, "ada@example.com").Return(account, nil)
 	identities.On("ListByUserID", ctx, account.ID).Return([]models.UserIdentity{}, nil)
 	tokens := repo_mocks.NewMockAccountTokenRepository(t)
-	tokens.On("DeleteForUser", ctx, account.ID).
-		Run(func(mock.Arguments) { events = append(events, "links deleted") }).Return(int64(1), nil)
+	tokens.On("ClearForClaim", ctx, account.ID).
+		Run(func(mock.Arguments) { events = append(events, "links, password and sessions cleared") }).
+		Return(&repositories.ClearedAccountClaim{Links: 1, HadPassword: true, SessionEpoch: 1}, nil)
 	users.On("BumpSessionEpoch", ctx, account.ID).
 		Run(func(mock.Arguments) { events = append(events, "sessions ended") }).Return(int64(1), nil)
 	users.On("Update", ctx, mock.Anything).
@@ -936,7 +881,7 @@ func TestAuthService_VerifiedSignInClaimsAPasswordAccount(t *testing.T) {
 
 	svc := NewAuthService(users, identities, staticIDPResolver{reg: idp.NewRegistry()}, nil, logger,
 		newStaticAllowlistResolver(logger, nil),
-		WithUnverifiedAccountClaimHook(NewUnverifiedAccountCleanup(tokens, credentials, apiAccess, logger)))
+		WithUnverifiedAccountClaimHook(NewUnverifiedAccountCleanup(tokens, apiAccess, logger)))
 
 	user, isNew, err := svc.createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC,
 		&idp.Claims{Subject: "sub-owner", Email: "ada@example.com", Name: "Ada", EmailVerified: true})
@@ -944,13 +889,12 @@ func TestAuthService_VerifiedSignInClaimsAPasswordAccount(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, isNew)
 	assert.Equal(t, account.ID, user.ID)
-	assert.False(t, credentials.has(account.ID), "the claimed account's password is gone")
 	require.NotEmpty(t, events)
 	assert.Equal(t, []string{account.ID}, apiAccess.revoked, "the claimed account's API keys and grants are revoked")
-	require.GreaterOrEqual(t, len(events), 5, "%v", events)
-	assert.Equal(t, []string{"links deleted", "password removed", "API access revoked", "sessions ended"}, events[:4],
+	require.GreaterOrEqual(t, len(events), 4, "%v", events)
+	assert.Equal(t, []string{"links, password and sessions cleared", "API access revoked", "sessions ended"}, events[:3],
 		"everything the link's holder could use is gone before anything is linked: %v", events)
-	assert.Contains(t, events[4:], "identity linked")
+	assert.Contains(t, events[3:], "identity linked")
 }
 
 // An account whose email is already verified is linked without being claimed:
@@ -963,7 +907,6 @@ func TestAuthService_VerifiedSignInToAVerifiedAccountKeepsItsPassword(t *testing
 	account := &models.User{
 		ID: "owner-1", Email: "ada@example.com", Status: models.UserStatusActive, EmailVerifiedAt: &verifiedAt,
 	}
-	credentials := &oneCredentialStore{userID: account.ID, events: &events}
 	apiAccess := &recordingAPIAccess{events: &events}
 
 	users := repo_mocks.NewMockUserRepository(t)
@@ -972,18 +915,17 @@ func TestAuthService_VerifiedSignInToAVerifiedAccountKeepsItsPassword(t *testing
 	users.On("GetByEmail", ctx, "ada@example.com").Return(account, nil)
 	users.On("Update", ctx, mock.Anything).Return(nil).Maybe()
 	identities.On("Upsert", ctx, account.ID, "corp-sso", "sub-owner").Return(nil)
-	// No expectation: a verified account's links are not touched either.
+	// No expectation: nothing of a verified account is cleared.
 	tokens := repo_mocks.NewMockAccountTokenRepository(t)
 
 	svc := NewAuthService(users, identities, staticIDPResolver{reg: idp.NewRegistry()}, nil, logger,
 		newStaticAllowlistResolver(logger, nil),
-		WithUnverifiedAccountClaimHook(NewUnverifiedAccountCleanup(tokens, credentials, apiAccess, logger)))
+		WithUnverifiedAccountClaimHook(NewUnverifiedAccountCleanup(tokens, apiAccess, logger)))
 
 	_, _, err := svc.createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC,
 		&idp.Claims{Subject: "sub-owner", Email: "ada@example.com", Name: "Ada", EmailVerified: true})
 
 	require.NoError(t, err)
-	assert.True(t, credentials.has(account.ID), "a verified account keeps its password")
-	assert.Empty(t, apiAccess.revoked, "and its API keys")
+	assert.Empty(t, apiAccess.revoked, "a verified account keeps its password, its links and its API keys")
 	assert.Empty(t, events)
 }
