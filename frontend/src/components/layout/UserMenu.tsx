@@ -3,8 +3,11 @@ import {
   HelpCircle,
   Lock,
   LogOut,
+  Monitor,
+  Moon,
   Settings as SettingsIcon,
   Shield,
+  Sun,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
@@ -15,11 +18,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/contexts/useAuth'
 import { useSiteInfo } from '@/features/site-info/useSiteInfo'
+import { useTheme } from '@/lib/theme'
 
 /**
  * One of the instance's own links (support, terms, privacy) as a menu item.
@@ -45,10 +51,17 @@ function ExternalMenuLink({
   )
 }
 
+const THEME_CHOICES = [
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'system', label: 'System', icon: Monitor },
+] as const
+
 export function UserMenu() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const { supportHref, terms_url, privacy_url } = useSiteInfo()
+  const { theme, setTheme } = useTheme()
   const hasSiteLinks =
     supportHref !== null || terms_url !== null || privacy_url !== null
 
@@ -108,6 +121,33 @@ export function UserMenu() {
             Admin Portal
           </DropdownMenuItem>
         )}
+        {/* Appearance is a personal preference set once, so it lives here
+            rather than as a button of its own in the header. */}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+          Theme
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={theme}
+          onValueChange={value => {
+            setTheme(value as typeof theme)
+          }}
+        >
+          {THEME_CHOICES.map(({ value, label, icon: Icon }) => (
+            <DropdownMenuRadioItem
+              key={value}
+              value={value}
+              // Choosing a theme is not leaving the menu: it stays open so
+              // the change can be seen and undone.
+              onSelect={event => {
+                event.preventDefault()
+              }}
+            >
+              <Icon className="mr-2 size-4" />
+              {label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
         {/* The instance's own links, from site info. Each shows only when it
             is configured; with none, the menu has no extra group at all. */}
         {hasSiteLinks && <DropdownMenuSeparator />}

@@ -15,6 +15,14 @@ import {
 } from '@/features/site-info/siteInfo'
 import { SiteInfoContext } from '@/features/site-info/SiteInfoContext'
 
+const mockTheme = vi.hoisted(() => ({
+  theme: 'system',
+  setTheme: vi.fn(),
+}))
+vi.mock('@/lib/theme', () => ({
+  useTheme: () => mockTheme,
+}))
+
 const mockUseAuth = vi.hoisted(() => vi.fn())
 vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => mockUseAuth(),
@@ -99,8 +107,9 @@ describe('site info links', () => {
     expect(screen.queryByText('Support')).not.toBeInTheDocument()
     expect(screen.queryByText('Terms')).not.toBeInTheDocument()
     expect(screen.queryByText('Privacy')).not.toBeInTheDocument()
-    // Label | Settings | Sign out: exactly the two separators there were.
-    expect(screen.getAllByRole('separator')).toHaveLength(2)
+    // Label | Settings | Theme | Sign out: three separators, and no fourth
+    // for a links group that is not there.
+    expect(screen.getAllByRole('separator')).toHaveLength(3)
   })
 
   it('shows all three as links opening in a new tab', async () => {
@@ -120,7 +129,7 @@ describe('site info links', () => {
       expect(link).toHaveAttribute('target', '_blank')
       expect(link).toHaveAttribute('rel', 'noopener noreferrer')
     }
-    expect(screen.getAllByRole('separator')).toHaveLength(3)
+    expect(screen.getAllByRole('separator')).toHaveLength(4)
   })
 
   it('falls back to a mailto for Support when only an email is configured', async () => {
@@ -158,5 +167,41 @@ describe('site info links', () => {
 
     expect(screen.getByText('Settings')).toBeInTheDocument()
     expect(screen.getByText('Sign out')).toBeInTheDocument()
+  })
+})
+
+describe('theme', () => {
+  beforeEach(() => {
+    mockTheme.theme = 'system'
+    mockTheme.setTheme.mockClear()
+  })
+
+  it('offers Light, Dark and System, with the current one checked', async () => {
+    await openMenuWith({})
+
+    const choices = screen.getAllByRole('menuitemradio')
+    expect(choices.map(choice => choice.textContent)).toEqual([
+      'Light',
+      'Dark',
+      'System',
+    ])
+    expect(
+      screen.getByRole('menuitemradio', { name: 'System' })
+    ).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitemradio', { name: 'Dark' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    )
+  })
+
+  it('sets the theme and keeps the menu open, so the change can be seen', async () => {
+    await openMenuWith({})
+
+    await userEvent
+      .setup()
+      .click(screen.getByRole('menuitemradio', { name: 'Dark' }))
+
+    expect(mockTheme.setTheme).toHaveBeenCalledWith('dark')
+    expect(screen.getByRole('menu')).toBeInTheDocument()
   })
 })

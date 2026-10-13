@@ -5,6 +5,7 @@ import { NAV_GROUPS, type NavItem } from '@/components/layout/nav-items'
 import { useShell } from '@/components/layout/ShellContext'
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
 import { SidebarProductMark } from '@/components/layout/SidebarProductMark'
+import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
 import { useNavLinkActive } from '@/components/layout/useNavLinkActive'
 import {
   Collapsible,
@@ -175,7 +176,10 @@ function ExpandedGroup({
 
 export function Sidebar() {
   const { pathname } = useLocation()
-  const { navExpanded: expanded } = useShell()
+  const { navExpanded: expanded, isDesktop } = useShell()
+  // The sidebar is only ever wide at `lg+`; below that it is the icon rail
+  // whatever the stored preference says.
+  const wide = expanded && isDesktop
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -193,6 +197,17 @@ export function Sidebar() {
         )}
       >
         <SidebarBrand expanded={expanded} />
+        {/* The workspace, directly under the brand: the scope of everything
+            below it. The brand block itself is untouched. */}
+        <div
+          className={cn(
+            'flex px-2 pb-1',
+            wide ? 'lg:px-3.5' : 'justify-center'
+          )}
+          data-testid="sidebar-team-switcher"
+        >
+          <TeamSwitcher variant={wide ? 'full' : 'rail'} />
+        </div>
         <ScrollArea className="flex-1">
           <nav
             className={cn(

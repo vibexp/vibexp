@@ -1,6 +1,8 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 
+import { TooltipProvider } from '@/components/ui/tooltip'
 import type { Team } from '@/services/teamService'
 
 // Module-stable context: a fresh object per render loops effects keyed on it.
@@ -182,6 +184,61 @@ describe('TeamSwitcher', () => {
       ctx.teams = []
       const { container } = renderAt('/prompts')
       expect(container).toBeEmptyDOMElement()
+    })
+  })
+
+  // The collapsed sidebar has no room for a name: the trigger is the team's
+  // initial, named by its label and a tooltip.
+  describe('rail variant (collapsed sidebar)', () => {
+    function renderRailAt(path: string) {
+      return render(
+        <MemoryRouter initialEntries={[path]}>
+          <TooltipProvider delayDuration={0}>
+            <TeamSwitcher variant="rail" />
+          </TooltipProvider>
+        </MemoryRouter>
+      )
+    }
+
+    it('shows the initial and names the workspace', () => {
+      renderRailAt('/prompts')
+
+      expect(switcher()).toHaveAccessibleName('Workspace: Engineering')
+      expect(switcher()).toHaveTextContent('E')
+      // The full name stays in the DOM for assistive tech and for tests.
+      expect(screen.getByTestId('current-team-name')).toHaveTextContent(
+        'Engineering'
+      )
+    })
+
+    it('puts both the popover and the tooltip state on the real button (#891)', async () => {
+      const user = userEvent.setup()
+      renderRailAt('/prompts')
+
+      // One element is the trigger for both: a <button> with a box, not a
+      // wrapper the popper would measure as 0×0.
+      expect(switcher().tagName).toBe('BUTTON')
+      expect(switcher()).toHaveAttribute('aria-haspopup', 'dialog')
+
+      await user.hover(switcher())
+      await waitFor(() => {
+        expect(switcher()).toHaveAttribute('aria-describedby')
+      })
+      expect(await screen.findByRole('tooltip')).toHaveTextContent(
+        'Engineering'
+      )
+    })
+
+    it('still switches team from the rail', async () => {
+      // cmdk scrolls the selected item into view; jsdom has no layout.
+      Element.prototype.scrollIntoView = vi.fn()
+      const user = userEvent.setup()
+      renderRailAt('/prompts')
+
+      await user.click(switcher())
+      await user.click(await screen.findByText('Design'))
+
+      expect(mockSetCurrentTeam).toHaveBeenCalledWith(DESIGN)
     })
   })
 })

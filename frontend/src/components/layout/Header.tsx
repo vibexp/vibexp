@@ -8,8 +8,6 @@ import { NotificationBell } from '@/components/layout/NotificationBell'
 import { ProjectSwitcher } from '@/components/layout/ProjectSwitcher'
 import { SearchModal } from '@/components/layout/SearchModal'
 import { useShell } from '@/components/layout/ShellContext'
-import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
-import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { UserMenu } from '@/components/layout/UserMenu'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,8 +21,12 @@ import {
  * Top bar (#886).
  *
  * - `< md`: a hamburger opens the navigation drawer, which also hosts the
- *   team/project switchers, search and the theme toggle. The bar keeps only
- *   the breadcrumb, notifications and the user menu.
+ *   team/project switchers and search. The bar keeps only the breadcrumb,
+ *   notifications and the user menu.
+ * - The bar holds page-level controls only: the project filter (where the page
+ *   filters by project), search, notifications and the user menu. The
+ *   workspace switcher is in the sidebar — it is global scope, not a filter —
+ *   and the theme choice is in the user menu.
  * - `md–lg`: the navigation is a fixed icon rail, so there is no nav button.
  * - `lg+`: a nav button folds the sidebar between expanded and rail.
  * - A details toggle appears only while a reading page has registered a
@@ -102,10 +104,8 @@ export function Header() {
       <div className="ml-auto flex min-w-0 items-center gap-1.5">
         {isTablet && (
           <>
-            <TeamSwitcher />
             <ProjectSwitcher />
             <SearchModal />
-            <ThemeToggle />
           </>
         )}
         <NotificationBell />

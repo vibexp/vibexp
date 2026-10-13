@@ -7,7 +7,6 @@ import { SearchModal } from '@/components/layout/SearchModal'
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
 import { SidebarProductMark } from '@/components/layout/SidebarProductMark'
 import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
-import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { useNavLinkActive } from '@/components/layout/useNavLinkActive'
 import {
   Collapsible,
@@ -170,7 +169,6 @@ export function MobileSidebar() {
         data-testid="drawer-footer"
       >
         <SearchModal />
-        <ThemeToggle />
       </div>
       <SidebarProductMark showText />
     </div>

@@ -1,7 +1,6 @@
 import { ArrowLeft, Menu } from 'lucide-react'
 import { Link } from 'react-router'
 
-import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { UserMenu } from '@/components/layout/UserMenu'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,10 +20,10 @@ import { AdminMobileSidebar } from '@/pages/admin/AdminSidebar'
  * four are team-scoped, and the switchers require the providers this shell does
  * not mount.
  *
- * `ThemeToggle` and `UserMenu` are reused from `components/layout` because both
- * were verified context-free before this shell dropped the team and project
- * providers; either of them reaching for team context would crash every admin
- * page.
+ * `UserMenu` (which carries the theme choice) is reused from
+ * `components/layout` because it was verified context-free before this shell
+ * dropped the team and project providers; reaching for team context would
+ * crash every admin page.
  */
 export function AdminHeader() {
   return (
@@ -57,7 +56,6 @@ export function AdminHeader() {
             <span className="hidden sm:inline">Back to app</span>
           </Link>
         </Button>
-        <ThemeToggle />
         <UserMenu />
       </div>
     </header>
