@@ -47,7 +47,7 @@ func TestHasher_HashAndVerify(t *testing.T) {
 
 func TestHasher_DerivationsCountsRealWork(t *testing.T) {
 	h := NewHasher(cheapParams)
-	require.Zero(t, h.Derivations(), "the dummy made at construction is not a sign-in's work")
+	require.Zero(t, h.Derivations(), "building a hasher is not a sign-in's work")
 
 	encoded, err := h.Hash(ctx, testPassword)
 	require.NoError(t, err)
@@ -59,6 +59,16 @@ func TestHasher_DerivationsCountsRealWork(t *testing.T) {
 	_, _, err = h.Verify(ctx, "not-a-hash", testPassword)
 	require.ErrorIs(t, err, ErrMalformedHash)
 	assert.Equal(t, int64(3), h.Derivations(), "an unreadable hash costs no computation")
+}
+
+// Building a Hasher computes nothing. A server builds one at start-up and the
+// test suite builds thousands of servers; an eager derivation here once made
+// the server package's race-enabled run exceed CI's time limit.
+func TestNewHasher_ComputesNothing(t *testing.T) {
+	h := NewHasher(DefaultParams)
+
+	assert.Zero(t, h.Derivations())
+	assert.Nil(t, h.dummyKey, "the dummy derivation is made on first use, not at construction")
 }
 
 func TestHasher_HashUsesAFreshSalt(t *testing.T) {
@@ -153,7 +163,7 @@ func TestHasher_DummyVerifyRunsWithoutAHash(t *testing.T) {
 	wg.Wait()
 
 	// What it compares against is a real derivation under the hasher's
-	// parameters, made when the hasher was built.
+	// parameters, made once on first use.
 	ok, _, err := h.Verify(ctx, encode(h.params, h.dummySalt, h.dummyKey), "dummy-password-for-timing")
 	require.NoError(t, err)
 	assert.True(t, ok)

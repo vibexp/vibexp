@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"golang.org/x/crypto/argon2"
@@ -80,24 +81,36 @@ type Hasher struct {
 	params Params
 	slots  chan struct{}
 
-	// dummySalt and dummyKey are a fixed derivation made at construction, for
-	// DummyVerify to compare against.
+	// dummySalt and dummyKey are a fixed derivation for DummyVerify to compare
+	// against, made once, on first use (see dummy).
+	dummyOnce sync.Once
 	dummySalt []byte
 	dummyKey  []byte
 
 	derivations atomic.Int64
 }
 
-// NewHasher creates a Hasher that makes hashes with params. It performs one
-// computation, the fixed derivation DummyVerify compares against, so that the
-// first refused sign-in after start-up costs the same as every later one.
+// NewHasher creates a Hasher that makes hashes with params. It computes
+// nothing: a Hasher is built once per server, and every test that builds a
+// server builds one, so construction must stay free.
 func NewHasher(params Params) *Hasher {
-	h := &Hasher{params: params, slots: make(chan struct{}, DefaultMaxConcurrent)}
-	// The input is fixed and public; only the cost matters.
-	h.dummySalt = make([]byte, params.SaltLength)
-	h.dummyKey = argon2.IDKey([]byte("dummy-password-for-timing"), h.dummySalt,
-		params.Time, params.Memory, params.Threads, params.KeyLength)
-	return h
+	return &Hasher{params: params, slots: make(chan struct{}, DefaultMaxConcurrent)}
+}
+
+// dummy returns the fixed derivation DummyVerify compares against, computing it
+// on first use. That one-off computation is outside the slots and is not
+// counted by Derivations: it happens once per process, on the first sign-in
+// that has no hash to check, which then takes about twice as long as every
+// later one. A single slower response at start-up tells a caller nothing about
+// any account.
+func (h *Hasher) dummy() (salt, key []byte) {
+	h.dummyOnce.Do(func() {
+		// The input is fixed and public; only the cost matters.
+		h.dummySalt = make([]byte, h.params.SaltLength)
+		h.dummyKey = argon2.IDKey([]byte("dummy-password-for-timing"), h.dummySalt,
+			h.params.Time, h.params.Memory, h.params.Threads, h.params.KeyLength)
+	})
+	return h.dummySalt, h.dummyKey
 }
 
 // Derivations returns how many argon2id computations the Hasher has performed
@@ -154,12 +167,18 @@ func (h *Hasher) Verify(ctx context.Context, encoded, password string) (ok, need
 // set, locked account) calls it, so that path takes as long as one that does.
 // The only error is ctx ending while waiting for a slot.
 func (h *Hasher) DummyVerify(ctx context.Context, password string) error {
-	candidate, err := h.derive(ctx, password, h.dummySalt, h.params)
+	// Checked before the dummy is made, so an abandoned request costs nothing
+	// even when it is the first one.
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("password: waiting to hash: %w", err)
+	}
+	salt, key := h.dummy()
+	candidate, err := h.derive(ctx, password, salt, h.params)
 	if err != nil {
 		return err
 	}
 	// The same comparison Verify performs, with the result thrown away.
-	subtle.ConstantTimeCompare(candidate, h.dummyKey)
+	subtle.ConstantTimeCompare(candidate, key)
 	return nil
 }
 
