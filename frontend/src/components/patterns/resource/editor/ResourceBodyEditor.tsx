@@ -1,59 +1,84 @@
 import { AlertCircle, Download, Wand2 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { forwardRef, useState } from 'react'
+import type { RefObject } from 'react'
+import { forwardRef, useId, useLayoutEffect, useRef, useState } from 'react'
 
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import type { BodyFormat } from '@/components/patterns/reading-page'
-import { RAW_BODY_CLASS } from '@/components/patterns/reading-page'
 import { PromptMentionTextarea } from '@/components/PromptMentionTextarea'
 import type { SegmentedOption } from '@/components/SegmentedControl'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+
+import { RAW_EDITOR_TAB_HINT, useRawEditorKeys } from './useRawEditorKeys'
 
 /**
  * The one minimum height every body pane shares.
  *
  * A minimum is not the thing #914 removes — four different magic numbers are
  * (22 rows, 24 rows, 30 rows, and a hard 600px floor on the prompt). One
- * exported constant on the Tailwind scale is what makes "the editor is the
- * same size everywhere" a fact rather than a coincidence, and it is what the
- * tests assert against, so the two cannot drift.
+ * exported constant is what makes "the editor is the same size everywhere" a
+ * fact rather than a coincidence, and it is what the tests assert against, so
+ * the two cannot drift. It is a share of the viewport (`min-h-editor`, 60vh,
+ * defined in `styles/index.css`), so the field opens as a page to write on
+ * rather than a small window onto a long document.
  */
-export const BODY_EDITOR_MIN_HEIGHT = 'min-h-96'
+export const BODY_EDITOR_MIN_HEIGHT = 'min-h-editor'
 
 /**
- * The floor in lines, for the browsers where it bites before the pixel one.
- * Deliberately below {@link BODY_EDITOR_MIN_HEIGHT} at the editor's type
- * scale, so the pixel minimum is what actually governs and both panes — Raw
- * and Rendered — start exactly the same height.
+ * The floor in lines, for the browsers where it bites before the viewport
+ * one. Deliberately small, so {@link BODY_EDITOR_MIN_HEIGHT} is what governs
+ * and both panes — Raw and Rendered — start the same height.
  */
 export const BODY_EDITOR_MIN_ROWS = 12
 
 /**
- * The Raw pane: the reading page's Raw block with a caret (#1178), growing
- * with its content.
+ * The Raw pane: an ordinary input surface, sized to its content.
  *
- * Surface: the same `RAW_BODY_CLASS` the Raw `<pre>` uses, no border, and
- * `md:text-sm` so the plain `Textarea`'s own `text-base md:text-sm` cannot win
- * back the type size at any breakpoint. The placeholder is a step lighter than
- * the (already muted) text, or an empty body would read as typed content.
- * With no border left to colour, an error is drawn as a ring.
+ * Surface: the page background, a 1px input border and the standard focus
+ * ring — the same edge every other field on the form has. (It used to share
+ * the Raw `<pre>`'s grey fill, which read as a disabled field.)
  *
- * Auto-grow is one CSS declaration: `field-sizing: content` makes the
- * textarea's intrinsic height track what is typed into it, so a long body
- * pushes the page down instead of scrolling inside a small box. It applies
- * identically to both Raw panes; where the property is unsupported the pane
- * degrades to the shared minimum, not to a fixed box.
+ * Type: monospace at 14px/1.6 with a two-space tab, soft-wrapped at the field
+ * width, so markdown and code line up and a long line never scrolls sideways.
  *
- * `resize-y` is UNCONDITIONAL, not a fallback — both textareas already had it
- * and dragging the handle is a habit worth keeping. The trade is real: a drag
- * writes an inline `height`, which outranks `field-sizing` and pins that one
- * element for the rest of the session. Deliberate: the user asked for a size.
+ * Size: `field-sizing: content` makes the textarea's height track what is
+ * typed into it, so a long body pushes the PAGE down. There is no inner
+ * scrollbar and no resize handle — a drag writes an inline `height` that
+ * outranks `field-sizing` and would bring the inner scrollbar back. Where the
+ * property is unsupported, {@link useAutoGrow} sets the height from script.
  */
-const WRITE_TEXTAREA_CLASS = `${RAW_BODY_CLASS} ${BODY_EDITOR_MIN_HEIGHT} field-sizing-content resize-y border-0 md:text-sm placeholder:text-muted-foreground/60`
+const WRITE_TEXTAREA_CLASS = `${BODY_EDITOR_MIN_HEIGHT} block w-full field-sizing-content resize-none overflow-hidden rounded-md border border-input bg-background p-4 font-mono text-sm leading-[1.6] text-foreground [tab-size:2] whitespace-pre-wrap break-words ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`
+
+/** Spellcheck underlines code, placeholders and markdown syntax; off here. */
+const RAW_FIELD_INPUT_PROPS = {
+  spellCheck: false,
+  autoCorrect: 'off',
+  autoCapitalize: 'off',
+} as const
+
+/**
+ * Grows a textarea to its content where `field-sizing: content` is missing,
+ * so the page scrolls rather than the field in every browser.
+ */
+function useAutoGrow(
+  ref: RefObject<HTMLTextAreaElement | null>,
+  value: string,
+  active: boolean
+): void {
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || !active) return
+    if (typeof CSS !== 'undefined' && CSS.supports('field-sizing', 'content')) {
+      return
+    }
+    el.style.height = 'auto'
+    // No layout (jsdom, a hidden pane): leave the CSS minimum in charge.
+    if (el.scrollHeight > 0) el.style.height = `${String(el.scrollHeight)}px`
+  }, [ref, value, active])
+}
 
 /** Which pane of the editor is showing. */
 export type BodyEditorView = 'write' | 'preview' | 'render'
@@ -218,7 +243,28 @@ export const ResourceBodyEditor = forwardRef<
     })
   }
 
-  const slot = { id, 'aria-describedby': describedBy, 'aria-invalid': invalid }
+  // The Raw field: its own node (to size it), merged with the form's ref.
+  const fieldRef = useRef<HTMLTextAreaElement | null>(null)
+  const setFieldRef = (node: HTMLTextAreaElement | null) => {
+    fieldRef.current = node
+    if (typeof ref === 'function') ref(node)
+    else if (ref) ref.current = node
+  }
+  useAutoGrow(fieldRef, value, activeView === 'write')
+
+  const keys = useRawEditorKeys(onChange)
+  const tabHintId = useId()
+  const handleBlur = () => {
+    keys.onBlur()
+    onBlur?.()
+  }
+
+  const slot = {
+    id,
+    // The Tab hint is announced with the field, after any form message.
+    'aria-describedby': describedBy ? `${describedBy} ${tabHintId}` : tabHintId,
+    'aria-invalid': invalid,
+  }
 
   return (
     <div className={cn('space-y-4', className)}>
@@ -255,6 +301,11 @@ export const ResourceBodyEditor = forwardRef<
         second mounted panel would break it.
       */}
       <div role="tabpanel" aria-label="Resource body">
+        {activeView === 'write' && (
+          <p id={tabHintId} className="sr-only">
+            {RAW_EDITOR_TAB_HINT}
+          </p>
+        )}
         {activeView === 'write' &&
           (extensions?.mentions ? (
             // The mention textarea renders the invalid state AND the message
@@ -262,36 +313,45 @@ export const ResourceBodyEditor = forwardRef<
             // not render a second message beside it.
             <PromptMentionTextarea
               {...slot}
-              ref={ref}
+              {...RAW_FIELD_INPUT_PROPS}
+              ref={setFieldRef}
               frameless
               data-testid={testId}
               aria-label={ariaLabel}
               value={value}
               onChange={onChange}
-              onBlur={onBlur}
+              onBlur={handleBlur}
+              onKeyDown={keys.onKeyDown}
               error={error}
               disabled={disabled}
               placeholder={placeholder}
               rows={BODY_EDITOR_MIN_ROWS}
               excludeCurrentPrompt={extensions.mentions.excludeCurrentPrompt}
-              className={WRITE_TEXTAREA_CLASS}
+              className={cn(
+                WRITE_TEXTAREA_CLASS,
+                error && 'border-destructive'
+              )}
             />
           ) : (
             <>
-              <Textarea
+              {/* A bare element, not `Textarea`: that component's own
+                  `min-h-[80px]` would compete with the editor's minimum,
+                  which class merging cannot see through. */}
+              <textarea
                 {...slot}
-                ref={ref}
+                {...RAW_FIELD_INPUT_PROPS}
+                ref={setFieldRef}
                 data-testid={testId}
                 aria-label={ariaLabel}
                 value={value}
-                onBlur={onBlur}
+                onBlur={handleBlur}
+                onKeyDown={keys.onKeyDown}
                 disabled={disabled}
                 placeholder={placeholder}
                 rows={BODY_EDITOR_MIN_ROWS}
                 className={cn(
                   WRITE_TEXTAREA_CLASS,
-                  error &&
-                    'ring-destructive focus-visible:ring-destructive ring-2'
+                  error && 'border-destructive focus-visible:ring-destructive'
                 )}
                 onChange={event => {
                   onChange(event.target.value)

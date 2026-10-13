@@ -94,7 +94,9 @@ export const promptDescriptor = defineResource({
       {
         ...bodyFormField('body', 'prompt-body-textarea'),
         placeholder:
-          'Write your prompt here… Use markdown for **bold**, *italic*, `code`.\n\n💡 Type @ to reference other prompts',
+          // The "@ to reference prompts" hint is the chip above the field;
+          // it is not repeated here.
+          'Write your prompt here… Use markdown for **bold**, *italic*, `code`.',
       },
       labelsFormField('labels', 'prompt-labels-input'),
     ],

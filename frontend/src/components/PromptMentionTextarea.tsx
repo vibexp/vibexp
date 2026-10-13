@@ -34,6 +34,11 @@ interface PromptMentionTextareaProps {
   id?: string
   'aria-describedby'?: string
   'aria-invalid'?: boolean
+  /** Editing behaviour the body editor sets on its Raw field. */
+  onKeyDown?: React.KeyboardEventHandler<HTMLTextAreaElement>
+  spellCheck?: boolean
+  autoCorrect?: string
+  autoCapitalize?: string
 }
 
 interface MentionState {
@@ -70,6 +75,10 @@ export const PromptMentionTextarea = forwardRef<
     id,
     'aria-describedby': describedBy,
     'aria-invalid': invalid,
+    onKeyDown,
+    spellCheck,
+    autoCorrect,
+    autoCapitalize,
   },
   forwardedRef
 ) {
@@ -162,6 +171,10 @@ export const PromptMentionTextarea = forwardRef<
         value={value}
         onChange={handleChange}
         onBlur={onBlur}
+        onKeyDown={onKeyDown}
+        spellCheck={spellCheck}
+        autoCorrect={autoCorrect}
+        autoCapitalize={autoCapitalize}
         disabled={disabled}
         placeholder={placeholder}
         rows={rows}

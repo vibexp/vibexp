@@ -792,3 +792,12 @@ body {
 .feed-item-body .markdown-renderer > :first-child {
   margin-top: 0;
 }
+
+/*
+ * The body editor's opening height, for both its Raw and Rendered panes
+ * (`BODY_EDITOR_MIN_HEIGHT`). A share of the viewport, so the field is a page
+ * to write on; it grows past this with its content.
+ */
+@utility min-h-editor {
+  min-height: 60vh;
+}
