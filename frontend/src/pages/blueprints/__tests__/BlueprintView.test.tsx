@@ -224,7 +224,10 @@ describe('BlueprintView', () => {
       ).not.toBeInTheDocument()
       expect(screen.getAllByText('my-blueprint')).toHaveLength(1)
       expect(within(header).getByText('Updated')).toBeInTheDocument()
-      expect(within(header).getByText('A test blueprint')).toBeInTheDocument()
+      // The description is the lead paragraph beneath the meta line.
+      expect(screen.getByTestId('resource-header-summary')).toHaveTextContent(
+        'A test blueprint'
+      )
     })
 
     it('loads and renders the blueprint after team resolves', async () => {
@@ -485,7 +488,7 @@ describe('BlueprintView', () => {
       ;(blueprintService.getBlueprint as Mock).mockResolvedValue(mockBlueprint)
     })
 
-    it('renders the version-history link with the total-version count chip', async () => {
+    it('links the version row to the history, naming the version count', async () => {
       ;(blueprintService.getBlueprintVersions as Mock).mockResolvedValue({
         versions: [
           { id: 'v2', version_number: 2 },
@@ -496,8 +499,10 @@ describe('BlueprintView', () => {
       renderBlueprintView()
 
       const link = await screen.findByTestId('metadata-version-history-link')
-      expect(link).toHaveTextContent('View version history')
-      expect(link).toHaveTextContent('2')
+      // In the rail the version row itself is the link to the history: one
+      // row, named for where it goes and how many versions are there.
+      expect(link).toHaveAccessibleName('View version history, 2 versions')
+      expect(link).toHaveTextContent(/^v\d+/)
       expect(link).toHaveAttribute(
         'href',
         '/blueprints/my-project/my-blueprint/versions'

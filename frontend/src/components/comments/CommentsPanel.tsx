@@ -9,6 +9,7 @@ import {
   PanelHeader,
   PanelTitle,
   usePanelInset,
+  usePanelPresentation,
 } from '@/components/ui/panel'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/contexts/useAuth'
@@ -53,6 +54,7 @@ export function CommentsPanel({
   const { showError } = useAlerts()
   const state = useComments(teamId, resourceType, resourceId)
   const inset = usePanelInset()
+  const flat = usePanelPresentation() === 'flat'
 
   const [composing, setComposing] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -127,11 +129,14 @@ export function CommentsPanel({
         <p
           className={cn(
             inset,
-            'text-muted-foreground py-6 text-center text-sm'
+            'text-muted-foreground text-sm',
+            // One quiet line under the heading in a details column; a
+            // standalone card has the room to centre it.
+            flat ? 'pb-1' : 'py-6 text-center'
           )}
         >
           No comments yet.
-          {canComment && ' Be the first to leave one.'}
+          {canComment && !flat && ' Be the first to leave one.'}
         </p>
       )
     }
@@ -193,7 +198,9 @@ export function CommentsPanel({
         </div>
       )}
 
-      <div className="bg-border h-px" />
+      {/* A card rules its header off; a details column separates sections by
+          spacing alone. */}
+      {!flat && <div className="bg-border h-px" />}
 
       {renderBody()}
 

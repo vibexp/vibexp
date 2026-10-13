@@ -3,6 +3,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 
 import type { BodyViewHandle } from './readingChrome'
+import { READING_META_ROW_CLASS, READING_TITLE_CLASS } from './readingHeader'
 import { ReadingToolbar } from './ReadingToolbar'
 import type { ReadingAction } from './types'
 
@@ -10,6 +11,8 @@ interface ReadingTitleBarProps {
   title: string
   /** The title is a stand-in (an untitled memory's excerpt): drawn subdued. */
   titleSubdued?: boolean
+  /** The meta line (status, type, updated) the toolbar shares a row with. */
+  meta?: ReactNode
   actions: readonly ReadingAction[]
   bodyView: BodyViewHandle | null
   /** Phone layout for the toolbar. */
@@ -19,14 +22,17 @@ interface ReadingTitleBarProps {
 }
 
 /**
- * A reading page's `<header>`: the title with the toolbar beside it.
+ * A reading page's `<header>`: the title on a row of its own — the whole width
+ * of the article, so a long title is not squeezed by the controls — and under
+ * it the meta line with the toolbar right-aligned beside it, wrapping beneath
+ * only when the two cannot share a row.
  *
  * It is STICKY. Once the reader scrolls past it, it stays under the app header
- * as a slim bar — the title on one line, the same toolbar — so Edit and Copy
- * are one click away anywhere in a long document. It is one element, not a
- * second copy of the toolbar, so every control and test id exists exactly
- * once. Body headings carry a `scroll-margin-top` (index.css) so an anchor
- * never lands underneath it.
+ * as a slim bar — the title on one line, the same toolbar, the meta line
+ * hidden — so Edit and Copy are one click away anywhere in a long document.
+ * It is one element restyled, not a second copy of the toolbar, so every
+ * control and test id exists exactly once. Body headings carry a
+ * `scroll-margin-top` (index.css) so an anchor never lands underneath it.
  *
  * "Stuck" is observed, not computed on scroll: a zero-height sentinel sits
  * just above the bar and leaves the viewport exactly when the bar starts
@@ -35,6 +41,7 @@ interface ReadingTitleBarProps {
 export function ReadingTitleBar({
   title,
   titleSubdued = false,
+  meta,
   actions,
   bodyView,
   compact,
@@ -66,18 +73,16 @@ export function ReadingTitleBar({
         data-testid="reading-title-bar"
         data-stuck={stuck ? 'true' : 'false'}
         className={cn(
-          'bg-background sticky top-14 z-20 flex flex-wrap justify-between gap-x-4 gap-y-2',
-          stuck ? 'items-center border-b py-2' : 'items-start pb-3'
+          'bg-background sticky top-14 z-20',
+          stuck && 'flex items-center gap-4 border-b py-2'
         )}
       >
         <h1
           className={cn(
-            'min-w-0 font-semibold tracking-tight',
-            // Stuck: one line beside the toolbar. Otherwise the full title —
-            // on its own row on a phone, where the toolbar wraps beneath it.
+            'min-w-0',
             stuck
-              ? 'flex-1 truncate text-base'
-              : 'basis-full text-2xl md:flex-1 md:basis-0 md:text-3xl',
+              ? 'flex-1 truncate text-base font-semibold tracking-tight'
+              : READING_TITLE_CLASS,
             titleSubdued && 'text-muted-foreground font-medium',
             // A stand-in can be a long excerpt: two lines at most.
             titleSubdued && !stuck && 'line-clamp-2'
@@ -85,12 +90,27 @@ export function ReadingTitleBar({
         >
           {title}
         </h1>
-        <ReadingToolbar
-          actions={actions}
-          bodyView={bodyView}
-          compact={compact}
-          trailing={trailing}
-        />
+        <div
+          className={cn(
+            // Stuck, the row dissolves: the toolbar becomes the bar's second
+            // item and the meta line is hidden. (`contents` is safe here — no
+            // popper is anchored on this element.)
+            stuck
+              ? 'contents'
+              : cn(
+                  READING_META_ROW_CLASS,
+                  'mt-2 justify-between gap-x-4 gap-y-2'
+                )
+          )}
+        >
+          <div className={cn('min-w-0', stuck && 'hidden')}>{meta}</div>
+          <ReadingToolbar
+            actions={actions}
+            bodyView={bodyView}
+            compact={compact}
+            trailing={trailing}
+          />
+        </div>
       </header>
     </>
   )

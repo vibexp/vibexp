@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 import { DetailsColumn } from './DetailsPanel'
 import { ReadingActions } from './ReadingActions'
 import { type BodyViewHandle, ReadingChromeContext } from './readingChrome'
+import { READING_TITLE_CLASS } from './readingHeader'
 import { ReadingOutline } from './ReadingOutline'
 import { ReadingRail } from './ReadingRail'
 import { ReadingTitleBar } from './ReadingTitleBar'
@@ -65,7 +66,12 @@ export interface ReadingPageProps {
    * owns its own heading semantics.
    */
   heading?: ReactNode
-  /** Lead paragraph or a row of badges under the title. */
+  /**
+   * The meta line under the title (status, type, updated time). A reading
+   * page's toolbar shares its row.
+   */
+  meta?: ReactNode
+  /** Lead paragraph under the meta line. */
   description?: ReactNode
   /**
    * The breadcrumb's last crumb — what this page is about ("VibeXP / Artifacts
@@ -120,6 +126,7 @@ export function ReadingPage({
   title,
   titleSubdued = false,
   heading,
+  meta,
   description,
   breadcrumb,
   actions = [],
@@ -196,6 +203,7 @@ export function ReadingPage({
               <ReadingTitleBar
                 title={title}
                 titleSubdued={titleSubdued}
+                meta={meta}
                 actions={actions}
                 bodyView={bodyView}
                 compact={!isTablet}
@@ -218,7 +226,7 @@ export function ReadingPage({
                 // A lead paragraph is prose: capped at a prose measure even in
                 // the wide column, so a long summary does not run 150
                 // characters per line at 14px.
-                <div className="text-muted-foreground max-w-3xl text-sm">
+                <div className="text-muted-foreground mt-2 max-w-3xl text-sm">
                   {description}
                 </div>
               )}
@@ -228,6 +236,7 @@ export function ReadingPage({
             <PlainHeader
               title={title}
               heading={heading}
+              meta={meta}
               description={description}
               chips={actionsAsChips ? actions : undefined}
             />
@@ -373,20 +382,21 @@ function ToolbarExtras({
 function PlainHeader({
   title,
   heading,
+  meta,
   description,
   chips,
 }: Readonly<{
   title: string
   heading: ReactNode
+  meta: ReactNode
   description: ReactNode
   /** Save / Cancel as a chip row, on the widths with no rail to hold them. */
   chips: readonly ReadingAction[] | undefined
 }>) {
   return (
     <header className="mb-8">
-      {heading ?? (
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-      )}
+      {heading ?? <h1 className={READING_TITLE_CLASS}>{title}</h1>}
+      {meta && <div className="mt-2">{meta}</div>}
       {description && (
         <div className="text-muted-foreground mt-2 max-w-3xl text-sm">
           {description}

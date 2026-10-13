@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 
 import { COPY_CHIP_CLASS, CopyChip } from '@/components/CopyChip'
+import { READING_META_ROW_CLASS } from '@/components/patterns/reading-page'
 import { RelativeTime } from '@/components/RelativeTime'
 import { StatusBadge, type StatusTone } from '@/components/StatusBadge'
 import { cn } from '@/lib/utils'
@@ -89,7 +90,9 @@ export function ResourceHeaderMeta({
   return (
     <div data-testid="resource-header-meta">
       {hasBadgeRow && (
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+        <div
+          className={cn(READING_META_ROW_CLASS, 'gap-x-2.5 gap-y-1 text-xs')}
+        >
           {status && (
             <StatusBadge tone={status.tone}>{status.value}</StatusBadge>
           )}

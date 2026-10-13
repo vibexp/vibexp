@@ -730,3 +730,14 @@ body {
 .v2-root .reading-body :is(h1, h2, h3, h4, h5, h6) {
   scroll-margin-top: 7.5rem;
 }
+
+/* Focus mode: with both side panels gone, centre the PROSE column in the
+   viewport rather than the (wider) article, which would leave the text on the
+   left of a mostly empty page. The article keeps its width from that point, so
+   a wide block still extends to the right of the prose. 3rem is the article's
+   own inline padding at the widths focus mode is offered. */
+.v2-root [data-focus='true'] > .reading-article {
+  width: auto;
+  margin-inline-start: max(0px, calc(50% - var(--reading-prose) / 2 - 3rem));
+  margin-inline-end: auto;
+}

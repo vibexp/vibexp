@@ -107,15 +107,19 @@ export function ResourceReadingPage({
     summary,
     headerExtra,
   ].some(Boolean)
+  // The meta line shares its row with the toolbar; the summary is the lead
+  // paragraph beneath, on the full width.
   const headerMeta = hasHeaderMeta ? (
     <ResourceHeaderMeta
       status={status}
       kindLabel={kindLabel}
       version={version}
       updatedAt={updatedAt}
-      summary={summary}
       extra={headerExtra}
     />
+  ) : undefined
+  const lead = summary ? (
+    <p data-testid="resource-header-summary">{summary}</p>
   ) : undefined
 
   // "Version history" is a place a reader goes now and then, so it is a menu
@@ -207,7 +211,8 @@ export function ResourceReadingPage({
       breadcrumb={
         pageProps.breadcrumb ?? (resource ? pageProps.title : undefined)
       }
-      description={description ?? headerMeta}
+      meta={pageProps.meta ?? (description ? undefined : headerMeta)}
+      description={description ?? lead}
       sections={sections}
     />
   )

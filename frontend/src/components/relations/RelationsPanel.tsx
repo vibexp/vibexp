@@ -8,6 +8,7 @@ import {
   PanelHeader,
   PanelTitle,
   usePanelInset,
+  usePanelPresentation,
 } from '@/components/ui/panel'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAlerts } from '@/hooks'
@@ -50,6 +51,7 @@ export function RelationsPanel({
   const { showError } = useAlerts()
   const state = useRelations(teamId, resourceType, resourceId)
   const inset = usePanelInset()
+  const flat = usePanelPresentation() === 'flat'
 
   const [composing, setComposing] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -126,7 +128,10 @@ export function RelationsPanel({
         <p
           className={cn(
             inset,
-            'text-muted-foreground py-6 text-center text-sm'
+            'text-muted-foreground text-sm',
+            // One quiet line under the heading in a details column; a
+            // standalone card has the room to centre it.
+            flat ? 'pb-1' : 'py-6 text-center'
           )}
         >
           No relations yet.
@@ -191,7 +196,9 @@ export function RelationsPanel({
         </div>
       )}
 
-      <div className="bg-border h-px" />
+      {/* A card rules its header off; a details column separates sections by
+          spacing alone. */}
+      {!flat && <div className="bg-border h-px" />}
 
       {renderBody()}
     </Panel>

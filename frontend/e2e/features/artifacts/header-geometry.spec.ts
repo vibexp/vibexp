@@ -6,14 +6,12 @@ import { createArtifactWithContent } from '../../helpers/artifacts'
 /**
  * Feature Test: the edit page's header is the reading page's header (#1179)
  *
- * View → Edit keeps the header on ONE LEFT EDGE: the title, the badge row and
- * the description start at the same x on `/artifacts/:p/:s` and on
+ * View → Edit must not move the header: the title, the badge row and the
+ * description start at the same x / y on `/artifacts/:p/:s` and on
  * `/artifacts/:p/:s/edit`, where the title and description are now inputs.
- *
- * It used to pin y as well. The reading page's title is now larger than the
- * edit page's title input and carries a toolbar beside it, so the rows below
- * it no longer sit at the same height on the two pages; only the horizontal
- * alignment is still a shared contract.
+ * Both pages take the title type and the meta row's height from
+ * `reading-page/readingHeader.ts`, which is what keeps the reading page's
+ * toolbar (it shares the meta row) from pushing anything out of line.
  *
  * An inline input keeps its TEXT on the view's x by pairing a negative margin
  * with matching padding, so for an input the text origin is its box plus its
@@ -44,17 +42,23 @@ async function origin(locator: Locator): Promise<Point> {
   return { x: b.x + left, y: b.y + top }
 }
 
-function expectSameLeftEdge(actual: Point, expected: Point): void {
+function expectSamePoint(actual: Point, expected: Point): void {
   expect(Math.abs(actual.x - expected.x)).toBeLessThanOrEqual(1)
+  expect(Math.abs(actual.y - expected.y)).toBeLessThanOrEqual(1)
 }
 
-/** The article: the title bar, the meta row and the lead all live in it. */
+/**
+ * The article. On the reading page the `<header>` is the sticky title bar
+ * (title, meta line, toolbar) and the description sits just below it; on the
+ * edit page all three are inside the header. Scoping to the article finds
+ * each on both.
+ */
 function header(page: Page): Locator {
   return page.getByTestId('reading-page').locator('article')
 }
 
 test.describe('Edit header geometry', () => {
-  test('the title, badge row and description keep one left edge from view to edit', async ({
+  test('the title, badge row and description do not move from view to edit', async ({
     authenticatedPage: page,
   }) => {
     await page.setViewportSize({ width: 1920, height: 1080 })
@@ -81,11 +85,11 @@ test.describe('Edit header geometry', () => {
     const description = page.getByTestId('artifact-description-input')
     await expect(description).toHaveValue(DESCRIPTION)
 
-    expectSameLeftEdge(
+    expectSamePoint(
       await origin(page.getByTestId('artifact-title-input')),
       viewTitle
     )
-    expectSameLeftEdge(
+    expectSamePoint(
       await origin(
         header(page)
           .getByTestId('resource-header-meta')
@@ -94,7 +98,7 @@ test.describe('Edit header geometry', () => {
       ),
       viewBadges
     )
-    expectSameLeftEdge(await origin(description), viewLead)
+    expectSamePoint(await origin(description), viewLead)
 
     // The details column no longer carries the two fields.
     const column = page.getByTestId('details-column')

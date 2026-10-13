@@ -3,10 +3,16 @@ import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { buildOutline, type OutlineHeading, pickActiveHeading } from './outline'
 
 /**
- * How far below the top of the viewport the "reading line" sits: under the app
- * header and the sticky title bar, matching the headings' `scroll-margin-top`.
+ * How far below the top of the viewport the "reading line" sits: just under
+ * the app header and the sticky title bar. It is the headings'
+ * `scroll-margin-top` (7.5rem = 120px, index.css) plus a few pixels, so the
+ * heading a reader jumps to — which lands exactly on the scroll margin — is at
+ * or above the line and is the one marked current.
  */
-const READING_LINE_PX = 130
+const READING_LINE_PX = 128
+
+/** What a reader does to scroll by hand, as opposed to a jump we started. */
+const MANUAL_SCROLL_EVENTS = ['wheel', 'touchmove', 'keydown'] as const
 
 const HEADING_SELECTOR = '.reading-body :is(h2, h3, h4)[id]'
 
@@ -30,7 +36,8 @@ const sameEntries = (a: OutlineHeading[], b: OutlineHeading[]): boolean =>
  * placeholder value, the Raw view), so the headings are read from the DOM and
  * re-read when it mutates. The section in view is tracked with an
  * IntersectionObserver on the headings — it fires as one crosses the reading
- * line — and never with a scroll listener.
+ * line — plus one `scrollend` per scroll to settle jumps; never with a
+ * per-frame scroll listener.
  */
 export function useReadingOutline(
   articleRef: RefObject<HTMLElement | null>,
@@ -38,10 +45,11 @@ export function useReadingOutline(
 ): ReadingOutline {
   const [entries, setEntries] = useState<OutlineHeading[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
-  // The entry the reader just jumped to. Near the end of a document the page
-  // cannot scroll far enough for a late heading to reach the reading line, so
-  // position alone would keep marking the section before it; the jump's target
-  // stays current for as long as it is on screen below the line.
+  // The entry the reader just jumped to. It is the current section, full
+  // stop, until they scroll by hand: positions read while the smooth scroll is
+  // still travelling would mark whatever it is passing, and near the end of a
+  // document the page cannot scroll far enough for a late heading to reach
+  // the reading line at all.
   const jumpedToRef = useRef<string | null>(null)
 
   // Collect the headings, now and whenever the body's DOM changes.
@@ -80,35 +88,52 @@ export function useReadingOutline(
       return el && article.contains(el) ? [el] : []
     })
     const update = () => {
-      const tops = elements.map(el => ({
-        id: el.id,
-        top: el.getBoundingClientRect().top,
-      }))
-      const jumped = tops.find(heading => heading.id === jumpedToRef.current)
-      if (
-        jumped &&
-        jumped.top > READING_LINE_PX &&
-        jumped.top < globalThis.innerHeight
-      ) {
-        setActiveId(jumped.id)
+      if (jumpedToRef.current !== null) {
+        setActiveId(jumpedToRef.current)
         return
       }
-      jumpedToRef.current = null
-      setActiveId(pickActiveHeading(tops, READING_LINE_PX))
+      setActiveId(
+        pickActiveHeading(
+          elements.map(el => ({
+            id: el.id,
+            top: el.getBoundingClientRect().top,
+          })),
+          READING_LINE_PX
+        )
+      )
     }
+    // Scrolling by hand hands the outline back to position. These fire per
+    // gesture, not per frame, and only clear a flag — the observer below is
+    // still what recomputes.
+    const release = () => {
+      jumpedToRef.current = null
+    }
+    MANUAL_SCROLL_EVENTS.forEach(type => {
+      globalThis.addEventListener(type, release, { passive: true })
+    })
 
     update()
-    // A thin band at the reading line: the observer fires when a heading
-    // enters or leaves it, which is exactly when the current section changes.
+    // Everything from the reading line down to the bottom of the viewport: a
+    // heading enters or leaves that region exactly when it crosses the line
+    // (the current section changes) or the bottom edge, so the observer fires
+    // while the reader scrolls without a scroll listener.
     const observer = new IntersectionObserver(update, {
-      rootMargin: `-${String(READING_LINE_PX - 10)}px 0px -70% 0px`,
-      threshold: [0, 1],
+      rootMargin: `-${String(READING_LINE_PX)}px 0px 0px 0px`,
     })
+    // A jump (or a fling across a section taller than the viewport) can move
+    // headings past the line without any of them ever being inside that
+    // region at an observed frame. `scrollend` fires once per scroll, not per
+    // frame, and settles the answer.
+    globalThis.addEventListener('scrollend', update, { passive: true })
     elements.forEach(el => {
       observer.observe(el)
     })
     return () => {
       observer.disconnect()
+      globalThis.removeEventListener('scrollend', update)
+      MANUAL_SCROLL_EVENTS.forEach(type => {
+        globalThis.removeEventListener(type, release)
+      })
     }
   }, [articleRef, entries])
 

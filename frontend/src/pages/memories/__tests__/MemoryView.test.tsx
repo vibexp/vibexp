@@ -526,7 +526,7 @@ describe('MemoryView', () => {
       ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
     })
 
-    it('renders the version-history link with the total-version count chip', async () => {
+    it('links the version row to the history, naming the version count', async () => {
       ;(memoryService.getMemoryVersions as Mock).mockResolvedValue({
         versions: [
           { id: 'v2', version_number: 2 },
@@ -537,8 +537,10 @@ describe('MemoryView', () => {
       renderMemoryView()
 
       const link = await screen.findByTestId('metadata-version-history-link')
-      expect(link).toHaveTextContent('View version history')
-      expect(link).toHaveTextContent('2')
+      // In the rail the version row itself is the link to the history: one
+      // row, named for where it goes and how many versions are there.
+      expect(link).toHaveAccessibleName('View version history, 2 versions')
+      expect(link).toHaveTextContent(/^v\d+/)
       expect(link).toHaveAttribute('href', '/memories/memory-1/versions')
       expect(memoryService.getMemoryVersions).toHaveBeenCalledWith(
         'team-1',

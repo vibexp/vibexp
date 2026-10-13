@@ -158,12 +158,15 @@ interface MetadataPanelProps {
 function VersionRow({
   currentVersion,
   editedAt,
+  history,
 }: Readonly<{
   currentVersion: number
   editedAt?: string
+  /** When given, the row's value is a link to the version history. */
+  history?: Pick<VersionHistoryMeta, 'to' | 'count' | 'label'>
 }>) {
-  return (
-    <MetaRow label="Version">
+  const value = (
+    <>
       <code className="rounded-sm bg-secondary px-[7px] py-[2px] font-mono text-xs text-secondary-foreground">
         v{currentVersion}
       </code>
@@ -177,6 +180,25 @@ function VersionRow({
           </span>
         </>
       )}
+    </>
+  )
+  if (!history) return <MetaRow label="Version">{value}</MetaRow>
+
+  const label = history.label ?? 'View version history'
+  return (
+    <MetaRow label="Version">
+      <Link
+        to={history.to}
+        data-testid="metadata-version-history-link"
+        aria-label={`${label}, ${String(history.count)} ${history.count === 1 ? 'version' : 'versions'}`}
+        className="group flex min-w-0 items-center gap-2 hover:underline"
+      >
+        {value}
+        <ArrowRight
+          aria-hidden="true"
+          className="text-muted-foreground group-hover:text-foreground size-[13px] shrink-0"
+        />
+      </Link>
     </MetaRow>
   )
 }
@@ -269,10 +291,13 @@ export function MetadataPanel({
           <VersionRow
             currentVersion={versionHistory.currentVersion}
             editedAt={versionHistory.editedAt}
+            // In a details column the version and the way to its history are
+            // one row, not a row and a footer link beneath it.
+            history={flat ? versionHistory : undefined}
           />
         )}
       </ul>
-      {versionHistory && (
+      {versionHistory && !flat && (
         <VersionHistoryLink
           to={versionHistory.to}
           count={versionHistory.count}

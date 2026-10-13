@@ -378,11 +378,9 @@ describe('PromptDetail page', () => {
       // "Description" was a PanelTitle of its own before #904; the text now
       // lives in the standard reading header (#902) and nowhere else.
       expect(screen.queryByText('Description')).not.toBeInTheDocument()
-      expect(
-        within(screen.getByTestId('resource-header-meta')).getByText(
-          'Template for conducting code reviews'
-        )
-      ).toBeInTheDocument()
+      expect(screen.getByTestId('resource-header-summary')).toHaveTextContent(
+        'Template for conducting code reviews'
+      )
     })
   })
 
