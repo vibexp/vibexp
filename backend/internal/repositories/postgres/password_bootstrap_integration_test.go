@@ -270,7 +270,7 @@ func TestIntegrationPasswordBootstrap_CLISetsAnExistingRootAdminsPassword(t *tes
 	user, err := NewUserRepository(integrationDB).GetByID(ctx, userID)
 	require.NoError(t, err)
 	assert.NotNil(t, user.EmailVerifiedAt)
-	assert.EqualValues(t, 1, user.SessionEpoch, "earlier sessions are ended")
+	assert.EqualValues(t, 2, user.SessionEpoch, "sessions are ended before and after the change")
 	assert.False(t, stack.setupActive(t))
 
 	entries := authAuditEntries(t, models.InstanceSettingAuthPolicy) // newest first

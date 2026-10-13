@@ -121,7 +121,9 @@ func (s *AuthRecoveryService) SetProviderEnabled(
 	toggle := ProviderToggle{Changed: changed, NoneEnabled: noneEnabled}
 	if noneEnabled && s.wayIn != nil {
 		if toggle.PasswordLoginWorks, err = s.wayIn.PasswordWorks(ctx); err != nil {
-			return ProviderToggle{}, err
+			// The toggle itself is done and audited; say so with the failure.
+			return toggle, fmt.Errorf("the provider was changed, but whether password sign-in still works "+
+				"could not be read: %w", err)
 		}
 	}
 	return toggle, nil

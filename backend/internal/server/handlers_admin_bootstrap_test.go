@@ -78,7 +78,7 @@ func TestBootstrapAdminPassword_MakesAPasswordOnlyInstanceUsable(t *testing.T) {
 	root, err = f.users.GetByEmail(context.Background(), authTestRootEmail)
 	require.NoError(t, err)
 	assert.NotNil(t, root.EmailVerifiedAt, "the operator vouches for a configured address")
-	assert.EqualValues(t, 1, root.SessionEpoch, "the account's earlier sessions are ended")
+	assert.EqualValues(t, 2, root.SessionEpoch, "the account's sessions are ended, before and after the change")
 	assert.Empty(t, f.events.published, "the account existed: nothing to provision")
 }
 
@@ -193,7 +193,7 @@ func TestBootstrapAdminPassword_ReplacesAnExistingPassword(t *testing.T) {
 	assert.Equal(t, "stored", f.creds.hashes[authTestRootID])
 	root, err := f.users.GetByEmail(context.Background(), authTestRootEmail)
 	require.NoError(t, err)
-	assert.EqualValues(t, 1, root.SessionEpoch)
+	assert.EqualValues(t, 2, root.SessionEpoch)
 }
 
 func putPolicy(passwordLogin bool, confirm bool) map[string]any {

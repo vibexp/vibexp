@@ -91,8 +91,8 @@ func NewRootAdminPasswordService(deps RootAdminPasswordDeps) *RootAdminPasswordS
 // ErrRootAdminSuspended, ErrRootAdminAccountMissing or a *password.PolicyError
 // without changing anything.
 //
-// On an existing account it ends every session first (the password of an
-// account someone else may be signed in to is about to change). The email is marked verified
+// On an existing account it ends every session, before and after the change
+// (the password of an account someone else may be signed in to is replaced). The email is marked verified
 // when it was not: the operator vouches for an address they put in the
 // configuration, and without it a later provider sign-in would treat the
 // account as unclaimed and remove the password again. Password login is
@@ -120,12 +120,7 @@ func (s *RootAdminPasswordService) Set(
 		}
 	}
 
-	// Sessions end BEFORE the password changes: if a step fails part-way, the
-	// account is never left with a new password and its old sessions alive.
-	if err = s.prepareExisting(ctx, user, created); err != nil {
-		return nil, err
-	}
-	if err = s.deps.Passwords.SetPassword(ctx, user.ID, plaintext); err != nil {
+	if err = s.replacePassword(ctx, user, created, plaintext); err != nil {
 		return nil, err
 	}
 	if enableLogin {
@@ -142,6 +137,30 @@ func (s *RootAdminPasswordService) Set(
 		log.Info("A root admin's password was set without a sign-in")
 	}
 	return result, nil
+}
+
+// replacePassword stores the password and, on an account that existed, ends
+// its sessions on BOTH sides of the change. Before: if a step fails part-way,
+// the account is never left with a new password and its old sessions alive.
+// After: a sign-in with the OLD password that slipped in while the new one was
+// being hashed got a session at the already bumped epoch, and only a second
+// bump ends it.
+func (s *RootAdminPasswordService) replacePassword(
+	ctx context.Context, user *models.User, created bool, plaintext string,
+) error {
+	if err := s.prepareExisting(ctx, user, created); err != nil {
+		return err
+	}
+	if err := s.deps.Passwords.SetPassword(ctx, user.ID, plaintext); err != nil {
+		return err
+	}
+	if created {
+		return nil
+	}
+	if _, err := s.deps.Users.BumpSessionEpoch(ctx, user.ID); err != nil {
+		return fmt.Errorf("failed to end the root admin's sessions: %w", err)
+	}
+	return nil
 }
 
 // account returns the account with email, creating it when there is none.

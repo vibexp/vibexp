@@ -195,7 +195,7 @@ func runProviderToggle(enabled bool) authRecoveryRun {
 			// Not setup mode: re-arming here would only hand out a setup URL
 			// that can replace a root admin's password.
 			_, err = fmt.Fprintln(out, "No identity provider is enabled now. Email and password sign-in still works, "+
-				"so the instance is not in setup mode.")
+				"so disabling it does not put the instance in setup mode.")
 		case result.NoneEnabled:
 			_, err = fmt.Fprintln(out, "No sign-in method works now, so the instance is in setup mode. "+
 				"Run `vibexp admin auth setup rearm` for a setup URL.")

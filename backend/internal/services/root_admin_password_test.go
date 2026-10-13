@@ -121,7 +121,7 @@ func TestRootAdminPassword_ExistingAccount(t *testing.T) {
 		f.users.On("Update", mock.Anything, mock.MatchedBy(func(u *models.User) bool {
 			return u.ID == rootPwUserID && u.EmailVerifiedAt != nil && u.EmailVerifiedAt.Equal(f.now)
 		})).Return(nil).Once()
-		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Once()
+		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Twice()
 		f.storedPolicy(&models.InstanceAuthPolicy{RegistrationMode: models.RegistrationModeInviteOnly, Version: 3})
 		f.policies.On("UpsertAudited", mock.Anything, mock.MatchedBy(func(p *models.InstanceAuthPolicy) bool {
 			return p.PasswordLoginEnabled && p.RegistrationMode == models.RegistrationModeInviteOnly
@@ -143,7 +143,7 @@ func TestRootAdminPassword_ExistingAccount(t *testing.T) {
 		f := newRootPwFixture(t, true)
 		verified := f.now.Add(-time.Hour)
 		f.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, false)
-		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Once()
+		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Twice()
 		f.storedPolicy(&models.InstanceAuthPolicy{PasswordLoginEnabled: true, RegistrationMode: models.RegistrationModeOpen})
 
 		result, err := f.svc.Set(ctx, rootPwEmail, rootPwPhrase, true)
@@ -158,7 +158,7 @@ func TestRootAdminPassword_ExistingAccount(t *testing.T) {
 		f := newRootPwFixture(t, false)
 		verified := f.now
 		f.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, false)
-		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Once()
+		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Twice()
 
 		result, err := f.svc.Set(ctx, rootPwEmail, rootPwPhrase, false)
 
@@ -170,7 +170,7 @@ func TestRootAdminPassword_ExistingAccount(t *testing.T) {
 		f := newRootPwFixture(t, false)
 		verified := f.now
 		f.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, true)
-		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(4), nil).Once()
+		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(4), nil).Twice()
 
 		result, err := f.svc.Set(ctx, rootPwEmail, rootPwPhrase, false)
 
@@ -314,7 +314,7 @@ func TestRootAdminPassword_SwitchLoginOnDoesNotOverwriteAConcurrentPolicyChange(
 		f := newRootPwFixture(t, true)
 		verified := f.now
 		f.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, false)
-		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Once()
+		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Twice()
 		return f
 	}
 
@@ -348,4 +348,22 @@ func TestRootAdminPassword_SwitchLoginOnDoesNotOverwriteAConcurrentPolicyChange(
 
 		require.ErrorIs(t, err, repositories.ErrInstanceSettingsVersionConflict)
 	})
+}
+
+// The sessions are ended before AND after the password is stored. A sign-in
+// with the old password that lands while the new one is being hashed gets a
+// session at the already bumped epoch; only the second bump ends it.
+func TestRootAdminPassword_EndsSessionsOnBothSidesOfTheChange(t *testing.T) {
+	f := newRootPwFixture(t, false)
+	verified := f.now
+	f.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, true)
+	var order []string
+	f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).
+		Run(func(mock.Arguments) { order = append(order, fmt.Sprintf("bump(stored=%d)", len(f.setter.calls))) }).
+		Return(int64(1), nil).Twice()
+
+	_, err := f.svc.Set(context.Background(), rootPwEmail, rootPwPhrase, false)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"bump(stored=0)", "bump(stored=1)"}, order)
 }

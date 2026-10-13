@@ -308,8 +308,9 @@ func TestAuthRecovery_ProviderToggleReportsPasswordLogin(t *testing.T) {
 		f := disableLast(t)
 		f.svc.wayIn = &staticWayIn{err: errors.New("pq: down")}
 
-		_, err := f.svc.SetProviderEnabled(ctx, "sso", false)
+		got, err := f.svc.SetProviderEnabled(ctx, "sso", false)
 
-		require.Error(t, err)
+		require.ErrorContains(t, err, "the provider was changed")
+		assert.True(t, got.Changed, "the toggle itself happened")
 	})
 }

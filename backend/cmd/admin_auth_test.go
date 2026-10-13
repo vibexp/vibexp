@@ -363,7 +363,7 @@ func TestAdminAuth_ProviderDisable_NamesSetupModeOnlyWhenNothingWorks(t *testing
 	works := &fakeAuthRecovery{toggle: services.ProviderToggle{Changed: true, NoneEnabled: true, PasswordLoginWorks: true}}
 	stdout, _, err := runAdmin(t, works, nil, "admin", "auth", "providers", "disable", "google")
 	require.NoError(t, err)
-	assert.Contains(t, stdout, "Email and password sign-in still works")
+	assert.Contains(t, stdout, "does not put the instance in setup mode")
 	assert.NotContains(t, stdout, "rearm")
 
 	nothing := &fakeAuthRecovery{toggle: services.ProviderToggle{Changed: true, NoneEnabled: true}}
