@@ -166,6 +166,8 @@ import { Blueprints } from '../Blueprints'
 
 function buildBlueprint(overrides: Partial<Blueprint> = {}): Blueprint {
   return {
+    last_write_source: null,
+    last_write_assistant_name: null,
     lock: null,
     id: 'blueprint-1',
     project_id: 'proj-1',

@@ -50,6 +50,8 @@ describe('createBlueprintVersionSource', () => {
   const backHref = `/blueprints/${projectId}/${slug}`
 
   const blueprint: Blueprint = {
+    last_write_source: null,
+    last_write_assistant_name: null,
     lock: null,
     id: 'bp-1',
     project_id: projectId,
@@ -156,6 +158,8 @@ describe('createMemoryVersionSource', () => {
   const backHref = `/memories/${id}`
 
   const memory: Memory = {
+    last_write_source: null,
+    last_write_assistant_name: null,
     id,
     user_id: 'user-123',
     team_id: teamId,
@@ -235,6 +239,8 @@ describe('createPromptVersionSource', () => {
   const backHref = `/prompts/${slug}`
 
   const prompt: Prompt = {
+    last_write_source: null,
+    last_write_assistant_name: null,
     lock: null,
     id: 'prompt-1',
     name: 'My Prompt',

@@ -4,6 +4,7 @@
  * changed lately, and through which channels the workspace is being read.
  */
 
+import type { Channel } from '@/components/channelSeries'
 import { memoryDisplayName } from '@/lib/memoryTitle'
 import { buildResourceUrl } from '@/lib/resourceUrl'
 import type { Artifact } from '@/services/artifactService'
@@ -28,6 +29,10 @@ export interface DashboardResource {
   userId: string
   createdAt: string
   updatedAt: string
+  /** The channel of the last write, or `null` when none was recorded. */
+  lastWriteSource: Channel | null
+  /** The name the MCP client that last wrote it gave itself, when it did. */
+  lastWriteAssistantName: string | null
 }
 
 export const toDashboardResource = {
@@ -45,6 +50,8 @@ export const toDashboardResource = {
     userId: a.user_id,
     createdAt: a.created_at,
     updatedAt: a.updated_at,
+    lastWriteSource: a.last_write_source,
+    lastWriteAssistantName: a.last_write_assistant_name,
   }),
   blueprint: (b: Blueprint): DashboardResource => ({
     type: 'blueprint',
@@ -60,6 +67,8 @@ export const toDashboardResource = {
     userId: b.user_id,
     createdAt: b.created_at,
     updatedAt: b.updated_at,
+    lastWriteSource: b.last_write_source,
+    lastWriteAssistantName: b.last_write_assistant_name,
   }),
   memory: (m: Memory): DashboardResource => {
     const { name, isFallback } = memoryDisplayName(m)
@@ -72,6 +81,8 @@ export const toDashboardResource = {
       userId: m.user_id,
       createdAt: m.created_at,
       updatedAt: m.updated_at,
+      lastWriteSource: m.last_write_source,
+      lastWriteAssistantName: m.last_write_assistant_name,
     }
   },
   prompt: (p: Prompt): DashboardResource => ({
@@ -83,6 +94,8 @@ export const toDashboardResource = {
     userId: p.user_id,
     createdAt: p.created_at,
     updatedAt: p.updated_at,
+    lastWriteSource: p.last_write_source,
+    lastWriteAssistantName: p.last_write_assistant_name,
   }),
 }
 
@@ -252,6 +265,11 @@ export interface WriteChannelSummary {
   /** Writes that arrived through MCP, the CLI or the API: the AI's share. */
   aiTools: number
   /**
+   * Writes with no recorded channel. They are in none of the four figures and
+   * not in `total`, so whoever shows the total owes the reader this number.
+   */
+  unrecorded: number
+  /**
    * True when nothing was written through MCP, the CLI or the API in the
    * range: the loop's write-back half did not run. Web writes are a person in
    * this app.
@@ -261,13 +279,14 @@ export interface WriteChannelSummary {
 
 /**
  * Writes (creates and updates) per channel over a range. The API reports the
- * range's totals, not a daily series, and counts only writes whose channel was
- * recorded.
+ * range's totals, not a daily series. A write whose channel was not recorded
+ * (`unknown`) cannot be put on either side of the AI share, so it stays out of
+ * the total and is reported beside it.
  */
 export function summarizeWriteChannels(
-  writes: Readonly<Record<'mcp' | 'cli' | 'api' | 'web', number>>
+  writes: Readonly<Record<Channel | 'unknown', number>>
 ): WriteChannelSummary {
-  const { mcp, cli, api, web } = writes
+  const { mcp, cli, api, web, unknown } = writes
   const aiTools = mcp + cli + api
   return {
     mcp,
@@ -276,6 +295,7 @@ export function summarizeWriteChannels(
     web,
     total: aiTools + web,
     aiTools,
+    unrecorded: unknown,
     noAiToolWrites: aiTools === 0,
   }
 }

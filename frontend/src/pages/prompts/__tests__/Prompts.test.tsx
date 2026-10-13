@@ -125,6 +125,8 @@ import { Prompts } from '../Prompts'
 
 function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
   return {
+    last_write_source: null,
+    last_write_assistant_name: null,
     lock: null,
     id: 'prompt-1',
     name: 'Code Review Template',

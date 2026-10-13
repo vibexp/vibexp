@@ -163,6 +163,8 @@ describe('PromptShareService', () => {
     it('gets a shared prompt by token', async () => {
       const mockResponse: SharedPromptResponse = {
         prompt: {
+          last_write_source: null,
+          last_write_assistant_name: null,
           lock: null,
           id: 'prompt-123',
           name: 'Shared Prompt',

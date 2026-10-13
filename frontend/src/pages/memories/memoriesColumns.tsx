@@ -93,6 +93,7 @@ export function buildMemoriesColumns({
       to: memory => `/memories/${memory.id}`,
       multiline: true,
       className: 'max-w-xl',
+      lastWrite: memory => memory,
       // Renders nothing when the resource is fresh.
       adornment: memory => <FreshnessBadge freshness={memory.freshness} />,
     }),

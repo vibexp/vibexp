@@ -78,6 +78,8 @@ beforeAll(() => {
 })
 
 const created: Blueprint = {
+  last_write_source: null,
+  last_write_assistant_name: null,
   lock: null,
   id: 'bp-1',
   project_id: 'project-1',

@@ -1,6 +1,8 @@
 import { FolderOpen } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { type Channel, CHANNEL_ORDER } from '@/components/channelSeries'
+import { LastWriteIndicator } from '@/components/LastWriteIndicator'
 import {
   MetadataPanel,
   MetaLinkRow,
@@ -86,6 +88,38 @@ export interface ResourceMetadataSectionProps {
 
 /** The field key every kind uses for its owning project. */
 const PROJECT_KEY = 'project_id'
+
+/** The payload keys of the last write (#1452), the same on every kind. */
+const LAST_WRITE_SOURCE_KEY = 'last_write_source'
+const LAST_WRITE_ASSISTANT_KEY = 'last_write_assistant_name'
+
+const CHANNELS: ReadonlySet<string> = new Set(CHANNEL_ORDER)
+
+/**
+ * The "Last written" row. It is keyed on the payload carrying the field at
+ * all, not on its value: a prompt, artifact, blueprint or memory always has
+ * the key, and `null` there is an answer ("Not recorded"), while a kind
+ * without write channels (an agent) or a resource not yet created has no key
+ * and gets no row.
+ */
+function lastWriteRow(resource: Record<string, unknown>): ReactNode {
+  if (!(LAST_WRITE_SOURCE_KEY in resource)) return null
+  const source = valueOf(resource, LAST_WRITE_SOURCE_KEY)
+  const assistant = valueOf(resource, LAST_WRITE_ASSISTANT_KEY)
+  return (
+    <MetaRow label="Last written">
+      <LastWriteIndicator
+        variant="full"
+        source={
+          typeof source === 'string' && CHANNELS.has(source)
+            ? (source as Channel)
+            : null
+        }
+        assistantName={typeof assistant === 'string' ? assistant : null}
+      />
+    </MetaRow>
+  )
+}
 
 /** Fields carrying the metadata rows, bucketed by the role that renders them. */
 function partition(descriptor: ResourceDescriptor) {
@@ -291,6 +325,7 @@ export function ResourceMetadataSection({
       createdAt={typeof createdAt === 'string' ? createdAt : undefined}
       updatedAt={typeof updatedAt === 'string' ? updatedAt : undefined}
       versionHistory={versionHistory}
+      trailing={lastWriteRow(resource)}
     >
       {rows}
     </MetadataPanel>

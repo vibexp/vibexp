@@ -48,6 +48,7 @@ export function buildBlueprintsColumns({
       value: blueprint => blueprint.title,
       to: detailPath,
       summary: blueprint => blueprint.description,
+      lastWrite: blueprint => blueprint,
       // Each renders nothing by itself: the badge when the resource is fresh,
       // the icon when it is unlocked, so a plain row pays no layout for either.
       adornment: blueprint => (

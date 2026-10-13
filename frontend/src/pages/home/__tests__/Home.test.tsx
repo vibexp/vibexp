@@ -480,6 +480,44 @@ describe('Home — what changed', () => {
     expect(changed.getByText('Updated artifact')).toBeInTheDocument()
   })
 
+  it('marks a change an AI tool or a script wrote, and no other', async () => {
+    setup()
+    mockArtifacts.getArtifacts.mockImplementation(
+      listMock('artifacts', [
+        artifact({
+          id: 'art-mcp',
+          slug: 'mcp',
+          last_write_source: 'mcp',
+          last_write_assistant_name: 'Claude Code',
+        }),
+        artifact({ id: 'art-cli', slug: 'cli', last_write_source: 'cli' }),
+        artifact({ id: 'art-api', slug: 'api', last_write_source: 'api' }),
+        artifact({ id: 'art-web', slug: 'web', last_write_source: 'web' }),
+        artifact({ id: 'art-none', slug: 'none', last_write_source: null }),
+      ]) as never
+    )
+    mockMemories.getMemories.mockImplementation(
+      listMock('memories', []) as never
+    )
+    renderHome()
+
+    const changed = within(section('What changed'))
+    const links = await changed.findAllByRole('link')
+    const indicatorOf = (slug: string) => {
+      const link = links.find(
+        l => l.getAttribute('href') === `/artifacts/proj-1/${slug}`
+      )
+      if (!link) throw new Error(`no row for ${slug}`)
+      return within(link).queryByTestId('last-write-indicator')
+    }
+
+    expect(indicatorOf('mcp')).toHaveTextContent(/^via MCP · Claude Code$/)
+    expect(indicatorOf('cli')).toHaveTextContent(/^via CLI$/)
+    expect(indicatorOf('api')).toHaveTextContent(/^via API$/)
+    expect(indicatorOf('web')).not.toBeInTheDocument()
+    expect(indicatorOf('none')).not.toBeInTheDocument()
+  })
+
   it('holds the feed, comments and activity lists behind one view switch', async () => {
     const user = userEvent.setup()
     setup()
@@ -628,29 +666,62 @@ describe('Home — how your knowledge is used', () => {
     ).toHaveLength(1)
   })
 
-  it('says how many creations the write figures leave out, while there are any', async () => {
+  it('says how many writes the figures leave out, while there are any', async () => {
     setup()
-    const metrics = creationMetrics({ web: 4, mcp: 5 })
+    mockTeam.getTeamResourceCreationMetrics.mockResolvedValue(
+      creationMetrics({ web: 4, mcp: 5, unknown: 1500 })
+    )
+    renderHome()
+
+    const usage = within(section('How your knowledge is used'))
+    expect(await usage.findByTestId('loop-unrecorded')).toHaveTextContent(
+      /^1,500 writes in this period have no recorded channel and are not counted above\.$/
+    )
+    // "Not counted above" is the total too, not only the four figures.
+    expect(usage.getByTestId('loop-writes')).toHaveTextContent('5of 9 writes')
+  })
+
+  it('says it in the singular for one unrecorded write', async () => {
+    setup()
+    mockTeam.getTeamResourceCreationMetrics.mockResolvedValue(
+      creationMetrics({ web: 4, mcp: 5, unknown: 1 })
+    )
+    renderHome()
+
+    const usage = within(section('How your knowledge is used'))
+    expect(await usage.findByTestId('loop-unrecorded')).toHaveTextContent(
+      /^1 write in this period has no recorded channel and is not counted above\.$/
+    )
+  })
+
+  it('says nothing about unrecorded writes when there are none', async () => {
+    setup()
+    const metrics = creationMetrics({ web: 4, mcp: 5, unknown: 0 })
+    // Unrecorded creations alone no longer raise the line: it counts writes.
     metrics.data.by_source.unknown.total = 15
     mockTeam.getTeamResourceCreationMetrics.mockResolvedValue(metrics)
     renderHome()
 
     const usage = within(section('How your knowledge is used'))
-    expect(await usage.findByTestId('loop-unrecorded')).toHaveTextContent(
-      '15 resources created in this period have no recorded channel and are not counted in the writes.'
-    )
+    await usage.findByTestId('loop-writes')
+    expect(usage.queryByTestId('loop-unrecorded')).not.toBeInTheDocument()
   })
 
-  it('says nothing about unrecorded creations when there are none', async () => {
+  it('keeps the unrecorded writes under the sentence that stands in for the write figures', async () => {
     setup()
     mockTeam.getTeamResourceCreationMetrics.mockResolvedValue(
-      creationMetrics({ web: 4, mcp: 5 })
+      creationMetrics({ web: 3, unknown: 2 })
     )
     renderHome()
 
     const usage = within(section('How your knowledge is used'))
-    await usage.findByTestId('loop-writes')
-    expect(usage.queryByTestId('loop-unrecorded')).not.toBeInTheDocument()
+    const notRunning = await usage.findByTestId('loop-not-running')
+    const unrecorded = usage.getByTestId('loop-unrecorded')
+    expect(unrecorded).toHaveTextContent('2 writes in this period')
+    expect(
+      notRunning.compareDocumentPosition(unrecorded) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it('keeps the reads when the writes fail to load', async () => {

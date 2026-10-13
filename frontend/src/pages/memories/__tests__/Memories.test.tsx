@@ -17,6 +17,8 @@ import { buildMemoriesColumns } from '../memoriesColumns'
 import { extractTags } from '../memoryRequest'
 
 const makeMemory = (overrides: Partial<Memory> = {}): Memory => ({
+  last_write_source: null,
+  last_write_assistant_name: null,
   id: 'mem-1',
   user_id: 'user-1',
   team_id: 'team-1',

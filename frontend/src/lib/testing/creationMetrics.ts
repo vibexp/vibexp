@@ -26,5 +26,5 @@ export function emptyBySource(): BySource {
 export function writesBySource(
   overrides: Partial<WritesBySource> = {}
 ): WritesBySource {
-  return { web: 0, cli: 0, mcp: 0, api: 0, ...overrides }
+  return { web: 0, cli: 0, mcp: 0, api: 0, unknown: 0, ...overrides }
 }

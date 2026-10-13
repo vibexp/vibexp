@@ -163,10 +163,10 @@ export function KnowledgeUsage({
     ? summarizeWriteChannels(creation.data.data.writes_by_source)
     : null
 
-  // Creations the API could not attribute to a channel: made before channels
-  // were recorded, or by the system (an import). The writes above leave them
-  // out, so the figure can understate what happened; say so while it does.
-  const unrecorded = creation.data?.data.by_source.unknown.total ?? 0
+  // Creates and updates the API could not attribute to a channel, made before
+  // channels were recorded. The figures leave them out, the "of N writes"
+  // total included, so they can understate what happened; say so while they do.
+  const unrecorded = writes?.unrecorded ?? 0
 
   const noAiReads = reads?.noAiToolReads === true
   const noAiWrites = writes?.noAiToolWrites === true
@@ -200,17 +200,6 @@ export function KnowledgeUsage({
         )}
       </div>
 
-      {unrecorded > 0 && (
-        <p
-          className="text-muted-foreground text-xs"
-          data-testid="loop-unrecorded"
-        >
-          {unrecorded === 1
-            ? '1 resource created in this period has no recorded channel and is not counted in the writes.'
-            : `${unrecorded.toLocaleString()} resources created in this period have no recorded channel and are not counted in the writes.`}
-        </p>
-      )}
-
       {access.error && (
         <p className="text-muted-foreground text-sm">
           Could not load reads by channel just now.
@@ -227,6 +216,17 @@ export function KnowledgeUsage({
           {loopNotRunningMessage(noAiReads, noAiWrites, rangeLabel)}
           {noAiWrites && writes.web > 0 && ` ${webWrites(writes.web)}`}{' '}
           <ConnectLink />
+        </p>
+      )}
+
+      {unrecorded > 0 && (
+        <p
+          className="text-muted-foreground text-xs"
+          data-testid="loop-unrecorded"
+        >
+          {unrecorded === 1
+            ? '1 write in this period has no recorded channel and is not counted above.'
+            : `${unrecorded.toLocaleString()} writes in this period have no recorded channel and are not counted above.`}
         </p>
       )}
 

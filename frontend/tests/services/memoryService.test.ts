@@ -36,6 +36,8 @@ describe('MemoryService', () => {
   const id = 'mem-1'
 
   const mockMemory: Memory = {
+    last_write_source: null,
+    last_write_assistant_name: null,
     id,
     user_id: 'user-123',
     team_id: teamId,
