@@ -15,12 +15,16 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
+// promptStatusColumn is the qualified status column, named once so the list
+// projection and the status filters cannot drift apart.
+const promptStatusColumn = "p.status"
+
 // promptListSelectColumns is the 13-column projection shared by both variants
 // of the prompt list SELECT clause; each variant appends its own is_shared
 // expression and then the lock columns (see buildListSelectClause).
 var promptListSelectColumns = []string{
 	"p.id", "p.name", "p.slug", "p.description", "p.body", "p.user_id", "p.team_id",
-	"p.project_id", "p.status", "p.mcp_expose", "p.labels", "p.created_at", "p.updated_at",
+	"p.project_id", promptStatusColumn, "p.mcp_expose", "p.labels", "p.created_at", "p.updated_at",
 }
 
 // PromptRepository implements the repositories.PromptRepository interface for PostgreSQL
@@ -266,11 +270,11 @@ func buildListWhereClause(userID string, filters repositories.PromptFilters) squ
 	}
 
 	if filters.Status != "" {
-		where = append(where, squirrel.Eq{"p.status": filters.Status})
+		where = append(where, squirrel.Eq{promptStatusColumn: filters.Status})
 	}
 
 	if len(filters.ExcludeStatuses) > 0 {
-		where = append(where, squirrel.NotEq{"p.status": filters.ExcludeStatuses})
+		where = append(where, squirrel.NotEq{promptStatusColumn: filters.ExcludeStatuses})
 	}
 
 	if filters.Freshness != nil && *filters.Freshness == FreshnessFilterStale {
