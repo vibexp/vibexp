@@ -88,3 +88,59 @@ export function pickActiveHeading(
   }
   return active
 }
+
+/**
+ * Remembers the outline entry a reader jumped to, for exactly as long as it
+ * should override position.
+ *
+ * A jump (a click on an entry, a URL hash) marks its target current at once —
+ * positions read while the scroll is still travelling would mark whatever it
+ * is passing, and near the end of a document the target may never reach the
+ * reading line at all. But that is a statement about the jump, not about the
+ * rest of the visit: the first scroll the READER makes afterwards hands the
+ * outline back to position.
+ *
+ * The jump's own scroll must not count as the reader's. So the pin has two
+ * phases: `travelling` from the jump until that scroll ends (`settle`), during
+ * which scroll activity is ignored; then `resting`, where any scroll at all —
+ * wheel, touch, keyboard, a dragged scrollbar, `scrollTo` — releases it.
+ * Deliberate input (a wheel, a key, a touch) releases it in either phase: the
+ * reader interrupting a smooth scroll has taken over.
+ */
+export interface JumpPin {
+  /** The pinned entry, or `null` when position decides. */
+  current: () => string | null
+  /** A jump to `id` has started. */
+  jump: (id: string) => void
+  /** The jump's own scroll has finished (or never happened). */
+  settle: () => void
+  /** The page scrolled. Returns `true` when that released the pin. */
+  scrolled: () => boolean
+  /** The reader scrolled by hand. Returns `true` when that released the pin. */
+  userScrolled: () => boolean
+}
+
+export function createJumpPin(): JumpPin {
+  let pinned: string | null = null
+  let travelling = false
+
+  const release = (): boolean => {
+    const had = pinned !== null
+    pinned = null
+    travelling = false
+    return had
+  }
+
+  return {
+    current: () => pinned,
+    jump: id => {
+      pinned = id
+      travelling = true
+    },
+    settle: () => {
+      travelling = false
+    },
+    scrolled: () => (travelling ? false : release()),
+    userScrolled: release,
+  }
+}

@@ -1,5 +1,6 @@
 import {
   buildOutline,
+  createJumpPin,
   createSlugger,
   type OutlineHeading,
   pickActiveHeading,
@@ -115,5 +116,74 @@ describe('pickActiveHeading', () => {
 
   it('is null with no headings', () => {
     expect(pickActiveHeading([], 130)).toBeNull()
+  })
+})
+
+describe('createJumpPin', () => {
+  it('holds nothing until there is a jump', () => {
+    const pin = createJumpPin()
+
+    expect(pin.current()).toBeNull()
+    expect(pin.scrolled()).toBe(false)
+    expect(pin.userScrolled()).toBe(false)
+  })
+
+  it('pins the target of a jump', () => {
+    const pin = createJumpPin()
+    pin.jump('rollout')
+
+    expect(pin.current()).toBe('rollout')
+  })
+
+  it('ignores the scrolling of the jump itself', () => {
+    const pin = createJumpPin()
+    pin.jump('rollout')
+
+    // The smooth scroll that performs the jump fires many scroll events.
+    expect(pin.scrolled()).toBe(false)
+    expect(pin.scrolled()).toBe(false)
+    expect(pin.current()).toBe('rollout')
+  })
+
+  it('keeps the pin when the jump settles, and releases it on the next scroll', () => {
+    const pin = createJumpPin()
+    pin.jump('appendix')
+    pin.settle()
+    expect(pin.current()).toBe('appendix')
+
+    // Any scroll now is the reader's: a wheel, a dragged scrollbar, scrollTo.
+    expect(pin.scrolled()).toBe(true)
+    expect(pin.current()).toBeNull()
+    // …and it is released once, not on every later scroll.
+    expect(pin.scrolled()).toBe(false)
+  })
+
+  it('releases mid-jump on deliberate input: the reader has taken over', () => {
+    const pin = createJumpPin()
+    pin.jump('appendix')
+
+    expect(pin.userScrolled()).toBe(true)
+    expect(pin.current()).toBeNull()
+    // The interrupted jump's remaining scroll events change nothing.
+    expect(pin.scrolled()).toBe(false)
+  })
+
+  it('moves to a new target on a second jump, travelling again', () => {
+    const pin = createJumpPin()
+    pin.jump('summary')
+    pin.settle()
+    pin.jump('risks')
+
+    expect(pin.current()).toBe('risks')
+    expect(pin.scrolled()).toBe(false)
+    pin.settle()
+    expect(pin.scrolled()).toBe(true)
+  })
+
+  it('settling with nothing pinned is harmless', () => {
+    const pin = createJumpPin()
+    pin.settle()
+
+    expect(pin.current()).toBeNull()
   })
 })
