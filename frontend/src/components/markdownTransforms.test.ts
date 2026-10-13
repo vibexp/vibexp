@@ -2,6 +2,7 @@ import {
   addHeadingIds,
   markTaskListItems,
   replaceCodeBlocks,
+  replaceMermaidFences,
   stripLeadingTitleHeading,
 } from './markdownTransforms'
 
@@ -228,6 +229,64 @@ describe('replaceCodeBlocks', () => {
     ]) {
       const started = performance.now()
       expect(replaceCodeBlocks(html, mark)).toBe(html)
+      expect(performance.now() - started).toBeLessThan(1000)
+    }
+  })
+})
+
+describe('replaceMermaidFences', () => {
+  const F = '```'
+  const mark = (code: string) => `[${code}]`
+
+  it('hands over the body of a mermaid fence, and of an mmd one', () => {
+    expect(
+      replaceMermaidFences(`a\n${F}mermaid\ngraph TD\n${F}\nb`, mark)
+    ).toBe('a\n[graph TD\n]\nb')
+    expect(replaceMermaidFences(`${F}mmd\nA-->B\n${F}`, mark)).toBe('[A-->B\n]')
+  })
+
+  it('accepts CRLF after the info string', () => {
+    expect(replaceMermaidFences(`${F}mermaid\r\ngraph TD\r\n${F}`, mark)).toBe(
+      '[graph TD\r\n]'
+    )
+  })
+
+  it('replaces each diagram in a body with several', () => {
+    expect(
+      replaceMermaidFences(
+        `${F}mermaid\none\n${F}\ntext\n${F}mmd\ntwo\n${F}`,
+        mark
+      )
+    ).toBe('[one\n]\ntext\n[two\n]')
+  })
+
+  it('leaves a fence that is never closed', () => {
+    const source = `intro\n${F}mermaid\ngraph TD`
+    expect(replaceMermaidFences(source, mark)).toBe(source)
+  })
+
+  it('leaves other fences, and an info string with anything after it', () => {
+    for (const source of [
+      `${F}ts\nconst a = 1\n${F}`,
+      `${F}mermaid title\ngraph TD\n${F}`,
+      `${F}mermaidx\ngraph TD\n${F}`,
+      `${F}mermaid`,
+    ]) {
+      expect(replaceMermaidFences(source, mark)).toBe(source)
+    }
+  })
+
+  it('stays fast on long adversarial input', () => {
+    for (const source of [
+      // One opening, then a long body with backtick pairs and no closing.
+      `${F}mermaid\n${'`` mermaid\n'.repeat(5_000)}`,
+      // Nothing but backticks: every position starts a fence of no kind.
+      '`'.repeat(50_000),
+      // Openings back to back: each one's backticks close the one before.
+      `${F}mermaid\n`.repeat(5_000),
+    ]) {
+      const started = performance.now()
+      replaceMermaidFences(source, mark)
       expect(performance.now() - started).toBeLessThan(1000)
     }
   })

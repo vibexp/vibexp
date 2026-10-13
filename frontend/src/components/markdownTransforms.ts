@@ -188,3 +188,49 @@ export function replaceCodeBlocks(
   }
   return out + html.slice(copiedTo)
 }
+
+const FENCE = '```'
+const MERMAID_INFO_STRINGS = ['mermaid', 'mmd'] as const
+
+/**
+ * Replaces every ```` ```mermaid ```` (or ```` ```mmd ````) fence in raw
+ * markdown with what `replace` returns for its body. The info string must be
+ * followed directly by a line break (LF or CRLF); the body runs to the next
+ * three backticks. A fence that is never closed is left as written.
+ *
+ * A scan, not ```` ```(?:mermaid|mmd)\r?\n([\s\S]*?)``` ````: that pattern
+ * reads to the end of the document from every such opening that never closes.
+ */
+export function replaceMermaidFences(
+  source: string,
+  replace: (code: string) => string
+): string {
+  const nextClose = forwardFinder(source, FENCE)
+  let out = ''
+  let copiedTo = 0
+  let from = 0
+  for (;;) {
+    const open = source.indexOf(FENCE, from)
+    if (open === -1) break
+    const infoStart = open + FENCE.length
+    const info = MERMAID_INFO_STRINGS.find(name =>
+      source.startsWith(name, infoStart)
+    )
+    let bodyStart = -1
+    if (info !== undefined) {
+      let cursor = infoStart + info.length
+      if (source[cursor] === '\r') cursor += 1
+      if (source[cursor] === '\n') bodyStart = cursor + 1
+    }
+    const close = bodyStart === -1 ? -1 : nextClose(bodyStart)
+    if (close === -1) {
+      from = open + 1
+      continue
+    }
+    out +=
+      source.slice(copiedTo, open) + replace(source.slice(bodyStart, close))
+    copiedTo = close + FENCE.length
+    from = copiedTo
+  }
+  return out + source.slice(copiedTo)
+}
