@@ -89,7 +89,7 @@ export function projectFormField(testId: string): FormFieldSpec {
     control: 'project',
     section: 'details',
     required: true,
-    placeholder: 'Select project',
+    placeholder: 'Select project…',
     testId,
   }
 }

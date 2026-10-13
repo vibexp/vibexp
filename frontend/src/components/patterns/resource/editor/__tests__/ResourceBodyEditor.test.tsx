@@ -130,7 +130,7 @@ describe('ResourceBodyEditor', () => {
       )
       expect(screen.getByRole('tab', { name: 'Rendered' })).toBeInTheDocument()
       expect(
-        screen.queryByRole('tab', { name: 'Render' })
+        screen.queryByRole('tab', { name: 'Resolved' })
       ).not.toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: /Load template/ })
@@ -416,7 +416,7 @@ describe('ResourceBodyEditor', () => {
         />
       )
 
-      await user.click(screen.getByRole('tab', { name: 'Render' }))
+      await user.click(screen.getByRole('tab', { name: 'Resolved' }))
 
       expect(screen.getByText('rendered output')).toBeInTheDocument()
     })
@@ -434,7 +434,12 @@ describe('ResourceBodyEditor', () => {
         />
       )
 
-      const option = screen.getByRole('tab', { name: 'Render' })
+      const option = screen.getByRole('tab', { name: 'Resolved' })
+      // The label alone does not say what is resolved; the hover text does.
+      expect(option).toHaveAttribute(
+        'title',
+        'With @references expanded, as an AI tool receives it'
+      )
       expect(option).toBeDisabled()
       expect(option).toHaveAttribute('aria-disabled', 'true')
       await user.click(option)
@@ -582,7 +587,7 @@ describe('ResourceBodyEditor', () => {
       expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
       await user.click(screen.getByRole('tab', { name: 'Rendered' }))
       expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
-      await user.click(screen.getByRole('tab', { name: 'Render' }))
+      await user.click(screen.getByRole('tab', { name: 'Resolved' }))
       expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
     })
 

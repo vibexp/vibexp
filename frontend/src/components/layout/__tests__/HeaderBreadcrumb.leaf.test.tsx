@@ -74,4 +74,72 @@ describe('HeaderBreadcrumb — naming the resource', () => {
 
     expect(screen.queryByText('Doc')).not.toBeInTheDocument()
   })
+
+  describe('static sub-pages', () => {
+    it.each([
+      ['/settings/api-keys', 'Settings', '/settings', 'API keys'],
+      ['/settings/activities', 'Settings', '/settings', 'Activities'],
+      [
+        '/settings/notifications',
+        'Settings',
+        '/settings',
+        'Notification preferences',
+      ],
+    ])('names %s under its section', (path, section, href, leaf) => {
+      renderAt(path, null)
+
+      expect(screen.getByRole('link', { name: section })).toHaveAttribute(
+        'href',
+        href
+      )
+      expect(screen.getByText(leaf)).toHaveAttribute('aria-current', 'page')
+    })
+
+    it('names a page that has no section of its own', () => {
+      renderAt('/notifications', null)
+
+      expect(
+        screen.getByRole('navigation', { name: 'Breadcrumb' })
+      ).toHaveTextContent('VibeXP/Notifications')
+    })
+
+    it('does not add a crumb for the section’s own page', () => {
+      renderAt('/settings', null)
+
+      expect(screen.queryByRole('link')).not.toBeInTheDocument()
+      expect(screen.getByText('Settings')).toHaveClass('font-semibold')
+    })
+  })
+
+  describe('a page inside a named thing', () => {
+    function TeamPage({ tab }: Readonly<{ tab?: string }>) {
+      useBreadcrumbLeaf(['Private Workspace', tab])
+      return null
+    }
+
+    it('shows the team, then the tab on screen', () => {
+      renderAt('/teams/t1/projects', <TeamPage tab="Projects" />)
+
+      expect(
+        screen.getByRole('navigation', { name: 'Breadcrumb' })
+      ).toHaveTextContent('VibeXP/Teams/Private Workspace/Projects')
+      expect(screen.getByRole('link', { name: 'Teams' })).toHaveAttribute(
+        'href',
+        '/teams'
+      )
+      expect(screen.getByText('Projects')).toHaveAttribute(
+        'aria-current',
+        'page'
+      )
+    })
+
+    it('ends at the team on its own (Overview) page', () => {
+      renderAt('/teams/t1', <TeamPage />)
+
+      expect(screen.getByText('Private Workspace')).toHaveAttribute(
+        'aria-current',
+        'page'
+      )
+    })
+  })
 })

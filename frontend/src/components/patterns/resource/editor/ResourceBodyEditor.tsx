@@ -210,7 +210,10 @@ export const ResourceBodyEditor = forwardRef<
   if (extensions?.render) {
     options.push({
       value: 'render',
-      label: 'Render',
+      // "Render" sat beside "Rendered" and read as the same thing; this view
+      // is the body as an AI tool receives it.
+      label: 'Resolved',
+      title: 'With @references expanded, as an AI tool receives it',
       disabled: extensions.render.disabled,
     })
   }

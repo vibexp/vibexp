@@ -346,6 +346,7 @@ export function Search() {
                   <SearchResultCard
                     key={item.chunk_id}
                     item={item}
+                    query={q}
                     domId={
                       firstCardIds.has(item.chunk_id)
                         ? resultCardDomId(item.id)

@@ -3,6 +3,7 @@ import { type ReactNode, useCallback, useEffect, useState } from 'react'
 
 import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/PageHeader'
+import { RelativeTime } from '@/components/RelativeTime'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -20,7 +21,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useAlerts } from '@/hooks'
-import { formatDateTime, formatRelativeTime } from '@/lib/time'
+import { formatDateTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import type {
   Activity as ActivityType,
@@ -177,7 +178,7 @@ export function Activities() {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span className="text-muted-foreground shrink-0 text-xs">
-                            {formatRelativeTime(activity.created_at)}
+                            <RelativeTime value={activity.created_at} />
                           </span>
                         </TooltipTrigger>
                         <TooltipContent>

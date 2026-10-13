@@ -18,6 +18,8 @@ interface ProjectSearchResult {
   projects: Project[]
   /** True while the first page (initial load or a new query) is loading. */
   loading: boolean
+  /** True once the first page has been answered, whether it loaded or failed. */
+  settled: boolean
   /** True while a subsequent page is being appended via {@link loadMore}. */
   loadingMore: boolean
   error: string | null
@@ -54,6 +56,7 @@ export function useProjectSearch(
 
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(false)
+  const [settled, setSettled] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
@@ -112,6 +115,7 @@ export function useProjectSearch(
         }
       } finally {
         if (requestId === requestIdRef.current) {
+          setSettled(true)
           setLoading(false)
           setLoadingMore(false)
         }
@@ -151,6 +155,7 @@ export function useProjectSearch(
     () => ({
       projects,
       loading,
+      settled,
       loadingMore,
       error,
       hasMore,
@@ -158,6 +163,16 @@ export function useProjectSearch(
       setQuery,
       query,
     }),
-    [projects, loading, loadingMore, error, hasMore, loadMore, setQuery, query]
+    [
+      projects,
+      loading,
+      settled,
+      loadingMore,
+      error,
+      hasMore,
+      loadMore,
+      setQuery,
+      query,
+    ]
   )
 }

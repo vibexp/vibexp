@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import {
+  isBlankSlate,
   ListPage,
   listPageStatus,
   ListTable,
@@ -235,6 +236,8 @@ export function Agents() {
     state.error,
     state.items.length === 0
   )
+  // Nothing exists and nothing is filtering: the empty state is the page.
+  const blankSlate = isBlankSlate(listStatus, hasActiveFilters)
 
   return (
     <ListPage>
@@ -242,32 +245,36 @@ export function Agents() {
         title="Agents"
         description="Manage AI agents and task automation."
         actions={
-          <Button
-            onClick={() => {
-              void navigate('/agents/new')
-            }}
-          >
-            <Plus className="mr-2 size-4" />
-            Add agent
-          </Button>
+          blankSlate ? undefined : (
+            <Button
+              onClick={() => {
+                void navigate('/agents/new')
+              }}
+            >
+              <Plus className="mr-2 size-4" />
+              Add agent
+            </Button>
+          )
         }
       />
 
       {stats && !state.loading && !state.error && <AgentStats stats={stats} />}
 
       <ListPage.Container>
-        <ListPage.Filters>
-          <AgentFilters
-            searchInput={searchInput}
-            onSearchInputChange={setSearchInput}
-            currentStatusFilter={status ?? 'all'}
-            onStatusFilterChange={value => {
-              setFilters({ status: value })
-            }}
-            onClear={handleClear}
-            hasActiveFilters={hasActiveFilters}
-          />
-        </ListPage.Filters>
+        {!blankSlate && (
+          <ListPage.Filters>
+            <AgentFilters
+              searchInput={searchInput}
+              onSearchInputChange={setSearchInput}
+              currentStatusFilter={status ?? 'all'}
+              onStatusFilterChange={value => {
+                setFilters({ status: value })
+              }}
+              onClear={handleClear}
+              hasActiveFilters={hasActiveFilters}
+            />
+          </ListPage.Filters>
+        )}
 
         <ListPage.Body
           status={listStatus}

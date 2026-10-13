@@ -1,8 +1,8 @@
 import { CheckCircle2, Clock, MessageSquare } from 'lucide-react'
 import { Link } from 'react-router'
 
+import { RelativeTime } from '@/components/RelativeTime'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatRelativeTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import type { FeedItem } from '@/services/feedService'
 
@@ -85,7 +85,7 @@ function UnansweredRow({ item }: Readonly<{ item: FeedItem }>) {
         </p>
       </div>
       <span className="text-muted-foreground shrink-0 text-xs">
-        {formatRelativeTime(item.posted_at)}
+        <RelativeTime value={item.posted_at} />
       </span>
     </li>
   )

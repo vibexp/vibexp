@@ -65,6 +65,12 @@ export interface ShellContextValue {
    * as the breadcrumb's last crumb. `null` when the page did not name one.
    */
   breadcrumbLeaf: string | null
+  /**
+   * Every crumb the page named after its section, outermost first — usually
+   * one (a resource), sometimes two (a team, then the tab of it on screen).
+   * `breadcrumbLeaf` is its last entry.
+   */
+  breadcrumbTrail: readonly string[]
 }
 
 /** What a reading page tells the shell about itself. */
@@ -77,7 +83,7 @@ export interface ShellRegistration {
 
 interface ShellInternalValue extends ShellContextValue {
   register: (registration: ShellRegistration) => () => void
-  setBreadcrumbLeaf: (leaf: string | null) => void
+  setBreadcrumbTrail: (trail: readonly string[]) => void
 }
 
 const noop = (): void => undefined
@@ -102,8 +108,9 @@ const DEFAULT_SHELL: ShellInternalValue = {
   focusMode: false,
   setFocusMode: noop,
   breadcrumbLeaf: null,
+  breadcrumbTrail: [],
   register: () => noop,
-  setBreadcrumbLeaf: noop,
+  setBreadcrumbTrail: noop,
 }
 
 const ShellContext = createContext<ShellInternalValue>(DEFAULT_SHELL)
@@ -124,7 +131,8 @@ export function ShellProvider({ children }: Readonly<{ children: ReactNode }>) {
     false
   )
   const [detailsSheetOpen, setDetailsSheetOpen] = useState(false)
-  const [breadcrumbLeaf, setBreadcrumbLeaf] = useState<string | null>(null)
+  const [breadcrumbTrail, setBreadcrumbTrail] = useState<readonly string[]>([])
+  const breadcrumbLeaf = breadcrumbTrail.at(-1) ?? null
 
   // A page registers once on mount and unregisters on unmount, so counters
   // (not booleans) survive the brief overlap when one reading page replaces
@@ -187,8 +195,9 @@ export function ShellProvider({ children }: Readonly<{ children: ReactNode }>) {
       focusMode,
       setFocusMode,
       breadcrumbLeaf,
+      breadcrumbTrail,
       register,
-      setBreadcrumbLeaf,
+      setBreadcrumbTrail,
     }),
     [
       navCollapsed,
@@ -203,6 +212,7 @@ export function ShellProvider({ children }: Readonly<{ children: ReactNode }>) {
       contentMode,
       focusMode,
       breadcrumbLeaf,
+      breadcrumbTrail,
       register,
     ]
   )
@@ -229,18 +239,30 @@ export function useReadingShell(registration: ShellRegistration): void {
   )
 }
 
+/** Separates the crumbs of a trail in an effect key; never in a label. */
+const TRAIL_KEY_SEPARATOR = '\u0000'
+
 /**
  * Names the thing the current page is about, for the breadcrumb's last crumb
- * ("VibeXP / Artifacts / <title>"). Cleared when the page unmounts or stops
- * naming one. A blank or missing label names nothing.
+ * ("VibeXP / Artifacts / <title>"), and for the tab title. Pass several labels
+ * for a page inside a named thing ("VibeXP / Teams / <team> / Projects").
+ * Cleared when the page unmounts or stops naming one; blank labels are
+ * dropped, and a page that names nothing leaves the breadcrumb at its section.
  */
-export function useBreadcrumbLeaf(label: string | null | undefined): void {
-  const { setBreadcrumbLeaf } = useContext(ShellContext)
-  const leaf = label?.trim() ? label.trim() : null
+export function useBreadcrumbLeaf(
+  label: string | readonly (string | null | undefined)[] | null | undefined
+): void {
+  const { setBreadcrumbTrail } = useContext(ShellContext)
+  const labels = typeof label === 'string' ? [label] : (label ?? [])
+  // A string key, so a fresh array of the same labels is not a new trail.
+  const key = labels
+    .map(part => part?.trim() ?? '')
+    .filter(part => part !== '')
+    .join(TRAIL_KEY_SEPARATOR)
   useEffect(() => {
-    setBreadcrumbLeaf(leaf)
+    setBreadcrumbTrail(key === '' ? [] : key.split(TRAIL_KEY_SEPARATOR))
     return () => {
-      setBreadcrumbLeaf(null)
+      setBreadcrumbTrail([])
     }
-  }, [setBreadcrumbLeaf, leaf])
+  }, [setBreadcrumbTrail, key])
 }

@@ -1,6 +1,7 @@
 import { Activity } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
+import { RelativeTime } from '@/components/RelativeTime'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -14,7 +15,7 @@ import {
 } from '@/components/ui/table'
 import type { AgentExecution } from '@/services/agentService'
 
-import { formatDuration, formatRelativeTime } from '../helpers'
+import { formatDuration } from '../helpers'
 
 interface RecentExecutionsTableProps {
   recentExecutions: AgentExecution[]
@@ -98,7 +99,7 @@ export function RecentExecutionsTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
-                  {formatRelativeTime(execution.started_at)}
+                  <RelativeTime value={execution.started_at} />
                 </TableCell>
                 <TableCell className="text-right text-sm">
                   {formatDuration(execution.duration)}

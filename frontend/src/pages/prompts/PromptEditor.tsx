@@ -18,11 +18,11 @@ import { PromptTemplateLoader } from '@/components/PromptTemplateLoader'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAnalytics } from '@/hooks'
+import { useDefaultProject } from '@/hooks/useDefaultProject'
 import { useEditVersionHistory } from '@/hooks/useEditVersionHistory'
 import { useLockedWriteRefresh } from '@/hooks/useLockedWriteRefresh'
 import { toast } from '@/lib/toast'
 import { toPromptRequest } from '@/pages/prompts/promptRequest'
-import { projectService } from '@/services/projectService'
 import type { Prompt } from '@/services/promptService'
 import { promptService } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
@@ -82,14 +82,17 @@ export function PromptEditor() {
   const prefilledData = location.state as PrefilledPrompt | null
 
   const [loading, setLoading] = useState(!!slug)
-  // Create mode waits for the projects fetch before painting the form. Seeding
-  // `initialValues` after first paint is a `reset`, and a reset discards
-  // everything typed in the meantime — the trap `useResourceForm` documents.
-  const [loadingProjects, setLoadingProjects] = useState(!slug)
   const [view, setView] = useState<EditorView>('write')
   const [showTemplateLoader, setShowTemplateLoader] = useState(false)
   const [prompt, setPrompt] = useState<Prompt | null>(null)
-  const [defaultProjectId, setDefaultProjectId] = useState('')
+  // Create mode waits for the default project before painting the form.
+  // Seeding `initialValues` after first paint is a `reset`, and a reset
+  // discards everything typed in the meantime — the trap `useResourceForm`
+  // documents. The default is the header's project filter, or the workspace's
+  // only project, which is what the prompt e2e journeys create through.
+  const defaultProject = useDefaultProject({ enabled: !slug })
+  const defaultProjectId = defaultProject.project?.id
+  const loadingProjects = defaultProject.loading
   const [mcpExpose, setMcpExpose] = useState(false)
   const [templateValues, setTemplateValues] =
     useState<ResourceFormValues | null>(null)
@@ -159,36 +162,6 @@ export function PromptEditor() {
     },
     [navigate, currentTeam]
   )
-
-  useEffect(() => {
-    if (isEditing) {
-      setLoadingProjects(false)
-      return
-    }
-    // Still resolving the team: stay on the skeleton rather than painting a
-    // form that is about to be re-seeded.
-    if (isLoadingTeam) return
-    if (!currentTeam) {
-      setLoadingProjects(false)
-      return
-    }
-    const fetchProjects = async () => {
-      try {
-        const response = await projectService.getProjects(currentTeam.id, {})
-        // A team with exactly one project preselects it. `ProjectPicker` has no
-        // default of its own (#1790), and this is the default the prompt e2e
-        // journeys create prompts through without touching the picker.
-        if (response.projects.length === 1) {
-          setDefaultProjectId(response.projects[0].id)
-        }
-      } catch {
-        setDefaultProjectId('')
-      } finally {
-        setLoadingProjects(false)
-      }
-    }
-    void fetchProjects()
-  }, [currentTeam, isEditing, isLoadingTeam])
 
   useEffect(() => {
     if (slug && !isLoadingTeam) {

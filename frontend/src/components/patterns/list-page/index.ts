@@ -28,7 +28,7 @@ export {
   ResourceFilterBar,
   type ResourceFilterBarProps,
 } from './ResourceFilterBar'
-export { listPageStatus } from './status'
+export { isBlankSlate, listPageStatus } from './status'
 export { TABLE_HEAD_CLASS } from './tableHeaderStyle'
 export type {
   ListPageCount,

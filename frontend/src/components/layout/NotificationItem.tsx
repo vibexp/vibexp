@@ -1,4 +1,4 @@
-import { formatRelativeTime } from '@/lib/time'
+import { RelativeTime } from '@/components/RelativeTime'
 import { cn } from '@/lib/utils'
 import type { Notification } from '@/services/notificationService'
 
@@ -66,7 +66,7 @@ export function NotificationItem({
           {notification.title}
         </span>
         <span className="text-muted-foreground shrink-0 text-xs">
-          {formatRelativeTime(notification.created_at)}
+          <RelativeTime value={notification.created_at} />
         </span>
       </div>
       {notification.body && (

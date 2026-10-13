@@ -9,9 +9,9 @@ import {
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 
+import { RelativeTime } from '@/components/RelativeTime'
 import { Skeleton } from '@/components/ui/skeleton'
 import { buildResourceUrl } from '@/lib/resourceUrl'
-import { formatRelativeTime } from '@/lib/time'
 import { FeedActorAvatar, resolveFeedActor } from '@/pages/feeds/feedActor'
 import { getActivityIcon } from '@/pages/home/activityHelpers'
 import type { Activity as ActivityType } from '@/services/activityService'
@@ -138,7 +138,7 @@ export function RecentFeedList({
                 </p>
               </div>
               <span className="text-muted-foreground shrink-0 text-xs">
-                {formatRelativeTime(item.posted_at)}
+                <RelativeTime value={item.posted_at} />
               </span>
             </Link>
           </li>
@@ -210,7 +210,7 @@ export function RecentCommentsList({
                 </p>
               </div>
               <span className="text-muted-foreground shrink-0 text-xs">
-                {formatRelativeTime(comment.updated_at)}
+                <RelativeTime value={comment.updated_at} />
               </span>
             </>
           )
@@ -269,7 +269,7 @@ export function RecentActivityList({
                 </p>
               </div>
               <span className="text-muted-foreground shrink-0 text-xs">
-                {formatRelativeTime(activity.created_at)}
+                <RelativeTime value={activity.created_at} />
               </span>
             </li>
           )

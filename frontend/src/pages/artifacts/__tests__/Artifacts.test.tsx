@@ -134,6 +134,29 @@ const emptyResponse = {
   total_pages: 0,
 }
 
+/** One row: enough for the list to stop being a blank slate. */
+const oneArtifactResponse = {
+  ...emptyResponse,
+  artifacts: [
+    {
+      id: 'artifact-1',
+      project_id: 'proj-1',
+      slug: 'sprint-report',
+      user_id: 'user-1',
+      title: 'Sprint Report',
+      description: '',
+      content: '',
+      type: 'general',
+      status: 'active',
+      metadata: {},
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-02T00:00:00Z',
+    },
+  ],
+  total_count: 1,
+  total_pages: 1,
+}
+
 const alpha: Project = {
   id: 'p1',
   user_id: 'user-1',
@@ -348,6 +371,11 @@ describe('Artifacts page — URL-synced filters (#523)', () => {
   })
 
   it('committing a metadata chip sends the JSON param and resets to page 1', async () => {
+    // The filter row only exists once the list holds something (it is
+    // dropped on a blank slate), so the first load returns a row.
+    ;(artifactService.getArtifacts as Mock).mockResolvedValueOnce(
+      oneArtifactResponse
+    )
     renderArtifacts('/artifacts?page=4')
     await waitFor(() => {
       expect(lastQuery().page).toBe(4)
@@ -384,6 +412,11 @@ describe('Artifacts page — URL-synced filters (#523)', () => {
   })
 
   it('debounces the search box into a single request', async () => {
+    // The filter row only exists once the list holds something (it is
+    // dropped on a blank slate), so the first load returns a row.
+    ;(artifactService.getArtifacts as Mock).mockResolvedValueOnce(
+      oneArtifactResponse
+    )
     renderArtifacts()
     await waitFor(() => {
       expect(artifactService.getArtifacts).toHaveBeenCalled()
@@ -415,6 +448,11 @@ describe('Artifacts page — URL-synced filters (#523)', () => {
     await screen.findByText('No artifacts match your filters')
 
     const user = userEvent.setup()
+    // Unfiltered, the list has a row: a blank slate would drop the filter row
+    // this test goes on to read.
+    ;(artifactService.getArtifacts as Mock).mockResolvedValue(
+      oneArtifactResponse
+    )
     const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
     await user.click(clear)
 

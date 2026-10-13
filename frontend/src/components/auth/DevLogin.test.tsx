@@ -76,10 +76,10 @@ import { ACCESS_RESTRICTED_MESSAGE } from '@/utils/authErrors'
 
 import { DevLogin } from './DevLogin'
 
-function renderDevLogin(returnTo?: string, onError?: (error: string) => void) {
+function renderDevLogin(returnTo?: string) {
   return render(
     <MemoryRouter>
-      <DevLogin returnTo={returnTo} onError={onError} />
+      <DevLogin returnTo={returnTo} />
     </MemoryRouter>
   )
 }
@@ -134,8 +134,7 @@ describe('DevLogin', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('surfaces the restriction wording when the allowlist denies the login', async () => {
-    const onError = vi.fn()
+  it('shows the restriction wording under the email field when the allowlist denies the login', async () => {
     mockDevLogin.mockRejectedValue(
       new ApiError({
         type: 'https://api.vibexp.io/errors/access-restricted',
@@ -148,24 +147,38 @@ describe('DevLogin', () => {
       })
     )
 
-    renderDevLogin('/', onError)
+    renderDevLogin('/')
     await submitWithEmail()
 
-    await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith(ACCESS_RESTRICTED_MESSAGE)
-    })
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(ACCESS_RESTRICTED_MESSAGE)
+    // Tied to the field, so a screen reader announces it with the input.
+    const email = screen.getByLabelText(/email/i)
+    expect(email).toHaveAttribute('aria-invalid', 'true')
+    expect(email).toHaveAttribute('aria-describedby', alert.id)
     expect(mockHardRedirect).not.toHaveBeenCalled()
   })
 
-  it('surfaces the backend detail for any other failure', async () => {
-    const onError = vi.fn()
+  it('shows the backend detail for any other failure', async () => {
     mockDevLogin.mockRejectedValue(new Error('dev login is disabled'))
 
-    renderDevLogin('/', onError)
+    renderDevLogin('/')
     await submitWithEmail()
 
-    await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith('dev login is disabled')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'dev login is disabled'
+    )
+  })
+
+  it('clears the error once the address is edited', async () => {
+    mockDevLogin.mockRejectedValue(new Error('dev login is disabled'))
+    renderDevLogin('/')
+    await submitWithEmail()
+    await screen.findByRole('alert')
+
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'other@example.com' },
     })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

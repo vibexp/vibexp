@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router'
+import { useLocation, useParams } from 'react-router'
 
+import { useBreadcrumbLeaf } from '@/components/layout/ShellContext'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
+import { activeTeamTab } from '@/pages/teams/team-tabs'
 import { TeamRoutes } from '@/pages/teams/TeamRoutes'
 import { TeamScopeHeader } from '@/pages/teams/TeamScopeHeader'
 import { TeamTabs } from '@/pages/teams/TeamTabs'
@@ -55,6 +57,12 @@ export function TeamScopeLayout() {
   )
 
   const team = teamFromList ?? fallbackTeam
+
+  // "VibeXP / Teams / <team> / Projects": the team, then the tab on screen
+  // (the Overview tab is the team's own page, so it adds no crumb).
+  const { pathname } = useLocation()
+  const activeTab = team ? activeTeamTab(team.id, pathname) : undefined
+  useBreadcrumbLeaf(team ? [team.name, activeTab?.label] : null)
 
   // A stale list (team joined in another tab) must not read as "forbidden", so
   // fall back to fetching once the list has settled without a match. A 403/404

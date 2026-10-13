@@ -5,6 +5,13 @@ import type { FeedItem } from '@/services/feedService'
 
 import { FeedItemCard } from '../FeedItemCard'
 
+// The real renderer needs the full `marked` build, which the suite stubs.
+vi.mock('@/components/MarkdownRenderer', () => ({
+  MarkdownRenderer: ({ content }: { content: string }) => (
+    <div className="markdown-renderer">{content}</div>
+  ),
+}))
+
 const mockItem: FeedItem = {
   id: 'item-1',
   team_id: 'team-1',

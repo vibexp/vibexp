@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import {
   FILTER_ALL,
+  isBlankSlate,
   ListPage,
   listPageStatus,
   ListTable,
@@ -230,6 +231,8 @@ export function Blueprints() {
     state.error,
     state.items.length === 0
   )
+  // Nothing exists and nothing is filtering: the empty state is the page.
+  const blankSlate = isBlankSlate(listStatus, hasActiveFilters)
 
   return (
     <ListPage>
@@ -237,25 +240,29 @@ export function Blueprints() {
         title="Blueprints"
         description="Organize all AI-generated blueprints."
         actions={
-          <Button
-            onClick={() => {
-              void navigate('/blueprints/new')
-            }}
-          >
-            <Plus className="mr-2 size-4" />
-            New blueprint
-          </Button>
+          blankSlate ? undefined : (
+            <Button
+              onClick={() => {
+                void navigate('/blueprints/new')
+              }}
+            >
+              <Plus className="mr-2 size-4" />
+              New blueprint
+            </Button>
+          )
         }
       />
 
       <ListPage.Container>
-        <ListPage.Filters>
-          <ResourceFilterBar
-            descriptor={BLUEPRINT}
-            filters={listFilters}
-            projectId={projectId}
-          />
-        </ListPage.Filters>
+        {!blankSlate && (
+          <ListPage.Filters>
+            <ResourceFilterBar
+              descriptor={BLUEPRINT}
+              filters={listFilters}
+              projectId={projectId}
+            />
+          </ListPage.Filters>
+        )}
 
         <ListPage.Body
           status={listStatus}

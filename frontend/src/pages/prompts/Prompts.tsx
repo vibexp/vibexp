@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import {
   FILTER_ALL,
+  isBlankSlate,
   ListPage,
   listPageStatus,
   ListTable,
@@ -234,6 +235,8 @@ export function Prompts() {
     state.error,
     state.items.length === 0
   )
+  // Nothing exists and nothing is filtering: the empty state is the page.
+  const blankSlate = isBlankSlate(listStatus, hasActiveFilters)
 
   return (
     <ListPage>
@@ -241,33 +244,37 @@ export function Prompts() {
         title="Prompts"
         description="Organize and manage your AI prompts."
         actions={
-          <Button
-            onClick={() => {
-              // Editor still lives in v1 until Slice 5b lands
-              void navigate('/prompts/new')
-            }}
-          >
-            <Plus className="mr-2 size-4" />
-            New prompt
-          </Button>
+          blankSlate ? undefined : (
+            <Button
+              onClick={() => {
+                // Editor still lives in v1 until Slice 5b lands
+                void navigate('/prompts/new')
+              }}
+            >
+              <Plus className="mr-2 size-4" />
+              New prompt
+            </Button>
+          )
         }
       />
 
       <ListPage.Container>
-        <ListPage.Filters>
-          <ResourceFilterBar
-            descriptor={PROMPT}
-            filters={listFilters}
-            extras={
-              <PromptSharedFilter
-                value={toSharedFilter(shared)}
-                onChange={value => {
-                  setFilters({ shared: value })
-                }}
-              />
-            }
-          />
-        </ListPage.Filters>
+        {!blankSlate && (
+          <ListPage.Filters>
+            <ResourceFilterBar
+              descriptor={PROMPT}
+              filters={listFilters}
+              extras={
+                <PromptSharedFilter
+                  value={toSharedFilter(shared)}
+                  onChange={value => {
+                    setFilters({ shared: value })
+                  }}
+                />
+              }
+            />
+          </ListPage.Filters>
+        )}
 
         <ListPage.Body
           status={listStatus}

@@ -40,12 +40,10 @@ export function Connect() {
   const Content = TAB_CONTENT[tab]
 
   return (
-    // The width the four pages already share, stated once for the tab bar.
+    // No width of its own: like every non-reading page it fills the shell's
+    // one container, so its left edge is where every other page's is.
     <div data-testid="connect-page">
-      <nav
-        aria-label="Connect"
-        className="mx-auto mb-8 flex max-w-[1080px] gap-1 border-b"
-      >
+      <nav aria-label="Connect" className="mb-8 flex gap-1 border-b">
         {CONNECT_TABS.map(({ slug, label }) => (
           <NavLink
             key={slug}

@@ -16,6 +16,23 @@ vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
+const mockCurrentProject = vi.hoisted(() => ({
+  value: null as { id: string; name: string } | null,
+}))
+vi.mock('@/contexts/ProjectContext', () => ({
+  useProject: () => ({
+    currentProject: mockCurrentProject.value,
+    setCurrentProject: vi.fn(),
+    isLoading: false,
+  }),
+}))
+
+vi.mock('@/services/projectService', () => ({
+  projectService: {
+    getProjects: vi.fn().mockResolvedValue({ projects: [] }),
+  },
+}))
+
 vi.mock('@/services/artifactService', () => ({
   artifactService: { createArtifact: vi.fn() },
 }))
@@ -86,16 +103,19 @@ async function fillRequiredFields(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByTestId('artifact-project-select'))
 }
 
-function renderCreate() {
-  return render(
+/** Renders the page and waits past the default-project lookup. */
+async function renderCreate() {
+  render(
     <MemoryRouter>
       <ArtifactCreate />
     </MemoryRouter>
   )
+  await screen.findByTestId('resource-form')
 }
 
 describe('ArtifactCreate', () => {
   beforeEach(() => {
+    mockCurrentProject.value = null
     vi.clearAllMocks()
     mockUseTeam.mockReturnValue({
       currentTeam: { id: 'team-1', name: 'Test Team' },
@@ -109,7 +129,7 @@ describe('ArtifactCreate', () => {
 
   it('renders in the reading shell, and Cancel returns to the list (#1181)', async () => {
     const user = userEvent.setup()
-    renderCreate()
+    await renderCreate()
     const page = await screen.findByTestId('reading-page')
     expect(page).toHaveAttribute('data-presentation', 'editing')
     expect(page).toContainElement(screen.getByTestId('resource-form'))
@@ -117,8 +137,8 @@ describe('ArtifactCreate', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/artifacts')
   })
 
-  it('renders the generated form rather than a page-local one', () => {
-    renderCreate()
+  it('renders the generated form rather than a page-local one', async () => {
+    await renderCreate()
     expect(screen.getByTestId('resource-form')).toBeInTheDocument()
     expect(screen.getByTestId('artifact-status-select')).toBeInTheDocument()
     // #915 gave artifacts a labels editor they never had.
@@ -127,7 +147,7 @@ describe('ArtifactCreate', () => {
 
   it('auto-fills the slug from the title', async () => {
     const user = userEvent.setup()
-    renderCreate()
+    await renderCreate()
     await user.type(screen.getByTestId('artifact-title-input'), 'My artifact')
     await waitFor(() => {
       expect(screen.getByTestId('artifact-slug-input')).toHaveValue(
@@ -138,7 +158,7 @@ describe('ArtifactCreate', () => {
 
   it('sends the whole form, labels and metadata included', async () => {
     const user = userEvent.setup()
-    renderCreate()
+    await renderCreate()
 
     await fillRequiredFields(user)
     await user.type(screen.getByTestId('artifact-labels-input'), 'onboarding')
@@ -169,7 +189,7 @@ describe('ArtifactCreate', () => {
 
   it('sends an empty metadata object rather than omitting it when the bag is empty (#947)', async () => {
     const user = userEvent.setup()
-    renderCreate()
+    await renderCreate()
 
     await fillRequiredFields(user)
     await user.click(screen.getByRole('button', { name: /create artifact/i }))
@@ -183,11 +203,28 @@ describe('ArtifactCreate', () => {
 
   it('blocks the submit while a required field is blank', async () => {
     const user = userEvent.setup()
-    renderCreate()
+    await renderCreate()
 
     await user.click(screen.getByRole('button', { name: /create artifact/i }))
 
     expect(await screen.findByText('Title is required')).toBeInTheDocument()
     expect(artifactService.createArtifact).not.toHaveBeenCalled()
+  })
+
+  it('opens on the project chosen in the header filter', async () => {
+    mockCurrentProject.value = { id: 'project-9', name: 'Filtered' }
+    const user = userEvent.setup()
+    await renderCreate()
+
+    await user.type(screen.getByTestId('artifact-title-input'), 'Seeded')
+    await user.type(screen.getByTestId('artifact-content-textarea'), 'Body')
+    await user.click(screen.getByRole('button', { name: /create artifact/i }))
+
+    await waitFor(() => {
+      expect(artifactService.createArtifact).toHaveBeenCalledWith(
+        'team-1',
+        expect.objectContaining({ project_id: 'project-9' })
+      )
+    })
   })
 })

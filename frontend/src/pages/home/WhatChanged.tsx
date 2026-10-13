@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 
+import { RelativeTime } from '@/components/RelativeTime'
 import { SegmentedControl } from '@/components/SegmentedControl'
-import { formatRelativeTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import type { Activity } from '@/services/activityService'
 import type { RecentComment } from '@/services/commentService'
@@ -67,7 +67,7 @@ function ChangeRow({
         </p>
       </div>
       <span className="text-muted-foreground shrink-0 text-xs">
-        {formatRelativeTime(change.updatedAt)}
+        <RelativeTime value={change.updatedAt} />
       </span>
     </>
   )

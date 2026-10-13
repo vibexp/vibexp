@@ -19,7 +19,6 @@ import { hardRedirect } from '../../utils/navigation'
 import { sanitizeReturnTo } from '../../utils/returnTo'
 
 interface DevLoginProps {
-  onError?: (error: string) => void
   /**
    * Same-origin path to land on after a successful dev login (e.g. an OAuth
    * consent page). Validated; defaults to "/".
@@ -27,10 +26,13 @@ interface DevLoginProps {
   returnTo?: string
 }
 
-export function DevLogin({ onError, returnTo }: Readonly<DevLoginProps>) {
+export function DevLogin({ returnTo }: Readonly<DevLoginProps>) {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  // Shown under the email field, where the person is looking: the page-level
+  // alert sits above the fold of this collapsed section and went unseen.
+  const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
   const [searchParams] = useSearchParams()
   const [shouldShow, setShouldShow] = useState(false)
@@ -58,10 +60,11 @@ export function DevLogin({ onError, returnTo }: Readonly<DevLoginProps>) {
     e.preventDefault()
 
     if (!email) {
-      onError?.('Email is required')
+      setError('Email is required')
       return
     }
 
+    setError('')
     setIsLoading(true)
 
     try {
@@ -71,7 +74,7 @@ export function DevLogin({ onError, returnTo }: Readonly<DevLoginProps>) {
       // requested return path (e.g. back on the OAuth consent page) or "/".
       hardRedirect(sanitizeReturnTo(returnTo))
     } catch (err) {
-      onError?.(mapSignInError(err, 'Dev login failed'))
+      setError(mapSignInError(err, 'Dev login failed'))
       setIsLoading(false)
     }
   }
@@ -112,11 +115,30 @@ export function DevLogin({ onError, returnTo }: Readonly<DevLoginProps>) {
               value={email}
               onChange={e => {
                 setEmail(e.target.value)
+                setError('')
               }}
-              placeholder="dev@example.com"
+              // No address is special: any one signs in unless this instance
+              // has an access allowlist, in which case only a listed one does.
+              placeholder="you@example.com"
               disabled={isLoading}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'dev-email-error' : 'dev-email-hint'}
               className="h-9"
             />
+            {error ? (
+              <p
+                id="dev-email-error"
+                role="alert"
+                className="text-destructive text-xs"
+              >
+                {error}
+              </p>
+            ) : (
+              <p id="dev-email-hint" className="text-muted-foreground text-xs">
+                Any address works, unless this instance limits sign-in to an
+                allowlist.
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">

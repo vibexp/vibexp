@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { ReadingPage } from '@/components/patterns/reading-page'
 import type { ResourceFormValues } from '@/components/patterns/resource'
 import {
   formHeading,
@@ -9,6 +11,7 @@ import {
 } from '@/components/patterns/resource'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
+import { useDefaultProject } from '@/hooks/useDefaultProject'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toArtifactRequest } from '@/pages/artifacts/artifactRequest'
 import { artifactService } from '@/services/artifactService'
@@ -28,6 +31,17 @@ export function ArtifactCreate() {
   const { trackEvent } = useAnalytics()
 
   const [creating, setCreating] = useState(false)
+
+  // Opens on the header's project filter, or the workspace's only project.
+  const defaultProject = useDefaultProject()
+  const defaultProjectId = defaultProject.project?.id
+  const initialValues = useMemo<ResourceFormValues | undefined>(
+    () =>
+      defaultProjectId
+        ? { ...INITIAL_VALUES, project_id: defaultProjectId }
+        : INITIAL_VALUES,
+    [defaultProjectId]
+  )
 
   const handleSubmit = async (values: ResourceFormValues) => {
     if (!currentTeam) {
@@ -60,6 +74,21 @@ export function ArtifactCreate() {
     }
   }
 
+  // Seeding the project after first paint would reset the form, so the page
+  // waits for the default inside the reading shell.
+  if (defaultProject.loading) {
+    return (
+      <ReadingPage
+        title={formHeading(descriptor, 'create')}
+        presentation="editing"
+      >
+        <div className="flex justify-center py-12">
+          <LoadingSpinner size="lg" />
+        </div>
+      </ReadingPage>
+    )
+  }
+
   return (
     <ResourceFormReadingPage
       title={formHeading(descriptor, 'create')}
@@ -69,7 +98,7 @@ export function ArtifactCreate() {
       // cannot pick an opening value for it the way it does for a status —
       // and the artifact e2e journeys that never touch the type select rely
       // on the API's own default being preselected, as the old form did.
-      initialValues={INITIAL_VALUES}
+      initialValues={initialValues}
       onSubmit={handleSubmit}
       isLoading={creating}
       onCancel={() => {

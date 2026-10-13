@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import {
+  isBlankSlate,
   ListPage,
   listPageStatus,
   ListTable,
@@ -141,6 +142,8 @@ export function Projects() {
     state.error,
     state.projects.length === 0
   )
+  // Nothing exists and nothing is filtering: the empty state is the page.
+  const blankSlate = isBlankSlate(status, Boolean(filters.search))
 
   return (
     <ListPage>
@@ -148,59 +151,77 @@ export function Projects() {
         title="Projects"
         description="Organize your work into projects."
         actions={
-          <RequirePermission permission="project.create">
-            <Button
-              onClick={() => {
-                void navigate(`/teams/${currentTeam?.id ?? ''}/projects/create`)
-              }}
-            >
-              <Plus className="mr-2 size-4" />
-              New project
-            </Button>
-          </RequirePermission>
+          blankSlate ? undefined : (
+            <RequirePermission permission="project.create">
+              <Button
+                onClick={() => {
+                  void navigate(
+                    `/teams/${currentTeam?.id ?? ''}/projects/create`
+                  )
+                }}
+              >
+                <Plus className="mr-2 size-4" />
+                New project
+              </Button>
+            </RequirePermission>
+          )
         }
       />
 
       <ListPage.Container>
-        <ListPage.Filters>
-          <ProjectFilters
-            searchInput={searchInput}
-            onSearchInputChange={setSearchInput}
-          />
-        </ListPage.Filters>
+        {!blankSlate && (
+          <ListPage.Filters>
+            <ProjectFilters
+              searchInput={searchInput}
+              onSearchInputChange={setSearchInput}
+            />
+          </ListPage.Filters>
+        )}
 
         <ListPage.Body
           status={status}
           errorTitle="Failed to load projects"
           errorMessage={state.error}
           empty={
-            <EmptyState
-              icon={FolderKanban}
-              title={
-                filters.search
-                  ? 'No projects match your search'
-                  : 'No projects yet'
-              }
-              description={
-                filters.search
-                  ? 'Try a different search term.'
-                  : 'Create your first project to start organizing your work.'
-              }
-              actions={
-                <RequirePermission permission="project.create">
+            // A search that matches nothing offers the way out of the search,
+            // not a create button: nothing is missing but the match.
+            filters.search ? (
+              <EmptyState
+                icon={FolderKanban}
+                title="No projects match your search"
+                description="Try a different search term."
+                actions={
                   <Button
+                    variant="outline"
                     onClick={() => {
-                      void navigate(
-                        `/teams/${currentTeam?.id ?? ''}/projects/create`
-                      )
+                      setSearchInput('')
                     }}
                   >
-                    <Plus className="mr-2 size-4" />
-                    New project
+                    Clear search
                   </Button>
-                </RequirePermission>
-              }
-            />
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={FolderKanban}
+                title="No projects yet"
+                description="Create your first project to start organizing your work."
+                actions={
+                  <RequirePermission permission="project.create">
+                    <Button
+                      onClick={() => {
+                        void navigate(
+                          `/teams/${currentTeam?.id ?? ''}/projects/create`
+                        )
+                      }}
+                    >
+                      <Plus className="mr-2 size-4" />
+                      New project
+                    </Button>
+                  </RequirePermission>
+                }
+              />
+            )
           }
         >
           <ListTable rows={state.projects} columns={columns} />

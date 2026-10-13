@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import {
   FILTER_ALL,
+  isBlankSlate,
   ListPage,
   listPageStatus,
   ListTable,
@@ -226,6 +227,8 @@ export function Artifacts() {
     state.error,
     state.items.length === 0
   )
+  // Nothing exists and nothing is filtering: the empty state is the page.
+  const blankSlate = isBlankSlate(listStatus, hasActiveFilters)
 
   return (
     <ListPage>
@@ -233,25 +236,29 @@ export function Artifacts() {
         title="Artifacts"
         description="Organize all AI-generated artifacts."
         actions={
-          <Button
-            onClick={() => {
-              void navigate('/artifacts/new')
-            }}
-          >
-            <Plus className="mr-2 size-4" />
-            New artifact
-          </Button>
+          blankSlate ? undefined : (
+            <Button
+              onClick={() => {
+                void navigate('/artifacts/new')
+              }}
+            >
+              <Plus className="mr-2 size-4" />
+              New artifact
+            </Button>
+          )
         }
       />
 
       <ListPage.Container>
-        <ListPage.Filters>
-          <ResourceFilterBar
-            descriptor={ARTIFACT}
-            filters={listFilters}
-            projectId={projectId}
-          />
-        </ListPage.Filters>
+        {!blankSlate && (
+          <ListPage.Filters>
+            <ResourceFilterBar
+              descriptor={ARTIFACT}
+              filters={listFilters}
+              projectId={projectId}
+            />
+          </ListPage.Filters>
+        )}
 
         <ListPage.Body
           status={listStatus}

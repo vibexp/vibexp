@@ -34,7 +34,7 @@ describe('buildDocumentTitle', () => {
   it('puts the most specific part first', () => {
     expect(
       buildDocumentTitle({
-        leaf: 'Search ranking redesign — decision record',
+        trail: ['Search ranking redesign — decision record'],
         section: 'Artifacts',
         site: 'VibeXP',
       })
@@ -43,14 +43,26 @@ describe('buildDocumentTitle', () => {
 
   it('leaves out what a page does not have', () => {
     expect(
-      buildDocumentTitle({ leaf: null, section: 'Artifacts', site: 'VibeXP' })
+      buildDocumentTitle({ trail: [], section: 'Artifacts', site: 'VibeXP' })
     ).toBe('Artifacts · VibeXP')
     expect(
-      buildDocumentTitle({ leaf: null, section: null, site: 'VibeXP' })
+      buildDocumentTitle({ trail: [], section: null, site: 'VibeXP' })
     ).toBe('VibeXP')
     expect(
-      buildDocumentTitle({ leaf: '  ', section: 'Memories', site: 'VibeXP' })
+      buildDocumentTitle({ trail: ['  '], section: 'Memories', site: 'VibeXP' })
     ).toBe('Memories · VibeXP')
+  })
+})
+
+describe('buildDocumentTitle — a page inside a named thing', () => {
+  it('reads innermost first: the tab, then the team', () => {
+    expect(
+      buildDocumentTitle({
+        trail: ['Private Workspace', 'Projects'],
+        section: 'Teams',
+        site: 'VibeXP',
+      })
+    ).toBe('Projects · Private Workspace · Teams · VibeXP')
   })
 })
 
@@ -87,6 +99,9 @@ describe('useDocumentTitle', () => {
     ['/', 'Dashboard · VibeXP'],
     ['/connect/cli', 'Connect · VibeXP'],
     ['/notifications', 'Notifications · VibeXP'],
+    ['/settings', 'Settings · VibeXP'],
+    ['/settings/api-keys', 'API keys · Settings · VibeXP'],
+    ['/settings/activities', 'Activities · Settings · VibeXP'],
     ['/somewhere/unknown', 'VibeXP'],
   ])('titles %s as %j', (path, title) => {
     renderAt(path, <Titled />)

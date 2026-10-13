@@ -6,6 +6,32 @@
 @plugin '@tailwindcss/typography';
 
 /* -------------------------------------------------------------------------- */
+/* Chart palette — a local override of the design-system tokens.              */
+/* The package's set leads with a saturated red-orange in light mode (it      */
+/* reads as "destructive" on a single-series chart) and with an unrelated     */
+/* purple-blue in dark, and the two themes do not share a hue order, so a     */
+/* series changes identity when the theme does. This set leads with a         */
+/* neutral and keeps one hue order — neutral, blue, teal, amber, violet — in  */
+/* both themes; only lightness moves. Design-system follow-up: fold this into */
+/* `@vibexp/design-system/tokens.css` and delete the override.                */
+/* -------------------------------------------------------------------------- */
+:root {
+  --chart-1: oklch(0.45 0.02 255);
+  --chart-2: oklch(0.55 0.14 250);
+  --chart-3: oklch(0.6 0.1 185);
+  --chart-4: oklch(0.72 0.14 75);
+  --chart-5: oklch(0.55 0.15 300);
+}
+
+.dark {
+  --chart-1: oklch(0.78 0.02 255);
+  --chart-2: oklch(0.68 0.14 250);
+  --chart-3: oklch(0.72 0.11 185);
+  --chart-4: oklch(0.8 0.14 75);
+  --chart-5: oklch(0.7 0.15 300);
+}
+
+/* -------------------------------------------------------------------------- */
 /* Prose overrides — scoped to .v2-root, bound to shadcn design tokens        */
 /* --foreground / --muted-foreground etc. flip automatically when .dark is    */
 /* active on the .v2-root ancestor, so dark mode requires no extra class.     */
@@ -740,4 +766,29 @@ body {
   width: auto;
   margin-inline-start: max(0px, calc(50% - var(--reading-prose) / 2 - 3rem));
   margin-inline-end: auto;
+}
+
+/*
+ * A feed card shows the top of its post and offers the rest. The post is
+ * rendered markdown, so it is clamped by height rather than by line count, and
+ * fades out instead of ending mid-line. `CLAMPED_BODY_HEIGHT` in
+ * `FeedItemCard.tsx` mirrors the height.
+ */
+.feed-body-clamped {
+  max-height: 9rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+
+/* Card scale: the reading page's heading sizes are too loud inside a card. */
+.feed-item-body .markdown-renderer :is(h1, h2, h3, h4) {
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  margin-top: 0.75em;
+  margin-bottom: 0.25em;
+}
+
+.feed-item-body .markdown-renderer > :first-child {
+  margin-top: 0;
 }

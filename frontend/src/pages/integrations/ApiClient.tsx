@@ -34,7 +34,7 @@ const copyToClipboard = (code: string) => {
 
 export function ApiClient() {
   return (
-    <div className="mx-auto mb-20 max-w-[1080px]">
+    <div className="mb-20">
       <header className="mb-8">
         <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight">
           <span className="bg-primary text-primary-foreground grid size-[38px] place-items-center rounded-md">

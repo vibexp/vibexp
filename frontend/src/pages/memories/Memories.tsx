@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import {
   FILTER_ALL,
+  isBlankSlate,
   ListPage,
   listPageStatus,
   ListTable,
@@ -219,6 +220,8 @@ export function Memories() {
     state.error,
     state.items.length === 0
   )
+  // Nothing exists and nothing is filtering: the empty state is the page.
+  const blankSlate = isBlankSlate(listStatus, hasActiveFilters)
 
   return (
     <ListPage>
@@ -226,25 +229,29 @@ export function Memories() {
         title="Memories"
         description="Browse and manage AI memories."
         actions={
-          <Button
-            onClick={() => {
-              void navigate('/memories/new')
-            }}
-          >
-            <Plus className="mr-2 size-4" />
-            New memory
-          </Button>
+          blankSlate ? undefined : (
+            <Button
+              onClick={() => {
+                void navigate('/memories/new')
+              }}
+            >
+              <Plus className="mr-2 size-4" />
+              New memory
+            </Button>
+          )
         }
       />
 
       <ListPage.Container>
-        <ListPage.Filters>
-          <ResourceFilterBar
-            descriptor={MEMORY}
-            filters={listFilters}
-            projectId={projectId}
-          />
-        </ListPage.Filters>
+        {!blankSlate && (
+          <ListPage.Filters>
+            <ResourceFilterBar
+              descriptor={MEMORY}
+              filters={listFilters}
+              projectId={projectId}
+            />
+          </ListPage.Filters>
+        )}
 
         <ListPage.Body
           status={listStatus}

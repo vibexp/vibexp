@@ -401,8 +401,13 @@ describe('Memories page', () => {
     })
 
     it('offers a way out of a filtered-empty result', async () => {
+      // The filter row only exists once the list holds something (it is
+      // dropped on a blank slate), so the first load returns a row.
+      ;(memoryService.getMemories as Mock).mockResolvedValueOnce(
+        buildListResponse([buildMemory()])
+      )
       renderMemories()
-      await screen.findByText('No memories yet')
+      await screen.findByLabelText('Search memories')
 
       const user = userEvent.setup()
       await user.type(screen.getByLabelText('Search memories'), 'zzz')
@@ -526,6 +531,11 @@ describe('Memories page', () => {
     })
 
     it('committing a metadata chip resets to page 1', async () => {
+      // The filter row only exists once the list holds something (it is
+      // dropped on a blank slate), so the first load returns a row.
+      ;(memoryService.getMemories as Mock).mockResolvedValueOnce(
+        buildListResponse([buildMemory()])
+      )
       renderMemories('/memories?page=4')
       await waitFor(() => {
         expect(lastQuery().page).toBe(4)
@@ -554,6 +564,11 @@ describe('Memories page', () => {
       await screen.findByText('No memories match your filters')
 
       const user = userEvent.setup()
+      // Unfiltered, the list has a row: a blank slate would drop the filter row
+      // this test goes on to read.
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
+        buildListResponse([buildMemory()])
+      )
       const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
       await user.click(clear)
 
@@ -569,6 +584,11 @@ describe('Memories page', () => {
 
   describe('filters', () => {
     it('re-fetches with the debounced search term', async () => {
+      // The filter row only exists once the list holds something (it is
+      // dropped on a blank slate), so the first load returns a row.
+      ;(memoryService.getMemories as Mock).mockResolvedValueOnce(
+        buildListResponse([buildMemory()])
+      )
       renderMemories()
 
       await waitFor(() => {
@@ -590,8 +610,13 @@ describe('Memories page', () => {
     })
 
     it('re-fetches with the selected status', async () => {
+      // The filter row only exists once the list holds something (it is
+      // dropped on a blank slate), so the first load returns a row.
+      ;(memoryService.getMemories as Mock).mockResolvedValueOnce(
+        buildListResponse([buildMemory()])
+      )
       renderMemories()
-      await screen.findByText('No memories yet')
+      await screen.findByLabelText('Search memories')
 
       const user = userEvent.setup()
       await user.click(screen.getByRole('button', { name: 'Draft' }))
@@ -689,8 +714,8 @@ describe('Memories page', () => {
 
       const user = userEvent.setup()
       const newButtons = screen.getAllByRole('button', { name: /New memory/ })
-      expect(newButtons).toHaveLength(2)
-      await user.click(newButtons[1])
+      expect(newButtons).toHaveLength(1)
+      await user.click(newButtons[0])
 
       expect(screen.getByTestId('create-probe')).toBeInTheDocument()
     })

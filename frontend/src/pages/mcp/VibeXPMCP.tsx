@@ -146,7 +146,7 @@ export function VibeXPMCP() {
   const configSections: ConfigSection[] = getConfigSections(serverName)
 
   return (
-    <div className="mx-auto max-w-[1080px]">
+    <div>
       {/* header */}
       <header className="mb-8">
         <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight">

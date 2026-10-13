@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
+import { RelativeTime } from '@/components/RelativeTime'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { formatRelativeTime } from '@/lib/time'
 import {
   FeedActorAvatar,
   resolveFeedActor,
@@ -155,7 +155,7 @@ function ReplyRow({ reply, member }: Readonly<ReplyRowProps>) {
             ·
           </span>
           <span className="text-xs text-muted-foreground">
-            {formatRelativeTime(reply.posted_at)}
+            <RelativeTime value={reply.posted_at} />
           </span>
         </div>
         <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">

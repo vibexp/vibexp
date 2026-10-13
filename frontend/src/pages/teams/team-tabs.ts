@@ -33,3 +33,18 @@ export function teamTabsFor(teamId: string): TeamTab[] {
     { label: 'Settings', href: `/teams/${teamId}/settings` },
   ]
 }
+
+/**
+ * The tab a team path is on, other than the index tab: `/teams/t1/projects/x`
+ * is on Projects. `undefined` on the team's own page (Overview) and on a path
+ * no tab covers.
+ */
+export function activeTeamTab(
+  teamId: string,
+  pathname: string
+): TeamTab | undefined {
+  return teamTabsFor(teamId).find(
+    tab =>
+      !tab.end && (pathname === tab.href || pathname.startsWith(`${tab.href}/`))
+  )
+}

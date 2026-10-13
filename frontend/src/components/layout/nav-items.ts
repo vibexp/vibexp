@@ -80,3 +80,17 @@ export const NAV_GROUPS: NavGroup[] = [
  * backwards compatibility with components that don't care about grouping.
  */
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap(g => g.items)
+
+/**
+ * Pages that sit under a section (or under none) at a fixed address and have
+ * no data to name them with — the breadcrumb's last crumb for each. A page
+ * about one thing (a resource, a team) names itself with `useBreadcrumbLeaf`
+ * instead.
+ */
+export const STATIC_PAGE_LEAVES: ReadonlyMap<string, string> = new Map([
+  ['/notifications', 'Notifications'],
+  ['/settings/activities', 'Activities'],
+  ['/settings/notifications', 'Notification preferences'],
+  ['/settings/api-keys', 'API keys'],
+  ['/prompt-gallery', 'Prompt Gallery'],
+])

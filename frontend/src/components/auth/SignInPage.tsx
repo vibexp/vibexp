@@ -478,7 +478,7 @@ export function SignInPage() {
                 <div className="bg-border h-px flex-1" />
               </div>
 
-              <DevLogin returnTo={returnTo} onError={setError} />
+              <DevLogin returnTo={returnTo} />
 
               <LegalLine />
             </div>

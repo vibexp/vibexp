@@ -16,9 +16,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { useTeam } from '@/contexts/TeamContext'
 import { useProjectSearch } from '@/hooks'
 import { cn } from '@/lib/utils'
 import type { Project } from '@/services/projectService'
+import { projectService } from '@/services/projectService'
 
 // Sentinel CommandItem values — never used as real project ids (uuids).
 const ALL_OPTION_VALUE = '__all_projects__'
@@ -58,6 +60,53 @@ interface ProjectPickerProps extends AriaAttributes {
 }
 
 /**
+ * A preselected project the loaded page does not hold (a default seeded by id,
+ * or one past the first page) is looked up by id, so the trigger names it
+ * instead of falling back to a generic label. Returns the label to show until
+ * then.
+ */
+function useProjectLookup({
+  projectId,
+  listSettled,
+  onResolved,
+}: {
+  projectId: string | null
+  listSettled: boolean
+  onResolved: (project: Project) => void
+}): { label: string } {
+  const { currentTeam } = useTeam()
+  const teamId = currentTeam?.id
+  const [unknownId, setUnknownId] = useState<string | null>(null)
+
+  // The lookup waits for the first page, which usually answers the question
+  // without a second request.
+  const lookupId = listSettled ? projectId : null
+
+  useEffect(() => {
+    if (!teamId || !lookupId) return
+    let cancelled = false
+    const resolve = async () => {
+      try {
+        const project = await projectService.getProject(teamId, lookupId)
+        if (cancelled) return
+        if (project.id === lookupId) onResolved(project)
+        else setUnknownId(lookupId)
+      } catch {
+        if (!cancelled) setUnknownId(lookupId)
+      }
+    }
+    void resolve()
+    return () => {
+      cancelled = true
+    }
+  }, [teamId, lookupId, onResolved])
+
+  return {
+    label: unknownId === projectId ? 'Selected project' : 'Loading project…',
+  }
+}
+
+/**
  * Reusable, searchable, paginated, scrollable project picker. Wraps a
  * `Popover` + `Command` combobox over server-driven search ({@link useProjectSearch})
  * with a height-bounded, scrollable result list that loads more pages on scroll.
@@ -82,6 +131,7 @@ export function ProjectPicker({
   const {
     projects,
     loading,
+    settled,
     loadingMore,
     error,
     hasMore,
@@ -107,7 +157,12 @@ export function ProjectPicker({
     )
   }, [projects, value, picked])
 
-  const fallbackLabel = value ? 'Selected project' : placeholder
+  const lookup = useProjectLookup({
+    projectId: value && !selected ? value : null,
+    listSettled: settled && !loading,
+    onResolved: setPicked,
+  })
+  const fallbackLabel = value ? lookup.label : placeholder
   const triggerLabel = isAllSelected
     ? allOptionLabel
     : (selected?.name ?? fallbackLabel)

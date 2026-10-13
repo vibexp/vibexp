@@ -292,7 +292,7 @@ export function ProjectMigrate() {
 
   if (loadingProjects) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6 p-6">
+      <div className="max-w-2xl space-y-6">
         <PageHeader title="Migrate resources" />
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
@@ -303,7 +303,7 @@ export function ProjectMigrate() {
 
   if (pageError) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6 p-6">
+      <div className="max-w-2xl space-y-6">
         <PageHeader title="Migrate resources" />
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
@@ -324,7 +324,7 @@ export function ProjectMigrate() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-6">
+    <div className="max-w-2xl space-y-6">
       <div>
         <Button
           variant="ghost"

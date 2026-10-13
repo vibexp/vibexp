@@ -7,12 +7,13 @@ import {
   Share2,
   Trash2,
 } from 'lucide-react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 
+import { MarkdownRenderer } from '@/components/MarkdownRenderer'
+import { RelativeTime } from '@/components/RelativeTime'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { formatRelativeTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { FeedActorAvatar, resolveFeedActor } from '@/pages/feeds/feedActor'
 import { InlineReplyThread } from '@/pages/feeds/InlineReplyThread'
@@ -28,6 +29,45 @@ interface FeedItemCardProps {
   onArchive?: (item: FeedItem) => Promise<void>
   onUnarchive?: (item: FeedItem) => Promise<void>
   onDelete?: (item: FeedItem) => void
+}
+
+/** Collapsed height of a card body, in px. Mirrors `.feed-body-clamped`. */
+const CLAMPED_BODY_HEIGHT = 144
+
+/**
+ * Whether a card body is taller than its clamp, which is what decides if
+ * "Show more" is offered. Rendered markdown has no line count to reason about,
+ * so the body is measured; until it has a layout (and wherever there is none,
+ * as under jsdom) the text's own length and line count stand in.
+ */
+function useBodyOverflow(
+  ref: React.RefObject<HTMLDivElement | null>,
+  text: string,
+  expanded: boolean
+): boolean {
+  const guess = text.length > 240 || /\n[^\n]*\n[^\n]*\n/.test(text)
+  const [measured, setMeasured] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const measure = () => {
+      if (el.clientHeight === 0) return
+      // Expanded, the body shows everything: keep the last collapsed answer
+      // so "Show less" stays available.
+      if (expanded) return
+      setMeasured(el.scrollHeight > CLAMPED_BODY_HEIGHT + 1)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    if (el.firstElementChild) observer.observe(el.firstElementChild)
+    return () => {
+      observer.disconnect()
+    }
+  }, [ref, text, expanded])
+
+  return measured ?? guess
 }
 
 function ScopeBadge({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -140,13 +180,13 @@ function FeedItemCardImpl({
     [item.id]
   )
 
-  // Use excerpt (server-truncated) as the feed body. Fall back to content
-  // only when no excerpt exists (older items, edge cases).
-  const bodyText = item.excerpt || item.content || ''
-  // Heuristic: clamp/expand only useful when the body has more than ~3 lines.
-  // The regex is a cheap stand-in for `split('\n').length > 3` to avoid an
-  // allocation on every render.
-  const isLong = bodyText.length > 240 || /\n[^\n]*\n[^\n]*\n/.test(bodyText)
+  // The body is the post's own markdown, rendered. The excerpt is that
+  // markdown flattened to plain text by the server, so it is only the fallback
+  // for an item that somehow has no content.
+  const markdown = item.content || ''
+  const bodyText = markdown || item.excerpt || ''
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const isLong = useBodyOverflow(bodyRef, bodyText, bodyExpanded)
 
   const handleReplyAdded = useCallback(() => {
     setOptimisticDelta(d => d + 1)
@@ -176,7 +216,7 @@ function FeedItemCardImpl({
               aria-label={`Open feed item: ${item.title}`}
               className="text-xs text-muted-foreground hover:text-foreground hover:underline underline-offset-2"
             >
-              {formatRelativeTime(item.posted_at)}
+              <RelativeTime value={item.posted_at} />
             </Link>
             {isArchived && (
               <>
@@ -226,14 +266,29 @@ function FeedItemCardImpl({
         >
           {item.title}
         </Link>
-        <p
+        <div
+          ref={bodyRef}
+          data-testid="feed-item-body"
           className={cn(
-            'whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/85',
-            isLong && !bodyExpanded && 'line-clamp-3'
+            'feed-item-body text-foreground/85 break-words',
+            isLong && !bodyExpanded && 'feed-body-clamped'
           )}
         >
-          {bodyText}
-        </p>
+          {markdown ? (
+            <MarkdownRenderer
+              content={markdown}
+              hideLeadingTitle={item.title}
+              syntaxTheme="auto"
+              // A diagram needs room a clamped card does not have.
+              enableMermaid={bodyExpanded}
+              className="text-sm"
+            />
+          ) : (
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">
+              {bodyText}
+            </p>
+          )}
+        </div>
         {isLong && (
           <button
             type="button"

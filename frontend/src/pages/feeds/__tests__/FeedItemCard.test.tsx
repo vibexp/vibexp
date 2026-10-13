@@ -6,6 +6,13 @@ import type { TeamMember } from '@/services/teamService'
 
 import { FeedItemCard } from '../FeedItemCard'
 
+// The real renderer needs the full `marked` build, which the suite stubs.
+vi.mock('@/components/MarkdownRenderer', () => ({
+  MarkdownRenderer: ({ content }: { content: string }) => (
+    <div className="markdown-renderer">{content}</div>
+  ),
+}))
+
 const mockItem: FeedItem = {
   id: 'item-1',
   team_id: 'team-1',
@@ -60,11 +67,42 @@ describe('FeedItemCard', () => {
     expect(screen.getByText(text)).toBeInTheDocument()
   })
 
-  it('renders excerpt', () => {
+  it("renders the post's own markdown rather than the flattened excerpt", () => {
     renderCard()
+    const body = screen.getByTestId('feed-item-body')
+    // Through the markdown renderer (marked is stubbed to a paragraph here).
+    expect(body.querySelector('.markdown-renderer')).not.toBeNull()
+    expect(body).toHaveTextContent('The sprint went well.')
+    expect(body).not.toHaveTextContent('all tasks were completed')
+  })
+
+  it('falls back to the excerpt for an item without content', () => {
+    renderCard({ item: { ...mockItem, content: '' } })
+    expect(screen.getByTestId('feed-item-body')).toHaveTextContent(
+      'The sprint went well and all tasks were completed.'
+    )
+  })
+
+  it('clamps a long post and expands it on Show more', () => {
+    const long = Array.from({ length: 12 }, (_, i) => `Line ${String(i)}`).join(
+      '\n\n'
+    )
+    renderCard({ item: { ...mockItem, content: long } })
+    const body = screen.getByTestId('feed-item-body')
+    expect(body).toHaveClass('feed-body-clamped')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(body).not.toHaveClass('feed-body-clamped')
     expect(
-      screen.getByText(/The sprint went well and all tasks were completed/)
+      screen.getByRole('button', { name: 'Show less' })
     ).toBeInTheDocument()
+  })
+
+  it('offers no Show more on a short post', () => {
+    renderCard({ item: { ...mockItem, content: 'Short and sweet.' } })
+    expect(
+      screen.queryByRole('button', { name: 'Show more' })
+    ).not.toBeInTheDocument()
   })
 
   it('renders the matched provider icon for AI items', () => {
