@@ -628,6 +628,31 @@ describe('Home — how your knowledge is used', () => {
     ).toHaveLength(1)
   })
 
+  it('says how many creations the write figures leave out, while there are any', async () => {
+    setup()
+    const metrics = creationMetrics({ web: 4, mcp: 5 })
+    metrics.data.by_source.unknown.total = 15
+    mockTeam.getTeamResourceCreationMetrics.mockResolvedValue(metrics)
+    renderHome()
+
+    const usage = within(section('How your knowledge is used'))
+    expect(await usage.findByTestId('loop-unrecorded')).toHaveTextContent(
+      '15 resources created in this period have no recorded channel and are not counted in the writes.'
+    )
+  })
+
+  it('says nothing about unrecorded creations when there are none', async () => {
+    setup()
+    mockTeam.getTeamResourceCreationMetrics.mockResolvedValue(
+      creationMetrics({ web: 4, mcp: 5 })
+    )
+    renderHome()
+
+    const usage = within(section('How your knowledge is used'))
+    await usage.findByTestId('loop-writes')
+    expect(usage.queryByTestId('loop-unrecorded')).not.toBeInTheDocument()
+  })
+
   it('keeps the reads when the writes fail to load', async () => {
     setup()
     mockTeam.getTeamResourceCreationMetrics.mockRejectedValue(new Error('no'))

@@ -3,12 +3,10 @@ import { useEffect, useState } from 'react'
 import type { AccessCountByDate } from '@/services/resourceAccessService'
 import { teamService } from '@/services/teamService'
 
-import { CHANNEL_FILL, CHANNEL_LABEL } from './channelSeries'
+import { CHANNEL_SERIES } from './channelSeries'
 import { type ChartSeries, TimeSeriesBarChart } from './TimeSeriesBarChart'
 
-const SOURCE_SERIES: readonly ChartSeries[] = (
-  ['web', 'cli', 'mcp', 'api'] as const
-).map(key => ({ key, label: CHANNEL_LABEL[key], fill: CHANNEL_FILL[key] }))
+const SOURCE_SERIES: readonly ChartSeries[] = CHANNEL_SERIES
 
 interface TeamResourceAccessChartProps {
   teamId: string

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { CHANNEL_SERIES } from '@/components/channelSeries'
 import {
   type ChartSeries,
   TimeSeriesBarChart,
@@ -16,13 +17,8 @@ interface AccessActivityPanelProps {
   resourceId: string
 }
 
-/** Access channels in stack order (web at the bottom), each mapped to a token. */
-const ACCESS_CHANNELS: readonly ChartSeries[] = [
-  { key: 'web', label: 'Web', fill: 'var(--chart-1)' },
-  { key: 'cli', label: 'CLI', fill: 'var(--chart-2)' },
-  { key: 'mcp', label: 'MCP', fill: 'var(--chart-3)' },
-  { key: 'api', label: 'API', fill: 'var(--chart-4)' },
-]
+/** Access channels in the shared order (MCP at the bottom of the stack). */
+const ACCESS_CHANNELS: readonly ChartSeries[] = CHANNEL_SERIES
 
 /**
  * Self-fetching Access activity widget. Loads per-resource access metrics

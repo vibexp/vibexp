@@ -18,3 +18,18 @@ export const CHANNEL_LABEL: Readonly<Record<Channel, string>> = {
   mcp: 'MCP',
   api: 'API',
 }
+
+/**
+ * The one order channels are listed in, wherever they are listed: the ones an
+ * AI tool uses first, then people. Figures, chart legends, chart stacks (MCP
+ * at the bottom, so the AI share has a common baseline) and filters all read
+ * it, so a reader never has to re-find a channel.
+ */
+export const CHANNEL_ORDER: readonly Channel[] = ['mcp', 'cli', 'api', 'web']
+
+/** {@link CHANNEL_ORDER} as bar-chart series. */
+export const CHANNEL_SERIES = CHANNEL_ORDER.map(key => ({
+  key,
+  label: CHANNEL_LABEL[key],
+  fill: CHANNEL_FILL[key],
+}))

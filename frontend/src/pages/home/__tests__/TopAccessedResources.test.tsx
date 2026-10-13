@@ -89,7 +89,7 @@ describe('TopAccessedResources', () => {
     expect(await screen.findByText('No prompt access yet')).toBeInTheDocument()
   })
 
-  it('renders the per-list access-channel filter (All/WEB/CLI/MCP/API)', async () => {
+  it('renders the per-list access-channel filter (All/MCP/CLI/API/Web)', async () => {
     mockGetTeamTopAccessedResources.mockResolvedValue(
       buildResponse([item('artifact', 'X', 1)])
     )
@@ -99,6 +99,13 @@ describe('TopAccessedResources', () => {
     await screen.findByText('Top accessed artifacts')
     // One "All" tab per list (four lists).
     expect(screen.getAllByRole('tab', { name: 'All' })).toHaveLength(4)
+    // Same order and casing as the reads and writes figures above the lists.
+    expect(
+      screen
+        .getAllByRole('tab')
+        .slice(0, 5)
+        .map(tab => tab.textContent)
+    ).toEqual(['All', 'MCP', 'CLI', 'API', 'Web'])
   })
 
   it('re-queries with a source filter when a channel is selected', async () => {
@@ -118,8 +125,8 @@ describe('TopAccessedResources', () => {
       expect.any(AbortSignal)
     )
 
-    // Selecting WEB on the first list re-queries with source='web'.
-    fireEvent.click(screen.getAllByRole('tab', { name: 'WEB' })[0])
+    // Selecting Web on the first list re-queries with source='web'.
+    fireEvent.click(screen.getAllByRole('tab', { name: 'Web' })[0])
     await waitFor(() => {
       expect(mockGetTeamTopAccessedResources).toHaveBeenLastCalledWith(
         'team-123',

@@ -6,6 +6,7 @@ import {
   type Channel,
   CHANNEL_FILL,
   CHANNEL_LABEL,
+  CHANNEL_ORDER,
 } from '@/components/channelSeries'
 import { TeamResourceAccessChart } from '@/components/TeamResourceAccessChart'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -19,9 +20,6 @@ import { DASHBOARD_GROUP, DashboardSection } from './DashboardSection'
 import { MCP_SETUP_PATH } from './GettingStarted'
 import { TopAccessedResources } from './TopAccessedResources'
 import { useKeyedLoad } from './useKeyedLoad'
-
-/** The channels in reading order: the ones an AI tool uses first, then people. */
-const CHANNELS: readonly Channel[] = ['mcp', 'cli', 'api', 'web']
 
 interface ChannelCounts extends Record<Channel, number> {
   total: number
@@ -90,7 +88,7 @@ function LoopRow({
         </div>
       </div>
       <dl className="grid flex-1 grid-cols-4 gap-x-4">
-        {CHANNELS.map(channel => (
+        {CHANNEL_ORDER.map(channel => (
           <div key={channel}>
             <dt className="text-muted-foreground flex items-center gap-1.5 text-xs">
               <span
@@ -150,6 +148,11 @@ export function KnowledgeUsage({
     ? summarizeWriteChannels(creation.data.data.writes_by_source)
     : null
 
+  // Creations the API could not attribute to a channel: made before channels
+  // were recorded, or by the system (an import). The writes above leave them
+  // out, so the figure can understate what happened; say so while it does.
+  const unrecorded = creation.data?.data.by_source.unknown.total ?? 0
+
   const noAiReads = reads?.noAiToolReads === true
   const noAiWrites = writes?.noAiToolWrites === true
 
@@ -181,6 +184,17 @@ export function KnowledgeUsage({
           />
         )}
       </div>
+
+      {unrecorded > 0 && (
+        <p
+          className="text-muted-foreground text-xs"
+          data-testid="loop-unrecorded"
+        >
+          {unrecorded === 1
+            ? '1 resource created in this period has no recorded channel and is not counted in the writes.'
+            : `${unrecorded.toLocaleString()} resources created in this period have no recorded channel and are not counted in the writes.`}
+        </p>
+      )}
 
       {access.error && (
         <p className="text-muted-foreground text-sm">
