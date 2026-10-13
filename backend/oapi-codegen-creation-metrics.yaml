@@ -1,0 +1,28 @@
+# oapi-codegen configuration for the two resource-creation-metrics reads
+# (#1392), one more spec-first strict-server package under internal/server/gen.
+#
+# Selected by operation id, not by tag, for the same reason as
+# oapi-codegen-search-summary.yaml: the operations sit under the `Teams` and
+# `Projects` tags, whose other operations are still hand-written chi handlers. A
+# tag selector would pull all of them onto this package's StrictServerInterface
+# and force their conversion in the same change.
+#
+# The two ids live in one package because they return the same breakdown and
+# share one handler body; they are the only two operations whose payload carries
+# by_source.
+#
+# The ids are copied from backend/paths/teams.yaml and backend/paths/projects.yaml
+# — a misspelled id generates an EMPTY package with no error.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: creationmetricsgen
+output: internal/server/gen/creationmetrics/creationmetrics.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-operation-ids:
+    - getTeamResourceCreationMetrics
+    - getProjectResourceCreationMetrics

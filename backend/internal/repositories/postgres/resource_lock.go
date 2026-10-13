@@ -126,31 +126,35 @@ const (
 // has one (validatePromptInTeam and friends).
 type resourceInTeamFunc func(ctx context.Context, resourceID, teamID string) error
 
+// lockStatement pairs one of the lock UPDATE statements with the existence
+// check of the resource it writes to. The two always travel together: the
+// check is what explains an UPDATE that matched no row.
+type lockStatement struct {
+	query  string
+	inTeam resourceInTeamFunc
+}
+
 // setResourceLock runs one of the *SetLockSQL statements. When it matches no
 // row, either the resource is not in the team or it is already locked;
-// inTeam tells the two apart.
+// stmt.inTeam tells the two apart.
 func setResourceLock(
-	ctx context.Context, db *database.DB, query string, inTeam resourceInTeamFunc,
-	teamID, resourceID, lockerID, comment string,
+	ctx context.Context, db *database.DB, stmt lockStatement, teamID, resourceID, lockerID, comment string,
 ) error {
-	result, err := db.ExecContext(ctx, query, resourceID, teamID, lockerID, comment)
+	result, err := db.ExecContext(ctx, stmt.query, resourceID, teamID, lockerID, comment)
 	if err != nil {
 		return fmt.Errorf("failed to lock resource: %w", err)
 	}
-	return lockWriteOutcome(ctx, result, inTeam, teamID, resourceID, repositories.ErrResourceAlreadyLocked)
+	return lockWriteOutcome(ctx, result, stmt.inTeam, teamID, resourceID, repositories.ErrResourceAlreadyLocked)
 }
 
 // clearResourceLock runs one of the *ClearLockSQL statements. When it matches
 // no row, either the resource is not in the team or it is not locked.
-func clearResourceLock(
-	ctx context.Context, db *database.DB, query string, inTeam resourceInTeamFunc,
-	teamID, resourceID string,
-) error {
-	result, err := db.ExecContext(ctx, query, resourceID, teamID)
+func clearResourceLock(ctx context.Context, db *database.DB, stmt lockStatement, teamID, resourceID string) error {
+	result, err := db.ExecContext(ctx, stmt.query, resourceID, teamID)
 	if err != nil {
 		return fmt.Errorf("failed to unlock resource: %w", err)
 	}
-	return lockWriteOutcome(ctx, result, inTeam, teamID, resourceID, repositories.ErrResourceNotLocked)
+	return lockWriteOutcome(ctx, result, stmt.inTeam, teamID, resourceID, repositories.ErrResourceNotLocked)
 }
 
 // lockWriteOutcome maps a lock UPDATE's result to an error. A matched row is

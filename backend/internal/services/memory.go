@@ -368,6 +368,7 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 			NewContent:    memory.Text,
 			ChangeSummary: changeSummary,
 			ActorType:     actorType,
+			Origin:        req.WriteOrigin,
 		}); err != nil {
 			s.logger.With("error", err).Warn("Failed to snapshot memory content version")
 		}

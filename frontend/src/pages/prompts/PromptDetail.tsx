@@ -1,5 +1,5 @@
 import { AlertCircle, ArrowLeft, Pencil, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -36,18 +36,11 @@ import type {
   PromptDependenciesResponse,
 } from '@/services/promptService'
 import { promptService } from '@/services/promptService'
+import type { Team } from '@/services/teamService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 import { SharedBadge } from './SharedBadge'
-
-/**
- * The server is asked to render with NO values: it expands the @references and
- * leaves every {{placeholder}} in place. The values are then substituted on
- * screen by the markdown renderer, which is what keeps an unfilled placeholder
- * visible as a chip (an empty value sent to the server would erase it) and
- * makes typing a value update the body without a round trip.
- */
-const NO_PLACEHOLDER_VALUES: Record<string, string> = {}
+import { usePromptRenderedTab } from './usePromptRenderedTab'
 
 /**
  * The prompt's rendered-mode-only affordances — the placeholder inputs whose
@@ -100,6 +93,42 @@ function PromptRenderedExtra({
   )
 }
 
+/**
+ * Version history powers the Metadata panel's footer link + count chip.
+ * Best-effort, and stale-guarded by `useResourceVersions` — `loadPrompt`
+ * fetched it unguarded, so a slow response for a previously viewed slug could
+ * land afterwards and render that prompt's version count (#905).
+ */
+function usePromptVersionHistory({
+  isLoadingTeam,
+  currentTeam,
+  slug,
+  prompt,
+}: Readonly<{
+  isLoadingTeam: boolean
+  currentTeam: Team | null
+  slug: string | undefined
+  prompt: Prompt | null
+}>) {
+  return useResourceVersions({
+    loadVersions:
+      !isLoadingTeam && currentTeam && slug
+        ? () => promptService.getPromptVersions(currentTeam.id, slug)
+        : null,
+    // Built as the edit page builds it (#1180), so the two links cannot drift.
+    to:
+      (prompt &&
+        buildResourceVersionsUrl({
+          type: 'prompt',
+          id: prompt.id,
+          slug: prompt.slug,
+        })) ??
+      undefined,
+    editedAt: prompt?.updated_at,
+    deps: [isLoadingTeam, currentTeam?.id, slug],
+  })
+}
+
 export function PromptDetail() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
@@ -118,8 +147,9 @@ export function PromptDetail() {
     useState<PromptDependenciesResponse | null>(null)
   const [loadingDependencies, setLoadingDependencies] = useState(false)
   // Owned here rather than by `ResourceBody` because the render and
-  // placeholder effects below key off it. Same rule as every reading page:
-  // opens on Rendered, and Raw lasts for this page view only.
+  // placeholder effects in `usePromptRenderedTab` key off it. Same rule as
+  // every reading page: opens on Rendered, and Raw lasts for this page view
+  // only.
   const [tab, setTab] = useBodyViewMode()
 
   const {
@@ -179,50 +209,21 @@ export function PromptDetail() {
     void loadPrompt()
   }, [slug, isLoadingTeam, loadPrompt])
 
-  // Version history powers the Metadata panel's footer link + count chip.
-  // Best-effort, and stale-guarded by the hook — `loadPrompt` fetched it
-  // unguarded, so a slow response for a previously viewed slug could land
-  // afterwards and render that prompt's version count (#905).
-  const { versionHistory } = useResourceVersions({
-    loadVersions:
-      !isLoadingTeam && currentTeam && slug
-        ? () => promptService.getPromptVersions(currentTeam.id, slug)
-        : null,
-    // Built as the edit page builds it (#1180), so the two links cannot drift.
-    to:
-      (prompt &&
-        buildResourceVersionsUrl({
-          type: 'prompt',
-          id: prompt.id,
-          slug: prompt.slug,
-        })) ??
-      undefined,
-    editedAt: prompt?.updated_at,
-    deps: [isLoadingTeam, currentTeam?.id, slug],
+  const { versionHistory } = usePromptVersionHistory({
+    isLoadingTeam,
+    currentTeam,
+    slug,
+    prompt,
   })
 
-  const loadedRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!prompt?.slug || tab !== 'rendered' || !currentTeam) return
-    if (loadedRef.current !== prompt.slug) {
-      loadedRef.current = prompt.slug
-      void fetchPlaceholders(prompt.slug, currentTeam.id).then(() => {
-        setTimeout(() => {
-          void renderPrompt(prompt.slug, currentTeam.id, NO_PLACEHOLDER_VALUES)
-        }, 100)
-      })
-    } else if (!isLoadingPlaceholders) {
-      void renderPrompt(prompt.slug, currentTeam.id, NO_PLACEHOLDER_VALUES)
-    }
-  }, [
-    prompt?.slug,
+  usePromptRenderedTab({
+    slug: prompt?.slug,
     tab,
     currentTeam,
     fetchPlaceholders,
     renderPrompt,
     isLoadingPlaceholders,
-  ])
+  })
 
   // Lock / Unlock, the lock dialog and the lock history (epic #1285).
   const resourceLock = useResourceLock<Prompt>({

@@ -4,6 +4,7 @@ package postgres
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -466,6 +467,31 @@ func TestIntegrationResourceLock_MissingResourceIsNotFound(t *testing.T) {
 	}
 }
 
+// listIDs lists the scope's rows under the locked filter and returns their
+// ids, sorted, with the reported total. With a filter set, every row's
+// reported Lock must agree with it.
+func (target lockTarget) listIDs(ctx context.Context, t *testing.T, s lockScope, filter *bool) ([]string, int) {
+	t.Helper()
+	locks, total, err := target.list(ctx, s, filter)
+	require.NoError(t, err)
+	out := make([]string, 0, len(locks))
+	for id, lock := range locks {
+		out = append(out, id)
+		if filter != nil {
+			assert.Equal(t, *filter, lock != nil, "row %s: the filter and the reported Lock disagree", id)
+		}
+	}
+	slices.Sort(out)
+	return out, total
+}
+
+// sortedLockIDs concatenates the id slices and sorts the result.
+func sortedLockIDs(parts ...[]string) []string {
+	out := slices.Concat(parts...)
+	slices.Sort(out)
+	return out
+}
+
 func TestIntegrationResourceLock_LockedFilterAndTotalAgree(t *testing.T) {
 	ctx := context.Background()
 	locked, unlocked := true, false
@@ -482,38 +508,16 @@ func TestIntegrationResourceLock_LockedFilterAndTotalAgree(t *testing.T) {
 				unlockedIDs = append(unlockedIDs, target.insert(t, s).id)
 			}
 
-			ids := func(filter *bool) ([]string, int) {
-				locks, total, err := target.list(ctx, s, filter)
-				require.NoError(t, err)
-				out := make([]string, 0, len(locks))
-				for id, lock := range locks {
-					out = append(out, id)
-					if filter != nil {
-						assert.Equal(t, *filter, lock != nil, "row %s: the filter and the reported Lock disagree", id)
-					}
-				}
-				sort.Strings(out)
-				return out, total
-			}
-			sorted := func(in ...[]string) []string {
-				var out []string
-				for _, part := range in {
-					out = append(out, part...)
-				}
-				sort.Strings(out)
-				return out
-			}
-
-			got, total := ids(&locked)
-			assert.Equal(t, sorted(lockedIDs), got, "locked=true")
+			got, total := target.listIDs(ctx, t, s, &locked)
+			assert.Equal(t, sortedLockIDs(lockedIDs), got, "locked=true")
 			assert.Equal(t, 2, total, "locked=true total")
 
-			got, total = ids(&unlocked)
-			assert.Equal(t, sorted(unlockedIDs), got, "locked=false")
+			got, total = target.listIDs(ctx, t, s, &unlocked)
+			assert.Equal(t, sortedLockIDs(unlockedIDs), got, "locked=false")
 			assert.Equal(t, 3, total, "locked=false total")
 
-			got, total = ids(nil)
-			assert.Equal(t, sorted(lockedIDs, unlockedIDs), got, "no filter returns every row")
+			got, total = target.listIDs(ctx, t, s, nil)
+			assert.Equal(t, sortedLockIDs(lockedIDs, unlockedIDs), got, "no filter returns every row")
 			assert.Equal(t, 5, total, "no filter total")
 		})
 	}

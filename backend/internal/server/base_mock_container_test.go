@@ -239,6 +239,10 @@ func (b *BaseMockContainer) ResourceAccessService() resourceaccess.ResourceAcces
 	return nil
 }
 
+func (b *BaseMockContainer) ResourceWriteService() resourceaccess.ResourceWriteService {
+	return nil
+}
+
 func (b *BaseMockContainer) ActivityService() activities.ActivityService {
 	return nil
 }

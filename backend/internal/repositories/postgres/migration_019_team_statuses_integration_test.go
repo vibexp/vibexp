@@ -97,6 +97,30 @@ func (f teamStatusesFixture) snapshot(t *testing.T, table, id string) teamStatus
 	return snap
 }
 
+// teamStatusesSeededRow names one row seeded before 019 is applied.
+type teamStatusesSeededRow struct{ table, id string }
+
+// seedSystemStatusRows inserts one row per system status of every resource
+// type into the pre-019 schema and returns those rows with the snapshot each
+// one must still match after the up and after the down.
+func (f teamStatusesFixture) seedSystemStatusRows(
+	t *testing.T,
+) ([]teamStatusesSeededRow, map[string]teamStatusesSnapshot) {
+	t.Helper()
+	var existing []teamStatusesSeededRow
+	for table, resourceType := range teamStatusesTables {
+		require.Equal(t, 20, statusColumnLength(t, f.db, table), "fixture: %s.status is varchar(20) before 019", table)
+		for _, status := range models.SystemStatusesFor(resourceType) {
+			existing = append(existing, teamStatusesSeededRow{table, f.insert(t, table, status)})
+		}
+	}
+	before := make(map[string]teamStatusesSnapshot, len(existing))
+	for _, row := range existing {
+		before[row.id] = f.snapshot(t, row.table, row.id)
+	}
+	return existing, before
+}
+
 func statusColumnLength(t *testing.T, db *sql.DB, table string) int {
 	t.Helper()
 	return countRows(t, db,
@@ -121,18 +145,7 @@ func TestMigration019_TeamStatuses_UpDownRoundTrip(t *testing.T) {
 	require.False(t, tableExists(t, db, "team_statuses"), "fixture: team_statuses must not exist before 019")
 
 	f := newTeamStatusesFixture(t, db)
-	type seeded struct{ table, id string }
-	var existing []seeded
-	for table, resourceType := range teamStatusesTables {
-		require.Equal(t, 20, statusColumnLength(t, db, table), "fixture: %s.status is varchar(20) before 019", table)
-		for _, status := range models.SystemStatusesFor(resourceType) {
-			existing = append(existing, seeded{table, f.insert(t, table, status)})
-		}
-	}
-	before := make(map[string]teamStatusesSnapshot, len(existing))
-	for _, row := range existing {
-		before[row.id] = f.snapshot(t, row.table, row.id)
-	}
+	existing, before := f.seedSystemStatusRows(t)
 	require.Equal(t, 1, constraintCount(t, db, "prompts_status_check"), "fixture")
 	require.Equal(t, 1, constraintCount(t, db, "memories_status_check"), "fixture")
 

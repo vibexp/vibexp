@@ -85,7 +85,8 @@ func TestPromptService_UpdateSnapshotsOldBody(t *testing.T) {
 								req.OldContent == tt.oldBody &&
 								req.NewContent == tt.newBody &&
 								req.ActorType == models.ActorTypeHuman &&
-								req.ChangeSummary == nil
+								req.ChangeSummary == nil &&
+								originMatches(req.Origin)
 						}),
 					).
 					Return(nil).
@@ -106,7 +107,7 @@ func TestPromptService_UpdateSnapshotsOldBody(t *testing.T) {
 			})
 
 			body := tt.newBody
-			_, err := svc.UpdatePrompt(userID, teamID, promptID, &models.UpdatePromptRequest{Body: &body})
+			_, err := svc.UpdatePrompt(userID, teamID, promptID, &models.UpdatePromptRequest{Body: &body, WriteOrigin: testWriteOrigin()})
 			require.NoError(t, err)
 		})
 	}
@@ -145,7 +146,9 @@ func TestPromptService_RestoreSnapshotsAsSystem(t *testing.T) {
 				return req.OldContent == "live {{x}}" && // pre-restore body snapshotted (non-destructive)
 					req.NewContent == "v2 {{x}}" &&
 					req.ActorType == models.ActorTypeSystem &&
-					req.ChangeSummary != nil && *req.ChangeSummary == "Restored Version 2"
+					req.ChangeSummary != nil && *req.ChangeSummary == "Restored Version 2" &&
+					// A restore is a system action: it records no write channel.
+					req.Origin == nil
 			}),
 		).
 		Return(nil).

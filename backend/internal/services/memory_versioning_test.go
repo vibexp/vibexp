@@ -64,7 +64,8 @@ func TestMemoryService_UpdateSnapshotsOldContent(t *testing.T) {
 								req.OldContent == tt.oldContent &&
 								req.NewContent == tt.newContent &&
 								req.ActorType == models.ActorTypeHuman &&
-								req.ChangeSummary == nil
+								req.ChangeSummary == nil &&
+								originMatches(req.Origin)
 						}),
 					).
 					Return(nil).
@@ -79,7 +80,7 @@ func TestMemoryService_UpdateSnapshotsOldContent(t *testing.T) {
 			})
 
 			text := tt.newContent
-			_, err := svc.UpdateMemory(userID, teamID, memoryID, &models.UpdateMemoryRequest{Text: &text})
+			_, err := svc.UpdateMemory(userID, teamID, memoryID, &models.UpdateMemoryRequest{Text: &text, WriteOrigin: testWriteOrigin()})
 			require.NoError(t, err)
 		})
 	}
@@ -117,7 +118,9 @@ func TestMemoryService_RestoreSnapshotsAsSystem(t *testing.T) {
 				return req.OldContent == "live-content" && // pre-restore text snapshotted (non-destructive)
 					req.NewContent == "v2-content" &&
 					req.ActorType == models.ActorTypeSystem &&
-					req.ChangeSummary != nil && *req.ChangeSummary == "Restored Version 2"
+					req.ChangeSummary != nil && *req.ChangeSummary == "Restored Version 2" &&
+					// A restore is a system action: it records no write channel.
+					req.Origin == nil
 			}),
 		).
 		Return(nil).
@@ -226,4 +229,17 @@ func TestRestoreMemoryVersion_IsGated(t *testing.T) {
 
 	require.ErrorIs(t, err, services.ErrPermissionDenied)
 	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+}
+
+// testWriteOrigin is the origin the update tests send, and originMatches is
+// what they require the snapshot request to carry: the channel the write
+// arrived through must reach the version it produces (#1392).
+func testWriteOrigin() *models.WriteOrigin {
+	assistant := "claude-code"
+	return &models.WriteOrigin{Source: "mcp", AssistantName: &assistant}
+}
+
+func originMatches(origin *models.WriteOrigin) bool {
+	return origin != nil && origin.Source == "mcp" &&
+		origin.AssistantName != nil && *origin.AssistantName == "claude-code"
 }

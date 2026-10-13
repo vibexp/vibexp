@@ -89,6 +89,10 @@ type UpdateArtifactRequest struct {
 	// ChangeSummary is an optional human-readable description of this edit, recorded on
 	// the content-version snapshot it produces and rendered in the version history.
 	ChangeSummary *string `json:"change_summary,omitempty" validate:"omitempty,max=500"`
+	// WriteOrigin is how this write arrived (channel and, for MCP, the client's
+	// name). The server sets it from the authenticated request; it is never
+	// decoded from the body. Nil for internal callers, which record no origin.
+	WriteOrigin *WriteOrigin `json:"-"`
 }
 
 type ArtifactListResponse struct {

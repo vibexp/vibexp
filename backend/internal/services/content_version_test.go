@@ -89,6 +89,66 @@ func TestContentVersionService_SnapshotIfChanged_SystemActorPreserved(t *testing
 	require.NoError(t, err)
 }
 
+// The channel a write arrived through is stored on the version it produces,
+// with the MCP client's name when there is one (#1392).
+func TestContentVersionService_SnapshotIfChanged_StoresWriteOrigin(t *testing.T) {
+	repo := repomocks.NewMockContentVersionRepository(t)
+	svc := newTestContentVersionService(repo, nil, artifactAdapter())
+
+	assistant := "claude-code"
+	repo.EXPECT().
+		Create(mock.Anything, mock.MatchedBy(func(v *models.ContentVersion) bool {
+			return v.Source != nil && *v.Source == "mcp" &&
+				v.AssistantName != nil && *v.AssistantName == "claude-code"
+		})).
+		Return(nil).
+		Once()
+	repo.EXPECT().PruneToCap(mock.Anything, "artifact", "res-1", 5).Return(nil).Once()
+
+	err := svc.SnapshotIfChanged(context.Background(), SnapshotRequest{
+		ResourceType: "artifact", ResourceID: "res-1", TeamID: "team-1", UserID: "user-1",
+		OldContent: "old", NewContent: "new",
+		Origin: &models.WriteOrigin{Source: "mcp", AssistantName: &assistant},
+	})
+
+	require.NoError(t, err)
+}
+
+// A snapshot from an internal caller (no origin, as a restore passes) stores no
+// source at all. It must never default to a channel: the version history would
+// then claim a restore came through the web app.
+func TestContentVersionService_SnapshotIfChanged_NoOriginStoresNoSource(t *testing.T) {
+	tests := []struct {
+		name   string
+		origin *models.WriteOrigin
+	}{
+		{name: "nil origin", origin: nil},
+		{name: "origin without a source", origin: &models.WriteOrigin{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := repomocks.NewMockContentVersionRepository(t)
+			svc := newTestContentVersionService(repo, nil, artifactAdapter())
+
+			repo.EXPECT().
+				Create(mock.Anything, mock.MatchedBy(func(v *models.ContentVersion) bool {
+					return v.Source == nil && v.AssistantName == nil
+				})).
+				Return(nil).
+				Once()
+			repo.EXPECT().PruneToCap(mock.Anything, "artifact", "res-1", 5).Return(nil).Once()
+
+			err := svc.SnapshotIfChanged(context.Background(), SnapshotRequest{
+				ResourceType: "artifact", ResourceID: "res-1", TeamID: "team-1", UserID: "user-1",
+				OldContent: "old", NewContent: "new", Origin: tt.origin,
+			})
+
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestContentVersionService_SnapshotIfChanged_EmptyUserIsNilCreatedBy(t *testing.T) {
 	repo := repomocks.NewMockContentVersionRepository(t)
 	svc := newTestContentVersionService(repo, nil, artifactAdapter())

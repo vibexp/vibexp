@@ -749,6 +749,7 @@ func (s *Server) setupProtectedRoutes() {
 		// Teams routes (web app and CLI)
 		s.setupTeamsRoutes(r)
 		s.setupTeamRolesRoutes(r)
+		s.setupCreationMetricsRoutes(r)
 		// AI Feed routes (free-tier accessible)
 		s.setupFeedsRoutes(r)
 		// Notification routes
@@ -939,9 +940,9 @@ func (s *Server) mountPromptsHandlers(r chi.Router) {
 	})
 
 	const base = "/api/v1/{team_id}/prompts"
-	r.Post(base, s.handleCreatePrompt)
+	r.With(s.annotateWriteSource).Post(base, s.handleCreatePrompt)
 	r.Get(base+"/labels", s.handleGetPromptLabels)
-	r.Put(base+routePatternSlug, s.handleUpdatePrompt)
+	r.With(s.annotateWriteSource).Put(base+routePatternSlug, s.handleUpdatePrompt)
 	r.Delete(base+routePatternSlug, s.handleDeletePrompt)
 	// Prompt content versions (generic content-versioning core, resource_type=prompt).
 	r.Get(base+"/{slug}/versions", s.handleListPromptVersions)
@@ -1022,9 +1023,9 @@ func (s *Server) mountArtifactsHandlers(r chi.Router) {
 	})
 
 	const base = "/api/v1/{team_id}/artifacts"
-	r.Post(base, s.handleCreateArtifact)
+	r.With(s.annotateWriteSource).Post(base, s.handleCreateArtifact)
 	r.Get(base+routePatternStats, s.handleGetArtifactStats)
-	r.Put(base+routePatternProjectSlug, s.handleUpdateArtifact)
+	r.With(s.annotateWriteSource).Put(base+routePatternProjectSlug, s.handleUpdateArtifact)
 	r.Delete(base+routePatternProjectSlug, s.handleDeleteArtifact)
 	// Artifact file attachments — DEPRECATED aliases of the universal
 	// /api/v1/{team_id}/attachments endpoint (see setupAttachmentsRoutes).
@@ -1287,9 +1288,9 @@ func (s *Server) mountBlueprintsHandlers(r chi.Router) {
 	})
 
 	const base = "/api/v1/{team_id}/blueprints"
-	r.Post(base, s.handleCreateBlueprint)
+	r.With(s.annotateWriteSource).Post(base, s.handleCreateBlueprint)
 	r.Get(base+routePatternStats, s.handleGetBlueprintStats)
-	r.Put(base+routePatternProjectSlug, s.handleUpdateBlueprint)
+	r.With(s.annotateWriteSource).Put(base+routePatternProjectSlug, s.handleUpdateBlueprint)
 	r.Delete(base+routePatternProjectSlug, s.handleDeleteBlueprint)
 	// Blueprint content versions (generic content-versioning core, resource_type=blueprint).
 	r.Get(base+"/{project_id}/{slug}/versions", s.handleListBlueprintVersions)
@@ -1437,8 +1438,8 @@ func (s *Server) mountMemoriesHandlers(r chi.Router) {
 	})
 
 	const base = "/api/v1/{team_id}/memories"
-	r.Post(base, s.handleCreateMemory)
-	r.Put(base+"/{id}", s.handleUpdateMemory)
+	r.With(s.annotateWriteSource).Post(base, s.handleCreateMemory)
+	r.With(s.annotateWriteSource).Put(base+"/{id}", s.handleUpdateMemory)
 	r.Delete(base+"/{id}", s.handleDeleteMemory)
 	// Memory content versions
 	r.Get(base+"/{id}/versions", s.handleListMemoryVersions)
@@ -1501,7 +1502,6 @@ func (s *Server) setupProjectsRoutes(r chi.Router) {
 		r.Post("/", s.handleCreateProject)
 		r.Get("/", s.handleListProjects)
 		r.Get("/{slug}/stats", s.handleGetProjectStats)
-		r.Get("/{slug}/resource-creation-metrics", s.handleGetProjectResourceCreationMetrics)
 		r.With(s.recordResourceAccess(resourceTypeProject)).Get(routePatternSlug, s.handleGetProject)
 		r.Put(routePatternSlug, s.handleUpdateProject)
 		r.Delete(routePatternSlug, s.handleDeleteProject)
@@ -1553,7 +1553,6 @@ func (s *Server) setupTeamsRoutes(r chi.Router) {
 		// because these routes share the {id} path param and the middleware reads
 		// {team_id} (chi forbids two wildcard names at the same position).
 		r.Get("/{id}/stats", s.handleGetTeamStats)
-		r.Get("/{id}/resource-creation-metrics", s.handleGetTeamResourceCreationMetrics)
 		r.Get("/{id}/resource-access-metrics", s.handleGetTeamResourceAccessMetrics)
 		r.Get("/{id}/feed-creation-metrics", s.handleGetTeamFeedCreationMetrics)
 		r.Get("/{id}/top-accessed-resources", s.handleGetTeamTopAccessedResources)

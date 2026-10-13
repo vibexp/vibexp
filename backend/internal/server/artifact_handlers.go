@@ -16,6 +16,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
+	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
 func (s *Server) handleCreateArtifact(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +51,7 @@ func (s *Server) handleCreateArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.recordResourceWrite(r.Context(), userID, models.WriteActionCreate, writtenArtifact(teamID, artifact))
 	s.recordArtifactActivity(r.Context(), artifactActivityParams{
 		userID: userID, activityType: activities.ActivityTypeArtifactCreated, artifactID: artifact.ID,
 		projectName: req.ProjectID, slug: req.Slug, description: "Created new artifact: " + req.Title,
@@ -104,6 +106,7 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
 	artifact, err := s.container.ArtifactService().UpdateArtifactByProjectIDAndSlugInTeam(
 		userID, teamID, decodedProjectID, decodedSlug, &req,
 	)
@@ -115,6 +118,7 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenArtifact(teamID, artifact))
 	s.recordArtifactActivity(r.Context(), artifactActivityParams{
 		userID: userID, activityType: activities.ActivityTypeArtifactUpdated, artifactID: artifact.ID,
 		projectName: decodedProjectID, slug: decodedSlug, description: "Updated artifact: " + artifact.Title,

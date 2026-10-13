@@ -16,6 +16,7 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
+	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
 const (
@@ -190,6 +191,7 @@ func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.recordResourceWrite(r.Context(), userID, models.WriteActionCreate, writtenPrompt(teamID, prompt))
 	s.recordPromptActivity(
 		r.Context(), userID, activities.ActivityTypePromptCreated,
 		prompt.ID, req.Slug, "Created new prompt: "+req.Name, r,
@@ -368,6 +370,7 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.WriteOrigin = resourceaccess.WriteOriginFromContext(r.Context())
 	prompt, err := s.container.PromptService().UpdatePromptBySlug(userID, teamID, promptSlug, &req)
 	if writeResourceWriteLocked(w, r, err) {
 		return
@@ -385,6 +388,7 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenPrompt(teamID, prompt))
 	// Record activity for prompt update
 	s.recordPromptActivity(
 		r.Context(), userID, activities.ActivityTypePromptUpdated,

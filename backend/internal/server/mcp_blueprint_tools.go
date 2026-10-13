@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
 // Blueprint Tool Parameters
@@ -73,8 +74,9 @@ func buildBlueprintURL(baseURL, projectID, slug string) string {
 
 // createBlueprint implements the tool that creates a new blueprint in the resolved team.
 func (s *Server) createBlueprint(
-	ctx context.Context, _ *mcp.CallToolRequest, params *CreateBlueprintParams, userID string,
+	ctx context.Context, req *mcp.CallToolRequest, params *CreateBlueprintParams, userID string,
 ) (*mcp.CallToolResult, any, error) {
+	ctx = withMCPWriteOrigin(ctx, req)
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
@@ -118,6 +120,8 @@ func (s *Server) createBlueprint(
 		}, nil, nil
 	}
 
+	s.recordResourceWrite(ctx, userID, models.WriteActionCreate, writtenBlueprint(teamID, blueprint))
+
 	if s.metrics != nil {
 		s.metrics.RecordMCPCreateBlueprint(context.Background())
 	}
@@ -160,8 +164,9 @@ func buildBlueprintUpdateRequest(params *UpdateBlueprintParams) *models.UpdateBl
 // updateBlueprint implements the tool that updates a specific blueprint
 // (located by project_id + slug) in the resolved team.
 func (s *Server) updateBlueprint(
-	ctx context.Context, _ *mcp.CallToolRequest, params *UpdateBlueprintParams, userID string,
+	ctx context.Context, req *mcp.CallToolRequest, params *UpdateBlueprintParams, userID string,
 ) (*mcp.CallToolResult, any, error) {
+	ctx = withMCPWriteOrigin(ctx, req)
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
@@ -180,6 +185,7 @@ func (s *Server) updateBlueprint(
 
 	updateReq := buildBlueprintUpdateRequest(params)
 
+	updateReq.WriteOrigin = resourceaccess.WriteOriginFromContext(ctx)
 	blueprint, err := s.container.BlueprintService().UpdateBlueprintByProjectIDAndSlugInTeam(
 		userID, teamID, params.ProjectID, params.Slug, updateReq,
 	)
@@ -199,6 +205,8 @@ func (s *Server) updateBlueprint(
 			IsError: true,
 		}, nil, nil
 	}
+
+	s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, writtenBlueprint(teamID, blueprint))
 
 	if s.metrics != nil {
 		s.metrics.RecordMCPUpdateBlueprint(context.Background())

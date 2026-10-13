@@ -95,6 +95,7 @@ packages:
   github.com/vibexp/vibexp/internal/services/resourceaccess:
     interfaces:
       ResourceAccessService:
+      ResourceWriteService:
       taskSubmitter:
   github.com/vibexp/vibexp/internal/auth/idp:
     interfaces:
@@ -157,6 +158,7 @@ packages:
       PromptShareRepository:
       RelationRepository:
       ResourceAccessRepository:
+      ResourceWriteEventRepository:
       ResourceFreshnessRepository:
       ResourceLastAccessedRepository:
       ResourceLockEventRepository:

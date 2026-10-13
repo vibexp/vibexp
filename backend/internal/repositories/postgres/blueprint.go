@@ -748,14 +748,14 @@ func (r *BlueprintRepository) UpdateOnReimport(ctx context.Context, blueprint *m
 
 // SetLock locks a blueprint. See repositories.BlueprintRepository.
 func (r *BlueprintRepository) SetLock(ctx context.Context, teamID, blueprintID, lockerID, comment string) error {
-	return setResourceLock(
-		ctx, r.db, blueprintSetLockSQL, r.validateBlueprintInTeam, teamID, blueprintID, lockerID, comment,
-	)
+	stmt := lockStatement{query: blueprintSetLockSQL, inTeam: r.validateBlueprintInTeam}
+	return setResourceLock(ctx, r.db, stmt, teamID, blueprintID, lockerID, comment)
 }
 
 // ClearLock unlocks a blueprint. See repositories.BlueprintRepository.
 func (r *BlueprintRepository) ClearLock(ctx context.Context, teamID, blueprintID string) error {
-	return clearResourceLock(ctx, r.db, blueprintClearLockSQL, r.validateBlueprintInTeam, teamID, blueprintID)
+	stmt := lockStatement{query: blueprintClearLockSQL, inTeam: r.validateBlueprintInTeam}
+	return clearResourceLock(ctx, r.db, stmt, teamID, blueprintID)
 }
 
 // Delete deletes a blueprint entry
