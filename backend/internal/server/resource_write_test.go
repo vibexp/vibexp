@@ -299,6 +299,16 @@ func isMCPOrigin(origin *models.WriteOrigin) bool {
 	return origin != nil && origin.Source == resourceaccess.SourceMCP
 }
 
+// returnOrFail completes a write-service expectation: the resource and a nil
+// error on success, or an untyped nil and err when fail is set.
+func returnOrFail(call *mock.Call, fail bool, resource any, err error) {
+	if fail {
+		call.Return(nil, err)
+		return
+	}
+	call.Return(resource, nil)
+}
+
 type mcpWriteCase struct {
 	name         string
 	resourceType string
@@ -322,11 +332,7 @@ func mcpWriteCases() []mcpWriteCase {
 			name: "create_prompt", resourceType: "prompt", action: models.WriteActionCreate, resourceID: prompt.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
 				call := f.prompts.On("CreatePrompt", testMemberUserID, testTeamUUID, mock.Anything)
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(prompt, nil)
+				returnOrFail(call, fail, prompt, errWrite)
 			},
 			call: func(f *mcpWriteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.createPrompt(ctx, nil, &CreatePromptParams{
@@ -340,11 +346,7 @@ func mcpWriteCases() []mcpWriteCase {
 			arrange: func(f *mcpWriteFixture, fail bool) {
 				call := f.prompts.On("UpdatePromptBySlug", testMemberUserID, testTeamUUID, "p",
 					mock.MatchedBy(func(req *models.UpdatePromptRequest) bool { return isMCPOrigin(req.WriteOrigin) }))
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(prompt, nil)
+				returnOrFail(call, fail, prompt, errWrite)
 			},
 			call: func(f *mcpWriteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.updatePrompt(ctx, nil, &UpdatePromptParams{
@@ -357,11 +359,7 @@ func mcpWriteCases() []mcpWriteCase {
 			name: "create_artifact", resourceType: "artifact", action: models.WriteActionCreate, resourceID: artifact.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
 				call := f.artifacts.On("CreateArtifact", testMemberUserID, testTeamUUID, mock.Anything)
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(artifact, nil)
+				returnOrFail(call, fail, artifact, errWrite)
 			},
 			call: func(f *mcpWriteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.createArtifact(ctx, nil, &CreateArtifactParams{
@@ -376,11 +374,7 @@ func mcpWriteCases() []mcpWriteCase {
 				call := f.artifacts.On("UpdateArtifactByProjectIDAndSlugInTeam",
 					testMemberUserID, testTeamUUID, writeTestProjectID, "a",
 					mock.MatchedBy(func(req *models.UpdateArtifactRequest) bool { return isMCPOrigin(req.WriteOrigin) }))
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(artifact, nil)
+				returnOrFail(call, fail, artifact, errWrite)
 			},
 			call: func(f *mcpWriteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.updateArtifact(ctx, nil, &UpdateArtifactParams{
@@ -393,11 +387,7 @@ func mcpWriteCases() []mcpWriteCase {
 			name: "create_blueprint", resourceType: "blueprint", action: models.WriteActionCreate, resourceID: blueprint.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
 				call := f.blueprints.On("CreateBlueprint", testMemberUserID, testTeamUUID, mock.Anything)
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(blueprint, nil)
+				returnOrFail(call, fail, blueprint, errWrite)
 			},
 			call: func(f *mcpWriteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.createBlueprint(ctx, nil, &CreateBlueprintParams{
@@ -412,11 +402,7 @@ func mcpWriteCases() []mcpWriteCase {
 				call := f.blueprints.On("UpdateBlueprintByProjectIDAndSlugInTeam",
 					testMemberUserID, testTeamUUID, writeTestProjectID, "b",
 					mock.MatchedBy(func(req *models.UpdateBlueprintRequest) bool { return isMCPOrigin(req.WriteOrigin) }))
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(blueprint, nil)
+				returnOrFail(call, fail, blueprint, errWrite)
 			},
 			call: func(f *mcpWriteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.updateBlueprint(ctx, nil, &UpdateBlueprintParams{
@@ -429,11 +415,7 @@ func mcpWriteCases() []mcpWriteCase {
 			name: "create_memory", resourceType: "memory", action: models.WriteActionCreate, resourceID: memory.ID,
 			arrange: func(f *mcpWriteFixture, fail bool) {
 				call := f.memories.On("CreateMemory", testMemberUserID, testTeamUUID, mock.Anything)
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(memory, nil)
+				returnOrFail(call, fail, memory, errWrite)
 			},
 			call: func(f *mcpWriteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.storeMemory(ctx, nil, &StoreMemoryParams{
@@ -447,11 +429,7 @@ func mcpWriteCases() []mcpWriteCase {
 			arrange: func(f *mcpWriteFixture, fail bool) {
 				call := f.memories.On("UpdateMemory", testMemberUserID, testTeamUUID, memory.ID,
 					mock.MatchedBy(func(req *models.UpdateMemoryRequest) bool { return isMCPOrigin(req.WriteOrigin) }))
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(memory, nil)
+				returnOrFail(call, fail, memory, errWrite)
 			},
 			call: func(f *mcpWriteFixture, ctx context.Context) (*mcp.CallToolResult, error) {
 				res, _, err := f.srv.updateMemory(ctx, nil, &UpdateMemoryParams{
@@ -671,11 +649,7 @@ func restWriteCases() []restWriteCase {
 			wantStatus: http.StatusCreated, resourceType: "prompt", action: models.WriteActionCreate, resourceID: prompt.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
 				call := f.prompts.On("CreatePrompt", writeTestUserID, writeTestTeamID, mock.Anything)
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(prompt, nil)
+				returnOrFail(call, fail, prompt, errWrite)
 			},
 		},
 		{
@@ -685,11 +659,7 @@ func restWriteCases() []restWriteCase {
 			arrange: func(f *restWriteFixture, fail bool) {
 				call := f.prompts.On("UpdatePromptBySlug", writeTestUserID, writeTestTeamID, "p",
 					mock.MatchedBy(func(req *models.UpdatePromptRequest) bool { return isRESTOrigin(req.WriteOrigin) }))
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(prompt, nil)
+				returnOrFail(call, fail, prompt, errWrite)
 			},
 		},
 		{
@@ -699,11 +669,7 @@ func restWriteCases() []restWriteCase {
 			wantStatus: http.StatusCreated, resourceType: "artifact", action: models.WriteActionCreate, resourceID: artifact.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
 				call := f.artifacts.On("CreateArtifact", writeTestUserID, writeTestTeamID, mock.Anything)
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(artifact, nil)
+				returnOrFail(call, fail, artifact, errWrite)
 			},
 		},
 		{
@@ -714,11 +680,7 @@ func restWriteCases() []restWriteCase {
 				call := f.artifacts.On("UpdateArtifactByProjectIDAndSlugInTeam",
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "a",
 					mock.MatchedBy(func(req *models.UpdateArtifactRequest) bool { return isRESTOrigin(req.WriteOrigin) }))
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(artifact, nil)
+				returnOrFail(call, fail, artifact, errWrite)
 			},
 		},
 		{
@@ -728,11 +690,7 @@ func restWriteCases() []restWriteCase {
 			wantStatus: http.StatusCreated, resourceType: "blueprint", action: models.WriteActionCreate, resourceID: blueprint.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
 				call := f.blueprints.On("CreateBlueprint", writeTestUserID, writeTestTeamID, mock.Anything)
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(blueprint, nil)
+				returnOrFail(call, fail, blueprint, errWrite)
 			},
 		},
 		{
@@ -743,11 +701,7 @@ func restWriteCases() []restWriteCase {
 				call := f.blueprints.On("UpdateBlueprintByProjectIDAndSlugInTeam",
 					writeTestUserID, writeTestTeamID, writeTestProjectID, "b",
 					mock.MatchedBy(func(req *models.UpdateBlueprintRequest) bool { return isRESTOrigin(req.WriteOrigin) }))
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(blueprint, nil)
+				returnOrFail(call, fail, blueprint, errWrite)
 			},
 		},
 		{
@@ -756,11 +710,7 @@ func restWriteCases() []restWriteCase {
 			wantStatus: http.StatusCreated, resourceType: "memory", action: models.WriteActionCreate, resourceID: memory.ID,
 			arrange: func(f *restWriteFixture, fail bool) {
 				call := f.memories.On("CreateMemory", writeTestUserID, writeTestTeamID, mock.Anything)
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(memory, nil)
+				returnOrFail(call, fail, memory, errWrite)
 			},
 		},
 		{
@@ -770,11 +720,7 @@ func restWriteCases() []restWriteCase {
 			arrange: func(f *restWriteFixture, fail bool) {
 				call := f.memories.On("UpdateMemory", writeTestUserID, writeTestTeamID, writeTestMemoryID,
 					mock.MatchedBy(func(req *models.UpdateMemoryRequest) bool { return isRESTOrigin(req.WriteOrigin) }))
-				if fail {
-					call.Return(nil, errWrite)
-					return
-				}
-				call.Return(memory, nil)
+				returnOrFail(call, fail, memory, errWrite)
 			},
 		},
 	}
