@@ -15,6 +15,7 @@ import {
 import {
   addHeadingIds,
   markTaskListItems,
+  replaceCodeBlocks,
   stripLeadingTitleHeading,
 } from './markdownTransforms'
 import { readMermaidTheme } from './mermaidTheme'
@@ -457,13 +458,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         // language label and the copy button. A fence with no language has no
         // class attribute at all, and gets the bar too.
         let copyButtonCounter = 0
-        html = html.replace(
-          /<pre><code(?: class="([^"]*)")?>([\s\S]*?)<\/code><\/pre>/g,
-          (
-            _match: string,
-            className: string | undefined,
-            codeContent: string
-          ) => {
+        html = replaceCodeBlocks(
+          html,
+          (className: string | undefined, codeContent: string) => {
             // Extract language from className (e.g., "language-javascript" -> "javascript")
             const language = /language-([\w+#-]+)/.exec(className ?? '')?.[1]
             // The code as text: what is highlighted, and what is copied. (The

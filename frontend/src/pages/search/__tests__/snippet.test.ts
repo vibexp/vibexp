@@ -175,3 +175,67 @@ describe('on a long adversarial input', () => {
     })
   })
 })
+
+describe('stripMarkdown — emphasis and table pipes, edge cases', () => {
+  it('unwraps strong, underscore-strong and strikethrough', () => {
+    expect(stripMarkdown('a **bold** b __also__ c ~~gone~~ d')).toBe(
+      'a bold b also c gone d'
+    )
+  })
+
+  it('closes at the nearest marker that follows a non-space', () => {
+    // The middle `**` follows a space, so it cannot close; the last one does.
+    // (A `**` left over would be dropped afterwards; `__` is not, so it shows.)
+    expect(stripMarkdown('__a __ b__ c')).toBe('a __ b c')
+    expect(stripMarkdown('**a ** b** c')).toBe('a b c')
+  })
+
+  it('does not pair markers across a line break', () => {
+    // The unpaired markers are then dropped as leftovers, each on its line.
+    expect(stripMarkdown('**a\nb**')).toBe('a b')
+    expect(stripMarkdown('__a\nb__')).toBe('__a b__')
+  })
+
+  it('leaves a marker that opens onto a space', () => {
+    expect(stripMarkdown('a __ b __ c')).toBe('a __ b __ c')
+  })
+
+  it('turns each pipe and the blanks around it into one space', () => {
+    expect(stripMarkdown('a | b')).toBe('a b')
+    expect(stripMarkdown('a|b||c')).toBe('a b c')
+    expect(stripMarkdown('| cell |')).toBe('cell')
+  })
+})
+
+describe('emphasis and pipes on a long adversarial input', () => {
+  const N = 50_000
+  const fast = (work: () => void) => {
+    const started = performance.now()
+    work()
+    expect(performance.now() - started).toBeLessThan(1000)
+  }
+
+  it('handles opening markers that never close, on one line', () => {
+    fast(() => {
+      // Every `__` is followed by a letter and preceded by a space, so each
+      // could open and none can close.
+      const text = '__a '.repeat(N / 4)
+      expect(stripMarkdown(text)).toBe(text.trim())
+    })
+  })
+
+  it('handles strikethrough openings that never close', () => {
+    fast(() => {
+      expect(stripMarkdown('~~a '.repeat(N / 4))).toBe(
+        'a '.repeat(N / 4).trim()
+      )
+    })
+  })
+
+  it('handles a long run of blanks with no pipe after it', () => {
+    fast(() => {
+      expect(stripMarkdown(`a${' '.repeat(N)}b`)).toBe('a b')
+      expect(stripMarkdown(`a${'\t '.repeat(N / 2)}|b`)).toBe('a b')
+    })
+  })
+})

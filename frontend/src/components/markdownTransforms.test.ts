@@ -1,6 +1,7 @@
 import {
   addHeadingIds,
   markTaskListItems,
+  replaceCodeBlocks,
   stripLeadingTitleHeading,
 } from './markdownTransforms'
 
@@ -171,5 +172,63 @@ describe('addHeadingIds — headings that are not closed', () => {
     const started = performance.now()
     expect(addHeadingIds(html)).toBe(html)
     expect(performance.now() - started).toBeLessThan(1000)
+  })
+})
+
+describe('addHeadingIds — markup inside a heading', () => {
+  it('derives the id from the text, without the tags', () => {
+    expect(addHeadingIds('<h2>The <em>fast</em> <code>path</code></h2>')).toBe(
+      '<h2 id="the-fast-path">The <em>fast</em> <code>path</code></h2>'
+    )
+  })
+
+  it('stays fast on a heading that is a long run of angle brackets', () => {
+    const inner = '&lt;'.repeat(10) + '<'.repeat(50_000)
+    const started = performance.now()
+    expect(addHeadingIds(`<h2>${inner}</h2>`)).toContain(`${inner}</h2>`)
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
+})
+
+describe('replaceCodeBlocks', () => {
+  const mark = (className: string | undefined, code: string) =>
+    `[${String(className)}|${code}]`
+
+  it('hands over the class and the body of each block', () => {
+    expect(
+      replaceCodeBlocks(
+        '<p>a</p><pre><code class="language-ts">x &lt; y</code></pre><pre><code>plain</code></pre>',
+        mark
+      )
+    ).toBe('<p>a</p>[language-ts|x &lt; y][undefined|plain]')
+  })
+
+  it('ends a block at the first closing pair', () => {
+    expect(
+      replaceCodeBlocks('<pre><code>a</code></pre>b</code></pre>', mark)
+    ).toBe('[undefined|a]b</code></pre>')
+  })
+
+  it('leaves what is not exactly a block marked emits', () => {
+    for (const html of [
+      '<pre><code>never closed',
+      '<pre><code id="x">a</code></pre>',
+      '<pre><code class="a" id="x">a</code></pre>',
+      '<pre><code class="unterminated>a</code></pre>',
+      '<pre>a</pre>',
+    ]) {
+      expect(replaceCodeBlocks(html, mark)).toBe(html)
+    }
+  })
+
+  it('stays fast on a long run of openings that never close', () => {
+    for (const html of [
+      '<pre><code>'.repeat(50_000),
+      '<pre><code class="'.repeat(50_000),
+    ]) {
+      const started = performance.now()
+      expect(replaceCodeBlocks(html, mark)).toBe(html)
+      expect(performance.now() - started).toBeLessThan(1000)
+    }
   })
 })

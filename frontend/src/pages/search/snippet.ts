@@ -5,7 +5,7 @@
  * for display and mark where the query matched.
  */
 
-import { forwardFinder } from '@/utils/linearText'
+import { forwardFinder, forwardSearch } from '@/utils/linearText'
 
 /** A run of display text; `match` is true where a query term matched. */
 export interface SnippetSegment {
@@ -48,6 +48,93 @@ function unwrapLinks(text: string, open: '(' | '[', close: ')' | ']'): string {
   return out + text.slice(copiedTo)
 }
 
+const WHITESPACE = /\s/
+const LINE_TERMINATOR = /[\n\r\u2028\u2029]/g
+
+/**
+ * Removes paired emphasis markers and keeps what they wrap: for each of
+ * `delimiters` (`**`, `__`, `~~`), an opening marker followed by a
+ * non-space, up to the nearest closing marker on the same line that follows a
+ * non-space. `**bold**` becomes `bold`; `a ** b` and a marker whose pair is
+ * on another line are left alone.
+ *
+ * A scan rather than `(\*\*|__)(?=\S)(.+?)(?<=\S)\1`: that pattern reads to
+ * the end of the line from every opening marker that is never closed.
+ */
+function unwrapEmphasis(text: string, delimiters: readonly string[]): string {
+  const marks = delimiters.map(mark => ({
+    mark,
+    nextOpen: forwardFinder(text, mark),
+    // The nearest marker that can close: one with a non-space before it.
+    nextClose: forwardSearch(from => {
+      let at = text.indexOf(mark, from)
+      while (at !== -1 && WHITESPACE.test(text[at - 1])) {
+        at = text.indexOf(mark, at + 1)
+      }
+      return at
+    }),
+  }))
+  const nextLineEnd = forwardSearch(from => {
+    LINE_TERMINATOR.lastIndex = from
+    return LINE_TERMINATOR.exec(text)?.index ?? -1
+  })
+
+  let out = ''
+  let copiedTo = 0
+  let from = 0
+  for (;;) {
+    // The leftmost opening marker of any kind.
+    let opener: (typeof marks)[number] | undefined
+    let open = -1
+    for (const candidate of marks) {
+      const at = candidate.nextOpen(from)
+      if (at !== -1 && (open === -1 || at < open)) {
+        open = at
+        opener = candidate
+      }
+    }
+    if (!opener) break
+
+    const innerStart = open + opener.mark.length
+    // Something must follow the marker, and it must not be a space.
+    const opens = innerStart < text.length && !WHITESPACE.test(text[innerStart])
+    const close = opens ? opener.nextClose(innerStart + 1) : -1
+    const lineEnd = nextLineEnd(innerStart)
+    if (close === -1 || (lineEnd !== -1 && lineEnd < close)) {
+      from = open + 1
+      continue
+    }
+    out += text.slice(copiedTo, open) + text.slice(innerStart, close)
+    copiedTo = close + opener.mark.length
+    from = copiedTo
+  }
+  return out + text.slice(copiedTo)
+}
+
+const isBlank = (character: string | undefined): boolean =>
+  character === ' ' || character === '\t'
+
+/**
+ * Replaces every table pipe, with the spaces and tabs around it, by one
+ * space. A scan rather than `[ \t]*\|[ \t]*`, which re-reads a long run of
+ * spaces from each of its characters when no pipe follows it.
+ */
+function replacePipes(text: string): string {
+  let out = ''
+  let copiedTo = 0
+  for (;;) {
+    const pipe = text.indexOf('|', copiedTo)
+    if (pipe === -1) break
+    let start = pipe
+    while (start > copiedTo && isBlank(text[start - 1])) start -= 1
+    let end = pipe + 1
+    while (isBlank(text[end])) end += 1
+    out += `${text.slice(copiedTo, start)} `
+    copiedTo = end
+  }
+  return out + text.slice(copiedTo)
+}
+
 /** A table's divider row: only pipes, colons, dashes and blanks, with `---`. */
 const DIVIDER_ROW = /^[ \t|:-]+$/
 const LINE_BREAK = /([\n\r\u2028\u2029])/
@@ -83,24 +170,22 @@ export function stripMarkdown(markdown: string): string {
   const unfenced = markdown.replace(/^[ \t]*(?:```|~~~)[^\n]*$/gm, ' ')
   // Images and links keep their text.
   const unlinked = unwrapLinks(unwrapLinks(unfenced, '(', ')'), '[', ']')
-  const unmarked = unlinked
-    // Line-leading markers: headings, quotes, bullets, numbered items, rules.
+  // Line-leading markers: headings, quotes, bullets, numbered items, rules.
+  const unprefixed = unlinked
     .replace(/^[ \t]*#{1,6}[ \t]+/gm, '')
     .replace(/^[ \t]*(?:>[ \t]?)+/gm, '')
     .replace(/^[ \t]*(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?/gm, '')
     .replace(/^[ \t]*[-*_][-*_ \t]{2,}$/gm, ' ')
-    // Emphasis. Underscores only count at word edges, so snake_case survives.
-    .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, '$2')
-    .replace(/~~(?=\S)(.+?)(?<=\S)~~/g, '$1')
+  // Emphasis. Underscores only count at word edges, so snake_case survives.
+  const unmarked = unwrapEmphasis(unwrapEmphasis(unprefixed, ['**', '__']), [
+    '~~',
+  ])
     .replace(/\*(?=\S)([^*\n]+?)(?<=\S)\*/g, '$1')
     .replace(/(?<!\w)_(?=\S)([^_\n]+?)(?<=\S)_(?!\w)/g, '$1')
     // Whatever a slice left unpaired.
     .replace(/\*\*|~~|`+/g, '')
   // Table pipes and the divider row under a table header.
-  return blankDividerRows(unmarked)
-    .replace(/[ \t]*\|[ \t]*/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+  return replacePipes(blankDividerRows(unmarked)).replace(/\s+/g, ' ').trim()
 }
 
 const TERM_MIN_LENGTH = 2
