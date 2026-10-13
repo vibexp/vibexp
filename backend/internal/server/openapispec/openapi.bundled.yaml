@@ -8520,6 +8520,17 @@ paths:
 
         Inviting users who are already team members returns `409` with code
         `DUPLICATE_MEMBERS` and a top-level `duplicate_emails` string array.
+
+        Addresses are stored trimmed and lower-cased, and a repeated address is
+        invited once.
+
+        When the instance has an active access allowlist, every address must be
+        admitted by it (root instance admins are exempt): such an invitation could
+        never be accepted. If any address is not admitted, the WHOLE request is
+        refused with `400`, code `VALIDATION_FAILED`, and one `validation_errors`
+        entry per rejected address (`field` `emails`, `code` `email_not_allowed`,
+        the address in `message`); no invitation is created or sent, including for
+        the addresses that were admitted.
       operationId: sendTeamInvitations
       security:
         - ApiKeyAuth: []
@@ -8546,7 +8557,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/InvitationResponseList'
         '400':
-          description: Invalid request body, validation error, more than 50 emails, or invalid role
+          description: |
+            Invalid request body, validation error, more than 50 emails, or invalid
+            role. Also returned, with `validation_errors` entries of code
+            `email_not_allowed`, when the access allowlist does not admit one or
+            more of the addresses; nothing is created in that case.
           content:
             application/problem+json:
               schema:
@@ -9830,8 +9845,12 @@ paths:
         signs in through the configured identity provider. Instance-admin rights
         are config-only and cannot be granted here.
 
-        A duplicate email returns 409 and creates nothing. Instance-admin only;
-        non-admin and unauthenticated requests receive 404.
+        A duplicate email returns 409 and creates nothing. When the instance has
+        an active access allowlist that does not admit the email (root instance
+        admins are exempt), the account could never sign in, so it is not created:
+        the response is 400 with code `VALIDATION_FAILED` and a
+        `validation_errors` entry on `email` with code `email_not_allowed`.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
       operationId: createAdminUser
       tags:
         - Admin
@@ -9852,7 +9871,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminUserDetail'
         '400':
-          description: Bad request — missing or malformed email/name, or an unknown field
+          description: |
+            Bad request — missing or malformed email/name, an unknown field, or an
+            email the access allowlist does not admit (`validation_errors` entry on
+            `email` with code `email_not_allowed`; nothing is created)
           content:
             application/problem+json:
               schema:

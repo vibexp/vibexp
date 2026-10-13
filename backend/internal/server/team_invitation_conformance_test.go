@@ -45,6 +45,9 @@ type invConfMocks struct {
 	email      *servicesmocks.MockEmailServiceInterface
 	authz      *servicesmocks.MockAuthorizationServiceInterface
 	teamSvc    *servicesmocks.MockTeamServiceInterface
+	// allowlist is the access allowlist invitations are checked against; nil
+	// (the default) is an instance without one.
+	allowlist services.AccessAllowlistResolver
 }
 
 func newInvConfMocks(t *testing.T) *invConfMocks {
@@ -85,6 +88,7 @@ func newInvConfServer(m *invConfMocks) *Server {
 		UserRepo:       m.userRepo,
 		EmailService:   m.email,
 		Authz:          m.authz,
+		Allowlist:      m.allowlist,
 		Cfg:            &config.Config{},
 		Logger:         logger,
 	})
@@ -281,5 +285,44 @@ func TestHandleRevokeInvitation_Conformance(t *testing.T) {
 	srv.handleRevokeInvitation(rr, req)
 
 	require.Equal(t, http.StatusNoContent, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
+}
+
+// POST /api/v1/teams/{id}/invitations with an address the access allowlist does
+// not admit (#1434): the whole request is a spec-conformant 400 naming it, and
+// nothing is created, not even for the admitted address.
+func TestHandleSendTeamInvitations_OutsideAllowlist_Conformance(t *testing.T) {
+	m := newInvConfMocks(t)
+	m.allowlist = staticAllowlistResolver([]string{"example.com"}, nil)
+	m.authz.On("Can", mock.Anything, "user-1", confTeamID, authz.MemberInvite).Return(nil).Once()
+	m.teamRepo.On("GetByID", mock.Anything, confTeamID).
+		Return(&models.Team{ID: confTeamID, Name: "Acme", IsPersonal: false}, nil).Once()
+	// invRepo and email are strict mocks with no expectations: creating or
+	// sending anything fails the test.
+
+	srv := newInvConfServer(m)
+	body := `{"emails":["inside@example.com","Mallory@Elsewhere.test"],"role":"member"}`
+	req := createAuthenticatedRequest("POST", "/api/v1/teams/"+confTeamID+"/invitations", body, "user-1")
+	req = addURLParams(req, map[string]string{"id": confTeamID})
+	rr := httptest.NewRecorder()
+
+	srv.handleSendTeamInvitations(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	var resp struct {
+		Code             string `json:"code"`
+		Detail           string `json:"detail"`
+		ValidationErrors []struct {
+			Field, Message, Code string
+		} `json:"validation_errors"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, "VALIDATION_FAILED", resp.Code)
+	assert.Contains(t, resp.Detail, "mallory@elsewhere.test")
+	assert.NotContains(t, resp.Detail, "inside@example.com", "only the rejected address is named")
+	require.Len(t, resp.ValidationErrors, 1)
+	assert.Equal(t, "emails", resp.ValidationErrors[0].Field)
+	assert.Equal(t, codeEmailNotAllowed, resp.ValidationErrors[0].Code)
+	assert.Contains(t, resp.ValidationErrors[0].Message, "mallory@elsewhere.test")
 	specconformance.AssertConformsToSpec(t, req, rr)
 }
