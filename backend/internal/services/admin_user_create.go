@@ -67,7 +67,7 @@ type AdminUserCreateRequest struct {
 func (s *AdminService) CreateUser(
 	ctx context.Context, req AdminUserCreateRequest,
 ) (*models.AdminUserDetail, error) {
-	email := strings.ToLower(strings.TrimSpace(req.Email))
+	email := models.NormalizeEmail(req.Email)
 
 	if s.userRepo == nil || s.eventPublisher == nil {
 		return nil, errors.New("admin user creation is not wired: user repository or event publisher missing")

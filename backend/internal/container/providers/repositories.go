@@ -13,6 +13,11 @@ func ProvideUserRepository(db *database.DB) repositories.UserRepository {
 	return postgres.NewUserRepository(db)
 }
 
+// ProvideUserIdentityRepository creates a new UserIdentityRepository
+func ProvideUserIdentityRepository(db *database.DB) repositories.UserIdentityRepository {
+	return postgres.NewUserIdentityRepository(db)
+}
+
 // ProvideAPIKeyRepository creates a new APIKeyRepository
 func ProvideAPIKeyRepository(db *database.DB) repositories.APIKeyRepository {
 	return postgres.NewAPIKeyRepository(db)

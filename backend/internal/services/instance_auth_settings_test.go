@@ -85,8 +85,9 @@ func (u *authSettingsUsers) GetByEmail(_ context.Context, email string) (*models
 	if u.err != nil {
 		return nil, u.err
 	}
+	// Case-insensitive, like the real repository.
 	for _, user := range u.users {
-		if user.Email == email {
+		if models.NormalizeEmail(user.Email) == models.NormalizeEmail(email) {
 			return user, nil
 		}
 	}
@@ -743,6 +744,8 @@ func TestInstanceAuthSettings_GrantAndRevokeAdmin(t *testing.T) {
 	require.ErrorAs(t, f.svc.RevokeAdmin(ctx, authSettingsRootID, authSettingsMemberID), &notGranted)
 }
 
+// A grant by email finds the account whatever casing the admin types: the user
+// repository's lookup is case-insensitive, so the service looks up once (#1427).
 func TestInstanceAuthSettings_GrantAdmin_ByLowerCasedEmail(t *testing.T) {
 	f := newAuthSettingsFixture(t)
 	f.users.users[2].Email = "ada@example.com"

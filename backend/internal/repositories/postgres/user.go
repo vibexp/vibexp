@@ -13,9 +13,19 @@ import (
 
 // userColumns is the canonical user column list used by every SELECT.
 // Keep in sync with scanUser below.
-const userColumns = `id, google_id, idp_provider, idp_subject, email, name, avatar_url,
+const userColumns = `id, google_id, idp_provider, idp_subject, email, email_verified_at, name, avatar_url,
 		default_team_id, status, onboarding_completed,
 		onboarding_completed_at, created_at, updated_at, version`
+
+// userColumnsQualified is userColumns for a query that joins users as u.
+const userColumnsQualified = `u.id, u.google_id, u.idp_provider, u.idp_subject, u.email, u.email_verified_at,
+		u.name, u.avatar_url, u.default_team_id, u.status, u.onboarding_completed,
+		u.onboarding_completed_at, u.created_at, u.updated_at, u.version`
+
+// usersEmailUniqueConstraint is the unique constraint on users.email. Create
+// writes to user_identities in the same statement, so a unique violation is a
+// taken email only when it names this constraint.
+const usersEmailUniqueConstraint = "users_email_key"
 
 // UserRepository implements the repositories.UserRepository interface for PostgreSQL
 type UserRepository struct {
@@ -38,7 +48,7 @@ func scanUser(row rowScanner) (*models.User, error) {
 	var user models.User
 	err := row.Scan(
 		&user.ID, &user.GoogleID, &user.IDPProvider, &user.IDPSubject,
-		&user.Email, &user.Name, &user.AvatarURL,
+		&user.Email, &user.EmailVerifiedAt, &user.Name, &user.AvatarURL,
 		&user.DefaultTeamID, &user.Status,
 		&user.OnboardingCompleted, &user.OnboardingCompletedAt,
 		&user.CreatedAt, &user.UpdatedAt, &user.Version,
@@ -62,33 +72,29 @@ func (r *UserRepository) GetByID(ctx context.Context, userID string) (*models.Us
 	return user, nil
 }
 
-// GetByEmail retrieves a user by their email address
+// GetByEmail retrieves a user by their email address. Stored addresses are
+// always normalized (users_email_lowercase), so normalizing the argument makes
+// the match case-insensitive while still using the users_email_key index.
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `SELECT ` + userColumns + ` FROM users WHERE email = $1`
 
-	user, err := scanUser(r.db.QueryRowContext(ctx, query, email))
+	user, err := scanUser(r.db.QueryRowContext(ctx, query, models.NormalizeEmail(email)))
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get user by email: %w", err), repositories.ErrUserNotFound)
 	}
 	return user, nil
 }
 
-// GetByGoogleID retrieves a user by their Google ID
-func (r *UserRepository) GetByGoogleID(ctx context.Context, googleID string) (*models.User, error) {
-	query := `SELECT ` + userColumns + ` FROM users WHERE google_id = $1`
-
-	user, err := scanUser(r.db.QueryRowContext(ctx, query, googleID))
-	if err != nil {
-		return nil, mapNoRows(fmt.Errorf("failed to get user by Google ID: %w", err), repositories.ErrUserNotFound)
-	}
-	return user, nil
-}
-
-// GetByIDPSubject retrieves a user by their (idp_provider, idp_subject) tuple.
+// GetByIDPSubject retrieves the user who owns the (provider, subject) sign-in
+// identity. user_identities is the only lookup source; users.idp_provider and
+// users.idp_subject are not consulted.
 func (r *UserRepository) GetByIDPSubject(
 	ctx context.Context, provider, subject string,
 ) (*models.User, error) {
-	query := `SELECT ` + userColumns + ` FROM users WHERE idp_provider = $1 AND idp_subject = $2`
+	query := `SELECT ` + userColumnsQualified + `
+		FROM user_identities ui
+		JOIN users u ON u.id = ui.user_id
+		WHERE ui.provider = $1 AND ui.subject = $2`
 
 	user, err := scanUser(r.db.QueryRowContext(ctx, query, provider, subject))
 	if err != nil {
@@ -97,19 +103,38 @@ func (r *UserRepository) GetByIDPSubject(
 	return user, nil
 }
 
-// Create creates a new user
+// Create creates a new user together with the sign-in identities the row
+// carries, in ONE statement: a user must never exist without the identity it
+// signed up with, or its next sign-in would find nobody and collide on the
+// email. The identity rows are the (idp_provider, idp_subject) pair when both
+// are set, and the legacy Google identity when google_id is set.
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	query := `
-		INSERT INTO users (google_id, idp_provider, idp_subject, email, name, avatar_url, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, default_team_id,
-		          onboarding_completed, onboarding_completed_at, created_at, updated_at
+		WITH new_user AS (
+			INSERT INTO users (google_id, idp_provider, idp_subject, email, email_verified_at,
+			                   name, avatar_url, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			RETURNING id, default_team_id,
+			          onboarding_completed, onboarding_completed_at, created_at, updated_at
+		), idp_identity AS (
+			INSERT INTO user_identities (user_id, provider, subject, created_at, last_used_at)
+			SELECT id, $2, $3, created_at, created_at FROM new_user
+			WHERE $2::varchar IS NOT NULL AND $3::varchar IS NOT NULL
+		), legacy_google_identity AS (
+			INSERT INTO user_identities (user_id, provider, subject, created_at, last_used_at)
+			SELECT id, $10, $1, created_at, created_at FROM new_user
+			WHERE $1::varchar IS NOT NULL
+		)
+		SELECT id, default_team_id,
+		       onboarding_completed, onboarding_completed_at, created_at, updated_at
+		FROM new_user
 	`
 
+	email := models.NormalizeEmail(user.Email)
 	err := r.db.QueryRowContext(ctx, query,
 		user.GoogleID, user.IDPProvider, user.IDPSubject,
-		user.Email, user.Name, user.AvatarURL,
-		user.CreatedAt, user.UpdatedAt,
+		email, user.EmailVerifiedAt, user.Name, user.AvatarURL,
+		user.CreatedAt, user.UpdatedAt, models.LegacyGoogleIdentityProvider,
 	).Scan(&user.ID, &user.DefaultTeamID,
 		&user.OnboardingCompleted, &user.OnboardingCompletedAt, &user.CreatedAt, &user.UpdatedAt)
 
@@ -118,11 +143,12 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 		// surface it as a domain error so callers answer 409. Doing it here rather
 		// than pre-checking in a service is also race-proof — the constraint is
 		// the only place two concurrent inserts are actually serialized.
-		if uniqueViolation(err) != nil {
-			return fmt.Errorf("%w: %s", repositories.ErrUserEmailTaken, user.Email)
+		if pqErr := uniqueViolation(err); pqErr != nil && pqErr.Constraint == usersEmailUniqueConstraint {
+			return fmt.Errorf("%w: %s", repositories.ErrUserEmailTaken, email)
 		}
 		return fmt.Errorf("failed to create user: %w", err)
 	}
+	user.Email = email
 
 	return nil
 }
@@ -130,6 +156,9 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 // Update updates an existing user. The WHERE clause uses the user's id (UUID)
 // and version for optimistic concurrency control. google_id is no longer used
 // in the WHERE clause because non-Google users do not have a google_id.
+//
+// It writes the users row only. Recording the sign-in identity is
+// UserIdentityRepository.Upsert.
 func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	now := time.Now()
 	query := `
@@ -137,15 +166,17 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		SET email = $2, name = $3, avatar_url = $4,
 		    idp_provider = COALESCE($5, idp_provider),
 		    idp_subject  = COALESCE($6, idp_subject),
-		    updated_at = $7, version = version + 1
+		    updated_at = $7, version = version + 1,
+		    email_verified_at = $9
 		WHERE id = $1 AND version = $8
 		RETURNING id,
 			default_team_id, onboarding_completed, onboarding_completed_at, created_at, updated_at, version
 	`
 
+	email := models.NormalizeEmail(user.Email)
 	err := r.db.QueryRowContext(ctx, query,
-		user.ID, user.Email, user.Name, user.AvatarURL,
-		user.IDPProvider, user.IDPSubject, now, user.Version,
+		user.ID, email, user.Name, user.AvatarURL,
+		user.IDPProvider, user.IDPSubject, now, user.Version, user.EmailVerifiedAt,
 	).Scan(
 		&user.ID, &user.DefaultTeamID, &user.OnboardingCompleted,
 		&user.OnboardingCompletedAt, &user.CreatedAt, &user.UpdatedAt, &user.Version,
@@ -154,6 +185,7 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	if err != nil {
 		return mapNoRows(fmt.Errorf("failed to update user: %w", err), fmt.Errorf("user not found or version mismatch"))
 	}
+	user.Email = email
 
 	return nil
 }

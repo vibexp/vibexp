@@ -46,8 +46,16 @@ func createTestAuthServiceWithRecorder(
 
 	allowlist := newStaticAllowlistResolver(logger, allowedEmails)
 
-	service := NewAuthService(userRepo, newTestRegistry(identityProvider), nil, logger, allowlist)
+	service := NewAuthService(userRepo, permissiveIdentityRepo(), newTestRegistry(identityProvider), nil, logger, allowlist)
 	return service, recorder
+}
+
+// permissiveIdentityRepo is an identity repository that accepts any Upsert, for
+// tests that are not about the identity a sign-in records.
+func permissiveIdentityRepo() *repo_mocks.MockUserIdentityRepository {
+	identities := &repo_mocks.MockUserIdentityRepository{}
+	identities.On("Upsert", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	return identities
 }
 
 // denialReason returns the `reason` attribute of the sign-in-denied audit log.
@@ -200,7 +208,8 @@ func TestAuthService_CreateOrUpdateUserFromClaims(t *testing.T) {
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository) {
 				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
 					Return(nil, repositories.ErrUserNotFound)
-				// A non-Google provider does NOT fall back to GetByGoogleID.
+				// A non-Google provider does NOT fall back to the legacy Google
+				// identity: AssertExpectations fails on the unexpected lookup.
 
 				mockRepo.On("Create", context.Background(), mock.MatchedBy(func(user *models.User) bool {
 					return user.GoogleID == nil && // non-Google: no google_id
@@ -516,7 +525,6 @@ func TestAuthService_HandleCallback_AccessRestricted(t *testing.T) {
 	assert.False(t, isNewUser)
 	// No user row was touched: the repo was never asked to look up or create.
 	mockRepo.AssertNotCalled(t, "GetByIDPSubject", mock.Anything, mock.Anything, mock.Anything)
-	mockRepo.AssertNotCalled(t, "GetByGoogleID", mock.Anything, mock.Anything)
 	mockRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	mockRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 	mockRepo.AssertExpectations(t)
@@ -879,7 +887,7 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 
 			allowlist := newStaticAllowlistResolver(logger, []string{"test@example.com", "dev@example.com"})
 
-			service := NewAuthService(mockRepo, staticIDPResolver{reg: idp.NewRegistry(mockIDP)}, mockEventManager, logger, allowlist)
+			service := NewAuthService(mockRepo, permissiveIdentityRepo(), staticIDPResolver{reg: idp.NewRegistry(mockIDP)}, mockEventManager, logger, allowlist)
 
 			tt.setupMocks(mockRepo, mockEventManager)
 
@@ -929,13 +937,14 @@ func TestAuthService_GoogleLegacyFallback(t *testing.T) {
 		GoogleID: &legacyGoogleID,
 		Email:    "legacy@example.com",
 	}
-	mockRepo.On("GetByGoogleID", mock.Anything, "google-123").Return(legacyUser, nil)
+	mockRepo.On("GetByIDPSubject", mock.Anything, models.LegacyGoogleIdentityProvider, "google-123").
+		Return(legacyUser, nil)
 	mockRepo.On("Update", mock.Anything, mock.MatchedBy(func(u *models.User) bool {
 		return u.ID == "legacy-1"
 	})).Return(nil)
 
 	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
-	service := NewAuthService(mockRepo, staticIDPResolver{reg: idp.NewRegistry(mockIDP)}, nil, logger,
+	service := NewAuthService(mockRepo, permissiveIdentityRepo(), staticIDPResolver{reg: idp.NewRegistry(mockIDP)}, nil, logger,
 		newStaticAllowlistResolver(logger, nil))
 
 	user, _, err := service.createOrUpdateUserFromClaims(context.Background(), googleProvider, idp.ProviderGoogle, testClaims)
@@ -955,7 +964,7 @@ func slugProvider(slug string) *idpmocks.MockIdentityProvider {
 // newResolverAuthService builds an AuthService with open access over resolver.
 func newResolverAuthService(userRepo *repo_mocks.MockUserRepository, resolver IdentityProviderResolver) *AuthService {
 	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
-	return NewAuthService(userRepo, resolver, nil, logger, newStaticAllowlistResolver(logger, nil))
+	return NewAuthService(userRepo, permissiveIdentityRepo(), resolver, nil, logger, newStaticAllowlistResolver(logger, nil))
 }
 
 func TestAuthService_ResolverFailureIsUnresolvable(t *testing.T) {
@@ -1005,7 +1014,7 @@ func TestAuthService_HandleCallback_PersistsSlug(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, isNew)
 			assert.Equal(t, slug, *user.IDPProvider)
-			repo.AssertNotCalled(t, "GetByGoogleID", mock.Anything, mock.Anything)
+			repo.AssertNotCalled(t, "GetByIDPSubject", mock.Anything, models.LegacyGoogleIdentityProvider, mock.Anything)
 			repo.AssertExpectations(t)
 		})
 	}
@@ -1020,7 +1029,8 @@ func TestAuthService_HandleCallback_GoogleTypeKeepsLegacyFallback(t *testing.T) 
 	p.On("ExchangeCode", mock.Anything, "code", "").Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
 	repo := &repo_mocks.MockUserRepository{}
 	repo.On("GetByIDPSubject", mock.Anything, "google-workspace", "g-1").Return(nil, repositories.ErrUserNotFound)
-	repo.On("GetByGoogleID", mock.Anything, "g-1").Return(nil, repositories.ErrUserNotFound)
+	repo.On("GetByIDPSubject", mock.Anything, models.LegacyGoogleIdentityProvider, "g-1").
+		Return(nil, repositories.ErrUserNotFound)
 	repo.On("Create", mock.Anything, mock.MatchedBy(func(u *models.User) bool {
 		return u.GoogleID != nil && *u.GoogleID == "g-1" && *u.IDPProvider == "google-workspace"
 	})).Return(nil)
@@ -1050,4 +1060,158 @@ func TestAuthService_RefreshTokens_UnhealthyProviderIsTemporarilyUnavailable(t *
 
 	_, err = svc.RefreshTokens(context.Background(), "partner-sso", "tok")
 	assert.ErrorIs(t, err, ErrIdentityProviderUnavailable, "not enabled at all is permanent")
+}
+
+// identityAuthService builds an open-access AuthService over a strict identity
+// repository, for tests about the identity a sign-in resolves and records.
+func identityAuthService(
+	t *testing.T, users *repo_mocks.MockUserRepository, identities *repo_mocks.MockUserIdentityRepository,
+) *AuthService {
+	t.Helper()
+	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
+	return NewAuthService(users, identities, staticIDPResolver{reg: idp.NewRegistry()}, nil, logger,
+		newStaticAllowlistResolver(logger, nil))
+}
+
+// A returning user is resolved by identity and the sign-in is recorded against
+// that identity (#1427).
+func TestAuthService_SignIn_RecordsTheIdentityUsed(t *testing.T) {
+	ctx := context.Background()
+	claims := &idp.Claims{Subject: "sub-1", Email: "u@example.com", Name: "U", EmailVerified: true}
+	users := &repo_mocks.MockUserRepository{}
+	identities := &repo_mocks.MockUserIdentityRepository{}
+	users.On("GetByIDPSubject", ctx, "corp-sso", "sub-1").
+		Return(&models.User{ID: "user-1", Email: "u@example.com"}, nil)
+	users.On("Update", ctx, mock.MatchedBy(func(u *models.User) bool {
+		return u.ID == "user-1" && *u.IDPProvider == "corp-sso" && *u.IDPSubject == "sub-1"
+	})).Return(nil)
+	identities.On("Upsert", ctx, "user-1", "corp-sso", "sub-1").Return(nil)
+
+	user, isNew, err := identityAuthService(t, users, identities).
+		createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC, claims)
+
+	require.NoError(t, err)
+	assert.False(t, isNew)
+	assert.Equal(t, "user-1", user.ID)
+	users.AssertExpectations(t)
+	identities.AssertExpectations(t)
+}
+
+// A user matched through the legacy Google identity gets the slug identity of
+// the provider they signed in with (#1427).
+func TestAuthService_SignIn_LegacyGoogleUserGetsSlugIdentity(t *testing.T) {
+	ctx := context.Background()
+	claims := &idp.Claims{Subject: "g-1", Email: "g@example.com", EmailVerified: true}
+	users := &repo_mocks.MockUserRepository{}
+	identities := &repo_mocks.MockUserIdentityRepository{}
+	users.On("GetByIDPSubject", ctx, "google-workspace", "g-1").Return(nil, repositories.ErrUserNotFound)
+	users.On("GetByIDPSubject", ctx, models.LegacyGoogleIdentityProvider, "g-1").
+		Return(&models.User{ID: "legacy-1", Email: "g@example.com", GoogleID: strPtr("g-1")}, nil)
+	users.On("Update", ctx, mock.Anything).Return(nil)
+	identities.On("Upsert", ctx, "legacy-1", "google-workspace", "g-1").Return(nil)
+
+	user, _, err := identityAuthService(t, users, identities).
+		createOrUpdateUserFromClaims(ctx, "google-workspace", idp.ProviderGoogle, claims)
+
+	require.NoError(t, err)
+	assert.Equal(t, "legacy-1", user.ID)
+	users.AssertExpectations(t)
+	identities.AssertExpectations(t)
+}
+
+// A new user's identity is written by UserRepository.Create in the same
+// statement as the row, so the service must not record it a second time.
+func TestAuthService_SignIn_NewUserIdentityIsWrittenByCreate(t *testing.T) {
+	ctx := context.Background()
+	claims := &idp.Claims{Subject: "sub-new", Email: "New@Example.com", Name: "N", EmailVerified: true}
+	users := &repo_mocks.MockUserRepository{}
+	identities := &repo_mocks.MockUserIdentityRepository{}
+	users.On("GetByIDPSubject", ctx, "corp-sso", "sub-new").Return(nil, repositories.ErrUserNotFound)
+	users.On("Create", ctx, mock.MatchedBy(func(u *models.User) bool {
+		return *u.IDPProvider == "corp-sso" && *u.IDPSubject == "sub-new" && u.EmailVerifiedAt != nil
+	})).Return(nil)
+
+	_, isNew, err := identityAuthService(t, users, identities).
+		createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC, claims)
+
+	require.NoError(t, err)
+	assert.True(t, isNew)
+	identities.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	users.AssertExpectations(t)
+}
+
+// A sign-in whose identity cannot be recorded fails instead of succeeding with
+// an account that has no identity row.
+func TestAuthService_SignIn_FailsWhenTheIdentityCannotBeRecorded(t *testing.T) {
+	ctx := context.Background()
+	claims := &idp.Claims{Subject: "sub-1", Email: "u@example.com"}
+	users := &repo_mocks.MockUserRepository{}
+	identities := &repo_mocks.MockUserIdentityRepository{}
+	users.On("GetByIDPSubject", ctx, "corp-sso", "sub-1").
+		Return(&models.User{ID: "user-1", Email: "u@example.com"}, nil)
+	users.On("Update", ctx, mock.Anything).Return(nil)
+	identities.On("Upsert", ctx, "user-1", "corp-sso", "sub-1").Return(repositories.ErrUserIdentityTaken)
+
+	user, _, err := identityAuthService(t, users, identities).
+		createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC, claims)
+
+	require.ErrorIs(t, err, repositories.ErrUserIdentityTaken)
+	assert.Nil(t, user)
+}
+
+// email_verified_at describes the STORED address (#1427).
+func TestEmailVerifiedAtAfterSignIn(t *testing.T) {
+	now := time.Now()
+	earlier := now.Add(-24 * time.Hour)
+
+	tests := []struct {
+		name     string
+		stored   *time.Time
+		oldEmail string
+		claims   idp.Claims
+		want     *time.Time
+	}{
+		{"first verification is stamped", nil, "u@example.com",
+			idp.Claims{Email: "u@example.com", EmailVerified: true}, &now},
+		{"an already verified address keeps its first timestamp", &earlier, "u@example.com",
+			idp.Claims{Email: "U@Example.com", EmailVerified: true}, &earlier},
+		{"an unverified sign-in does not unverify an unchanged address", &earlier, "u@example.com",
+			idp.Claims{Email: "u@example.com", EmailVerified: false}, &earlier},
+		{"an unverified sign-in leaves a never-verified address unverified", nil, "u@example.com",
+			idp.Claims{Email: "u@example.com", EmailVerified: false}, nil},
+		{"a changed, verified address restarts from this sign-in", &earlier, "old@example.com",
+			idp.Claims{Email: "new@example.com", EmailVerified: true}, &now},
+		{"a changed, unverified address is cleared", &earlier, "old@example.com",
+			idp.Claims{Email: "new@example.com", EmailVerified: false}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user := &models.User{Email: tt.oldEmail, EmailVerifiedAt: tt.stored}
+			got := emailVerifiedAtAfterSignIn(user, &tt.claims, now)
+			if tt.want == nil {
+				assert.Nil(t, got)
+				return
+			}
+			require.NotNil(t, got)
+			assert.True(t, tt.want.Equal(*got))
+		})
+	}
+}
+
+// Dev login finds an existing account whatever casing is typed, and a new dev
+// account's identity subject uses the normalized address (#1427).
+func TestAuthService_HandleDevLogin_NormalizesTheSubject(t *testing.T) {
+	ctx := context.Background()
+	users := &repo_mocks.MockUserRepository{}
+	users.On("GetByEmail", ctx, "Dev@Example.com").Return(nil, repositories.ErrUserNotFound)
+	users.On("Create", ctx, mock.MatchedBy(func(u *models.User) bool {
+		return *u.IDPProvider == devIDPProvider && *u.IDPSubject == "dev_dev@example.com" &&
+			u.Email == "dev@example.com" && u.EmailVerifiedAt == nil
+	})).Return(nil)
+
+	_, err := identityAuthService(t, users, &repo_mocks.MockUserIdentityRepository{}).
+		HandleDevLogin(ctx, "Dev@Example.com", "Dev")
+
+	require.NoError(t, err)
+	users.AssertExpectations(t)
 }

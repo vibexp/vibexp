@@ -54,11 +54,11 @@ func TestUserRepository_GetByID(t *testing.T) {
 			userID: "user-123",
 			setupMock: func() {
 				rows := sqlmock.NewRows([]string{
-					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url",
+					"id", "google_id", "idp_provider", "idp_subject", "email", "email_verified_at", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
 					"created_at", "updated_at", "version",
 				}).AddRow(
-					"user-123", "google-123", nil, nil, "user@example.com", "Test User", &avatarURL,
+					"user-123", "google-123", nil, nil, "user@example.com", nil, "Test User", &avatarURL,
 					&defaultTeamID, "active", false, nil,
 					now, now, 1,
 				)
@@ -81,11 +81,11 @@ func TestUserRepository_GetByID(t *testing.T) {
 			userID: "user-456",
 			setupMock: func() {
 				rows := sqlmock.NewRows([]string{
-					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url",
+					"id", "google_id", "idp_provider", "idp_subject", "email", "email_verified_at", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
 					"created_at", "updated_at", "version",
 				}).AddRow(
-					"user-456", "google-456", nil, nil, "minimal@example.com", "Minimal User", nil,
+					"user-456", "google-456", nil, nil, "minimal@example.com", nil, "Minimal User", nil,
 					nil, "active", false, nil,
 					now, now, 1,
 				)
@@ -168,11 +168,11 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 			email: "user@example.com",
 			setupMock: func() {
 				rows := sqlmock.NewRows([]string{
-					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url",
+					"id", "google_id", "idp_provider", "idp_subject", "email", "email_verified_at", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
 					"created_at", "updated_at", "version",
 				}).AddRow(
-					"user-123", "google-123", nil, nil, "user@example.com", "Test User", nil,
+					"user-123", "google-123", nil, nil, "user@example.com", nil, "Test User", nil,
 					nil, "active", false, nil,
 					now, now, 1,
 				)
@@ -230,8 +230,9 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 	}
 }
 
-//nolint:funlen // table-driven test with multiple test cases
-func TestUserRepository_GetByGoogleID(t *testing.T) {
+// TestUserRepository_GetByIDPSubject pins that a sign-in identity is resolved
+// through user_identities, not the users.idp_* columns (#1427).
+func TestUserRepository_GetByIDPSubject(t *testing.T) {
 	repo, mock, mockDB := setupUserTest(t)
 	defer func() {
 		if closeErr := mockDB.Close(); closeErr != nil {
@@ -241,79 +242,46 @@ func TestUserRepository_GetByGoogleID(t *testing.T) {
 
 	ctx := context.Background()
 	now := time.Now()
+	const lookup = `SELECT .+ FROM user_identities ui\s+JOIN users u ON u.id = ui.user_id\s+` +
+		`WHERE ui.provider = \$1 AND ui.subject = \$2`
 
-	tests := []struct {
-		name       string
-		googleID   string
-		setupMock  func()
-		expectErr  bool
-		validateFn func(*testing.T, *models.User)
-	}{
-		{
-			name:     "successful retrieval",
-			googleID: "google-123",
-			setupMock: func() {
-				rows := sqlmock.NewRows([]string{
-					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url",
-					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
-					"created_at", "updated_at", "version",
-				}).AddRow(
-					"user-123", "google-123", nil, nil, "user@example.com", "Test User", nil,
-					nil, "active", false, nil,
-					now, now, 1,
-				)
+	t.Run("found through the identity", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{
+			"id", "google_id", "idp_provider", "idp_subject", "email", "email_verified_at", "name", "avatar_url",
+			"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
+			"created_at", "updated_at", "version",
+		}).AddRow(
+			"user-123", nil, "corp-sso", "sub-1", "user@example.com", now, "Test User", nil,
+			nil, "active", false, nil,
+			now, now, 1,
+		)
+		mock.ExpectQuery(lookup).WithArgs("corp-sso", "sub-1").WillReturnRows(rows)
 
-				mock.ExpectQuery(`SELECT .+ FROM users WHERE google_id`).
-					WithArgs("google-123").
-					WillReturnRows(rows)
-			},
-			expectErr: false,
-			validateFn: func(t *testing.T, user *models.User) {
-				assert.Equal(t, strPtr("google-123"), user.GoogleID)
-			},
-		},
-		{
-			name:     "not found",
-			googleID: "google-notfound",
-			setupMock: func() {
-				mock.ExpectQuery(`SELECT .+ FROM users WHERE google_id`).
-					WithArgs("google-notfound").
-					WillReturnError(sql.ErrNoRows)
-			},
-			expectErr: true,
-		},
-		{
-			name:     "database error",
-			googleID: "google-error",
-			setupMock: func() {
-				mock.ExpectQuery(`SELECT .+ FROM users WHERE google_id`).
-					WithArgs("google-error").
-					WillReturnError(sql.ErrConnDone)
-			},
-			expectErr: true,
-		},
-	}
+		user, err := repo.GetByIDPSubject(ctx, "corp-sso", "sub-1")
+		require.NoError(t, err)
+		assert.Equal(t, "user-123", user.ID)
+		require.NotNil(t, user.EmailVerifiedAt)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
+	t.Run("no such identity is ErrUserNotFound", func(t *testing.T) {
+		mock.ExpectQuery(lookup).WithArgs(models.LegacyGoogleIdentityProvider, "google-404").
+			WillReturnError(sql.ErrNoRows)
 
-			result, err := repo.GetByGoogleID(ctx, tt.googleID)
+		user, err := repo.GetByIDPSubject(ctx, models.LegacyGoogleIdentityProvider, "google-404")
+		require.ErrorIs(t, err, repositories.ErrUserNotFound)
+		assert.Nil(t, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 
-			if tt.expectErr {
-				assert.Error(t, err)
-				assert.Nil(t, result)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-				if tt.validateFn != nil {
-					tt.validateFn(t, result)
-				}
-			}
+	t.Run("a database error is not a miss", func(t *testing.T) {
+		mock.ExpectQuery(lookup).WithArgs("corp-sso", "sub-err").WillReturnError(sql.ErrConnDone)
 
-			assert.NoError(t, mock.ExpectationsWereMet())
-		})
-	}
+		_, err := repo.GetByIDPSubject(ctx, "corp-sso", "sub-err")
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, repositories.ErrUserNotFound)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 //nolint:funlen // table-driven test with multiple test cases
@@ -357,10 +325,12 @@ func TestUserRepository_Create(t *testing.T) {
 						sqlmock.AnyArg(), // idp_provider
 						sqlmock.AnyArg(), // idp_subject
 						"new@example.com",
+						sqlmock.AnyArg(), // email_verified_at
 						"New User",
 						&avatarURL,
 						sqlmock.AnyArg(),
 						sqlmock.AnyArg(),
+						models.LegacyGoogleIdentityProvider,
 					).
 					WillReturnRows(rows)
 			},
@@ -378,6 +348,8 @@ func TestUserRepository_Create(t *testing.T) {
 			setupMock: func() {
 				mock.ExpectQuery(`INSERT INTO users`).
 					WithArgs(
+						sqlmock.AnyArg(),
+						sqlmock.AnyArg(),
 						sqlmock.AnyArg(),
 						sqlmock.AnyArg(),
 						sqlmock.AnyArg(),
@@ -456,6 +428,7 @@ func TestUserRepository_Update(t *testing.T) {
 						sqlmock.AnyArg(), // idp_subject
 						sqlmock.AnyArg(), // updated_at
 						int64(1),         // version
+						sqlmock.AnyArg(), // email_verified_at
 					).
 					WillReturnRows(rows)
 			},
@@ -482,6 +455,7 @@ func TestUserRepository_Update(t *testing.T) {
 						sqlmock.AnyArg(),
 						sqlmock.AnyArg(),
 						int64(1),
+						sqlmock.AnyArg(),
 					).
 					WillReturnError(sql.ErrNoRows)
 			},
@@ -508,6 +482,7 @@ func TestUserRepository_Update(t *testing.T) {
 						sqlmock.AnyArg(),
 						sqlmock.AnyArg(),
 						int64(1),
+						sqlmock.AnyArg(),
 					).
 					WillReturnError(sql.ErrConnDone)
 			},
@@ -770,4 +745,76 @@ func TestUserRepository_DeleteByID(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestUserRepository_Create_IdentityConflictIsNotATakenEmail: Create also
+// writes user_identities, so a unique violation there must not be reported as a
+// duplicate email (#1427).
+func TestUserRepository_Create_IdentityConflictIsNotATakenEmail(t *testing.T) {
+	repo, mock, mockDB := setupUserTest(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`INSERT INTO users`).
+		WillReturnError(&pq.Error{Code: "23505", Constraint: "user_identities_provider_subject_key"})
+
+	err := repo.Create(context.Background(), &models.User{
+		Email: "a@example.com", Name: "A", IDPProvider: strPtr("corp-sso"), IDPSubject: strPtr("sub-1"),
+	})
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, repositories.ErrUserEmailTaken)
+}
+
+// TestUserRepository_NormalizesEmail pins that every email the repository
+// reads by or writes is the normalized form, whatever casing the caller passes
+// (#1427), and that the model is updated to what was stored.
+func TestUserRepository_NormalizesEmail(t *testing.T) {
+	repo, mock, mockDB := setupUserTest(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	}()
+	ctx := context.Background()
+	now := time.Now()
+
+	t.Run("GetByEmail", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT .+ FROM users WHERE email = \$1`).
+			WithArgs("alice@example.com").WillReturnError(sql.ErrNoRows)
+
+		_, err := repo.GetByEmail(ctx, "  Alice@Example.COM ")
+		require.ErrorIs(t, err, repositories.ErrUserNotFound)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		mock.ExpectQuery(`INSERT INTO users`).
+			WithArgs(nil, nil, nil, "alice@example.com", nil, "Alice", nil, now, now,
+				models.LegacyGoogleIdentityProvider).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "default_team_id", "onboarding_completed", "onboarding_completed_at", "created_at", "updated_at",
+			}).AddRow("user-1", nil, false, nil, now, now))
+
+		user := &models.User{Email: "Alice@Example.COM", Name: "Alice", CreatedAt: now, UpdatedAt: now}
+		require.NoError(t, repo.Create(ctx, user))
+		assert.Equal(t, "alice@example.com", user.Email)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Update", func(t *testing.T) {
+		mock.ExpectQuery(`UPDATE users SET`).
+			WithArgs("user-1", "alice@example.com", "Alice", nil, nil, nil, sqlmock.AnyArg(), int64(1), &now).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"id", "default_team_id", "onboarding_completed", "onboarding_completed_at",
+				"created_at", "updated_at", "version",
+			}).AddRow("user-1", nil, false, nil, now, now, 2))
+
+		user := &models.User{ID: "user-1", Email: "Alice@Example.COM", Name: "Alice", Version: 1, EmailVerifiedAt: &now}
+		require.NoError(t, repo.Update(ctx, user))
+		assert.Equal(t, "alice@example.com", user.Email)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
+	"github.com/vibexp/vibexp/internal/models"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
@@ -76,7 +77,7 @@ func (a *adminStrictServer) CreateAdminUser(
 // below are kept as defence in depth: they cost nothing and still hold if the
 // spec ever drops the format.
 func validateAdminUserCreate(body admingen.AdminUserCreateRequest) (email, name string, err error) {
-	email = strings.ToLower(strings.TrimSpace(string(body.Email)))
+	email = models.NormalizeEmail(string(body.Email))
 	name = strings.TrimSpace(body.Name)
 
 	if email == "" {

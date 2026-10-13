@@ -121,14 +121,16 @@ func (r *TeamInvitationRepository) GetByTeamID(ctx context.Context, teamID strin
 	return invitations, nil
 }
 
-// GetPendingByEmail retrieves pending invitations for an email address
+// GetPendingByEmail retrieves pending invitations for an email address. The
+// match is case-insensitive: invitee_email keeps the casing the inviter typed,
+// while users.email is always lower case (#1427).
 func (r *TeamInvitationRepository) GetPendingByEmail(
 	ctx context.Context, email string,
 ) ([]models.TeamInvitation, error) {
 	query := `
 		SELECT id, team_id, inviter_id, invitee_email, role, token, status, expires_at, created_at, updated_at
 		FROM team_invitations
-		WHERE invitee_email = $1 AND status = $2 AND expires_at > NOW()
+		WHERE lower(invitee_email) = lower($1) AND status = $2 AND expires_at > NOW()
 		ORDER BY created_at DESC
 	`
 

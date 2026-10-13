@@ -591,9 +591,8 @@ func (s *InstanceAuthSettingsService) GrantAdmin(
 	return nil, &ErrInstanceAdminNotGranted{UserID: user.ID}
 }
 
-// grantTargetUser resolves the user a grant names. An email is looked up
-// exactly as given (trimmed) and, failing that, lower-cased; the lookup is
-// exact, so a user stored in any other casing is only found by user id. An
+// grantTargetUser resolves the user a grant names, by id or by email. The email
+// lookup is case-insensitive (UserRepository.GetByEmail normalizes it). An
 // unknown user is ErrInstanceAdminTargetInvalid.
 func (s *InstanceAuthSettingsService) grantTargetUser(
 	ctx context.Context, target models.InstanceAdminGrantTarget,
@@ -604,16 +603,9 @@ func (s *InstanceAuthSettingsService) grantTargetUser(
 		})
 	}
 	email := strings.TrimSpace(target.Email)
-	user, err := s.lookupGrantTarget(email, func() (*models.User, error) {
+	return s.lookupGrantTarget(email, func() (*models.User, error) {
 		return s.deps.Users.GetByEmail(ctx, email)
 	})
-	var unknown *ErrInstanceAdminTargetInvalid
-	if lower := strings.ToLower(email); errors.As(err, &unknown) && lower != email {
-		return s.lookupGrantTarget(email, func() (*models.User, error) {
-			return s.deps.Users.GetByEmail(ctx, lower)
-		})
-	}
-	return user, err
 }
 
 func (s *InstanceAuthSettingsService) lookupGrantTarget(

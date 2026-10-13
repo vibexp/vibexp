@@ -23,12 +23,13 @@ import (
 // ProvideAuthService creates a new AuthService
 func ProvideAuthService(
 	userRepo repositories.UserRepository,
+	identityRepo repositories.UserIdentityRepository,
 	resolver services.IdentityProviderResolver,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 	allowlist services.AccessAllowlistResolver,
 ) services.AuthServiceInterface {
-	return services.NewAuthService(userRepo, resolver, eventManager, logger, allowlist)
+	return services.NewAuthService(userRepo, identityRepo, resolver, eventManager, logger, allowlist)
 }
 
 // ProvideAPIKeyService creates a new APIKeyService
