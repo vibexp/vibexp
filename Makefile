@@ -31,12 +31,21 @@ ACTIONLINT_VERSION := v1.7.7
 
 # Per-package timeout shared by the untagged Go test targets (#1280) — the local
 # `backend-test` / `backend-test-coverage` and CI's `backend-test-unit-coverage`.
-# `go test -timeout` applies to each package binary, and internal/server runs
-# ~70s under `-race`, so the old local 60s limit timed out on untouched code
-# while CI (120s) stayed green. One definition keeps the two from drifting
-# apart again. The integration-tagged targets keep their own longer limits,
-# which are sized for the migration bootstrap.
-BACKEND_UNIT_TEST_TIMEOUT := 120s
+# `go test -timeout` applies to each package binary. One definition keeps the
+# local and CI limits from drifting apart, which is what #1280 fixed.
+#
+# The limit exists to stop a HUNG test, not to police how long the suite takes,
+# so it is sized well above the slowest package (#1458). That package is
+# internal/server: about 90s under `-race` in CI (58-93s across runs), because
+# most of its ~2,000 tests build a server and with it the whole dependency
+# container. At the previous 120s a slow runner or one expensive constructor
+# failed the unit job with "panic: test timed out after 2m0s", naming whichever
+# unrelated test was running at the time. When it fires now, look for a test
+# that never returns; if the package has simply grown past ~150s, make it
+# cheaper (tests that only need routing do not need the container) rather than
+# raising this again. The integration-tagged targets keep their own longer
+# limits, which are sized for the migration bootstrap.
+BACKEND_UNIT_TEST_TIMEOUT := 300s
 
 # ============================================
 # GitHub Actions Workflows
