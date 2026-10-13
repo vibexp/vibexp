@@ -160,7 +160,7 @@ function syncScrollFocus(container: HTMLElement): void {
 }
 
 const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
-  const elementRef = useRef<HTMLDivElement>(null)
+  const elementRef = useRef<HTMLElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   // Bumped when the colour tokens change under a rendered diagram (a theme
@@ -311,10 +311,9 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
         </div>
       )}
 
-      <div
+      <section
         ref={elementRef}
         className="mermaid-container scrollbar-hover"
-        role="region"
         aria-label="Diagram"
       />
     </>

@@ -233,34 +233,28 @@ export function CommandPalette() {
   )
 }
 
+/**
+ * The palette's one-line states. `<output>` is a status region by itself
+ * (announced politely), and is inline by default, hence `block`.
+ */
+const PALETTE_STATUS_CLASS = 'text-muted-foreground block px-4 py-3 text-sm'
+
 function PaletteResults({
   search,
   onOpen,
 }: Readonly<{ search: SearchState; onOpen: (to: string) => void }>) {
   if (search.status === 'idle' || search.status === 'loading') {
-    return (
-      <p
-        className="text-muted-foreground px-4 py-3 text-sm"
-        role="status"
-        aria-live="polite"
-      >
-        Searching…
-      </p>
-    )
+    return <output className={PALETTE_STATUS_CLASS}>Searching…</output>
   }
   if (search.status === 'error') {
     return (
-      <p className="text-muted-foreground px-4 py-3 text-sm" role="status">
+      <output className={PALETTE_STATUS_CLASS}>
         Search is unavailable right now.
-      </p>
+      </output>
     )
   }
   if (search.groups.length === 0) {
-    return (
-      <p className="text-muted-foreground px-4 py-3 text-sm" role="status">
-        No matches.
-      </p>
-    )
+    return <output className={PALETTE_STATUS_CLASS}>No matches.</output>
   }
   return (
     <>
