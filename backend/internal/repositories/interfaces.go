@@ -522,6 +522,23 @@ type UserIdentityRepository interface {
 	ListByUserID(ctx context.Context, userID string) ([]models.UserIdentity, error)
 }
 
+// APIAccessRepository revokes everything a user's non-browser access rests on
+// (#1449). It is one operation on purpose: revoking only part of it leaves a
+// way in.
+type APIAccessRepository interface {
+	// RevokeAll, atomically:
+	//   - sets the user's bearer-token cut-off (users.api_tokens_valid_after) to
+	//     now, so access tokens already issued stop authenticating;
+	//   - deletes the user's API keys;
+	//   - deletes the user's stored OAuth rows (access tokens, refresh tokens,
+	//     authorization codes, PKCE sessions) and pending OAuth login sessions.
+	//
+	// It is safe to repeat: each call means "everything up to now". Returns
+	// ErrUserNotFound when the user does not exist. Cookie sessions are not
+	// affected; that is UserRepository.BumpSessionEpoch.
+	RevokeAll(ctx context.Context, userID string) (*models.APIAccessRevocation, error)
+}
+
 // TeamRepository defines the interface for team data access operations
 type TeamRepository interface {
 	Create(ctx context.Context, team *models.Team) error

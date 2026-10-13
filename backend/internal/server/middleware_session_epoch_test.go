@@ -211,7 +211,7 @@ func TestSessionEpoch_DoesNotApplyToOtherAuthTypes(t *testing.T) {
 
 	for _, authType := range []string{"api_key", "oauth"} {
 		t.Run(authType, func(t *testing.T) {
-			ctx, err := f.srv.authenticateUser(context.Background(), epochUserID, authType, nil, nil)
+			ctx, err := f.srv.authenticateUser(context.Background(), epochUserID, authType, nil, nil, time.Time{})
 
 			require.NoError(t, err)
 			assert.Equal(t, epochUserID, ctx.Value(contextkeys.UserID))
@@ -227,7 +227,7 @@ func TestSessionEpoch_DoesNotApplyToOtherAuthTypes(t *testing.T) {
 func TestAuthenticateUser_CookieWithoutSessionIsRefused(t *testing.T) {
 	f := newEpochFixture(t, 0)
 
-	ctx, err := f.srv.authenticateUser(context.Background(), epochUserID, authTypeCookie, nil, nil)
+	ctx, err := f.srv.authenticateUser(context.Background(), epochUserID, authTypeCookie, nil, nil, time.Time{})
 
 	require.ErrorIs(t, err, errSessionMissing)
 	assert.Nil(t, ctx)
@@ -489,7 +489,7 @@ func TestRevokeOtherSessions(t *testing.T) {
 	t.Run("a request authenticated by an API key does not revive the cookie it carries", func(t *testing.T) {
 		f := newEpochFixture(t, 0)
 		expectBump(f)
-		ctx, err := f.srv.authenticateUser(context.Background(), epochUserID, "api_key", nil, nil)
+		ctx, err := f.srv.authenticateUser(context.Background(), epochUserID, "api_key", nil, nil, time.Time{})
 		require.NoError(t, err)
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/anything", nil).WithContext(ctx)
 		req.AddCookie(f.cookieFor(t, slidingSession(0, time.Hour)))

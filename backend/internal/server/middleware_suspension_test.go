@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -92,7 +93,7 @@ func TestAuthenticateUser_StatusGate(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := tc.server(t)
-			ctx, err := srv.authenticateUser(context.Background(), suspensionTestUserID, "cookie", nil, &sesslib.Session{})
+			ctx, err := srv.authenticateUser(context.Background(), suspensionTestUserID, "cookie", nil, &sesslib.Session{}, time.Time{})
 
 			switch {
 			case tc.wantErr != nil:
@@ -124,7 +125,7 @@ func TestAuthenticateUser_NilRepositoryFailsClosed(t *testing.T) {
 	// container that genuinely has none.
 	srv.container = containerWithUsers{BaseMockContainer: &BaseMockContainer{}, users: nil}
 
-	ctx, err := srv.authenticateUser(context.Background(), suspensionTestUserID, "cookie", nil, &sesslib.Session{})
+	ctx, err := srv.authenticateUser(context.Background(), suspensionTestUserID, "cookie", nil, &sesslib.Session{}, time.Time{})
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, errUserSuspended, "an infrastructure failure is not a suspension")
 	assert.Nil(t, ctx)
@@ -174,19 +175,19 @@ func TestSuspension_RoundTrip(t *testing.T) {
 	srv := &Server{container: containerWithUsers{BaseMockContainer: &BaseMockContainer{}, users: users}}
 
 	// Active → authenticates.
-	ctx, err := srv.authenticateUser(context.Background(), suspensionTestUserID, "api_key", nil, nil)
+	ctx, err := srv.authenticateUser(context.Background(), suspensionTestUserID, "api_key", nil, nil, time.Time{})
 	require.NoError(t, err)
 	require.NotNil(t, ctx)
 
 	// Suspended → the very same credential is refused, immediately.
 	status = models.UserStatusSuspended
-	ctx, err = srv.authenticateUser(context.Background(), suspensionTestUserID, "api_key", nil, nil)
+	ctx, err = srv.authenticateUser(context.Background(), suspensionTestUserID, "api_key", nil, nil, time.Time{})
 	require.ErrorIs(t, err, errUserSuspended)
 	require.Nil(t, ctx)
 
 	// Reactivated → access restored, no other state involved.
 	status = models.UserStatusActive
-	ctx, err = srv.authenticateUser(context.Background(), suspensionTestUserID, "api_key", nil, nil)
+	ctx, err = srv.authenticateUser(context.Background(), suspensionTestUserID, "api_key", nil, nil, time.Time{})
 	require.NoError(t, err)
 	require.NotNil(t, ctx)
 	assert.Equal(t, suspensionTestUserID, ctx.Value(contextkeys.UserID))

@@ -36,6 +36,7 @@ var ProviderSet = wire.NewSet(
 	// Repositories
 	providers.ProvideUserRepository,
 	providers.ProvideUserIdentityRepository,
+	providers.ProvideAPIAccessRepository,
 	providers.ProvideAPIKeyRepository,
 	providers.ProvidePromptRepository,
 	providers.ProvidePromptReferenceRepository,
@@ -121,6 +122,7 @@ var ProviderSet = wire.NewSet(
 
 	// Services
 	providers.ProvideAuthService,
+	providers.ProvideAPIAccessService,
 	providers.ProvideAPIKeyService,
 	providers.ProvidePromptService,
 	providers.ProvidePromptGalleryService,

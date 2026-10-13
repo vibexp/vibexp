@@ -372,3 +372,25 @@ func TestVerify_ExpiryLeeway(t *testing.T) {
 		assert.True(t, errors.Is(err, mcpauth.ErrInvalidToken))
 	})
 }
+
+// The MCP SDK's TokenInfo has no issued-at field, so the verifier carries it in
+// Extra and IssuedAt reads it back (#1449).
+func TestVerify_CarriesIssuedAt(t *testing.T) {
+	j := newJWKSTestServer(t)
+	v := newTestVerifier(t, j, stubResolver{id: testInternalID})
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	issued := time.Now().Add(-5 * time.Minute).Truncate(time.Second)
+	claims := validClaims(j.issuer())
+	claims["iat"] = issued.Unix()
+	info, err := v.Verify(context.Background(), j.sign(t, claims), req)
+	require.NoError(t, err)
+	assert.True(t, issued.Equal(IssuedAt(info)))
+
+	info, err = v.Verify(context.Background(), j.sign(t, validClaims(j.issuer())), req)
+	require.NoError(t, err)
+	assert.True(t, IssuedAt(info).IsZero(), "no iat claim reads as the zero time")
+
+	assert.True(t, IssuedAt(nil).IsZero())
+	assert.True(t, IssuedAt(&mcpauth.TokenInfo{}).IsZero(), "a token info from another verifier has no iat")
+}

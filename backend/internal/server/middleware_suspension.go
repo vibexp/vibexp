@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/contextkeys"
@@ -75,6 +76,13 @@ var errUserNotOnAllowlist = errors.New("user is not on the access allowlist")
 // the cookie and answer 401; optional-auth paths proceed anonymously.
 var errSessionRevoked = errors.New("session was revoked")
 
+// errTokenRevoked is returned by authenticateUser when a bearer access token was
+// issued before the user's API access was last revoked (#1449). Such a token is
+// a signed JWT that would verify until its own expiry; the user's
+// api_tokens_valid_after cut-off is what ends it early. Required-auth paths
+// answer 401; optional-auth paths proceed anonymously.
+var errTokenRevoked = errors.New("access token was revoked")
+
 // errSessionMissing is returned by authenticateUser when a cookie
 // authentication reaches it without the session. It is a programming error,
 // reported as an infrastructure failure so the request is refused: a cookie
@@ -88,6 +96,18 @@ const sessionRevokedAuthDetail = "Session expired"
 
 // rejectReasonSessionRevoked is the logged reason of an epoch rejection.
 const rejectReasonSessionRevoked = "session_revoked"
+
+// tokenRevokedAuthDetail is the client-facing message for a revoked access
+// token: the wording an expired or malformed token already gets, so a client
+// re-authorizes the same way.
+const tokenRevokedAuthDetail = "Invalid token"
+
+// rejectReasonTokenRevoked is the logged reason of a cut-off rejection.
+const rejectReasonTokenRevoked = "token_revoked"
+
+// authTypeOAuth is the auth type of a request authenticated by a bearer access
+// token (the MCP endpoint and the /api/v1 bearer path).
+const authTypeOAuth = "oauth"
 
 // suspendedAuthDetail is the client-facing message for a rejected suspended
 // account. It is deliberately explicit rather than a generic auth failure: the
@@ -106,16 +126,22 @@ const rejectReasonNotOnAllowlist = "not_on_allowlist"
 
 // authenticateUser is the ONLY way to build an authenticated request context.
 // It rejects suspended accounts, accounts the access allowlist no longer
-// admits, and revoked cookie sessions, before delegating to
-// authenticatedContext.
+// admits, revoked cookie sessions and revoked bearer tokens, before delegating
+// to authenticatedContext.
 //
 // sess is the decrypted session of a cookie authentication and nil for every
 // other auth type. A cookie authentication must pass it: without it the epoch
 // could not be checked, so that is refused rather than waved through.
 //
+// tokenIssuedAt is the iat of a bearer access token (authTypeOAuth) and the
+// zero time for every other auth type. Once the user has a bearer-token
+// cut-off, a token issued before it is refused, and so is one whose issue time
+// is unknown: a token that cannot be placed after the revocation is not trusted
+// to be.
+//
 // Errors are of two kinds and callers must distinguish them:
-//   - errUserSuspended / errUserNotOnAllowlist / errSessionRevoked — the
-//     credential may not authenticate. Required-auth paths reject; the
+//   - errUserSuspended / errUserNotOnAllowlist / errSessionRevoked /
+//     errTokenRevoked — the credential may not authenticate. Required-auth paths reject; the
 //     optional-auth paths proceed anonymously.
 //   - anything else — an infrastructure failure looking the account up, or
 //     evaluating an allowlist that is known to be active. This must NOT be
@@ -124,7 +150,7 @@ const rejectReasonNotOnAllowlist = "not_on_allowlist"
 //     return 500; optional-auth paths proceed anonymously (they already do that
 //     for every other failure, and they grant no access on their own).
 func (s *Server) authenticateUser(
-	ctx context.Context, userID, authType string, extra []any, sess *sesslib.Session,
+	ctx context.Context, userID, authType string, extra []any, sess *sesslib.Session, tokenIssuedAt time.Time,
 ) (context.Context, error) {
 	if authType == authTypeCookie && sess == nil {
 		return nil, fmt.Errorf("%w for user %q", errSessionMissing, userID)
@@ -136,7 +162,24 @@ func (s *Server) authenticateUser(
 	if sess != nil && sess.Epoch != user.SessionEpoch {
 		return nil, errSessionRevoked
 	}
+	if authType == authTypeOAuth && tokenRevoked(user, tokenIssuedAt) {
+		return nil, errTokenRevoked
+	}
 	return authenticatedContext(ctx, userID, authType, extra, sess), nil
+}
+
+// tokenRevoked reports whether a bearer token issued at issuedAt predates the
+// user's cut-off. With no cut-off nothing is revoked. With one, an unknown issue
+// time (the zero time) counts as revoked.
+//
+// iat has one-second resolution and the cut-off does not, so a token issued in
+// the same second as the revocation, even just after it, is refused once and
+// the client re-authorizes. That errs on the side the revocation exists for.
+func tokenRevoked(user *models.User, issuedAt time.Time) bool {
+	if user.APITokensValidAfter == nil {
+		return false
+	}
+	return issuedAt.IsZero() || issuedAt.Before(*user.APITokensValidAfter)
 }
 
 // rejectIfSuspended returns the account when it may authenticate,
@@ -221,6 +264,11 @@ func (s *Server) logSuspendedRejection(ctx context.Context, middleware, authType
 			Info("Rejected request on a revoked session")
 		return
 	}
+	if errors.Is(err, errTokenRevoked) {
+		logger.With("reason", rejectReasonTokenRevoked).
+			Info("Rejected request with a revoked access token")
+		return
+	}
 	logger.With("error", fmt.Sprintf("%+v", err)).
 		Error("Account status check failed; refusing to authenticate")
 }
@@ -247,6 +295,10 @@ func (s *Server) writeSuspensionAuthError(w http.ResponseWriter, r *http.Request
 			s.sessionManager.Clear(w)
 		}
 		apierrors.WriteJSONError(w, r, apierrors.NewAuthInvalidError(sessionRevokedAuthDetail))
+		return
+	}
+	if errors.Is(err, errTokenRevoked) {
+		apierrors.WriteJSONError(w, r, apierrors.NewAuthInvalidError(tokenRevokedAuthDetail))
 		return
 	}
 	apierrors.WriteJSONError(w, r, apierrors.NewInternalError(""))

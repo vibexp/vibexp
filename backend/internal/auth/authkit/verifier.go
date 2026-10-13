@@ -143,6 +143,7 @@ type claims struct {
 	Audience  jwt.ClaimStrings `json:"aud"`
 	ExpiresAt int64            `json:"exp"`
 	NotBefore int64            `json:"nbf"`
+	IssuedAt  int64            `json:"iat"`
 	Scope     string           `json:"scope"`
 }
 
@@ -153,6 +154,10 @@ type TokenInfo struct {
 	Subject    string
 	Scopes     []string
 	Expiration time.Time
+	// IssuedAt is the token's iat claim, and the zero time when the token
+	// carries none. A caller that revokes tokens by issue time must treat the
+	// zero time as "cannot tell", not as "old enough".
+	IssuedAt time.Time
 }
 
 // Verifier validates AuthKit-issued access tokens for a single issuer and
@@ -357,12 +362,16 @@ func (v *Verifier) Verify(ctx context.Context, token string) (*TokenInfo, error)
 		return nil, err
 	}
 
-	return &TokenInfo{
+	info := &TokenInfo{
 		UserID:     userID,
 		Subject:    c.Subject,
 		Scopes:     strings.Fields(c.Scope),
 		Expiration: time.Unix(c.ExpiresAt, 0),
-	}, nil
+	}
+	if c.IssuedAt > 0 {
+		info.IssuedAt = time.Unix(c.IssuedAt, 0)
+	}
+	return info, nil
 }
 
 func (v *Verifier) validateClaims(c *claims) error {

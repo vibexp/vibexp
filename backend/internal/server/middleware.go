@@ -226,7 +226,7 @@ func (s *Server) authenticateWithAPIKey(w http.ResponseWriter, r *http.Request, 
 
 	// Set user context from API key
 	ctx := context.WithValue(r.Context(), contextkeys.APIKeyID, apiKey.ID)
-	ctx, err = s.authenticateUser(ctx, apiKey.UserID, "api_key", []any{"api_key_id", apiKey.ID}, nil)
+	ctx, err = s.authenticateUser(ctx, apiKey.UserID, "api_key", []any{"api_key_id", apiKey.ID}, nil, time.Time{})
 	if err != nil {
 		s.logSuspendedRejection(r.Context(), "authenticateWithAPIKey", "api_key", apiKey.UserID, err)
 		s.writeSuspensionAuthError(w, r, err)
@@ -270,7 +270,7 @@ func (s *Server) authenticateWithOAuthJWT(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ctx, err := s.authenticateUser(r.Context(), info.UserID, "oauth", nil, nil)
+	ctx, err := s.authenticateUser(r.Context(), info.UserID, authTypeOAuth, nil, nil, info.IssuedAt)
 	if err != nil {
 		s.logSuspendedRejection(r.Context(), "authenticateWithOAuthJWT", "oauth", info.UserID, err)
 		s.writeSuspensionAuthError(w, r, err)
@@ -334,7 +334,7 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 	// revoked, and most providers accept a refresh token once, so a revoked copy
 	// that refreshed first would sign the survivor out. Nothing the check reads
 	// (the user id and the epoch) is changed by a refresh.
-	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil, sess)
+	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil, sess, time.Time{})
 	if err != nil {
 		s.logSuspendedRejection(r.Context(), "authenticateWithSession", authTypeCookie, sess.UserID, err)
 		s.writeSuspensionAuthError(w, r, err)
@@ -506,7 +506,7 @@ func (s *Server) optionalAPIKeyContext(r *http.Request, token string) (context.C
 		return nil, false
 	}
 	ctx := context.WithValue(r.Context(), contextkeys.APIKeyID, apiKey.ID)
-	ctx, err = s.authenticateUser(ctx, apiKey.UserID, "api_key", []any{"api_key_id", apiKey.ID}, nil)
+	ctx, err = s.authenticateUser(ctx, apiKey.UserID, "api_key", []any{"api_key_id", apiKey.ID}, nil, time.Time{})
 	if err != nil {
 		// Suspended (or unverifiable) accounts proceed ANONYMOUS here, which is
 		// what makes instanceAdminMiddleware 404 a suspended admin off the admin
@@ -527,7 +527,7 @@ func (s *Server) optionalSessionContext(r *http.Request) (context.Context, bool)
 	if err != nil || sess.IsExpired() {
 		return nil, false
 	}
-	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil, sess)
+	ctx, err := s.authenticateUser(r.Context(), sess.UserID, authTypeCookie, nil, sess, time.Time{})
 	if err != nil {
 		s.logSuspendedRejection(r.Context(), "optionalAuthMiddleware", authTypeCookie, sess.UserID, err)
 		return nil, false
@@ -543,7 +543,7 @@ func (s *Server) optionalSessionContext(r *http.Request) (context.Context, bool)
 func (s *Server) optionalOAuthJWTContext(r *http.Request, token string) (context.Context, bool) {
 	info, err := s.apiTokenVerifier.Verify(r.Context(), token)
 	if err == nil {
-		ctx, authErr := s.authenticateUser(r.Context(), info.UserID, "oauth", nil, nil)
+		ctx, authErr := s.authenticateUser(r.Context(), info.UserID, authTypeOAuth, nil, nil, info.IssuedAt)
 		if authErr != nil {
 			s.logSuspendedRejection(r.Context(), "optionalAuthMiddleware", "oauth", info.UserID, authErr)
 			return nil, false

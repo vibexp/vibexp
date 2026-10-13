@@ -303,7 +303,9 @@ func (s *Server) mcpTokenContextMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx, err := s.authenticateUser(r.Context(), tokenInfo.UserID, "oauth", nil, nil)
+		ctx, err := s.authenticateUser(
+			r.Context(), tokenInfo.UserID, authTypeOAuth, nil, nil, mcptoken.IssuedAt(tokenInfo),
+		)
 		if err != nil {
 			s.logSuspendedRejection(r.Context(), "mcpTokenContextMiddleware", "oauth", tokenInfo.UserID, err)
 			s.writeSuspensionAuthError(w, r, err)
