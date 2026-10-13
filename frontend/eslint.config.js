@@ -235,6 +235,18 @@ export default tseslint.config(
       'prefer-rest-params': 'off',
     },
   },
+  // 3c-2. jest-dom type bridge for Vitest 5. A module augmentation must repeat
+  // the augmented interface's type-parameter list exactly (TS2428), so the
+  // bridge has to declare Vitest's `T` although jest-dom's matchers never use
+  // it, and it adds its members purely through `extends`. Both rules are right
+  // everywhere else; this is the one file where the shape is dictated upstream.
+  {
+    files: ['src/jest-dom-vitest.d.ts'],
+    rules: {
+      '@typescript-eslint/no-empty-object-type': 'off',
+      'unused-imports/no-unused-vars': 'off',
+    },
+  },
   // 3d. Defensive null-coalescing flagged after the TypeScript 5.8 -> 6 bump
   // (typescript-eslint runs on the TS 6 API; TS 7 has no JS API). TS 6's
   // stricter nullability inference now types some defensively-guarded DOM /
