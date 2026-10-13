@@ -47,8 +47,10 @@ export function createSlugger(): (text: string) => string {
     let candidate = base
     // Keep counting until the anchor is free: a generated `example-2` can
     // collide with a heading literally titled "Example 2".
-    for (let n = 2; used.has(candidate); n += 1) {
-      candidate = `${base}-${String(n)}`
+    let suffix = 2
+    while (used.has(candidate)) {
+      candidate = `${base}-${String(suffix)}`
+      suffix += 1
     }
     used.add(candidate)
     return candidate

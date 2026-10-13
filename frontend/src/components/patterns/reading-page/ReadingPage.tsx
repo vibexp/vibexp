@@ -150,15 +150,7 @@ export function ReadingPage({
   useReadingShell({ details: hasDetails, wideRail: reading })
   useBreadcrumbLeaf(breadcrumb)
 
-  const {
-    isTablet,
-    isDesktop,
-    detailsInline,
-    detailsOpen,
-    setDetailsOpen,
-    detailsSheetOpen,
-    setDetailsSheetOpen,
-  } = useShell()
+  const { isTablet, isDesktop, detailsInline } = useShell()
 
   // The body hands its Rendered / Raw state up so the toolbar can draw the
   // switch (see `readingChrome`).
@@ -203,39 +195,25 @@ export function ReadingPage({
           )}
         >
           {reading ? (
-            <>
-              <ReadingTitleBar
-                title={title}
-                titleSubdued={titleSubdued}
-                meta={meta}
-                actions={actions}
-                bodyView={bodyView}
-                compact={!isTablet}
-                trailing={
-                  <ToolbarExtras
-                    showContents={showContentsButton}
-                    onOpenContents={() => {
-                      setContentsOpen(true)
-                    }}
-                    // Hiding two side panels means nothing where there are
-                    // none: focus mode is offered from `lg`, where the
-                    // navigation is a column.
-                    showFocus={isDesktop}
-                    focusMode={focusMode}
-                    onToggleFocus={toggleFocusMode}
-                  />
-                }
-              />
-              {description && (
-                // A lead paragraph is prose: capped at a prose measure even in
-                // the wide column, so a long summary does not run 150
-                // characters per line at 14px.
-                <div className="text-muted-foreground mt-2 max-w-3xl text-sm">
-                  {description}
-                </div>
-              )}
-              <div className="h-8" aria-hidden="true" />
-            </>
+            <ReadingHead
+              title={title}
+              titleSubdued={titleSubdued}
+              meta={meta}
+              description={description}
+              actions={actions}
+              bodyView={bodyView}
+              compact={!isTablet}
+              showContents={showContentsButton}
+              onOpenContents={() => {
+                setContentsOpen(true)
+              }}
+              // Hiding two side panels means nothing where there are none:
+              // focus mode is offered from `lg`, where the navigation is a
+              // column.
+              showFocus={isDesktop}
+              focusMode={focusMode}
+              onToggleFocus={toggleFocusMode}
+            />
           ) : (
             <PlainHeader
               title={title}
@@ -252,67 +230,192 @@ export function ReadingPage({
         </article>
       </div>
 
-      {railRendered && (
-        <ReadingRail
-          presentation={presentation}
-          open={detailsOpen}
-          onOpen={() => {
-            setDetailsOpen(true)
-          }}
-          actions={reading ? [] : actions}
-          sections={visibleSections}
-          lead={
-            outline.entries.length > 0 ? (
-              <ReadingOutline outline={outline} />
-            ) : undefined
-          }
-        />
-      )}
-
-      {hasDetails && !detailsInline && (
-        <DetailsSheet
-          open={detailsSheetOpen}
-          onOpenChange={setDetailsSheetOpen}
-          side={isTablet ? 'right' : 'bottom'}
-          presentation={presentation}
-          title={title}
-        >
-          <DetailsColumn
-            actions={reading ? [] : actions}
-            sections={visibleSections}
-            // Never twice: the grid exists for the widths the chip row does
-            // not cover, and while editing that row reaches up to `lg`.
-            showActions={isTablet && !actionsAsChips}
-          />
-        </DetailsSheet>
-      )}
+      <ReadingDetails
+        presentation={presentation}
+        title={title}
+        // A reading page's actions are in its toolbar, not in the panel.
+        actions={reading ? [] : actions}
+        sections={visibleSections}
+        outline={outline}
+        asRail={railRendered}
+        asSheet={hasDetails && !detailsInline}
+        actionsAsChips={actionsAsChips}
+      />
 
       {reading && (
-        <Sheet open={contentsOpen} onOpenChange={setContentsOpen}>
-          <SheetContent
-            side={isTablet ? 'right' : 'bottom'}
-            className={cn(
-              'overflow-y-auto p-5',
-              isTablet
-                ? 'w-details-column sm:max-w-sm'
-                : 'max-h-reading-sheet rounded-t-xl'
-            )}
-            data-testid="reading-contents-sheet"
-          >
-            <SheetHeader className="sr-only">
-              <SheetTitle>Contents</SheetTitle>
-              <SheetDescription>{`Sections of ${title}`}</SheetDescription>
-            </SheetHeader>
-            <ReadingOutline
-              outline={outline}
-              onNavigate={() => {
-                setContentsOpen(false)
-              }}
-            />
-          </SheetContent>
-        </Sheet>
+        <ContentsSheet
+          open={contentsOpen}
+          onOpenChange={setContentsOpen}
+          side={isTablet ? 'right' : 'bottom'}
+          title={title}
+          outline={outline}
+        />
       )}
     </>
+  )
+}
+
+interface ReadingHeadProps extends ToolbarExtrasProps {
+  title: string
+  titleSubdued: boolean
+  meta: ReactNode
+  description: ReactNode
+  actions: readonly ReadingAction[]
+  bodyView: BodyViewHandle | null
+  /** Phone layout for the toolbar. */
+  compact: boolean
+}
+
+/**
+ * The top of a reading page: the sticky title bar with its toolbar, the lead
+ * paragraph, and the space before the body.
+ */
+function ReadingHead({
+  title,
+  titleSubdued,
+  meta,
+  description,
+  actions,
+  bodyView,
+  compact,
+  ...extras
+}: Readonly<ReadingHeadProps>) {
+  return (
+    <>
+      <ReadingTitleBar
+        title={title}
+        titleSubdued={titleSubdued}
+        meta={meta}
+        actions={actions}
+        bodyView={bodyView}
+        compact={compact}
+        trailing={<ToolbarExtras {...extras} />}
+      />
+      {description && (
+        // A lead paragraph is prose: capped at a prose measure even in the
+        // wide column, so a long summary does not run 150 characters per line
+        // at 14px.
+        <div className="text-muted-foreground mt-2 max-w-3xl text-sm">
+          {description}
+        </div>
+      )}
+      <div className="h-8" aria-hidden="true" />
+    </>
+  )
+}
+
+/**
+ * The details panel in whichever form the width allows: the column beside the
+ * article (with the outline at its head), or an overlay drawer where there is
+ * no room for a column. Neither when the page has no details or hides them.
+ */
+function ReadingDetails({
+  presentation,
+  title,
+  actions,
+  sections,
+  outline,
+  asRail,
+  asSheet,
+  actionsAsChips,
+}: Readonly<{
+  presentation: ReadingPresentation
+  title: string
+  actions: readonly ReadingAction[]
+  sections: readonly ReadingSection[]
+  outline: ReturnType<typeof useReadingOutline>
+  asRail: boolean
+  asSheet: boolean
+  /** The page already shows the actions as a chip row under its title. */
+  actionsAsChips: boolean
+}>) {
+  const {
+    isTablet,
+    detailsOpen,
+    setDetailsOpen,
+    detailsSheetOpen,
+    setDetailsSheetOpen,
+  } = useShell()
+
+  if (asRail) {
+    return (
+      <ReadingRail
+        presentation={presentation}
+        open={detailsOpen}
+        onOpen={() => {
+          setDetailsOpen(true)
+        }}
+        actions={actions}
+        sections={sections}
+        lead={
+          outline.entries.length > 0 ? (
+            <ReadingOutline outline={outline} />
+          ) : undefined
+        }
+      />
+    )
+  }
+  if (!asSheet) return null
+  return (
+    <DetailsSheet
+      open={detailsSheetOpen}
+      onOpenChange={setDetailsSheetOpen}
+      side={isTablet ? 'right' : 'bottom'}
+      presentation={presentation}
+      title={title}
+    >
+      <DetailsColumn
+        actions={actions}
+        sections={sections}
+        // Never twice: the grid exists for the widths the chip row does not
+        // cover, and while editing that row reaches up to `lg`.
+        showActions={isTablet && !actionsAsChips}
+      />
+    </DetailsSheet>
+  )
+}
+
+/**
+ * The outline as a sheet, for the widths and modes where the column that
+ * usually holds it is not on screen. A jump closes it.
+ */
+function ContentsSheet({
+  open,
+  onOpenChange,
+  side,
+  title,
+  outline,
+}: Readonly<{
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  side: 'right' | 'bottom'
+  title: string
+  outline: ReturnType<typeof useReadingOutline>
+}>) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side={side}
+        className={cn(
+          'overflow-y-auto p-5',
+          side === 'right'
+            ? 'w-details-column sm:max-w-sm'
+            : 'max-h-reading-sheet rounded-t-xl'
+        )}
+        data-testid="reading-contents-sheet"
+      >
+        <SheetHeader className="sr-only">
+          <SheetTitle>Contents</SheetTitle>
+          <SheetDescription>{`Sections of ${title}`}</SheetDescription>
+        </SheetHeader>
+        <ReadingOutline
+          outline={outline}
+          onNavigate={() => {
+            onOpenChange(false)
+          }}
+        />
+      </SheetContent>
+    </Sheet>
   )
 }
 
