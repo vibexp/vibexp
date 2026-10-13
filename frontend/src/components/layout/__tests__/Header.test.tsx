@@ -11,8 +11,8 @@ import { ShellProvider, useReadingShell, useShell } from '../ShellContext'
 vi.mock('@/components/layout/ProjectSwitcher', () => ({
   ProjectSwitcher: () => <div data-testid="project-switcher" />,
 }))
-vi.mock('@/components/layout/SearchModal', () => ({
-  SearchModal: () => <button type="button">Search</button>,
+vi.mock('@/components/layout/CommandPalette', () => ({
+  CommandPalette: () => <button type="button">Search</button>,
 }))
 vi.mock('@/components/layout/NotificationBell', () => ({
   NotificationBell: () => <button type="button">Notifications</button>,

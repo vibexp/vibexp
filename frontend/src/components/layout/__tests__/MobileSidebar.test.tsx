@@ -21,8 +21,8 @@ vi.mock('@/components/layout/TeamSwitcher', () => ({
 vi.mock('@/components/layout/ProjectSwitcher', () => ({
   ProjectSwitcher: () => <div data-testid="project-switcher" />,
 }))
-vi.mock('@/components/layout/SearchModal', () => ({
-  SearchModal: () => <button type="button">Search</button>,
+vi.mock('@/components/layout/CommandPalette', () => ({
+  CommandPalette: () => <button type="button">Search</button>,
 }))
 
 // Spy recording every click that would close the Sheet via SheetClose.

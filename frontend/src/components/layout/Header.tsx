@@ -2,11 +2,11 @@ import { Info, Menu, PanelLeft, PanelRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
 
+import { CommandPalette } from '@/components/layout/CommandPalette'
 import { HeaderBreadcrumb } from '@/components/layout/HeaderBreadcrumb'
 import { MobileSidebar } from '@/components/layout/MobileSidebar'
 import { NotificationBell } from '@/components/layout/NotificationBell'
 import { ProjectSwitcher } from '@/components/layout/ProjectSwitcher'
-import { SearchModal } from '@/components/layout/SearchModal'
 import { useShell } from '@/components/layout/ShellContext'
 import { UserMenu } from '@/components/layout/UserMenu'
 import { Button } from '@/components/ui/button'
@@ -105,7 +105,7 @@ export function Header() {
         {isTablet && (
           <>
             <ProjectSwitcher />
-            <SearchModal />
+            <CommandPalette />
           </>
         )}
         <NotificationBell />

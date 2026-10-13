@@ -16,7 +16,7 @@ import { AdminMobileSidebar } from '@/pages/admin/AdminSidebar'
  *
  * Carries only what makes sense at instance scope: the mobile nav drawer, a way
  * back to the product app, the theme toggle and the user menu. Deliberately no
- * `TeamSwitcher`, `ProjectSwitcher`, `SearchModal` or `NotificationBell` — all
+ * `TeamSwitcher`, `ProjectSwitcher`, `CommandPalette` or `NotificationBell` — all
  * four are team-scoped, and the switchers require the providers this shell does
  * not mount.
  *

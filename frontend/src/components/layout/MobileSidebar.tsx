@@ -1,9 +1,9 @@
 import { ChevronRight } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router'
 
+import { CommandPalette } from '@/components/layout/CommandPalette'
 import { NAV_GROUPS, type NavItem } from '@/components/layout/nav-items'
 import { ProjectSwitcher } from '@/components/layout/ProjectSwitcher'
-import { SearchModal } from '@/components/layout/SearchModal'
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
 import { SidebarProductMark } from '@/components/layout/SidebarProductMark'
 import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
@@ -168,7 +168,7 @@ export function MobileSidebar() {
         className="flex items-center gap-1 border-t px-3.5 py-2"
         data-testid="drawer-footer"
       >
-        <SearchModal />
+        <CommandPalette />
       </div>
       <SidebarProductMark showText />
     </div>
