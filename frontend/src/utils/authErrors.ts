@@ -36,6 +36,42 @@ export const ACCESS_RESTRICTED_ERROR: AuthErrorView = {
 }
 
 /**
+ * Stable code the backend's identity-provider callback redirects with
+ * (`/auth/callback?error=email_not_verified`) when the sign-in matched an
+ * existing account by email but the provider did not verify that email, so the
+ * sign-in was not linked to the account. Mirrors
+ * `callbackErrorEmailNotVerified` in `backend/internal/server/auth_handlers.go`.
+ */
+export const EMAIL_NOT_VERIFIED_CODE = 'email_not_verified'
+
+export const EMAIL_NOT_VERIFIED_ERROR: AuthErrorView = {
+  title: 'Email not verified',
+  description:
+    'An account with this email already exists, but your sign-in provider has not verified the address. Verify your email with the provider and try again, or sign in the way you did before.',
+  actionLabel: 'Back to sign in',
+  actionHref: '/login',
+}
+
+/**
+ * Stable code the callback redirects with
+ * (`/auth/callback?error=existing_sign_in_required`) when the sign-in matched
+ * an existing account by email, but that account's email was never verified
+ * and it already has a sign-in method of its own. Signing in that way once
+ * verifies the account; after that other providers with the same email are
+ * accepted. Mirrors `callbackErrorExistingSignInRequired` in
+ * `backend/internal/server/auth_handlers.go`.
+ */
+export const EXISTING_SIGN_IN_REQUIRED_CODE = 'existing_sign_in_required'
+
+export const EXISTING_SIGN_IN_REQUIRED_ERROR: AuthErrorView = {
+  title: 'Sign in the way you did before',
+  description:
+    'An account with this email already exists and uses a different sign-in method. Sign in with that method first. After that you can use this one too. If the account is not yours, contact your administrator.',
+  actionLabel: 'Back to sign in',
+  actionHref: '/login',
+}
+
+/**
  * Fallback for a cancelled login or any error code we don't recognise — the
  * denial is not attributable, so we keep the pre-existing generic wording.
  */
@@ -53,6 +89,12 @@ export const GENERIC_AUTH_ERROR: AuthErrorView = {
 export function mapAuthCallbackError(code: string | null): AuthErrorView {
   if (code === ACCESS_RESTRICTED_CODE) {
     return ACCESS_RESTRICTED_ERROR
+  }
+  if (code === EMAIL_NOT_VERIFIED_CODE) {
+    return EMAIL_NOT_VERIFIED_ERROR
+  }
+  if (code === EXISTING_SIGN_IN_REQUIRED_CODE) {
+    return EXISTING_SIGN_IN_REQUIRED_ERROR
   }
   return GENERIC_AUTH_ERROR
 }

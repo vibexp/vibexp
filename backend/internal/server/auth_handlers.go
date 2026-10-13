@@ -39,6 +39,17 @@ const (
 	// provider disabled (or removed) between login and callback.
 	callbackErrorProviderUnavailable = "provider_unavailable"
 
+	// callbackErrorEmailNotVerified is the SPA callback error code for a
+	// sign-in that matched an existing account by an email the provider did
+	// not verify (#1430). Mirrored by EMAIL_NOT_VERIFIED_CODE in the frontend.
+	callbackErrorEmailNotVerified = "email_not_verified"
+
+	// callbackErrorExistingSignInRequired is the SPA callback error code for a
+	// sign-in that matched, by email, a never-verified account that already has
+	// a sign-in method of its own (#1430). Mirrored by
+	// EXISTING_SIGN_IN_REQUIRED_CODE in the frontend.
+	callbackErrorExistingSignInRequired = "existing_sign_in_required"
+
 	// stateCookieMaxAge is 10 minutes — enough for a human to complete the
 	// identity-provider login flow and be redirected back to the callback.
 	stateCookieMaxAge = 10 * 60 // 10 minutes in seconds
@@ -248,6 +259,19 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 	// The service already logged the denial at INFO with the email + provider.
 	if stderrors.Is(err, services.ErrAccessRestricted) {
 		s.redirectCallbackError(w, r, "access_restricted")
+		return
+	}
+	// The sign-in matched an existing account by email, but the provider did
+	// not verify that email, so it was not linked (#1430). Also a policy
+	// outcome the SPA explains; the service logged it with the account.
+	if stderrors.Is(err, services.ErrEmailNotVerified) {
+		s.redirectCallbackError(w, r, callbackErrorEmailNotVerified)
+		return
+	}
+	// Same family: the matching account was never verified and already has a
+	// sign-in method, so it must be signed in to that way first.
+	if stderrors.Is(err, services.ErrExistingSignInRequired) {
+		s.redirectCallbackError(w, r, callbackErrorExistingSignInRequired)
 		return
 	}
 	// The provider the flow started with was disabled or removed before the

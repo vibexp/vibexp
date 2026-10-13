@@ -5,6 +5,10 @@ import {
   ACCESS_RESTRICTED_CODE,
   ACCESS_RESTRICTED_ERROR,
   ACCESS_RESTRICTED_MESSAGE,
+  EMAIL_NOT_VERIFIED_CODE,
+  EMAIL_NOT_VERIFIED_ERROR,
+  EXISTING_SIGN_IN_REQUIRED_CODE,
+  EXISTING_SIGN_IN_REQUIRED_ERROR,
   GENERIC_AUTH_ERROR,
   mapAuthCallbackError,
   mapSignInError,
@@ -26,6 +30,22 @@ const buildApiError = (
   })
 
 describe('mapAuthCallbackError', () => {
+  it('maps email_not_verified to the unverified-email view', () => {
+    expect(EMAIL_NOT_VERIFIED_CODE).toBe('email_not_verified')
+    expect(mapAuthCallbackError(EMAIL_NOT_VERIFIED_CODE)).toEqual(
+      EMAIL_NOT_VERIFIED_ERROR
+    )
+    expect(EMAIL_NOT_VERIFIED_ERROR.actionHref).toBe('/login')
+  })
+
+  it('maps existing_sign_in_required to its own view', () => {
+    expect(EXISTING_SIGN_IN_REQUIRED_CODE).toBe('existing_sign_in_required')
+    expect(mapAuthCallbackError(EXISTING_SIGN_IN_REQUIRED_CODE)).toEqual(
+      EXISTING_SIGN_IN_REQUIRED_ERROR
+    )
+    expect(EXISTING_SIGN_IN_REQUIRED_ERROR.actionHref).toBe('/login')
+  })
+
   it('maps access_restricted to the restriction view', () => {
     expect(mapAuthCallbackError(ACCESS_RESTRICTED_CODE)).toEqual(
       ACCESS_RESTRICTED_ERROR

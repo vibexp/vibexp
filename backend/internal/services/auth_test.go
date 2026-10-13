@@ -208,6 +208,7 @@ func TestAuthService_CreateOrUpdateUserFromClaims(t *testing.T) {
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository) {
 				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
 					Return(nil, repositories.ErrUserNotFound)
+				mockRepo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound).Maybe()
 				// A non-Google provider does NOT fall back to the legacy Google
 				// identity: AssertExpectations fails on the unexpected lookup.
 
@@ -237,17 +238,20 @@ func TestAuthService_CreateOrUpdateUserFromClaims(t *testing.T) {
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository) {
 				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
 					Return(existingUser, nil)
+				// The account keeps its own email and name: neither follows the
+				// provider's claims after the account exists (#1430).
 				mockRepo.On("Update", context.Background(), mock.MatchedBy(func(user *models.User) bool {
 					return user.ID == "user-123" &&
-						user.Email == "test@example.com" &&
-						user.Name == "Test User" &&
+						user.Email == "old@example.com" &&
+						user.Name == "Old Name" &&
 						user.IDPProvider != nil && *user.IDPProvider == testProvider
 				})).Return(nil)
 			},
 			expectError: false,
 			validateUser: func(t *testing.T, user *models.User) {
 				assert.Equal(t, "user-123", user.ID)
-				assert.Equal(t, "test@example.com", user.Email)
+				assert.Equal(t, "old@example.com", user.Email)
+				assert.Equal(t, "Old Name", user.Name)
 			},
 		},
 	}
@@ -389,6 +393,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 
 				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
 					Return(nil, repositories.ErrUserNotFound)
+				mockRepo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound).Maybe()
 
 				mockRepo.On("Create", context.Background(), mock.MatchedBy(func(user *models.User) bool {
 					return user.GoogleID == nil &&
@@ -431,8 +436,10 @@ func TestAuthService_HandleCallback(t *testing.T) {
 					Return(existingUser, nil)
 
 				mockRepo.On("Update", context.Background(), mock.MatchedBy(func(user *models.User) bool {
+					// The stored email is kept even though the provider now
+					// reports test@example.com (#1430).
 					return user.ID == "user-existing-123" &&
-						user.Email == "test@example.com"
+						user.Email == "old@example.com"
 				})).Return(nil)
 			},
 			expectError: false,
@@ -462,6 +469,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 
 				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
 					Return(nil, repositories.ErrUserNotFound)
+				mockRepo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound).Maybe()
 				mockRepo.On("Create", context.Background(), mock.AnythingOfType("*models.User")).
 					Return(fmt.Errorf("database error"))
 			},
@@ -823,6 +831,7 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository, mockEventManager *event_mocks.MockEventPublisher) {
 				mockRepo.On("GetByIDPSubject", mock.Anything, testProvider, "oidc-sub-123").
 					Return(nil, repositories.ErrUserNotFound)
+				mockRepo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound).Maybe()
 
 				mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(user *models.User) bool {
 					return user.GoogleID == nil && user.Email == "test@example.com"
@@ -1004,6 +1013,7 @@ func TestAuthService_HandleCallback_PersistsSlug(t *testing.T) {
 			p.On("ExchangeCode", mock.Anything, "code", "").Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
 			repo := &repo_mocks.MockUserRepository{}
 			repo.On("GetByIDPSubject", mock.Anything, slug, "sub-1").Return(nil, repositories.ErrUserNotFound)
+			repo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound).Maybe()
 			repo.On("Create", mock.Anything, mock.MatchedBy(func(u *models.User) bool {
 				return u.IDPProvider != nil && *u.IDPProvider == slug && u.GoogleID == nil
 			})).Return(nil)
@@ -1029,6 +1039,7 @@ func TestAuthService_HandleCallback_GoogleTypeKeepsLegacyFallback(t *testing.T) 
 	p.On("ExchangeCode", mock.Anything, "code", "").Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
 	repo := &repo_mocks.MockUserRepository{}
 	repo.On("GetByIDPSubject", mock.Anything, "google-workspace", "g-1").Return(nil, repositories.ErrUserNotFound)
+	repo.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound).Maybe()
 	repo.On("GetByIDPSubject", mock.Anything, models.LegacyGoogleIdentityProvider, "g-1").
 		Return(nil, repositories.ErrUserNotFound)
 	repo.On("Create", mock.Anything, mock.MatchedBy(func(u *models.User) bool {
@@ -1127,6 +1138,7 @@ func TestAuthService_SignIn_NewUserIdentityIsWrittenByCreate(t *testing.T) {
 	users := &repo_mocks.MockUserRepository{}
 	identities := &repo_mocks.MockUserIdentityRepository{}
 	users.On("GetByIDPSubject", ctx, "corp-sso", "sub-new").Return(nil, repositories.ErrUserNotFound)
+	users.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound).Maybe()
 	users.On("Create", ctx, mock.MatchedBy(func(u *models.User) bool {
 		return *u.IDPProvider == "corp-sso" && *u.IDPSubject == "sub-new" && u.EmailVerifiedAt != nil
 	})).Return(nil)
@@ -1159,34 +1171,34 @@ func TestAuthService_SignIn_FailsWhenTheIdentityCannotBeRecorded(t *testing.T) {
 	assert.Nil(t, user)
 }
 
-// email_verified_at describes the STORED address (#1427).
+// email_verified_at describes the STORED address, which no longer follows the
+// claims (#1427, #1430).
 func TestEmailVerifiedAtAfterSignIn(t *testing.T) {
 	now := time.Now()
 	earlier := now.Add(-24 * time.Hour)
 
 	tests := []struct {
-		name     string
-		stored   *time.Time
-		oldEmail string
-		claims   idp.Claims
-		want     *time.Time
+		name   string
+		stored *time.Time
+		claims idp.Claims
+		want   *time.Time
 	}{
-		{"first verification is stamped", nil, "u@example.com",
-			idp.Claims{Email: "u@example.com", EmailVerified: true}, &now},
-		{"an already verified address keeps its first timestamp", &earlier, "u@example.com",
-			idp.Claims{Email: "U@Example.com", EmailVerified: true}, &earlier},
-		{"an unverified sign-in does not unverify an unchanged address", &earlier, "u@example.com",
+		{"first verification of the stored address is stamped", nil,
+			idp.Claims{Email: "U@Example.com", EmailVerified: true}, &now},
+		{"an already verified address keeps its first timestamp", &earlier,
+			idp.Claims{Email: "u@example.com", EmailVerified: true}, &earlier},
+		{"an unverified sign-in does not unverify the address", &earlier,
 			idp.Claims{Email: "u@example.com", EmailVerified: false}, &earlier},
-		{"an unverified sign-in leaves a never-verified address unverified", nil, "u@example.com",
+		{"an unverified sign-in leaves a never-verified address unverified", nil,
 			idp.Claims{Email: "u@example.com", EmailVerified: false}, nil},
-		{"a changed, verified address restarts from this sign-in", &earlier, "old@example.com",
-			idp.Claims{Email: "new@example.com", EmailVerified: true}, &now},
-		{"a changed, unverified address is cleared", &earlier, "old@example.com",
-			idp.Claims{Email: "new@example.com", EmailVerified: false}, nil},
+		{"a provider verifying a DIFFERENT address does not verify the stored one", nil,
+			idp.Claims{Email: "other@example.com", EmailVerified: true}, nil},
+		{"a different address at the provider does not unverify the stored one", &earlier,
+			idp.Claims{Email: "other@example.com", EmailVerified: false}, &earlier},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			user := &models.User{Email: tt.oldEmail, EmailVerifiedAt: tt.stored}
+			user := &models.User{Email: "u@example.com", EmailVerifiedAt: tt.stored}
 			got := emailVerifiedAtAfterSignIn(user, &tt.claims, now)
 			if tt.want == nil {
 				assert.Nil(t, got)
@@ -1216,68 +1228,434 @@ func TestAuthService_HandleDevLogin_NormalizesTheSubject(t *testing.T) {
 	users.AssertExpectations(t)
 }
 
-// email_verified_at is what #1430's account-linking rule trusts, so pin what a
-// whole sign-in writes, not only the helper: a verified sign-in sets it, and an
-// unverified one that changes the address clears it.
-func TestAuthService_SignIn_WritesEmailVerifiedAt(t *testing.T) {
+// returningSignIn runs a sign-in for an account matched by its own identity
+// (corp-sso, sub-1) and returns the row the service wrote.
+func returningSignIn(t *testing.T, stored models.User, claims idp.Claims) *models.User {
+	t.Helper()
 	ctx := context.Background()
-	verifiedLongAgo := time.Now().Add(-48 * time.Hour)
+	users := &repo_mocks.MockUserRepository{}
+	identities := &repo_mocks.MockUserIdentityRepository{}
+	users.On("GetByIDPSubject", ctx, "corp-sso", "sub-1").Return(&stored, nil)
+	var written *models.User
+	users.On("Update", ctx, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+		written = args.Get(1).(*models.User)
+	})
+	identities.On("Upsert", ctx, stored.ID, "corp-sso", "sub-1").Return(nil)
+
+	_, isNew, err := identityAuthService(t, users, identities).
+		createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC, &claims)
+
+	require.NoError(t, err)
+	assert.False(t, isNew)
+	require.NotNil(t, written, "the user row must be written")
+	users.AssertNotCalled(t, "GetByEmail", mock.Anything, mock.Anything)
+	return written
+}
+
+// The account email is stable: a returning user keeps it whatever the provider
+// reports, and their name and avatar are only filled while empty (#1430).
+func TestAuthService_ReturningSignIn_KeepsEmailAndProfile(t *testing.T) {
+	avatar := "https://cdn.example.com/mine.png"
+
+	t.Run("a different email, name and picture at the provider change nothing", func(t *testing.T) {
+		written := returningSignIn(t,
+			models.User{ID: "user-1", Email: "me@example.com", Name: "My Name", AvatarURL: &avatar},
+			idp.Claims{
+				Subject: "sub-1", Email: "Changed@Provider.example", Name: "Provider Name",
+				Picture: "https://provider.example/p.png", EmailVerified: true,
+			})
+
+		assert.Equal(t, "me@example.com", written.Email)
+		assert.Equal(t, "My Name", written.Name)
+		require.NotNil(t, written.AvatarURL)
+		assert.Equal(t, avatar, *written.AvatarURL)
+		assert.Nil(t, written.EmailVerifiedAt, "the provider verified another address, not the stored one")
+	})
+
+	t.Run("an empty name and avatar are filled from the claims", func(t *testing.T) {
+		written := returningSignIn(t,
+			models.User{ID: "user-1", Email: "me@example.com", Name: "  "},
+			idp.Claims{Subject: "sub-1", Email: "me@example.com", Name: "Provider Name", Picture: "https://provider.example/p.png"})
+
+		assert.Equal(t, "Provider Name", written.Name)
+		require.NotNil(t, written.AvatarURL)
+		assert.Equal(t, "https://provider.example/p.png", *written.AvatarURL)
+	})
+
+	t.Run("a verified sign-in with the stored email sets email_verified_at", func(t *testing.T) {
+		written := returningSignIn(t,
+			models.User{ID: "user-1", Email: "me@example.com", Name: "Me"},
+			idp.Claims{Subject: "sub-1", Email: "me@example.com", EmailVerified: true})
+
+		require.NotNil(t, written.EmailVerifiedAt)
+		assert.WithinDuration(t, time.Now(), *written.EmailVerifiedAt, time.Minute)
+	})
+}
+
+// recordingClaimHook records the accounts it was asked to secure, in a shared
+// call log so its order relative to the repository writes can be asserted.
+type recordingClaimHook struct {
+	log *[]string
+	err error
+}
+
+func (h recordingClaimHook) OnUnverifiedAccountClaimed(_ context.Context, userID string) error {
+	*h.log = append(*h.log, "hook:"+userID)
+	return h.err
+}
+
+// linkFixture is an AuthService whose repositories record the order of writes.
+type linkFixture struct {
+	svc        *AuthService
+	users      *repo_mocks.MockUserRepository
+	identities *repo_mocks.MockUserIdentityRepository
+	log        []string
+	written    *models.User
+	held       []models.UserIdentity
+}
+
+// newLinkFixture prepares a sign-in through corp-sso/sub-new that matches no
+// identity and finds account by email. hookErr, upsertErr are what the hook and
+// the identity write answer.
+func newLinkFixture(t *testing.T, account *models.User, hookErr, upsertErr error) *linkFixture {
+	t.Helper()
+	f := &linkFixture{users: &repo_mocks.MockUserRepository{}, identities: &repo_mocks.MockUserIdentityRepository{}}
+	f.users.On("GetByIDPSubject", mock.Anything, "corp-sso", "sub-new").Return(nil, repositories.ErrUserNotFound)
+	f.users.On("GetByEmail", mock.Anything, mock.Anything).Return(account, nil)
+	f.users.On("Update", mock.Anything, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+		f.written = args.Get(1).(*models.User)
+		f.log = append(f.log, "update")
+	}).Maybe()
+	f.identities.On("Upsert", mock.Anything, account.ID, "corp-sso", "sub-new").Return(upsertErr).
+		Run(func(mock.Arguments) { f.log = append(f.log, "upsert") }).Maybe()
+	// The account holds no sign-in identity unless a test says otherwise
+	// (holdsIdentity), and bumping its session epoch yields 7.
+	f.identities.On("ListByUserID", mock.Anything, account.ID).
+		Return(func(context.Context, string) ([]models.UserIdentity, error) { return f.held, nil }).Maybe()
+	f.users.On("BumpSessionEpoch", mock.Anything, account.ID).Return(int64(7), nil).
+		Run(func(mock.Arguments) { f.log = append(f.log, "epoch") }).Maybe()
+
+	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
+	f.svc = NewAuthService(f.users, f.identities, staticIDPResolver{reg: idp.NewRegistry()}, nil, logger,
+		newStaticAllowlistResolver(logger, nil),
+		WithUnverifiedAccountClaimHook(recordingClaimHook{log: &f.log, err: hookErr}))
+	return f
+}
+
+// holdsIdentity makes the account already own a sign-in identity.
+func (f *linkFixture) holdsIdentity(provider, subject string) *linkFixture {
+	f.held = append(f.held, models.UserIdentity{Provider: provider, Subject: subject})
+	return f
+}
+
+func (f *linkFixture) signIn(claims idp.Claims) (*models.User, bool, error) {
+	return f.svc.createOrUpdateUserFromClaims(context.Background(), "corp-sso", idp.ProviderOIDC, &claims)
+}
+
+// An admin-created account (no identity, never verified) completes its first
+// provider sign-in: the sign-in lands in that account, the hook secures it
+// first, and nothing is created (#1430).
+func TestAuthService_LinkByVerifiedEmail_AdminCreatedAccount(t *testing.T) {
+	account := &models.User{ID: "pre-1", Email: "ada@example.com", Name: "Ada", IDPProvider: strPtr("corp-sso")}
+	f := newLinkFixture(t, account, nil, nil)
+
+	user, isNew, err := f.signIn(idp.Claims{
+		Subject: "sub-new", Email: "Ada@Example.com", Name: "Provider Ada", EmailVerified: true,
+	})
+
+	require.NoError(t, err)
+	assert.False(t, isNew, "linking is not a registration")
+	assert.Equal(t, "pre-1", user.ID)
+	assert.Equal(t, []string{"hook:pre-1", "epoch", "update", "upsert"}, f.log,
+		"the account is secured and its sessions ended before it is marked verified, and all before the identity is attached")
+	assert.EqualValues(t, 7, user.SessionEpoch, "the session minted for this sign-in must carry the new epoch")
+	require.NotNil(t, f.written.EmailVerifiedAt)
+	assert.Equal(t, "ada@example.com", f.written.Email)
+	assert.Equal(t, "Ada", f.written.Name, "the admin-given name is kept")
+	assert.Equal(t, "sub-new", *f.written.IDPSubject)
+	f.users.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	f.users.AssertCalled(t, "GetByEmail", mock.Anything, "Ada@Example.com")
+}
+
+// A second provider with the same verified email joins the same account. The
+// account's email is already verified, so there is nothing to secure.
+func TestAuthService_LinkByVerifiedEmail_SecondProvider(t *testing.T) {
+	verifiedAt := time.Now().Add(-time.Hour)
+	account := &models.User{
+		ID: "user-1", Email: "ada@example.com", Name: "Ada", EmailVerifiedAt: &verifiedAt,
+		IDPProvider: strPtr("google"), IDPSubject: strPtr("g-1"),
+	}
+	f := newLinkFixture(t, account, nil, nil).holdsIdentity("google", "g-1")
+
+	user, isNew, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+
+	require.NoError(t, err)
+	assert.False(t, isNew)
+	assert.Equal(t, "user-1", user.ID)
+	assert.Equal(t, []string{"update", "upsert"}, f.log,
+		"a verified account is not claimed: no hook, no session-epoch bump")
+	f.identities.AssertNotCalled(t, "ListByUserID", mock.Anything, mock.Anything)
+	assert.True(t, verifiedAt.Equal(*f.written.EmailVerifiedAt), "the first verification is kept")
+	f.users.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+}
+
+// An unverified email matching an existing account is refused and writes
+// nothing: no identity, no account change, no new account.
+func TestAuthService_LinkByEmail_UnverifiedIsRefused(t *testing.T) {
+	account := &models.User{ID: "user-1", Email: "ada@example.com", Name: "Ada"}
+	f := newLinkFixture(t, account, nil, nil)
+
+	user, _, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: false})
+
+	require.ErrorIs(t, err, ErrEmailNotVerified)
+	assert.Nil(t, user)
+	assert.Empty(t, f.log, "no hook, no update, no identity")
+	f.users.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	assert.Nil(t, account.EmailVerifiedAt)
+}
+
+// A suspended account gains no identity: it is returned untouched so the
+// caller's suspension gate refuses the sign-in.
+func TestAuthService_LinkByEmail_SuspendedAccountGainsNoIdentity(t *testing.T) {
+	for _, verified := range []bool{true, false} {
+		account := &models.User{ID: "user-1", Email: "ada@example.com", Status: models.UserStatusSuspended}
+		f := newLinkFixture(t, account, nil, nil)
+
+		user, isNew, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: verified})
+
+		require.NoError(t, err, "verified=%v", verified)
+		assert.False(t, isNew)
+		require.NotNil(t, user)
+		assert.True(t, user.IsSuspended(), "the caller must see the suspended account to refuse it")
+		assert.Empty(t, f.log, "verified=%v: no hook, no update, no identity", verified)
+		f.identities.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+		assert.Nil(t, account.EmailVerifiedAt)
+		assert.Nil(t, account.IDPSubject)
+	}
+}
+
+// A hook that fails aborts the sign-in before anything is written: no identity
+// and no email_verified_at change, so the next attempt runs the hook again.
+func TestAuthService_LinkByVerifiedEmail_HookErrorLinksNothing(t *testing.T) {
+	account := &models.User{ID: "pre-1", Email: "ada@example.com", Name: "Ada"}
+	hookErr := errors.New("credential store unavailable")
+	f := newLinkFixture(t, account, hookErr, nil)
+
+	user, _, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+
+	require.ErrorIs(t, err, hookErr)
+	assert.Nil(t, user)
+	assert.Equal(t, []string{"hook:pre-1"}, f.log, "neither the account nor the identity is written")
+	f.users.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	f.identities.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	assert.Nil(t, account.EmailVerifiedAt, "email_verified_at is not set on the model either")
+	assert.Nil(t, account.IDPSubject)
+}
+
+// The link decision for a VERIFIED claim email, over the two facts about the
+// account that decide it (#1430):
+//
+//	                     | no identity yet       | already has an identity
+//	email never verified | claimed and linked    | REFUSED (may be someone else's)
+//	email verified       | linked                | linked
+//
+// An open instance creates an account from an UNVERIFIED claim, so a
+// never-verified account that someone can already sign in to may not belong to
+// the mailbox's owner. Linking the owner into it would put two people in one
+// account, so that cell is refused and writes nothing.
+func TestAuthService_LinkByVerifiedEmail_DecisionMatrix(t *testing.T) {
+	verifiedAt := time.Now().Add(-time.Hour)
+	claims := idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true}
 
 	tests := []struct {
-		name   string
-		stored models.User
-		claims idp.Claims
-		check  func(*testing.T, *models.User)
+		name        string
+		verified    bool
+		hasIdentity bool
+		wantErr     error
+		wantLog     []string
 	}{
-		{
-			name:   "a verified sign-in sets it",
-			stored: models.User{ID: "user-1", Email: "u@example.com"},
-			claims: idp.Claims{Subject: "sub-1", Email: "u@example.com", EmailVerified: true},
-			check: func(t *testing.T, u *models.User) {
-				require.NotNil(t, u.EmailVerifiedAt)
-				assert.WithinDuration(t, time.Now(), *u.EmailVerifiedAt, time.Minute)
-			},
-		},
-		{
-			name:   "an unverified sign-in that changes the email clears it",
-			stored: models.User{ID: "user-1", Email: "old@example.com", EmailVerifiedAt: &verifiedLongAgo},
-			claims: idp.Claims{Subject: "sub-1", Email: "new@example.com", EmailVerified: false},
-			check: func(t *testing.T, u *models.User) {
-				assert.Equal(t, "new@example.com", u.Email)
-				assert.Nil(t, u.EmailVerifiedAt, "the new address was never verified")
-			},
-		},
-		{
-			name:   "an unverified sign-in with the same email keeps it",
-			stored: models.User{ID: "user-1", Email: "u@example.com", EmailVerifiedAt: &verifiedLongAgo},
-			claims: idp.Claims{Subject: "sub-1", Email: "u@example.com", EmailVerified: false},
-			check: func(t *testing.T, u *models.User) {
-				require.NotNil(t, u.EmailVerifiedAt)
-				assert.True(t, verifiedLongAgo.Equal(*u.EmailVerifiedAt))
-			},
-		},
+		{"never verified, no identity: claimed and linked", false, false, nil,
+			[]string{"hook:user-1", "epoch", "update", "upsert"}},
+		{"never verified, has an identity: refused", false, true, ErrExistingSignInRequired, nil},
+		{"verified, no identity: linked", true, false, nil, []string{"update", "upsert"}},
+		{"verified, has an identity: linked", true, true, nil, []string{"update", "upsert"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stored := tt.stored
-			users := &repo_mocks.MockUserRepository{}
-			identities := &repo_mocks.MockUserIdentityRepository{}
-			users.On("GetByIDPSubject", ctx, "corp-sso", "sub-1").Return(&stored, nil)
-			var written *models.User
-			users.On("Update", ctx, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
-				written = args.Get(1).(*models.User)
-			})
-			identities.On("Upsert", ctx, "user-1", "corp-sso", "sub-1").Return(nil)
+			account := &models.User{ID: "user-1", Email: "ada@example.com", Name: "Ada"}
+			if tt.verified {
+				account.EmailVerifiedAt = &verifiedAt
+			}
+			f := newLinkFixture(t, account, nil, nil)
+			if tt.hasIdentity {
+				f.holdsIdentity("other-sso", "someone")
+			}
 
-			claims := tt.claims
-			_, _, err := identityAuthService(t, users, identities).
-				createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC, &claims)
+			user, isNew, err := f.signIn(claims)
 
+			assert.Equal(t, tt.wantLog, f.log)
+			assert.False(t, isNew)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Nil(t, user)
+				assert.Nil(t, account.EmailVerifiedAt, "a refused link does not verify the account")
+				assert.Nil(t, account.IDPSubject)
+				f.users.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+				return
+			}
 			require.NoError(t, err)
-			require.NotNil(t, written, "the user row must be written")
-			tt.check(t, written)
+			assert.Equal(t, "user-1", user.ID)
+			require.NotNil(t, f.written.EmailVerifiedAt)
 		})
 	}
+}
+
+// The path of a user from before email verification was recorded (migration
+// 023 left email_verified_at NULL): a second provider is refused at first, one
+// sign-in with their own provider verifies the account, and the second
+// provider then links.
+func TestAuthService_LinkByVerifiedEmail_PreVerificationUserPath(t *testing.T) {
+	ctx := context.Background()
+	account := &models.User{ID: "old-1", Email: "ada@example.com", Name: "Ada"}
+	held := []models.UserIdentity{{Provider: "google", Subject: "g-1"}}
+	users := &repo_mocks.MockUserRepository{}
+	identities := &repo_mocks.MockUserIdentityRepository{}
+	users.On("GetByIDPSubject", ctx, "google", "g-1").Return(account, nil)
+	users.On("GetByIDPSubject", ctx, models.LegacyGoogleIdentityProvider, mock.Anything).
+		Return(nil, repositories.ErrUserNotFound).Maybe()
+	users.On("GetByIDPSubject", ctx, "github", "gh-1").Return(nil, repositories.ErrUserNotFound)
+	users.On("GetByEmail", ctx, "ada@example.com").Return(account, nil)
+	users.On("Update", ctx, mock.Anything).Return(nil)
+	identities.On("ListByUserID", ctx, "old-1").Return(held, nil)
+	identities.On("Upsert", ctx, "old-1", mock.Anything, mock.Anything).Return(nil)
+	svc := identityAuthService(t, users, identities)
+	github := &idp.Claims{Subject: "gh-1", Email: "ada@example.com", EmailVerified: true}
+
+	_, _, err := svc.createOrUpdateUserFromClaims(ctx, "github", idp.ProviderGitHub, github)
+	require.ErrorIs(t, err, ErrExistingSignInRequired, "a second provider is refused while the account is unverified")
+	identities.AssertNotCalled(t, "Upsert", ctx, "old-1", "github", "gh-1")
+
+	_, _, err = svc.createOrUpdateUserFromClaims(ctx, "google", idp.ProviderGoogle,
+		&idp.Claims{Subject: "g-1", Email: "ada@example.com", EmailVerified: true})
+	require.NoError(t, err)
+	require.NotNil(t, account.EmailVerifiedAt, "signing in with their own provider verifies the account")
+
+	user, _, err := svc.createOrUpdateUserFromClaims(ctx, "github", idp.ProviderGitHub, github)
+	require.NoError(t, err, "the second provider now links")
+	assert.Equal(t, "old-1", user.ID)
+	identities.AssertCalled(t, "Upsert", ctx, "old-1", "github", "gh-1")
+	users.AssertNotCalled(t, "BumpSessionEpoch", mock.Anything, mock.Anything)
+}
+
+// A failure to read the account's identities or to end its sessions aborts the
+// claim: the account is not marked verified and nothing is linked.
+func TestAuthService_LinkByVerifiedEmail_ClaimStepFailuresLinkNothing(t *testing.T) {
+	ctx := context.Background()
+	claims := &idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true}
+	boom := errors.New("database unavailable")
+
+	for name, arrange := range map[string]func(*repo_mocks.MockUserRepository, *repo_mocks.MockUserIdentityRepository){
+		"identities unreadable": func(_ *repo_mocks.MockUserRepository, i *repo_mocks.MockUserIdentityRepository) {
+			i.On("ListByUserID", ctx, "pre-1").Return(nil, boom)
+		},
+		"sessions cannot be ended": func(u *repo_mocks.MockUserRepository, i *repo_mocks.MockUserIdentityRepository) {
+			i.On("ListByUserID", ctx, "pre-1").Return([]models.UserIdentity{}, nil)
+			u.On("BumpSessionEpoch", ctx, "pre-1").Return(int64(0), boom)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			account := &models.User{ID: "pre-1", Email: "ada@example.com"}
+			users := &repo_mocks.MockUserRepository{}
+			identities := &repo_mocks.MockUserIdentityRepository{}
+			users.On("GetByIDPSubject", ctx, "corp-sso", "sub-new").Return(nil, repositories.ErrUserNotFound)
+			users.On("GetByEmail", ctx, "ada@example.com").Return(account, nil)
+			arrange(users, identities)
+
+			user, _, err := identityAuthService(t, users, identities).
+				createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC, claims)
+
+			require.ErrorIs(t, err, boom)
+			assert.Nil(t, user)
+			users.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+			identities.AssertNotCalled(t, "Upsert", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			assert.Nil(t, account.EmailVerifiedAt)
+		})
+	}
+}
+
+// When attaching the identity fails after the account was secured and marked
+// verified, the sign-in fails; the retry links without a second hook run being
+// required for safety (the hook already ran, and is idempotent anyway).
+func TestAuthService_LinkByVerifiedEmail_IdentityWriteFailureFailsTheSignIn(t *testing.T) {
+	account := &models.User{ID: "pre-1", Email: "ada@example.com"}
+	f := newLinkFixture(t, account, nil, repositories.ErrUserIdentityTaken)
+
+	user, _, err := f.signIn(idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+
+	require.ErrorIs(t, err, repositories.ErrUserIdentityTaken)
+	assert.Nil(t, user)
+	assert.Equal(t, []string{"hook:pre-1", "epoch", "update", "upsert"}, f.log)
+}
+
+// Claims with no email cannot match an account by email: the lookup is skipped
+// and a new account is attempted, as before.
+func TestAuthService_SignIn_EmptyClaimEmailNeverLinks(t *testing.T) {
+	ctx := context.Background()
+	users := &repo_mocks.MockUserRepository{}
+	users.On("GetByIDPSubject", ctx, "corp-sso", "sub-new").Return(nil, repositories.ErrUserNotFound)
+	users.On("Create", ctx, mock.Anything).Return(nil)
+
+	_, isNew, err := identityAuthService(t, users, &repo_mocks.MockUserIdentityRepository{}).
+		createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC,
+			&idp.Claims{Subject: "sub-new", Email: "  ", EmailVerified: true})
+
+	require.NoError(t, err)
+	assert.True(t, isNew)
+	users.AssertNotCalled(t, "GetByEmail", mock.Anything, mock.Anything)
+}
+
+// A failing email lookup is an error, never treated as "no such account".
+func TestAuthService_SignIn_EmailLookupErrorIsNotAMiss(t *testing.T) {
+	ctx := context.Background()
+	users := &repo_mocks.MockUserRepository{}
+	users.On("GetByIDPSubject", ctx, "corp-sso", "sub-new").Return(nil, repositories.ErrUserNotFound)
+	users.On("GetByEmail", ctx, "ada@example.com").Return(nil, errors.New("connection reset"))
+
+	user, _, err := identityAuthService(t, users, &repo_mocks.MockUserIdentityRepository{}).
+		createOrUpdateUserFromClaims(ctx, "corp-sso", idp.ProviderOIDC,
+			&idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+
+	require.Error(t, err)
+	assert.Nil(t, user)
+	users.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+}
+
+// ProvisionFromClaims shares the same resolution, so it links too.
+func TestAuthService_ProvisionFromClaims_LinksByVerifiedEmail(t *testing.T) {
+	account := &models.User{ID: "pre-1", Email: "ada@example.com"}
+	f := newLinkFixture(t, account, nil, nil)
+
+	user, err := f.svc.ProvisionFromClaims(context.Background(), "corp-sso",
+		&idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: true})
+
+	require.NoError(t, err)
+	assert.Equal(t, "pre-1", user.ID)
+	assert.Equal(t, []string{"hook:pre-1", "epoch", "update", "upsert"}, f.log)
+
+	_, err = newLinkFixture(t, &models.User{ID: "pre-2", Email: "bob@example.com"}, nil, nil).svc.
+		ProvisionFromClaims(context.Background(), "corp-sso",
+			&idp.Claims{Subject: "sub-new", Email: "bob@example.com", EmailVerified: false})
+	require.ErrorIs(t, err, ErrEmailNotVerified)
+}
+
+// The default hook does nothing, and a nil option keeps it.
+func TestAuthService_DefaultClaimHookIsANoop(t *testing.T) {
+	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
+	svc := NewAuthService(nil, nil, staticIDPResolver{reg: idp.NewRegistry()}, nil, logger,
+		newStaticAllowlistResolver(logger, nil), WithUnverifiedAccountClaimHook(nil))
+
+	require.NotNil(t, svc.claimHook)
+	require.NoError(t, svc.claimHook.OnUnverifiedAccountClaimed(context.Background(), "user-1"))
 }
 
 // A new account is verified from its first sign-in only when the provider says so.
@@ -1286,6 +1664,7 @@ func TestAuthService_SignIn_NewUserEmailVerifiedAt(t *testing.T) {
 	for _, verified := range []bool{true, false} {
 		users := &repo_mocks.MockUserRepository{}
 		users.On("GetByIDPSubject", ctx, "corp-sso", "sub-new").Return(nil, repositories.ErrUserNotFound)
+		users.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, repositories.ErrUserNotFound).Maybe()
 		var created *models.User
 		users.On("Create", ctx, mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 			created = args.Get(1).(*models.User)
@@ -1323,4 +1702,33 @@ func TestAuthService_RevokeUserSessions(t *testing.T) {
 
 		assert.ErrorIs(t, err, repositories.ErrUserNotFound)
 	})
+}
+
+// The unverified-email refusal is a policy outcome: HandleCallback returns it
+// recognizably and does not report it as a failure in the error log.
+func TestAuthService_HandleCallback_EmailNotVerifiedIsNotLoggedAsAnError(t *testing.T) {
+	ctx := context.Background()
+	claims := &idp.Claims{Subject: "sub-new", Email: "ada@example.com", EmailVerified: false}
+	mockIDP := &idpmocks.MockIdentityProvider{}
+	mockIDP.On("ExchangeCode", ctx, "code", "").Return(&idp.Tokens{AccessToken: "a"}, claims, nil)
+	users := &repo_mocks.MockUserRepository{}
+	users.On("GetByIDPSubject", ctx, string(idp.ProviderOIDC), "sub-new").Return(nil, repositories.ErrUserNotFound)
+	users.On("GetByEmail", ctx, "ada@example.com").Return(&models.User{ID: "user-1", Email: "ada@example.com"}, nil)
+	service, recorder := createTestAuthServiceWithRecorder(users, mockIDP, nil)
+
+	user, tokens, isNew, err := service.HandleCallback(ctx, "code", string(idp.ProviderOIDC))
+
+	require.ErrorIs(t, err, ErrEmailNotVerified)
+	assert.Equal(t, ErrEmailNotVerified, err, "returned as is, not wrapped as a failure")
+	assert.Nil(t, user)
+	assert.Nil(t, tokens)
+	assert.False(t, isNew)
+	var refusals int
+	for _, entry := range recorder.AllEntries() {
+		assert.NotEqual(t, slog.LevelError, entry.Level, "unexpected error log: %s", entry.Message)
+		if entry.Data["reason"] == "unverified_email" {
+			refusals++
+		}
+	}
+	assert.Equal(t, 1, refusals, "the refusal is logged once, with its reason")
 }
