@@ -24,10 +24,12 @@ type AuthService struct {
 	userRepo     repositories.UserRepository
 	identityRepo repositories.UserIdentityRepository
 	claimHook    UnverifiedAccountClaimHook
-	resolver     IdentityProviderResolver
-	allowlist    AccessAllowlistResolver
-	eventManager events.EventPublisher
-	logger       *slog.Logger
+	// registrationGate decides whether a sign-in may create a new account.
+	registrationGate RegistrationGate
+	resolver         IdentityProviderResolver
+	allowlist        AccessAllowlistResolver
+	eventManager     events.EventPublisher
+	logger           *slog.Logger
 }
 
 // Ensure AuthService implements AuthServiceInterface
@@ -113,13 +115,14 @@ func NewAuthService(
 	opts ...AuthServiceOption,
 ) *AuthService {
 	as := &AuthService{
-		userRepo:     userRepo,
-		identityRepo: identityRepo,
-		claimHook:    noopUnverifiedAccountClaimHook{},
-		resolver:     resolver,
-		allowlist:    allowlist,
-		eventManager: eventManager,
-		logger:       logger,
+		userRepo:         userRepo,
+		identityRepo:     identityRepo,
+		claimHook:        noopUnverifiedAccountClaimHook{},
+		registrationGate: openRegistrationGate{},
+		resolver:         resolver,
+		allowlist:        allowlist,
+		eventManager:     eventManager,
+		logger:           logger,
 	}
 	for _, opt := range opts {
 		opt(as)
@@ -204,25 +207,14 @@ func (as *AuthService) HandleCallback(
 	).
 		Info("Retrieved user info from identity provider")
 
-	// L2: !EmailVerified is rejected only when an access allowlist is ACTIVE
-	// (#218), inside ensureAccessAllowed. On an open instance the claim is still
-	// accepted: the enabled providers (Google/GitHub/generic OIDC) verify email
-	// provider-side, and rejecting there would change behavior for every existing
-	// self-hosted deployment for no gain — with no allowlist there is nothing to
-	// bypass. An allowlist raises the stakes, because a generic OIDC provider that
-	// relays an unverified address would let an attacker claim an allowlisted one.
-
-	// Enforce the access allowlist BEFORE any user row is created or updated, so
-	// a denied identity leaves zero database residue and emits no user.created
-	// event.
-	if err = as.ensureAccessAllowed(ctx, claims.Email, slug, claims.EmailVerified); err != nil {
-		return nil, nil, false, err
-	}
-
+	// The access allowlist and the registration mode are enforced inside
+	// createOrUpdateUserFromClaims, once it knows which account the sign-in
+	// resolves to and BEFORE any user row is created or updated, so a denied
+	// sign-in leaves zero database residue and emits no user.created event.
 	user, isNewUser, err := as.createOrUpdateUserFromClaims(ctx, slug, entry.Type, claims)
-	if errors.Is(err, ErrEmailNotVerified) || errors.Is(err, ErrExistingSignInRequired) {
-		// A refusal, not a failure: already logged at INFO with the account, and
-		// returned as is so the handler can answer with its own error code.
+	if isSignInRefusal(err) {
+		// A refusal, not a failure: already logged at INFO where it was decided,
+		// and returned as is so the handler can answer with its own error code.
 		return nil, nil, false, err
 	}
 	if err != nil {
@@ -312,7 +304,12 @@ func (as *AuthService) ProvisionFromClaims(
 //     provider verified that email, and refused when it did not
 //     (ErrEmailNotVerified) or when the account was never verified and already
 //     has a sign-in identity of its own (ErrExistingSignInRequired);
-//  3. a new account.
+//  3. a new account, when the registration mode allows one
+//     (ErrRegistrationClosed otherwise).
+//
+// The access allowlist is enforced here as well (ErrAccessRestricted), on the
+// account the sign-in resolved to: an existing account by its stored email, a
+// new one by the claim email. Every check runs before the first write.
 //
 // providerName is the slug of the provider that produced the claims and
 // providerType its kind, which decides the Google-only legacy handling.
@@ -327,6 +324,13 @@ func (as *AuthService) createOrUpdateUserFromClaims(
 		return nil, false, err
 	}
 	if user != nil {
+		// An existing account is judged by its STORED email, the one the
+		// per-request check uses too: the account email no longer follows the
+		// provider (#1430), so the claim email may be a different address.
+		verified := existingAccountEmailVerified(user, claims)
+		if err = as.ensureAccessAllowed(ctx, user.Email, providerName, verified); err != nil {
+			return nil, false, err
+		}
 		return as.refreshReturningUser(ctx, user, providerName, claims)
 	}
 
@@ -335,10 +339,45 @@ func (as *AuthService) createOrUpdateUserFromClaims(
 		return nil, false, err
 	}
 	if existing != nil {
+		// Found BY the claim email, so stored and claimed address are the same.
+		if err = as.ensureAccessAllowed(ctx, existing.Email, providerName, claims.EmailVerified); err != nil {
+			return nil, false, err
+		}
 		return as.linkIdentityByEmail(ctx, existing, providerName, claims)
 	}
 
+	// A new account: the claim email is all there is to judge. The allowlist
+	// decides who may be here at all, then the registration mode decides who
+	// may create an account; an existing account never reaches this point.
+	if err = as.ensureAccessAllowed(ctx, claims.Email, providerName, claims.EmailVerified); err != nil {
+		return nil, false, err
+	}
+	if err = as.registrationGate.AllowNewAccount(ctx, claims.Email, claims.EmailVerified); err != nil {
+		return nil, false, err
+	}
 	return as.createUserFromClaims(ctx, providerName, providerType, claims, claimAvatarURL(claims))
+}
+
+// isSignInRefusal reports whether err is a deliberate policy outcome of a
+// sign-in rather than a failure: the allowlist, the registration mode, or one
+// of the account-linking rules said no.
+func isSignInRefusal(err error) bool {
+	return errors.Is(err, ErrAccessRestricted) ||
+		errors.Is(err, ErrRegistrationClosed) ||
+		errors.Is(err, ErrEmailNotVerified) ||
+		errors.Is(err, ErrExistingSignInRequired)
+}
+
+// existingAccountEmailVerified reports whether the STORED email of an existing
+// account counts as verified for this sign-in: a provider verified it earlier
+// (email_verified_at), or this sign-in's provider verifies that same address
+// now. A verified claim for some other address says nothing about the stored
+// one.
+func existingAccountEmailVerified(user *models.User, claims *idp.Claims) bool {
+	if user.EmailVerifiedAt != nil {
+		return true
+	}
+	return claims.EmailVerified && models.NormalizeEmail(claims.Email) == models.NormalizeEmail(user.Email)
 }
 
 // claimAvatarURL returns the claims' picture, or nil when there is none.

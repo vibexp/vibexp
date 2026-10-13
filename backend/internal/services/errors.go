@@ -121,6 +121,19 @@ func NewDuplicateMembersError(emails []string) *DuplicateMembersError {
 	}
 }
 
+// InviteesNotAllowedError is returned by InviteMembers when the access allowlist
+// is active and does not admit some of the invited addresses (#1434). Such an
+// invitation could never be accepted, so the whole request is refused before
+// anything is created and every rejected address is named.
+type InviteesNotAllowedError struct {
+	Emails []string
+}
+
+// Error implements the error interface
+func (e *InviteesNotAllowedError) Error() string {
+	return fmt.Sprintf("not permitted by the access allowlist: %s", strings.Join(e.Emails, ", "))
+}
+
 // PersonalWorkspaceError is returned when attempting to invite members to a personal workspace
 type PersonalWorkspaceError struct {
 	TeamID string

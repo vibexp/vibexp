@@ -26,7 +26,16 @@ import (
 func newLinkingAuthService() *services.AuthService {
 	return services.NewAuthService(
 		NewUserRepository(integrationDB), NewUserIdentityRepository(integrationDB),
-		nil, nil, slog.New(slog.DiscardHandler), nil)
+		nil, nil, slog.New(slog.DiscardHandler), openAllowlist{})
+}
+
+// openAllowlist is an instance with no access allowlist: everyone is admitted.
+type openAllowlist struct {
+	services.AccessAllowlistResolver
+}
+
+func (openAllowlist) IsEmailAllowed(context.Context, string) (allowed, active bool, err error) {
+	return true, false, nil
 }
 
 func TestIntegrationLinking_AdminCreatedAccountCompletesFirstSignIn(t *testing.T) {

@@ -9,6 +9,7 @@ package server
 // per branch.
 
 import (
+	"encoding/json"
 	stderrors "errors"
 	"log/slog"
 	"net/http"
@@ -87,5 +88,36 @@ func TestHandleInvitationError_Arms(t *testing.T) {
 			srv.handleInvitationError(rr, req, tt.err)
 			assert.Equal(t, tt.wantStatus, rr.Code)
 		})
+	}
+}
+
+// Invited addresses the access allowlist does not admit: a validation error
+// with one field-level entry per address, so the form can say which to remove
+// (#1434).
+func TestHandleInvitationError_InviteesNotAllowed(t *testing.T) {
+	srv := invSendErrArmsServer()
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/teams/t/invitations", nil)
+
+	srv.handleInvitationError(rr, req,
+		&services.InviteesNotAllowedError{Emails: []string{"mallory@elsewhere.test", "eve@elsewhere.test"}})
+
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	var body struct {
+		Code             string `json:"code"`
+		Detail           string `json:"detail"`
+		ValidationErrors []struct {
+			Field, Message, Code string
+		} `json:"validation_errors"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Contains(t, body.Detail, "No invitations were sent")
+	assert.Contains(t, body.Detail, "mallory@elsewhere.test")
+	assert.Contains(t, body.Detail, "eve@elsewhere.test")
+	require.Len(t, body.ValidationErrors, 2)
+	for i, email := range []string{"mallory@elsewhere.test", "eve@elsewhere.test"} {
+		assert.Equal(t, "emails", body.ValidationErrors[i].Field)
+		assert.Equal(t, codeEmailNotAllowed, body.ValidationErrors[i].Code)
+		assert.Contains(t, body.ValidationErrors[i].Message, email)
 	}
 }

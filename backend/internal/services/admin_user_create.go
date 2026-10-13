@@ -42,6 +42,16 @@ import (
 //     believes they created a working account when they did not. At that instant
 //     no team or project exists yet, so there is nothing to cascade.
 
+// ErrAdminUserEmailNotAllowed is returned when an active access allowlist does
+// not admit the email: the account could never sign in (#1434).
+type ErrAdminUserEmailNotAllowed struct {
+	Email string
+}
+
+func (e *ErrAdminUserEmailNotAllowed) Error() string {
+	return fmt.Sprintf("%s is not permitted by the access allowlist", e.Email)
+}
+
 // ErrAdminUserEmailTaken is returned when the email already belongs to a user.
 // The handler maps it to 409.
 type ErrAdminUserEmailTaken struct {
@@ -71,6 +81,12 @@ func (s *AdminService) CreateUser(
 
 	if s.userRepo == nil || s.eventPublisher == nil {
 		return nil, errors.New("admin user creation is not wired: user repository or event publisher missing")
+	}
+
+	// The allowlist is the hard boundary: an account whose address it rejects
+	// could never sign in, so creating it would hand the admin a dead account.
+	if err := s.rejectEmailOutsideAllowlist(ctx, email); err != nil {
+		return nil, err
 	}
 
 	existing, err := s.userRepo.GetByEmail(ctx, email)
@@ -109,6 +125,23 @@ func (s *AdminService) CreateUser(
 	}
 
 	return s.adminRepo.GetUserDetail(ctx, user.ID)
+}
+
+// rejectEmailOutsideAllowlist returns *ErrAdminUserEmailNotAllowed when an
+// ACTIVE access allowlist does not admit email. Root instance admins are exempt,
+// as at sign-in. An allowlist that cannot be evaluated fails the request.
+func (s *AdminService) rejectEmailOutsideAllowlist(ctx context.Context, email string) error {
+	if s.allowlist == nil {
+		return nil
+	}
+	allowed, _, err := s.allowlist.IsEmailAllowed(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to evaluate the access allowlist: %w", err)
+	}
+	if !allowed {
+		return &ErrAdminUserEmailNotAllowed{Email: email}
+	}
+	return nil
 }
 
 // provisionNewUser publishes user.created and, if that fails, removes the row it

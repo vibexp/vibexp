@@ -114,6 +114,22 @@ describe('AuthCallback', () => {
     expect(mockHardRedirect).toHaveBeenCalledWith('/login')
   })
 
+  it('explains that sign-up needs an invitation', () => {
+    renderCallback('?error=registration_closed')
+
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(
+      screen.getByText('Sign-up is by invitation only')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/new accounts need an invitation/i)
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Authentication failed')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /back to sign in/i }))
+    expect(mockHardRedirect).toHaveBeenCalledWith('/login')
+  })
+
   it('keeps the generic message for an unknown error code', () => {
     renderCallback('?error=access_denied')
 

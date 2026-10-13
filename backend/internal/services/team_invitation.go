@@ -34,6 +34,7 @@ type TeamInvitationService struct {
 	userRepo       repositories.UserRepository
 	emailService   EmailServiceInterface
 	authz          AuthorizationServiceInterface
+	allowlist      AccessAllowlistResolver
 	cfg            *config.Config
 	logger         *slog.Logger
 }
@@ -46,8 +47,11 @@ type TeamInvitationServiceDeps struct {
 	UserRepo       repositories.UserRepository
 	EmailService   EmailServiceInterface
 	Authz          AuthorizationServiceInterface
-	Cfg            *config.Config
-	Logger         *slog.Logger
+	// Allowlist is the access allowlist an invited address must satisfy: an
+	// invitation to an address it rejects could never be accepted (#1434).
+	Allowlist AccessAllowlistResolver
+	Cfg       *config.Config
+	Logger    *slog.Logger
 }
 
 // NewTeamInvitationService creates a new TeamInvitationService
@@ -63,6 +67,7 @@ func NewTeamInvitationService(deps TeamInvitationServiceDeps) *TeamInvitationSer
 		userRepo:       deps.UserRepo,
 		emailService:   deps.EmailService,
 		authz:          deps.Authz,
+		allowlist:      deps.Allowlist,
 		cfg:            deps.Cfg,
 		logger:         logger,
 	}
@@ -78,6 +83,12 @@ func (s *TeamInvitationService) InviteMembers(
 ) ([]*models.TeamInvitation, error) {
 	team, err := s.validateInvitingTeam(ctx, userID, teamID)
 	if err != nil {
+		return nil, err
+	}
+
+	// Normalized, de-duplicated, and all admitted by the access allowlist, or
+	// the whole request is refused before anything is created or sent.
+	if emails, err = s.admissibleInvitees(ctx, teamID, emails); err != nil {
 		return nil, err
 	}
 
@@ -132,6 +143,74 @@ func (s *TeamInvitationService) InviteMembers(
 	}
 
 	return invitations, nil
+}
+
+// admissibleInvitees returns the addresses to invite: normalized and
+// de-duplicated (so one person typed twice in different casing is one
+// invitation), after checking each against the access allowlist. The allowlist
+// is the hard boundary: an address it rejects can never sign in, so inviting it
+// would only create an invitation nobody can accept.
+func (s *TeamInvitationService) admissibleInvitees(
+	ctx context.Context, teamID string, emails []string,
+) ([]string, error) {
+	emails = normalizeInvitees(emails)
+	if err := s.rejectInviteesOutsideAllowlist(ctx, teamID, emails); err != nil {
+		return nil, err
+	}
+	return emails, nil
+}
+
+// normalizeInvitees returns the addresses in the form they are stored in
+// (models.NormalizeEmail), without blanks and without repeats, in first-seen
+// order.
+func normalizeInvitees(emails []string) []string {
+	seen := make(map[string]struct{}, len(emails))
+	out := make([]string, 0, len(emails))
+	for _, email := range emails {
+		normalized := models.NormalizeEmail(email)
+		if normalized == "" {
+			continue
+		}
+		if _, dup := seen[normalized]; dup {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
+}
+
+// rejectInviteesOutsideAllowlist returns an *InviteesNotAllowedError naming
+// every address an ACTIVE access allowlist does not admit, and nil when all are
+// admitted or no allowlist is active. Root instance admins are exempt, as they
+// are at sign-in (the resolver applies that). An allowlist that cannot be
+// evaluated fails the request: an invitation must not be created on a guess.
+func (s *TeamInvitationService) rejectInviteesOutsideAllowlist(
+	ctx context.Context, teamID string, emails []string,
+) error {
+	if s.allowlist == nil {
+		return nil
+	}
+	var rejected []string
+	for _, email := range emails {
+		allowed, _, err := s.allowlist.IsEmailAllowed(ctx, email)
+		if err != nil {
+			return fmt.Errorf("failed to evaluate the access allowlist: %w", err)
+		}
+		if !allowed {
+			rejected = append(rejected, email)
+		}
+	}
+	if len(rejected) == 0 {
+		return nil
+	}
+	s.logger.With(
+		"service", logServiceVibeXPAPI,
+		"component", logComponentTeamInvitation,
+		"team_id", teamID,
+		"rejected", len(rejected),
+	).Info("Invitations refused: addresses not permitted by the access allowlist")
+	return &InviteesNotAllowedError{Emails: rejected}
 }
 
 // validateInvitingTeam authorizes the inviter (owner/admin role) and loads the team,

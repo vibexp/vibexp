@@ -139,6 +139,35 @@ func TestCreateAdminUser_DuplicateEmailReturns409(t *testing.T) {
 	specconformance.AssertConformsToSpec(t, req, rr)
 }
 
+// An address the access allowlist does not admit is a field-level validation
+// error naming the address, not a 500 and not a 409 (#1434).
+func TestCreateAdminUser_EmailOutsideTheAllowlistReturns400(t *testing.T) {
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("CreateUser", mock.Anything, mock.Anything).
+		Return(nil, &services.ErrAdminUserEmailNotAllowed{Email: "outside@elsewhere.test"})
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := postUserRequest(t, `{"email":"outside@elsewhere.test","name":"Outside"}`)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	var body struct {
+		Code             string `json:"code"`
+		Detail           string `json:"detail"`
+		ValidationErrors []struct {
+			Field, Message, Code string
+		} `json:"validation_errors"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Contains(t, body.Detail, "outside@elsewhere.test")
+	require.Len(t, body.ValidationErrors, 1)
+	assert.Equal(t, "email", body.ValidationErrors[0].Field)
+	assert.Equal(t, codeEmailNotAllowed, body.ValidationErrors[0].Code)
+	assert.Contains(t, body.ValidationErrors[0].Message, "access allowlist")
+	specconformance.AssertConformsToSpec(t, req, rr)
+}
+
 // TestCreateAdminUser_ServiceErrorReturns500 — including the provisioning
 // failure, which is a 500 precisely so no unprovisioned account is reported as
 // created.

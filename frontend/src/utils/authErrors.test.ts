@@ -12,6 +12,8 @@ import {
   GENERIC_AUTH_ERROR,
   mapAuthCallbackError,
   mapSignInError,
+  REGISTRATION_CLOSED_CODE,
+  REGISTRATION_CLOSED_ERROR,
 } from './authErrors'
 
 const buildApiError = (
@@ -44,6 +46,14 @@ describe('mapAuthCallbackError', () => {
       EXISTING_SIGN_IN_REQUIRED_ERROR
     )
     expect(EXISTING_SIGN_IN_REQUIRED_ERROR.actionHref).toBe('/login')
+  })
+
+  it('maps registration_closed to the invitation-only view', () => {
+    expect(REGISTRATION_CLOSED_CODE).toBe('registration_closed')
+    expect(mapAuthCallbackError(REGISTRATION_CLOSED_CODE)).toEqual(
+      REGISTRATION_CLOSED_ERROR
+    )
+    expect(REGISTRATION_CLOSED_ERROR.actionHref).toBe('/login')
   })
 
   it('maps access_restricted to the restriction view', () => {

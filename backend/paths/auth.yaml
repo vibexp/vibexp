@@ -144,16 +144,21 @@ api-v1-auth-callback:
           account's email was never verified and the account already has a
           sign-in method of its own, to
           `/auth/callback?error=existing_sign_in_required`: it must be signed in
-          to with that method first, and nothing is written. When the account
-          is suspended, to `/auth/callback?error=account_suspended`.
+          to with that method first, and nothing is written. When the sign-in
+          would create a new account, the instance's registration mode is
+          `invite_only`, and the provider-verified email has no pending
+          invitation (and is not a root instance admin), to
+          `/auth/callback?error=registration_closed`: no account is created.
+          When the account is suspended, to
+          `/auth/callback?error=account_suspended`.
         headers:
           Location:
             description: |
               Frontend URL — the home page on success (e.g. https://app.example.com/),
               or /auth/callback?error=<code> when the sign-in is refused, where
               <code> is one of access_restricted, provider_unavailable,
-              email_not_verified, existing_sign_in_required or
-              account_suspended.
+              email_not_verified, existing_sign_in_required,
+              registration_closed or account_suspended.
             schema:
               type: string
               format: uri

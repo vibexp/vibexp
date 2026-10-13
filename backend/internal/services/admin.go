@@ -156,6 +156,9 @@ type AdminService struct {
 	userRepo       repositories.UserRepository
 	eventPublisher events.EventPublisher
 	freshness      FreshnessServiceInterface
+	// allowlist is the access allowlist a created user's address must satisfy
+	// (#1434). Nil skips the check; the running server always sets it.
+	allowlist AccessAllowlistResolver
 
 	// exportCap overrides adminExportRowCap when positive; tests only.
 	exportCap int
@@ -167,12 +170,30 @@ func NewAdminService(
 	userRepo repositories.UserRepository,
 	eventPublisher events.EventPublisher,
 	freshness FreshnessServiceInterface,
+	opts ...AdminServiceOption,
 ) AdminServiceInterface {
-	return &AdminService{
+	s := &AdminService{
 		adminRepo:      adminRepo,
 		userRepo:       userRepo,
 		eventPublisher: eventPublisher,
 		freshness:      freshness,
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// AdminServiceOption customizes an AdminService at construction.
+type AdminServiceOption func(*AdminService)
+
+// WithAdminAccessAllowlist makes user creation reject an address the access
+// allowlist does not admit. A nil resolver is ignored.
+func WithAdminAccessAllowlist(allowlist AccessAllowlistResolver) AdminServiceOption {
+	return func(s *AdminService) {
+		if allowlist != nil {
+			s.allowlist = allowlist
+		}
 	}
 }
 
