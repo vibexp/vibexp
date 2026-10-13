@@ -179,6 +179,14 @@ components:
       $ref: "./schemas/account.yaml#/AccountUpdateRequest"
     AccountPasswordRequest:
       $ref: "./schemas/account.yaml#/AccountPasswordRequest"
+    AccountLinkPreviewRequest:
+      $ref: "./schemas/auth.yaml#/AccountLinkPreviewRequest"
+    AccountLinkPreview:
+      $ref: "./schemas/auth.yaml#/AccountLinkPreview"
+    CompleteAccountSetupRequest:
+      $ref: "./schemas/auth.yaml#/CompleteAccountSetupRequest"
+    CompleteAccountResetRequest:
+      $ref: "./schemas/auth.yaml#/CompleteAccountResetRequest"
     SetupStatusResponse:
       $ref: "./schemas/setup.yaml#/SetupStatusResponse"
     CreateSetupSessionRequest:
@@ -1234,6 +1242,12 @@ paths:
     $ref: "./paths/auth.yaml#/api-v1-auth-dev-login"
   /api/v1/auth/password/login:
     $ref: "./paths/auth.yaml#/api-v1-auth-password-login"
+  /api/v1/auth/password/token/preview:
+    $ref: "./paths/auth.yaml#/api-v1-auth-password-token-preview"
+  /api/v1/auth/password/setup:
+    $ref: "./paths/auth.yaml#/api-v1-auth-password-setup"
+  /api/v1/auth/password/reset:
+    $ref: "./paths/auth.yaml#/api-v1-auth-password-reset"
   /api/v1/auth/me:
     $ref: "./paths/auth.yaml#/api-v1-auth-me"
   /api/v1/account:

@@ -100,9 +100,10 @@ func NewHasher(params Params) *Hasher {
 // dummy returns the fixed derivation DummyVerify compares against, computing it
 // on first use. That one-off computation is outside the slots and is not
 // counted by Derivations: it happens once per process, on the first sign-in
-// that has no hash to check, which then takes about twice as long as every
-// later one. A single slower response at start-up tells a caller nothing about
-// any account.
+// that is checked, which then takes about twice as long as every later one.
+// Verify makes it too, although it has no use for it, so that the first
+// sign-in of a process is slower by the same amount whether or not the account
+// exists.
 func (h *Hasher) dummy() (salt, key []byte) {
 	h.dummyOnce.Do(func() {
 		// The input is fixed and public; only the cost matters.
@@ -151,6 +152,12 @@ func (h *Hasher) Verify(ctx context.Context, encoded, password string) (ok, need
 	params, salt, key, err := decode(encoded)
 	if err != nil {
 		return false, false, err
+	}
+	// Not needed here; made so the first check of a process costs the same as
+	// the first DummyVerify (see dummy). Skipped for an abandoned request, as
+	// DummyVerify skips it.
+	if ctx.Err() == nil {
+		h.dummy()
 	}
 	candidate, err := h.derive(ctx, password, salt, params)
 	if err != nil {

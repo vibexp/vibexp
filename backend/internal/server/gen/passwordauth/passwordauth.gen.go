@@ -15,6 +15,89 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AccountLinkPreviewPurpose.
+const (
+	AccountLinkPurposeReset AccountLinkPreviewPurpose = "reset"
+	AccountLinkPurposeSetup AccountLinkPreviewPurpose = "setup"
+)
+
+// Valid indicates whether the value is a known member of the AccountLinkPreviewPurpose enum.
+func (e AccountLinkPreviewPurpose) Valid() bool {
+	switch e {
+	case AccountLinkPurposeReset:
+		return true
+	case AccountLinkPurposeSetup:
+		return true
+	default:
+		return false
+	}
+}
+
+// AccountLinkPreview What a one-time account link does and whose account it acts on.
+type AccountLinkPreview struct {
+	// Email The email address of the account, which is what the person signs in with.
+	Email openapi_types.Email `json:"email"`
+
+	// ExpiresAt When the link stops working.
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Name The account's display name; empty when none has been set.
+	Name string `json:"name"`
+
+	// Purpose What completing the link does: `setup` sets the first password of an
+	// account (`POST /api/v1/auth/password/setup`), `reset` replaces a
+	// forgotten one (`POST /api/v1/auth/password/reset`).
+	Purpose AccountLinkPreviewPurpose `json:"purpose"`
+}
+
+// AccountLinkPreviewPurpose What completing the link does: `setup` sets the first password of an
+// account (`POST /api/v1/auth/password/setup`), `reset` replaces a
+// forgotten one (`POST /api/v1/auth/password/reset`).
+type AccountLinkPreviewPurpose string
+
+// AccountLinkPreviewRequest Request body for POST /api/v1/auth/password/token/preview.
+type AccountLinkPreviewRequest struct {
+	// Token The token of a one-time account link: the part after `#token=` in the link.
+	// It is sent in request bodies only, never in a path or a query string.
+	Token AccountLinkToken `json:"token"`
+}
+
+// AccountLinkToken The token of a one-time account link: the part after `#token=` in the link.
+// It is sent in request bodies only, never in a path or a query string.
+type AccountLinkToken = string
+
+// CompleteAccountResetRequest Request body for POST /api/v1/auth/password/reset.
+type CompleteAccountResetRequest struct {
+	// Password The new password, exactly as typed: it is not trimmed. It must meet the
+	// password policy (at least 12 characters, at most 128, not a commonly
+	// used password, not the account's email address).
+	Password string `json:"password"`
+
+	// RevokeApiAccess Also delete the account's API keys and its MCP and OAuth grants. The
+	// account's other browser sessions are ended either way.
+	RevokeApiAccess *bool `json:"revoke_api_access,omitempty"`
+
+	// Token The token of a one-time account link: the part after `#token=` in the link.
+	// It is sent in request bodies only, never in a path or a query string.
+	Token AccountLinkToken `json:"token"`
+}
+
+// CompleteAccountSetupRequest Request body for POST /api/v1/auth/password/setup.
+type CompleteAccountSetupRequest struct {
+	// Name The display name to set on the account. Optional; surrounding spaces
+	// are removed, and an empty value leaves the name as it is.
+	Name *string `json:"name,omitempty"`
+
+	// Password The password to set, exactly as typed: it is not trimmed. It must meet
+	// the password policy (at least 12 characters, at most 128, not a
+	// commonly used password, not the account's email address).
+	Password string `json:"password"`
+
+	// Token The token of a one-time account link: the part after `#token=` in the link.
+	// It is sent in request bodies only, never in a path or a query string.
+	Token AccountLinkToken `json:"token"`
+}
+
 // ErrorResponse RFC 9457 Problem Details for HTTP APIs
 type ErrorResponse struct {
 	// Code Application-specific error code
@@ -109,11 +192,29 @@ type cookieAuthContextKey string
 // PasswordLoginJSONRequestBody defines body for PasswordLogin for application/json ContentType.
 type PasswordLoginJSONRequestBody = PasswordLoginRequest
 
+// CompleteAccountResetJSONRequestBody defines body for CompleteAccountReset for application/json ContentType.
+type CompleteAccountResetJSONRequestBody = CompleteAccountResetRequest
+
+// CompleteAccountSetupJSONRequestBody defines body for CompleteAccountSetup for application/json ContentType.
+type CompleteAccountSetupJSONRequestBody = CompleteAccountSetupRequest
+
+// PreviewAccountLinkJSONRequestBody defines body for PreviewAccountLink for application/json ContentType.
+type PreviewAccountLinkJSONRequestBody = AccountLinkPreviewRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Sign in with email and password
 	// (POST /api/v1/auth/password/login)
 	PasswordLogin(w http.ResponseWriter, r *http.Request)
+	// Set a new password from a reset link
+	// (POST /api/v1/auth/password/reset)
+	CompleteAccountReset(w http.ResponseWriter, r *http.Request)
+	// Set the first password of an account from a setup link
+	// (POST /api/v1/auth/password/setup)
+	CompleteAccountSetup(w http.ResponseWriter, r *http.Request)
+	// Look up a one-time account link
+	// (POST /api/v1/auth/password/token/preview)
+	PreviewAccountLink(w http.ResponseWriter, r *http.Request)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -123,6 +224,24 @@ type Unimplemented struct{}
 // Sign in with email and password
 // (POST /api/v1/auth/password/login)
 func (_ Unimplemented) PasswordLogin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Set a new password from a reset link
+// (POST /api/v1/auth/password/reset)
+func (_ Unimplemented) CompleteAccountReset(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Set the first password of an account from a setup link
+// (POST /api/v1/auth/password/setup)
+func (_ Unimplemented) CompleteAccountSetup(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Look up a one-time account link
+// (POST /api/v1/auth/password/token/preview)
+func (_ Unimplemented) PreviewAccountLink(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -140,6 +259,48 @@ func (siw *ServerInterfaceWrapper) PasswordLogin(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PasswordLogin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompleteAccountReset operation middleware
+func (siw *ServerInterfaceWrapper) CompleteAccountReset(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteAccountReset(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompleteAccountSetup operation middleware
+func (siw *ServerInterfaceWrapper) CompleteAccountSetup(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteAccountSetup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewAccountLink operation middleware
+func (siw *ServerInterfaceWrapper) PreviewAccountLink(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewAccountLink(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -264,6 +425,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/auth/password/login", wrapper.PasswordLogin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/auth/password/reset", wrapper.CompleteAccountReset)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/auth/password/setup", wrapper.CompleteAccountSetup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/auth/password/token/preview", wrapper.PreviewAccountLink)
 	})
 
 	return r
@@ -399,11 +569,386 @@ func (response PasswordLogin503ApplicationProblemPlusJSONResponse) VisitPassword
 	return err
 }
 
+type CompleteAccountResetRequestObject struct {
+	Body *CompleteAccountResetJSONRequestBody
+}
+
+type CompleteAccountResetResponseObject interface {
+	VisitCompleteAccountResetResponse(w http.ResponseWriter) error
+}
+
+type CompleteAccountReset200ResponseHeaders struct {
+	SetCookie *string
+}
+
+type CompleteAccountReset200JSONResponse struct {
+	Body    User
+	Headers CompleteAccountReset200ResponseHeaders
+}
+
+func (response CompleteAccountReset200JSONResponse) VisitCompleteAccountResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountReset400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountReset400ApplicationProblemPlusJSONResponse) VisitCompleteAccountResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountReset401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountReset401ApplicationProblemPlusJSONResponse) VisitCompleteAccountResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountReset403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountReset403ApplicationProblemPlusJSONResponse) VisitCompleteAccountResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountReset404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountReset404ApplicationProblemPlusJSONResponse) VisitCompleteAccountResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountReset429ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountReset429ApplicationProblemPlusJSONResponse) VisitCompleteAccountResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountReset500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountReset500ApplicationProblemPlusJSONResponse) VisitCompleteAccountResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountReset503ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountReset503ApplicationProblemPlusJSONResponse) VisitCompleteAccountResetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountSetupRequestObject struct {
+	Body *CompleteAccountSetupJSONRequestBody
+}
+
+type CompleteAccountSetupResponseObject interface {
+	VisitCompleteAccountSetupResponse(w http.ResponseWriter) error
+}
+
+type CompleteAccountSetup200ResponseHeaders struct {
+	SetCookie *string
+}
+
+type CompleteAccountSetup200JSONResponse struct {
+	Body    User
+	Headers CompleteAccountSetup200ResponseHeaders
+}
+
+func (response CompleteAccountSetup200JSONResponse) VisitCompleteAccountSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountSetup400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountSetup400ApplicationProblemPlusJSONResponse) VisitCompleteAccountSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountSetup401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountSetup401ApplicationProblemPlusJSONResponse) VisitCompleteAccountSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountSetup403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountSetup403ApplicationProblemPlusJSONResponse) VisitCompleteAccountSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountSetup404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountSetup404ApplicationProblemPlusJSONResponse) VisitCompleteAccountSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountSetup429ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountSetup429ApplicationProblemPlusJSONResponse) VisitCompleteAccountSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountSetup500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountSetup500ApplicationProblemPlusJSONResponse) VisitCompleteAccountSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteAccountSetup503ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CompleteAccountSetup503ApplicationProblemPlusJSONResponse) VisitCompleteAccountSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAccountLinkRequestObject struct {
+	Body *PreviewAccountLinkJSONRequestBody
+}
+
+type PreviewAccountLinkResponseObject interface {
+	VisitPreviewAccountLinkResponse(w http.ResponseWriter) error
+}
+
+type PreviewAccountLink200JSONResponse AccountLinkPreview
+
+func (response PreviewAccountLink200JSONResponse) VisitPreviewAccountLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAccountLink400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response PreviewAccountLink400ApplicationProblemPlusJSONResponse) VisitPreviewAccountLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAccountLink401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response PreviewAccountLink401ApplicationProblemPlusJSONResponse) VisitPreviewAccountLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAccountLink403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response PreviewAccountLink403ApplicationProblemPlusJSONResponse) VisitPreviewAccountLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAccountLink404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response PreviewAccountLink404ApplicationProblemPlusJSONResponse) VisitPreviewAccountLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAccountLink429ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response PreviewAccountLink429ApplicationProblemPlusJSONResponse) VisitPreviewAccountLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewAccountLink503ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response PreviewAccountLink503ApplicationProblemPlusJSONResponse) VisitPreviewAccountLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Sign in with email and password
 	// (POST /api/v1/auth/password/login)
 	PasswordLogin(ctx context.Context, request PasswordLoginRequestObject) (PasswordLoginResponseObject, error)
+	// Set a new password from a reset link
+	// (POST /api/v1/auth/password/reset)
+	CompleteAccountReset(ctx context.Context, request CompleteAccountResetRequestObject) (CompleteAccountResetResponseObject, error)
+	// Set the first password of an account from a setup link
+	// (POST /api/v1/auth/password/setup)
+	CompleteAccountSetup(ctx context.Context, request CompleteAccountSetupRequestObject) (CompleteAccountSetupResponseObject, error)
+	// Look up a one-time account link
+	// (POST /api/v1/auth/password/token/preview)
+	PreviewAccountLink(ctx context.Context, request PreviewAccountLinkRequestObject) (PreviewAccountLinkResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -459,6 +1004,99 @@ func (sh *strictHandler) PasswordLogin(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PasswordLoginResponseObject); ok {
 		if err := validResponse.VisitPasswordLoginResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompleteAccountReset operation middleware
+func (sh *strictHandler) CompleteAccountReset(w http.ResponseWriter, r *http.Request) {
+	var request CompleteAccountResetRequestObject
+
+	var body CompleteAccountResetJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompleteAccountReset(ctx, request.(CompleteAccountResetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompleteAccountReset")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompleteAccountResetResponseObject); ok {
+		if err := validResponse.VisitCompleteAccountResetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompleteAccountSetup operation middleware
+func (sh *strictHandler) CompleteAccountSetup(w http.ResponseWriter, r *http.Request) {
+	var request CompleteAccountSetupRequestObject
+
+	var body CompleteAccountSetupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompleteAccountSetup(ctx, request.(CompleteAccountSetupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompleteAccountSetup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompleteAccountSetupResponseObject); ok {
+		if err := validResponse.VisitCompleteAccountSetupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewAccountLink operation middleware
+func (sh *strictHandler) PreviewAccountLink(w http.ResponseWriter, r *http.Request) {
+	var request PreviewAccountLinkRequestObject
+
+	var body PreviewAccountLinkJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewAccountLink(ctx, request.(PreviewAccountLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewAccountLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewAccountLinkResponseObject); ok {
+		if err := validResponse.VisitPreviewAccountLinkResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

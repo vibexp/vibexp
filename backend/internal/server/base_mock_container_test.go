@@ -425,6 +425,12 @@ func (b *BaseMockContainer) PasswordAuthService() services.PasswordAuthServiceIn
 	return nil
 }
 
+// AccountTokenService returns nil; suites that exercise the one-time account
+// links install their own.
+func (b *BaseMockContainer) AccountTokenService() services.AccountTokenServiceInterface {
+	return nil
+}
+
 // noSetupMode is a SetupModeService for an instance that is not, and never
 // was, in authentication setup mode.
 type noSetupMode struct{}

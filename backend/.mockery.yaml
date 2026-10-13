@@ -20,6 +20,7 @@ packages:
       A2AHTTPClientInterface:
       AccessAllowlistResolver:
       PasswordAuthServiceInterface:
+      AccountTokenServiceInterface:
       AuthPolicyResolver:
       ActiveEmbeddingProviderResolver:
       AdminServiceInterface:
@@ -181,6 +182,7 @@ packages:
       TeamStatusRepository:
       TypeRepository:
       UserCredentialRepository:
+      AccountTokenRepository:
       UserIdentityRepository:
       UserPreferencesRepository:
       UserRepository:
