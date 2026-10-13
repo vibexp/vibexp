@@ -26,6 +26,7 @@ packages:
       AgentInvocationServiceInterface:
       AgentServiceInterface:
       APIKeyServiceInterface:
+      AccountServiceInterface:
       ArtifactServiceInterface:
       AttachmentOwnerAuthorizer:
       AttachmentServiceInterface:

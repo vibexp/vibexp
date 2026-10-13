@@ -285,6 +285,10 @@ func (s *Service) GetActivityTypes() []string {
 		ActivityTypeAuthLogout,
 		ActivityTypeAuthFailure,
 		ActivityTypeTokenRefresh,
+		ActivityTypeAuthCredentialSet,
+		ActivityTypeAuthCredentialChanged,
+		ActivityTypeAuthCredentialRemoved,
+		ActivityTypeAuthIdentityDisconnected,
 		ActivityTypeAPIKeyCreated,
 		ActivityTypeAPIKeyDeleted,
 		ActivityTypeAPIKeyUsed,
@@ -626,6 +630,17 @@ func (s *Service) generateAuthActivityDescription(activityType string, metadata 
 		return "User successfully logged in"
 	case ActivityTypeAuthLogout:
 		return "User logged out"
+	case ActivityTypeAuthCredentialSet:
+		return "User set a password"
+	case ActivityTypeAuthCredentialChanged:
+		return "User changed their password"
+	case ActivityTypeAuthCredentialRemoved:
+		return "User removed their password"
+	case ActivityTypeAuthIdentityDisconnected:
+		if provider, ok := metadata["provider"].(string); ok {
+			return fmt.Sprintf("User disconnected the sign-in provider %s", provider)
+		}
+		return "User disconnected a sign-in provider"
 	case ActivityTypeAuthFailure:
 		if reason, ok := metadata["reason"].(string); ok {
 			return fmt.Sprintf("Authentication failed: %s", reason)

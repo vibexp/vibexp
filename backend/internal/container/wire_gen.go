@@ -328,6 +328,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	instanceSettingsAuditRepository := providers.ProvideInstanceSettingsAuditRepository(db)
 	instanceEmailProviderServiceInterface := providers.ProvideInstanceEmailProviderService(instanceEmailProviderRepository, instanceSettingsAuditRepository, userRepository, encryptionServiceInterface, logger)
 	passwordAuthServiceInterface := providers.ProvidePasswordAuthService(userRepository, userCredentialRepository, authPolicyResolver, accessAllowlistResolver, logger)
+	accountServiceInterface := providers.ProvideAccountService(userRepository, userIdentityRepository, passwordAuthServiceInterface, authPolicyResolver, identityProviderResolver, apiAccessServiceInterface, logger)
 	instanceAuthSetupRepository := providers.ProvideInstanceAuthSetupRepository(db)
 	setupModeService := providers.ProvideSetupModeService(instanceAuthSetupRepository, instanceAuthProviderRepository, instanceAdminResolver, cfg, logger)
 	instanceAuthSettingsServiceDeps := providers.InstanceAuthSettingsServiceDeps{
@@ -472,6 +473,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		accessAllowlistResolver:          accessAllowlistResolver,
 		authPolicyResolver:               authPolicyResolver,
 		passwordAuthService:              passwordAuthServiceInterface,
+		accountService:                   accountServiceInterface,
 		setupModeService:                 setupModeService,
 		instanceAuthSettingsService:      instanceAuthSettingsServiceInterface,
 		identityProviderResolver:         identityProviderResolver,
@@ -490,7 +492,7 @@ var ProviderSet = wire.NewSet(providers.ProvideMetrics, providers.ProvideEmailSe
 	new(*services.InstanceSiteInfoService)), providers.ProvideInstanceSearchSettingsService, wire.Bind(new(services.InstanceSearchSettingsResolver),
 	new(*services.InstanceSearchSettingsService)), wire.Bind(new(services.InstanceSearchSettingsReader),
 	new(*services.InstanceSearchSettingsService)), wire.Bind(new(services.InstanceSearchSettingsServiceInterface),
-	new(*services.InstanceSearchSettingsService)), providers.ProvideSearchSettingsResolver, providers.ProvideTeamEmailProviderService, providers.ProvideEmailSenderResolver, providers.ProvideInstanceEmailProviderService, providers.ProvideInstanceAdminResolver, providers.ProvideAccessAllowlistResolver, providers.ProvideAuthPolicyResolver, providers.ProvidePasswordAuthService, providers.ProvideSetupModeService, providers.ProvideIdentityProviderResolver, providers.ProvideInstanceAuthSettingsService, providers.ProvideTeamSearchSettingsService, providers.ProvideInstanceAISummarySettingsService, wire.Bind(new(services.InstanceAISummarySettingsResolver),
+	new(*services.InstanceSearchSettingsService)), providers.ProvideSearchSettingsResolver, providers.ProvideTeamEmailProviderService, providers.ProvideEmailSenderResolver, providers.ProvideInstanceEmailProviderService, providers.ProvideInstanceAdminResolver, providers.ProvideAccessAllowlistResolver, providers.ProvideAuthPolicyResolver, providers.ProvidePasswordAuthService, providers.ProvideAccountService, providers.ProvideSetupModeService, providers.ProvideIdentityProviderResolver, providers.ProvideInstanceAuthSettingsService, providers.ProvideTeamSearchSettingsService, providers.ProvideInstanceAISummarySettingsService, wire.Bind(new(services.InstanceAISummarySettingsResolver),
 	new(*services.InstanceAISummarySettingsService)), wire.Bind(new(services.InstanceAISummarySettingsReader),
 	new(*services.InstanceAISummarySettingsService)), wire.Bind(new(services.InstanceAISummarySettingsServiceInterface),
 	new(*services.InstanceAISummarySettingsService)), providers.ProvideTeamAISummarySettingsService, wire.Bind(new(services.TeamAISummarySettingsServiceInterface),

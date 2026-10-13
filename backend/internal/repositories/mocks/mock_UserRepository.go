@@ -552,6 +552,54 @@ func (_c *MockUserRepository_UpdateDefaultTeamID_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// UpdateName provides a mock function with given fields: ctx, userID, name
+func (_m *MockUserRepository) UpdateName(ctx context.Context, userID string, name string) error {
+	ret := _m.Called(ctx, userID, name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateName")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, userID, name)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockUserRepository_UpdateName_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateName'
+type MockUserRepository_UpdateName_Call struct {
+	*mock.Call
+}
+
+// UpdateName is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - name string
+func (_e *MockUserRepository_Expecter) UpdateName(ctx interface{}, userID interface{}, name interface{}) *MockUserRepository_UpdateName_Call {
+	return &MockUserRepository_UpdateName_Call{Call: _e.mock.On("UpdateName", ctx, userID, name)}
+}
+
+func (_c *MockUserRepository_UpdateName_Call) Run(run func(ctx context.Context, userID string, name string)) *MockUserRepository_UpdateName_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockUserRepository_UpdateName_Call) Return(_a0 error) *MockUserRepository_UpdateName_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockUserRepository_UpdateName_Call) RunAndReturn(run func(context.Context, string, string) error) *MockUserRepository_UpdateName_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockUserRepository creates a new instance of MockUserRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockUserRepository(t interface {

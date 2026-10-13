@@ -104,6 +104,13 @@ const (
 	ActivityTypeAuthFailure  = "auth_failure"
 	ActivityTypeTokenRefresh = "token_refresh"
 
+	// Self-service changes to how an account signs in (#1437). The metadata
+	// never says anything about the password itself.
+	ActivityTypeAuthCredentialSet        = "auth_password_set"
+	ActivityTypeAuthCredentialChanged    = "auth_password_changed"
+	ActivityTypeAuthCredentialRemoved    = "auth_password_removed"
+	ActivityTypeAuthIdentityDisconnected = "auth_identity_disconnected"
+
 	// API Key activities
 	ActivityTypeAPIKeyCreated = "api_key_created"
 	ActivityTypeAPIKeyDeleted = "api_key_deleted"

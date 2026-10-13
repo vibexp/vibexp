@@ -881,6 +881,31 @@ func ProvideAuthPolicyResolver(
 	})
 }
 
+// ProvideAccountService creates the self-service account service (#1437). It
+// shares the password service, the policy resolver and the provider resolver
+// with sign-in, so "which methods can this account use" is answered from the
+// same sources sign-in itself reads. No notifier is installed yet: the
+// password-changed email is #1433.
+func ProvideAccountService(
+	users repositories.UserRepository,
+	identities repositories.UserIdentityRepository,
+	passwords services.PasswordAuthServiceInterface,
+	policy services.AuthPolicyResolver,
+	providers services.IdentityProviderResolver,
+	apiAccess services.APIAccessServiceInterface,
+	logger *slog.Logger,
+) services.AccountServiceInterface {
+	return services.NewAccountService(services.AccountServiceDeps{
+		Users:      users,
+		Identities: identities,
+		Passwords:  passwords,
+		Policy:     policy,
+		Providers:  providers,
+		APIAccess:  apiAccess,
+		Logger:     logger,
+	})
+}
+
 // ProvidePasswordAuthService creates the email and password sign-in service
 // (#1431) with the production argon2id parameters and lockout schedule. It
 // shares the policy and allowlist resolvers with every other sign-in path, so

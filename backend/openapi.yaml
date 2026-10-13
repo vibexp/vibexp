@@ -169,6 +169,16 @@ components:
       $ref: "./schemas/auth.yaml#/PasswordLogin"
     PasswordLoginRequest:
       $ref: "./schemas/auth.yaml#/PasswordLoginRequest"
+    Account:
+      $ref: "./schemas/account.yaml#/Account"
+    AccountPassword:
+      $ref: "./schemas/account.yaml#/AccountPassword"
+    AccountIdentity:
+      $ref: "./schemas/account.yaml#/AccountIdentity"
+    AccountUpdateRequest:
+      $ref: "./schemas/account.yaml#/AccountUpdateRequest"
+    AccountPasswordRequest:
+      $ref: "./schemas/account.yaml#/AccountPasswordRequest"
     SetupStatusResponse:
       $ref: "./schemas/setup.yaml#/SetupStatusResponse"
     CreateSetupSessionRequest:
@@ -1226,6 +1236,12 @@ paths:
     $ref: "./paths/auth.yaml#/api-v1-auth-password-login"
   /api/v1/auth/me:
     $ref: "./paths/auth.yaml#/api-v1-auth-me"
+  /api/v1/account:
+    $ref: "./paths/account.yaml#/api-v1-account"
+  /api/v1/account/password:
+    $ref: "./paths/account.yaml#/api-v1-account-password"
+  /api/v1/account/identities/{id}:
+    $ref: "./paths/account.yaml#/api-v1-account-identities-id"
   /api/v1/site-info:
     $ref: "./paths/siteinfo.yaml#/api-v1-site-info"
   /api/v1/setup/status:
@@ -1762,6 +1778,8 @@ tags:
     description: The instance's company branding, readable without authentication. REST-only, no MCP.
   - name: Password Authentication
     description: Email and password sign-in and the public account operations around it. Available only while an instance admin has switched password login on. REST-only, no MCP.
+  - name: Account
+    description: The signed-in user's own account — display name, password and connected sign-in methods. REST-only, no MCP.
   - name: Setup
     description: First-run authentication setup — the public setup status and the setup-token exchange. REST-only, no MCP.
   - name: Admin

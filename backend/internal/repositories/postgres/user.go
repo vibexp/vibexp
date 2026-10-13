@@ -192,6 +192,25 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	return nil
 }
 
+// UpdateName sets the user's display name. It does not use the optimistic
+// version check Update does: the name is the only thing written, so a
+// concurrent sign-in refreshing other columns must not make it fail.
+func (r *UserRepository) UpdateName(ctx context.Context, userID, name string) error {
+	result, err := r.db.ExecContext(ctx,
+		`UPDATE users SET name = $2, updated_at = NOW(), version = version + 1 WHERE id = $1`, userID, name)
+	if err != nil {
+		return fmt.Errorf("failed to update user name: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to read affected rows for user name update: %w", err)
+	}
+	if affected == 0 {
+		return repositories.ErrUserNotFound
+	}
+	return nil
+}
+
 // UpdateDefaultTeamID updates a user's default team ID
 func (r *UserRepository) UpdateDefaultTeamID(ctx context.Context, userID, teamID string) error {
 	query := `

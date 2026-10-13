@@ -130,6 +130,19 @@ type PasswordAuthServiceInterface interface {
 	RemovePassword(ctx context.Context, userID string) (removed bool, err error)
 	// HasPassword reports whether the user has a password, disabled or not.
 	HasPassword(ctx context.Context, userID string) (bool, error)
+	// VerifyPassword checks plaintext against the user's CURRENT password, for
+	// an already authenticated session that is about to change it (#1437). It
+	// goes through the same per-account throttle as Login: a wrong password is
+	// a counted failed attempt and returns ErrCurrentPasswordInvalid, and while
+	// the account is locked it returns ErrPasswordAttemptsExceeded (as a
+	// *PasswordLockedError) without checking. An account with no password, or a
+	// disabled one, is ErrCurrentPasswordInvalid too. The sign-in gates
+	// (policy, allowlist, suspension) are not applied; the caller's session has
+	// passed them.
+	VerifyPassword(ctx context.Context, userID, plaintext string) error
+	// PasswordStatus reports whether the user has a password, whether it is
+	// usable (not disabled by an administrator), and when it last changed.
+	PasswordStatus(ctx context.Context, userID string) (PasswordStatus, error)
 }
 
 // PasswordHasher makes and checks password hashes. *password.Hasher is the

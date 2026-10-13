@@ -1,0 +1,149 @@
+# Self-service account (#1437, epic #1426): what a signed-in user reads and
+# changes about their own account.
+
+Account:
+  type: object
+  description: The signed-in user's own account and its sign-in methods.
+  required:
+    - id
+    - email
+    - name
+    - password
+    - identities
+    - recent_sign_in
+  properties:
+    id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+      description: The account's email address. It cannot be changed here.
+      example: "ada@example.com"
+    name:
+      type: string
+      description: Display name.
+      example: "Ada Lovelace"
+    password:
+      $ref: '#/AccountPassword'
+    identities:
+      type: array
+      description: |
+        The identity providers this account can sign in with, oldest first.
+        Empty when the account has none.
+      items:
+        $ref: '#/AccountIdentity'
+    recent_sign_in:
+      type: boolean
+      description: |
+        Whether this request's browser session signed in within the last 10
+        minutes. Setting a first password, removing the password and
+        disconnecting an identity require it and answer 403
+        `reauthentication_required` otherwise. Always false for a request
+        authenticated by an API key or a bearer token. Refreshing or extending a
+        session does not make it recent again; signing in does.
+
+AccountPassword:
+  type: object
+  description: The account's password sign-in method.
+  required:
+    - set
+    - changed_at
+    - login_enabled
+  properties:
+    set:
+      type: boolean
+      description: Whether the account has a password.
+    changed_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the password was last set or changed. Null when there is none.
+    login_enabled:
+      type: boolean
+      description: |
+        Whether password sign-in is switched on for this instance. While it is
+        off a password cannot be set or changed (409 `password_login_disabled`)
+        and an existing one cannot be used to sign in; it can still be removed.
+
+AccountIdentity:
+  type: object
+  description: One identity provider the account can sign in with.
+  required:
+    - id
+    - provider
+    - display_name
+    - available
+    - connected_at
+    - last_used_at
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Identifier to pass to `DELETE /api/v1/account/identities/{id}`.
+    provider:
+      type: string
+      description: The provider's slug.
+      example: "google"
+    display_name:
+      type: string
+      description: The provider's name as shown on the sign-in page; its slug when the provider no longer exists.
+      example: "Google"
+    available:
+      type: boolean
+      description: |
+        Whether the provider is currently enabled on this instance, so the
+        identity can be used to sign in. An unavailable identity does not count
+        as a sign-in method when another one is removed.
+    connected_at:
+      type: string
+      format: date-time
+    last_used_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the identity last signed in. Null when it has not since it was recorded.
+
+AccountUpdateRequest:
+  type: object
+  description: Request body for PATCH /api/v1/account.
+  additionalProperties: false
+  required:
+    - name
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: New display name. Surrounding spaces are removed; it must not be blank.
+      example: "Ada Lovelace"
+
+AccountPasswordRequest:
+  type: object
+  description: Request body for PUT /api/v1/account/password.
+  additionalProperties: false
+  required:
+    - new_password
+  properties:
+    current_password:
+      type: string
+      format: password
+      maxLength: 1024
+      description: |
+        The account's current password, exactly as typed. Required when the
+        account already has a password; ignored when it has none.
+    new_password:
+      type: string
+      format: password
+      minLength: 1
+      maxLength: 1024
+      description: |
+        The new password, exactly as typed: it is not trimmed. It must satisfy
+        the password policy (at least 12 characters, not a common password, not
+        the account's email address).
+    revoke_api_access:
+      type: boolean
+      default: false
+      description: |
+        Also delete the account's API keys and disconnect its MCP and CLI
+        tools. Other browser sessions are always ended, whatever this is.

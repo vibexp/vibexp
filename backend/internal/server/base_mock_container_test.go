@@ -413,6 +413,12 @@ func (b *BaseMockContainer) AuthPolicyResolver() services.AuthPolicyResolver {
 	return staticAuthPolicy{policy: models.DefaultInstanceAuthPolicy(), reset: services.PasswordResetByAdmin}
 }
 
+// AccountService returns nil; suites that exercise the self-service account
+// API install their own.
+func (b *BaseMockContainer) AccountService() services.AccountServiceInterface {
+	return nil
+}
+
 // PasswordAuthService returns nil; suites that exercise password sign-in
 // install their own.
 func (b *BaseMockContainer) PasswordAuthService() services.PasswordAuthServiceInterface {

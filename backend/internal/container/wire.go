@@ -182,6 +182,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideAccessAllowlistResolver,
 	providers.ProvideAuthPolicyResolver,
 	providers.ProvidePasswordAuthService,
+	providers.ProvideAccountService,
 	providers.ProvideSetupModeService,
 	providers.ProvideIdentityProviderResolver,
 	providers.ProvideInstanceAuthSettingsService,

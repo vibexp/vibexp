@@ -104,6 +104,9 @@ var (
 	// ErrUserIdentityTaken is returned by UserIdentityRepository.Upsert when the
 	// (provider, subject) pair already belongs to a different user.
 	ErrUserIdentityTaken = errors.New("sign-in identity belongs to another user")
+	// ErrUserIdentityNotFound is returned by
+	// UserIdentityRepository.DeleteForUser when the user has no such identity.
+	ErrUserIdentityNotFound = errors.New("sign-in identity not found")
 
 	// ErrProjectSlugExists is returned by ProjectRepository.Create when a project
 	// with the same slug already exists in the team (Postgres unique violation 23505).
@@ -509,6 +512,9 @@ type UserRepository interface {
 	Create(ctx context.Context, user *models.User) error
 	// Update stores the email normalized and updates user.Email to that form.
 	Update(ctx context.Context, user *models.User) error
+	// UpdateName sets the user's display name. Returns ErrUserNotFound when no
+	// row matches.
+	UpdateName(ctx context.Context, userID, name string) error
 	UpdateDefaultTeamID(ctx context.Context, userID, teamID string) error
 	MarkOnboardingCompleted(ctx context.Context, userID string) error
 	// BumpSessionEpoch increments the user's session revocation counter and
@@ -538,6 +544,12 @@ type UserIdentityRepository interface {
 	Upsert(ctx context.Context, userID, provider, subject string) error
 	// ListByUserID returns the user's identities, oldest first.
 	ListByUserID(ctx context.Context, userID string) ([]models.UserIdentity, error)
+	// DeleteForUser removes the identity with identityID when it belongs to
+	// userID, and with it the user's legacy Google identity that has the same
+	// subject: left behind, that alias would keep the same Google account able
+	// to sign in. Returns ErrUserIdentityNotFound when the user has no such
+	// identity (including when it belongs to someone else).
+	DeleteForUser(ctx context.Context, userID, identityID string) error
 }
 
 // APIAccessRepository revokes everything a user's non-browser access rests on

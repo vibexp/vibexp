@@ -170,6 +170,7 @@ var requiredArrayResponseRegistry = map[string]any{
 // documents where. These are covered by their handler tests / the payload
 // coverage ledger rather than the zero-value marshal check above.
 var adHocRequiredArrayAllowlist = map[string]string{
+	"Account":                             "generated strict-server type (internal/server/gen/account); handler builds identities via make(...,0) — account_handlers.go toGenAccount",
 	"NotificationListResponse":            "generated strict-server type (internal/server/gen); handler builds via make(...,0) — handlers_notifications.go toGenNotifications",
 	"TypeListResponse":                    "generated strict-server type (internal/server/gen/types); handler builds via make(...,0) — handlers_types.go toGenTypes",
 	"CopyTypesResponse":                   "generated strict-server type (internal/server/gen/types); handler builds added via make(...,0) — handlers_types.go toGenTypes, skipped via toGenSkippedTypes",

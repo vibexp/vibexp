@@ -118,6 +118,9 @@ type Container interface {
 	// PasswordAuthService is email and password sign-in and the management of
 	// a user's password credential (#1431).
 	PasswordAuthService() services.PasswordAuthServiceInterface
+	// AccountService is what a signed-in user reads and changes about their
+	// own account: name, password, connected sign-in methods (#1437).
+	AccountService() services.AccountServiceInterface
 	// SetupModeService owns first-run authentication setup: the one-time setup
 	// token and the scoped setup session (#1236).
 	SetupModeService() services.SetupModeService

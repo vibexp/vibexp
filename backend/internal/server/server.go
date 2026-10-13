@@ -750,6 +750,8 @@ func (s *Server) setupProtectedRoutes() {
 		// Teams routes (web app and CLI)
 		s.setupTeamsRoutes(r)
 		s.setupTeamRolesRoutes(r)
+		// Self-service account: name, password, sign-in methods (#1437)
+		s.setupAccountRoutes(r)
 		s.setupCreationMetricsRoutes(r)
 		// AI Feed routes (free-tier accessible)
 		s.setupFeedsRoutes(r)

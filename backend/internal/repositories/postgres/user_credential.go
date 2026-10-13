@@ -25,13 +25,13 @@ func NewUserCredentialRepository(db *database.DB) repositories.UserCredentialRep
 }
 
 const userCredentialColumns = `user_id, password_hash, failed_attempts, locked_until, disabled_at,
-		created_at, updated_at`
+		password_changed_at, created_at, updated_at`
 
 func scanUserCredential(row rowScanner) (*models.UserCredential, error) {
 	var c models.UserCredential
 	if err := row.Scan(
 		&c.UserID, &c.PasswordHash, &c.FailedAttempts, &c.LockedUntil, &c.DisabledAt,
-		&c.CreatedAt, &c.UpdatedAt,
+		&c.PasswordChangedAt, &c.CreatedAt, &c.UpdatedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -51,7 +51,9 @@ func (r *UserCredentialRepository) Get(ctx context.Context, userID string) (*mod
 }
 
 // Upsert sets the user's password hash; see the interface. A new password is a
-// fresh start, so the throttle and a disabled mark are cleared with it.
+// fresh start, so the throttle and a disabled mark are cleared with it. It is
+// the one statement that moves password_changed_at (the column default covers
+// the insert): attempts, successes and a rehash leave it alone.
 func (r *UserCredentialRepository) Upsert(ctx context.Context, userID, passwordHash string) error {
 	query := `
 		INSERT INTO user_credentials (user_id, password_hash)
@@ -61,6 +63,7 @@ func (r *UserCredentialRepository) Upsert(ctx context.Context, userID, passwordH
 			failed_attempts = 0,
 			locked_until = NULL,
 			disabled_at = NULL,
+			password_changed_at = CURRENT_TIMESTAMP,
 			updated_at = CURRENT_TIMESTAMP
 	`
 
