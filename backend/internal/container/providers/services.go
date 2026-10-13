@@ -773,6 +773,7 @@ func ProvideEnvironmentService(cfg *config.Config) *services.EnvironmentService 
 type InstanceAuthSettingsServiceDeps struct {
 	ProviderRepo      repositories.InstanceAuthProviderRepository
 	Allowlists        repositories.InstanceAuthAllowlistRepository
+	Policies          repositories.InstanceAuthPolicyRepository
 	Versions          repositories.InstanceAuthSettingsVersionRepository
 	Grants            repositories.InstanceAdminRepository
 	UserRepo          repositories.UserRepository
@@ -794,6 +795,7 @@ func ProvideInstanceAuthSettingsService(
 	return services.NewInstanceAuthSettingsService(services.InstanceAuthSettingsDeps{
 		Providers:         deps.ProviderRepo,
 		Allowlists:        deps.Allowlists,
+		Policies:          deps.Policies,
 		Versions:          deps.Versions,
 		Grants:            deps.Grants,
 		Users:             deps.UserRepo,
@@ -821,6 +823,24 @@ func ProvideAccessAllowlistResolver(
 		Versions:   versions,
 		RootAdmins: admins,
 		Logger:     logger,
+	})
+}
+
+// ProvideAuthPolicyResolver creates the runtime authentication policy resolver
+// (#1429): the policy is read from instance_auth_policy and cached by the auth
+// settings version, and the password reset channel is read from the stored
+// instance email provider.
+func ProvideAuthPolicyResolver(
+	policies repositories.InstanceAuthPolicyRepository,
+	versions repositories.InstanceAuthSettingsVersionRepository,
+	emailProviders repositories.InstanceEmailProviderRepository,
+	logger *slog.Logger,
+) services.AuthPolicyResolver {
+	return services.NewAuthPolicyResolver(services.AuthPolicyResolverDeps{
+		Policies:       policies,
+		Versions:       versions,
+		EmailProviders: emailProviders,
+		Logger:         logger,
 	})
 }
 

@@ -24,6 +24,7 @@ type Store struct {
 	version   int64
 	providers []*models.InstanceAuthProvider
 	allowlist *models.InstanceAuthAllowlist
+	policy    *models.InstanceAuthPolicy
 	grants    []*models.InstanceAdminGrant
 	audit     []*models.InstanceSettingsAuditEntry
 	clock     time.Time
@@ -45,6 +46,9 @@ func (s *Store) Providers() repositories.InstanceAuthProviderRepository { return
 
 // Allowlist is the store's InstanceAuthAllowlistRepository.
 func (s *Store) Allowlist() repositories.InstanceAuthAllowlistRepository { return allowlistRepo{s: s} }
+
+// Policy is the store's InstanceAuthPolicyRepository.
+func (s *Store) Policy() repositories.InstanceAuthPolicyRepository { return policyRepo{s: s} }
 
 // Versions is the store's InstanceAuthSettingsVersionRepository.
 func (s *Store) Versions() repositories.InstanceAuthSettingsVersionRepository {
@@ -393,6 +397,57 @@ func (r allowlistRepo) CountUsersOutside(
 		sample = sample[:sampleLimit]
 	}
 	return count, sample, nil
+}
+
+// --- policy -------------------------------------------------------------------
+
+type policyRepo struct{ s *Store }
+
+func (r policyRepo) Get(context.Context) (*models.InstanceAuthPolicy, error) {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	if r.s.Err != nil {
+		return nil, r.s.Err
+	}
+	if r.s.policy == nil {
+		return nil, repositories.ErrInstanceAuthPolicyNotFound
+	}
+	c := *r.s.policy
+	return &c, nil
+}
+
+func (r policyRepo) UpsertAudited(
+	_ context.Context, policy *models.InstanceAuthPolicy, actor *string, expected *int64,
+) error {
+	r.s.mu.Lock()
+	defer r.s.mu.Unlock()
+	if r.s.Err != nil {
+		return r.s.Err
+	}
+	before := r.s.policy
+	var storedVersion *int64
+	if before != nil {
+		storedVersion = &before.Version
+	}
+	if repositories.InstanceSettingsVersionConflicts(expected, storedVersion) {
+		return repositories.ErrInstanceSettingsVersionConflict
+	}
+	policy.UpdatedAt = r.s.tick()
+	policy.CreatedAt = policy.UpdatedAt
+	policy.Version = 1
+	var beforeDoc json.RawMessage
+	if before != nil {
+		policy.CreatedAt = before.CreatedAt
+		policy.Version = before.Version + 1
+		beforeDoc = snapshot(before, nil)
+	}
+	policy.UpdatedBy = actor
+	stored := *policy
+	r.s.policy = &stored
+	r.s.version++
+	r.s.record(models.InstanceSettingAuthPolicy, models.InstanceSettingsAuditActionUpsert, actor,
+		beforeDoc, snapshot(&stored, nil))
+	return nil
 }
 
 // --- version ------------------------------------------------------------------

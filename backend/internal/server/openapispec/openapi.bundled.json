@@ -307,7 +307,7 @@
     "/api/v1/auth/providers": {
       "get": {
         "summary": "List enabled login providers",
-        "description": "Returns the login providers enabled on this instance, each with its slug\nas `name` (the value to pass as `?provider=` to\n`GET /api/v1/auth/login`), a human-readable `display_name` for the login\nUI and its `type`. The login screen uses this to render a provider picker\ninstead of hardcoding the provider list. The list is in the\nadmin-defined sort order, reflects provider changes with no restart, and\nmay be empty when no provider is enabled.\n",
+        "description": "Returns the login providers enabled on this instance, each with its slug\nas `name` (the value to pass as `?provider=` to\n`GET /api/v1/auth/login`), a human-readable `display_name` for the login\nUI and its `type`. The login screen uses this to render a provider picker\ninstead of hardcoding the provider list. The list is in the\nadmin-defined sort order, reflects provider changes with no restart, and\nmay be empty when no provider is enabled.\n\nThe `password` object says whether email and password sign-in is switched\non, and whether a forgotten password is reset by an emailed link or by\nasking an administrator.\n",
         "operationId": "listAuthProviders",
         "security": [],
         "responses": {
@@ -332,7 +332,7 @@
             }
           },
           "503": {
-            "description": "The enabled providers could not be read",
+            "description": "The enabled providers or the authentication policy could not be read",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -21850,6 +21850,134 @@
         }
       }
     },
+    "/api/v1/admin/settings/auth/policy": {
+      "get": {
+        "summary": "Get the authentication policy",
+        "description": "Returns the instance's authentication policy: whether email and password\nsign-in is offered and who may get an account. Always 200: with nothing\nstored the defaults are returned (password sign-in off, registration\n`open`) and `version` is null.\nInstance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "getAdminAuthPolicy",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The authentication policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthPolicy"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace the authentication policy",
+        "description": "Stores a whole replacement of the authentication policy and appends one\nentry (`action: upsert`) to the `auth_policy` audit log in the same\ntransaction. The stored policy is served to the sign-in page and the\nauthentication services within seconds, with no restart. A body that\nomits a setting, sends one as null, names an unknown registration mode,\nor carries an unknown field is rejected with 400.\nInstance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "updateAdminAuthPolicy",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminAuthPolicyUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthPolicy"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — the registration mode is not one of the known values\n(`INSTANCE_SETTINGS_VALIDATION_FAILED`, with `validation_errors` naming\nthe field), or the body is malformed, omits or nulls a setting, or\ncarries an unknown field\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — `expected_version` does not match the stored version (`INSTANCE_SETTINGS_VERSION_CONFLICT`); nothing was changed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/settings/auth/admins": {
       "get": {
         "summary": "List the instance admins",
@@ -22076,7 +22204,7 @@
     "/api/v1/admin/settings/auth/audit": {
       "get": {
         "summary": "List an authentication setting's audit log",
-        "description": "Returns one page of the audit log of one authentication setting\n(`auth_providers`, `auth_allowlist`, `instance_admins` or `auth_setup`),\nnewest first, with each actor's display name resolved. Snapshots never\ncontain a credential. Pass the previous page's `next_cursor` to continue.\nInstance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.\n",
+        "description": "Returns one page of the audit log of one authentication setting\n(`auth_providers`, `auth_allowlist`, `instance_admins`, `auth_setup` or\n`auth_policy`),\nnewest first, with each actor's display name resolved. Snapshots never\ncontain a credential. Pass the previous page's `next_cursor` to continue.\nInstance-admin only (a setup session is not admitted); non-admin and unauthenticated requests receive 404.\n",
         "operationId": "listAdminAuthSettingsAudit",
         "tags": [
           "Admin"
@@ -31257,10 +31385,42 @@
             "items": {
               "$ref": "#/components/schemas/AuthProvider"
             }
+          },
+          "password": {
+            "$ref": "#/components/schemas/PasswordLogin"
           }
         },
         "required": [
-          "providers"
+          "providers",
+          "password"
+        ]
+      },
+      "PasswordLogin": {
+        "type": "object",
+        "description": "Whether this instance offers email and password sign-in, and how a\nforgotten password is reset. The login screen uses it to decide whether to\nshow the password form and what the \"Forgot password?\" link leads to.\n",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether email and password sign-in is switched on for this instance.",
+            "example": false
+          },
+          "reset": {
+            "type": "string",
+            "description": "How a user who forgot their password gets a new one. `email`: the\ninstance has an email provider configured, so a reset link can be\nemailed. `admin`: it has none, so the user must ask an administrator\nfor a reset link. Reported whether or not password sign-in is enabled.\n",
+            "enum": [
+              "email",
+              "admin"
+            ],
+            "x-enum-varnames": [
+              "PasswordResetByEmail",
+              "PasswordResetByAdmin"
+            ],
+            "example": "admin"
+          }
+        },
+        "required": [
+          "enabled",
+          "reset"
         ]
       },
       "SetupStatusResponse": {
@@ -44227,7 +44387,7 @@
       },
       "AdminInstanceSettingsAuditEntry": {
         "type": "object",
-        "description": "One append-only change to an instance setting. `before` and `after` are\nsnapshots of the setting's values, filtered to that setting's allowlisted\nkeys, and never contain a credential. For `email_provider` they report\nonly `has_credential` and, on an upsert's `after`, a `secret` marker\nsaying whether the credential was `changed` or `unchanged`; the `search`\nand `ai_summary` snapshots are the settings' values, which hold no\ncredential. For `auth_providers` each entry is one provider, reporting\nonly `has_client_secret` and, on an upsert's `after`, a `client_secret`\nmarker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`\nand `auth_setup` snapshots hold no credential (the setup token and its\nhash are never recorded). A snapshot of any of these four settings\ncarries `source: cli` when the change was made by the `vibexp admin auth`\ncommands rather than through this API. The `site_info` snapshot is the\ncompany branding values, which hold no credential.\n",
+        "description": "One append-only change to an instance setting. `before` and `after` are\nsnapshots of the setting's values, filtered to that setting's allowlisted\nkeys, and never contain a credential. For `email_provider` they report\nonly `has_credential` and, on an upsert's `after`, a `secret` marker\nsaying whether the credential was `changed` or `unchanged`; the `search`\nand `ai_summary` snapshots are the settings' values, which hold no\ncredential. For `auth_providers` each entry is one provider, reporting\nonly `has_client_secret` and, on an upsert's `after`, a `client_secret`\nmarker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`,\n`auth_setup` and `auth_policy` snapshots hold no credential (the setup\ntoken and its hash are never recorded). A snapshot of any of these five settings\ncarries `source: cli` when the change was made by the `vibexp admin auth`\ncommands rather than through this API. The `site_info` snapshot is the\ncompany branding values, which hold no credential.\n",
         "additionalProperties": false,
         "required": [
           "id",
@@ -44256,7 +44416,8 @@
               "auth_allowlist",
               "instance_admins",
               "auth_setup",
-              "site_info"
+              "site_info",
+              "auth_policy"
             ],
             "x-enum-varnames": [
               "AdminInstanceSettingsAuditEntrySettingEmailProvider",
@@ -44266,7 +44427,8 @@
               "AdminInstanceSettingsAuditEntrySettingAuthAllowlist",
               "AdminInstanceSettingsAuditEntrySettingInstanceAdmins",
               "AdminInstanceSettingsAuditEntrySettingAuthSetup",
-              "AdminInstanceSettingsAuditEntrySettingSiteInfo"
+              "AdminInstanceSettingsAuditEntrySettingSiteInfo",
+              "AdminInstanceSettingsAuditEntrySettingAuthPolicy"
             ],
             "example": "email_provider"
           },
@@ -45432,6 +45594,86 @@
           }
         }
       },
+      "AdminAuthPolicy": {
+        "type": "object",
+        "description": "The instance's authentication policy: whether email and password sign-in is\noffered, and who may get an account. With nothing stored the defaults apply\n(password sign-in off, registration `open`) and `version` is null.\n",
+        "additionalProperties": false,
+        "required": [
+          "password_login_enabled",
+          "registration_mode",
+          "version",
+          "updated_at",
+          "updated_by_user_id"
+        ],
+        "properties": {
+          "password_login_enabled": {
+            "type": "boolean",
+            "description": "Whether email and password sign-in is offered.",
+            "example": false
+          },
+          "registration_mode": {
+            "$ref": "#/components/schemas/AdminAuthRegistrationMode"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "The stored policy's own version; null when nothing is stored. Send it\nback as `expected_version` (`0` when it is null) to reject a save that\nwould overwrite someone else's change.\n",
+            "example": 3
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the policy was last saved; null when nothing is stored."
+          },
+          "updated_by_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Who last saved the policy. Null when nothing is stored, or once that\nuser has been deleted.\n"
+          }
+        }
+      },
+      "AdminAuthPolicyUpdate": {
+        "type": "object",
+        "description": "A whole replacement of the authentication policy. Both settings are\nrequired.\n\n`expected_version` is optional and makes the save a compare-and-set:\n\n- omitted or null: last-write-wins, never a conflict.\n- `0`: no policy may be stored yet; the save is rejected with 409 when one\n  is. Send it when the `version` last read was null.\n- a positive value: the save is rejected with 409 unless it equals the\n  stored policy's `version`, and also when nothing is stored.\n",
+        "additionalProperties": false,
+        "required": [
+          "password_login_enabled",
+          "registration_mode"
+        ],
+        "properties": {
+          "password_login_enabled": {
+            "type": "boolean",
+            "description": "Whether email and password sign-in is offered.",
+            "example": true
+          },
+          "registration_mode": {
+            "$ref": "#/components/schemas/AdminAuthRegistrationMode"
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "nullable": true,
+            "description": "The `version` the caller last read. Send `0` when that `version` was\nnull, to save only while nothing is stored. Omit it or send null for\nlast-write-wins. A negative value matches nothing and is a 409.\n"
+          }
+        }
+      },
+      "AdminAuthRegistrationMode": {
+        "type": "string",
+        "description": "Who may get an account on this instance. `open`: anyone the access\nallowlist admits gets an account by signing in through a provider (the\nbehaviour before this setting existed). `invite_only`: only people invited\nto a team or created by an administrator, whatever sign-in method they use.\n",
+        "enum": [
+          "open",
+          "invite_only"
+        ],
+        "x-enum-varnames": [
+          "AdminAuthRegistrationModeOpen",
+          "AdminAuthRegistrationModeInviteOnly"
+        ],
+        "example": "open"
+      },
       "AdminAuthAllowlistPreviewRequest": {
         "type": "object",
         "description": "A candidate allowlist to preview. Both lists are required (send `[]` for none).",
@@ -45579,13 +45821,15 @@
           "auth_providers",
           "auth_allowlist",
           "instance_admins",
-          "auth_setup"
+          "auth_setup",
+          "auth_policy"
         ],
         "x-enum-varnames": [
           "AdminAuthSettingsAuditSettingAuthProviders",
           "AdminAuthSettingsAuditSettingAuthAllowlist",
           "AdminAuthSettingsAuditSettingInstanceAdmins",
-          "AdminAuthSettingsAuditSettingAuthSetup"
+          "AdminAuthSettingsAuditSettingAuthSetup",
+          "AdminAuthSettingsAuditSettingAuthPolicy"
         ],
         "example": "auth_providers"
       },

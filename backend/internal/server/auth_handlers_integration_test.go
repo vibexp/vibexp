@@ -43,6 +43,16 @@ type MockAuthContainer struct {
 	// path now performs (#454). Without it the container's nil default would
 	// make rejectIfSuspended fail closed and every test session 500.
 	userRepository *repomocks.MockUserRepository
+	// authPolicy overrides the base container's default authentication policy
+	// (password login off, resets by an administrator) when a test sets it.
+	authPolicy services.AuthPolicyResolver
+}
+
+func (m *MockAuthContainer) AuthPolicyResolver() services.AuthPolicyResolver {
+	if m.authPolicy == nil {
+		return m.BaseMockContainer.AuthPolicyResolver()
+	}
+	return m.authPolicy
 }
 
 func (m *MockAuthContainer) AuthService() services.AuthServiceInterface {
@@ -263,7 +273,7 @@ func TestHandleListProviders_Empty(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"providers":[]}`, w.Body.String())
+	assert.JSONEq(t, `{"providers":[],"password":{"enabled":false,"reset":"admin"}}`, w.Body.String())
 	specconformance.AssertConformsToSpec(t, req, w)
 
 	mockContainer.authService.AssertExpectations(t)

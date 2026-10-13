@@ -271,6 +271,11 @@ func ProvideInstanceAuthAllowlistRepository(db *database.DB) repositories.Instan
 	return postgres.NewInstanceAuthAllowlistRepository(db)
 }
 
+// ProvideInstanceAuthPolicyRepository creates a new InstanceAuthPolicyRepository
+func ProvideInstanceAuthPolicyRepository(db *database.DB) repositories.InstanceAuthPolicyRepository {
+	return postgres.NewInstanceAuthPolicyRepository(db)
+}
+
 // ProvideTeamSearchSettingsRepository creates a new TeamSearchSettingsRepository
 func ProvideTeamSearchSettingsRepository(db *database.DB) repositories.TeamSearchSettingsRepository {
 	return postgres.NewTeamSearchSettingsRepository(db)

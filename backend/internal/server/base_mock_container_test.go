@@ -390,6 +390,29 @@ func (b *BaseMockContainer) AccessAllowlistResolver() services.AccessAllowlistRe
 	return staticAllowlistResolver(nil, nil)
 }
 
+// staticAuthPolicy is an AuthPolicyResolver over a fixed policy and password
+// reset channel. A non-nil err fails both reads.
+type staticAuthPolicy struct {
+	policy models.InstanceAuthPolicy
+	reset  string
+	err    error
+}
+
+func (s staticAuthPolicy) Policy(context.Context) (models.InstanceAuthPolicy, error) {
+	return s.policy, s.err
+}
+
+func (s staticAuthPolicy) PasswordResetChannel(context.Context) (string, error) {
+	return s.reset, s.err
+}
+
+// AuthPolicyResolver returns the policy of an instance that has stored none
+// and has no email provider: password login off, open registration, resets by
+// an administrator. Suites that exercise the policy install their own.
+func (b *BaseMockContainer) AuthPolicyResolver() services.AuthPolicyResolver {
+	return staticAuthPolicy{policy: models.DefaultInstanceAuthPolicy(), reset: services.PasswordResetByAdmin}
+}
+
 // noSetupMode is a SetupModeService for an instance that is not, and never
 // was, in authentication setup mode.
 type noSetupMode struct{}

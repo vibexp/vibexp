@@ -2738,9 +2738,9 @@ AdminInstanceSettingsAuditEntry:
     and `ai_summary` snapshots are the settings' values, which hold no
     credential. For `auth_providers` each entry is one provider, reporting
     only `has_client_secret` and, on an upsert's `after`, a `client_secret`
-    marker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`
-    and `auth_setup` snapshots hold no credential (the setup token and its
-    hash are never recorded). A snapshot of any of these four settings
+    marker (`changed` or `unchanged`); `auth_allowlist`, `instance_admins`,
+    `auth_setup` and `auth_policy` snapshots hold no credential (the setup
+    token and its hash are never recorded). A snapshot of any of these five settings
     carries `source: cli` when the change was made by the `vibexp admin auth`
     commands rather than through this API. The `site_info` snapshot is the
     company branding values, which hold no credential.
@@ -2771,6 +2771,7 @@ AdminInstanceSettingsAuditEntry:
         - instance_admins
         - auth_setup
         - site_info
+        - auth_policy
       # Explicit constant names: generated clients emit every schema into one
       # package, so bare names risk colliding with another enum's values.
       x-enum-varnames:
@@ -2782,6 +2783,7 @@ AdminInstanceSettingsAuditEntry:
         - AdminInstanceSettingsAuditEntrySettingInstanceAdmins
         - AdminInstanceSettingsAuditEntrySettingAuthSetup
         - AdminInstanceSettingsAuditEntrySettingSiteInfo
+        - AdminInstanceSettingsAuditEntrySettingAuthPolicy
       example: "email_provider"
     action:
       type: string
@@ -3895,6 +3897,98 @@ AdminAuthAllowlistUpdate:
         null, to save only while nothing is stored. Omit it or send null for
         last-write-wins. A negative value matches nothing and is a 409.
 
+AdminAuthRegistrationMode:
+  type: string
+  description: |
+    Who may get an account on this instance. `open`: anyone the access
+    allowlist admits gets an account by signing in through a provider (the
+    behaviour before this setting existed). `invite_only`: only people invited
+    to a team or created by an administrator, whatever sign-in method they use.
+  enum:
+    - open
+    - invite_only
+  # Explicit constant names, for the same reason as AdminAuthProviderType.
+  x-enum-varnames:
+    - AdminAuthRegistrationModeOpen
+    - AdminAuthRegistrationModeInviteOnly
+  example: open
+
+AdminAuthPolicy:
+  type: object
+  description: |
+    The instance's authentication policy: whether email and password sign-in is
+    offered, and who may get an account. With nothing stored the defaults apply
+    (password sign-in off, registration `open`) and `version` is null.
+  additionalProperties: false
+  required:
+    - password_login_enabled
+    - registration_mode
+    - version
+    - updated_at
+    - updated_by_user_id
+  properties:
+    password_login_enabled:
+      type: boolean
+      description: Whether email and password sign-in is offered.
+      example: false
+    registration_mode:
+      $ref: '#/AdminAuthRegistrationMode'
+    version:
+      type: integer
+      format: int64
+      nullable: true
+      description: |
+        The stored policy's own version; null when nothing is stored. Send it
+        back as `expected_version` (`0` when it is null) to reject a save that
+        would overwrite someone else's change.
+      example: 3
+    updated_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the policy was last saved; null when nothing is stored.
+    updated_by_user_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: |
+        Who last saved the policy. Null when nothing is stored, or once that
+        user has been deleted.
+
+AdminAuthPolicyUpdate:
+  type: object
+  description: |
+    A whole replacement of the authentication policy. Both settings are
+    required.
+
+    `expected_version` is optional and makes the save a compare-and-set:
+
+    - omitted or null: last-write-wins, never a conflict.
+    - `0`: no policy may be stored yet; the save is rejected with 409 when one
+      is. Send it when the `version` last read was null.
+    - a positive value: the save is rejected with 409 unless it equals the
+      stored policy's `version`, and also when nothing is stored.
+  additionalProperties: false
+  required:
+    - password_login_enabled
+    - registration_mode
+  properties:
+    password_login_enabled:
+      type: boolean
+      description: Whether email and password sign-in is offered.
+      example: true
+    registration_mode:
+      $ref: '#/AdminAuthRegistrationMode'
+    expected_version:
+      type: integer
+      format: int64
+      minimum: 0
+      nullable: true
+      description: |
+        The `version` the caller last read. Send `0` when that `version` was
+        null, to save only while nothing is stored. Omit it or send null for
+        last-write-wins. A negative value matches nothing and is a 409.
+
 AdminAuthAllowlistPreviewRequest:
   type: object
   description: A candidate allowlist to preview. Both lists are required (send `[]` for none).
@@ -4016,10 +4110,12 @@ AdminAuthSettingsAuditSetting:
     - auth_allowlist
     - instance_admins
     - auth_setup
+    - auth_policy
   # Explicit constant names, for the same reason as AdminAuthProviderType.
   x-enum-varnames:
     - AdminAuthSettingsAuditSettingAuthProviders
     - AdminAuthSettingsAuditSettingAuthAllowlist
     - AdminAuthSettingsAuditSettingInstanceAdmins
     - AdminAuthSettingsAuditSettingAuthSetup
+    - AdminAuthSettingsAuditSettingAuthPolicy
   example: auth_providers

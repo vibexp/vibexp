@@ -34,6 +34,10 @@ const (
 	// InstanceSettingSiteInfo is the instance's company branding (table
 	// instance_site_info, #1353).
 	InstanceSettingSiteInfo = "site_info"
+	// InstanceSettingAuthPolicy is the instance authentication policy: the
+	// password login switch and the registration mode (table
+	// instance_auth_policy, #1429).
+	InstanceSettingAuthPolicy = "auth_policy"
 )
 
 // Actions an instance settings audit entry records. Unlike the setting, the

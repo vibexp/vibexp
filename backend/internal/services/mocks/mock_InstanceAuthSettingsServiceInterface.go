@@ -191,6 +191,64 @@ func (_c *MockInstanceAuthSettingsServiceInterface_GetAllowlist_Call) RunAndRetu
 	return _c
 }
 
+// GetPolicy provides a mock function with given fields: ctx
+func (_m *MockInstanceAuthSettingsServiceInterface) GetPolicy(ctx context.Context) (*models.InstanceAuthPolicy, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPolicy")
+	}
+
+	var r0 *models.InstanceAuthPolicy
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) (*models.InstanceAuthPolicy, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) *models.InstanceAuthPolicy); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.InstanceAuthPolicy)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInstanceAuthSettingsServiceInterface_GetPolicy_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPolicy'
+type MockInstanceAuthSettingsServiceInterface_GetPolicy_Call struct {
+	*mock.Call
+}
+
+// GetPolicy is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockInstanceAuthSettingsServiceInterface_Expecter) GetPolicy(ctx interface{}) *MockInstanceAuthSettingsServiceInterface_GetPolicy_Call {
+	return &MockInstanceAuthSettingsServiceInterface_GetPolicy_Call{Call: _e.mock.On("GetPolicy", ctx)}
+}
+
+func (_c *MockInstanceAuthSettingsServiceInterface_GetPolicy_Call) Run(run func(ctx context.Context)) *MockInstanceAuthSettingsServiceInterface_GetPolicy_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockInstanceAuthSettingsServiceInterface_GetPolicy_Call) Return(_a0 *models.InstanceAuthPolicy, _a1 error) *MockInstanceAuthSettingsServiceInterface_GetPolicy_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInstanceAuthSettingsServiceInterface_GetPolicy_Call) RunAndReturn(run func(context.Context) (*models.InstanceAuthPolicy, error)) *MockInstanceAuthSettingsServiceInterface_GetPolicy_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GrantAdmin provides a mock function with given fields: ctx, actingUserID, target
 func (_m *MockInstanceAuthSettingsServiceInterface) GrantAdmin(ctx context.Context, actingUserID string, target models.InstanceAdminGrantTarget) (*models.InstanceAdminView, error) {
 	ret := _m.Called(ctx, actingUserID, target)
@@ -639,6 +697,67 @@ func (_c *MockInstanceAuthSettingsServiceInterface_UpdateAllowlist_Call) Return(
 }
 
 func (_c *MockInstanceAuthSettingsServiceInterface_UpdateAllowlist_Call) RunAndReturn(run func(context.Context, string, []string, []string, *int64) (*models.InstanceAuthAllowlist, error)) *MockInstanceAuthSettingsServiceInterface_UpdateAllowlist_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdatePolicy provides a mock function with given fields: ctx, actorUserID, policy, expectedVersion
+func (_m *MockInstanceAuthSettingsServiceInterface) UpdatePolicy(ctx context.Context, actorUserID string, policy models.InstanceAuthPolicy, expectedVersion *int64) (*models.InstanceAuthPolicy, error) {
+	ret := _m.Called(ctx, actorUserID, policy, expectedVersion)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdatePolicy")
+	}
+
+	var r0 *models.InstanceAuthPolicy
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceAuthPolicy, *int64) (*models.InstanceAuthPolicy, error)); ok {
+		return rf(ctx, actorUserID, policy, expectedVersion)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, models.InstanceAuthPolicy, *int64) *models.InstanceAuthPolicy); ok {
+		r0 = rf(ctx, actorUserID, policy, expectedVersion)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.InstanceAuthPolicy)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, models.InstanceAuthPolicy, *int64) error); ok {
+		r1 = rf(ctx, actorUserID, policy, expectedVersion)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdatePolicy'
+type MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call struct {
+	*mock.Call
+}
+
+// UpdatePolicy is a helper method to define mock.On call
+//   - ctx context.Context
+//   - actorUserID string
+//   - policy models.InstanceAuthPolicy
+//   - expectedVersion *int64
+func (_e *MockInstanceAuthSettingsServiceInterface_Expecter) UpdatePolicy(ctx interface{}, actorUserID interface{}, policy interface{}, expectedVersion interface{}) *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call {
+	return &MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call{Call: _e.mock.On("UpdatePolicy", ctx, actorUserID, policy, expectedVersion)}
+}
+
+func (_c *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call) Run(run func(ctx context.Context, actorUserID string, policy models.InstanceAuthPolicy, expectedVersion *int64)) *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(models.InstanceAuthPolicy), args[3].(*int64))
+	})
+	return _c
+}
+
+func (_c *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call) Return(_a0 *models.InstanceAuthPolicy, _a1 error) *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call) RunAndReturn(run func(context.Context, string, models.InstanceAuthPolicy, *int64) (*models.InstanceAuthPolicy, error)) *MockInstanceAuthSettingsServiceInterface_UpdatePolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }

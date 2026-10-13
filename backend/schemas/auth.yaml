@@ -162,8 +162,40 @@ ProvidersResponse:
       description: Enabled login providers, ordered by the admin-defined sort order
       items:
         $ref: '#/AuthProvider'
+    password:
+      $ref: '#/PasswordLogin'
   required:
     - providers
+    - password
+
+PasswordLogin:
+  type: object
+  description: |
+    Whether this instance offers email and password sign-in, and how a
+    forgotten password is reset. The login screen uses it to decide whether to
+    show the password form and what the "Forgot password?" link leads to.
+  properties:
+    enabled:
+      type: boolean
+      description: Whether email and password sign-in is switched on for this instance.
+      example: false
+    reset:
+      type: string
+      description: |
+        How a user who forgot their password gets a new one. `email`: the
+        instance has an email provider configured, so a reset link can be
+        emailed. `admin`: it has none, so the user must ask an administrator
+        for a reset link. Reported whether or not password sign-in is enabled.
+      enum:
+        - email
+        - admin
+      x-enum-varnames:
+        - PasswordResetByEmail
+        - PasswordResetByAdmin
+      example: "admin"
+  required:
+    - enabled
+    - reset
 
 DevLoginRequest:
   type: object

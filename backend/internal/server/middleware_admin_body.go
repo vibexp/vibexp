@@ -134,6 +134,13 @@ var adminGuardedBodies = []adminGuardedBody{
 		requireAll: true,
 	},
 	{
+		// A whole replacement: an omitted switch would be stored as "off".
+		method:     http.MethodPut,
+		path:       regexp.MustCompile(`^/api/v1/admin/settings/auth/policy$`),
+		bodyType:   admingen.AdminAuthPolicyUpdate{},
+		requireAll: true,
+	},
+	{
 		method:     http.MethodPost,
 		path:       regexp.MustCompile(`^/api/v1/admin/settings/auth/allowlist/preview$`),
 		bodyType:   admingen.AdminAuthAllowlistPreviewRequest{},

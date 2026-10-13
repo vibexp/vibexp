@@ -21,6 +21,24 @@ var ErrInvalidInstanceAuthProvider = errors.New("invalid instance auth provider"
 // naming the list at fault and a message quoting the offending entry.
 var ErrInvalidInstanceAuthAllowlist = errors.New("invalid instance auth allowlist")
 
+// ErrInvalidInstanceAuthPolicy is wrapped by every ValidateInstanceAuthPolicy
+// failure, together with a *SettingsFieldError naming the field at fault.
+var ErrInvalidInstanceAuthPolicy = errors.New("invalid instance auth policy")
+
+// ValidateInstanceAuthPolicy checks an authentication policy before it is
+// stored: the registration mode must be one of models.RegistrationMode*. The
+// database holds the same rule as a CHECK; this is what gives the caller a
+// message naming the field.
+func ValidateInstanceAuthPolicy(p models.InstanceAuthPolicy) error {
+	if !models.ValidRegistrationMode(p.RegistrationMode) {
+		return fmt.Errorf("%w: %w", ErrInvalidInstanceAuthPolicy,
+			settingsInvalidValueError([]string{"registration_mode"},
+				"registration_mode must be one of %s, %s, got %q",
+				models.RegistrationModeOpen, models.RegistrationModeInviteOnly, p.RegistrationMode))
+	}
+	return nil
+}
+
 // instanceAuthProviderSlugPattern is a provider slug: lower-case, url-safe,
 // 1–63 characters, not starting with a hyphen. It mirrors the CHECK on
 // instance_auth_providers.slug (migration 019_consolidated); change both together.

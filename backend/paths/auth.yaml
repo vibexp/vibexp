@@ -72,6 +72,10 @@ api-v1-auth-providers:
       instead of hardcoding the provider list. The list is in the
       admin-defined sort order, reflects provider changes with no restart, and
       may be empty when no provider is enabled.
+
+      The `password` object says whether email and password sign-in is switched
+      on, and whether a forgotten password is reset by an emailed link or by
+      asking an administrator.
     operationId: listAuthProviders
     security: []  # No authentication required
     responses:
@@ -88,7 +92,7 @@ api-v1-auth-providers:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '503':
-        description: The enabled providers could not be read
+        description: The enabled providers or the authentication policy could not be read
         content:
           application/problem+json:
             schema:
