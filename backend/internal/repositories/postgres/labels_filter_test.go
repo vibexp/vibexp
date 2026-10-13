@@ -55,7 +55,7 @@ func TestArtifactRepository_LabelsFilterNarrowsCountAndPage(t *testing.T) {
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a WHERE .*a\.labels && \$`).
 		WithArgs(labelArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(`FROM artifacts a LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by WHERE .*a\.labels && \$`).
+	mock.ExpectQuery(`FROM artifacts a LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by LEFT JOIN LATERAL \(.*\) lw ON true WHERE .*a\.labels && \$`).
 		WithArgs(labelArgs...).
 		WillReturnRows(artifactListOneRow(now))
 
@@ -79,7 +79,7 @@ func TestBlueprintRepository_LabelsFilterNarrowsCountAndPage(t *testing.T) {
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM blueprints s WHERE .*s\.labels && \$`).
 		WithArgs(labelArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(`FROM blueprints s LEFT JOIN users lock_u ON lock_u\.id = s\.locked_by WHERE .*s\.labels && \$`).
+	mock.ExpectQuery(`FROM blueprints s LEFT JOIN users lock_u ON lock_u\.id = s\.locked_by LEFT JOIN LATERAL \(.*\) lw ON true WHERE .*s\.labels && \$`).
 		WithArgs(labelArgs...).
 		WillReturnRows(blueprintListOneRow(now))
 
@@ -103,11 +103,11 @@ func TestMemoryRepository_LabelsFilterNarrowsCountAndPage(t *testing.T) {
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m WHERE .*m\.labels && \$`).
 		WithArgs(labelArgs...).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(`FROM memories m WHERE .*m\.labels && \$`).
+	mock.ExpectQuery(`FROM memories m LEFT JOIN LATERAL .* WHERE .*m\.labels && \$`).
 		WithArgs(labelArgs...).
 		WillReturnRows(sqlmock.NewRows(memoryListColumns).AddRow(
 			"memory-1", "user-123", "team-123", "project-123", nil, "remember this",
-			"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
+			"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"}, nil, nil,
 		))
 
 	memories, total, err := repo.List(context.Background(), "user-123", repositories.MemoryFilters{

@@ -718,7 +718,7 @@ func (s *ArtifactService) GetArtifactVersionInTeam(
 // version by applying it through the normal update path, which snapshots the pre-restore
 // content as a new version.
 func (s *ArtifactService) RestoreArtifactVersionInTeam(
-	userID, teamID, projectID, slug string, versionNumber int,
+	userID, teamID, projectID, slug string, versionNumber int, origin *models.WriteOrigin,
 ) (*models.Artifact, error) {
 	artifact, err := s.GetArtifactByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
 	if err != nil {
@@ -736,6 +736,7 @@ func (s *ArtifactService) RestoreArtifactVersionInTeam(
 	return s.applyAndPersistArtifactUpdate(userID, artifact, &models.UpdateArtifactRequest{
 		Content:       &target,
 		ChangeSummary: &restoreSummary,
+		WriteOrigin:   origin,
 	}, models.ActorTypeSystem)
 }
 

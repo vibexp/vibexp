@@ -73,22 +73,33 @@ type writtenResource struct {
 	teamID       string
 	projectID    string
 	id           string
+	// lastWrite points at the written model's LastWrite, so recording the
+	// write can stamp it on the response body (see recordResourceWrite).
+	lastWrite *models.LastWrite
 }
 
 func writtenPrompt(teamID string, p *models.Prompt) writtenResource {
-	return writtenResource{resourceType: resourceTypePrompt, teamID: teamID, projectID: p.ProjectID, id: p.ID}
+	return writtenResource{
+		resourceType: resourceTypePrompt, teamID: teamID, projectID: p.ProjectID, id: p.ID, lastWrite: &p.LastWrite,
+	}
 }
 
 func writtenArtifact(teamID string, a *models.Artifact) writtenResource {
-	return writtenResource{resourceType: resourceTypeArtifact, teamID: teamID, projectID: a.ProjectID, id: a.ID}
+	return writtenResource{
+		resourceType: resourceTypeArtifact, teamID: teamID, projectID: a.ProjectID, id: a.ID, lastWrite: &a.LastWrite,
+	}
 }
 
 func writtenBlueprint(teamID string, b *models.Blueprint) writtenResource {
-	return writtenResource{resourceType: resourceTypeBlueprint, teamID: teamID, projectID: b.ProjectID, id: b.ID}
+	return writtenResource{
+		resourceType: resourceTypeBlueprint, teamID: teamID, projectID: b.ProjectID, id: b.ID, lastWrite: &b.LastWrite,
+	}
 }
 
 func writtenMemory(teamID string, m *models.Memory) writtenResource {
-	return writtenResource{resourceType: resourceTypeMemory, teamID: teamID, projectID: m.ProjectID, id: m.ID}
+	return writtenResource{
+		resourceType: resourceTypeMemory, teamID: teamID, projectID: m.ProjectID, id: m.ID, lastWrite: &m.LastWrite,
+	}
 }
 
 // recordResourceWrite records a write event for a create or update that has
@@ -98,10 +109,19 @@ func writtenMemory(teamID string, m *models.Memory) writtenResource {
 // It records nothing either when the context carries no write origin (an
 // internal caller) or when the write service is not wired (unit tests).
 // Recording is fire-and-forget and can never fail the write it describes.
+//
+// It also stamps the origin on the written model as its last write (#1418).
+// The event is persisted off the request path, so a model the service read
+// back after the write still reports the PREVIOUS write's channel, or none for
+// a create. This write is by definition the latest, and its channel is known
+// here, so the response says so without waiting for the event to land.
 func (s *Server) recordResourceWrite(ctx context.Context, userID, action string, res writtenResource) {
 	origin := resourceaccess.WriteOriginFromContext(ctx)
 	if origin == nil {
 		return
+	}
+	if res.lastWrite != nil {
+		*res.lastWrite = models.LastWriteFromOrigin(origin)
 	}
 
 	svc := s.container.ResourceWriteService()
@@ -128,4 +148,44 @@ func (s *Server) recordResourceWrite(ctx context.Context, userID, action string,
 	}
 
 	svc.RecordWrite(event)
+}
+
+// recordImportedBlueprintWrites records one write event per blueprint a GitHub
+// import created or refreshed (#1418). The import writes through the blueprint
+// repository rather than the blueprint service, so nothing else records it, and
+// before this every imported blueprint counted as an unknown creation for good.
+//
+// The channel is the import request's own: the import is a write the caller
+// asked for through the web app, the CLI or the API, like any other. A
+// blueprint the import left alone (up to date, conflicting, skipped or failed)
+// was not written and records nothing.
+func (s *Server) recordImportedBlueprintWrites(
+	ctx context.Context, userID, teamID string, report *models.BlueprintImportReport,
+) {
+	if report == nil {
+		return
+	}
+	written := func(blueprintID string) writtenResource {
+		return writtenResource{
+			resourceType: resourceTypeBlueprint, teamID: teamID, projectID: report.ProjectID, id: blueprintID,
+		}
+	}
+	for i := range report.SuccessfulItems {
+		s.recordResourceWrite(ctx, userID, models.WriteActionCreate, written(report.SuccessfulItems[i].BlueprintID))
+	}
+	for i := range report.UpdatedItems {
+		s.recordResourceWrite(ctx, userID, models.WriteActionUpdate, written(report.UpdatedItems[i].BlueprintID))
+	}
+}
+
+// toGenWriteSource converts a resource's stored last-write channel to a
+// generated strict-server enum, keeping nil (no recorded write) as nil so the
+// field serializes as null. T is a domain package's ResourceWriteSource; the
+// four domains each generate their own copy of the one spec enum.
+func toGenWriteSource[T ~string](source *string) *T {
+	if source == nil {
+		return nil
+	}
+	out := T(*source)
+	return &out
 }

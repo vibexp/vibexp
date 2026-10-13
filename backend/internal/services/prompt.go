@@ -607,7 +607,7 @@ func (s *PromptService) GetPromptVersion(
 // The restore is non-destructive (the current body is preserved as a snapshot) and re-applies
 // the raw template verbatim, so placeholders and @slug references survive the round-trip.
 func (s *PromptService) RestorePromptVersion(
-	userID, teamID, slug string, versionNumber int,
+	userID, teamID, slug string, versionNumber int, origin *models.WriteOrigin,
 ) (*models.Prompt, error) {
 	prompt, err := s.GetPromptBySlug(userID, teamID, slug)
 	if err != nil {
@@ -623,7 +623,7 @@ func (s *PromptService) RestorePromptVersion(
 	// default "Restored Version N" summary so the timeline reads clearly.
 	restoreSummary := fmt.Sprintf("Restored Version %d", versionNumber)
 	return s.updatePromptInternal(
-		userID, teamID, prompt.ID, &models.UpdatePromptRequest{Body: &target},
+		userID, teamID, prompt.ID, &models.UpdatePromptRequest{Body: &target, WriteOrigin: origin},
 		models.ActorTypeSystem, &restoreSummary,
 	)
 }

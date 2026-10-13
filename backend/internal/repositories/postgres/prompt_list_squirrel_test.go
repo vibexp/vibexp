@@ -135,9 +135,9 @@ func TestPromptRepository_List_SquirrelMigration(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(
 					`SELECT DISTINCT p\.id, .* CASE WHEN ps\.id IS NOT NULL THEN true ELSE false END as is_shared, ` +
-						`p\.locked_by::text, p\.locked_at, p\.lock_comment, lock_u\.name ` +
+						`p\.locked_by::text, p\.locked_at, p\.lock_comment, lock_u\.name, lw\.source, lw\.assistant_name ` +
 						`FROM prompts p LEFT JOIN prompt_shares ps ON .* ` +
-						`LEFT JOIN users lock_u ON lock_u\.id = p\.locked_by WHERE .* AND ps\.id IS NOT NULL\) ` +
+						`LEFT JOIN users lock_u ON lock_u\.id = p\.locked_by LEFT JOIN LATERAL \(.*\) lw ON true WHERE .* AND ps\.id IS NOT NULL\) ` +
 						`ORDER BY p\.updated_at DESC LIMIT 10 OFFSET 0`,
 				).
 					WithArgs(promptListBaseArgs()...).
@@ -308,8 +308,8 @@ func TestPromptRepository_List_ExplicitProjection(t *testing.T) {
 			`p\.status, p\.mcp_expose, p\.labels, p\.created_at, p\.updated_at, ` +
 			`EXISTS\(SELECT 1 FROM prompt_shares ps2 WHERE ps2\.prompt_id = p\.id AND ps2\.is_active = true ` +
 			`AND \(ps2\.expires_at IS NULL OR ps2\.expires_at > NOW\(\)\)\) as is_shared, ` +
-			`p\.locked_by::text, p\.locked_at, p\.lock_comment, lock_u\.name ` +
-			`FROM prompts p LEFT JOIN users lock_u ON lock_u\.id = p\.locked_by WHERE`,
+			`p\.locked_by::text, p\.locked_at, p\.lock_comment, lock_u\.name, lw\.source, lw\.assistant_name ` +
+			`FROM prompts p LEFT JOIN users lock_u ON lock_u\.id = p\.locked_by LEFT JOIN LATERAL \(.*\) lw ON true WHERE`,
 	).
 		WithArgs(promptListBaseArgs()...).
 		WillReturnRows(sqlmock.NewRows(promptListColumns).AddRow(unlockedRow(

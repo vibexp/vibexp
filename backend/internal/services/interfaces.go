@@ -90,9 +90,11 @@ type PromptServiceInterface interface {
 		userID, teamID, slug string, versionNumber int,
 	) (*models.ContentVersion, error)
 	// RestorePromptVersion restores a prompt's raw Body template to the given version,
-	// returning the updated prompt.
+	// returning the updated prompt. origin is how the restore request arrived
+	// (#1418); it is stamped on the snapshot of the pre-restore body. Nil for
+	// an internal caller.
 	RestorePromptVersion(
-		userID, teamID, slug string, versionNumber int,
+		userID, teamID, slug string, versionNumber int, origin *models.WriteOrigin,
 	) (*models.Prompt, error)
 }
 
@@ -140,9 +142,11 @@ type ArtifactServiceInterface interface {
 		userID, teamID, projectID, slug string, versionNumber int,
 	) (*models.ContentVersion, error)
 	// RestoreArtifactVersionInTeam restores a team-scoped artifact's content to the given
-	// version, returning the updated artifact.
+	// version, returning the updated artifact. origin is how the restore request
+	// arrived (#1418); it is stamped on the snapshot of the pre-restore content.
+	// Nil for an internal caller.
 	RestoreArtifactVersionInTeam(
-		userID, teamID, projectID, slug string, versionNumber int,
+		userID, teamID, projectID, slug string, versionNumber int, origin *models.WriteOrigin,
 	) (*models.Artifact, error)
 }
 
@@ -580,9 +584,10 @@ type MemoryServiceInterface interface {
 		userID, teamID, memoryID string, versionNumber int,
 	) (*models.ContentVersion, error)
 	// RestoreMemoryVersion restores a memory's text to the given version, returning the
-	// updated memory.
+	// updated memory. origin is how the restore request arrived (#1418); it is
+	// stamped on the snapshot of the pre-restore text. Nil for an internal caller.
 	RestoreMemoryVersion(
-		userID, teamID, memoryID string, versionNumber int,
+		userID, teamID, memoryID string, versionNumber int, origin *models.WriteOrigin,
 	) (*models.Memory, error)
 }
 
@@ -627,9 +632,11 @@ type BlueprintServiceInterface interface {
 		userID, teamID, projectID, slug string, versionNumber int,
 	) (*models.ContentVersion, error)
 	// RestoreBlueprintVersionInTeam restores a team-scoped blueprint's content to the given
-	// version, returning the updated blueprint.
+	// version, returning the updated blueprint. origin is how the restore request
+	// arrived (#1418); it is stamped on the snapshot of the pre-restore content.
+	// Nil for an internal caller.
 	RestoreBlueprintVersionInTeam(
-		userID, teamID, projectID, slug string, versionNumber int,
+		userID, teamID, projectID, slug string, versionNumber int, origin *models.WriteOrigin,
 	) (*models.Blueprint, error)
 }
 

@@ -246,3 +246,76 @@ func (r *resourceWriteEventRepository) queryWritesBySource(
 
 	return counts, nil
 }
+
+// An update that recorded no write event leaves one trace: when it changed the
+// content, the version snapshot it wrote has a NULL source (#1418). The two
+// statements below count those snapshots, which is how the write metrics
+// report updates with no recorded channel instead of leaving them out.
+//
+// A snapshot's source and its update's write event come from the same request
+// origin (the handler sets both from the context), so a NULL-source snapshot
+// never belongs to an update that also has an event: the two are disjoint and
+// can be added. What cannot be counted at all is an unrecorded update that
+// changed no content, and one whose snapshot was since pruned to the retention
+// cap: neither left a row.
+//
+// content_versions.created_at is a TIMESTAMPTZ, so the one $2 placeholder is
+// enough here; there is no naive column to bind separately as the memories
+// branch of the creation statements has to.
+const teamUnsourcedUpdateCountQuery = `
+	SELECT COUNT(*)
+	FROM content_versions v
+	WHERE v.team_id = $1 AND v.created_at >= $2 AND v.source IS NULL
+		AND v.resource_type IN ('prompt', 'artifact', 'blueprint', 'memory')`
+
+// projectUnsourcedUpdateCountQuery narrows teamUnsourcedUpdateCountQuery to the
+// resources currently in one project, resolved from its team and slug ($1, $3).
+// A snapshot has no project of its own, so it is attributed to the project its
+// resource is in now. An unknown slug matches no rows.
+const projectUnsourcedUpdateCountQuery = `
+	WITH target AS (
+		SELECT id FROM projects WHERE team_id = $1 AND slug = $3
+	)
+	SELECT COUNT(*)
+	FROM content_versions v
+	WHERE v.team_id = $1 AND v.created_at >= $2 AND v.source IS NULL
+		AND (
+			(v.resource_type = 'prompt' AND EXISTS (
+				SELECT 1 FROM prompts r WHERE r.id = v.resource_id AND r.project_id = (SELECT id FROM target)))
+			OR (v.resource_type = 'artifact' AND EXISTS (
+				SELECT 1 FROM artifacts r WHERE r.id = v.resource_id AND r.project_id = (SELECT id FROM target)))
+			OR (v.resource_type = 'blueprint' AND EXISTS (
+				SELECT 1 FROM blueprints r WHERE r.id = v.resource_id AND r.project_id = (SELECT id FROM target)))
+			OR (v.resource_type = 'memory' AND EXISTS (
+				SELECT 1 FROM memories r WHERE r.id = v.resource_id AND r.project_id = (SELECT id FROM target)))
+		)`
+
+// GetTeamUnsourcedUpdateCount returns how many content changes of the team's
+// resources at or after since carry no write channel.
+func (r *resourceWriteEventRepository) GetTeamUnsourcedUpdateCount(
+	ctx context.Context, teamID string, since time.Time,
+) (int, error) {
+	return r.queryUnsourcedUpdateCount(ctx, teamUnsourcedUpdateCountQuery, teamID, since)
+}
+
+// GetProjectUnsourcedUpdateCount is GetTeamUnsourcedUpdateCount for the
+// resources currently in one project of the team, identified by its slug.
+func (r *resourceWriteEventRepository) GetProjectUnsourcedUpdateCount(
+	ctx context.Context, teamID, projectSlug string, since time.Time,
+) (int, error) {
+	return r.queryUnsourcedUpdateCount(ctx, projectUnsourcedUpdateCountQuery, teamID, since, projectSlug)
+}
+
+func (r *resourceWriteEventRepository) queryUnsourcedUpdateCount(
+	ctx context.Context, query string, args ...any,
+) (int, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("database connection is nil")
+	}
+
+	var count int
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count unsourced resource updates: %w", err)
+	}
+	return count, nil
+}

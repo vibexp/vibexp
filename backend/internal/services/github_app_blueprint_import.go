@@ -75,10 +75,9 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 	).
 		Info("Found project for blueprint import")
 
-	projectID := project.ID
-
 	// 4. Initialize report
 	report := &models.BlueprintImportReport{
+		ProjectID:       project.ID,
 		SuccessfulItems: []models.BlueprintImportSuccess{},
 		FailedItems:     []models.BlueprintImportFailed{},
 		SkippedItems:    []models.BlueprintImportSkipped{},
@@ -98,7 +97,7 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 		userID:          userID,
 		teamID:          teamID,
 		repo:            repo,
-		projectID:       projectID,
+		projectID:       project.ID,
 		report:          report,
 		sourceCommitSHA: sourceCommitSHA,
 	}

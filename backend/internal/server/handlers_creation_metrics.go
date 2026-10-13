@@ -343,6 +343,8 @@ func toGenWritesBySource(sources *resourceaccess.CreationSources) creationmetric
 		Cli: sources.Writes[resourceaccess.SourceCLI],
 		Mcp: sources.Writes[resourceaccess.SourceMCP],
 		Api: sources.Writes[resourceaccess.SourceAPI],
+		// Unknown is the writes of the window with no recorded channel (#1418).
+		Unknown: sources.Writes[resourceaccess.SourceUnknown],
 	}
 }
 

@@ -280,6 +280,9 @@ func (s *PromptShareService) GetSharedPrompt(
 	// dropped here; `lock` still serializes, as null, which the Prompt schema
 	// requires.
 	prompt.Lock = nil
+	// The channel a team writes through, and the name of the assistant it uses,
+	// are team-internal for the same reason (#1418).
+	prompt.LastWrite = models.LastWrite{}
 
 	return &models.SharedPromptResponse{
 		Prompt:       *prompt,

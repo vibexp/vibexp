@@ -58,6 +58,8 @@ type Artifact struct {
 	// because the spec declares `lock` required+nullable (issue #1288): the key
 	// is always present, and `null` when the resource is unlocked.
 	Lock *ResourceLock `json:"lock" db:"-"`
+	// LastWrite is how the resource was most recently written (issue #1418).
+	LastWrite
 }
 
 type CreateArtifactRequest struct {

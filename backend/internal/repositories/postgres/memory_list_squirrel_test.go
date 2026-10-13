@@ -17,10 +17,11 @@ import (
 )
 
 // memoryListColumns mirrors the 11 columns scanned by List (status and title
-// added; no version column on the list path).
+// added; no version column on the list path), followed by the two last-write
+// columns.
 var memoryListColumns = []string{
 	"id", "user_id", "team_id", "project_id", "title", "text", "status", "metadata", "created_at", "updated_at",
-	"labels",
+	"labels", "lw_source", "lw_assistant_name",
 }
 
 // setupMemoryListTest builds a MemoryRepository backed by a sqlmock connection.
@@ -63,7 +64,7 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 	oneRow := func() *sqlmock.Rows {
 		return sqlmock.NewRows(memoryListColumns).AddRow(
 			"memory-1", "user-123", "team-123", "project-123", nil, "remember this",
-			"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
+			"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"}, nil, nil,
 		)
 	}
 
@@ -317,13 +318,14 @@ func TestMemoryRepository_List_ExplicitProjection(t *testing.T) {
 
 	mock.ExpectQuery(
 		`SELECT m\.id, m\.user_id, m\.team_id, m\.project_id, m\.title, ` +
-			`m\.text, m\.status, m\.metadata, m\.created_at, m\.updated_at, m\.labels ` +
-			`FROM memories m WHERE`,
+			`m\.text, m\.status, m\.metadata, m\.created_at, m\.updated_at, m\.labels, ` +
+			`lw\.source, lw\.assistant_name ` +
+			`FROM memories m LEFT JOIN LATERAL \(.*\) lw ON true WHERE`,
 	).
 		WithArgs(memoryListDefaultArgs()...).
 		WillReturnRows(sqlmock.NewRows(memoryListColumns).AddRow(
 			"memory-1", "user-123", "team-123", "project-123", nil, "remember this",
-			"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
+			"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"}, nil, nil,
 		))
 
 	memories, total, err := repo.List(ctx, "user-123", filters)
@@ -390,7 +392,7 @@ func TestMemoryRepository_List_ErrorPaths(t *testing.T) {
 					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows(memoryListColumns).AddRow(
 						"memory-1", "user-123", "team-123", "project-123", nil, "remember this",
-						"active", []byte(`{not valid json`), now, now, pq.StringArray{},
+						"active", []byte(`{not valid json`), now, now, pq.StringArray{}, nil, nil,
 					))
 			},
 			wantErr: "failed to unmarshal metadata",
@@ -403,7 +405,7 @@ func TestMemoryRepository_List_ErrorPaths(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				rows := sqlmock.NewRows(memoryListColumns).AddRow(
 					"memory-1", "user-123", "team-123", "project-123", nil, "remember this",
-					"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"},
+					"active", []byte(`{"env":"prod"}`), now, now, pq.StringArray{"onboarding"}, nil, nil,
 				).RowError(0, sql.ErrConnDone)
 				mock.ExpectQuery(`FROM memories m`).
 					WithArgs(memoryListDefaultArgs()...).

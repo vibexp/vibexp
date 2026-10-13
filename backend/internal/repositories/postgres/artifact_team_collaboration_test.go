@@ -61,8 +61,8 @@ func TestArtifactRepository_TeamMember_CanListOtherMembersArtifacts(t *testing.T
 	// resolves the locker's name
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata, a\.created_at, a\.updated_at, a\.labels,\s+` +
-		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name\s+` +
-		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+WHERE`
+		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name,\s+lw\.source, lw\.assistant_name\s+` +
+		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+LEFT JOIN LATERAL \(.*\) lw ON true\s+WHERE`
 	mock.ExpectQuery(listQuery).
 		WithArgs(teamID, teamID, bobUserID, teamID, bobUserID, "archived").
 		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
@@ -347,8 +347,8 @@ func TestArtifactRepository_ListCrossTeam_ReturnsArtifactsFromMultipleTeams(t *t
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id,` +
 		` a\.title, a\.description, a\.status, a\.type, a\.metadata,` +
 		` a\.created_at, a\.updated_at, a\.labels,\s+` +
-		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name\s+` +
-		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+WHERE.*a\.user_id = \$1`
+		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name,\s+lw\.source, lw\.assistant_name\s+` +
+		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+LEFT JOIN LATERAL \(.*\) lw ON true\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, "archived").
 		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
@@ -410,8 +410,8 @@ func TestArtifactRepository_ListCrossTeam_ExcludesOtherUsersArtifacts(t *testing
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
 		` a\.created_at, a\.updated_at, a\.labels,\s+` +
-		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name\s+` +
-		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+WHERE.*a\.user_id = \$1`
+		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name,\s+lw\.source, lw\.assistant_name\s+` +
+		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+LEFT JOIN LATERAL \(.*\) lw ON true\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, "archived").
 		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
@@ -468,8 +468,8 @@ func TestArtifactRepository_ListCrossTeam_HonoursProjectFilter(t *testing.T) {
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
 		` a\.created_at, a\.updated_at, a\.labels,\s+` +
-		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name\s+` +
-		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+WHERE.*a\.user_id = \$1`
+		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name,\s+lw\.source, lw\.assistant_name\s+` +
+		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+LEFT JOIN LATERAL \(.*\) lw ON true\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, projectID, "archived").
 		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
@@ -526,8 +526,8 @@ func TestArtifactRepository_ListCrossTeam_HonoursStatusAndTypeFilter(t *testing.
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
 		` a\.created_at, a\.updated_at, a\.labels,\s+` +
-		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name\s+` +
-		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+WHERE.*a\.user_id = \$1`
+		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name,\s+lw\.source, lw\.assistant_name\s+` +
+		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+LEFT JOIN LATERAL \(.*\) lw ON true\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, typeStr, statusStr).
 		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(
@@ -583,8 +583,8 @@ func TestArtifactRepository_ListCrossTeam_HonoursSearchFilter(t *testing.T) {
 	listQuery := `SELECT a\.id, a\.project_id, a\.slug, a\.user_id, a\.team_id, a\.title, ` +
 		`a\.description, a\.status, a\.type, a\.metadata,` +
 		` a\.created_at, a\.updated_at, a\.labels,\s+` +
-		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name\s+` +
-		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+WHERE.*a\.user_id = \$1`
+		`a\.locked_by::text, a\.locked_at, a\.lock_comment, lock_u\.name,\s+lw\.source, lw\.assistant_name\s+` +
+		`FROM artifacts a\s+LEFT JOIN users lock_u ON lock_u\.id = a\.locked_by\s+LEFT JOIN LATERAL \(.*\) lw ON true\s+WHERE.*a\.user_id = \$1`
 	mockDB.ExpectQuery(listQuery).
 		WithArgs(aliceUserID, aliceUserID, aliceUserID, "draft", "archived", "%design%", "%design%", "%design%").
 		WillReturnRows(sqlmock.NewRows(postgres.WithLockColumns(

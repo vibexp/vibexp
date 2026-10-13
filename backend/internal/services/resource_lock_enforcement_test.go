@@ -213,7 +213,7 @@ func TestPromptService_Restore_LockedStaysAllowed(t *testing.T) {
 	h.cvs.EXPECT().Restore(mock.Anything, lockTeamID, "prompt", existing.ID, 2).Return("v2 body", nil).Once()
 	h.expectWrite()
 
-	restored, err := h.svc.RestorePromptVersion(lockCaller, lockTeamID, lockSlug, 2)
+	restored, err := h.svc.RestorePromptVersion(lockCaller, lockTeamID, lockSlug, 2, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "v2 body", restored.Body)
@@ -414,7 +414,7 @@ func TestBlueprintService_Restore_LockedStaysAllowed(t *testing.T) {
 		Return(&models.ContentVersion{Content: "v2 body", RawContent: "v2 raw"}, nil).Once()
 	h.expectWrite()
 
-	restored, err := h.svc.RestoreBlueprintVersionInTeam(lockCaller, lockTeamID, lockProjectID, lockSlug, 2)
+	restored, err := h.svc.RestoreBlueprintVersionInTeam(lockCaller, lockTeamID, lockProjectID, lockSlug, 2, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "v2 body", restored.Content)
@@ -599,7 +599,7 @@ func TestArtifactService_Restore_LockedStaysAllowed(t *testing.T) {
 	h.cvs.EXPECT().Restore(mock.Anything, lockTeamID, "artifact", existing.ID, 2).Return("v2 body", nil).Once()
 	h.expectWrite()
 
-	restored, err := h.svc.RestoreArtifactVersionInTeam(lockCaller, lockTeamID, lockProjectID, lockSlug, 2)
+	restored, err := h.svc.RestoreArtifactVersionInTeam(lockCaller, lockTeamID, lockProjectID, lockSlug, 2, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "v2 body", restored.Content)

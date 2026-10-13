@@ -76,12 +76,13 @@ func (r *PromptRepository) GetByID(ctx context.Context, userID, teamID, promptID
 				p.id, p.name, p.slug, p.description, p.body, p.user_id, p.team_id, p.project_id,
 				p.status, p.mcp_expose, p.labels, p.created_at, p.updated_at, p.version,
 				CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared,
-				p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name
+				p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 			FROM prompts p
 			LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 				AND ps.is_active = true
 				AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
 			LEFT JOIN users lock_u ON lock_u.id = p.locked_by
+			LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypePrompt, "p") + `
 			WHERE p.id = $1
 		`
 		args = []interface{}{promptID}
@@ -93,12 +94,13 @@ func (r *PromptRepository) GetByID(ctx context.Context, userID, teamID, promptID
 				p.id, p.name, p.slug, p.description, p.body, p.user_id, p.team_id, p.project_id,
 				p.status, p.mcp_expose, p.labels, p.created_at, p.updated_at, p.version,
 				CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared,
-				p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name
+				p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 			FROM prompts p
 			LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 				AND ps.is_active = true
 				AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
 			LEFT JOIN users lock_u ON lock_u.id = p.locked_by
+			LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypePrompt, "p") + `
 			WHERE p.id = $1
 				AND p.team_id = $2
 				AND (
@@ -111,17 +113,19 @@ func (r *PromptRepository) GetByID(ctx context.Context, userID, teamID, promptID
 
 	var prompt models.Prompt
 	var lock resourceLockScan
+	var lastWrite resourceLastWriteScan
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(
 		&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description, &prompt.Body,
 		&prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose,
 		&prompt.Labels, &prompt.CreatedAt, &prompt.UpdatedAt, &prompt.Version, &prompt.IsShared,
-		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get prompt by ID: %w", err), repositories.ErrPromptNotFound)
 	}
 	prompt.Lock = lock.value()
+	prompt.LastWrite = lastWrite.value()
 
 	return &prompt, nil
 }
@@ -135,12 +139,13 @@ func (r *PromptRepository) GetBySlug(ctx context.Context, userID, teamID, slug s
 			p.status, p.mcp_expose, p.labels, p.created_at, p.updated_at,
 			p.version, CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared,
 			` + projectSummaryProjection + `,
-			p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name
+			p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 		FROM prompts p
 		LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 			AND ps.is_active = true
 			AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
 		LEFT JOIN users lock_u ON lock_u.id = p.locked_by
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypePrompt, "p") + `
 		` + projectSummaryJoin("p") + `
 		WHERE p.slug = $1
 			AND p.team_id = $2
@@ -153,12 +158,13 @@ func (r *PromptRepository) GetBySlug(ctx context.Context, userID, teamID, slug s
 	var prompt models.Prompt
 	var project projectSummaryScan
 	var lock resourceLockScan
+	var lastWrite resourceLastWriteScan
 	err := r.db.QueryRowContext(ctx, query, slug, teamID, userID).Scan(
 		&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description, &prompt.Body,
 		&prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose,
 		&prompt.Labels, &prompt.CreatedAt, &prompt.UpdatedAt, &prompt.Version, &prompt.IsShared,
 		&project.id, &project.name, &project.slug,
-		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
@@ -166,6 +172,7 @@ func (r *PromptRepository) GetBySlug(ctx context.Context, userID, teamID, slug s
 	}
 	prompt.Project = project.value()
 	prompt.Lock = lock.value()
+	prompt.LastWrite = lastWrite.value()
 
 	return &prompt, nil
 }
@@ -177,28 +184,31 @@ func (r *PromptRepository) GetByIDCrossTeam(ctx context.Context, userID, promptI
 			p.id, p.name, p.slug, p.description, p.body, p.user_id, p.team_id, p.project_id,
 			p.status, p.mcp_expose, p.labels, p.created_at, p.updated_at, p.version,
 			CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared,
-			p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name
+			p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 		FROM prompts p
 		LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 			AND ps.is_active = true
 			AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
 		LEFT JOIN users lock_u ON lock_u.id = p.locked_by
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypePrompt, "p") + `
 		WHERE p.id = $1 AND p.user_id = $2
 	`
 
 	var prompt models.Prompt
 	var lock resourceLockScan
+	var lastWrite resourceLastWriteScan
 	err := r.db.QueryRowContext(ctx, query, promptID, userID).Scan(
 		&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description, &prompt.Body,
 		&prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose,
 		&prompt.Labels, &prompt.CreatedAt, &prompt.UpdatedAt, &prompt.Version, &prompt.IsShared,
-		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get prompt by ID (cross-team): %w", err), repositories.ErrPromptNotFound)
 	}
 	prompt.Lock = lock.value()
+	prompt.LastWrite = lastWrite.value()
 
 	return &prompt, nil
 }
@@ -214,22 +224,24 @@ func (r *PromptRepository) GetBySlugInTeam(ctx context.Context, teamID, slug str
 			p.id, p.name, p.slug, p.description, p.body, p.user_id, p.team_id, p.project_id,
 			p.status, p.mcp_expose, p.labels, p.created_at, p.updated_at, p.version,
 			CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared,
-			p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name
+			p.locked_by::text, p.locked_at, p.lock_comment, lock_u.name, ` + resourceLastWriteProjection + `
 		FROM prompts p
 		LEFT JOIN prompt_shares ps ON p.id = ps.prompt_id
 			AND ps.is_active = true
 			AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
 		LEFT JOIN users lock_u ON lock_u.id = p.locked_by
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypePrompt, "p") + `
 		WHERE p.slug = $1 AND p.team_id = $2
 	`
 
 	var prompt models.Prompt
 	var lock resourceLockScan
+	var lastWrite resourceLastWriteScan
 	err := r.db.QueryRowContext(ctx, query, slug, teamID).Scan(
 		&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description, &prompt.Body,
 		&prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose,
 		&prompt.Labels, &prompt.CreatedAt, &prompt.UpdatedAt, &prompt.Version, &prompt.IsShared,
-		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+		&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
@@ -239,6 +251,7 @@ func (r *PromptRepository) GetBySlugInTeam(ctx context.Context, teamID, slug str
 		)
 	}
 	prompt.Lock = lock.value()
+	prompt.LastWrite = lastWrite.value()
 
 	return &prompt, nil
 }
@@ -325,7 +338,8 @@ func buildListSelectClause(filters repositories.PromptFilters) []string {
 		isShared = "CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared"
 	}
 	columns := append(append([]string{}, promptListSelectColumns...), isShared)
-	return append(columns, resourceLockColumns("p")...)
+	columns = append(columns, resourceLockColumns("p")...)
+	return append(columns, resourceLastWriteColumns...)
 }
 
 // buildListOrderByClause builds the ORDER BY clause for prompt list query using allowlisted fields.
@@ -427,6 +441,7 @@ func (r *PromptRepository) queryList(
 	// which is on the row, not the locker's name.
 	sb = buildListFromClause(sb, filters).
 		LeftJoin(resourceLockJoin("p")).
+		LeftJoin(resourceLastWriteLateral(models.RelationResourceTypePrompt, "p")).
 		Where(where).
 		OrderBy(buildListOrderByClause(filters)).
 		Limit(limit).
@@ -460,23 +475,25 @@ func (r *PromptRepository) queryList(
 }
 
 // scanPromptListRows scans the prompt list projection built by
-// buildListSelectClause: the 13 shared columns, is_shared, then the lock
-// columns.
+// buildListSelectClause: the 13 shared columns, is_shared, the lock columns,
+// then the last-write columns.
 func scanPromptListRows(rows *sql.Rows) ([]models.Prompt, error) {
 	prompts := make([]models.Prompt, 0)
 	for rows.Next() {
 		var prompt models.Prompt
 		var lock resourceLockScan
+		var lastWrite resourceLastWriteScan
 		scanErr := rows.Scan(
 			&prompt.ID, &prompt.Name, &prompt.Slug, &prompt.Description,
 			&prompt.Body, &prompt.UserID, &prompt.TeamID, &prompt.ProjectID, &prompt.Status, &prompt.MCPExpose, &prompt.Labels,
 			&prompt.CreatedAt, &prompt.UpdatedAt, &prompt.IsShared,
-			&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName,
+			&lock.lockedBy, &lock.lockedAt, &lock.comment, &lock.lockerName, &lastWrite.source, &lastWrite.assistantName,
 		)
 		if scanErr != nil {
 			return nil, fmt.Errorf("failed to scan prompt: %w", scanErr)
 		}
 		prompt.Lock = lock.value()
+		prompt.LastWrite = lastWrite.value()
 		prompts = append(prompts, prompt)
 	}
 

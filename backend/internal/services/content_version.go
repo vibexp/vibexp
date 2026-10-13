@@ -43,7 +43,7 @@ type SnapshotRequest struct {
 	// ActorType is ActorTypeHuman or ActorTypeSystem; empty defaults to human.
 	ActorType string
 	// Origin is how the write that triggered this snapshot arrived (#1392). Nil
-	// for internal callers such as a restore; the version then stores no source.
+	// for a caller that is not a request; the version then stores no source.
 	Origin *models.WriteOrigin
 }
 

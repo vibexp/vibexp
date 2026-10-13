@@ -214,9 +214,13 @@ func TestMemoryGetByID_ProjectSummary(t *testing.T) {
 				"id", "user_id", "team_id", "project_id", "title", "text", "status", "metadata",
 				"created_at", "updated_at", "version", "labels",
 			}, projectSummaryColumns()...)
+			// A memory has no lock columns: the last-write pair follows the
+			// project summary directly.
+			cols = append(cols, lastWriteTestColumns...)
+			row := append(append(append([]driverValue{}, base...), tc.tail...), nil, nil)
 			mock.ExpectQuery("SELECT (.+) FROM memories m.*LEFT JOIN projects proj").
 				WithArgs("mem-1", projSumTeamID, projSumUserID).
-				WillReturnRows(sqlmock.NewRows(cols).AddRow(append(append([]driverValue{}, base...), tc.tail...)...))
+				WillReturnRows(sqlmock.NewRows(cols).AddRow(row...))
 
 			got, err := repo.GetByID(context.Background(), projSumUserID, projSumTeamID, "mem-1")
 			require.NoError(t, err)

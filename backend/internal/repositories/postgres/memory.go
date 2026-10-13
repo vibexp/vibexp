@@ -81,8 +81,10 @@ func (r *MemoryRepository) GetByID(ctx context.Context, userID, teamID, memoryID
 	query := `
 		SELECT m.id, m.user_id, m.team_id, m.project_id, m.title, m.text, m.status, m.metadata,
 		       m.created_at, m.updated_at, m.version, m.labels,
-		       ` + projectSummaryProjection + `
+		       ` + projectSummaryProjection + `,
+		       ` + resourceLastWriteProjection + `
 		FROM memories m` + projectSummaryJoin("m") + `
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypeMemory, "m") + `
 		WHERE m.id = $1
 			AND m.team_id = $2
 			AND (
@@ -94,17 +96,20 @@ func (r *MemoryRepository) GetByID(ctx context.Context, userID, teamID, memoryID
 	var memory models.Memory
 	var metadataJSON []byte
 	var project projectSummaryScan
+	var lastWrite resourceLastWriteScan
 
 	err := r.db.QueryRowContext(ctx, query, memoryID, teamID, userID).Scan(
 		&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Title, &memory.Text, &memory.Status,
 		&metadataJSON, &memory.CreatedAt, &memory.UpdatedAt, &memory.Version, &memory.Labels,
 		&project.id, &project.name, &project.slug,
+		&lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get memory by ID: %w", err), repositories.ErrMemoryNotFound)
 	}
 	memory.Project = project.value()
+	memory.LastWrite = lastWrite.value()
 
 	if err := json.Unmarshal(metadataJSON, &memory.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -116,22 +121,28 @@ func (r *MemoryRepository) GetByID(ctx context.Context, userID, teamID, memoryID
 // GetByIDCrossTeam retrieves a memory by ID across all user's teams
 func (r *MemoryRepository) GetByIDCrossTeam(ctx context.Context, userID, memoryID string) (*models.Memory, error) {
 	query := `
-		SELECT id, user_id, team_id, project_id, title, text, status, metadata, created_at, updated_at, version, labels
-		FROM memories
-		WHERE id = $1 AND user_id = $2
+		SELECT m.id, m.user_id, m.team_id, m.project_id, m.title, m.text, m.status, m.metadata,
+		       m.created_at, m.updated_at, m.version, m.labels,
+		       ` + resourceLastWriteProjection + `
+		FROM memories m
+		LEFT JOIN ` + resourceLastWriteLateral(models.RelationResourceTypeMemory, "m") + `
+		WHERE m.id = $1 AND m.user_id = $2
 	`
 
 	var memory models.Memory
 	var metadataJSON []byte
+	var lastWrite resourceLastWriteScan
 
 	err := r.db.QueryRowContext(ctx, query, memoryID, userID).Scan(
 		&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Title, &memory.Text, &memory.Status,
 		&metadataJSON, &memory.CreatedAt, &memory.UpdatedAt, &memory.Version, &memory.Labels,
+		&lastWrite.source, &lastWrite.assistantName,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get memory by ID (cross-team): %w", err), repositories.ErrMemoryNotFound)
 	}
+	memory.LastWrite = lastWrite.value()
 
 	if err := json.Unmarshal(metadataJSON, &memory.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
@@ -285,7 +296,9 @@ func (r *MemoryRepository) queryList(
 			"m.id", "m.user_id", "m.team_id", "m.project_id", "m.title",
 			"m.text", "m.status", "m.metadata", "m.created_at", "m.updated_at", "m.labels",
 		).
+		Columns(resourceLastWriteColumns...).
 		From("memories m").
+		LeftJoin(resourceLastWriteLateral(models.RelationResourceTypeMemory, "m")).
 		Where(where).
 		OrderBy(buildMemoryOrderByClause(filters)).
 		Limit(limit).
@@ -317,17 +330,19 @@ func (r *MemoryRepository) queryList(
 	return memories, nil
 }
 
-// scanMemoryRows scans the 11-column memory projection shared by the list and
-// metadata-search queries, unmarshalling the JSON metadata column per row.
+// scanMemoryRows scans the 11-column memory list projection followed by the
+// last-write columns, unmarshalling the JSON metadata column per row.
 func scanMemoryRows(rows *sql.Rows) ([]models.Memory, error) {
 	memories := make([]models.Memory, 0)
 	for rows.Next() {
 		var memory models.Memory
 		var metadataJSON []byte
+		var lastWrite resourceLastWriteScan
 
 		scanErr := rows.Scan(
 			&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Title, &memory.Text, &memory.Status,
 			&metadataJSON, &memory.CreatedAt, &memory.UpdatedAt, &memory.Labels,
+			&lastWrite.source, &lastWrite.assistantName,
 		)
 		if scanErr != nil {
 			return nil, fmt.Errorf("failed to scan memory: %w", scanErr)
@@ -337,6 +352,7 @@ func scanMemoryRows(rows *sql.Rows) ([]models.Memory, error) {
 			return nil, fmt.Errorf("failed to unmarshal metadata: %w", jsonErr)
 		}
 
+		memory.LastWrite = lastWrite.value()
 		memories = append(memories, memory)
 	}
 

@@ -45,8 +45,9 @@ type ContentVersion struct {
 	CreatedBy *string `json:"created_by" db:"created_by"`
 	// Source is the channel the write that produced this version arrived through
 	// (web, cli, mcp or api). Nil when it is not known: the version predates
-	// write-source recording (#1392), or an internal caller such as a restore
-	// produced it.
+	// write-source recording (#1392), or an internal caller that is not a
+	// request produced it. A restore is a request and carries its channel
+	// (#1418).
 	Source *string `json:"source" db:"source"`
 	// AssistantName is the name the MCP client reported for itself, when Source is
 	// mcp and the client reported one. Nil otherwise.

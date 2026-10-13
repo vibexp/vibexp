@@ -44,6 +44,30 @@ func NormalizeAssistantName(name string) *string {
 	return &trimmed
 }
 
+// LastWrite says how a resource was most recently written: the channel of its
+// newest write event and, for an MCP write, the name the client reported for
+// itself (#1418). It is embedded in the four resource models, so its two keys
+// sit at the top level of their JSON.
+//
+// It is not stored on the resource row (db:"-"): repository reads resolve it
+// from resource_write_events. Neither json tag carries omitempty because the
+// spec declares both keys required+nullable: always present, and null when the
+// resource has no recorded write, which is "not known" and never a guess.
+type LastWrite struct {
+	LastWriteSource        *string `json:"last_write_source" db:"-"`
+	LastWriteAssistantName *string `json:"last_write_assistant_name" db:"-"`
+}
+
+// LastWriteFromOrigin is the LastWrite a write that arrived through origin
+// leaves behind. A nil origin (an internal caller) yields the zero value.
+func LastWriteFromOrigin(origin *WriteOrigin) LastWrite {
+	if origin == nil || origin.Source == "" {
+		return LastWrite{}
+	}
+	source := origin.Source
+	return LastWrite{LastWriteSource: &source, LastWriteAssistantName: origin.AssistantName}
+}
+
 // ResourceWriteEvent is one successful create or update of a team resource. It
 // is the write-side twin of ResourceAccessEvent.
 type ResourceWriteEvent struct {

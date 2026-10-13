@@ -150,6 +150,7 @@ func TestWriteService_GetTeamCreationSources_ZeroFillsAndSums(t *testing.T) {
 			{Source: SourceMCP, Count: 48},
 			{Source: SourceWeb, Count: 31},
 		}, nil).Once()
+	repo.EXPECT().GetTeamUnsourcedUpdateCount(mock.Anything, "team-1", since).Return(3, nil).Once()
 
 	got, err := svc.GetTeamCreationSources(context.Background(), "team-1", since)
 
@@ -162,7 +163,10 @@ func TestWriteService_GetTeamCreationSources_ZeroFillsAndSums(t *testing.T) {
 	assert.Equal(t, SourceCreationCounts{}, got.Created[SourceAPI])
 	assert.Equal(t, SourceCreationCounts{Memories: 5, Total: 5}, got.Created[SourceUnknown])
 
-	assert.Equal(t, map[string]int{SourceWeb: 31, SourceCLI: 0, SourceMCP: 48, SourceAPI: 0}, got.Writes)
+	// unknown is the 5 creations with no create event plus the 3 content
+	// changes with no source.
+	assert.Equal(t,
+		map[string]int{SourceWeb: 31, SourceCLI: 0, SourceMCP: 48, SourceAPI: 0, SourceUnknown: 8}, got.Writes)
 }
 
 func TestWriteService_GetTeamCreationSources_EmptyIsZeroFilled(t *testing.T) {
@@ -175,6 +179,7 @@ func TestWriteService_GetTeamCreationSources_EmptyIsZeroFilled(t *testing.T) {
 		Return([]models.ResourceCreationSourceCount{}, nil).Once()
 	repo.EXPECT().GetTeamWriteCountsBySource(mock.Anything, "team-1", mock.Anything).
 		Return([]models.ResourceWriteSourceCount{}, nil).Once()
+	repo.EXPECT().GetTeamUnsourcedUpdateCount(mock.Anything, "team-1", mock.Anything).Return(0, nil).Once()
 
 	got, err := svc.GetTeamCreationSources(context.Background(), "team-1", time.Now())
 
@@ -184,7 +189,8 @@ func TestWriteService_GetTeamCreationSources_EmptyIsZeroFilled(t *testing.T) {
 		assert.True(t, ok, source)
 		assert.Equal(t, SourceCreationCounts{}, counts, source)
 	}
-	assert.Equal(t, map[string]int{SourceWeb: 0, SourceCLI: 0, SourceMCP: 0, SourceAPI: 0}, got.Writes)
+	assert.Equal(t,
+		map[string]int{SourceWeb: 0, SourceCLI: 0, SourceMCP: 0, SourceAPI: 0, SourceUnknown: 0}, got.Writes)
 }
 
 func TestWriteService_GetTeamCreationSources_PropagatesErrors(t *testing.T) {
@@ -215,6 +221,21 @@ func TestWriteService_GetTeamCreationSources_PropagatesErrors(t *testing.T) {
 
 		require.ErrorIs(t, err, boom)
 	})
+
+	t.Run("unsourced update count", func(t *testing.T) {
+		t.Parallel()
+		repo := mocks.NewMockResourceWriteEventRepository(t)
+		svc := newWriteServiceWithFake(repo, &syncSubmitter{})
+		repo.EXPECT().GetTeamCreationCountsBySource(mock.Anything, "team-1", mock.Anything).
+			Return([]models.ResourceCreationSourceCount{}, nil).Once()
+		repo.EXPECT().GetTeamWriteCountsBySource(mock.Anything, "team-1", mock.Anything).
+			Return([]models.ResourceWriteSourceCount{}, nil).Once()
+		repo.EXPECT().GetTeamUnsourcedUpdateCount(mock.Anything, "team-1", mock.Anything).Return(0, boom).Once()
+
+		_, err := svc.GetTeamCreationSources(context.Background(), "team-1", time.Now())
+
+		require.ErrorIs(t, err, boom)
+	})
 }
 
 func TestWriteService_GetProjectCreationSources(t *testing.T) {
@@ -230,12 +251,14 @@ func TestWriteService_GetProjectCreationSources(t *testing.T) {
 		}, nil).Once()
 	repo.EXPECT().GetProjectWriteCountsBySource(mock.Anything, "team-1", "my-project", since).
 		Return([]models.ResourceWriteSourceCount{{Source: SourceAPI, Count: 7}}, nil).Once()
+	repo.EXPECT().GetProjectUnsourcedUpdateCount(mock.Anything, "team-1", "my-project", since).Return(4, nil).Once()
 
 	got, err := svc.GetProjectCreationSources(context.Background(), "team-1", "my-project", since)
 
 	require.NoError(t, err)
 	assert.Equal(t, SourceCreationCounts{Prompts: 2, Total: 2}, got.Created[SourceAPI])
 	assert.Equal(t, 7, got.Writes[SourceAPI])
+	assert.Equal(t, 4, got.Writes[SourceUnknown])
 }
 
 func TestWriteService_GetProjectCreationSources_PropagatesErrors(t *testing.T) {
@@ -268,6 +291,22 @@ func TestWriteService_GetProjectCreationSources_PropagatesErrors(t *testing.T) {
 
 		require.ErrorIs(t, err, boom)
 	})
+
+	t.Run("unsourced update count", func(t *testing.T) {
+		t.Parallel()
+		repo := mocks.NewMockResourceWriteEventRepository(t)
+		svc := newWriteServiceWithFake(repo, &syncSubmitter{})
+		repo.EXPECT().GetProjectCreationCountsBySource(mock.Anything, "team-1", "p", mock.Anything).
+			Return([]models.ResourceCreationSourceCount{}, nil).Once()
+		repo.EXPECT().GetProjectWriteCountsBySource(mock.Anything, "team-1", "p", mock.Anything).
+			Return([]models.ResourceWriteSourceCount{}, nil).Once()
+		repo.EXPECT().GetProjectUnsourcedUpdateCount(mock.Anything, "team-1", "p", mock.Anything).
+			Return(0, boom).Once()
+
+		_, err := svc.GetProjectCreationSources(context.Background(), "team-1", "p", time.Now())
+
+		require.ErrorIs(t, err, boom)
+	})
 }
 
 // A creation row whose source is not a write channel is folded into "unknown"
@@ -287,9 +326,14 @@ func TestBuildCreationSources_UnexpectedRows(t *testing.T) {
 			{Source: "browser", Count: 4},
 			{Source: SourceCLI, Count: 1},
 		},
+		0,
 	)
 
 	assert.Equal(t, SourceCreationCounts{Memories: 5, Total: 5}, got.Created[SourceUnknown])
 	assert.Equal(t, SourceCreationCounts{}, got.Created[SourceWeb])
-	assert.Equal(t, map[string]int{SourceWeb: 0, SourceCLI: 1, SourceMCP: 0, SourceAPI: 0}, got.Writes)
+	// The 5 unknown creations are unknown writes. The 4 "browser" events are
+	// not added on top: a create event among them belongs to a resource that
+	// is already one of the 5.
+	assert.Equal(t,
+		map[string]int{SourceWeb: 0, SourceCLI: 1, SourceMCP: 0, SourceAPI: 0, SourceUnknown: 5}, got.Writes)
 }

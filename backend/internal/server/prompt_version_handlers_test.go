@@ -154,7 +154,7 @@ func TestHandleRestorePromptVersion_Success(t *testing.T) {
 	}
 
 	mockContainer.promptService.On(
-		"RestorePromptVersion", "user-123", versionTeamID, versionPromptSlug, 1,
+		"RestorePromptVersion", "user-123", versionTeamID, versionPromptSlug, 1, (*models.WriteOrigin)(nil),
 	).Return(restored, nil)
 
 	srv := createTestServer(mockContainer)

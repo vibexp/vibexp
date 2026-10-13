@@ -355,13 +355,16 @@ func (s *Server) handleRestoreArtifactVersion(w http.ResponseWriter, r *http.Req
 	).Info("Restore artifact version request received")
 
 	artifact, err := s.container.ArtifactService().RestoreArtifactVersionInTeam(
-		userID, teamID, decodedProjectID, decodedSlug, versionNumber,
+		userID, teamID, decodedProjectID, decodedSlug, versionNumber, resourceaccess.WriteOriginFromContext(r.Context()),
 	)
 	if err != nil {
 		s.handleArtifactVersionError(w, userID, decodedProjectID, decodedSlug, err)
 		return
 	}
 
+	// A restore is an update that arrived through a channel like any other
+	// (#1418): recorded, it is not an unknown write in the metrics.
+	s.recordResourceWrite(r.Context(), userID, models.WriteActionUpdate, writtenArtifact(teamID, artifact))
 	s.recordArtifactActivity(r.Context(), artifactActivityParams{
 		userID: userID, activityType: activities.ActivityTypeArtifactUpdated, artifactID: artifact.ID,
 		projectName: decodedProjectID, slug: decodedSlug, description: "Restored artifact: " + artifact.Title,

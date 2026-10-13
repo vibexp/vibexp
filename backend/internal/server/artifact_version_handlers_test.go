@@ -174,7 +174,7 @@ func TestHandleRestoreArtifactVersion_Success(t *testing.T) {
 	}
 
 	mockArtifactService.On(
-		"RestoreArtifactVersionInTeam", "user-123", versionTeamID, versionProjectID, versionSlug, 1,
+		"RestoreArtifactVersionInTeam", "user-123", versionTeamID, versionProjectID, versionSlug, 1, (*models.WriteOrigin)(nil),
 	).Return(restored, nil)
 
 	srv := newVersionTestServer(mockArtifactService)
