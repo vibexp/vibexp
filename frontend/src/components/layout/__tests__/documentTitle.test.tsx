@@ -89,10 +89,16 @@ describe('useDocumentTitle', () => {
     expect(document.title).toBe('Vitest mock hoisting trap · Memories · VibeXP')
   })
 
-  it('uses the instance’s own site name where it is set', () => {
+  it('names the company and still the product on a branded instance', () => {
     renderAt('/prompts', <Titled />, { company_name: 'Acme' })
 
-    expect(document.title).toBe('Prompts · Acme')
+    expect(document.title).toBe('Prompts · Acme · VibeXP')
+  })
+
+  it('does not name the product twice when the company is called VibeXP', () => {
+    renderAt('/prompts', <Titled />, { company_name: ' vibexp ' })
+
+    expect(document.title).toBe('Prompts · VibeXP')
   })
 
   it.each([

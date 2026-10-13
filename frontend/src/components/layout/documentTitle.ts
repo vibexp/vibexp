@@ -3,6 +3,7 @@ import { useLocation } from 'react-router'
 
 import { resolveBreadcrumb } from '@/components/layout/HeaderBreadcrumb'
 import { useShell } from '@/components/layout/ShellContext'
+import { siteTitleSuffix } from '@/features/site-info/siteInfo'
 import { useSiteInfo } from '@/features/site-info/useSiteInfo'
 
 const SEPARATOR = ' · '
@@ -33,19 +34,19 @@ export function buildDocumentTitle(parts: {
  * crumbs after it. No page sets a title by hand, and a new resource page gets
  * one for free.
  *
- * The site name is the instance's own (site info) where it is set, VibeXP
- * otherwise.
+ * The title ends the way every tab title does (`siteTitleSuffix`): the
+ * instance's company name where one is set, and always VibeXP.
  */
 export function useDocumentTitle(): void {
   const { pathname } = useLocation()
   const { breadcrumbTrail } = useShell()
-  const { displayName } = useSiteInfo()
+  const { company_name } = useSiteInfo()
 
   const { section, trail } = resolveBreadcrumb(pathname, breadcrumbTrail)
   const title = buildDocumentTitle({
     trail,
     section: section?.label ?? null,
-    site: displayName,
+    site: siteTitleSuffix(company_name),
   })
 
   useEffect(() => {
