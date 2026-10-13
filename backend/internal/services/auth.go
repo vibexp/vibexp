@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
@@ -22,6 +23,7 @@ import (
 type AuthService struct {
 	userRepo     repositories.UserRepository
 	identityRepo repositories.UserIdentityRepository
+	claimHook    UnverifiedAccountClaimHook
 	resolver     IdentityProviderResolver
 	allowlist    AccessAllowlistResolver
 	eventManager events.EventPublisher
@@ -36,6 +38,25 @@ var _ AuthServiceInterface = (*AuthService)(nil)
 // HTTP layer branches on it with errors.Is to surface a policy denial (redirect
 // for the OAuth callback, 403 for dev login) distinct from other failures.
 var ErrAccessRestricted = errors.New("access restricted by allowlist")
+
+// ErrEmailNotVerified is returned by the provider sign-in entry points when the
+// sign-in has no identity yet, an account with the same email exists, and the
+// provider did not verify that email. Attaching the sign-in to the account
+// would hand it to anyone able to register that address unverified at a
+// provider, so it is refused; nothing is written.
+var ErrEmailNotVerified = errors.New("identity provider did not verify the email of an existing account")
+
+// ErrExistingSignInRequired is returned by the provider sign-in entry points
+// when the sign-in has no identity yet and the account with the same email (a)
+// has never had that email verified and (b) already has a sign-in identity.
+//
+// Such an account may have been created by someone else: an open instance
+// creates an account from an UNVERIFIED claim. Linking the proven owner into it
+// would leave both people in one account, and nothing can revoke everything the
+// first one holds (API keys, connected tools). So the link is refused and
+// nothing is written. Signing in once with the account's own identity, with a
+// verified email, verifies the account and lifts the refusal.
+var ErrExistingSignInRequired = errors.New("existing account must first be signed in to with its own method")
 
 // ErrIdentityProviderUnavailable is returned by HandleCallback and
 // RefreshTokens when the provider slug names no enabled provider, e.g. one
@@ -111,15 +132,21 @@ func NewAuthService(
 	resolver IdentityProviderResolver,
 	eventManager events.EventPublisher, logger *slog.Logger,
 	allowlist AccessAllowlistResolver,
+	opts ...AuthServiceOption,
 ) *AuthService {
-	return &AuthService{
+	as := &AuthService{
 		userRepo:     userRepo,
 		identityRepo: identityRepo,
+		claimHook:    noopUnverifiedAccountClaimHook{},
 		resolver:     resolver,
 		allowlist:    allowlist,
 		eventManager: eventManager,
 		logger:       logger,
 	}
+	for _, opt := range opts {
+		opt(as)
+	}
+	return as
 }
 
 // snapshot resolves the enabled providers, wrapping a failure in
@@ -215,6 +242,11 @@ func (as *AuthService) HandleCallback(
 	}
 
 	user, isNewUser, err := as.createOrUpdateUserFromClaims(ctx, slug, entry.Type, claims)
+	if errors.Is(err, ErrEmailNotVerified) || errors.Is(err, ErrExistingSignInRequired) {
+		// A refusal, not a failure: already logged at INFO with the account, and
+		// returned as is so the handler can answer with its own error code.
+		return nil, nil, false, err
+	}
 	if err != nil {
 		as.logger.With(
 			"email", claims.Email,
@@ -293,14 +325,22 @@ func (as *AuthService) ProvisionFromClaims(
 	return user, err
 }
 
-// createOrUpdateUserFromClaims looks up an existing user by the sign-in
-// identity (provider slug, subject) in user_identities, falling back to the
-// legacy Google identity, then creates a new user if none is found.
+// createOrUpdateUserFromClaims resolves the account a provider sign-in belongs
+// to, in this order:
+//
+//  1. the account that owns the sign-in identity (provider slug, subject) in
+//     user_identities, falling back to the legacy Google identity;
+//  2. the account with the same email, which the sign-in is LINKED to when the
+//     provider verified that email, and refused when it did not
+//     (ErrEmailNotVerified) or when the account was never verified and already
+//     has a sign-in identity of its own (ErrExistingSignInRequired);
+//  3. a new account.
+//
 // providerName is the slug of the provider that produced the claims and
 // providerType its kind, which decides the Google-only legacy handling.
 //
-// users.idp_provider and users.idp_subject are still written (the admin list
-// and export read them) but are no longer what a sign-in is resolved by.
+// The account email is stable: it is set when the account is created and never
+// overwritten from claims afterwards.
 func (as *AuthService) createOrUpdateUserFromClaims(
 	ctx context.Context, providerName string, providerType idp.ProviderName, claims *idp.Claims,
 ) (*models.User, bool, error) {
@@ -308,21 +348,59 @@ func (as *AuthService) createOrUpdateUserFromClaims(
 	if err != nil {
 		return nil, false, err
 	}
-
-	var avatarURL *string
-	if claims.Picture != "" {
-		avatarURL = &claims.Picture
+	if user != nil {
+		return as.refreshReturningUser(ctx, user, providerName, claims)
 	}
 
-	if user == nil {
-		return as.createUserFromClaims(ctx, providerName, providerType, claims, avatarURL)
+	existing, err := as.findUserByClaimEmail(ctx, claims)
+	if err != nil {
+		return nil, false, err
+	}
+	if existing != nil {
+		return as.linkIdentityByEmail(ctx, existing, providerName, claims)
 	}
 
+	return as.createUserFromClaims(ctx, providerName, providerType, claims, claimAvatarURL(claims))
+}
+
+// claimAvatarURL returns the claims' picture, or nil when there is none.
+func claimAvatarURL(claims *idp.Claims) *string {
+	if claims.Picture == "" {
+		return nil
+	}
+	picture := claims.Picture
+	return &picture
+}
+
+// findUserByClaimEmail returns the account whose email is the claims' email, or
+// nil when there is none or the claims carry no email.
+func (as *AuthService) findUserByClaimEmail(ctx context.Context, claims *idp.Claims) (*models.User, error) {
+	if models.NormalizeEmail(claims.Email) == "" {
+		return nil, nil
+	}
+	user, err := as.userRepo.GetByEmail(ctx, claims.Email)
+	if err != nil {
+		if isUserNotFoundErr(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to query user by email: %w", err)
+	}
+	return user, nil
+}
+
+// refreshReturningUser records a sign-in by an account's own identity. The
+// account's email is left alone, and its name and avatar are taken from the
+// claims only while it has none: both are the user's to edit from then on.
+//
+// users.idp_provider and users.idp_subject are still written (the identity
+// last used; the admin list and export read them) but are not what a sign-in
+// is resolved by.
+func (as *AuthService) refreshReturningUser(
+	ctx context.Context, user *models.User, providerName string, claims *idp.Claims,
+) (*models.User, bool, error) {
 	now := time.Now()
 	user.EmailVerifiedAt = emailVerifiedAtAfterSignIn(user, claims, now)
-	user.Email = claims.Email
-	user.Name = claims.Name
-	user.AvatarURL = avatarURL
+	fillProfileFromClaims(user, claims)
 	user.IDPProvider = &providerName
 	user.IDPSubject = &claims.Subject
 	user.UpdatedAt = now
@@ -340,21 +418,126 @@ func (as *AuthService) createOrUpdateUserFromClaims(
 	return user, false, nil
 }
 
-// emailVerifiedAtAfterSignIn returns the email_verified_at an existing user
-// should carry once this sign-in has replaced their email with the claims'. The
-// timestamp describes the STORED address: it is set the first time a provider
-// verifies it, kept while the address is unchanged, and when the address
-// changes it restarts from this sign-in (verified) or is cleared (unverified).
-func emailVerifiedAtAfterSignIn(user *models.User, claims *idp.Claims, now time.Time) *time.Time {
-	emailChanged := models.NormalizeEmail(claims.Email) != models.NormalizeEmail(user.Email)
-	switch {
-	case claims.EmailVerified && (user.EmailVerifiedAt == nil || emailChanged):
-		return &now
-	case !claims.EmailVerified && emailChanged:
-		return nil
-	default:
-		return user.EmailVerifiedAt
+// linkIdentityByEmail attaches a sign-in that has no identity yet to the
+// existing account with the same email (#1430). This is what lets an
+// admin-created account complete its first provider sign-in, and one person
+// use two providers that report the same address.
+//
+// It refuses, writing nothing, when:
+//   - the provider did not verify the email (ErrEmailNotVerified);
+//   - the account's email was never verified and the account already has a
+//     sign-in identity (ErrExistingSignInRequired, see its doc).
+//
+// A suspended account is returned untouched, so the caller's suspension gate
+// refuses the sign-in and no new way in is attached to it.
+//
+// The first verified link to an account whose email was never verified is a
+// claim by the mailbox's proven owner; claimUnverifiedAccount closes what
+// predates the proof before the account is marked verified and the identity is
+// attached. Each step is safe to repeat, so a failure part-way is repaired by
+// the next attempt and never leaves a link without the claim having run.
+func (as *AuthService) linkIdentityByEmail(
+	ctx context.Context, user *models.User, providerName string, claims *idp.Claims,
+) (*models.User, bool, error) {
+	if user.IsSuspended() {
+		return user, false, nil
 	}
+	if !claims.EmailVerified {
+		as.logLinkRefused(user, providerName, "unverified_email")
+		return nil, false, ErrEmailNotVerified
+	}
+
+	now := time.Now()
+	if user.EmailVerifiedAt == nil {
+		if err := as.claimUnverifiedAccount(ctx, user, providerName); err != nil {
+			return nil, false, err
+		}
+		user.EmailVerifiedAt = &now
+	}
+	fillProfileFromClaims(user, claims)
+	user.IDPProvider = &providerName
+	user.IDPSubject = &claims.Subject
+	user.UpdatedAt = now
+
+	if err := as.userRepo.Update(ctx, user); err != nil {
+		return nil, false, fmt.Errorf("failed to update user: %w", err)
+	}
+	if err := as.identityRepo.Upsert(ctx, user.ID, providerName, claims.Subject); err != nil {
+		return nil, false, fmt.Errorf("failed to link sign-in identity: %w", err)
+	}
+
+	as.logger.With(
+		"user_id", user.ID,
+		"provider", providerName,
+	).Info("Linked a new sign-in identity to an existing account by verified email")
+
+	return user, false, nil
+}
+
+// claimUnverifiedAccount prepares an account whose email was never verified for
+// its first verified link. It changes nothing on the user row except the
+// session epoch, which it also sets on the model so the session about to be
+// minted for this sign-in is issued under the new epoch.
+//
+// An account that already has a sign-in identity is refused: see
+// ErrExistingSignInRequired. One without (admin-created, or set up from an
+// invitation or setup link) is claimed: the hook removes what its setup left
+// behind, and every cookie session ends.
+func (as *AuthService) claimUnverifiedAccount(ctx context.Context, user *models.User, providerName string) error {
+	identities, err := as.identityRepo.ListByUserID(ctx, user.ID)
+	if err != nil {
+		return fmt.Errorf("failed to read the account's sign-in identities: %w", err)
+	}
+	if len(identities) > 0 {
+		as.logLinkRefused(user, providerName, "unverified_account_has_identity")
+		return ErrExistingSignInRequired
+	}
+
+	if err = as.claimHook.OnUnverifiedAccountClaimed(ctx, user.ID); err != nil {
+		return fmt.Errorf("failed to secure the account before linking: %w", err)
+	}
+	epoch, err := as.userRepo.BumpSessionEpoch(ctx, user.ID)
+	if err != nil {
+		return fmt.Errorf("failed to end the account's sessions before linking: %w", err)
+	}
+	user.SessionEpoch = epoch
+	return nil
+}
+
+// logLinkRefused records why a sign-in was not linked to the account with the
+// same email. Both refusals look alike to the person signing in only by their
+// error code, so this is the operator's trace.
+func (as *AuthService) logLinkRefused(user *models.User, providerName, reason string) {
+	as.logger.With(
+		"user_id", user.ID,
+		"email", user.Email,
+		"provider", providerName,
+		"reason", reason,
+	).Info("Sign-in refused: not linked to the existing account with the same email")
+}
+
+// fillProfileFromClaims copies the claims' name and avatar into an account that
+// has none. Values the account already holds are never overwritten.
+func fillProfileFromClaims(user *models.User, claims *idp.Claims) {
+	if strings.TrimSpace(user.Name) == "" {
+		user.Name = claims.Name
+	}
+	if user.AvatarURL == nil || *user.AvatarURL == "" {
+		user.AvatarURL = claimAvatarURL(claims)
+	}
+}
+
+// emailVerifiedAtAfterSignIn returns the email_verified_at a returning user
+// should carry after this sign-in. The timestamp describes the STORED address,
+// which no longer follows the claims: it is set the first time a provider
+// verifies that same address and kept from then on. A provider verifying a
+// different address says nothing about the stored one.
+func emailVerifiedAtAfterSignIn(user *models.User, claims *idp.Claims, now time.Time) *time.Time {
+	sameEmail := models.NormalizeEmail(claims.Email) == models.NormalizeEmail(user.Email)
+	if user.EmailVerifiedAt == nil && claims.EmailVerified && sameEmail {
+		return &now
+	}
+	return user.EmailVerifiedAt
 }
 
 // isUserNotFoundErr reports whether err is or wraps

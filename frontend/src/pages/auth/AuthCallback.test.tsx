@@ -85,6 +85,35 @@ describe('AuthCallback', () => {
     expect(mockHardRedirect).toHaveBeenCalledWith('/login')
   })
 
+  it('explains an unverified email and offers the way back to sign in', () => {
+    renderCallback('?error=email_not_verified')
+
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByText('Email not verified')).toBeInTheDocument()
+    expect(
+      screen.getByText(/has not verified the address/i)
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Authentication failed')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /back to sign in/i }))
+    expect(mockHardRedirect).toHaveBeenCalledWith('/login')
+  })
+
+  it('asks for the existing sign-in method when the account is not verified yet', () => {
+    renderCallback('?error=existing_sign_in_required')
+
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(
+      screen.getByText('Sign in the way you did before')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/sign in with that method first/i)
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /back to sign in/i }))
+    expect(mockHardRedirect).toHaveBeenCalledWith('/login')
+  })
+
   it('keeps the generic message for an unknown error code', () => {
     renderCallback('?error=access_denied')
 

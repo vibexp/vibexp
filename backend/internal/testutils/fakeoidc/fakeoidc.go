@@ -35,6 +35,7 @@ type Issuer struct {
 
 	discoveries atomic.Int64
 	hang        atomic.Bool
+	unverified  atomic.Bool
 	release     chan struct{}
 }
 
@@ -70,6 +71,10 @@ func (i *Issuer) Discoveries() int64 { return i.discoveries.Load() }
 // SetHang makes discovery block until the request is cancelled (true) or answer
 // normally again (false).
 func (i *Issuer) SetHang(hang bool) { i.hang.Store(hang) }
+
+// SetEmailVerified sets the email_verified claim of the ID tokens minted from
+// now on. It is true until changed.
+func (i *Issuer) SetEmailVerified(verified bool) { i.unverified.Store(!verified) }
 
 func (i *Issuer) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 	i.discoveries.Add(1)
@@ -114,7 +119,7 @@ func (i *Issuer) handleToken(w http.ResponseWriter, r *http.Request) {
 	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"iss": i.URL, "sub": i.subject, "aud": i.clientID,
 		"iat": now.Unix(), "exp": now.Add(time.Hour).Unix(),
-		"email": i.email, "email_verified": true, "name": "Fake User",
+		"email": i.email, "email_verified": !i.unverified.Load(), "name": "Fake User",
 	})
 	tok.Header["kid"] = keyID
 	signed, err := tok.SignedString(i.key)

@@ -135,12 +135,25 @@ api-v1-auth-callback:
           allowlist, to `/auth/callback?error=access_restricted` with no session
           cookie set. When the provider the flow started with was disabled or
           removed before the callback, to
-          `/auth/callback?error=provider_unavailable`.
+          `/auth/callback?error=provider_unavailable`. When the sign-in has no
+          identity yet, an account with the same email exists, and the provider
+          did not verify that email, to
+          `/auth/callback?error=email_not_verified`: the sign-in is not linked
+          to the account and nothing is written. (A provider-verified email is
+          linked to the existing account and signs in normally.) When that
+          account's email was never verified and the account already has a
+          sign-in method of its own, to
+          `/auth/callback?error=existing_sign_in_required`: it must be signed in
+          to with that method first, and nothing is written. When the account
+          is suspended, to `/auth/callback?error=account_suspended`.
         headers:
           Location:
             description: |
               Frontend URL — the home page on success (e.g. https://app.example.com/),
-              or /auth/callback?error=access_restricted on an allowlist denial.
+              or /auth/callback?error=<code> when the sign-in is refused, where
+              <code> is one of access_restricted, provider_unavailable,
+              email_not_verified, existing_sign_in_required or
+              account_suspended.
             schema:
               type: string
               format: uri

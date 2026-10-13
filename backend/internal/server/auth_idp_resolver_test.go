@@ -88,6 +88,17 @@ func (m *memUsersByIDP) GetByIDPSubject(_ context.Context, provider, subject str
 	return nil, repositories.ErrUserNotFound
 }
 
+func (m *memUsersByIDP) GetByEmail(_ context.Context, email string) (*models.User, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, u := range m.users {
+		if models.NormalizeEmail(u.Email) == models.NormalizeEmail(email) {
+			return u, nil
+		}
+	}
+	return nil, repositories.ErrUserNotFound
+}
+
 func (m *memUsersByIDP) Create(_ context.Context, u *models.User) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -98,12 +109,57 @@ func (m *memUsersByIDP) Create(_ context.Context, u *models.User) error {
 
 func (m *memUsersByIDP) Update(context.Context, *models.User) error { return nil }
 
-// noopIdentities accepts every identity a sign-in records.
-type noopIdentities struct {
-	repositories.UserIdentityRepository
+func (m *memUsersByIDP) BumpSessionEpoch(_ context.Context, userID string) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, u := range m.users {
+		if u.ID == userID {
+			u.SessionEpoch++
+			return u.SessionEpoch, nil
+		}
+	}
+	return 0, repositories.ErrUserNotFound
 }
 
-func (noopIdentities) Upsert(context.Context, string, string, string) error { return nil }
+// memIdentities accepts every identity a sign-in records and remembers it as
+// "userID provider subject".
+type memIdentities struct {
+	repositories.UserIdentityRepository
+	mu   sync.Mutex
+	rows []string
+	held map[string][]models.UserIdentity
+}
+
+func (m *memIdentities) Upsert(_ context.Context, userID, provider, subject string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rows = append(m.rows, userID+" "+provider+" "+subject)
+	return nil
+}
+
+// ListByUserID reports the identities seeded with hold; the ones Upsert
+// recorded during the test are not replayed here.
+func (m *memIdentities) ListByUserID(_ context.Context, userID string) ([]models.UserIdentity, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]models.UserIdentity(nil), m.held[userID]...), nil
+}
+
+// hold makes userID already own a sign-in identity.
+func (m *memIdentities) hold(userID, provider, subject string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.held == nil {
+		m.held = map[string][]models.UserIdentity{}
+	}
+	m.held[userID] = append(m.held[userID], models.UserIdentity{UserID: userID, Provider: provider, Subject: subject})
+}
+
+func (m *memIdentities) recorded() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.rows...)
+}
 
 // realAuthContainer serves a real AuthService over the mock auth container.
 type realAuthContainer struct {
@@ -114,10 +170,11 @@ type realAuthContainer struct {
 func (c *realAuthContainer) AuthService() services.AuthServiceInterface { return c.auth }
 
 type resolverAuthHarness struct {
-	srv       *Server
-	providers *memAuthProviders
-	users     *memUsersByIDP
-	enc       services.EncryptionServiceInterface
+	srv        *Server
+	providers  *memAuthProviders
+	users      *memUsersByIDP
+	identities *memIdentities
+	enc        services.EncryptionServiceInterface
 }
 
 func newResolverAuthHarness(t *testing.T) *resolverAuthHarness {
@@ -125,7 +182,9 @@ func newResolverAuthHarness(t *testing.T) *resolverAuthHarness {
 	enc, err := services.NewEncryptionService(strings.Repeat("k", 32))
 	require.NoError(t, err)
 	logger := slog.New(slog.DiscardHandler)
-	h := &resolverAuthHarness{providers: &memAuthProviders{}, users: &memUsersByIDP{}, enc: enc}
+	h := &resolverAuthHarness{
+		providers: &memAuthProviders{}, users: &memUsersByIDP{}, identities: &memIdentities{}, enc: enc,
+	}
 
 	resolver := services.NewIdentityProviderResolver(services.IdentityProviderResolverDeps{
 		Providers:   h.providers,
@@ -134,7 +193,7 @@ func newResolverAuthHarness(t *testing.T) *resolverAuthHarness {
 		CallbackURL: "http://localhost:8080/api/v1/auth/callback",
 		Logger:      logger,
 	})
-	auth := services.NewAuthService(h.users, noopIdentities{}, resolver, nil, logger, staticAllowlistResolver(nil, nil)) // open access
+	auth := services.NewAuthService(h.users, h.identities, resolver, nil, logger, staticAllowlistResolver(nil, nil)) // open access
 
 	mc := newMockAuthContainer(t)
 	mc.activityService.On("RecordAuthActivity",
@@ -219,6 +278,89 @@ func TestResolverAuth_TwoOIDCProvidersRoundTrip(t *testing.T) {
 	assert.Nil(t, h.users.users[0].GoogleID, "an OIDC provider never receives a google_id")
 	assert.EqualValues(t, 1, issA.Discoveries(), "one discovery per provider for the whole run")
 	assert.EqualValues(t, 1, issB.Discoveries())
+}
+
+// sessionCookie returns the session cookie a response set, or nil.
+func sessionCookie(w *httptest.ResponseRecorder) *http.Cookie {
+	for _, c := range w.Result().Cookies() {
+		if c.Name == sesslib.CookieName && c.MaxAge >= 0 && c.Value != "" {
+			return c
+		}
+	}
+	return nil
+}
+
+// A provider sign-in with no identity yet and the email of an existing account
+// (#1430): linked when the provider verified the email, refused with a stable
+// code when it did not, and never attached to a suspended account.
+func TestResolverAuth_CallbackLinksByVerifiedEmail(t *testing.T) {
+	const email = "ada@example.com"
+	setup := func(t *testing.T, status string) (*resolverAuthHarness, *fakeoidc.Issuer) {
+		t.Helper()
+		h := newResolverAuthHarness(t)
+		iss := fakeoidc.New(t, rtClientID, rtClientSecret, rtSubject, "Ada@Example.com")
+		h.providers.replace(h.oidcRow(t, "id-a", "corp-sso", iss.URL, 0))
+		// An admin-created account: an email, no sign-in identity.
+		h.users.users = append(h.users.users, &models.User{ID: "pre-created", Email: email, Name: "Ada", Status: status})
+		return h, iss
+	}
+
+	t.Run("a verified email signs into the existing account", func(t *testing.T) {
+		h, _ := setup(t, models.UserStatusActive)
+		state, cookie := h.login(t, "corp-sso")
+
+		w := h.callback(t, state, cookie)
+
+		require.Equal(t, http.StatusFound, w.Code, w.Body.String())
+		assert.Equal(t, "http://localhost:5173/", w.Header().Get("Location"))
+		require.NotNil(t, sessionCookie(w), "a session is issued")
+		require.Len(t, h.users.users, 1, "no second account is created")
+		assert.Equal(t, []string{"pre-created corp-sso " + rtSubject}, h.identities.recorded())
+		assert.EqualValues(t, 1, h.users.users[0].SessionEpoch, "claiming the account ends its earlier sessions")
+	})
+
+	t.Run("a never-verified account that already has a sign-in method is not linked to", func(t *testing.T) {
+		// What an open instance holds after someone signed in with an
+		// UNVERIFIED claim of this address: an account, with their identity.
+		h, _ := setup(t, models.UserStatusActive)
+		h.identities.hold("pre-created", "other-sso", "someone-else")
+		state, cookie := h.login(t, "corp-sso")
+
+		w := h.callback(t, state, cookie)
+
+		require.Equal(t, http.StatusFound, w.Code, w.Body.String())
+		assert.Equal(t, "http://localhost:5173/auth/callback?error=existing_sign_in_required", w.Header().Get("Location"))
+		assert.Nil(t, sessionCookie(w), "no session is issued")
+		assert.Empty(t, h.identities.recorded(), "no identity is attached")
+		assert.Nil(t, h.users.users[0].EmailVerifiedAt)
+		assert.EqualValues(t, 0, h.users.users[0].SessionEpoch)
+	})
+
+	t.Run("an unverified email is refused with email_not_verified", func(t *testing.T) {
+		h, iss := setup(t, models.UserStatusActive)
+		iss.SetEmailVerified(false)
+		state, cookie := h.login(t, "corp-sso")
+
+		w := h.callback(t, state, cookie)
+
+		require.Equal(t, http.StatusFound, w.Code, w.Body.String())
+		assert.Equal(t, "http://localhost:5173/auth/callback?error=email_not_verified", w.Header().Get("Location"))
+		assert.Nil(t, sessionCookie(w), "no session is issued")
+		require.Len(t, h.users.users, 1, "no account is created")
+		assert.Empty(t, h.identities.recorded(), "no identity is attached")
+	})
+
+	t.Run("a suspended account is refused and gains no identity", func(t *testing.T) {
+		h, _ := setup(t, models.UserStatusSuspended)
+		state, cookie := h.login(t, "corp-sso")
+
+		w := h.callback(t, state, cookie)
+
+		require.Equal(t, http.StatusFound, w.Code, w.Body.String())
+		assert.Equal(t, "http://localhost:5173/auth/callback?error=account_suspended", w.Header().Get("Location"))
+		assert.Nil(t, sessionCookie(w))
+		assert.Empty(t, h.identities.recorded())
+	})
 }
 
 func TestResolverAuth_ProvidersEndpointFollowsTheRows(t *testing.T) {
