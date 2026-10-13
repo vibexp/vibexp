@@ -38,3 +38,14 @@ func TestMemoryLabelQueriesUseTheSharedRule(t *testing.T) {
 		})
 	}
 }
+
+func TestMemoryTimestamp_IsAlwaysUTC(t *testing.T) {
+	local := time.Date(2026, 10, 12, 23, 43, 22, 0, time.FixedZone("UTC+2", 2*60*60))
+
+	got := memoryTimestamp(local)
+
+	// Same instant, but the wall clock a timezone-less column will keep is UTC's.
+	assert.True(t, got.Equal(local))
+	assert.Equal(t, time.UTC, got.Location())
+	assert.Equal(t, 21, got.Hour())
+}

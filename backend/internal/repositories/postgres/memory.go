@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/Masterminds/squirrel"
 
@@ -20,6 +21,21 @@ type MemoryRepository struct {
 }
 
 // NewMemoryRepository creates a new MemoryRepository
+
+// memoryTimestamp is the value written to memories.created_at / updated_at.
+//
+// Those columns are `timestamp WITHOUT time zone` (every other resource table
+// uses timestamptz), so Postgres stores the wall-clock reading it is handed
+// and discards the offset. A time.Time in the server's local zone would
+// therefore be stored hours off on any machine that is not on UTC, and read
+// back as if it were UTC — memories dated into the future or the past. Every
+// write converts to UTC first, so the column holds UTC whatever zone the
+// process runs in. Changing the column type is a migration and is deliberately
+// not part of this fix.
+func memoryTimestamp(t time.Time) time.Time {
+	return t.UTC()
+}
+
 func NewMemoryRepository(db *database.DB) repositories.MemoryRepository {
 	return &MemoryRepository{
 		db: db,
@@ -49,7 +65,7 @@ func (r *MemoryRepository) Create(ctx context.Context, memory *models.Memory) er
 
 	err = r.db.QueryRowContext(ctx, query,
 		memory.UserID, memory.TeamID, memory.ProjectID, memory.Title, memory.Text, status, metadataJSON,
-		memory.CreatedAt, memory.UpdatedAt, memory.Labels,
+		memoryTimestamp(memory.CreatedAt), memoryTimestamp(memory.UpdatedAt), memory.Labels,
 	).Scan(&memory.ID, &memory.CreatedAt, &memory.UpdatedAt)
 
 	if err != nil {
@@ -375,7 +391,8 @@ func (r *MemoryRepository) Update(ctx context.Context, memory *models.Memory) er
 	`
 
 	err = r.db.QueryRowContext(ctx, query,
-		memory.ID, memory.Text, status, metadataJSON, memory.ProjectID, memory.TeamID, memory.UpdatedAt,
+		memory.ID, memory.Text, status, metadataJSON, memory.ProjectID, memory.TeamID,
+		memoryTimestamp(memory.UpdatedAt),
 		memory.TeamID, memory.Version, memory.Labels, memory.Title,
 	).Scan(&memory.UpdatedAt, &memory.Version)
 
