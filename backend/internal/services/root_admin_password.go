@@ -91,8 +91,8 @@ func NewRootAdminPasswordService(deps RootAdminPasswordDeps) *RootAdminPasswordS
 // ErrRootAdminSuspended, ErrRootAdminAccountMissing or a *password.PolicyError
 // without changing anything.
 //
-// On an existing account it ends every session (the password of an account
-// someone else may be signed in to just changed). The email is marked verified
+// On an existing account it ends every session first (the password of an
+// account someone else may be signed in to is about to change). The email is marked verified
 // when it was not: the operator vouches for an address they put in the
 // configuration, and without it a later provider sign-in would treat the
 // account as unclaimed and remove the password again. Password login is
@@ -120,10 +120,12 @@ func (s *RootAdminPasswordService) Set(
 		}
 	}
 
-	if err = s.deps.Passwords.SetPassword(ctx, user.ID, plaintext); err != nil {
+	// Sessions end BEFORE the password changes: if a step fails part-way, the
+	// account is never left with a new password and its old sessions alive.
+	if err = s.prepareExisting(ctx, user, created); err != nil {
 		return nil, err
 	}
-	if err = s.afterPasswordSet(ctx, user, created); err != nil {
+	if err = s.deps.Passwords.SetPassword(ctx, user.ID, plaintext); err != nil {
 		return nil, err
 	}
 	if enableLogin {
@@ -190,9 +192,9 @@ func (s *RootAdminPasswordService) hasPassword(ctx context.Context, userID strin
 	return true, nil
 }
 
-// afterPasswordSet verifies the email and, on an account that existed, ends
-// its sessions.
-func (s *RootAdminPasswordService) afterPasswordSet(ctx context.Context, user *models.User, created bool) error {
+// prepareExisting verifies the email of an account that existed and ends its
+// sessions. A new account is created verified and has no session.
+func (s *RootAdminPasswordService) prepareExisting(ctx context.Context, user *models.User, created bool) error {
 	if created {
 		return nil
 	}
@@ -212,20 +214,38 @@ func (s *RootAdminPasswordService) afterPasswordSet(ctx context.Context, user *m
 // switchLoginOn turns password login on, keeping the stored registration mode,
 // and reports whether it changed anything. The write is audited with no actor;
 // its source is the context's (repositories.WithAuditSource).
+//
+// It is a compare-and-set on the version it read: an admin saving the policy
+// between the read and the write (a registration mode, say) is re-read rather
+// than overwritten with the stale value. One retry; a second conflict is an
+// error.
 func (s *RootAdminPasswordService) switchLoginOn(ctx context.Context) (bool, error) {
+	for attempt := 0; ; attempt++ {
+		changed, err := s.trySwitchLoginOn(ctx)
+		if errors.Is(err, repositories.ErrInstanceSettingsVersionConflict) && attempt == 0 {
+			continue
+		}
+		return changed, err
+	}
+}
+
+func (s *RootAdminPasswordService) trySwitchLoginOn(ctx context.Context) (bool, error) {
 	policy, err := s.deps.Policies.Get(ctx)
+	expected := repositories.InstanceSettingsNoStoredVersion
 	switch {
 	case errors.Is(err, repositories.ErrInstanceAuthPolicyNotFound):
 		defaults := models.DefaultInstanceAuthPolicy()
 		policy = &defaults
 	case err != nil:
 		return false, fmt.Errorf("failed to read the authentication policy: %w", err)
+	default:
+		expected = policy.Version
 	}
 	if policy.PasswordLoginEnabled {
 		return false, nil
 	}
 	next := &models.InstanceAuthPolicy{PasswordLoginEnabled: true, RegistrationMode: policy.RegistrationMode}
-	if err = s.deps.Policies.UpsertAudited(ctx, next, nil, nil); err != nil {
+	if err = s.deps.Policies.UpsertAudited(ctx, next, nil, &expected); err != nil {
 		return false, fmt.Errorf("failed to switch password login on: %w", err)
 	}
 	return true, nil

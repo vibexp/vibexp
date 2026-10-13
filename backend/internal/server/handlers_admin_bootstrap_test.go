@@ -17,6 +17,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/activities"
 )
 
 // Password-only bootstrap and the policy lockout guard (#1438).
@@ -307,4 +308,62 @@ func TestAdminAuthProviders_LockoutGuardCountsPasswordLogin(t *testing.T) {
 	rr = f.serve(t, asRoot, http.MethodDelete, path, nil)
 	require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
 	assert.False(t, f.setupRequired(t), "password login keeps the instance out of setup mode")
+}
+
+// bootstrapActivities records the auth activity entries the bootstrap writes.
+type bootstrapActivities struct {
+	activities.ActivityService
+	entries []bootstrapActivity
+}
+
+type bootstrapActivity struct {
+	userID, activityType string
+	metadata             map[string]interface{}
+}
+
+func (a *bootstrapActivities) RecordAuthActivity(
+	_ context.Context, userID, activityType string, _ *string, metadata map[string]interface{}, _, _ *string,
+) error {
+	a.entries = append(a.entries, bootstrapActivity{userID, activityType, metadata})
+	return nil
+}
+
+// The owner of an EXISTING account did not set this password, so the account's
+// activity says it happened: when one was replaced and when a first one was
+// added. A new account has no owner to tell.
+func TestBootstrapAdminPassword_LeavesTheAccountOwnerATrace(t *testing.T) {
+	for name, tc := range map[string]struct {
+		arrange      func(t *testing.T, f *authSettingsFixture)
+		wantEntry    bool
+		wantReplaced bool
+	}{
+		"an existing account with no password": {arrange: func(*testing.T, *authSettingsFixture) {}, wantEntry: true},
+		"an existing password is replaced": {arrange: func(_ *testing.T, f *authSettingsFixture) {
+			f.creds.hashes[authTestRootID] = "earlier"
+		}, wantEntry: true, wantReplaced: true},
+		"a new account": {arrange: func(t *testing.T, f *authSettingsFixture) {
+			require.NoError(t, f.users.DeleteByID(context.Background(), authTestRootID))
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newAuthSettingsFixture(t)
+			recorded := &bootstrapActivities{}
+			f.admin.activityService = recorded
+			tc.arrange(t, f)
+
+			rr := f.serve(t, asSetupSession, http.MethodPut, authBootstrapPath, bootstrapBody(authTestRootEmail))
+
+			require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+			if !tc.wantEntry {
+				assert.Empty(t, recorded.entries)
+				return
+			}
+			require.Len(t, recorded.entries, 1)
+			entry := recorded.entries[0]
+			assert.Equal(t, authTestRootID, entry.userID)
+			assert.Equal(t, activities.ActivityTypeAuthAdminBootstrap, entry.activityType)
+			assert.Equal(t, tc.wantReplaced, entry.metadata["replaced"])
+			assert.Equal(t, "setup_session", entry.metadata["source"])
+		})
+	}
 }

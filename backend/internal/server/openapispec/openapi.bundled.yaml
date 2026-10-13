@@ -15589,9 +15589,12 @@ paths:
         is ended; its API keys are kept. The email is marked verified, so a later
         sign-in through an identity provider that reports the same address links
         to the account and keeps the password. The change is recorded in the
-        `auth_policy` audit log when it switches password sign-in on.
+        `auth_policy` audit log when it switches password sign-in on, and in the
+        account's activity when the account already existed.
 
-        Setup mode ends when that admin signs in with the password.
+        `GET /api/v1/setup/status` reports `setup_required: false` from then on.
+        The setup session itself stays valid, so a mistyped password can be set
+        again, until that admin signs in with the password.
       operationId: bootstrapAdminPassword
       tags:
         - Admin

@@ -564,25 +564,28 @@ func (a *adminStrictServer) BootstrapAdminPassword(
 	if err != nil {
 		return nil, a.mapBootstrapError(handler, err)
 	}
-	if result.PasswordReplaced {
-		// The account's owner did not do this; leave them a trace of it.
-		a.recordBootstrapActivity(ctx, handler, result.UserID)
+	if !result.AccountCreated {
+		// The account's owner did not do this; leave them a trace of it,
+		// whether a password was replaced or a first one added.
+		a.recordBootstrapActivity(ctx, handler, result)
 	}
 	return admingen.BootstrapAdminPassword204Response{}, nil
 }
 
-// recordBootstrapActivity leaves the account's owner a trace that their
-// password was replaced without them. A failure is logged, not returned: the
-// password is already changed.
-func (a *adminStrictServer) recordBootstrapActivity(ctx context.Context, handler, userID string) {
+// recordBootstrapActivity leaves the owner of an existing account a trace
+// that a password was set on it without them. A failure is logged, not
+// returned: the password is already changed.
+func (a *adminStrictServer) recordBootstrapActivity(
+	ctx context.Context, handler string, result *services.RootAdminPasswordResult,
+) {
 	activityService := a.s.container.ActivityService()
 	if activityService == nil {
 		return
 	}
-	err := activityService.RecordAuthActivity(ctx, userID, activities.ActivityTypeAuthAdminBootstrap, nil,
-		map[string]interface{}{"replaced": true, "source": "setup_session"}, nil, nil)
+	err := activityService.RecordAuthActivity(ctx, result.UserID, activities.ActivityTypeAuthAdminBootstrap, nil,
+		map[string]interface{}{"replaced": result.PasswordReplaced, "source": "setup_session"}, nil, nil)
 	if err != nil {
-		a.s.logger.With("handler", handler, "user_id", userID, "error", err).
+		a.s.logger.With("handler", handler, "user_id", result.UserID, "error", err).
 			Error("Failed to record the password bootstrap activity")
 	}
 }

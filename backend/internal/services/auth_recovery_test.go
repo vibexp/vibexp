@@ -265,3 +265,51 @@ func TestAuthRecovery_RearmSetup(t *testing.T) {
 	_, err = recovery.RearmSetup(ctx)
 	require.ErrorIs(t, err, errRecoveryDB)
 }
+
+// Once password login can be a way in (#1438), "no provider is enabled" no
+// longer means setup mode: the toggle says whether password login still works,
+// so the CLI does not send the operator to re-arm setup for nothing.
+func TestAuthRecovery_ProviderToggleReportsPasswordLogin(t *testing.T) {
+	ctx := context.Background()
+	version := int64(7)
+	// disableLast arranges disabling "sso" with `remaining` left enabled.
+	disableLast := func(t *testing.T, remaining ...*models.InstanceAuthProvider) *authRecoveryFixture {
+		t.Helper()
+		f := newAuthRecoveryFixture(t)
+		f.version.EXPECT().Get(ctx).Return(version, nil).Once()
+		f.providers.EXPECT().GetBySlug(ctx, "sso").Return(recoveryProvider("sso", true), nil).Once()
+		f.providers.EXPECT().Update(mock.Anything, mock.Anything, (*string)(nil), &version).Return(nil).Once()
+		f.providers.EXPECT().List(ctx).
+			Return(append([]*models.InstanceAuthProvider{recoveryProvider("sso", false)}, remaining...), nil).Once()
+		return f
+	}
+
+	for _, works := range []bool{true, false} {
+		f := disableLast(t)
+		f.svc.wayIn = &staticWayIn{password: works}
+
+		got, err := f.svc.SetProviderEnabled(ctx, "sso", false)
+
+		require.NoError(t, err)
+		assert.Equal(t, ProviderToggle{Changed: true, NoneEnabled: true, PasswordLoginWorks: works}, got)
+	}
+
+	t.Run("not asked while a provider remains enabled", func(t *testing.T) {
+		f := disableLast(t, recoveryProvider("other", true))
+		f.svc.wayIn = &staticWayIn{err: errors.New("must not be asked")}
+
+		got, err := f.svc.SetProviderEnabled(ctx, "sso", false)
+
+		require.NoError(t, err)
+		assert.Equal(t, ProviderToggle{Changed: true}, got)
+	})
+
+	t.Run("a failure to tell is an error", func(t *testing.T) {
+		f := disableLast(t)
+		f.svc.wayIn = &staticWayIn{err: errors.New("pq: down")}
+
+		_, err := f.svc.SetProviderEnabled(ctx, "sso", false)
+
+		require.Error(t, err)
+	})
+}

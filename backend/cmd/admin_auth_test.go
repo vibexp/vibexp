@@ -357,6 +357,21 @@ func TestWarnRecoveryMode(t *testing.T) {
 	assert.Contains(t, buf.String(), "auth.recovery_mode")
 }
 
+// With password sign-in still working, disabling the last provider must not
+// send the operator to re-arm setup (#1438).
+func TestAdminAuth_ProviderDisable_NamesSetupModeOnlyWhenNothingWorks(t *testing.T) {
+	works := &fakeAuthRecovery{toggle: services.ProviderToggle{Changed: true, NoneEnabled: true, PasswordLoginWorks: true}}
+	stdout, _, err := runAdmin(t, works, nil, "admin", "auth", "providers", "disable", "google")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Email and password sign-in still works")
+	assert.NotContains(t, stdout, "rearm")
+
+	nothing := &fakeAuthRecovery{toggle: services.ProviderToggle{Changed: true, NoneEnabled: true}}
+	stdout, _, err = runAdmin(t, nothing, nil, "admin", "auth", "providers", "disable", "google")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "vibexp admin auth setup rearm")
+}
+
 const cliTestPassphrase = "a long passphrase from stdin"
 
 func TestAdminAuth_PasswordSet(t *testing.T) {

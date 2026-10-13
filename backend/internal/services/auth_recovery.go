@@ -20,6 +20,9 @@ type AuthRecoveryDeps struct {
 	Allowlist repositories.InstanceAuthAllowlistRepository
 	Setup     repositories.InstanceAuthSetupRepository
 	Version   repositories.InstanceAuthSettingsVersionRepository
+	// WayIn tells a provider toggle whether password login still works once no
+	// provider is enabled. Nil means it is not asked.
+	WayIn AuthWayIn
 	// RootPasswords sets a root admin's password (#1438). Built without an
 	// event publisher: the CLI has no server, so it cannot create accounts.
 	RootPasswords *RootAdminPasswordService
@@ -42,6 +45,7 @@ type AuthRecoveryService struct {
 	setup     repositories.InstanceAuthSetupRepository
 	version   repositories.InstanceAuthSettingsVersionRepository
 	rootPw    *RootAdminPasswordService
+	wayIn     AuthWayIn
 	baseURL   string
 
 	// Injectable for tests.
@@ -56,6 +60,7 @@ func NewAuthRecoveryService(deps AuthRecoveryDeps) *AuthRecoveryService {
 		setup:     deps.Setup,
 		version:   deps.Version,
 		rootPw:    deps.RootPasswords,
+		wayIn:     deps.WayIn,
 		baseURL:   deps.BaseURL,
 		now:       time.Now,
 	}
@@ -66,9 +71,13 @@ type ProviderToggle struct {
 	// Changed is false when the provider was already in the requested state,
 	// in which case nothing was written or audited.
 	Changed bool
-	// NoneEnabled reports that no identity provider is enabled after the call,
-	// so the instance is in setup mode.
+	// NoneEnabled reports that no identity provider is enabled after the call.
+	// The instance is then in setup mode unless PasswordLoginWorks.
 	NoneEnabled bool
+	// PasswordLoginWorks reports, when NoneEnabled, that email and password
+	// sign-in is still a working way in (#1438): the instance is NOT in setup
+	// mode, and re-arming setup would only open a hole.
+	PasswordLoginWorks bool
 }
 
 // audited marks ctx so the repositories record the write as made by the CLI.
@@ -109,7 +118,13 @@ func (s *AuthRecoveryService) SetProviderEnabled(
 			break
 		}
 	}
-	return ProviderToggle{Changed: changed, NoneEnabled: noneEnabled}, nil
+	toggle := ProviderToggle{Changed: changed, NoneEnabled: noneEnabled}
+	if noneEnabled && s.wayIn != nil {
+		if toggle.PasswordLoginWorks, err = s.wayIn.PasswordWorks(ctx); err != nil {
+			return ProviderToggle{}, err
+		}
+	}
+	return toggle, nil
 }
 
 // toggleProvider reports whether it changed the provider's enabled state.

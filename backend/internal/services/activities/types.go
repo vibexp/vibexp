@@ -103,9 +103,9 @@ const (
 	ActivityTypeAuthLogout   = "auth_logout"
 	ActivityTypeAuthFailure  = "auth_failure"
 	ActivityTypeTokenRefresh = "token_refresh"
-	// ActivityTypeAuthAdminBootstrap is a root admin's password set through a
-	// setup session or the recovery CLI, without a sign-in of that account
-	// (#1438).
+	// ActivityTypeAuthAdminBootstrap is a password set on an existing root
+	// admin account through a setup session, without a sign-in of that account
+	// (#1438). The recovery CLI records no activity: it has no server.
 	ActivityTypeAuthAdminBootstrap = "auth_admin_bootstrap"
 
 	// Self-service changes to how an account signs in (#1437). The metadata

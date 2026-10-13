@@ -184,18 +184,23 @@ func runProviderToggle(enabled bool) authRecoveryRun {
 			return err
 		}
 		if !result.Changed {
-			_, err := fmt.Fprintf(out, "Identity provider %q is already %s; no change.\n", slug, state)
+			_, err = fmt.Fprintf(out, "Identity provider %q is already %s; no change.\n", slug, state)
 			return err
 		}
-		if _, err := fmt.Fprintf(out, "Identity provider %q %s.\n", slug, state); err != nil {
+		if _, err = fmt.Fprintf(out, "Identity provider %q %s.\n", slug, state); err != nil {
 			return err
 		}
-		if result.NoneEnabled {
-			_, err := fmt.Fprintln(out, "No identity provider is enabled now, so the instance is in setup mode. "+
+		switch {
+		case result.NoneEnabled && result.PasswordLoginWorks:
+			// Not setup mode: re-arming here would only hand out a setup URL
+			// that can replace a root admin's password.
+			_, err = fmt.Fprintln(out, "No identity provider is enabled now. Email and password sign-in still works, "+
+				"so the instance is not in setup mode.")
+		case result.NoneEnabled:
+			_, err = fmt.Fprintln(out, "No sign-in method works now, so the instance is in setup mode. "+
 				"Run `vibexp admin auth setup rearm` for a setup URL.")
-			return err
 		}
-		return nil
+		return err
 	}
 }
 
@@ -303,6 +308,11 @@ instance.`,
 func readSecret(in io.Reader, prompt io.Writer) (string, error) {
 	if file, ok := in.(*os.File); ok && term.IsTerminal(int(file.Fd())) {
 		return promptSecret(file, prompt)
+	}
+	// Said before reading: with an input that never closes (`docker exec -i`
+	// and no pipe) the command would otherwise wait without a word.
+	if _, err := fmt.Fprintln(prompt, "Reading the password from standard input..."); err != nil {
+		return "", err
 	}
 	raw, err := io.ReadAll(io.LimitReader(in, passwordInputLimit+1))
 	if err != nil {
@@ -438,8 +448,21 @@ func newAuthRecoveryService(db *database.DB, cfg *config.Config) *services.AuthR
 		Allowlist:     postgres.NewInstanceAuthAllowlistRepository(db),
 		Setup:         postgres.NewInstanceAuthSetupRepository(db),
 		Version:       postgres.NewInstanceAuthSettingsVersionRepository(db),
+		WayIn:         newAuthWayIn(db, cfg),
 		RootPasswords: newRootAdminPasswordService(db, cfg),
 		BaseURL:       cfg.Frontend.BaseURL,
+	})
+}
+
+// newAuthWayIn builds the "does a sign-in method work" check the server uses,
+// over the database and the configured root admins.
+func newAuthWayIn(db *database.DB, cfg *config.Config) services.AuthWayIn {
+	admins := services.NewInstanceAdminService(cfg.Auth.InstanceAdmins, nil, nil, slog.New(slog.DiscardHandler))
+	return services.NewAuthWayIn(services.AuthWayInDeps{
+		Providers:       postgres.NewInstanceAuthProviderRepository(db),
+		Policies:        postgres.NewInstanceAuthPolicyRepository(db),
+		Credentials:     postgres.NewUserCredentialRepository(db),
+		RootAdminEmails: admins.RootAdminEmails,
 	})
 }
 

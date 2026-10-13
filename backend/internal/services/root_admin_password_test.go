@@ -125,7 +125,7 @@ func TestRootAdminPassword_ExistingAccount(t *testing.T) {
 		f.storedPolicy(&models.InstanceAuthPolicy{RegistrationMode: models.RegistrationModeInviteOnly, Version: 3})
 		f.policies.On("UpsertAudited", mock.Anything, mock.MatchedBy(func(p *models.InstanceAuthPolicy) bool {
 			return p.PasswordLoginEnabled && p.RegistrationMode == models.RegistrationModeInviteOnly
-		}), (*string)(nil), (*int64)(nil)).Return(nil).Once()
+		}), (*string)(nil), versionIs(3)).Return(nil).Once()
 
 		// Letter case and surrounding space in the address do not matter.
 		result, err := f.svc.Set(ctx, "  ROOT@Example.com ", rootPwPhrase, true)
@@ -195,7 +195,7 @@ func TestRootAdminPassword_NewAccount(t *testing.T) {
 		f.storedPolicy(nil)
 		f.policies.On("UpsertAudited", mock.Anything, mock.MatchedBy(func(p *models.InstanceAuthPolicy) bool {
 			return p.PasswordLoginEnabled && p.RegistrationMode == models.RegistrationModeOpen
-		}), (*string)(nil), (*int64)(nil)).Return(nil).Once()
+		}), (*string)(nil), versionIs(repositories.InstanceSettingsNoStoredVersion)).Return(nil).Once()
 
 		result, err := f.svc.Set(ctx, rootPwEmail, rootPwPhrase, true)
 
@@ -271,15 +271,81 @@ func TestRootAdminPassword_RefusalsChangeNothing(t *testing.T) {
 		assert.Empty(t, f.setter.calls)
 	})
 
-	t.Run("a failure to store the password leaves login off and sessions alone", func(t *testing.T) {
+	t.Run("a failure to store the password leaves login off", func(t *testing.T) {
 		f := newRootPwFixture(t, true)
 		f.setter.err = errors.New("pq: down")
-		f.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail}, false)
+		verified := f.now
+		f.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, false)
+		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Once()
 
 		_, err := f.svc.Set(ctx, rootPwEmail, rootPwPhrase, true)
 
 		require.Error(t, err)
-		f.users.AssertNotCalled(t, "BumpSessionEpoch", mock.Anything, mock.Anything)
 		f.policies.AssertNotCalled(t, "UpsertAudited", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	// Sessions end BEFORE the password changes, so no failure can leave a new
+	// password with the old sessions still alive.
+	t.Run("a failure to end the sessions stores no password", func(t *testing.T) {
+		f := newRootPwFixture(t, true)
+		verified := f.now
+		f.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, true)
+		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(0), errors.New("pq: down")).Once()
+
+		_, err := f.svc.Set(ctx, rootPwEmail, rootPwPhrase, true)
+
+		require.Error(t, err)
+		assert.Empty(t, f.setter.calls)
+	})
+}
+
+// versionIs matches the expected version handed to UpsertAudited.
+func versionIs(want int64) any {
+	return mock.MatchedBy(func(got *int64) bool { return got != nil && *got == want })
+}
+
+// Switching password login on is a compare-and-set on the policy it read: a
+// policy saved in between is re-read, so its registration mode is not
+// overwritten with a stale one.
+func TestRootAdminPassword_SwitchLoginOnDoesNotOverwriteAConcurrentPolicyChange(t *testing.T) {
+	ctx := context.Background()
+	arrange := func(t *testing.T) *rootPwFixture {
+		t.Helper()
+		f := newRootPwFixture(t, true)
+		verified := f.now
+		f.existing(&models.User{ID: rootPwUserID, Email: rootPwEmail, EmailVerifiedAt: &verified}, false)
+		f.users.On("BumpSessionEpoch", mock.Anything, rootPwUserID).Return(int64(1), nil).Once()
+		return f
+	}
+
+	t.Run("the retry writes on top of the newer policy", func(t *testing.T) {
+		f := arrange(t)
+		f.policies.On("Get", mock.Anything).
+			Return(&models.InstanceAuthPolicy{RegistrationMode: models.RegistrationModeOpen, Version: 3}, nil).Once()
+		f.policies.On("UpsertAudited", mock.Anything, mock.Anything, (*string)(nil), versionIs(3)).
+			Return(repositories.ErrInstanceSettingsVersionConflict).Once()
+		// An admin saved invite_only in between.
+		f.policies.On("Get", mock.Anything).
+			Return(&models.InstanceAuthPolicy{RegistrationMode: models.RegistrationModeInviteOnly, Version: 4}, nil).Once()
+		f.policies.On("UpsertAudited", mock.Anything, mock.MatchedBy(func(p *models.InstanceAuthPolicy) bool {
+			return p.PasswordLoginEnabled && p.RegistrationMode == models.RegistrationModeInviteOnly
+		}), (*string)(nil), versionIs(4)).Return(nil).Once()
+
+		result, err := f.svc.Set(ctx, rootPwEmail, rootPwPhrase, true)
+
+		require.NoError(t, err)
+		assert.True(t, result.LoginSwitchedOn)
+	})
+
+	t.Run("a second conflict is an error", func(t *testing.T) {
+		f := arrange(t)
+		f.policies.On("Get", mock.Anything).
+			Return(&models.InstanceAuthPolicy{RegistrationMode: models.RegistrationModeOpen, Version: 3}, nil).Twice()
+		f.policies.On("UpsertAudited", mock.Anything, mock.Anything, (*string)(nil), versionIs(3)).
+			Return(repositories.ErrInstanceSettingsVersionConflict).Twice()
+
+		_, err := f.svc.Set(ctx, rootPwEmail, rootPwPhrase, true)
+
+		require.ErrorIs(t, err, repositories.ErrInstanceSettingsVersionConflict)
 	})
 }

@@ -265,6 +265,8 @@ type authSettingsFixture struct {
 	creds  *memCredentialCounts
 	wayIn  services.AuthWayIn
 	events *recordingPublisher
+	// admin is the container, for a test that installs a collaborator.
+	admin *adminMockContainer
 	// setupCookie is the setup session's cookie, once primeSetupSession minted it.
 	setupCookie *http.Cookie
 }
@@ -345,6 +347,7 @@ func newAuthSettingsFixture(t *testing.T) *authSettingsFixture {
 			Logger:      logger,
 		}),
 	}
+	f.admin = admin
 	f.srv = newAdminTestServer(cfg, admin)
 	f.srv.container = &authSettingsContainer{adminMockContainer: admin, setup: f.setup}
 	return f

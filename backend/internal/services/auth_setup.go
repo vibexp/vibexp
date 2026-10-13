@@ -62,8 +62,10 @@ var (
 // instance_auth_setup singleton.
 type SetupModeService interface {
 	// IsActive reports whether the instance is in setup mode: the recovery
-	// input is set, OR setup was re-armed and not yet consumed, OR no identity
-	// provider is enabled. It is computed on every call, never stored.
+	// input is set, OR setup was re-armed and not yet consumed, OR no sign-in
+	// method works (AuthWayIn: no identity provider is enabled, and password
+	// login is off or no instance admin has a usable password). It is computed
+	// on every call, never stored.
 	IsActive(ctx context.Context) (bool, error)
 	// EnsureTokenAtBoot mints a setup token when setup mode is active and no
 	// exchangeable token is stored, logs the setup URL at WARN, and returns it
