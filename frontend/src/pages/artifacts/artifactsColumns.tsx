@@ -62,6 +62,7 @@ export function buildArtifactsColumns({
       value: artifact => artifact.title,
       to: detailPath,
       summary: artifact => artifact.description,
+      lastWrite: artifact => artifact,
       // Each renders nothing by itself: the badge when the resource is fresh,
       // the icon when it is unlocked, so a plain row pays no layout for either.
       adornment: artifact => (

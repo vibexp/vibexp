@@ -280,4 +280,61 @@ describe('ResourceMetadataSection', () => {
       expect(rowLabels()).not.toContain('Locked by')
     })
   })
+
+  describe('last written (#1452)', () => {
+    const lastWritten = () => screen.getByTestId('last-write-indicator')
+
+    it('adds the row last, after the times it qualifies', () => {
+      renderSection('artifact', { ...ARTIFACT, last_write_source: 'cli' })
+      expect(rowLabels()).toEqual([
+        'Type',
+        'Status',
+        'Slug',
+        'Project',
+        'Created',
+        'Updated',
+        'Last written',
+      ])
+    })
+
+    it.each([
+      ['mcp', 'Claude Code', /^MCP·Claude Code$/],
+      ['mcp', null, /^MCP$/],
+      ['cli', null, /^CLI$/],
+      ['api', null, /^API$/],
+      ['web', null, /^Web$/],
+    ] as const)('reads %s (assistant: %s)', (source, assistant, text) => {
+      renderSection('memory', {
+        ...MEMORY,
+        last_write_source: source,
+        last_write_assistant_name: assistant,
+      })
+      expect(lastWritten()).toHaveTextContent(text)
+    })
+
+    it('says "Not recorded" for null, never a channel', () => {
+      renderSection('prompt', {
+        ...PROMPT,
+        last_write_source: null,
+        last_write_assistant_name: null,
+      })
+      expect(rowLabels()).toContain('Last written')
+      expect(lastWritten()).toHaveTextContent(/^Not recorded$/)
+    })
+
+    it('says "Not recorded" for a channel this build does not know', () => {
+      renderSection('prompt', {
+        ...PROMPT,
+        last_write_source: 'carrier-pigeon',
+      })
+      expect(lastWritten()).toHaveTextContent(/^Not recorded$/)
+    })
+
+    it('renders no row for a payload without the field', () => {
+      // An agent has no write channel, and a resource being created has no
+      // write yet: neither payload carries the key.
+      renderSection('blueprint', BLUEPRINT)
+      expect(rowLabels()).not.toContain('Last written')
+    })
+  })
 })

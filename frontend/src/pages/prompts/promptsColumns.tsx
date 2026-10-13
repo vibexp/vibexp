@@ -62,6 +62,7 @@ export function buildPromptsColumns({
       value: prompt => prompt.name,
       to: detailPath,
       summary: prompt => prompt.description,
+      lastWrite: prompt => prompt,
       // Each renders nothing by itself: the badge when the resource is fresh,
       // the icon when it is unlocked, so a plain row pays no layout for either.
       adornment: prompt => (

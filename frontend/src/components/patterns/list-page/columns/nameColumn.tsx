@@ -2,6 +2,8 @@ import type { ColumnDef } from '@tanstack/react-table'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 
+import { type LastWrite, marksLastWrite } from '@/components/lastWrite'
+import { LastWriteIndicator } from '@/components/LastWriteIndicator'
 import type { FieldSpec } from '@/components/patterns/resource'
 import { cn } from '@/lib/utils'
 
@@ -26,6 +28,12 @@ export interface NameColumnOptions<T> {
   subdued?: (row: T) => boolean
   /** One-line description under the name. Falsy renders nothing. */
   summary?: (row: T) => string | null | undefined
+  /**
+   * The row's last write (#1452). When it came from MCP, the CLI or the API,
+   * the line under the name says so ("via MCP · Claude Code"), after the
+   * summary when there is one; a web write and an unrecorded one add nothing.
+   */
+  lastWrite?: (row: T) => LastWrite
   /** Per-resource cell rendered beside the name: `<FreshnessBadge>`, `<LockIndicator>`. */
   adornment?: (row: T) => ReactNode
   /** Width override for the cell (`max-w-md` by default). */
@@ -50,6 +58,7 @@ export function nameColumn<T>({
   to,
   subdued,
   summary,
+  lastWrite,
   adornment,
   className,
   multiline,
@@ -65,12 +74,25 @@ export function nameColumn<T>({
     cell: ({ row }) => {
       const item = row.original
       const description = summary?.(item)
+      const write = lastWrite?.(item)
+      const marked =
+        write !== undefined && marksLastWrite(write.last_write_source)
+      const hasMetaLine = Boolean(description) || marked
       const textClass = cn(
         baseTextClass,
         subdued?.(item) && 'text-muted-foreground font-normal'
       )
       return (
-        <div className={cn('min-w-0 max-w-md space-y-0.5', className)}>
+        <div
+          className={cn(
+            'min-w-0 max-w-md',
+            // A wrapping name is set with looser leading, which is already the
+            // gap; adding one would push a one-line row past the height the
+            // row actions give it.
+            !multiline && 'space-y-0.5',
+            className
+          )}
+        >
           <div className="flex min-w-0 items-center gap-2">
             {to ? (
               <Link
@@ -87,9 +109,24 @@ export function nameColumn<T>({
             )}
             {adornment?.(item)}
           </div>
-          {description && (
-            <p className="text-muted-foreground truncate text-xs">
-              {description}
+          {hasMetaLine && (
+            // One line, whatever it holds: the summary gives way first, then
+            // the assistant's name, so the channel itself is always legible.
+            <p className="text-muted-foreground flex min-w-0 text-xs">
+              {description && <span className="truncate">{description}</span>}
+              {description && marked && (
+                <span aria-hidden="true" className="shrink-0 px-1.5">
+                  ·
+                </span>
+              )}
+              {marked && (
+                <LastWriteIndicator
+                  variant="inline"
+                  source={write.last_write_source}
+                  assistantName={write.last_write_assistant_name}
+                  className="max-w-40 shrink-0 truncate"
+                />
+              )}
             </p>
           )}
         </div>

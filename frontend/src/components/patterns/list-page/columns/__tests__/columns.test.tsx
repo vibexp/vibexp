@@ -40,6 +40,8 @@ interface TestRow {
   labels: string[]
   updated_at: string
   description?: string
+  last_write_source: 'web' | 'cli' | 'mcp' | 'api' | null
+  last_write_assistant_name: string | null
 }
 
 const row = (overrides: Partial<TestRow> = {}): TestRow => ({
@@ -49,6 +51,8 @@ const row = (overrides: Partial<TestRow> = {}): TestRow => ({
   type: 'general',
   labels: [],
   updated_at: '2024-01-15T12:00:00Z',
+  last_write_source: null,
+  last_write_assistant_name: null,
   ...overrides,
 })
 
@@ -150,6 +154,91 @@ describe('nameColumn', () => {
     expect(
       nameColumn<TestRow>({ field: undefined, value: r => r.name })
     ).toBeUndefined()
+  })
+})
+
+describe('nameColumn, with the last write', () => {
+  const col = nameColumn<TestRow>({
+    field: fieldOfRole(prompt, 'name'),
+    value: r => r.name,
+    summary: r => r.description,
+    lastWrite: r => r,
+  })
+  const indicator = () => screen.queryByTestId('last-write-indicator')
+
+  it('names the channel and the assistant after the summary, on its line', () => {
+    renderCell(
+      col,
+      row({
+        description: 'How to deploy',
+        last_write_source: 'mcp',
+        last_write_assistant_name: 'Claude Code',
+      })
+    )
+    expect(indicator()).toHaveTextContent(/^via MCP · Claude Code$/)
+    expect(indicator()?.parentElement).toHaveTextContent(
+      /^How to deploy·via MCP · Claude Code$/
+    )
+  })
+
+  it.each([
+    ['mcp', 'via MCP'],
+    ['cli', 'via CLI'],
+    ['api', 'via API'],
+  ] as const)('names a %s write on a row with no summary', (source, text) => {
+    renderCell(col, row({ last_write_source: source }))
+    expect(indicator()?.parentElement?.textContent).toBe(text)
+  })
+
+  it.each([['web'], [null]] as const)(
+    'adds nothing for a %s last write',
+    source => {
+      const { container } = renderCell(
+        col,
+        row({ last_write_source: source, last_write_assistant_name: 'X' })
+      )
+      expect(indicator()).not.toBeInTheDocument()
+      // No summary either, so no second line at all.
+      expect(container.querySelector('p')).not.toBeInTheDocument()
+    }
+  )
+
+  it('leaves the summary alone for a web write', () => {
+    renderCell(
+      col,
+      row({ description: 'How to deploy', last_write_source: 'web' })
+    )
+    expect(screen.getByText('How to deploy').parentElement).toHaveTextContent(
+      /^How to deploy$/
+    )
+  })
+
+  it('never wraps: the summary and a long assistant name truncate', () => {
+    renderCell(
+      col,
+      row({
+        description: 'How to deploy',
+        last_write_source: 'mcp',
+        last_write_assistant_name: 'An assistant name of thirty ch',
+      })
+    )
+    expect(screen.getByText('How to deploy')).toHaveClass('truncate')
+    expect(indicator()).toHaveClass('truncate', 'shrink-0')
+    expect(screen.getByText('An assistant name of thirty ch')).toHaveAttribute(
+      'title',
+      'An assistant name of thirty ch'
+    )
+  })
+
+  it('shows no last write on a list that passes none', () => {
+    renderCell(
+      nameColumn<TestRow>({
+        field: fieldOfRole(prompt, 'name'),
+        value: r => r.name,
+      }),
+      row({ last_write_source: 'mcp' })
+    )
+    expect(indicator()).not.toBeInTheDocument()
   })
 })
 

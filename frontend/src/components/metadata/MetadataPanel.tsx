@@ -151,6 +151,11 @@ interface MetadataPanelProps {
    * support versioning (e.g. artifacts).
    */
   versionHistory?: VersionHistoryMeta
+  /**
+   * Rows rendered after Created / Updated / Version: what says something about
+   * the latest write ("Last written") reads beside its time, not above it.
+   */
+  trailing?: ReactNode
   className?: string
 }
 
@@ -250,6 +255,7 @@ export function MetadataPanel({
   updatedAt,
   children,
   versionHistory,
+  trailing,
   className,
 }: Readonly<MetadataPanelProps>) {
   const flat = usePanelPresentation() === 'flat'
@@ -296,6 +302,7 @@ export function MetadataPanel({
             history={flat ? versionHistory : undefined}
           />
         )}
+        {trailing}
       </ul>
       {versionHistory && !flat && (
         <VersionHistoryLink

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 
+import { marksLastWrite } from '@/components/lastWrite'
+import { LastWriteIndicator } from '@/components/LastWriteIndicator'
 import { RelativeTime } from '@/components/RelativeTime'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { cn } from '@/lib/utils'
@@ -63,6 +65,12 @@ function ChangeRow({
         <p className="text-muted-foreground truncate text-xs">
           {verb} {meta.singular}
           {creator ? ` · ${creator}` : ''}
+          {marksLastWrite(change.lastWriteSource) && ' · '}
+          <LastWriteIndicator
+            variant="inline"
+            source={change.lastWriteSource}
+            assistantName={change.lastWriteAssistantName}
+          />
         </p>
       </div>
       <span className="text-muted-foreground shrink-0 text-xs">

@@ -25,6 +25,8 @@ function resource(
     userId: 'user-1',
     createdAt: '2026-10-01T10:00:00Z',
     updatedAt: '2026-10-01T10:00:00Z',
+    lastWriteSource: null,
+    lastWriteAssistantName: null,
     ...overrides,
   }
 }
@@ -152,6 +154,25 @@ describe('toDashboardResource.memory', () => {
       name: 'Runbook',
       nameIsFallback: true,
     })
+  })
+
+  it('carries the last write through, and null as null', () => {
+    expect(
+      toDashboardResource.memory(
+        memory({
+          last_write_source: 'mcp',
+          last_write_assistant_name: 'Claude Code',
+        })
+      )
+    ).toMatchObject({
+      lastWriteSource: 'mcp',
+      lastWriteAssistantName: 'Claude Code',
+    })
+    expect(
+      toDashboardResource.memory(
+        memory({ last_write_source: null, last_write_assistant_name: null })
+      )
+    ).toMatchObject({ lastWriteSource: null, lastWriteAssistantName: null })
   })
 })
 
@@ -305,19 +326,41 @@ describe('summarizeAccessChannels', () => {
 
 describe('summarizeWriteChannels', () => {
   it('headlines the AI tools share: MCP, CLI and API, not the web', () => {
-    expect(summarizeWriteChannels({ web: 4, cli: 1, mcp: 5, api: 2 })).toEqual({
+    expect(
+      summarizeWriteChannels({ web: 4, cli: 1, mcp: 5, api: 2, unknown: 0 })
+    ).toEqual({
       mcp: 5,
       cli: 1,
       api: 2,
       web: 4,
       total: 12,
       aiTools: 8,
+      unrecorded: 0,
       noAiToolWrites: false,
     })
   })
 
+  it('keeps unrecorded writes out of the total and reports them beside it', () => {
+    const summary = summarizeWriteChannels({
+      web: 4,
+      cli: 1,
+      mcp: 5,
+      api: 2,
+      unknown: 9,
+    })
+    expect(summary.total).toBe(12)
+    expect(summary.aiTools).toBe(8)
+    expect(summary.unrecorded).toBe(9)
+  })
+
   it('reports no AI-tool writes when only the web wrote', () => {
-    const summary = summarizeWriteChannels({ web: 7, cli: 0, mcp: 0, api: 0 })
+    const summary = summarizeWriteChannels({
+      web: 7,
+      cli: 0,
+      mcp: 0,
+      api: 0,
+      unknown: 0,
+    })
     expect(summary.noAiToolWrites).toBe(true)
     expect(summary.total).toBe(7)
   })
