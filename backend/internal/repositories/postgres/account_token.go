@@ -39,11 +39,33 @@ func scanAccountToken(row rowScanner) (*models.AccountToken, error) {
 	return &t, nil
 }
 
-// rollbackAccountTokenTx rolls a transaction back unless it already committed.
-func rollbackAccountTokenTx(tx *sql.Tx, op string) {
-	if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-		slog.Error("Failed to rollback account token transaction", "op", op, "error", err)
+// consumeAccountLink marks a link consumed if it is still live at $2.
+const consumeAccountLink = `
+	UPDATE account_tokens
+	SET consumed_at = $2
+	WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > $2
+	RETURNING ` + accountLinkColumns
+
+// inTx runs fn in a transaction: it commits when fn returns nil and rolls back
+// otherwise. op names the operation in error messages.
+func (r *AccountTokenRepository) inTx(ctx context.Context, op string, fn func(tx *sql.Tx) error) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin account token %s: %w", op, err)
 	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			slog.Error("Failed to roll back account token transaction", "op", op, "error", rollbackErr)
+		}
+	}()
+
+	if err = fn(tx); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit account token %s: %w", op, err)
+	}
+	return nil
 }
 
 // Replace stores token as the user's one live link of its purpose and
@@ -51,19 +73,19 @@ func rollbackAccountTokenTx(tx *sql.Tx, op string) {
 // so there is never a moment with two live links of one kind, and never one
 // with none because the insert failed.
 func (r *AccountTokenRepository) Replace(ctx context.Context, token *models.AccountToken) error {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin account token replace: %w", err)
-	}
-	defer rollbackAccountTokenTx(tx, "replace")
+	return r.inTx(ctx, "replace", func(tx *sql.Tx) error {
+		return replaceAccountLink(ctx, tx, token)
+	})
+}
 
+func replaceAccountLink(ctx context.Context, tx *sql.Tx, token *models.AccountToken) error {
 	// Lock the user's row first. Two requests issuing the same kind of link for
 	// one user would otherwise both delete, both insert, and the second would
 	// fail on the one-live-link index; queued on this lock, the second simply
 	// replaces the first. NO KEY UPDATE is enough and does not block inserts
 	// that reference the user.
 	var locked bool
-	err = tx.QueryRowContext(ctx,
+	err := tx.QueryRowContext(ctx,
 		`SELECT true FROM users WHERE id = $1 FOR NO KEY UPDATE`, token.UserID).Scan(&locked)
 	if err != nil {
 		return mapNoRows(fmt.Errorf("failed to lock the user of an account token: %w", err),
@@ -90,10 +112,6 @@ func (r *AccountTokenRepository) Replace(ctx context.Context, token *models.Acco
 		}
 		// The driver's error names the constraint, never the hash.
 		return fmt.Errorf("failed to store account token: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit account token replace: %w", err)
 	}
 	return nil
 }
@@ -130,14 +148,23 @@ func (r *AccountTokenRepository) GetLive(
 func (r *AccountTokenRepository) Consume(
 	ctx context.Context, tokenHash []byte, now time.Time,
 ) (*models.AccountToken, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
+	var consumed *models.AccountToken
+	err := r.inTx(ctx, "consume", func(tx *sql.Tx) error {
+		var err error
+		consumed, err = consumeAccountLinkTx(ctx, tx, tokenHash, now)
+		return err
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin account token consume: %w", err)
+		return nil, err
 	}
-	defer rollbackAccountTokenTx(tx, "consume")
+	return consumed, nil
+}
 
+func consumeAccountLinkTx(
+	ctx context.Context, tx *sql.Tx, tokenHash []byte, now time.Time,
+) (*models.AccountToken, error) {
 	var userID string
-	err = tx.QueryRowContext(ctx,
+	err := tx.QueryRowContext(ctx,
 		`SELECT user_id FROM account_tokens WHERE token_hash = $1`, tokenHash,
 	).Scan(&userID)
 	if err != nil {
@@ -154,11 +181,7 @@ func (r *AccountTokenRepository) Consume(
 			repositories.ErrAccountTokenNotFound)
 	}
 
-	consumed, err := scanAccountToken(tx.QueryRowContext(ctx, `
-		UPDATE account_tokens
-		SET consumed_at = $2
-		WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > $2
-		RETURNING `+accountLinkColumns, tokenHash, now))
+	consumed, err := scanAccountToken(tx.QueryRowContext(ctx, consumeAccountLink, tokenHash, now))
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to consume account token: %w", err),
 			repositories.ErrAccountTokenNotFound)
@@ -169,10 +192,6 @@ func (r *AccountTokenRepository) Consume(
 		WHERE user_id = $1 AND consumed_at IS NULL`, userID,
 	); err != nil {
 		return nil, fmt.Errorf("failed to remove the user's other account tokens: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit account token consume: %w", err)
 	}
 	return consumed, nil
 }

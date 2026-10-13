@@ -45,6 +45,10 @@ const (
 	maxAccountLinkTokenBytes = 256
 	maxAccountNameBytes      = 4 * 255
 
+	// accountLinkFieldsRequiredDetail answers a completion with no token or no
+	// new secret in its body.
+	accountLinkFieldsRequiredDetail = "token and password are required"
+
 	accountLinkPreviewHandler = "PreviewAccountLink"
 
 	accountLinkViaSetup = "setup"
@@ -80,7 +84,7 @@ func (h *passwordAuthStrictServer) CompleteAccountSetup(
 ) (passwordauthgen.CompleteAccountSetupResponseObject, error) {
 	const handler = "CompleteAccountSetup"
 	if request.Body == nil {
-		return nil, apierrors.NewBadRequestError("token and password are required")
+		return nil, apierrors.NewBadRequestError(accountLinkFieldsRequiredDetail)
 	}
 	name := ""
 	if request.Body.Name != nil {
@@ -114,7 +118,7 @@ func (h *passwordAuthStrictServer) CompleteAccountReset(
 ) (passwordauthgen.CompleteAccountResetResponseObject, error) {
 	const handler = "CompleteAccountReset"
 	if request.Body == nil {
-		return nil, apierrors.NewBadRequestError("token and password are required")
+		return nil, apierrors.NewBadRequestError(accountLinkFieldsRequiredDetail)
 	}
 	if err := h.checkAccountLinkCompletion(handler, request.Body.Token, request.Body.Password); err != nil {
 		return nil, err
@@ -142,7 +146,7 @@ func (h *passwordAuthStrictServer) CompleteAccountReset(
 // never have signed its holder in.
 func (h *passwordAuthStrictServer) checkAccountLinkCompletion(handler, token, plaintext string) error {
 	if token == "" || plaintext == "" {
-		return apierrors.NewBadRequestError("token and password are required")
+		return apierrors.NewBadRequestError(accountLinkFieldsRequiredDetail)
 	}
 	if len(token) > maxAccountLinkTokenBytes || len(plaintext) > maxSignInPasswordBytes {
 		return apierrors.NewBadRequestError("token or password is too long")

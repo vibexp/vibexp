@@ -218,16 +218,16 @@ func TestHasher_FirstVerifyAndFirstDummyVerifyCostTheSame(t *testing.T) {
 	encoded, err := NewHasher(cheapParams).Hash(ctx, testPassword)
 	require.NoError(t, err)
 
-	real := NewHasher(cheapParams)
-	_, _, err = real.Verify(ctx, encoded, testPassword)
+	checked := NewHasher(cheapParams)
+	_, _, err = checked.Verify(ctx, encoded, testPassword)
 	require.NoError(t, err)
 
 	absent := NewHasher(cheapParams)
 	require.NoError(t, absent.DummyVerify(ctx, testPassword))
 
-	assert.NotNil(t, real.dummyKey, "the first Verify makes the dummy, as the first DummyVerify does")
+	assert.NotNil(t, checked.dummyKey, "the first Verify makes the dummy, as the first DummyVerify does")
 	assert.NotNil(t, absent.dummyKey)
-	assert.Equal(t, absent.Derivations(), real.Derivations())
+	assert.Equal(t, absent.Derivations(), checked.Derivations())
 
 	// An abandoned Verify, like an abandoned DummyVerify, makes nothing.
 	cancelled, cancel := context.WithCancel(ctx)
