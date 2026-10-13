@@ -34,10 +34,10 @@ import (
 // the reason goes to logs, metrics and the account's own activity record only.
 
 const (
-	// passwordLoginInvalidDetail is the one message for every account-dependent
+	// signInInvalidDetail is the one message for every account-dependent
 	// refusal. It must not vary with the reason.
-	passwordLoginInvalidDetail = "Invalid email or password"
-	passwordLoginFailedDetail  = "Sign-in could not be completed"
+	signInInvalidDetail = "Invalid email or password"
+	signInFailedDetail  = "Sign-in could not be completed"
 	// signInUnavailableDetail answers a sign-in that could not be
 	// decided because the policy, the allowlist or the database was unreadable.
 	signInUnavailableDetail = "Sign-in is temporarily unavailable"
@@ -168,7 +168,7 @@ func (h *passwordAuthStrictServer) PasswordLogin(
 	}
 	if h.s.sessionManager == nil {
 		h.s.logger.With("handler", signInHandlerName).Error("Session manager is not configured")
-		return nil, apierrors.NewInternalError(passwordLoginFailedDetail)
+		return nil, apierrors.NewInternalError(signInFailedDetail)
 	}
 
 	user, err := h.s.container.PasswordAuthService().
@@ -193,7 +193,7 @@ func (h *passwordAuthStrictServer) PasswordLogin(
 	if err != nil {
 		h.s.logger.With("handler", signInHandlerName, "user_id", user.ID, "error", err.Error()).
 			Error("Failed to create the session of a password sign-in")
-		return nil, apierrors.NewInternalError(passwordLoginFailedDetail)
+		return nil, apierrors.NewInternalError(signInFailedDetail)
 	}
 
 	h.s.logger.With("handler", signInHandlerName, "user_id", user.ID).Info("Password sign-in successful")
@@ -201,7 +201,7 @@ func (h *passwordAuthStrictServer) PasswordLogin(
 		h.s.metrics.RecordUserLoginSuccessful(ctx)
 	}
 	h.recordAuthActivity(ctx, user.ID, activities.ActivityTypeAuthLogin, map[string]interface{}{
-		"provider": services.PasswordSignInProvider,
+		"provider": services.LocalSignInProvider,
 		"email":    user.Email,
 	})
 
@@ -232,18 +232,18 @@ func (h *passwordAuthStrictServer) loginFailure(ctx context.Context, err error) 
 		h.recordLoginFailed(ctx, invalid.Reason)
 		if invalid.UserID != "" {
 			h.recordAuthActivity(ctx, invalid.UserID, activities.ActivityTypeAuthFailure, map[string]interface{}{
-				"provider": services.PasswordSignInProvider,
+				"provider": services.LocalSignInProvider,
 				"reason":   invalid.Reason,
 			})
 		}
-		return apierrors.NewAuthInvalidError(passwordLoginInvalidDetail)
+		return apierrors.NewAuthInvalidError(signInInvalidDetail)
 	case errors.As(err, &suspended):
 		// The caller proved they hold the password, so this refusal is recorded
 		// against the account.
-		h.recordLoginFailed(ctx, services.PasswordLoginReasonSuspended)
+		h.recordLoginFailed(ctx, services.SignInRefusalSuspended)
 		h.recordAuthActivity(ctx, suspended.UserID, activities.ActivityTypeAuthFailure, map[string]interface{}{
-			"provider": services.PasswordSignInProvider,
-			"reason":   services.PasswordLoginReasonSuspended,
+			"provider": services.LocalSignInProvider,
+			"reason":   services.SignInRefusalSuspended,
 		})
 		return apierrors.NewAuthInvalidError(suspendedAuthDetail)
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):

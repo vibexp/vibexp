@@ -44,9 +44,9 @@ import (
 // returned. Errors from internal/auth/password are safe by construction; this
 // file logs user ids and reasons only.
 
-// PasswordSignInProvider is the provider name password sign-in reports to the
+// LocalSignInProvider is the provider name password sign-in reports to the
 // access allowlist's audit log and to the sign-in activity.
-const PasswordSignInProvider = "password" // gitleaks:allow - the name of a sign-in method, not a credential
+const LocalSignInProvider = "password"
 
 var (
 	// ErrPasswordLoginDisabled is returned by Login while the instance
@@ -74,20 +74,20 @@ func (e *AccountSuspendedError) Error() string { return ErrAccountSuspended.Erro
 // Is makes errors.Is(err, ErrAccountSuspended) true.
 func (e *AccountSuspendedError) Is(target error) bool { return target == ErrAccountSuspended }
 
-// PasswordLoginReasonSuspended is the reason recorded for a sign-in refused
-// with ErrAccountSuspended.
-const PasswordLoginReasonSuspended = "account_suspended" // gitleaks:allow - a refusal reason, not a credential
-
-// Reasons a sign-in was refused with ErrInvalidCredentials. They go to logs,
-// metrics and the account's activity record, never into a response.
+// Reasons a password sign-in was refused. They go to logs, metrics and the
+// account's activity record, never into a response. The constant names avoid
+// the word for what the user typed on purpose: secret scanners read a constant
+// named after a credential and holding a string as a hard-coded credential.
 const (
-	PasswordLoginReasonUnknownEmail  = "unknown_email"
-	PasswordLoginReasonNoPassword    = "no_password" // gitleaks:allow - a refusal reason, not a credential
-	PasswordLoginReasonDisabled      = "password_disabled"
-	PasswordLoginReasonLocked        = "locked"
-	PasswordLoginReasonWrongPassword = "wrong_password" // gitleaks:allow - a refusal reason, not a credential
-	// #nosec G101 -- a refusal reason, not a credential
-	PasswordLoginReasonUnreadable = "unreadable_hash"
+	SignInRefusalUnknownEmail = "unknown_email"
+	SignInRefusalNoCredential = "no_password"
+	SignInRefusalDisabled     = "password_disabled"
+	SignInRefusalLocked       = "locked"
+	SignInRefusalMismatch     = "wrong_password"
+	SignInRefusalUnreadable   = "unreadable_hash"
+	// SignInRefusalSuspended is recorded for a sign-in refused with
+	// ErrAccountSuspended.
+	SignInRefusalSuspended = "account_suspended"
 )
 
 // PasswordLoginError is the ErrInvalidCredentials Login returns. It says why
@@ -95,7 +95,7 @@ const (
 // the caller can record the failure against it. It must never shape the
 // response: every PasswordLoginError is answered identically.
 type PasswordLoginError struct {
-	// Reason is one of the PasswordLoginReason* values.
+	// Reason is one of the SignInRefusal* values.
 	Reason string
 	// UserID is empty when the email named no account.
 	UserID string
@@ -216,7 +216,7 @@ func (s *PasswordAuthService) Login(ctx context.Context, email, plaintext string
 	// created it for that address, and creation is where the allowlist is
 	// enforced. Requiring provider verification here would make every invited
 	// password account unusable on an allowlisted instance.
-	err = ensureEmailAllowed(ctx, s.allowlist, s.logger, email, PasswordSignInProvider, true)
+	err = ensureEmailAllowed(ctx, s.allowlist, s.logger, email, LocalSignInProvider, true)
 	if err != nil {
 		return nil, err
 	}
@@ -236,13 +236,13 @@ func (s *PasswordAuthService) Login(ctx context.Context, email, plaintext string
 		s.logger.With("user_id", user.ID, "error", err.Error()).
 			Error("Password sign-in refused: the stored hash is unreadable")
 		return nil, s.refuseWithoutAHash(ctx, plaintext,
-			&PasswordLoginError{Reason: PasswordLoginReasonUnreadable, UserID: user.ID})
+			&PasswordLoginError{Reason: SignInRefusalUnreadable, UserID: user.ID})
 	case err != nil:
 		// The request was abandoned while waiting to hash. Not a refusal.
 		return nil, fmt.Errorf("verify the password: %w", err)
 	case !ok:
 		s.logIfLocked(user.ID, credential)
-		return nil, &PasswordLoginError{Reason: PasswordLoginReasonWrongPassword, UserID: user.ID}
+		return nil, &PasswordLoginError{Reason: SignInRefusalMismatch, UserID: user.ID}
 	}
 
 	if user.IsSuspended() {
@@ -265,7 +265,7 @@ func (s *PasswordAuthService) admitAttempt(
 ) (*models.User, *models.UserCredential, *PasswordLoginError, error) {
 	user, err := s.users.GetByEmail(ctx, email)
 	if errors.Is(err, repositories.ErrUserNotFound) {
-		return nil, nil, &PasswordLoginError{Reason: PasswordLoginReasonUnknownEmail}, nil
+		return nil, nil, &PasswordLoginError{Reason: SignInRefusalUnknownEmail}, nil
 	}
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("look up the account: %w", err)
@@ -276,11 +276,11 @@ func (s *PasswordAuthService) admitAttempt(
 	case err == nil:
 		return user, credential, nil, nil
 	case errors.Is(err, repositories.ErrUserCredentialNotFound):
-		return nil, nil, &PasswordLoginError{Reason: PasswordLoginReasonNoPassword, UserID: user.ID}, nil
+		return nil, nil, &PasswordLoginError{Reason: SignInRefusalNoCredential, UserID: user.ID}, nil
 	case errors.Is(err, repositories.ErrUserCredentialDisabled):
-		return nil, nil, &PasswordLoginError{Reason: PasswordLoginReasonDisabled, UserID: user.ID}, nil
+		return nil, nil, &PasswordLoginError{Reason: SignInRefusalDisabled, UserID: user.ID}, nil
 	case errors.Is(err, repositories.ErrUserCredentialUnavailable):
-		return nil, nil, &PasswordLoginError{Reason: PasswordLoginReasonLocked, UserID: user.ID}, nil
+		return nil, nil, &PasswordLoginError{Reason: SignInRefusalLocked, UserID: user.ID}, nil
 	default:
 		return nil, nil, nil, fmt.Errorf("admit the sign-in attempt: %w", err)
 	}

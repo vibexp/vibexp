@@ -1,7 +1,7 @@
 package password
 
 import (
-	_ "embed"
+	_ "embed" // for the go:embed directive on commonPasswordList
 	"strings"
 	"sync"
 	"unicode/utf8"

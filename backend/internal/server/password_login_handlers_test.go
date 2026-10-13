@@ -400,7 +400,7 @@ func TestPasswordLogin_RefusalsAreOneIdenticalResponse(t *testing.T) {
 
 			require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
 			assert.Nil(t, sessionCookieIn(rec), "a refused login sets no session")
-			assert.Contains(t, rec.Body.String(), passwordLoginInvalidDetail)
+			assert.Contains(t, rec.Body.String(), signInInvalidDetail)
 			bodies[name] = stableBody(rec)
 
 			if tc.wantActivity {
@@ -484,7 +484,7 @@ func TestPasswordLogin_Suspended(t *testing.T) {
 		rec := f.post(t, pwLoginEmail, pwLoginWrong)
 
 		require.Equal(t, http.StatusUnauthorized, rec.Code)
-		assert.Contains(t, rec.Body.String(), passwordLoginInvalidDetail)
+		assert.Contains(t, rec.Body.String(), signInInvalidDetail)
 		assert.NotContains(t, rec.Body.String(), suspendedAuthDetail)
 	})
 }

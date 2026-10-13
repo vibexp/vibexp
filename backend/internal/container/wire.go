@@ -119,6 +119,7 @@ var ProviderSet = wire.NewSet(
 	wire.Struct(new(providers.EmbeddingServiceDeps), "*"),
 	wire.Struct(new(providers.NotificationServiceDeps), "*"),
 	wire.Struct(new(providers.DigestRunnerDeps), "*"),
+	wire.Struct(new(providers.AuthServiceDeps), "*"),
 	wire.Struct(new(providers.InstanceAuthSettingsServiceDeps), "*"),
 
 	// Services

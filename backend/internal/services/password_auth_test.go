@@ -201,7 +201,7 @@ func TestPasswordAuthService_Login_RefusalsAreUniformAndCostOneComputation(t *te
 			arrange: func(f *pwFixture) {
 				f.users.On("GetByEmail", mock.Anything, pwTestEmail).Return(nil, repositories.ErrUserNotFound)
 			},
-			password: pwTestPassword, wantReason: PasswordLoginReasonUnknownEmail, wantDummy: true,
+			password: pwTestPassword, wantReason: SignInRefusalUnknownEmail, wantDummy: true,
 		},
 		{
 			name: "account with no password",
@@ -210,7 +210,7 @@ func TestPasswordAuthService_Login_RefusalsAreUniformAndCostOneComputation(t *te
 				f.credentials.On("BeginAttempt", mock.Anything, pwTestUserID, mock.Anything, mock.Anything).
 					Return(nil, repositories.ErrUserCredentialNotFound)
 			},
-			password: pwTestPassword, wantReason: PasswordLoginReasonNoPassword, wantUserID: pwTestUserID,
+			password: pwTestPassword, wantReason: SignInRefusalNoCredential, wantUserID: pwTestUserID,
 			wantDummy: true,
 		},
 		{
@@ -218,7 +218,7 @@ func TestPasswordAuthService_Login_RefusalsAreUniformAndCostOneComputation(t *te
 			arrange: func(f *pwFixture) {
 				f.expectUnavailable(f.activeUser(), repositories.ErrUserCredentialDisabled)
 			},
-			password: pwTestPassword, wantReason: PasswordLoginReasonDisabled, wantUserID: pwTestUserID,
+			password: pwTestPassword, wantReason: SignInRefusalDisabled, wantUserID: pwTestUserID,
 			wantDummy: true,
 		},
 		{
@@ -226,7 +226,7 @@ func TestPasswordAuthService_Login_RefusalsAreUniformAndCostOneComputation(t *te
 			arrange: func(f *pwFixture) {
 				f.expectUnavailable(f.activeUser(), repositories.ErrUserCredentialLocked)
 			},
-			password: pwTestPassword, wantReason: PasswordLoginReasonLocked, wantUserID: pwTestUserID,
+			password: pwTestPassword, wantReason: SignInRefusalLocked, wantUserID: pwTestUserID,
 			wantDummy: true,
 		},
 		{
@@ -236,7 +236,7 @@ func TestPasswordAuthService_Login_RefusalsAreUniformAndCostOneComputation(t *te
 				counted.FailedAttempts = 1
 				f.expectAccount(f.activeUser(), counted)
 			},
-			password: "not the password at all", wantReason: PasswordLoginReasonWrongPassword,
+			password: "not the password at all", wantReason: SignInRefusalMismatch,
 			wantUserID: pwTestUserID,
 		},
 		{
@@ -244,7 +244,7 @@ func TestPasswordAuthService_Login_RefusalsAreUniformAndCostOneComputation(t *te
 			arrange: func(f *pwFixture) {
 				f.expectAccount(f.activeUser(), &models.UserCredential{UserID: pwTestUserID, PasswordHash: "not-a-hash"})
 			},
-			password: pwTestPassword, wantReason: PasswordLoginReasonUnreadable, wantUserID: pwTestUserID,
+			password: pwTestPassword, wantReason: SignInRefusalUnreadable, wantUserID: pwTestUserID,
 			wantDummy: true,
 		},
 	}
@@ -279,7 +279,7 @@ func TestPasswordAuthService_Login_LockedAttemptWritesNothing(t *testing.T) {
 
 	for range 3 {
 		_, err := f.svc.Login(context.Background(), pwTestEmail, "wrong password again")
-		requireLoginRefusal(t, err, PasswordLoginReasonLocked, pwTestUserID)
+		requireLoginRefusal(t, err, SignInRefusalLocked, pwTestUserID)
 	}
 
 	f.credentials.AssertNotCalled(t, "RecordSuccess", mock.Anything, mock.Anything)
@@ -312,7 +312,7 @@ func TestPasswordAuthService_Login_WrongPasswordThatLocksIsLogged(t *testing.T) 
 
 	_, err := f.svc.Login(context.Background(), pwTestEmail, "wrong password again")
 
-	requireLoginRefusal(t, err, PasswordLoginReasonWrongPassword, pwTestUserID)
+	requireLoginRefusal(t, err, SignInRefusalMismatch, pwTestUserID)
 	last := f.logs.LastEntry()
 	require.NotNil(t, last)
 	assert.Equal(t, "Password sign-in locked after repeated failures", last.Message)
@@ -476,7 +476,7 @@ func TestPasswordAuthService_Login_Suspended(t *testing.T) {
 
 		_, err := f.svc.Login(context.Background(), pwTestEmail, "not the password at all")
 
-		requireLoginRefusal(t, err, PasswordLoginReasonWrongPassword, pwTestUserID)
+		requireLoginRefusal(t, err, SignInRefusalMismatch, pwTestUserID)
 		assert.NotErrorIs(t, err, ErrAccountSuspended)
 	})
 }
@@ -593,7 +593,7 @@ func TestPasswordAuthService_Login_InfrastructureFailuresAreNotRefusals(t *testi
 
 		_, err := f.svc.Login(context.Background(), pwTestEmail, pwTestPassword)
 
-		requireLoginRefusal(t, err, PasswordLoginReasonLocked, pwTestUserID)
+		requireLoginRefusal(t, err, SignInRefusalLocked, pwTestUserID)
 	})
 }
 
@@ -747,7 +747,7 @@ func TestPasswordAuthService_NothingSecretIsLoggedOrReturned(t *testing.T) {
 }
 
 func TestPasswordLoginError(t *testing.T) {
-	err := error(&PasswordLoginError{Reason: PasswordLoginReasonLocked, UserID: "u"})
+	err := error(&PasswordLoginError{Reason: SignInRefusalLocked, UserID: "u"})
 
 	assert.ErrorIs(t, err, ErrInvalidCredentials)
 	assert.NotErrorIs(t, err, ErrAccountSuspended)
