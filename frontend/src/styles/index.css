@@ -3,175 +3,37 @@
 @import '@vibexp/design-system/tokens.css';
 @import '@vibexp/design-system/typography.css';
 @import '@vibexp/design-system/scrollbar.css';
+@import '@vibexp/design-system/prose.css';
 @import '@vibexp/design-system/markdown.css';
 @plugin '@tailwindcss/typography';
 
 /* -------------------------------------------------------------------------- */
-/* Prose overrides — scoped to .v2-root, bound to shadcn design tokens        */
-/* --foreground / --muted-foreground etc. flip automatically when .dark is    */
-/* active on the .v2-root ancestor, so dark mode requires no extra class.     */
+/* Prose — the rules come from `@vibexp/design-system/prose.css`, imported at */
+/* the top of this file (headings, paragraphs, links, inline code, quotes,    */
+/* tables, lists). They bind to the design tokens, so dark mode needs no      */
+/* extra class. Fenced code blocks (the frame, the copy button, the syntax    */
+/* colours) and the GFM task-list checkbox come from `markdown.css`.          */
+/*                                                                            */
+/* App-only additions: only what the package does not provide.                */
 /* -------------------------------------------------------------------------- */
 .v2-root .prose {
-  --tw-prose-body: var(--foreground);
-  --tw-prose-headings: var(--foreground);
-  --tw-prose-lead: var(--muted-foreground);
-  --tw-prose-links: var(--primary);
-  --tw-prose-bold: var(--foreground);
-  --tw-prose-counters: var(--muted-foreground);
-  --tw-prose-bullets: var(--muted-foreground);
-  --tw-prose-hr: var(--border);
-  --tw-prose-quotes: var(--muted-foreground);
-  --tw-prose-quote-borders: var(--border);
-  --tw-prose-captions: var(--muted-foreground);
   --tw-prose-kbd: var(--foreground);
-  --tw-prose-code: var(--foreground);
-  --tw-prose-th-borders: var(--border);
-  --tw-prose-td-borders: var(--border);
-  font-size: 0.875rem;
-  line-height: 1.75;
-  max-width: none;
-  color: var(--tw-prose-body);
 }
 
-.v2-root .prose :where(h1) {
-  font-size: 1.5rem;
-  font-weight: 700;
-  line-height: 2rem;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(h2) {
-  font-size: 1.25rem;
-  font-weight: 600;
-  line-height: 1.75rem;
-  margin-top: 1.25rem;
-  margin-bottom: 0.5rem;
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(h3) {
-  font-size: 1.125rem;
-  font-weight: 600;
-  line-height: 1.5rem;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(h4) {
-  font-size: 1.125rem;
-  font-weight: 600;
-  line-height: 1.5rem;
-  margin-top: 1.25rem;
-  margin-bottom: 0.5rem;
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(h5) {
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.5rem;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(h6) {
-  font-size: 0.875rem;
-  font-weight: 600;
-  line-height: 1.25rem;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(p) {
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-  color: var(--tw-prose-body);
-}
-
-.v2-root .prose :where(a) {
-  color: var(--tw-prose-links);
-  text-decoration: underline;
-}
-
-.v2-root .prose :where(code):not(:where(pre *)) {
-  background-color: var(--muted);
-  color: var(--tw-prose-code);
-  padding: 0.125rem 0.25rem;
-  border-radius: 0.25rem;
-  /* Regular weight: in a dense paragraph, bold monospace makes every third
-     word shout. The background alone marks it as code. */
-  font-size: 0.875em;
-  font-weight: 400;
-}
-
-.v2-root .prose :where(code)::before,
-.v2-root .prose :where(code)::after {
-  content: '';
-}
-
+/* A bare `<pre>` (raw HTML in a body). The package leaves its surface to a
+   syntax-highlight theme; the app has none outside `.code-block`, which owns
+   the surface of a fenced block instead. */
 .v2-root .prose :where(pre) {
-  /* A bare `<pre>` (raw HTML in a body). Fenced blocks are wrapped in
-     `.code-block`, below, which owns the surface instead. */
-  padding: 1rem;
-  border-radius: var(--radius-md);
   background-color: var(--muted);
   color: var(--foreground);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  overflow-x: auto;
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.v2-root .prose :where(pre code) {
-  background-color: transparent;
-  padding: 0;
-  border-radius: 0;
-  font-size: inherit;
-  font-weight: inherit;
-  color: inherit;
-}
-
-/* Fenced code blocks (the frame, the copy button, the syntax colours) and the
-   GFM task-list checkbox come from `@vibexp/design-system/markdown.css`,
-   imported at the top of this file. */
-
-/* A quote is the author's text, shown as written: upright, and without the
-   typographic quote marks the typography plugin adds around it — a prompt that
-   quotes an instruction must not gain characters that are not in its source. */
-.v2-root .prose :where(blockquote) {
-  border-left: 4px solid var(--tw-prose-quote-borders);
-  padding-left: 1rem;
-  font-style: normal;
-  quotes: none;
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
-  color: var(--tw-prose-quotes);
-}
-
-.v2-root .prose :where(blockquote p)::before,
-.v2-root .prose :where(blockquote p)::after {
-  content: none;
-}
-
-.v2-root .prose :where(table) {
-  width: 100%;
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
-  font-size: 0.875rem;
 }
 
 /* Scroll container MarkdownRenderer wraps every rendered table in (#884).
-   `width: 100%` above does not cap an auto-layout table, so a wide one used to
-   escape its card and paint over the metadata sidebar; the wrapper confines the
-   overflow to its own horizontal scrollbar. Narrow tables are unaffected — the
-   table still fills the wrapper at 100%. Kept here beside the other `prose`
-   table rules so a table's layout is described in one place.
+   The package's `width: 100%` does not cap an auto-layout table, so a wide one
+   used to escape its card and paint over the metadata sidebar; the wrapper
+   confines the overflow to its own horizontal scrollbar. Narrow tables are
+   unaffected — the table still fills the wrapper at 100%. The wrapper belongs
+   to MarkdownRenderer, so its rules stay in the app.
 
    The vertical rhythm MOVES from the table to the wrapper. `overflow-x: auto`
    makes the wrapper a block formatting context, which stops the table's own
@@ -206,44 +68,6 @@
 .v2-root .prose .markdown-table-wrapper :where(td) {
   max-width: 26rem;
   vertical-align: top;
-}
-
-.v2-root .prose :where(th) {
-  background-color: var(--muted);
-  font-weight: 600;
-  padding: 0.75rem;
-  text-align: left;
-  border-bottom: 1px solid var(--tw-prose-th-borders);
-  color: var(--tw-prose-headings);
-}
-
-.v2-root .prose :where(td) {
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--tw-prose-td-borders);
-  color: var(--tw-prose-body);
-}
-
-.v2-root .prose :where(ul) {
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-  padding-left: 1.5rem;
-}
-
-.v2-root .prose :where(ol) {
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-  padding-left: 1.5rem;
-}
-
-.v2-root .prose :where(li) {
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.v2-root .prose :where(hr) {
-  border-color: var(--tw-prose-hr);
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
 }
 
 /* -------------------------------------------------------------------------- */
