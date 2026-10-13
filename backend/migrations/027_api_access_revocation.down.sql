@@ -1,4 +1,4 @@
--- Reverts 028_api_access_revocation: drops the bearer-token cut-off and the
+-- Reverts 027_api_access_revocation: drops the bearer-token cut-off and the
 -- subject indexes. A revocation recorded only in the cut-off is forgotten, so
 -- an access token issued before it authenticates again until it expires; API
 -- keys and OAuth rows that were deleted stay deleted.
