@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test'
 
 import { test, expect } from '../../fixtures/auth'
 import { createArtifactWithContent } from '../../helpers/artifacts'
+import { measure } from '../../helpers/geometry'
 
 /**
  * Feature Test: the body editor matches the reading body (#1178)
@@ -40,37 +41,48 @@ interface Box {
   width: number
 }
 
-async function box(locator: Locator): Promise<Box> {
-  await expect(locator).toBeVisible({ timeout: 10000 })
-  const b = await locator.boundingBox()
-  if (!b) throw new Error('element has no bounding box')
-  const header = await locator
-    .page()
-    .getByTestId('reading-page')
-    .locator('article header')
-    .boundingBox()
-  if (!header) throw new Error('article header has no bounding box')
-  return { x: b.x, y: b.y - (header.y + header.height), width: b.width }
+/**
+ * An element's box, with `y` from the BOTTOM of the article header. The
+ * element and the header are read in the same instant, from the same page.
+ */
+function box(locator: Locator): Promise<Box> {
+  return measure(locator, el => {
+    const header = document.querySelector(
+      '[data-testid="reading-page"] article header'
+    )
+    if (!header) throw new Error('article header is not on the page')
+    const b = el.getBoundingClientRect()
+    const h = header.getBoundingClientRect()
+    if (b.width === 0 && b.height === 0) {
+      throw new Error('element has no bounding box')
+    }
+    return { x: b.x, y: b.y - (h.y + h.height), width: b.width }
+  })
 }
 
 /** The switch's box, with `y` from the TOP of the article header. */
-async function switchInHeader(page: Page): Promise<Box & { inside: boolean }> {
-  const toggle = bodyView(page)
-  await expect(toggle).toBeVisible({ timeout: 10000 })
-  const header = page.getByTestId('reading-page').locator('article header')
-  const b = await toggle.boundingBox()
-  const h = await header.boundingBox()
-  if (!b || !h) throw new Error('switch or article header has no bounding box')
-  return {
-    x: b.x,
-    y: b.y - h.y,
-    width: b.width,
-    inside:
-      b.x >= h.x &&
-      b.x + b.width <= h.x + h.width + 1 &&
-      b.y >= h.y &&
-      b.y + b.height <= h.y + h.height + 1,
-  }
+function switchInHeader(page: Page): Promise<Box & { inside: boolean }> {
+  return measure(bodyView(page), el => {
+    const header = document.querySelector(
+      '[data-testid="reading-page"] article header'
+    )
+    if (!header) throw new Error('article header is not on the page')
+    const b = el.getBoundingClientRect()
+    const h = header.getBoundingClientRect()
+    if (b.width === 0 && b.height === 0) {
+      throw new Error('switch has no bounding box')
+    }
+    return {
+      x: b.x,
+      y: b.y - h.y,
+      width: b.width,
+      inside:
+        b.x >= h.x &&
+        b.x + b.width <= h.x + h.width + 1 &&
+        b.y >= h.y &&
+        b.y + b.height <= h.y + h.height + 1,
+    }
+  })
 }
 
 function expectSameBox(actual: Box, expected: Box): void {

@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test'
 
 import { test, expect } from '../../fixtures/auth'
 import { createArtifactWithContent } from '../../helpers/artifacts'
+import { measure } from '../../helpers/geometry'
 
 /**
  * Feature Test: the edit page's header is the reading page's header (#1179)
@@ -28,18 +29,19 @@ interface Point {
   y: number
 }
 
-async function origin(locator: Locator): Promise<Point> {
-  await expect(locator).toBeVisible({ timeout: 10000 })
-  const b = await locator.boundingBox()
-  if (!b) throw new Error('element has no bounding box')
-  const { left, top } = await locator.evaluate(el => {
+/** Where an element's content starts: its box plus its border and padding. */
+function origin(locator: Locator): Promise<Point> {
+  return measure(locator, el => {
+    const box = el.getBoundingClientRect()
+    if (box.width === 0 && box.height === 0) {
+      throw new Error('element has no bounding box')
+    }
     const s = getComputedStyle(el)
     return {
-      left: parseFloat(s.paddingLeft) + parseFloat(s.borderLeftWidth),
-      top: parseFloat(s.paddingTop) + parseFloat(s.borderTopWidth),
+      x: box.x + parseFloat(s.paddingLeft) + parseFloat(s.borderLeftWidth),
+      y: box.y + parseFloat(s.paddingTop) + parseFloat(s.borderTopWidth),
     }
   })
-  return { x: b.x + left, y: b.y + top }
 }
 
 function expectSamePoint(actual: Point, expected: Point): void {
@@ -71,6 +73,13 @@ test.describe('Edit header geometry', () => {
     await page.getByTestId('artifact-description-input').fill(DESCRIPTION)
     await page.getByRole('button', { name: 'Save changes' }).first().click()
     await expect(page).toHaveURL(viewUrl, { timeout: 10000 })
+    // The URL changes a moment before the edit page unmounts, and the view
+    // page first shows a loading state. Measure neither: wait until the form
+    // is gone and the loaded page's own Edit button is there (#1423).
+    await expect(page.getByTestId('artifact-title-input')).toHaveCount(0)
+    await expect(page.getByTestId('edit-artifact-button')).toBeVisible({
+      timeout: 10000,
+    })
 
     const viewTitle = await origin(
       header(page).getByRole('heading', { level: 1 })
