@@ -552,6 +552,17 @@ type UserIdentityRepository interface {
 	DeleteForUser(ctx context.Context, userID, identityID string) error
 }
 
+// SignInMethodLock serializes the removal of an account's sign-in methods
+// (#1437). "Never remove the last usable method" is a check followed by a
+// delete; two removals running together would each see the other's method
+// still present and both succeed, leaving the account with no way in.
+type SignInMethodLock interface {
+	// WithLock runs fn while holding a lock that is exclusive per user. A
+	// second call for the same user waits until the first has returned, so
+	// whatever fn reads reflects every earlier removal. It returns fn's error.
+	WithLock(ctx context.Context, userID string, fn func(ctx context.Context) error) error
+}
+
 // APIAccessRepository revokes everything a user's non-browser access rests on
 // (#1449). It is one operation on purpose: revoking only part of it leaves a
 // way in.

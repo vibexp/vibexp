@@ -881,28 +881,34 @@ func ProvideAuthPolicyResolver(
 	})
 }
 
+// AccountServiceDeps groups the dependencies of ProvideAccountService. Wire
+// fills it via wire.Struct (see the container ProviderSet).
+type AccountServiceDeps struct {
+	Users      repositories.UserRepository
+	Identities repositories.UserIdentityRepository
+	MethodLock repositories.SignInMethodLock
+	Passwords  services.PasswordAuthServiceInterface
+	Policy     services.AuthPolicyResolver
+	Providers  services.IdentityProviderResolver
+	APIAccess  services.APIAccessServiceInterface
+	Logger     *slog.Logger
+}
+
 // ProvideAccountService creates the self-service account service (#1437). It
 // shares the password service, the policy resolver and the provider resolver
 // with sign-in, so "which methods can this account use" is answered from the
 // same sources sign-in itself reads. No notifier is installed yet: the
 // password-changed email is #1433.
-func ProvideAccountService(
-	users repositories.UserRepository,
-	identities repositories.UserIdentityRepository,
-	passwords services.PasswordAuthServiceInterface,
-	policy services.AuthPolicyResolver,
-	providers services.IdentityProviderResolver,
-	apiAccess services.APIAccessServiceInterface,
-	logger *slog.Logger,
-) services.AccountServiceInterface {
+func ProvideAccountService(deps AccountServiceDeps) services.AccountServiceInterface {
 	return services.NewAccountService(services.AccountServiceDeps{
-		Users:      users,
-		Identities: identities,
-		Passwords:  passwords,
-		Policy:     policy,
-		Providers:  providers,
-		APIAccess:  apiAccess,
-		Logger:     logger,
+		Users:      deps.Users,
+		Identities: deps.Identities,
+		MethodLock: deps.MethodLock,
+		Passwords:  deps.Passwords,
+		Policy:     deps.Policy,
+		Providers:  deps.Providers,
+		APIAccess:  deps.APIAccess,
+		Logger:     deps.Logger,
 	})
 }
 

@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -51,6 +52,10 @@ const (
 	// change itself succeeded, and the optional API-access revocation did not.
 	accountChangedButNotRevokedDetail = "Your password was changed, but API keys and connected tools " +
 		"could not be revoked. Try revoking them again"
+	// accountChangedNothingEndedDetail is the outcome when both follow-ups of a
+	// password change failed.
+	accountChangedNothingEndedDetail = "Your password was changed, but your other sessions could not be " +
+		"signed out and API keys and connected tools could not be revoked. Sign out and in again, then revoke them"
 	fieldCurrentCredential       = "current_password"
 	fieldNewCredential           = "new_password"
 	codeInvalidCurrentCredential = "invalid_current_password"
@@ -89,9 +94,48 @@ func (s *Server) setupAccountRoutes(r chi.Router) {
 			ResponseErrorHandlerFunc: s.accountResponseErrorHandler,
 		},
 	)
-	accountgen.HandlerWithOptions(strict, accountgen.ChiServerOptions{
-		BaseRouter:       r,
-		ErrorHandlerFunc: s.accountBindErrorHandler,
+	r.Group(func(gr chi.Router) {
+		gr.Use(rejectUnknownAccountBodyFields)
+		accountgen.HandlerWithOptions(strict, accountgen.ChiServerOptions{
+			BaseRouter:       gr,
+			ErrorHandlerFunc: s.accountBindErrorHandler,
+		})
+	})
+}
+
+// accountBodyFields lists, per method, the fields the two account request
+// bodies accept. It is derived from the generated request types, so it follows
+// the spec.
+var accountBodyFields = map[string]map[string]struct{}{
+	http.MethodPatch: allowedJSONFields(accountgen.AccountUpdateRequest{}),
+	http.MethodPut:   allowedJSONFields(accountgen.AccountPasswordRequest{}),
+}
+
+// rejectUnknownAccountBodyFields enforces the `additionalProperties: false`
+// the spec declares on both account request bodies, which oapi-codegen does
+// not. It matters most for a password change: a misspelt `revoke_api_access`
+// would otherwise be dropped and answered 204, and the person would believe
+// their API keys were revoked. Only field NAMES are reported, never values.
+//
+// A body that is empty or not a JSON object is left for the generated decoder.
+func rejectUnknownAccountBodyFields(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		allowed, guarded := accountBodyFields[r.Method]
+		if !guarded || r.Body == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		fields, ok := peekJSONObjectBody(w, r)
+		if !ok {
+			return
+		}
+		if unknown := unknownFields(fields, allowed); len(unknown) > 0 {
+			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(fmt.Sprintf(
+				"Unknown field(s): %s. Only %s may be set.",
+				strings.Join(unknown, ", "), strings.Join(sortedKeys(allowed), ", "))))
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -229,18 +273,11 @@ func (h *accountStrictServer) SetAccountPassword(
 	if err != nil {
 		return nil, err
 	}
-	if request.Body == nil || request.Body.NewPassword == "" {
-		return nil, apierrors.NewValidationError("A new password is required", []apierrors.ValidationError{
-			apierrors.NewFieldValidationError(fieldNewCredential, "A new password is required", "required"),
-		})
+	change, err := accountPasswordChange(request.Body)
+	if err != nil {
+		return nil, h.accountError("SetAccountPassword", caller.userID, err)
 	}
-	change := services.AccountPasswordChange{
-		New:          request.Body.NewPassword,
-		RecentSignIn: caller.recentSignIn(time.Now()),
-	}
-	if request.Body.CurrentPassword != nil {
-		change.Current = *request.Body.CurrentPassword
-	}
+	change.RecentSignIn = caller.recentSignIn(time.Now())
 
 	first, err := h.s.container.AccountService().SetPassword(ctx, caller.userID, change)
 	if err != nil {
@@ -254,19 +291,63 @@ func (h *accountStrictServer) SetAccountPassword(
 	revokeAPIAccess := request.Body.RevokeApiAccess != nil && *request.Body.RevokeApiAccess
 	h.recordActivity(ctx, caller.userID, activityType, map[string]interface{}{"revoke_api_access": revokeAPIAccess})
 
-	// The password IS changed from here on. End the other sessions first: that
-	// is the part the person is relying on if the old password leaked.
-	if err = h.endOtherSessions(ctx, "SetAccountPassword", caller.userID); err != nil {
+	if err = h.afterPasswordChange(ctx, caller.userID, revokeAPIAccess); err != nil {
 		return nil, err
 	}
+	return accountgen.SetAccountPassword204Response{}, nil
+}
+
+// accountPasswordChange reads a password request body, enforcing the bounds
+// the spec declares. Nothing else enforces them, and without them one request
+// could have megabytes of "password" hashed.
+func accountPasswordChange(body *accountgen.AccountPasswordRequest) (services.AccountPasswordChange, error) {
+	if body == nil || body.NewPassword == "" {
+		return services.AccountPasswordChange{}, newCredentialError("A new password is required", "required")
+	}
+	if len(body.NewPassword) > maxSignInPasswordBytes {
+		return services.AccountPasswordChange{}, newCredentialError("The new password is too long", "too_long")
+	}
+	change := services.AccountPasswordChange{New: body.NewPassword}
+	if body.CurrentPassword != nil {
+		// Longer than any password this server accepts, so it is not the
+		// current one; it is refused before it is hashed or counted.
+		if len(*body.CurrentPassword) > maxSignInPasswordBytes {
+			return services.AccountPasswordChange{}, services.ErrCurrentPasswordInvalid
+		}
+		change.Current = *body.CurrentPassword
+	}
+	return change, nil
+}
+
+// newCredentialError is a 400 on the new_password field.
+func newCredentialError(message, code string) error {
+	return apierrors.NewValidationError(message, []apierrors.ValidationError{
+		apierrors.NewFieldValidationError(fieldNewCredential, message, code),
+	})
+}
+
+// afterPasswordChange ends the user's other sessions and, when asked, revokes
+// API access. The password IS changed by now. Both are attempted whatever the
+// other does: the person is relying on each of them if the old password
+// leaked, so one failing must not skip the other.
+func (h *accountStrictServer) afterPasswordChange(ctx context.Context, userID string, revokeAPIAccess bool) error {
+	sessionsErr := h.endOtherSessions(ctx, "SetAccountPassword", userID)
+	var revokeErr error
 	if revokeAPIAccess {
-		if err = h.s.container.AccountService().RevokeAPIAccess(ctx, caller.userID); err != nil {
-			h.s.logger.With("handler", "SetAccountPassword", "user_id", caller.userID, "error", err.Error()).
+		if revokeErr = h.s.container.AccountService().RevokeAPIAccess(ctx, userID); revokeErr != nil {
+			h.s.logger.With("handler", "SetAccountPassword", "user_id", userID, "error", revokeErr.Error()).
 				Error("Password changed, but revoking API access failed")
-			return nil, apierrors.NewInternalError(accountChangedButNotRevokedDetail)
 		}
 	}
-	return accountgen.SetAccountPassword204Response{}, nil
+	switch {
+	case sessionsErr != nil && revokeErr != nil:
+		return apierrors.NewInternalError(accountChangedNothingEndedDetail)
+	case sessionsErr != nil:
+		return sessionsErr
+	case revokeErr != nil:
+		return apierrors.NewInternalError(accountChangedButNotRevokedDetail)
+	}
+	return nil
 }
 
 // DeleteAccountPassword handles DELETE /api/v1/account/password.
@@ -346,7 +427,11 @@ func (h *accountStrictServer) recordActivity(
 func (h *accountStrictServer) accountError(handler, userID string, err error) error {
 	var policyErr *password.PolicyError
 	var locked *services.PasswordLockedError
+	var requestErr *apierrors.APIError
 	switch {
+	case errors.As(err, &requestErr):
+		// Already an answer for the caller (a request validation error).
+		return requestErr
 	case errors.Is(err, services.ErrReauthenticationRequired):
 		return apierrors.NewAPIError(apierrors.CodeReauthenticationRequired,
 			apierrors.GetErrorTitle(apierrors.CodeReauthenticationRequired),

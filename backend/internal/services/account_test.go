@@ -31,6 +31,8 @@ type fakePasswords struct {
 	verifyErr error
 	setErr    error
 	calls     []string
+	// onRemove, when set, runs inside RemovePassword.
+	onRemove func()
 }
 
 func (p *fakePasswords) PasswordStatus(context.Context, string) (PasswordStatus, error) {
@@ -52,6 +54,9 @@ func (p *fakePasswords) SetPassword(_ context.Context, _, plaintext string) erro
 
 func (p *fakePasswords) RemovePassword(context.Context, string) (bool, error) {
 	p.calls = append(p.calls, "remove")
+	if p.onRemove != nil {
+		p.onRemove()
+	}
 	removed := p.status.Set
 	p.status = PasswordStatus{}
 	return removed, nil
@@ -81,7 +86,22 @@ func (n *recordingNotifier) PasswordChanged(_ context.Context, userID string) {
 // accountFixture is an AccountService over fakes. By default password sign-in
 // is on, providers "google" and "github" are enabled, and the account has no
 // password and no identity.
+// recordingLock is a SignInMethodLock that runs fn at once and records, for
+// each call, the user it was taken for.
+type recordingLock struct {
+	held  bool
+	users []string
+}
+
+func (l *recordingLock) WithLock(ctx context.Context, userID string, fn func(context.Context) error) error {
+	l.users = append(l.users, userID)
+	l.held = true
+	defer func() { l.held = false }()
+	return fn(ctx)
+}
+
 type accountFixture struct {
+	lock       *recordingLock
 	svc        *AccountService
 	users      *repo_mocks.MockUserRepository
 	identities *repo_mocks.MockUserIdentityRepository
@@ -100,6 +120,7 @@ func newAccountFixture(t *testing.T, policy AuthPolicyResolver) *accountFixture 
 		passwords:  &fakePasswords{},
 		apiAccess:  &fakeAPIAccess{},
 		notifier:   &recordingNotifier{},
+		lock:       &recordingLock{},
 	}
 	f.users.On("GetByID", mock.Anything, accountTestUser).
 		Return(&models.User{ID: accountTestUser, Email: "ada@example.com", Name: "Ada"}, nil).Maybe()
@@ -110,7 +131,7 @@ func newAccountFixture(t *testing.T, policy AuthPolicyResolver) *accountFixture 
 		idp.Entry{Provider: slugProvider("github"), Type: idp.ProviderGitHub, DisplayName: "GitHub"},
 	)
 	f.svc = NewAccountService(AccountServiceDeps{
-		Users: f.users, Identities: f.identities, Passwords: f.passwords, Policy: policy,
+		Users: f.users, Identities: f.identities, MethodLock: f.lock, Passwords: f.passwords, Policy: policy,
 		Providers: staticIDPResolver{reg: registry}, APIAccess: f.apiAccess, Notifier: f.notifier, Logger: logger,
 	})
 	return f
@@ -274,16 +295,6 @@ func TestAccountService_SetPassword(t *testing.T) {
 			assert.Empty(t, f.notifier.notified)
 		})
 	}
-
-	t.Run("a missing current password is checked like a wrong one", func(t *testing.T) {
-		f := newAccountFixture(t, passwordLoginOn).hasPassword()
-		f.passwords.verifyErr = ErrCurrentPasswordInvalid
-
-		_, err := f.svc.SetPassword(ctx, accountTestUser, AccountPasswordChange{New: next, RecentSignIn: true})
-
-		require.ErrorIs(t, err, ErrCurrentPasswordInvalid)
-		assert.Equal(t, []string{"verify:"}, f.passwords.calls)
-	})
 
 	t.Run("a new password that breaks the policy is passed through", func(t *testing.T) {
 		f := newAccountFixture(t, passwordLoginOn)
@@ -492,4 +503,73 @@ func TestAccountService_DefaultNotifierIsANoop(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, first)
+}
+
+// The guard and the delete must run under the user's sign-in method lock:
+// without it two removals running together each see the other's method still
+// present, and the account ends with none.
+func TestAccountService_RemovalsReadAndDeleteUnderTheLock(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("removing the password", func(t *testing.T) {
+		f := newAccountFixture(t, passwordLoginOn).hasPassword()
+		f.holds("google")
+		var listedUnderLock bool
+		f.identities.ExpectedCalls = nil
+		f.identities.On("ListByUserID", mock.Anything, accountTestUser).
+			Return(func(context.Context, string) ([]models.UserIdentity, error) {
+				listedUnderLock = f.lock.held
+				return f.held, nil
+			})
+		f.passwords.onRemove = func() { assert.True(t, f.lock.held, "the delete runs under the lock") }
+
+		require.NoError(t, f.svc.RemovePassword(ctx, accountTestUser, true))
+
+		assert.True(t, listedUnderLock, "the guard reads the identities under the lock")
+		assert.Equal(t, []string{accountTestUser}, f.lock.users)
+	})
+
+	t.Run("disconnecting an identity", func(t *testing.T) {
+		f := newAccountFixture(t, passwordLoginOn).hasPassword()
+		id := f.holds("google")
+		var listedUnderLock, deletedUnderLock bool
+		f.identities.ExpectedCalls = nil
+		f.identities.On("ListByUserID", mock.Anything, accountTestUser).
+			Return(func(context.Context, string) ([]models.UserIdentity, error) {
+				listedUnderLock = f.lock.held
+				return f.held, nil
+			})
+		f.identities.On("DeleteForUser", mock.Anything, accountTestUser, id).
+			Return(func(context.Context, string, string) error {
+				deletedUnderLock = f.lock.held
+				return nil
+			})
+
+		_, err := f.svc.DisconnectIdentity(ctx, accountTestUser, id, true)
+
+		require.NoError(t, err)
+		assert.True(t, listedUnderLock, "the guard reads the identities under the lock")
+		assert.True(t, deletedUnderLock, "the delete runs under the lock")
+		assert.Equal(t, []string{accountTestUser}, f.lock.users)
+	})
+
+	t.Run("a refusal for a stale sign-in takes no lock", func(t *testing.T) {
+		f := newAccountFixture(t, passwordLoginOn).hasPassword()
+
+		require.ErrorIs(t, f.svc.RemovePassword(ctx, accountTestUser, false), ErrReauthenticationRequired)
+
+		assert.Empty(t, f.lock.users)
+	})
+}
+
+// An omitted current password cannot be right, and is refused without
+// spending one of the account's attempts.
+func TestAccountService_SetPassword_EmptyCurrentPasswordSpendsNoAttempt(t *testing.T) {
+	f := newAccountFixture(t, passwordLoginOn).hasPassword()
+
+	_, err := f.svc.SetPassword(context.Background(), accountTestUser,
+		AccountPasswordChange{New: "a brand new long passphrase", RecentSignIn: true})
+
+	require.ErrorIs(t, err, ErrCurrentPasswordInvalid, "the same answer as a wrong one")
+	assert.Empty(t, f.passwords.calls, "nothing was verified, so nothing was counted")
 }

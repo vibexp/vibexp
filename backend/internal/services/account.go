@@ -128,6 +128,8 @@ type AccountServiceInterface interface {
 type AccountServiceDeps struct {
 	Users      repositories.UserRepository
 	Identities repositories.UserIdentityRepository
+	// MethodLock serializes the removal of sign-in methods per user.
+	MethodLock repositories.SignInMethodLock
 	Passwords  PasswordAuthServiceInterface
 	Policy     AuthPolicyResolver
 	Providers  IdentityProviderResolver
@@ -141,6 +143,7 @@ type AccountServiceDeps struct {
 type AccountService struct {
 	users      repositories.UserRepository
 	identities repositories.UserIdentityRepository
+	methodLock repositories.SignInMethodLock
 	passwords  PasswordAuthServiceInterface
 	policy     AuthPolicyResolver
 	providers  IdentityProviderResolver
@@ -160,6 +163,7 @@ func NewAccountService(deps AccountServiceDeps) *AccountService {
 	return &AccountService{
 		users:      deps.Users,
 		identities: deps.Identities,
+		methodLock: deps.MethodLock,
 		passwords:  deps.Passwords,
 		policy:     deps.Policy,
 		providers:  deps.Providers,
@@ -287,8 +291,15 @@ func (s *AccountService) SetPassword(
 		if !change.RecentSignIn {
 			return false, ErrReauthenticationRequired
 		}
-	} else if err = s.passwords.VerifyPassword(ctx, userID, change.Current); err != nil {
-		return false, err
+	} else {
+		// An empty value cannot be the password; refusing it here keeps a
+		// client that forgot the field from spending the account's attempts.
+		if change.Current == "" {
+			return false, ErrCurrentPasswordInvalid
+		}
+		if err = s.passwords.VerifyPassword(ctx, userID, change.Current); err != nil {
+			return false, err
+		}
 	}
 
 	if err = s.passwords.SetPassword(ctx, userID, change.New); err != nil {
@@ -303,6 +314,21 @@ func (s *AccountService) RemovePassword(ctx context.Context, userID string, rece
 	if !recentSignIn {
 		return ErrReauthenticationRequired
 	}
+	// The guard and the delete run under the per-user lock: see
+	// repositories.SignInMethodLock.
+	err := s.methodLock.WithLock(ctx, userID, func(ctx context.Context) error {
+		return s.removePasswordLocked(ctx, userID)
+	})
+	if err != nil {
+		return err
+	}
+	s.notifier.PasswordChanged(ctx, userID)
+	return nil
+}
+
+// removePasswordLocked is RemovePassword's check-then-delete. The caller holds
+// the user's sign-in method lock.
+func (s *AccountService) removePasswordLocked(ctx context.Context, userID string) error {
 	passwordView, err := s.passwordView(ctx, userID)
 	if err != nil {
 		return err
@@ -325,7 +351,6 @@ func (s *AccountService) RemovePassword(ctx context.Context, userID string, rece
 	if !removed {
 		return ErrAccountPasswordNotSet
 	}
-	s.notifier.PasswordChanged(ctx, userID)
 	return nil
 }
 
@@ -348,6 +373,24 @@ func (s *AccountService) DisconnectIdentity(
 	if !recentSignIn {
 		return "", ErrReauthenticationRequired
 	}
+	var provider string
+	err := s.methodLock.WithLock(ctx, userID, func(ctx context.Context) error {
+		var lockedErr error
+		provider, lockedErr = s.disconnectIdentityLocked(ctx, userID, identityID)
+		return lockedErr
+	})
+	if err != nil {
+		return "", err
+	}
+	s.logger.With("user_id", userID, "provider", provider).Info("Sign-in identity disconnected")
+	return provider, nil
+}
+
+// disconnectIdentityLocked is DisconnectIdentity's check-then-delete. The
+// caller holds the user's sign-in method lock.
+func (s *AccountService) disconnectIdentityLocked(
+	ctx context.Context, userID, identityID string,
+) (string, error) {
 	identities, err := s.identityViews(ctx, userID)
 	if err != nil {
 		return "", err
@@ -380,7 +423,6 @@ func (s *AccountService) DisconnectIdentity(
 	if err != nil {
 		return "", fmt.Errorf("disconnect the sign-in identity: %w", err)
 	}
-	s.logger.With("user_id", userID, "provider", target.Provider).Info("Sign-in identity disconnected")
 	return target.Provider, nil
 }
 

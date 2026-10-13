@@ -596,3 +596,104 @@ func TestAccount_FailureToEndOtherSessionsIsNotSuccess(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), "connection refused")
 	specconformance.AssertConformsToSpec(t, req, rec)
 }
+
+// The spec's `additionalProperties: false` is enforced: a misspelt option must
+// not be dropped and answered as if it had been applied.
+func TestAccount_UnknownBodyFieldsAreRejected(t *testing.T) {
+	for name, tc := range map[string]struct{ method, path, body, unknown string }{
+		"a misspelt revoke option on a password change": {
+			http.MethodPut, "/api/v1/account/password",
+			`{"current_password":"old","new_password":"a brand new long passphrase","revoke_api_acess":true}`,
+			"revoke_api_acess",
+		},
+		"an email on a name change": {
+			http.MethodPatch, "/api/v1/account", `{"name":"Ada","email":"eve@example.com"}`, "email",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newAccountFixture(t)
+			cookie := f.session(t, time.Minute)
+
+			req, rec := f.do(tc.method, tc.path, tc.body, cookie)
+
+			require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+			assert.Contains(t, decodeProblem(t, rec).Detail, tc.unknown)
+			assert.NotContains(t, rec.Body.String(), "a brand new long passphrase", "values are never echoed")
+			assert.True(t, f.stillSignedIn(t, cookie), "nothing happened, so no session was ended")
+			specconformance.AssertConformsToSpec(t, req, rec)
+		})
+	}
+}
+
+// The spec's maxLength is enforced before anything is hashed or counted.
+func TestSetAccountPassword_OverlongPasswordsAreRefusedUnhashed(t *testing.T) {
+	long := strings.Repeat("x", maxSignInPasswordBytes+1)
+	for name, tc := range map[string]struct{ body, field, code string }{
+		"new password":     {`{"current_password":"old","new_password":"` + long + `"}`, "new_password", "too_long"},
+		"current password": {`{"current_password":"` + long + `","new_password":"a brand new long passphrase"}`, "current_password", "invalid_current_password"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newAccountFixture(t) // a strict mock: SetPassword must not be called
+
+			req, rec := f.do(http.MethodPut, "/api/v1/account/password", tc.body, f.session(t, time.Minute))
+
+			require.Equal(t, http.StatusBadRequest, rec.Code)
+			assert.Contains(t, rec.Body.String(), `"field":"`+tc.field+`"`)
+			assert.Contains(t, rec.Body.String(), `"code":"`+tc.code+`"`)
+			specconformance.AssertConformsToSpec(t, req, rec)
+		})
+	}
+}
+
+// Ending the other sessions and revoking API access are both attempted: one
+// failing must not silently skip the other.
+func TestSetAccountPassword_RevocationIsAttemptedWhenEndingSessionsFails(t *testing.T) {
+	epoch := newEpochFixture(t, 3)
+	account := servicesmocks.NewMockAccountServiceInterface(t)
+	epoch.srv.container = &accountContainer{MockAuthContainer: epoch.container, account: account}
+	epoch.container.authService.On("RevokeUserSessions", mock.Anything, epochUserID).
+		Return(int64(0), errors.New("pq: connection refused"))
+	epoch.container.activityService.On("RecordAuthActivity",
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	account.On("SetPassword", mock.Anything, epochUserID, mock.Anything).Return(false, nil)
+	router := chi.NewRouter()
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			epoch.srv.authenticateWithSession(w, r, next)
+		})
+	})
+	epoch.srv.setupAccountRoutes(router)
+	send := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/account/password", strings.NewReader(
+			`{"current_password":"old","new_password":"a brand new long passphrase","revoke_api_access":true}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(epoch.cookieFor(t, slidingSession(3, time.Minute)))
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		specconformance.AssertConformsToSpec(t, req, rec)
+		return rec
+	}
+
+	t.Run("the revocation still runs", func(t *testing.T) {
+		account.On("RevokeAPIAccess", mock.Anything, epochUserID).Return(nil).Once()
+
+		rec := send()
+
+		require.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Contains(t, rec.Body.String(), "could not be signed out")
+		account.AssertNumberOfCalls(t, "RevokeAPIAccess", 1)
+	})
+
+	t.Run("both failing is said in one answer", func(t *testing.T) {
+		account.On("RevokeAPIAccess", mock.Anything, epochUserID).Return(errors.New("pq: timeout")).Once()
+
+		rec := send()
+
+		require.Equal(t, http.StatusInternalServerError, rec.Code)
+		detail := decodeProblem(t, rec).Detail
+		assert.Contains(t, detail, "could not be signed out")
+		assert.Contains(t, detail, "could not be revoked")
+		assert.NotContains(t, rec.Body.String(), "pq:")
+	})
+}

@@ -28,6 +28,12 @@ func ProvideAPIAccessRepository(db *database.DB) repositories.APIAccessRepositor
 	return postgres.NewAPIAccessRepository(db)
 }
 
+// ProvideSignInMethodLock creates the per-user lock that serializes the removal
+// of sign-in methods (#1437).
+func ProvideSignInMethodLock(db *database.DB) repositories.SignInMethodLock {
+	return postgres.NewSignInMethodLock(db)
+}
+
 // ProvideAPIKeyRepository creates a new APIKeyRepository
 func ProvideAPIKeyRepository(db *database.DB) repositories.APIKeyRepository {
 	return postgres.NewAPIKeyRepository(db)

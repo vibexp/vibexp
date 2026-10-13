@@ -11,11 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// "Before" is 028, the migration that creates user_credentials: 029 belongs to
-// a sibling change of the same epic and nothing here depends on it, so the test
-// holds whether or not 029 is present.
+// The migration just before this one, and this one.
 const (
-	migrationPasswordChangedAtBefore = 28
+	migrationPasswordChangedAtBefore = 29
 	migrationPasswordChangedAtAfter  = 30
 )
 

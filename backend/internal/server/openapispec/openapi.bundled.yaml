@@ -790,8 +790,11 @@ paths:
     delete:
       summary: Disconnect a sign-in identity
       description: |
-        Disconnects one identity provider from the signed-in user's account: that
-        provider account can no longer sign in to it.
+        Disconnects one identity provider from the signed-in user's account. The
+        link is removed, not blocked: a later sign-in through a provider that
+        reports the account's own email address as verified links to the account
+        again. To keep a provider account out for good, it must stop being able
+        to prove that address.
 
         Requires a recent sign-in (403 `reauthentication_required` otherwise), and
         is refused with 409 `last_sign_in_method` when no other usable sign-in
